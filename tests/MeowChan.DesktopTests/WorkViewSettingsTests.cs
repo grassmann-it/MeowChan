@@ -72,6 +72,7 @@ public sealed class WorkViewSettingsTests
         "DownloadPathInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
         "AutomaticUpdatesInput", "PrereleaseUpdatesInput",
         "InformationNotificationsInput", "WarningNotificationsInput", "ErrorNotificationsInput",
+        "WorkViewSwitchNoticeSecondsInput",
     ];
 
     private static readonly string[] InputElements = ["CheckBox", "ComboBox", "TextBox", "NumericUpDown", "SettingsNumberInput", "AccessibleNumberInput"];

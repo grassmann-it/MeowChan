@@ -345,6 +345,8 @@ public partial class SettingsEditor
         ShowInformationNotifications = defaults.ShowInformationNotifications;
         ShowWarningNotifications = defaults.ShowWarningNotifications;
         ShowErrorNotifications = defaults.ShowErrorNotifications;
+        WorkViewSwitchNoticeSeconds = defaults.WorkViewSwitchNoticeSeconds;
+        ResetNumber(WorkViewSwitchNoticeSecondsInput, defaults.WorkViewSwitchNoticeSeconds);
     }
 
     private void ResetBehaviorDraft()

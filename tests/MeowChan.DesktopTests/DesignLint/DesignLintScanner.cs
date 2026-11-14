@@ -130,7 +130,7 @@ internal static class DesignLintScanner
     private static readonly PageRoot[] PageRoots =
     {
         new("Desktop/Shell/MainWindow.axaml", "WorkspaceBody", Array.Empty<string>()), // Downloads
-        new("Desktop/Views/Sources/SourcesPage.axaml", null, new[] { "ScrollViewer", "StackPanel" }),
+        // Sources is a SourceContent payload inside PluginsPage; ScanMergedSourcesInset checks the composed owner below.
         new("Desktop/Views/Plugins/PluginsPage.axaml", null, new[] { "Grid" }),
         new("Desktop/Views/Diagnostics/DiagnosticsPage.axaml", null, new[] { "Grid" }),
         new("Desktop/Views/Statistics/StatisticsPage.axaml", "StatisticsScroll", new[] { "StackPanel" }),
@@ -155,7 +155,8 @@ internal static class DesignLintScanner
         {
             string relative = Path.GetRelativePath(repositoryRoot, path).Replace('\\', '/');
             if (relative.Contains("/obj/") || relative.Contains("/bin/")) continue;
-            all.AddRange(ScanFile(relative, File.ReadAllText(path), scale));
+            string? insetOwner = relative == MergedSourcesFile ? File.ReadAllText(Path.Combine(repositoryRoot, PluginManagementFile)) : null;
+            all.AddRange(ScanFile(relative, File.ReadAllText(path), scale, insetOwner));
         }
         return all;
     }
@@ -176,11 +177,14 @@ internal static class DesignLintScanner
         }
     }
 
-    public static IReadOnlyList<DesignViolation> ScanFile(string relativePath, string content, double[]? typeScale = null) =>
-        ScanFileWith(relativePath, content, typeScale, LayoutContracts);
+    internal const string MergedSourcesFile = "Desktop/Views/Sources/SourcesPage.axaml";
+    internal const string PluginManagementFile = "Desktop/Views/Plugins/PluginsPage.axaml";
+
+    public static IReadOnlyList<DesignViolation> ScanFile(string relativePath, string content, double[]? typeScale = null, string? mergedInsetOwner = null) =>
+        ScanFileWith(relativePath, content, typeScale, LayoutContracts, mergedInsetOwner);
 
     /// <summary>The scan with an explicit contract list; an empty list shows every violation the contracts would cover.</summary>
-    internal static IReadOnlyList<DesignViolation> ScanFileWith(string relativePath, string content, double[]? typeScale, IReadOnlyList<DesignLayoutContract> contracts)
+    internal static IReadOnlyList<DesignViolation> ScanFileWith(string relativePath, string content, double[]? typeScale, IReadOnlyList<DesignLayoutContract> contracts, string? mergedInsetOwner = null)
     {
         if (relativePath == StylesFile) return Array.Empty<DesignViolation>();
         typeScale ??= FallbackTypeScale;
@@ -194,7 +198,7 @@ internal static class DesignLintScanner
         ScanSpacing(relativePath, text, xaml, lines, found);
         ScanGlyphs(relativePath, text, xaml, lines, found);
         ScanHeights(relativePath, text, xaml, lines, found);
-        if (xaml) ScanPageInset(relativePath, text, found);
+        if (xaml) ScanPageInset(relativePath, text, found, mergedInsetOwner);
         else if (CodePageFiles.Contains(relativePath, StringComparer.Ordinal)) ScanCodePageInset(relativePath, text, found);
 
         if (!xaml) ApplyLayoutContracts(relativePath, text, lines, found, contracts);
@@ -493,8 +497,13 @@ internal static class DesignLintScanner
 
     // ---- page inset -------------------------------------------------------------------------------------------------
 
-    private static void ScanPageInset(string file, string text, List<DesignViolation> found)
+    private static void ScanPageInset(string file, string text, List<DesignViolation> found, string? mergedInsetOwner = null)
     {
+        if (file == MergedSourcesFile)
+        {
+            ScanMergedSourcesInset(text, mergedInsetOwner, found);
+            return;
+        }
         PageRoot[] roots = PageRoots.Where(r => r.File == file).ToArray();
         if (roots.Length == 0) return;
         XDocument doc;
@@ -525,6 +534,60 @@ internal static class DesignLintScanner
             string current = margin.Length > 0 ? "Margin=\"" + margin + "\"" : padding.Length > 0 ? "Padding=\"" + padding + "\"" : "no inset";
             found.Add(new DesignViolation(DesignRules.PageInset, file, ((System.Xml.IXmlLineInfo)element).LineNumber, element.Name.LocalName + " " + current));
         }
+    }
+
+    // Sources no longer owns a second page inset: its payload inherits the management control's inset. Validate both
+    // files and the actual embedding, not an exemption for a missing locator. A single-file scan without the owner fails closed.
+    private static void ScanMergedSourcesInset(string text, string? ownerText, List<DesignViolation> found)
+    {
+        XDocument source = XDocument.Parse(text, LoadOptions.SetLineInfo);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        static XElement? Only(IEnumerable<XElement>? elements)
+        {
+            XElement[] candidates = elements?.Take(2).ToArray() ?? [];
+            return candidates.Length == 1 ? candidates[0] : null;
+        }
+        XElement? host = Only(source.Descendants().Where(e => (string?)e.Attribute(x + "Name") == "SourcePluginManagement"));
+        XElement? slot = Only(host?.Elements());
+        XElement? scroll = Only(slot?.Elements());
+        XElement? content = Only(scroll?.Elements());
+        if (host is null || slot is null || scroll is null || content is null
+            || host.Parent != source.Root || host.Name.LocalName != "PluginsPage"
+            || host.Name.NamespaceName is not ("clr-namespace:MeowChan" or "using:MeowChan")
+            || slot.Name != host.Name.Namespace + "PluginsPage.SourceContent"
+            || scroll.Name.LocalName != "ScrollViewer" || (string?)scroll.Attribute(x + "Name") != "SourcesScroll"
+            || content.Name.LocalName != "StackPanel")
+        {
+            found.Add(new(DesignRules.PageInset, MergedSourcesFile, 1, "merged source payload/PluginsPage owner not found"));
+            return;
+        }
+        // Another inset anywhere along the supplied content path would double the common page inset.
+        foreach (XElement element in new[] { source.Root!, host, scroll, content })
+            foreach (string attribute in new[] { "Margin", "Padding" })
+                if (element.Attribute(attribute) is { } value && !value.Value.Split(',').All(part =>
+                    double.TryParse(part, NumberStyles.Float, CultureInfo.InvariantCulture, out double number) && number == 0))
+                    found.Add(new(DesignRules.PageInset, MergedSourcesFile, ((System.Xml.IXmlLineInfo)element).LineNumber,
+                        "merged payload has extra inset: " + element.Name.LocalName + " " + attribute + "=\"" + value.Value + "\""));
+
+        if (ownerText is null)
+        {
+            found.Add(new(DesignRules.PageInset, MergedSourcesFile, 1, "merged inset owner source is required: " + PluginManagementFile));
+            return;
+        }
+        XDocument owner = XDocument.Parse(ownerText);
+        XElement? ownerGrid = owner.Root?.Elements().FirstOrDefault(e => e.Name.LocalName == "Grid");
+        XElement? contentHost = Only(owner.Descendants().Where(e => e.Name.LocalName == "ContentControl"
+            && (string?)e.Attribute(x + "Name") == "SourceContentHost"));
+        if ((string?)owner.Root?.Attribute(x + "Class") != "MeowChan.PluginsPage"
+            || ownerGrid is null || contentHost is null || !contentHost.Ancestors().Contains(ownerGrid))
+        {
+            found.Add(new(DesignRules.PageInset, MergedSourcesFile, 1, "merged inset owner class/SourceContentHost not found"));
+            return;
+        }
+        List<DesignViolation> inherited = new();
+        ScanPageInset(PluginManagementFile, ownerText, inherited);
+        foreach (DesignViolation violation in inherited)
+            found.Add(new(DesignRules.PageInset, MergedSourcesFile, 1, "inherited page inset: " + violation.Snippet));
     }
 
     private static void ScanCodePageInset(string file, string text, List<DesignViolation> found)

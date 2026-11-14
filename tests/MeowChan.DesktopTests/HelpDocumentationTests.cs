@@ -46,6 +46,10 @@ public sealed class HelpDocumentationTests
             { "Reader groups", c.ReaderGroupLimit, Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum },
             { "Post filter rules", ProfileStoreLimits.DefaultPostFilterRules, ProfileStoreLimits.MinimumPostFilterRules, ProfileStoreLimits.PostFilterRuleCeiling },
             { "Individually hidden posts", ProfileStoreLimits.DefaultHiddenPosts, ProfileStoreLimits.MinimumHiddenPosts, ProfileStoreLimits.HiddenPostCeiling },
+            { SettingsLimitLabel("archiveTagFilterTagsPerList"), c.ArchiveTagFilterTagsPerList, Config.ArchiveTagFilterTagsPerListMinimum, Config.ArchiveTagFilterTagsPerListMaximum },
+            { SettingsLimitLabel("urlTextExportLimitMiB"), c.UrlTextExportLimitMiB, Config.UrlTextExportLimitMiBMinimum, Config.UrlTextExportLimitMiBMaximum },
+            { SettingsLimitLabel("slashTagSuggestionCount"), c.SlashTagSuggestionCount, Config.SlashTagSuggestionCountMinimum, Config.SlashTagSuggestionCountMaximum },
+            { SettingsLimitLabel("videoScrubCacheMiB"), c.VideoScrubCacheLimitMiB, Config.VideoScrubCacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMaximum },
             { "Sources page: watch rows per source", c.SourcesWatchPreviewRows, Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum },
             { "Ask before “Export all matches” above (files)", c.ExportConfirmFiles, Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum },
             { "Ask before “Export all matches” above (GiB)", c.ExportConfirmGiB, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum },
@@ -79,6 +83,9 @@ public sealed class HelpDocumentationTests
             { QuickTagLabel("quickTagMarked"), c.QuickTagMarkedMediaLimit, Config.QuickTagMarkedMediaLimitMinimum, Config.QuickTagMarkedMediaLimitMaximum }
         };
     }
+
+    private static string SettingsLimitLabel(string stem) =>
+        SettingsLimitsCatalog.Entries.Single(entry => entry.Key == "budgets." + stem).English;
 
     private static string QuickTagLabel(string stem)
     {
@@ -145,7 +152,7 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("not additional Settings choices", text);
         Assert.Contains("translated for English, German", text);
         Assert.Contains("Simplified Chinese", text);
-        Assert.Contains("**Plugins → Review bundled repairs**", text);
+        Assert.Contains("**Sources & Plugins → Review bundled repairs**", text);
         Assert.DoesNotContain("Review bundled updates", text);
         Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
     }
@@ -171,7 +178,8 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Gallery, "WV4 Gallery"),
             (WorkViewPage.Media, "WV5 Media"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
-            (WorkViewPage.Sources, "Sources"),
+            (WorkViewPage.Sources, "Sources & Plugins"),
+            (WorkViewPage.Status, "Status (WV7 Diagnostics and Statistics)"),
             (WorkViewPage.Diagnostics, "WV7 Diagnostics and Statistics"),
             (WorkViewPage.Statistics, "WV7 Diagnostics and Statistics"),
             (WorkViewPage.Settings, "WV8 Settings"),
@@ -191,6 +199,9 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("still opens the existing tag dialog", workViews, StringComparison.Ordinal);
         Assert.Contains("gallery-tag-panel", HeadingAnchors(Read(Help)));
 
+        var pluginDetails = Assert.Single(SourcesPluginsCatalog.Entries, entry => entry.Key == "sources.pluginDetails");
+        Assert.Contains(pluginDetails.English, workViews, StringComparison.Ordinal);
+        Assert.Contains(pluginDetails.German, workViews, StringComparison.Ordinal);
         var showPlugin = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.manageSource");
         var showSources = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.watches");
         Assert.Contains(showPlugin.English, workViews, StringComparison.Ordinal);
@@ -916,19 +927,205 @@ public sealed class HelpDocumentationTests
     public void NumberedFooterNavigationMatchesTheCommandOrderLabelsAndDefaultShortcuts()
     {
         string section = Plain(Section(Read(Help), "Selection and shortcuts"));
-        Match navigation = Capture(section,
-            @"Ctrl\+(?<first>\d+) through Ctrl\+(?<last>\d+) open (?<labels>.*?) in exactly that order");
-        string[] labels = Regex.Split(navigation.Groups["labels"].Value, @",\s*|\s+and\s+");
+        string[] rows = Section(Read(Help), "Selection and shortcuts").Split('\n')
+            .Where(line => line.StartsWith("| Ctrl+", StringComparison.Ordinal)).ToArray();
         string[] ids = MainPageOrder.CommandIds.ToArray();
-        Assert.Equal(ids.Select(id => CommandCatalog.Get(id).LabelEn), labels);
-        int first = Number(navigation.Groups["first"].Value);
-        int last = Number(navigation.Groups["last"].Value);
-        Assert.Equal(ids.Length, last - first + 1);
+        Assert.Equal(ids.Length, rows.Length);
         for (int i = 0; i < ids.Length; i++)
         {
-            Assert.Equal((int?)(first + i), MainPageOrder.Digit(ids[i]));
-            Assert.Equal("Primary+" + (first + i).ToString(CultureInfo.InvariantCulture), CommandCatalog.Get(ids[i]).Shortcut);
+            Match row = Capture(rows[i], @"^\| Ctrl\+(?<digit>\d+) \| (?<label>[^|]+) \|$");
+            int digit = Number(row.Groups["digit"].Value);
+            Assert.Equal(CommandCatalog.Get(ids[i]).LabelEn, row.Groups["label"].Value.Trim());
+            Assert.Equal((int?)digit, MainPageOrder.Digit(ids[i]));
+            Assert.Equal("Primary+" + digit.ToString(CultureInfo.InvariantCulture), CommandCatalog.Get(ids[i]).Shortcut);
         }
+        // Slots are deliberately not contiguous after merging Sources/Plugins and Diagnostics/Statistics.
+        Assert.Equal(new[] { 1, 2, 3, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
+        Assert.Contains("Ctrl+6 and Ctrl+8 (Command+6 and Command+8) are unassigned by default", section, StringComparison.Ordinal);
+        Assert.Contains("previously saved bindings still open their respective Status segment", section, StringComparison.Ordinal);
+        foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
+        {
+            Assert.False(MainPageOrder.Contains(compatibility));
+            Assert.Null(MainPageOrder.Digit(compatibility));
+            Assert.Null(CommandCatalog.Get(compatibility).Shortcut);
+        }
+    }
+
+    [Fact]
+    public void SettingsResetAndExportHelpSeparatesDraftSavedValuesAndBackupsInBothLanguages()
+    {
+        string text = Plain(Section(Read(Help), "Resetting and exporting settings"));
+        foreach (string key in new[] { "settings.reset", "settings.reset.all", "settings.reset.confirm", "settings.reset.cancel" })
+        {
+            var entry = Assert.Single(SettingsResetCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        foreach (string key in new[] { "settings.transfer.more", "settings.transfer.export" })
+        {
+            var entry = Assert.Single(SettingsTransferUiCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        foreach (string phrase in new[]
+        {
+            "Reset changes only the unsaved draft", "You still need Save", "Shortcut bindings have their own reset",
+            "export uses the saved settings", "invalid or unsaved draft", "does not save, discard or change that draft",
+            "Download paths and shortcut bindings are included", "no settings-import UI yet",
+            "Zurücksetzen ändert nur den ungespeicherten Entwurf", "Erst Speichern",
+            "Tastenkürzel setzt du separat", "Exportiert werden die gespeicherten Einstellungen",
+            "Entwurf wird weder gespeichert noch verworfen oder verändert", "Downloadpfade und Tastenkürzel sind enthalten",
+            "Eine Oberfläche zum Importieren von Einstellungen gibt es noch nicht"
+        }) Assert.Contains(phrase, text, StringComparison.Ordinal);
+
+        foreach (string key in new[] { "settings.interface", "r08d.settings.readingMedia", "settings.downloads", "settings.storageLimits",
+            "updates.title", "feedback.settings", "settings.behavior" })
+        {
+            Assert.Contains(BuiltInCatalog.English[key], text, StringComparison.Ordinal);
+            Assert.Contains(BuiltInCatalog.German[key], text, StringComparison.Ordinal);
+        }
+
+        // Pure serialization only; never construct an editor, open a picker or load a user's profile.
+        Config saved = new() { WindowWidth = 1234, DownloadsPaused = true, LastExportDirectory = "not-exported" };
+        var exported = SettingsTransfer.Export(saved, "1.1.0+documentation-contract");
+        Assert.Equal(saved.SchemaVersion, exported[nameof(Config.SchemaVersion)]!.GetValue<int>());
+        Assert.Equal("MeowChan 1.1.0", exported["ExportedBy"]!.GetValue<string>());
+        foreach (string key in new[]
+        {
+            nameof(Config.WindowWidth), nameof(Config.WindowHeight), nameof(Config.WindowPositionX), nameof(Config.WindowPositionY),
+            nameof(Config.WindowMaximized), nameof(Config.FirstRunSetupPending), nameof(Config.FirstRunSetupVersion),
+            nameof(Config.WorkViewNoticePending), nameof(Config.SourceMediaIntegrityPermissions), nameof(Config.DownloadsPaused),
+            nameof(Config.LastExportDirectory), nameof(Config.GalleryFrameDirectory), nameof(Config.GalleryContextOpen),
+            nameof(Config.ArchiveBridgeHintSeen), nameof(Config.StatusPageSegment)
+        }) Assert.False(exported.ContainsKey(key), key);
+        Assert.True(exported.ContainsKey(nameof(Config.DownloadPath)));
+        Assert.True(exported.ContainsKey(nameof(Config.ShortcutBindings)));
+        Assert.Equal(1234, saved.WindowWidth);
+        Assert.True(saved.DownloadsPaused);
+        Assert.Equal("not-exported", saved.LastExportDirectory);
+        Assert.Equal("meowchan-settings-2026-11-14.json", SettingsExportUi.SaveOptions(new DateTime(2026, 11, 14)).SuggestedFileName);
+        Assert.Contains("meowchan-settings-yyyy-MM-dd.json", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void AdditionalLimitGuidanceNamesBothCatalogLanguagesAndComponentBounds()
+    {
+        Config config = new();
+        Assert.Equal(ArchiveTagFilter.DefaultTagsPerList, config.ArchiveTagFilterTagsPerList);
+        Assert.Equal(ArchiveTagFilter.MinimumTagsPerList, Config.ArchiveTagFilterTagsPerListMinimum);
+        Assert.Equal(ArchiveTagFilter.MaximumConfigurableTagsPerList, Config.ArchiveTagFilterTagsPerListMaximum);
+        Assert.Equal(UrlTextExportFileWriter.DefaultLimitMiB, config.UrlTextExportLimitMiB);
+        Assert.Equal(UrlTextExportFileWriter.MinimumLimitMiB, Config.UrlTextExportLimitMiBMinimum);
+        Assert.Equal(UrlTextExportFileWriter.MaximumLimitMiB, Config.UrlTextExportLimitMiBMaximum);
+        Assert.Equal(SlashTagSuggestions.DefaultSuggestionCount, config.SlashTagSuggestionCount);
+        Assert.Equal(SlashTagSuggestions.MinimumSuggestionCount, Config.SlashTagSuggestionCountMinimum);
+        Assert.Equal(SlashTagSuggestions.MaximumSuggestionCount, Config.SlashTagSuggestionCountMaximum);
+        Assert.Equal(VideoScrubPreviewOptions.CacheLimitMiBDefault, config.VideoScrubCacheLimitMiB);
+        Assert.Equal(VideoScrubPreviewOptions.CacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMinimum);
+        Assert.Equal(VideoScrubPreviewOptions.CacheLimitMiBMaximum, Config.VideoScrubCacheLimitMiBMaximum);
+        string text = Plain(Section(Read(Help), "Storage and limits"));
+        (string Stem, int Default, int Minimum, int Maximum)[] limits =
+        [
+            ("archiveTagFilterTagsPerList", config.ArchiveTagFilterTagsPerList, Config.ArchiveTagFilterTagsPerListMinimum, Config.ArchiveTagFilterTagsPerListMaximum),
+            ("urlTextExportLimitMiB", config.UrlTextExportLimitMiB, Config.UrlTextExportLimitMiBMinimum, Config.UrlTextExportLimitMiBMaximum),
+            ("slashTagSuggestionCount", config.SlashTagSuggestionCount, Config.SlashTagSuggestionCountMinimum, Config.SlashTagSuggestionCountMaximum),
+            ("videoScrubCacheMiB", config.VideoScrubCacheLimitMiB, Config.VideoScrubCacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMaximum)
+        ];
+        foreach (var limit in limits)
+        {
+            var entry = Assert.Single(SettingsLimitsCatalog.Entries, candidate => candidate.Key == "budgets." + limit.Stem);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+            Match german = Capture(text, Regex.Escape(entry.German) + @".*?\(Standard (?<default>\d+)(?: MiB)?, (?<minimum>\d+) bis (?<maximum>\d+)(?: MiB)?\)");
+            Assert.Equal(limit.Default, Number(german.Groups["default"].Value));
+            Assert.Equal(limit.Minimum, Number(german.Groups["minimum"].Value));
+            Assert.Equal(limit.Maximum, Number(german.Groups["maximum"].Value));
+        }
+        Assert.Contains("lowering it does not truncate stored filters", text, StringComparison.Ordinal);
+        Assert.Contains("zusätzliche Schutzgrenzen je Eintrag und Format bleiben bestehen", text, StringComparison.Ordinal);
+        Assert.Contains("1 KiB = 1024 Byte, 1 MiB = 1024 KiB", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void WorkViewOverviewAndNoticeHelpDistinguishesDefaultsUndoAndThePendingDetailsHost()
+    {
+        string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
+        foreach (string key in new[] { "settings.section.workViews", "workview.overview.page", "workview.overview.filter",
+            "workview.column.on", "workview.column.off", "workview.column.notOffered" })
+        {
+            var entry = Assert.Single(WorkViewOverviewCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        foreach (string key in new[] { "workview.switch.title", "workview.switch.undo", "workview.switch.details" })
+        {
+            var entry = Assert.Single(WorkViewSwitchCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        var rows = WorkViewOverview.Build();
+        Assert.Equal(WorkViewPolicy.Entries.Count, rows.Count);
+        Assert.All(WorkViewPolicy.Entries.Where(entry => entry.Safety ||
+            WorkViewSetting.All.Any(view => entry.For(view) == Presence.Required)), entry =>
+            Assert.True(Assert.Single(rows, row => row.Id == entry.Id).Protected));
+        Assert.True(new Config().ShrinkWindowForBarebones);
+        var shrink = Assert.Single(SettingsLimitsCatalog.Entries, entry => entry.Key == "settings.shrinkWindowForBarebones");
+        Assert.Contains(shrink.English, text, StringComparison.Ordinal);
+        Assert.Contains(shrink.German, text, StringComparison.Ordinal);
+        string[] noticeRow = Assert.Single(TableRows("Work-view overview and switch notice"));
+        Assert.Equal("Work-view switch notice (seconds)", noticeRow[0]);
+        Assert.Equal(new Config().WorkViewSwitchNoticeSeconds, Number(noticeRow[1]));
+        AssertNumber(text, @"Standard (?<value>\d+) Sekunden", new Config().WorkViewSwitchNoticeSeconds);
+        Assert.Contains($"Bereich {Config.WorkViewSwitchNoticeSecondsMinimum} bis {Config.WorkViewSwitchNoticeSecondsMaximum}", text, StringComparison.Ordinal);
+        Match range = Capture(noticeRow[2], @"^(?<minimum>\d+) to (?<maximum>\d+)$");
+        Assert.Equal(Config.WorkViewSwitchNoticeSecondsMinimum, Number(range.Groups["minimum"].Value));
+        Assert.Equal(Config.WorkViewSwitchNoticeSecondsMaximum, Number(range.Groups["maximum"].Value));
+        foreach (string phrase in new[] { "read-only comparison", "policy defaults, not a live visibility inventory",
+            "Undo restores the previous view, not unrelated settings or data", "0 disables the toast including Undo/Details",
+            "navigation host is not connected", "no settings input for that duration yet", "not a custom-view editor",
+            "schreibgeschützten Vergleich", "Vorgaben, keine Liste der gerade sichtbaren Controls",
+            "Navigationsanschluss an die Übersicht fehlt", "Ein Eingabefeld für die Dauer fehlt" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.Contains("WorkViewOverviewRequested", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+        Assert.Contains("workview.switch.overviewUnavailable", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SharedSourcesAndStatusHelpMatchesTheIntegratedRoutesRatherThanTheOldPlans()
+    {
+        string sources = Plain(Section(Read(Help), "Sources and plugins"));
+        foreach (string key in new[] { "nav.sources", "sources.show", "sources.pluginDetails", "sources.backToSource", "command.navigation.plugins" })
+        {
+            var entry = Assert.Single(SourcesPluginsCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, sources, StringComparison.Ordinal);
+            Assert.Contains(entry.German, sources, StringComparison.Ordinal);
+        }
+        foreach (string key in new[] { "plugins.sources", "plugins.filters", "plugins.all" })
+        {
+            var entry = Assert.Single(PluginCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, sources, StringComparison.Ordinal);
+            Assert.Contains(entry.German, sources, StringComparison.Ordinal);
+        }
+        Assert.Equal(new[] { "Sources", "ImageFilters", "AllPlugins" }, Enum.GetNames<SourcesPluginsFilter>());
+        Assert.False(MainPageOrder.Contains("navigation.plugins"));
+        WorkViewEntry[] pluginRows = WorkViewPolicy.Entries.Where(entry => entry.Id.StartsWith("plugins.", StringComparison.Ordinal)).ToArray();
+        Assert.NotEmpty(pluginRows);
+        Assert.All(pluginRows, entry => Assert.Equal(WorkViewPage.Sources, entry.Page));
+        Assert.DoesNotContain(WorkViewPolicy.Entries, entry => entry.Page == WorkViewPage.Plugins);
+        Assert.Equal("Show all plugins", CommandCatalog.Get("navigation.plugins").LabelEn);
+        Assert.Contains("There is no separate Plugins footer page", sources, StringComparison.Ordinal);
+        Assert.Contains("opens the second level", sources, StringComparison.Ordinal);
+        Assert.Contains("Kompatibilitätsbefehl", sources, StringComparison.Ordinal);
+        Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
+        string status = Plain(Section(Read(Help), "Status page"));
+        Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
+        Assert.Equal((int?)7, MainPageOrder.Digit("navigation.status"));
+        foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
+            "source selected", "Statistics becomes available after session recovery", "no Booru footer page",
+            "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru-Fußleistenseite gibt es noch nicht" })
+            Assert.Contains(phrase, status, StringComparison.Ordinal);
+        Assert.DoesNotContain("navigation.booru", MainPageOrder.CommandIds);
+        Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 
     [Fact]

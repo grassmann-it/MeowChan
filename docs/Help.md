@@ -17,9 +17,10 @@ The supplied payload contains **24 plugins**: **19 source-plugin entries**
 **21 editable example/filter source files**; official plugins are prebuilt,
 with their source code available in the repository, not the application package.
 See the [packaged inventory](plugins/README.md#packaged-inventory) for the split;
-the entry count is not a count of usable or enabled sources. Open **Plugins**
-from the app menu or footer (under **More** in compact views), then select a
-plugin to see its purpose, status and actions. The [plugin guide](plugins/README.md)
+the entry count is not a count of usable or enabled sources. Open **Sources & Plugins** (German: **Quellen & Plugins**)
+from the app menu or footer (under **More** in compact views). Choose **All plugins**
+and select a plugin to see its purpose, status and actions. See
+[the shared page](#sources-and-plugins). The [plugin guide](plugins/README.md)
 and [first-session recipe](plugins/using-plugins.md#first-session) explain the
 supplied examples and how to add a trusted source file.
 
@@ -58,7 +59,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 
 1. For the published 1.0.2 build, choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
-3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
+3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources & Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
@@ -70,7 +71,7 @@ replace the words with symbols and arrows.) It can
 show two graphs, each with two separate series: Down and Read are solid with a
 filled area; Up and Write are dashed. The categories are not summed. **Auto**
 keeps both categories available in every work view where the header layout fits; click the header rates or graphs to open
-**Statistics**. These are MeowChan application-payload and media-I/O measurements,
+**Status → Statistics**. These are MeowChan application-payload and media-I/O measurements,
 not system-wide traffic, and are separate from saved/selected media progress.
 
 ### Desktop view defaults
@@ -83,7 +84,7 @@ choice, including one recovered from a valid settings backup, remains unchanged.
 Use the footer view selector to switch.
 
 The footer groups destinations as **Work** (Downloads, Archive, Media), **Set up**
-(Rules, Sources, Plugins) and **Observe** (Diagnostics, Statistics), followed by
+(Rules, Sources & Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
 only destinations moved out of the footer; it does not duplicate Downloads or
@@ -101,7 +102,7 @@ the archive list, use the app-menu entry to check the reading-position state.
 
 The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
 **WV3 Reader**, **WV4 Gallery**, **WV5 Media**, and the **WV6** setup pages **Rules**,
-**Sources** and **Plugins**, plus **WV7 Diagnostics and Statistics**, **WV8 Settings** and
+**Sources & Plugins**, plus **WV7 Diagnostics and Statistics** within **Status**, **WV8 Settings** and
 **WV9 dialogs and menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
 Advanced (**Erweitert**) change how much is shown directly, not whether the data
 can be reached. The work view decides which settings groups and buttons are shown
@@ -129,15 +130,16 @@ on the page.
 - **Media:** search, filter state and the **Order** bar stay available. Refresh,
   shuffling, export and less common filters move to **More** or **More filters**;
   active filters and selections remain visible.
-- **Rules, Sources and Plugins:** the edited scope, fields and Save/Discard
-  remain available in Rules; source identity, integrity consent, observed watches
-  and errors remain available in Sources; plugin repair, activation and draft
-  safety state remain available in Plugins. Less common actions have a labelled
-  **More** route. In Sources, **Show plugin** (German: **Plugin anzeigen**) opens
-  the providing plugin; in Plugins, **Show in Sources** (German: **In Quellen
-  anzeigen**) returns to its sources.
-
-- **Diagnostics and Statistics (WV7):** Diagnostics starts with its filters
+- **Rules, Sources & Plugins:** the edited scope, fields and Save/Discard
+  remain available in Rules. The shared Sources & Plugins page keeps source
+  identity, integrity consent, observed watches and errors available in its source
+  details; plugin repair, activation and draft safety stay available in its plugin
+  details. Less common actions have a labelled **More** route. **Plugin details**
+  (German: **Plugin-Details**) opens the second level; **Back to source**
+  (**Zurück zur Quelle**) returns to the source without changing pages.
+  Older **Show plugin** (German: **Plugin anzeigen**) and **Show in Sources** (German:
+  **In Quellen anzeigen**) routes refer to this same shared page, not two footer destinations.
+- **Status (WV7 Diagnostics and Statistics):** Diagnostics starts with its filters
   collapsed in Barebones; a non-default filter opens the group. **Check now**,
   retrying the selection and showing it in Downloads stay directly available.
   Copy moves under More in Barebones; retrying all filtered entries stays under
@@ -167,6 +169,9 @@ slot of the post panel instead of a dialog; it follows the post panel's work-vie
 row, placement and controls hold. See [Gallery tag panel](#gallery-tag-panel).
 The quick-tag popover for other pages and marking several media for one change
 are not available yet.
+
+For a read-only comparison of the defaults, open Settings → **Work views**;
+see [Work-view overview and switch notice](#work-view-overview-and-switch-notice).
 
 ### Language packs
 
@@ -281,7 +286,7 @@ persist independently of Save URLs on exit.
 
 Danbooru is a public, read-only post-search source, not a board source. Open
 **Danbooru search and watchers…** from the app menu. Its plugin must be enabled
-and available under **Plugins**. Merely opening the window sends no new search;
+and available under **Sources & Plugins → All plugins**. Merely opening the window sends no new search;
 previously saved active watchers still follow their schedule.
 
 #### Search and one-shot originals
@@ -392,6 +397,43 @@ unbounded history download, pools or HTML-scraping fallback. Only Danbooru is in
 this post-search workflow. See the [Danbooru guide (German)](user-guide/danbooru.md)
 for the same lifecycle in German.
 
+### Sources and plugins
+
+**English:** **Sources & Plugins** is one page. In **Show**, choose **Sources**,
+**Image filters** or **All plugins**. Sources shows both registered sources and
+source plugins that are not active yet. Select a source for its capabilities,
+observed watches, integrity permission and the plugin behind it. The plugin block
+shows its activation steps and next action; a plugin shared by several sources
+applies to them together. **Plugin details** opens the second level for settings,
+repair, testing and technical information; **Back to source** returns to the source.
+In narrow windows, the list and details appear one after the other. Registration
+or a plugin's session status does not prove website availability.
+
+There is no separate Plugins footer page. The compatibility command **Show all
+plugins** and previously saved plugin-navigation shortcuts open **All plugins**
+on the same page. **Add plugin…** still asks you for a trusted `.cs` source file;
+adding a file is not permission to activate it or bypass a required review or
+restart. Image-filter access is still granted per rule scope, not by opening
+this page.
+
+**Deutsch:** **Quellen & Plugins** ist eine gemeinsame Seite. Wähle unter
+**Anzeigen** zwischen **Quellen**, **Bildfilter** und **Alle Plugins**. Unter Quellen
+siehst du registrierte Quellen und noch nicht aktive Quellenplugins. Wähle eine
+Quelle für Fähigkeiten, Beobachtungen, Integritätserlaubnis und das zugehörige
+Plugin. Der Plugin-Block zeigt Aktivierungsschritte und die nächste Aktion. Versorgt
+ein Plugin mehrere Quellen, gilt seine Einstellung für sie zusammen.
+**Plugin-Details** öffnet die zweite Ebene für Einstellungen, Reparatur, Tests und
+technische Angaben; **Zurück zur Quelle** führt dich zur Quelle zurück. In schmalen
+Fenstern folgen Liste und Details aufeinander. Registrierung und Sitzungsstatus
+belegen nicht, dass die Website erreichbar ist.
+
+Eine eigene Fußleistenseite Plugins gibt es nicht mehr. Der Kompatibilitätsbefehl
+**Alle Plugins anzeigen** und früher gespeicherte Plugin-Navigationskürzel öffnen
+**Alle Plugins** auf derselben Seite. Mit **Plugin hinzufügen…** wählst du weiterhin
+eine vertrauenswürdige `.cs`-Quelldatei aus. Das Hinzufügen aktiviert nichts und
+ersetzt weder Prüfung noch nötigen Neustart. Bildfilterzugriff erteilst du nach
+wie vor je Regelbereich, nicht durch Öffnen der Seite.
+
 ### Additional sources and image filters
 
 The eight supplied Experimental sources start disabled on first registration;
@@ -400,7 +442,7 @@ matching URL offers activation. For Kohlchan, Wizchan, Endchan and Leftypol,
 **Activate and allow differences** also explicitly permits provider size/MD5
 mismatches for that profile and source. 2ch, Uboachan, ZZZchan and SushiChan have
 strict checks and no mismatch permission. Manual **Enable plugin** grants no
-exception. Review or revoke the permission in **Sources**; retry earlier failed
+exception. Review or revoke the permission in the source details of **Sources & Plugins**; retry earlier failed
 media explicitly with **Retry missing media**. See the
 [activation and integrity guide](plugins/using-plugins.md#experimental-sources-and-media-checks).
 
@@ -455,8 +497,21 @@ original and **Ctrl+O** the file in its folder. In the large reader, **F3** and
 
 Text fields and embedded controls retain their own keys. Across the workspace,
 Ctrl+L focuses the URL input, Ctrl+, opens Settings and Ctrl+F focuses the active
-page's local search field. Ctrl+1 through Ctrl+8 open Downloads, Archive, Media,
-Rules, Sources, Plugins, Diagnostics and Statistics in exactly that order; the footer, the menus
+page's local search field. The default page shortcuts are:
+
+| Shortcut | Page |
+| --- | --- |
+| Ctrl+1 | Downloads |
+| Ctrl+2 | Archive |
+| Ctrl+3 | Media |
+| Ctrl+4 | Rules |
+| Ctrl+5 | Sources & Plugins |
+| Ctrl+7 | Status |
+
+Use Command instead of Ctrl on macOS. Ctrl+6 and Ctrl+8 (Command+6 and Command+8)
+are unassigned by default. Status keeps slot 7; the removed Plugins page does not
+shift the digits. Diagnostics and Statistics have no default digit shortcuts;
+previously saved bindings still open their respective Status segment. The footer, the menus
 and the F1 help use the same order, and every footer button names its shortcut in
 its tooltip. Ctrl+Shift+P pauses and resumes like the header button; it remains
 unavailable while a pause transition is in progress. These direct page and pause
@@ -637,6 +692,10 @@ of the limit; do not delete their files to get past an error.
 | Reader groups | 500 | 50 to 5000 |
 | Post filter rules | 200 | 20 to 2000 |
 | Individually hidden posts | 10000 | 1000 to 100000 |
+| Archive tag filters per list | 32 | 8 to 128 |
+| URL text export size (MiB) | 1 | 1 to 64 |
+| Slash-tag suggestions | 8 | 3 to 20 |
+| Video scrub preview cache size (MiB) | 128 | 8 to 4096 |
 | Sources page: watch rows per source | 8 | 3 to 200 |
 | Ask before “Export all matches” above (files) | 500 | 10 to 100000 |
 | Ask before “Export all matches” above (GiB) | 2 | 1 to 1024 |
@@ -671,6 +730,26 @@ of the limit; do not delete their files to get past an error.
 At 75 % utilization, the relevant status line warns for favorites, thread
 favorites, ratings, the Danbooru catalog or the saved media index. The message
 names the setting that can be raised.
+
+**English (additional limits):** **Archive tag filters per list** bounds each
+include/exclude list independently; lowering it does not truncate stored filters.
+**URL text export size (MiB)** limits new URL text output, not HTML or original-file
+exports, and does not remove the separate per-record/format safety bounds.
+**Slash-tag suggestions** bounds detected slash-tag suggestions, not the number of
+tags you can store or the separate quick-tag chip count. **Video scrub preview
+cache size (MiB)** budgets derived timeline previews on disk, not original videos.
+The table gives their defaults and minimum/maximum values from Config.
+
+**Deutsch (zusätzliche Grenzen):** **Archiv-Tagfilter pro Liste** begrenzt jede
+Einschluss-/Ausschlussliste einzeln (Standard 32, 8 bis 128); ein niedrigerer Wert
+kürzt gespeicherte Filter nicht. **Größe des URL-Textexports (MiB)** begrenzt neue
+URL-Textausgaben (Standard 1 MiB, 1 bis 64 MiB), nicht HTML- oder Originaldatei-
+Exporte; zusätzliche Schutzgrenzen je Eintrag und Format bleiben bestehen.
+**Slash-Tagvorschläge** begrenzt erkannte Slash-Tagvorschläge (Standard 8, 3 bis 20),
+nicht deine gespeicherten Tags oder die separate Zahl der Schnell-Taggen-Chips.
+**Größe des Video-Scrub-Vorschau-Caches (MiB)** begrenzt abgeleitete Zeitleisten-
+Vorschauen auf dem Datenträger (Standard 128 MiB, 8 bis 4096 MiB), nicht Originalvideos.
+Alle Größen sind binär: 1 KiB = 1024 Byte, 1 MiB = 1024 KiB.
 
 The last seven rows form the **Quick tagging** group (German: **Schnell-Taggen**).
 They size the [gallery tag panel](#gallery-tag-panel): chips, remembered recent
@@ -720,7 +799,7 @@ reader can receive the current hit's position and name, or the empty-result noti
 Under **Notifications** (German: **Benachrichtigungen**), independently enable or
 disable **Success and information popups**, **Warning popups** and **Error popups**,
 then Save. These control in-app popups. Warnings and errors remain at the affected
-action and in Diagnostics → **Messages this session**. Select an entry to inspect
+action and in **Status → Diagnostics → Messages this session**. Select an entry to inspect
 or copy its details. **Clear session messages** clears that list; it does not fix
 the underlying problem. The list ends with the app session. Field validation and
 confirmation dialogs still apply when popups are disabled.
@@ -729,14 +808,144 @@ confirmation dialogs still apply when popups are disabled.
 explicit **×**. Closing one acknowledges that occurrence for the current app
 session, suppresses matching queued/repeated displays and leaves its diagnostic
 entry/count intact. Another source or failure still has its own message. Clearing
-Diagnostics does not re-enable acknowledged messages. Passive popup expiry does
+Status → Diagnostics does not re-enable acknowledged messages. Passive popup expiry does
 not acknowledge a failure. Unstructured provider errors still distinguish their
 exact diagnostic text; changed error details can represent a separate occurrence.
 
+### Resetting and exporting settings
+
+**English:** Use **Reset** beside one of the seven editable section headings
+(Interface, Reading & media, Downloads, Storage and limits, Updates,
+Notifications, Session and window), or **Reset all editable settings** at the top. Confirm
+with **Reset draft** or choose **Cancel**. Reset changes only the unsaved draft;
+it does not save settings, delete local data or revoke/grant source permissions.
+You still need **Save** to apply the defaults; **Discard draft** returns to your
+saved settings instead. Shortcut bindings have their own reset in the shortcut
+editor and are not changed by these section/all-settings reset actions.
+
+Under **More settings actions**, choose **Export saved settings…** and a destination.
+The suggested filename is `meowchan-settings-yyyy-MM-dd.json`. The export uses the
+saved settings, even if another category has an invalid or unsaved draft. It does
+not save, discard or change that draft. The JSON includes `SchemaVersion` and
+`ExportedBy` but omits window geometry, first-run/notice state, integrity consent,
+session pause, the last export/frame directories and last-used Status segment.
+Download paths and shortcut bindings are included: review the file before sharing
+it. This is not an archive, plugin, credential or whole-profile backup, and there
+is no settings-import UI yet. Canceling the picker leaves the draft alone; an
+export error is shown on the settings page without saving the draft.
+
+**Deutsch:** Nutze **Zurücksetzen** neben einer der sieben bearbeitbaren
+Abschnittsüberschriften (Oberfläche, Lesen & Medien, Downloads, Speicher und Grenzen,
+Updates, Benachrichtigungen, Sitzung und Fenster) oder oben **Alle bearbeitbaren Einstellungen
+zurücksetzen**. Bestätige mit **Entwurf zurücksetzen** oder wähle **Abbrechen**.
+Zurücksetzen ändert nur den ungespeicherten Entwurf. Es speichert keine Einstellungen,
+löscht keine lokalen Daten und ändert keine Quellenerlaubnis. Erst **Speichern**
+übernimmt die Standards; **Entwurf verwerfen** kehrt dagegen zu deinen gespeicherten
+Werten zurück. Tastenkürzel setzt du separat im Kürzel-Editor zurück; die
+Abschnitts-/Gesamtaktionen ändern sie nicht.
+
+Wähle unter **Weitere Einstellungsaktionen** den Eintrag **Gespeicherte Einstellungen
+exportieren…** und ein Ziel. Der Dateivorschlag lautet
+`meowchan-settings-yyyy-MM-dd.json`. Exportiert werden die gespeicherten Einstellungen,
+auch bei einem ungültigen oder ungespeicherten Entwurf in einer anderen Kategorie.
+Der Entwurf wird weder gespeichert noch verworfen oder verändert. Die JSON-Datei
+enthält `SchemaVersion` und `ExportedBy`, aber keine Fenstergeometrie,
+Ersteinrichtungs-/Hinweiszustände, Integritätserlaubnisse, Sitzungspause, zuletzt
+benutzten Export-/Einzelbildordner oder zuletzt geöffneten Status-Bereich.
+Downloadpfade und Tastenkürzel sind enthalten: Prüfe die Datei vor dem Weitergeben.
+Sie ersetzt keine Archiv-, Plugin-, Zugangsdaten- oder vollständige Profilsicherung.
+Eine Oberfläche zum Importieren von Einstellungen gibt es noch nicht. Brichst du
+die Dateiauswahl ab oder schlägt der Export fehl, bleibt dein Entwurf unverändert;
+ein Exportfehler wird auf der Einstellungsseite angezeigt.
+
+### Work-view overview and switch notice
+
+**English:** Open **Settings → Work views** for a read-only comparison of
+Barebones, Simple and Advanced. Filter by **Page** and **Find an element**; the
+active column is marked. Cells distinguish **Direct**, **Under More**, **Collapsed
+group**, **Hidden; via …** and **Always present**. Safety/required rows explain
+why they cannot be hidden by a view. Column defaults distinguish **On**, **Off
+(selectable)** and **Not offered**. These are policy defaults, not a live visibility
+inventory: saved column choices, active filters and errors may override them.
+The overview does not edit your view or draft and is not a custom-view editor.
+
+After an applied view switch, a **Work view changed** toast summarizes changed
+defaults and column defaults. **Undo** restores the previous view, not unrelated
+settings or data; a newer switch invalidates the older notice's actions. The
+notice requires information popups and an available session. Its Config setting
+`WorkViewSwitchNoticeSeconds` defaults to 8 seconds, allows 0 to 60, and 0 disables
+the toast including Undo/Details. This checkout has no settings input for that
+duration yet. **Details** is present but its navigation host is not connected in
+this checkout: it reports that the overview is not connected instead of opening
+the changed rows. Open Work views manually for the full comparison. The one-time
+notice for older profiles is separate from this switch toast.
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Work-view switch notice (seconds) | 8 | 0 to 60 |
+
+**Shrink the window when switching to Minimal** is on by default under Interface.
+Turn it off and Save to keep the current size when switching to Barebones/Minimal.
+Changing the unsaved view selection alone does not resize the window.
+
+**Deutsch:** Öffne **Einstellungen → Arbeitsansichten** für den schreibgeschützten
+Vergleich von Minimal, Einfach und Erweitert. Filtere nach **Seite** und **Element
+suchen**; die aktive Spalte ist markiert. Zellen unterscheiden **Direkt**, **Unter
+Mehr**, **Gruppe eingeklappt**, **Ausgeblendet; über …** und **Immer vorhanden**.
+Sicherheits-/Pflichtzeilen erklären, warum die Ansicht sie nicht ausblenden darf.
+Spaltenvorgaben unterscheiden **An**, **Aus (wählbar)** und **Nicht angeboten**.
+Das sind Vorgaben, keine Liste der gerade sichtbaren Controls: Gespeicherte
+Spaltenwahlen, aktive Filter und Fehler können davon abweichen. Du änderst hier
+weder Ansicht noch Entwurf; eine eigene Ansicht kannst du damit nicht erstellen.
+
+Nach einem angewandten Ansichtswechsel fasst **Arbeitsansicht gewechselt** geänderte
+Vorgaben und Spaltenvorgaben zusammen. **Rückgängig** stellt die vorige Ansicht
+wieder her, nicht andere Einstellungen oder Daten. Ein neuer Wechsel macht die
+Aktionen des alten Hinweises ungültig. Der Hinweis braucht Informations-Popups und
+eine verfügbare Sitzung. Der Config-Wert `WorkViewSwitchNoticeSeconds` hat den
+Standard 8 Sekunden und den Bereich 0 bis 60; 0 schaltet den Toast einschließlich
+Rückgängig/Details aus. Ein Eingabefeld für die Dauer fehlt in diesem Stand noch.
+**Details** ist vorhanden, aber der Navigationsanschluss an die Übersicht fehlt in
+diesem Stand: Du erhältst einen Hinweis statt der geänderten Zeilen. Öffne
+Arbeitsansichten für den vollständigen Vergleich selbst. Der Einmalhinweis für
+ältere Profile ist vom Wechsel-Toast unabhängig.
+
+**Fenster beim Wechsel zu Minimal verkleinern** ist unter Oberfläche standardmäßig
+an. Schalte es aus und speichere, wenn du beim Wechsel die Fenstergröße behalten
+möchtest. Die ungespeicherte Ansichtsauswahl allein ändert die Fenstergröße nicht.
+
+### Status page
+
+**English:** **Status** combines **Statistics** and **Diagnostics** on one page.
+The shared status line counts active transfers, waiting transfers and current
+problems; while sampling is active it also shows download and disk-write rates.
+Without fresh sampling it omits the rates, rather than presenting stale numbers.
+The Diagnostics tab names the current problem count. The footer button and
+Ctrl+7 (Command+7 on macOS) open the last-used segment; the header graph and tray
+open Statistics. A source's Diagnostics action opens Status → Diagnostics with
+that source selected. Recovery failure opens Diagnostics; Statistics becomes
+available after session recovery. You can assign each segment a shortcut, and
+previously saved segment shortcuts keep working. There is no Booru footer page;
+[Danbooru search and watchers](#danbooru-search-and-watchers) still use a window.
+
+**Deutsch:** **Status** vereint **Statistik** und **Diagnose** auf einer Seite.
+Die gemeinsame Statuszeile zählt aktive und wartende Übertragungen und aktuelle
+Probleme. Solange gemessen wird, zeigt sie auch Download- und Schreibrate; ohne
+frische Messung lässt sie die Raten weg. Der Diagnose-Reiter nennt die Zahl der
+aktuellen Probleme. Der Fußleistenknopf und Strg+7 (⌘+7 auf macOS) öffnen den zuletzt
+benutzten Bereich; Kopfleisten-Graph und Tray öffnen Statistik. Die Diagnose-Aktion
+einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach einer
+fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
+Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
+früher gespeicherte Bereichskürzel funktionieren weiter. Strg/⌘+6 und Strg/⌘+8 sind
+standardmäßig frei. Eine Booru-Fußleistenseite gibt es noch nicht; Danbooru-Suche
+und Suchbeobachtungen öffnest du weiterhin in einem Fenster.
+
 ### Statistics and disk traffic
 
-Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **More** or the app
-menu, or by clicking the header graph. It shows measured Network I/O and Disk I/O,
+Open **Status → Statistics** from **More** or the app
+menu, or by clicking the header graph. Ctrl+7 (Command+7 on macOS) opens Status
+on its last-used segment; Ctrl+8 is no longer assigned by default. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
 media-I/O counters, not operating-system totals. **Network I/O (`NetworkIo`)** keeps
 Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Read and Write
@@ -764,7 +973,7 @@ Kopfleiste**) in **Settings → Session and window → Statistics** (German:
 the direction words with network/disk symbols and arrows in the corresponding
 graph colours; Read keeps the solid line and Write the dashed one. Hovering a direction shows
 its full name, current rate, and whether its series is solid or dashed. Clicking
-still opens Statistics; the button keeps its full screen-reader description.
+still opens Status → Statistics; the button keeps its full screen-reader description.
 This option also works when the graphs are hidden. Turning it off restores the words.
 
 Settings → **Session and window → Statistics** controls the sampling and persistence:
@@ -1699,7 +1908,7 @@ plugin replacement is not currently implemented.
 ### Changed bundled-plugin capabilities or settings
 
 If an update changes a bundled plugin's capabilities or settings (for example
-Danbooru), open **Plugins → Review bundled repairs**. Complete the review in
+Danbooru), open **Sources & Plugins → Review bundled repairs**. Complete the review in
 that same dialog; do not delete the profile or try **NEW selection** for an
 already identified update.
 
@@ -1726,7 +1935,7 @@ or missing delivery proof cannot be overridden by this confirmation.
 ### Missing legacy plugin candidates
 
 If an older profile reports **Candidate is missing from the startup inventory**,
-open **Plugins → Review bundled repairs**. For supported, unambiguous entries,
+open **Sources & Plugins → Review bundled repairs**. For supported, unambiguous entries,
 **NEW selection** offers a currently delivered bundled build. Inspect its exact
 identity and the complete settings, explicitly check the acknowledgement, confirm,
 and restart the application. Enabled/disabled choices are preserved. This does

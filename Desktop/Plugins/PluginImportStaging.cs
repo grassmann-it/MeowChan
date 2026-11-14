@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Persistence;
@@ -95,16 +96,37 @@ internal sealed class PluginImportStaging : IDisposable
             if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(destination)), _plugins, comparison))
                 throw new IOException("Plugin import destination must be directly inside the plugin directory.");
             RequireOwnedFile(PayloadPath, _payloadIdentity);
-            if (Identity(PayloadPath).Size != _payloadIdentity!.Value.Size)
+            RegularProfileFileIdentity owned = _payloadIdentity!.Value;
+            if (Identity(PayloadPath).Size != owned.Size)
                 throw new IOException("The staged payload size changed before publication.");
-            File.Move(PayloadPath, destination, overwrite: false);
-            _published = (Path.GetFullPath(destination), _payloadIdentity.Value);
-            // A successful rename releases this pathname. Dispose must not claim a later occupant of it.
-            _payloadIdentity = null;
+            // On Unix, File.Move(..., overwrite: false) may observe an absent destination and then use rename(2),
+            // which silently replaces whatever another writer placed there meanwhile (an installed plugin file).
+            // It also "succeeds" without moving when the destination is already a hard link to the payload.
+            // link(2) is the atomic no-clobber primitive; MoveFileEx without REPLACE_EXISTING is on Windows.
+            if (OperatingSystem.IsWindows()) File.Move(PayloadPath, destination, overwrite: false);
+            else if (LinkNoOverwrite(PayloadPath, destination) != 0)
+                throw new IOException("The staged plugin file could not be published without replacing an existing entry.");
+            // Commit point: the destination name is ours. Nothing below may report a failed publication.
+            _published = (Path.GetFullPath(destination), owned);
             _payloadReady = false;
+            if (OperatingSystem.IsWindows()) { _payloadIdentity = null; return; }
+            try
+            {
+                // Drop our second (staging) name. If that fails it stays owned, so Dispose or the startup
+                // crash-pair cleanup removes only this name; the published plugin file keeps its own link.
+                RequireOwnedFile(PayloadPath, owned);
+                File.Delete(PayloadPath);
+                // The staging pathname is released. Dispose must not claim a later occupant of it.
+                _payloadIdentity = null;
+            }
+            catch (Exception exception) when (IsFileError(exception)) { }
         }
         finally { _gate.Release(); }
     }
+
+    [DllImport("System.Native", EntryPoint = "SystemNative_Link", SetLastError = true)]
+    private static extern int LinkNoOverwrite([MarshalAs(UnmanagedType.LPUTF8Str)] string source,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string destination);
 
     /// <summary>Post-inspection rejection may discard only the exact file we published, never a replacement.</summary>
     internal void DiscardPublished()

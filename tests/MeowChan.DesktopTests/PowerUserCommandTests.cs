@@ -11,11 +11,22 @@ public sealed class PowerUserCommandTests
     [InlineData("navigation.media", "3")]
     [InlineData("navigation.rules", "4")]
     [InlineData("navigation.sources", "5")]
-    [InlineData("navigation.plugins", "6")]
+    [InlineData("navigation.plugins", null)]
     [InlineData("navigation.status", "7")]
     [InlineData("session.pause", "Shift+P")]
-    public void PlatformGesturesUseTheDeclaredShortcut(string id, string suffix)
+    public void PlatformGesturesUseTheDeclaredShortcut(string id, string? suffix)
     {
+        if (suffix is null)
+        {
+            // The compatibility command remains bindable, but has no default on either platform.
+            Assert.Null(CommandCatalog.Get(id).Shortcut);
+            Assert.Null(CommandCatalog.ShortcutDisplay(id, false));
+            Assert.Null(CommandCatalog.ShortcutDisplay(id, true));
+            Assert.Null(CommandBindings.Gesture(id));
+            Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.D6, KeyModifiers = KeyModifiers.Control }, id));
+            Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.D6, KeyModifiers = KeyModifiers.Meta }, id));
+            return;
+        }
         Assert.Equal("Ctrl+" + suffix, CommandCatalog.ShortcutDisplay(id, false));
         // macOS shows Apple glyphs in Apple's order without "+": ⌘3, ⇧⌘P.
         Assert.Equal(suffix == "Shift+P" ? "⇧⌘P" : "⌘" + suffix, CommandCatalog.ShortcutDisplay(id, true));
@@ -23,6 +34,30 @@ public sealed class PowerUserCommandTests
         Assert.Equal(suffix switch { "1" => Key.D1, "2" => Key.D2, "3" => Key.D3, "4" => Key.D4, "5" => Key.D5, "6" => Key.D6, "7" => Key.D7, _ => Key.P }, gesture.Key);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = gesture.KeyModifiers }, id));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = KeyModifiers.None }, id));
+    }
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void ASavedPluginShortcutKeepsTheFreeSlotAndRoutesToTheMergedSourcesPage(ShortcutPlatform platform)
+    {
+        var gesture = ShortcutGesture.Parse("Primary+6");
+        var defaults = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.Empty(defaults.For("navigation.plugins"));
+        Assert.All(MainPageOrder.CommandIds, id => Assert.DoesNotContain(defaults.For(id),
+            candidate => EffectiveShortcutBindings.Equivalent(gesture, candidate, platform)));
+
+        var section = new ShortcutBindingsSection().Set("navigation.plugins", [gesture]);
+        string before = section.Raw.GetRawText();
+        var saved = EffectiveShortcutBindings.Build(section, platform);
+        Assert.True(EffectiveShortcutBindings.Equivalent(gesture, Assert.Single(saved.For("navigation.plugins")), platform));
+        Assert.Empty(saved.Issues);
+        Assert.Equal(before, section.Raw.GetRawText());
+        Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
+        Assert.DoesNotContain("navigation.plugins", MainPageOrder.CommandIds);
+        Assert.Null(MainPageOrder.Digit("navigation.plugins"));
+        Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
     }
 
     [Fact]

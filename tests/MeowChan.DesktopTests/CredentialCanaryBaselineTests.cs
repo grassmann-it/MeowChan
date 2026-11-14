@@ -1,11 +1,11 @@
-using MeowChan.Interfaces;
-using MeowChan.Downloader;
 using System.Net;
 using System.Runtime.CompilerServices;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Testing;
+using MeowChan.Downloader;
+using MeowChan.Interfaces;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;

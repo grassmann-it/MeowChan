@@ -130,8 +130,14 @@ public sealed class YieldingDefaultsTests
     [Fact]
     public void OnlyBlockingIssuesAndAnUnsupportedSchemaWarnAtStartup()
     {
-        var yields = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("navigation.archive", [ShortcutGesture.Parse("Primary+6")]), ShortcutPlatform.Linux);
-        Assert.NotEmpty(yields.Issues);
+        // Slot 6 is free after the Sources/Plugins merge, so use Media's actual default to exercise a yield.
+        var section = new ShortcutBindingsSection().Set("navigation.archive", [ShortcutGesture.Parse("Primary+3")]);
+        string before = section.Raw.GetRawText();
+        var yields = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
+        Assert.Contains(yields.Issues, issue => issue.CommandId == "navigation.media" && issue.OtherCommandId == "navigation.archive");
+        Assert.Empty(yields.For("navigation.media"));
+        Assert.Single(yields.For("navigation.archive"));
+        Assert.Equal(before, section.Raw.GetRawText());
         Assert.DoesNotContain(yields.Issues, EffectiveShortcutBindings.NeedsStartupWarning);
 
         var unknown = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("no.such.action", [ShortcutGesture.Parse("Primary+9")]), ShortcutPlatform.Linux);

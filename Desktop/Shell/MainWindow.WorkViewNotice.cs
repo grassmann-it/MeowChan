@@ -85,6 +85,7 @@ public partial class MainWindow
         // WorkViewState does not publish the initial view. This also covers footer/settings saves, which historically
         // use SaveAppearanceAsync/ApplySettingsAsync directly rather than the app-menu's SetWorkViewAsync.
         _workViews.Changed += OnWorkViewSwitchApplied;
+        WorkViewOverviewRequested += OpenWorkViewOverviewAsync;
         // The legacy footer saves directly. Revoke the previous lease at intent time, not only when that async save
         // finishes, so pressing an old Undo while a fast footer switch is pending cannot queue the wrong return view.
         WorkspaceModeComboBox.SelectionChanged += (_, _) =>
