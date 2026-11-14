@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Persistence;
@@ -52,6 +53,8 @@ internal sealed class BooruProducerLifecycle
     private BooruProducerPhase _phase = BooruProducerPhase.Prepared;
     private ProfileProducerEpoch? _epoch;
     private CancellationTokenSource? _cut;
+    private Task? _cutCancellation;
+    private Task? _terminalReleaseTask;
     private long _generation;
     private TaskCompletionSource _changed = NewSignal();
 
@@ -164,17 +167,19 @@ internal sealed class BooruProducerLifecycle
     internal Task CutAndDrainAsync()
     {
         Task drained;
-        CancellationTokenSource? cut;
+        Task cancelled;
         lock (_sync)
         {
             if (_phase is BooruProducerPhase.Prepared or BooruProducerPhase.Open or BooruProducerPhase.Transitioning)
                 _phase = BooruProducerPhase.Suspended;
-            cut = _cut;
             drained = _epoch?.Close() ?? Task.CompletedTask;
+            // A failed cancellation callback belongs to this cut and must be observed by its caller. Do not issue a
+            // second cancellation from RequireRecovery/Stop: CancellationTokenSource cancellation callbacks are not
+            // required to be idempotent, and a second call could create an unobserved failure.
+            cancelled = _cutCancellation ??= _cut is null ? Task.CompletedTask : CancelAsync(_cut);
         }
         // The state above is already synchronous for every caller; callbacks of the cut run asynchronously so that
         // no check continuation executes on the participant's thread.
-        Task cancelled = cut is null ? Task.CompletedTask : CancelAsync(cut);
         RaiseChanged();
         return Task.WhenAll(cancelled, drained);
     }
@@ -191,6 +196,8 @@ internal sealed class BooruProducerLifecycle
         {
             epoch = _epoch;
             if (epoch is null) return;
+            if (_terminalReleaseTask is not null)
+                throw new InvalidOperationException("The Danbooru producer generation is being released by a terminal transition.");
             if (_phase is BooruProducerPhase.Open or BooruProducerPhase.Transitioning)
                 throw new InvalidOperationException("An open Danbooru producer generation cannot be released.");
             if (!epoch.Close().IsCompletedSuccessfully)
@@ -198,6 +205,7 @@ internal sealed class BooruProducerLifecycle
             _epoch = null;
             cut = _cut;
             _cut = null;
+            _cutCancellation = null;
         }
         // Outside our lock: the kernel completes a pending exclusive waiter on release.
         epoch.Dispose();
@@ -206,35 +214,34 @@ internal sealed class BooruProducerLifecycle
     }
 
     /// <summary>
-    /// The exclusive outcome requires recovery: the family stays closed for this session. A still counted generation
-    /// keeps its ownership until <see cref="StopAsync"/> drains and releases it.
+    /// The exclusive outcome or a failed peer drain requires recovery: the family stays closed for this session.
+    /// A still counted generation keeps its ownership until its terminal drain releases it; <see cref="StopAsync"/>
+    /// joins that same release when the session is stopping.
     /// </summary>
     internal void RequireRecovery()
     {
-        CancellationTokenSource? cut;
+        TerminalRelease? release;
         lock (_sync)
         {
             if (_phase == BooruProducerPhase.Stopped) return;
             _phase = BooruProducerPhase.RecoveryRequired;
-            cut = _cut;
-            _epoch?.Close();
+            release = PrepareTerminalReleaseLocked();
         }
-        if (cut != null) _ = CancelAsync(cut);
+        StartTerminalRelease(release);
         RaiseChanged();
     }
 
     /// <summary>Synchronous terminal mark of the session stop: nothing new starts, running uses are cancelled.</summary>
     internal void BeginStop()
     {
-        CancellationTokenSource? cut;
+        TerminalRelease? release;
         lock (_sync)
         {
             if (_phase == BooruProducerPhase.Stopped && _epoch is null) return;
             _phase = BooruProducerPhase.Stopped;
-            cut = _cut;
-            _epoch?.Close();
+            release = PrepareTerminalReleaseLocked();
         }
-        if (cut != null) _ = CancelAsync(cut);
+        StartTerminalRelease(release);
         RaiseChanged();
     }
 
@@ -242,11 +249,82 @@ internal sealed class BooruProducerLifecycle
     internal async Task StopAsync()
     {
         BeginStop();
-        Task drained;
-        lock (_sync) drained = _epoch?.Close() ?? Task.CompletedTask;
-        await drained.ConfigureAwait(false);
-        ReleaseDrained();
+        Task release;
+        lock (_sync) release = _terminalReleaseTask ?? Task.CompletedTask;
+        await release.ConfigureAwait(false);
     }
+
+    // Terminal recovery/stop owns the old generation until both its cancellation request and every counted use have
+    // settled. A failed peer drain must not leave this Ordinary admission stranded, but it also must not release it
+    // while a Booru use can still perform its terminal write. The detached task is observed even when the caller only
+    // marks recovery and does not stop immediately; StopAsync awaits the same task and preserves any cancellation fault.
+    private TerminalRelease? PrepareTerminalReleaseLocked()
+    {
+        if (_epoch is null || _terminalReleaseTask is not null) return null;
+        Task cancellation = _cutCancellation ??= _cut is null ? Task.CompletedTask : CancelAsync(_cut);
+        TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _terminalReleaseTask = completion.Task;
+        return new TerminalRelease(_epoch, _epoch.Close(), cancellation, completion);
+    }
+
+    private void StartTerminalRelease(TerminalRelease? release)
+    {
+        if (release is null) return;
+        _ = CompleteTerminalReleaseAsync(release);
+        // RequireRecovery and BeginStop are synchronous fences. Keep a fault observable for callers that do not
+        // immediately await StopAsync; the terminal phase remains fail-closed rather than turning this into success.
+        _ = release.Completion.Task.ContinueWith(static completed => _ = completed.Exception,
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+    }
+
+    private async Task CompleteTerminalReleaseAsync(TerminalRelease release)
+    {
+        List<Exception>? errors = null;
+        try { await release.Cancellation.ConfigureAwait(false); }
+        catch (Exception error) { (errors ??= new()).Add(error); }
+        try { await release.Drain.ConfigureAwait(false); }
+        catch (Exception error) { (errors ??= new()).Add(error); }
+
+        CancellationTokenSource? cut = null;
+        bool canRelease = release.Drain.IsCompletedSuccessfully;
+        if (canRelease)
+        {
+            lock (_sync)
+            {
+                // Only the terminal task created for this exact epoch may detach it. Stop and recovery share the
+                // same task, so neither path can dispose the admission twice or release a successor generation.
+                if (ReferenceEquals(_epoch, release.Epoch))
+                {
+                    _epoch = null;
+                    cut = _cut;
+                    _cut = null;
+                    _cutCancellation = null;
+                }
+                else canRelease = false;
+            }
+        }
+        if (canRelease)
+        {
+            try
+            {
+                release.Epoch.Dispose();
+                cut?.Dispose();
+            }
+            catch (Exception error) { (errors ??= new()).Add(error); }
+        }
+
+        if (errors is null && canRelease) release.Completion.TrySetResult();
+        else
+        {
+            errors ??= new() { new InvalidOperationException("The Danbooru producer generation could not be released.") };
+            release.Completion.TrySetException(errors.Count == 1 ? errors[0] : new AggregateException(
+                "Terminal Danbooru producer cleanup reported failures.", errors));
+        }
+        RaiseChanged();
+    }
+
+    private sealed record TerminalRelease(ProfileProducerEpoch Epoch, Task Drain, Task Cancellation,
+        TaskCompletionSource Completion);
 
     internal bool IsCurrentGeneration(long generation)
     {

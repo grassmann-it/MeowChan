@@ -408,7 +408,14 @@ public sealed partial class Registry
             // after the actual complete drain. Other transition faults are not a
             // negative-effect proof; Stop is still checked again before resume.
             else if (quiescent && error is OperationCanceledException) safeToResume = true;
-            if (cut && !quiescent) _finalWriteParticipant?.FailTransition(error);
+            if (cut && !quiescent)
+            {
+                // A post-cut drain failure is no longer a reversible suspension. Seal the kernel first so a later
+                // write or exclusive request is rejected instead of waiting behind an owner whose drain failed;
+                // accepted uses remain counted until their real owners/Stop path release them.
+                _producerLease?.Admission.FailRecovery();
+                _finalWriteParticipant?.RequireRecovery(error);
+            }
             throw;
         }
         finally
@@ -424,7 +431,9 @@ public sealed partial class Registry
                         {
                             try { exclusive = await reservation.ConfigureAwait(false); }
                             catch (OperationCanceledException) { }
-                            catch (InvalidOperationException) when (_producerStopRequested) { }
+                            catch (InvalidOperationException) when (_producerStopRequested
+                                || _producerLease?.Admission.Phase is ProfileAdmissionPhase.RecoveryFailed
+                                    or ProfileAdmissionPhase.Stopping or ProfileAdmissionPhase.Stopped) { }
                         }
                     }
                 }

@@ -135,6 +135,64 @@ public sealed class BooruProducerLifecycleTests
         Assert.Throws<InvalidOperationException>(stopped.Open);
     }
 
+    [Fact]
+    public async Task RecoveryFenceRejectsWaitingEntriesAndReleasesTheOldAdmissionOnlyAfterTheUseLeaves()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        BooruProducerLifecycle lifecycle = new(profile.Lease.Admission);
+        lifecycle.Open();
+        BooruProducerUse use = lifecycle.TryEnter()!;
+        lifecycle.BeginTransition();
+        Task cut = lifecycle.CutAndDrainAsync();
+        Task<BooruProducerUse> waiting = lifecycle.EnterAsync();
+        Assert.False(cut.IsCompleted);
+        Assert.False(waiting.IsCompleted);
+
+        lifecycle.RequireRecovery();
+        Assert.Equal(BooruProducerPhase.RecoveryRequired, lifecycle.Phase);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => waiting.WaitAsync(TestWait.Timeout));
+        Assert.False(cut.IsCompleted); // the terminal fence never revokes a live use
+
+        profile.Lease.Admission.FailRecovery();
+        Assert.Throws<InvalidOperationException>(() => profile.Lease.Admission.EnterOrdinaryWriter());
+        Assert.Throws<InvalidOperationException>(() => profile.Lease.Admission.EnterExclusiveAsync());
+
+        use.Dispose();
+        await cut.WaitAsync(TestWait.Timeout);
+        profile.Lease.Admission.BeginShutdown();
+        await profile.Lease.Admission.DrainAsync().WaitAsync(TestWait.Timeout);
+        profile.Lease.Admission.CompleteShutdown();
+        Assert.Equal(ProfileAdmissionPhase.Stopped, profile.Lease.Admission.Phase);
+    }
+
+    [Fact]
+    public async Task StopObservesThrowingCutCancellationAndStillReleasesTheGeneration()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        BooruProducerLifecycle lifecycle = new(profile.Lease.Admission);
+        lifecycle.Open();
+        BooruProducerUse use = lifecycle.TryEnter()!;
+        TaskCompletionSource callbackEntered = Signal();
+        using CancellationTokenRegistration callback = use.Cut.Register(() =>
+        {
+            callbackEntered.TrySetResult();
+            throw new InvalidOperationException("Synthetic cancellation callback failure.");
+        });
+
+        Task stopping = lifecycle.StopAsync();
+        await callbackEntered.Task.WaitAsync(TestWait.Timeout);
+        Assert.False(stopping.IsCompleted); // the counted use still owns the generation
+        use.Dispose();
+        await Assert.ThrowsAnyAsync<Exception>(() => stopping.WaitAsync(TestWait.Timeout));
+
+        profile.Lease.Admission.BeginShutdown();
+        await profile.Lease.Admission.DrainAsync().WaitAsync(TestWait.Timeout);
+        profile.Lease.Admission.CompleteShutdown();
+        Assert.Equal(BooruProducerPhase.Stopped, lifecycle.Phase);
+    }
+
     private static async Task<bool> WaitCancelled(CancellationToken token)
     {
         await TestWait.UntilAsync(() => token.IsCancellationRequested, "cancelled");

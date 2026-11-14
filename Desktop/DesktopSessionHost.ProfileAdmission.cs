@@ -109,9 +109,14 @@ internal sealed partial class DesktopSessionHost
             host.OpenBooruProducers();
             host.OpenFinalWriteEpoch();
         }
+        // Activation rollback is still retryable after a complete drain. A post-cut drain failure uses
+        // RequireRecovery below instead; it must not leave the Booru family merely Suspended.
         public void FailTransition(Exception error) => host.FailFinalWriteTransition(error);
         public void RequireRecovery(Exception error)
         {
+            // Seal kernel ingress before terminal family cleanup. Accepted uses keep their exact ownership until
+            // the lifecycle's terminal drain has completed; this call never revokes them early.
+            host._profileLease.Admission.FailRecovery();
             host._booruProducers.RequireRecovery();
             host.RequireProfileRecovery(error);
         }
