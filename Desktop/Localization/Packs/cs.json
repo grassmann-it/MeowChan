@@ -3683,6 +3683,16 @@
     "tags.quick.reason.sameFileIn": "stejný soubor v {0}",
     "tags.quick.reason.fileName": "z názvu souboru",
     "tags.quick.reason.title": "z názvu vlákna",
-    "tags.quick.reason.sourceTag": "zdrojový štítek"
+    "tags.quick.reason.sourceTag": "zdrojový štítek",
+    "tags.quick.gallery.position": "Médium {0} z {1}",
+    "tags.quick.gallery.positionMore": "Médium {0} z alespoň {1}",
+    "tags.quick.status.undoneAddOn": "Vráceno u {1}: „{0}“ znovu odebrán.",
+    "tags.quick.status.undoneRemoveOn": "Vráceno u {1}: „{0}“ znovu přiřazen.",
+    "tags.quick.thread.heading": "Štítky vlákna ({0})",
+    "tags.quick.thread.empty": "Toto vlákno zatím nemá žádné štítky. Štítky vlákna označují vlákno, ne jeho mediální soubory.",
+    "tags.quick.thread.hint": "Štítky vlákna označují vlákno, ne jeho mediální soubory. Kliknutím na štítek jej odeberete.",
+    "tags.quick.thread.remove": "Odebrat štítek vlákna {0}",
+    "tags.quick.thread.field": "Přidat štítek vlákna",
+    "tags.quick.thread.chips": "Štítky vlákna"
   }
 }

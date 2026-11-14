@@ -3645,6 +3645,16 @@
     "tags.quick.reason.sameFileIn": "même fichier dans {0}",
     "tags.quick.reason.fileName": "du nom de fichier",
     "tags.quick.reason.title": "du titre du fil",
-    "tags.quick.reason.sourceTag": "étiquette source"
+    "tags.quick.reason.sourceTag": "étiquette source",
+    "tags.quick.gallery.position": "Média {0} sur {1}",
+    "tags.quick.gallery.positionMore": "Média {0} sur au moins {1}",
+    "tags.quick.status.undoneAddOn": "Annulé sur {1} : « {0} » de nouveau retirée.",
+    "tags.quick.status.undoneRemoveOn": "Annulé sur {1} : « {0} » de nouveau attribuée.",
+    "tags.quick.thread.heading": "Étiquettes du fil ({0})",
+    "tags.quick.thread.empty": "Ce fil n’a pas encore d’étiquettes. Les étiquettes du fil marquent le fil, pas ses fichiers multimédias.",
+    "tags.quick.thread.hint": "Les étiquettes du fil marquent le fil, pas ses fichiers multimédias. Un clic sur une étiquette la retire.",
+    "tags.quick.thread.remove": "Retirer l’étiquette de fil {0}",
+    "tags.quick.thread.field": "Ajouter une étiquette de fil",
+    "tags.quick.thread.chips": "Étiquettes du fil"
   }
 }

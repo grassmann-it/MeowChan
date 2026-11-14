@@ -3608,6 +3608,16 @@
     "tags.quick.reason.sameFileIn": "{0} 中的相同文件",
     "tags.quick.reason.fileName": "来自文件名",
     "tags.quick.reason.title": "来自帖子标题",
-    "tags.quick.reason.sourceTag": "来源标签"
+    "tags.quick.reason.sourceTag": "来源标签",
+    "tags.quick.gallery.position": "第 {0} 个媒体，共 {1} 个",
+    "tags.quick.gallery.positionMore": "第 {0} 个媒体，至少共 {1} 个",
+    "tags.quick.status.undoneAddOn": "已在 {1} 上撤销：“{0}”已再次移除。",
+    "tags.quick.status.undoneRemoveOn": "已在 {1} 上撤销：“{0}”已重新添加。",
+    "tags.quick.thread.heading": "串标签（{0}）",
+    "tags.quick.thread.empty": "此串还没有标签。串标签标记的是整个串，而不是其中的媒体文件。",
+    "tags.quick.thread.hint": "串标签标记的是整个串，而不是其中的媒体文件。点击标签即可移除。",
+    "tags.quick.thread.remove": "移除串标签 {0}",
+    "tags.quick.thread.field": "添加串标签",
+    "tags.quick.thread.chips": "串标签"
   }
 }

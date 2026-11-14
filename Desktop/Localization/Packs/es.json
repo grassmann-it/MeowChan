@@ -3645,6 +3645,16 @@
     "tags.quick.reason.sameFileIn": "mismo archivo en {0}",
     "tags.quick.reason.fileName": "del nombre de archivo",
     "tags.quick.reason.title": "del título del hilo",
-    "tags.quick.reason.sourceTag": "etiqueta de origen"
+    "tags.quick.reason.sourceTag": "etiqueta de origen",
+    "tags.quick.gallery.position": "Archivo multimedia {0} de {1}",
+    "tags.quick.gallery.positionMore": "Archivo multimedia {0} de al menos {1}",
+    "tags.quick.status.undoneAddOn": "Deshecho en {1}: «{0}» se quitó de nuevo.",
+    "tags.quick.status.undoneRemoveOn": "Deshecho en {1}: «{0}» se asignó de nuevo.",
+    "tags.quick.thread.heading": "Etiquetas del hilo ({0})",
+    "tags.quick.thread.empty": "Este hilo aún no tiene etiquetas. Las etiquetas del hilo marcan el hilo, no sus archivos multimedia.",
+    "tags.quick.thread.hint": "Las etiquetas del hilo marcan el hilo, no sus archivos multimedia. Un clic en una etiqueta la quita.",
+    "tags.quick.thread.remove": "Quitar la etiqueta de hilo {0}",
+    "tags.quick.thread.field": "Añadir una etiqueta de hilo",
+    "tags.quick.thread.chips": "Etiquetas del hilo"
   }
 }

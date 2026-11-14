@@ -3608,6 +3608,16 @@
     "tags.quick.reason.sameFileIn": "{0}の同じファイル",
     "tags.quick.reason.fileName": "ファイル名から",
     "tags.quick.reason.title": "スレッドタイトルから",
-    "tags.quick.reason.sourceTag": "ソースタグ"
+    "tags.quick.reason.sourceTag": "ソースタグ",
+    "tags.quick.gallery.position": "メディア {0} / {1}",
+    "tags.quick.gallery.positionMore": "メディア {0} / {1} 以上",
+    "tags.quick.status.undoneAddOn": "{1} で元に戻しました: 「{0}」を再び外しました。",
+    "tags.quick.status.undoneRemoveOn": "{1} で元に戻しました: 「{0}」を再び付与しました。",
+    "tags.quick.thread.heading": "スレッドのタグ（{0}）",
+    "tags.quick.thread.empty": "このスレッドにはまだタグがありません。スレッドのタグはスレッド自体に付くもので、メディアファイルには付きません。",
+    "tags.quick.thread.hint": "スレッドのタグはスレッド自体に付くもので、メディアファイルには付きません。タグをクリックすると外せます。",
+    "tags.quick.thread.remove": "スレッドのタグ {0} を外す",
+    "tags.quick.thread.field": "スレッドのタグを追加",
+    "tags.quick.thread.chips": "スレッドのタグ"
   }
 }

@@ -3651,6 +3651,16 @@
     "tags.quick.reason.sameFileIn": "stesso file in {0}",
     "tags.quick.reason.fileName": "dal nome del file",
     "tags.quick.reason.title": "dal titolo del thread",
-    "tags.quick.reason.sourceTag": "tag della fonte"
+    "tags.quick.reason.sourceTag": "tag della fonte",
+    "tags.quick.gallery.position": "Media {0} di {1}",
+    "tags.quick.gallery.positionMore": "Media {0} di almeno {1}",
+    "tags.quick.status.undoneAddOn": "Annullato su {1}: «{0}» rimosso di nuovo.",
+    "tags.quick.status.undoneRemoveOn": "Annullato su {1}: «{0}» assegnato di nuovo.",
+    "tags.quick.thread.heading": "Tag del thread ({0})",
+    "tags.quick.thread.empty": "Questo thread non ha ancora tag. I tag del thread contrassegnano il thread, non i suoi file multimediali.",
+    "tags.quick.thread.hint": "I tag del thread contrassegnano il thread, non i suoi file multimediali. Un clic su un tag lo rimuove.",
+    "tags.quick.thread.remove": "Rimuovi il tag del thread {0}",
+    "tags.quick.thread.field": "Aggiungi un tag del thread",
+    "tags.quick.thread.chips": "Tag del thread"
   }
 }

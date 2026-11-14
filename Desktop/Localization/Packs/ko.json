@@ -3608,6 +3608,16 @@
     "tags.quick.reason.sameFileIn": "{0}의 같은 파일",
     "tags.quick.reason.fileName": "파일 이름에서",
     "tags.quick.reason.title": "스레드 제목에서",
-    "tags.quick.reason.sourceTag": "소스 태그"
+    "tags.quick.reason.sourceTag": "소스 태그",
+    "tags.quick.gallery.position": "미디어 {0}/{1}",
+    "tags.quick.gallery.positionMore": "미디어 {0}/최소 {1}",
+    "tags.quick.status.undoneAddOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 제거했습니다.",
+    "tags.quick.status.undoneRemoveOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 지정했습니다.",
+    "tags.quick.thread.heading": "스레드 태그({0})",
+    "tags.quick.thread.empty": "이 스레드에는 아직 태그가 없습니다. 스레드 태그는 스레드 자체에 지정되며 미디어 파일에는 지정되지 않습니다.",
+    "tags.quick.thread.hint": "스레드 태그는 스레드 자체에 지정되며 미디어 파일에는 지정되지 않습니다. 태그를 클릭하면 제거됩니다.",
+    "tags.quick.thread.remove": "스레드 태그 {0} 제거",
+    "tags.quick.thread.field": "스레드 태그 추가",
+    "tags.quick.thread.chips": "스레드 태그"
   }
 }
