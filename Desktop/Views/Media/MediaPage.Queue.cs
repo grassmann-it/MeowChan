@@ -58,11 +58,16 @@ public sealed partial class MediaPage
     private IReadOnlySet<TagQueueKey>? _queueKeys = new HashSet<TagQueueKey>();
     private int _queueOpen;
     private bool _queueLoadRequested;
+    // What the badges and the status line were last refreshed for: the snapshot, or this sentinel while the queue is unreadable.
+    private static readonly object QueueUnreadable = new();
+    private object? _queueSignature;
 
     /// <summary>How many queue entries are open (the status line counts them).</summary>
     internal int QueueOpenCount => _queueOpen;
     /// <summary>How many tiles had their badges refreshed by the last queue change (tests: only realized tiles are touched).</summary>
     internal int QueueBadgeRefreshes { get; private set; }
+    /// <summary>How often a real queue change (another snapshot, or the queue becoming unreadable) was applied; a repeated read of the same state adds nothing (tests).</summary>
+    internal int QueueChangesApplied { get; private set; }
 
     /// <summary>Whether the occurrence is in the tagging queue (any state). False while the queue is unknown or unreadable.</summary>
     internal bool IsInTagQueue(MediaLibraryEntry entry) => _queueKeys is { Count: > 0 } keys && TagQueueKeys.Of(entry) is { } key && keys.Contains(key);
@@ -84,7 +89,12 @@ public sealed partial class MediaPage
             _queueLoadRequested = true;
             _ = LoadQueueQuietlyAsync(loader);
         }
-        if (!unreadable && ReferenceEquals(snapshot, _queueSnapshot) && _queueKeys != null) return;
+        // Compared by signature: the session ticks all the time (downloads), and an unreadable queue must not refresh the badges, the status line
+        // and, with the queue term, the whole grid again for every tick; the next change of state (readable again) does.
+        object? signature = unreadable ? QueueUnreadable : snapshot;
+        if (ReferenceEquals(signature, _queueSignature)) return;
+        _queueSignature = signature;
+        QueueChangesApplied++;
         _queueSnapshot = snapshot;
         _queueKeys = unreadable ? null : snapshot == null ? new HashSet<TagQueueKey>() : TagQueueKeys.Set(snapshot);
         _queueOpen = snapshot?.Open ?? 0;
