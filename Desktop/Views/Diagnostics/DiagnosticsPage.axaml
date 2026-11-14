@@ -101,7 +101,7 @@
                 <Button x:Name="RetryDiagnosticFilteredButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-filtered" Click="OnRetryDiagnosticFiltered" />
                 <Button x:Name="CopyDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.copy" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
                 <Button x:Name="OpenDiagnosticWatchButton" wv:WorkViewElement.Id="diagnostics.toolbar.show-in-downloads" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="DiagnosticMoreButton" wv:WorkViewElement.Id="diagnostics.toolbar.more" Content="⋯" MinWidth="38" IsVisible="False" Click="OnDiagnosticMoreClick" />
+                <Button x:Name="DiagnosticMoreButton" wv:WorkViewElement.Id="diagnostics.toolbar.more" IsVisible="False" Click="OnDiagnosticMoreClick" />
             </WrapPanel>
         </StackPanel>
     </Grid>

@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
@@ -24,12 +25,12 @@ public sealed partial class MediaPage
     private bool _workViewRegistered;
     private readonly Button _more = new()
     {
-        Name = "MediaMore", Content = "⋯", MinWidth = 32, MinHeight = 32, Padding = new Avalonia.Thickness(8, 0),
+        Name = "MediaMore",
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     private readonly Button _selMore = new()
     {
-        Name = "MediaSelectionMore", Content = "⋯", MinWidth = 32, Padding = new Avalonia.Thickness(8, 0),
+        Name = "MediaSelectionMore",
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     // The fields of the filter surface that a view may hold back, opened by this toggle until the view changes (R13: nothing is saved).
@@ -79,6 +80,9 @@ public sealed partial class MediaPage
         ((MenuFlyout)_more.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
+        // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
+        WorkspaceIcons.MakeSquare(_more, WorkspaceIcons.More, Texts.T("workview.more"));
+        WorkspaceIcons.MakeSquare(_selMore, WorkspaceIcons.More, Texts.T("workview.more"));
         _workViewRegistered = true;
     }
 
