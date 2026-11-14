@@ -6,7 +6,12 @@ public sealed class GalleryFramePngTests
 {
     // R07 (review 14.11. night): the software frame is encoded and written on a worker thread; failures are false, not thrown.
     [Fact]
-    public async Task ASoftwareFrameIsEncodedOffTheCallingThreadAndFailuresAreReported()
+    public Task ASoftwareFrameIsEncodedOffTheCallingThreadAndFailuresAreReported() =>
+        // The writer must differ from the calling thread. An xunit test thread can itself be a pool thread, and once the test awaits it may pick
+        // up the queued write, so the call starts on a dedicated (non-pool) thread: only a pool thread can then be the writer.
+        Task.Factory.StartNew(SoftwareFrameBody, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+
+    private static async Task SoftwareFrameBody()
     {
         using TempDirectory profile = new();
         int caller = Environment.CurrentManagedThreadId, writer = caller;
