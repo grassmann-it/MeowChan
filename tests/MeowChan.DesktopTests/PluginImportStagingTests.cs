@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Installation;
 using MeowChan.Persistence;
@@ -253,6 +254,70 @@ public sealed class PluginImportStagingTests : IDisposable
         File.WriteAllText(destination, "later publication");
         stage.DiscardPublished(); // Even a second rejection has no authority over a new occupant.
         Assert.Equal("later publication", File.ReadAllText(destination));
+    }
+
+    [Fact]
+    public async Task PublicationNeverAdoptsAPreexistingDestinationNameThatAlreadyLinksToThePayload()
+    {
+        // Deterministic witness of the no-clobber contract. Unix File.Move(..., overwrite: false) treats a destination
+        // that is the same inode as "renameable"; rename(2) then succeeds without moving anything. That name was not
+        // created by this import, so it must not become our publication (and must not be discarded as ours later).
+        if (OperatingSystem.IsWindows()) return;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        string destination = Path.Combine(_plugins, "linked-elsewhere.cs");
+        try
+        {
+            await stage.WriteAsync("// owned bytes, foreign name"u8.ToArray(), CancellationToken.None);
+            Assert.Equal(0, HardLink(stage.PayloadPath, destination));
+
+            Assert.Throws<IOException>(() => stage.Publish(destination, CancellationToken.None));
+            stage.DiscardPublished(); // Nothing was published by us: no authority over the foreign name.
+            Assert.Equal("// owned bytes, foreign name", File.ReadAllText(destination));
+            Assert.True(File.Exists(stage.PayloadPath)); // Still our owned staging name until disposal.
+        }
+        finally { stage.Dispose(); }
+
+        Assert.Equal("// owned bytes, foreign name", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging)); // Neither a stranded payload nor a lease.
+    }
+
+    [Fact]
+    public async Task UnixPublicationLeavesExactlyOneNameForThePublishedFile()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        await stage.WriteAsync("// single name"u8.ToArray(), CancellationToken.None);
+        RegularProfileFileIdentity staged = RegularProfileFile.TryGetIdentity(stage.PayloadPath)!.Value;
+        string destination = Path.Combine(_plugins, "single.cs");
+
+        stage.Publish(destination, CancellationToken.None);
+
+        RegularProfileFileIdentity published = RegularProfileFile.TryGetIdentity(destination)!.Value;
+        Assert.Equal((staged.Device, staged.Inode), (published.Device, published.Inode));
+        Assert.False(File.Exists(stage.PayloadPath));
+        Assert.Equal(Path.ChangeExtension(stage.PayloadPath, ".lock"), Assert.Single(Directory.EnumerateFileSystemEntries(Staging)));
+        stage.DiscardPublished();
+        Assert.False(File.Exists(destination));
+    }
+
+    [Fact]
+    public void RestartCleanupAfterACrashBetweenPublicationAndStagingUnlinkKeepsTheInstalledPlugin()
+    {
+        // A crash after link(2) but before the staging name was dropped leaves an abandoned pair whose payload is a
+        // second name of the installed plugin. Startup removes only the two staging names, never the plugin file.
+        if (OperatingSystem.IsWindows()) return;
+        CreatePrivateStaging();
+        string installed = Path.Combine(_plugins, "installed.cs");
+        File.WriteAllText(installed, "// installed plugin");
+        string lease = Path.Combine(Staging, OwnStem + ".lock");
+        string payload = Path.Combine(Staging, OwnStem + ".tmp");
+        File.WriteAllBytes(lease, []);
+        Assert.Equal(0, HardLink(installed, payload));
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+
+        Assert.Equal("// installed plugin", File.ReadAllText(installed));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
     }
 
     [Fact]
@@ -561,6 +626,11 @@ public sealed class PluginImportStagingTests : IDisposable
         Assert.Empty(scan.Candidates);
         Assert.Empty(scan.Diagnostics);
     }
+
+    // Test-only hard link on a fresh temporary fixture; Unix only (callers return early on Windows).
+    [DllImport("libc", EntryPoint = "link", SetLastError = true)]
+    private static extern int HardLink([MarshalAs(UnmanagedType.LPUTF8Str)] string existing,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string created);
 
     private sealed class PausedPayloadStream(string path, TaskCompletionSource entered, TaskCompletionSource resume)
         : FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous)
