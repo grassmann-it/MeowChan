@@ -41,6 +41,9 @@ public partial class SourcesPage : UserControl
     private bool _narrow;
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
+    /// <summary>A family site's own switch (owner, source → on/off, null without one) and its setter.</summary>
+    internal Func<string, string, bool?>? GetChanSiteEnabled { get; set; }
+    internal Func<string, bool, Task<bool>>? SetChanSiteEnabled { get; set; }
     /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
     internal Func<int>? GetWatchPreviewRows { get; set; }
     private Action? _openMediaFolders;

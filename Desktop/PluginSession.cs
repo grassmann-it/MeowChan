@@ -56,6 +56,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal IPluginInstallationInventory Inventory { get; }
     internal PluginWorkerManager Runtime { get; }
     internal string PluginDirectory { get; }
+    /// <summary>The own on/off switch of each site of an engine-family chan plugin (the plugin stays the master switch).</summary>
+    internal ChanSiteSwitches SiteSwitches { get; }
     internal IReadOnlyList<PluginSourceImageBoard> Sources { get; private set; } = Array.Empty<PluginSourceImageBoard>();
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
     // Observation only: the early probe's completion, never its result.
@@ -70,6 +72,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
+        SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
         _repairRestrictedSourceIds = config.SourceMediaIntegrityPermissions
             .Where(pair => pair.Value.AllowProviderSizeMd5Mismatch).Select(pair => pair.Value.SourceId).Distinct(StringComparer.Ordinal).ToArray();
@@ -84,7 +87,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             lock (_state)
                 return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
                     .Select(source => source.Name).Concat(_repairRestrictedSourceIds).Distinct(StringComparer.Ordinal).ToArray();
-        }, sourcePermissionCommitGate);
+        }, sourcePermissionCommitGate) { SupersededBundledPlugins = ChanSourceFamilies.Successors };
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,
@@ -174,6 +177,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         (PluginProfileSnapshot previous, PluginInstallationCandidate[] ordered, HashSet<string> shippedIds,
             PluginCandidateObservation[] probed, List<string> warnings) = probe;
+        // Before any adapter exists: a site of a family plugin takes over its replaced single-site plugin's state.
+        SiteSwitches.MigrateFrom(previous);
         List<PluginCandidateObservation> observations = new();
         List<DeliveredCandidateProvenance> delivered = new();
         MeowChan.Diagnostics.PerformanceDiagnostics.Measurement provenance = PluginStartupDiagnostics.Span("provenance");
@@ -210,7 +215,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
         long adaptersStarted = Stopwatch.GetTimestamp();
         using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement adapters = PluginStartupDiagnostics.Span("adapters-routing");
         lock (_state) _grants = activated;
+        // A bundled identity replaced by its delivered family plugin keeps its record but never owns a source again.
+        IReadOnlySet<string> superseded = SupersededBundledPlugins.InProfile(activated, ChanSourceFamilies.Successors);
         List<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions = activated.Plugins
+            .Where(plugin => !superseded.Contains(plugin.PluginId))
             .Select(plugin => (Activation: plugin, Description: plugin.Active?.Description ?? plugin.LastGood?.Description))
             .Where(item => item.Description != null).Select(item => (item.Activation, item.Description!)).ToList();
         // Activation owns explicit conflict choices. Keep an unavailable source's last declaration
@@ -240,7 +248,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 _services.Add(media);
                 PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue)
                 { MediaIntegrityPolicy = _sourceMediaIntegrityPolicyFactory?.Invoke(activation.PluginId, source.SourceId) };
-                if (!activation.Enabled || activation.Active == null) adapter.SetEnabled(false);
+                if (!activation.Enabled || activation.Active == null || !SiteSwitches.IsEnabled(activation.PluginId, source.SourceId))
+                    adapter.SetEnabled(false);
                 sources.Add(adapter);
                 lock (_state) _sourceOwners.Add(adapter, activation.PluginId);
             }
@@ -425,7 +434,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             _active[change.PluginId] = activation with { Enabled = change.Enabled, LifecycleRevision = change.LifecycleRevision };
             foreach (KeyValuePair<PluginSourceImageBoard, string> item in _sourceOwners.Where(item => item.Value == change.PluginId))
             {
-                bool enabled = change.Enabled && activation.Active != null;
+                bool enabled = change.Enabled && activation.Active != null && SiteSwitches.IsEnabled(change.PluginId, item.Key.Name);
                 // Invalidate before returning from the synchronous lifecycle notification.
                 SetSourceMediaIntegrityActive(item.Key, enabled);
                 item.Key.SetEnabled(enabled);

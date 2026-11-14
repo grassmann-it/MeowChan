@@ -74,12 +74,13 @@ public partial class MainWindow
             }
             if (phase == "install")
             {
+                // The vichan family serves Lainchan; an author copy keeps the family identity.
                 string lainchan = Path.Combine(plugins.PluginDirectory, "Author Lainchan source.cs");
-                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "Lainchan.cs"), lainchan);
+                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "VichanFamily.cs"), lainchan);
                 string filter = await WriteAuthorFilterSourceAsync(plugins.PluginDirectory);
                 foreach ((string local, string delivered, string pluginId) in new[]
                 {
-                    (lainchan, "plugins/sources/Lainchan.cs", "meowchan.source.lainchan"),
+                    (lainchan, "plugins/sources/VichanFamily.cs", ChanSourceFamilies.Vichan),
                     (filter, "plugins/sources/ImageDimensionsFilter.cs", AuthorFilterId)
                 })
                 {
@@ -98,7 +99,7 @@ public partial class MainWindow
                         RequireWorkflow((await worker.ValidateSettingsAsync(new(SettingScope.Plugin, config.PluginSettings), CancellationToken.None)).Count == 0, "Author plugin settings test failed.");
                         foreach (var source in config.SourceSettings)
                             RequireWorkflow((await worker.ValidateSettingsAsync(new(SettingScope.Source, source.Value, SourceId: source.Key), CancellationToken.None)).Count == 0, "Author source settings test failed.");
-                        if (pluginId == "meowchan.source.lainchan")
+                        if (pluginId == ChanSourceFamilies.Vichan)
                         {
                             object probe = await PluginProbe.ReadAsync(description, ApphostPluginFixtures.ThreadUrl("lainchan"), worker, new("author-probe", 1), CancellationToken.None);
                             RequireWorkflow(probe is MeowChan.PluginSdk.ThreadSnapshot thread && thread.Snapshot.Posts.Count == 2, "Author source probe did not return normalized posts.");
@@ -240,7 +241,7 @@ public partial class MainWindow
         RequireWorkflow(isPaused, "Source activation startup is not paused.");
         RequireWorkflow(phase is "install" or "acquire" or "offline", "Unknown author startup phase.");
         const string selectedAdvisory = "Multiple candidates exist; the selected candidate is retained.";
-        string[] authorIds = { "meowchan.source.lainchan", AuthorFilterId };
+        string[] authorIds = { ChanSourceFamilies.Vichan, AuthorFilterId };
         List<string> expectedWarnings = new();
         foreach (var plugin in installed.Plugins)
         {

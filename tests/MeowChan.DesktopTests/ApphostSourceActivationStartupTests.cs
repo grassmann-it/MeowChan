@@ -35,7 +35,7 @@ public sealed class ApphostSourceActivationStartupTests
         using Fixture fixture = new();
         var (state, warnings) = await fixture.SelectedAsync();
         var plugins = state.Plugins.ToArray();
-        int target = Array.FindIndex(plugins, plugin => plugin.PluginId == "meowchan.source.lainchan");
+        int target = Array.FindIndex(plugins, plugin => plugin.PluginId == "meowchan.source.vichan");
         int other = Array.FindIndex(plugins, plugin => plugin.PluginId == "other.plugin");
         if (fault == "missing-warning") warnings = warnings[..1];
         if (fault == "extra-warning") warnings = [.. warnings, "unrelated warning"];
@@ -67,12 +67,12 @@ public sealed class ApphostSourceActivationStartupTests
     {
         private readonly string profile = Path.Combine(Path.GetTempPath(), "meowchan-author-startup-tests-" + Guid.NewGuid().ToString("N"));
         internal PluginProfileStore Store { get; }
-        internal PluginCandidateObservation[] Prebuilt { get; } = [Candidate("meowchan.source.lainchan", "prebuilt"), Candidate("meowchan.example.image-dimensions", "prebuilt"), Candidate("other.plugin", "prebuilt"), Candidate("meowchan.source.sevenchan", "prebuilt")];
+        internal PluginCandidateObservation[] Prebuilt { get; } = [Candidate("meowchan.source.vichan", "prebuilt"), Candidate("meowchan.example.image-dimensions", "prebuilt"), Candidate("other.plugin", "prebuilt"), Candidate("meowchan.source.sevenchan", "prebuilt")];
         internal Fixture() => Store = new(profile, MainWindow.ApphostFixturePluginEnabled);
         internal async Task<(PluginProfileSnapshot, string[])> SelectedAsync()
         {
             var state = await Store.ApplyStartupAsync(Prebuilt, 0);
-            PluginCandidateObservation[] authors = [Candidate("meowchan.source.lainchan", "author"), Candidate("meowchan.example.image-dimensions", "author")];
+            PluginCandidateObservation[] authors = [Candidate("meowchan.source.vichan", "author"), Candidate("meowchan.example.image-dimensions", "author")];
             foreach (var author in authors)
             {
                 state = await Store.ObserveCandidateAsync(author, state.Revision);

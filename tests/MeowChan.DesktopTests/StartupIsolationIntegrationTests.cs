@@ -20,7 +20,7 @@ namespace MeowChan.DesktopTests;
 [Collection("Delivered plugin hosts")]
 public sealed class StartupIsolationIntegrationTests(ITestOutputHelper output)
 {
-    private const string FailedPlugin = "meowchan.source.lainchan";
+    private const string FailedPlugin = "meowchan.source.vichan"; // serves lainchan (and the other vichan sites)
     private const string HealthyPlugin = "meowchan.source.kohlchan";
     private const string FilterPlugin = "meowchan.example.image-dimensions";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(45);
@@ -70,7 +70,7 @@ public sealed class StartupIsolationIntegrationTests(ITestOutputHelper output)
                 // the real shipped artifact/description (not a fake source implementation).
                 // Its path is profile-local; only that candidate is removed/corrupted below.
                 candidatePath = Path.Combine(host.Plugins.PluginDirectory, "SelectedSource.cs");
-                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "Lainchan.cs"), candidatePath);
+                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "VichanFamily.cs"), candidatePath);
                 PluginInstallationCandidate candidate = Assert.Single((await host.Plugins.Inventory.ScanAsync(host.Plugins.PluginDirectory)).Candidates);
                 selected = candidate.CandidateId;
                 PluginReleaseSnapshot release = saved.Plugins.Single(plugin => plugin.PluginId == FailedPlugin).Active!;

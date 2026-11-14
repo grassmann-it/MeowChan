@@ -28,6 +28,15 @@ internal static class ExperimentalSourceActivationPolicy
         ["meowchan.source.capybarachan"] = "capybarachan"
     };
 
+    // Engine-family plugins (one plugin, several sites): the experimental sites of each family.
+    // A family itself is enabled by default; each of these sites starts off behind its own switch
+    // (ChanSiteSwitches), so a family never turns on an experimental site by itself.
+    private static readonly IReadOnlyDictionary<string, string[]> FamilySources = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        [ChanSourceFamilies.Vichan] = ["leftypol", "sushichan", "uboachan", "wizchan"],
+        [ChanSourceFamilies.Jschan] = ["zzzchan"]
+    };
+
     // Experimental describes delivery maturity, not operator approval or a
     // third-party/product-origin tier. The seven bundled 1.0.3 adapters are
     // MeowChan-maintained and opt-in, but they do not inherit this separate
@@ -44,5 +53,6 @@ internal static class ExperimentalSourceActivationPolicy
     internal static bool InitiallyEnabled(string pluginId) => !IsDisabledByDefault(pluginId);
 
     internal static bool IsEligible(string pluginOwnerId, string sourceId) =>
-        Sources.TryGetValue(pluginOwnerId, out string? expectedSource) && expectedSource == sourceId;
+        Sources.TryGetValue(pluginOwnerId, out string? expectedSource) && expectedSource == sourceId
+        || FamilySources.TryGetValue(pluginOwnerId, out string[]? family) && Array.IndexOf(family, sourceId) >= 0;
 }

@@ -22,6 +22,10 @@ public sealed class MakabaUboachanWaveIntegrationTests
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);
     private static readonly string[] NewSources = ["2ch", "leftypol", "uboachan", "zzzchan", "sushichan"];
 
+    // Leftypol, Uboachan and SushiChan are sites of the vichan family, ZZZchan of the jschan family.
+    private static string Owner(string source) => ChanSourceFamilies.Replaced.TryGetValue("meowchan.source." + source, out var site)
+        ? site.Family : "meowchan.source." + source;
+
     [Theory]
     [InlineData("2ch")]
     [InlineData("uboachan")]
@@ -47,7 +51,7 @@ public sealed class MakabaUboachanWaveIntegrationTests
             var worker = Assert.Single(host.Plugins!.Runtime.GetSnapshots());
             Assert.True(worker.ProcessId is > 0);
             var installed = await host.Plugins!.ProfileStore.ReadAsync();
-            Assert.Equal(installed.Plugins.Single(plugin => plugin.PluginId == "meowchan.source." + source).Active!.ExecutionRevision,
+            Assert.Equal(installed.Plugins.Single(plugin => plugin.PluginId == Owner(source)).Active!.ExecutionRevision,
                 worker.Identity.ExecutionRevision);
             await AssertArchiveAsync(host, fixture, source);
             Assert.Equal(source == "2ch" ? 6 : 4, fixture.Requests.Count);
@@ -198,10 +202,11 @@ public sealed class MakabaUboachanWaveIntegrationTests
         {
             var adapter = Assert.Single(plugins.Sources, row => row.Name == source);
             Assert.Equal(SourceMaturity.Experimental, adapter.Description.Maturity);
-            var plugin = Assert.Single(persisted.Plugins, row => row.PluginId == "meowchan.source." + source);
+            var plugin = Assert.Single(persisted.Plugins, row => row.PluginId == Owner(source));
             Assert.NotNull(plugin.Active);
             Assert.Null(plugin.Problem);
-            if (fresh) { Assert.False(adapter.Enabled); Assert.False(plugin.Enabled); }
+            // A fresh profile keeps every experimental source off: its own plugin, or its family site switch.
+            if (fresh) { Assert.False(adapter.Enabled); Assert.Equal(ChanSourceFamilies.IsFamily(plugin.PluginId), plugin.Enabled); }
         }
         Assert.Empty(host.Config.SourceMediaIntegrityPermissions);
         Assert.Empty(fixture.Requests);

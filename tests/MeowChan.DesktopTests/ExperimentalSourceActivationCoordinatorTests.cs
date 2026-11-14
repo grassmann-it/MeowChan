@@ -23,6 +23,50 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
     }
 
     [Fact]
+    public async Task AFamilySiteOfAnEnabledFamilyIsTurnedOnWithoutAnyProfileWrite()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.SiteMode = true;
+        var enabled = await f.Store.SetEnabledAsync(Fixture.Owner, true, (await f.Store.ReadAsync()).Revision);
+        Assert.False(f.Policy.GetView().IsActive); // The family is on, this site is not.
+        var target = (await f.ObserveAsync()).Target!;
+        Assert.False(target.IsEnabled); Assert.True(target.OwnerEnabled);
+        var result = await f.ExecuteAsync(target);
+        Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, result.Status);
+        Assert.True(result.ActualState!.IsEnabled); Assert.True(result.ActualState.IsActive); Assert.True(result.ActualState.IsGranted);
+        Assert.True(f.SiteOn);
+        // Only the site switch and the explicit grant changed: no profile or lifecycle revision.
+        Assert.Equal(enabled.Revision, (await f.Store.ReadAsync()).Revision);
+        Assert.Equal(enabled.Revision, result.ActualState.ProfileRevision);
+        Assert.Equal(1, f.EnableCalls); Assert.Equal(1, f.GrantCalls);
+    }
+
+    [Fact]
+    public async Task AFamilySiteOfADisabledFamilyTurnsOnTheSiteAndThePluginInOneConfirmedStep()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.SiteMode = true; f.RequestPermission = false;
+        var target = (await f.ObserveAsync()).Target!;
+        Assert.False(target.IsEnabled); Assert.False(target.OwnerEnabled);
+        var result = await f.ExecuteAsync(target);
+        Assert.Equal(ExperimentalSourceActivationStatus.Succeeded, result.Status);
+        Assert.True(f.SiteOn);
+        Assert.True(result.ActualState!.IsEnabled); Assert.True(result.ActualState.IsActive);
+        Assert.Equal(target.ProfileRevision + 1, result.ActualState.ProfileRevision);
+        Assert.Equal(target.PolicyRevision + 1, result.ActualState.PolicyRevision);
+        Assert.Equal(1, f.EnableCalls); Assert.Equal(0, f.GrantCalls);
+    }
+
+    [Fact]
+    public async Task AProfileWriteDuringASiteOnlyEnableIsAStaleTarget()
+    {
+        using Fixture f = await Fixture.CreateAsync(); f.SiteMode = true; f.RequestPermission = false;
+        await f.Store.SetEnabledAsync(Fixture.Owner, true, (await f.Store.ReadAsync()).Revision);
+        // Another writer changes the profile while only the site switch was expected to change.
+        f.AfterEnable = async () => await f.Store.SetEnabledAsync(Fixture.Owner, false, (await f.Store.ReadAsync()).Revision);
+        var result = await f.ExecuteAsync((await f.ObserveAsync()).Target!);
+        Assert.Equal(ExperimentalSourceActivationStatus.StaleTarget, result.Status);
+    }
+
+    [Fact]
     public async Task StrictActivationFailureCanRetryEnableWithoutEverRequestingPermission()
     {
         using Fixture f = await Fixture.CreateAsync(); f.RequestPermission = false; f.FailEnable = true;
@@ -256,6 +300,8 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
         private readonly Guid session = Guid.NewGuid();
         private readonly Config config = new();
         internal bool FailEnable, FailGrant, ThrowAfterLifecycle, Ready = true, RequestPermission = true;
+        // A site of an engine-family plugin: its own switch besides the plugin's (master) switch.
+        internal bool SiteMode, SiteOn;
         internal string OverrideOwner = Owner;
         internal int EnableCalls, GrantCalls;
         internal long GrantRevision;
@@ -279,7 +325,7 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
             await f.Store.SetEnabledAsync(Owner, false, saved.Revision);
             f.Store.LifecycleChanged += change =>
             {
-                f.Policy.SetActive(change.Enabled);
+                f.Policy.SetActive(change.Enabled && (!f.SiteMode || f.SiteOn));
                 if (f.ThrowAfterLifecycle) throw new IOException("Lifecycle callback failed after save.");
             };
             return f;
@@ -292,8 +338,9 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
             var target = new ExperimentalSourceActivationTarget(session, Profile.Path, OverrideOwner, Source, "Kohlchan",
                 "https://kohlchan.net/demo/res/123.html", plugin.Active!.CandidateId, plugin.Active.ExecutionRevision,
                 plugin.Active.CompilationFingerprint, plugin.Active.Artifact.AssemblySha256,
-                saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision, plugin.Enabled, view.IsGranted, RequestPermission);
-            return new(target, new(plugin.Enabled, view.IsActive, view.IsGranted, view.Snapshot.AllowProviderSizeMd5Mismatch,
+                saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision, plugin.Enabled && (!SiteMode || SiteOn), view.IsGranted, RequestPermission,
+                SiteMode ? plugin.Enabled : null);
+            return new(target, new(plugin.Enabled && (!SiteMode || SiteOn), view.IsActive, view.IsGranted, view.Snapshot.AllowProviderSizeMd5Mismatch,
                 saved.Revision, plugin.LifecycleRevision, view.Snapshot.Revision), Ready);
         }
         internal Task<ExperimentalSourceActivationResult> ExecuteAsync(ExperimentalSourceActivationTarget target) =>
@@ -302,6 +349,12 @@ public sealed class ExperimentalSourceActivationCoordinatorTests
                 EnableCalls++;
                 if (FailEnable) throw new IOException("Enable save failed.");
                 if (BeforeEnable != null) await BeforeEnable();
+                if (current.OwnerEnabled is bool ownerEnabled)
+                {
+                    SiteOn = true;
+                    Policy.SetActive(ownerEnabled);
+                    if (ownerEnabled) { if (AfterEnable != null) await AfterEnable(); return; }
+                }
                 await Store.SetEnabledAsync(current.PluginOwnerId, true, current.ProfileRevision);
                 if (AfterEnable != null) await AfterEnable();
             }, async current =>

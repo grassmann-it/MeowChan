@@ -8,10 +8,13 @@ internal enum ExperimentalSourceActivationProjectionStatus { NotRequired, Confir
 internal enum ExperimentalSourceActivationStatus { Succeeded, StaleTarget, ActivationFailed, GrantFailed }
 
 // A dialog captures runtime authority, not a candidate's declaration or a mutable UI row.
+// OwnerEnabled is set only for a site of an engine-family plugin: IsEnabled is then "plugin on and site on",
+// and OwnerEnabled the plugin's own state (null for every other source, whose plugin switch is its only switch).
 internal sealed record ExperimentalSourceActivationTarget(Guid SessionId, string ProfileId,
     string PluginOwnerId, string SourceId, string SourceName, string Url, string CandidateId,
     string ExecutionRevision, string CompilationFingerprint, string AssemblySha256,
-    long ProfileRevision, long LifecycleRevision, long PolicyRevision, bool IsEnabled, bool IsGranted, bool RequestsMismatchPermission = true);
+    long ProfileRevision, long LifecycleRevision, long PolicyRevision, bool IsEnabled, bool IsGranted, bool RequestsMismatchPermission = true,
+    bool? OwnerEnabled = null);
 internal sealed record ExperimentalSourceActivationProjection(ExperimentalSourceActivationProjectionStatus Status,
     ExperimentalSourceActivationTarget? Target = null, string? Error = null);
 internal sealed record ExperimentalSourceActivationActualState(bool IsEnabled, bool IsActive, bool IsGranted,
@@ -47,8 +50,11 @@ internal static class ExperimentalSourceActivationCoordinator
             current = await observe().ConfigureAwait(false);
             // Enable is the only permitted intervening mutation. Reading a new revision must not
             // silently accept a concurrent revoke, disable, owner choice or configuration change.
-            target = target with { IsEnabled = true, ProfileRevision = checked(target.ProfileRevision + 1),
-                LifecycleRevision = checked(target.LifecycleRevision + 1), PolicyRevision = checked(target.PolicyRevision + 1) };
+            // Turning on only a family site (its plugin already on) writes no profile and no lifecycle.
+            long profileStep = target.OwnerEnabled == true ? 0 : 1;
+            target = target with { IsEnabled = true, OwnerEnabled = target.OwnerEnabled is null ? null : true,
+                ProfileRevision = checked(target.ProfileRevision + profileStep),
+                LifecycleRevision = checked(target.LifecycleRevision + profileStep), PolicyRevision = checked(target.PolicyRevision + 1) };
             if (!Matches(current, target)) return Stale(current);
         }
         if (current.ActualState is not { IsActive: true }) return Stale(current);

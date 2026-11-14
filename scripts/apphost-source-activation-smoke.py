@@ -21,7 +21,7 @@ PHASES = ('install', 'acquire', 'offline')
 AUTHOR_REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo/res/123.json',
                    'https://lainchan.org/demo/src/1000-0.png', 'https://lainchan.org/demo/src/1001-1.png',
                    'https://kohlchan.net/.media/landscape.png', 'https://kohlchan.net/.media/portrait.png'}
-SOURCES = {'meowchan.source.lainchan': 'plugins/sources/Lainchan.cs',
+SOURCES = {'meowchan.source.vichan': 'plugins/sources/VichanFamily.cs',
            'meowchan.example.image-dimensions': 'plugins/sources/ImageDimensionsFilter.cs'}
 PARAMETERS = {'minimumWidth': '5', 'minimumHeight': '0', 'orientation': 'landscape', 'aspectRatioTolerance': '0'}
 TEMPLATE_CHECKS = {'dynamic-integer-error-no-rule-write', 'dynamic-form-real-rule-store',
@@ -48,7 +48,7 @@ def validate_startup(metrics, phase):
     if not isinstance(startup, dict) or startup.get('paused') is not True:
         raise ValueError('Source activation startup was not paused')
     rows = startup.get('plugins')
-    if (not isinstance(rows, list) or len(rows) != 24
+    if (not isinstance(rows, list) or len(rows) != len(plugin.PLUGIN_IDS)
             or {row.get('pluginId') for row in rows} != set(metrics['revisions'])):
         raise ValueError('Source activation startup plugin inventory differs')
     expected = []

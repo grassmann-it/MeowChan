@@ -94,6 +94,18 @@ Existing profiles keep their saved enable/disable and permission choices; an
 upgrade does not reset them. Registration does not establish live service health;
 see the source-specific notes and dated validation evidence for tested behavior.
 
+Wizchan, Leftypol, Uboachan and SushiChan (with Lainchan) are sites of the
+**vichan family** plugin, ZZZchan of the **jschan family** plugin. A family
+plugin is on by default and is the master switch for all of its sites; each site
+also has its own switch (**Turn this site on/off** on the Sources page, saved in
+`chan-sources.json` in the profile). An experimental site starts off; Lainchan
+starts on. The activation confirmation below turns on only the submitted site
+(and its plugin, if that was off). When a profile from 1.0.x is first opened, each
+site takes over the on/off state of its former single-site plugin; the source IDs
+are unchanged, so watches, archives and rules keep working. A size/MD5 difference
+permission belongs to the plugin that owns a source, so after that upgrade a site
+starts strict again until you allow it once more on the Sources page.
+
 | Sources | Activation confirmation | Integrity behavior |
 | --- | --- | --- |
 | Kohlchan, Wizchan, Endchan, Leftypol, 7chan, BBW-Chan, CapybaraChan, 8chan.moe, Fchan | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |

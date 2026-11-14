@@ -34,25 +34,33 @@ REQUESTS = {'https://lainchan.org/demo/res/123.json', 'https://kohlchan.net/demo
             'https://wizchan.org/demo/res/123.json', 'https://wizchan.org/demo/src/1000-0.png',
             'https://wizchan.org/demo/src/1001-1.png', 'https://endchan.net/demo/res/123.json',
             'https://endchan.net/.media/endchan-keep.png', 'https://endchan.net/.media/endchan-drop.png'}
+# Lainchan and Wizchan are sites of the vichan family plugin, ZZZchan of the jschan family.
 PLUGIN_IDS = {
     'meowchan.official.4chan', 'meowchan.official.8kun', 'meowchan.official.danbooru',
-    'meowchan.source.lainchan', 'meowchan.source.kohlchan', 'meowchan.source.wizchan',
+    'meowchan.source.vichan', 'meowchan.source.kohlchan',
     'meowchan.source.endchan', 'meowchan.example.image-dimensions', 'meowchan.filter.file-rules',
     'meowchan.filter.hash-blocklist', 'meowchan.filter.animation-format', 'meowchan.filter.png-metadata',
-    'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan',
-    'meowchan.source.zzzchan', 'meowchan.source.sushichan', 'meowchan.source.sevenchan',
+    'meowchan.source.2ch', 'meowchan.source.jschan', 'meowchan.source.sevenchan',
     'meowchan.source.bbwchan', 'meowchan.source.anonimageboards', 'meowchan.source.capybarachan',
     'meowchan.source.eightchanmoe', 'meowchan.source.fchan', 'meowchan.source.gurocx',
 }
+# Sites of the engine-family plugins; every other chan plugin serves the source named by its ID.
+FAMILY_SITES = {'meowchan.source.vichan': ('lainchan', 'leftypol', 'sushichan', 'uboachan', 'wizchan'),
+                'meowchan.source.jschan': ('zzzchan',)}
+
+
+def source_owner(source):
+    return next((family for family, sites in FAMILY_SITES.items() if source in sites), 'meowchan.source.' + source)
+
+
+# Family plugins are on by default; their experimental sites start off behind their own site switch.
 DEFAULT_OFF_PLUGIN_IDS = {
-    'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan',
-    'meowchan.source.leftypol', 'meowchan.source.2ch', 'meowchan.source.uboachan',
-    'meowchan.source.zzzchan', 'meowchan.source.sushichan', 'meowchan.source.sevenchan',
+    'meowchan.source.kohlchan', 'meowchan.source.endchan', 'meowchan.source.2ch', 'meowchan.source.sevenchan',
     'meowchan.source.bbwchan', 'meowchan.source.anonimageboards', 'meowchan.source.eightchanmoe',
     'meowchan.source.gurocx', 'meowchan.source.fchan', 'meowchan.source.capybarachan',
 }
 FIXTURE_ENABLED_PLUGIN_IDS = (PLUGIN_IDS - DEFAULT_OFF_PLUGIN_IDS) | {
-    'meowchan.source.kohlchan', 'meowchan.source.wizchan', 'meowchan.source.endchan'}
+    'meowchan.source.kohlchan', 'meowchan.source.endchan'}
 COMMON = {'delivered-plugins-activated', 'archive-verified', 'filter-match-and-no-match-durable',
           'normal-shutdown', 'lease-released'}
 
@@ -343,14 +351,14 @@ def validate_metrics(metrics, phase, profile, working, scale, closure):
     if not isinstance(requests, list) or (phase == 'download' and (len(requests) != 12 or set(requests) != REQUESTS)) or (phase == 'restore' and requests):
         raise ValueError('Terminal fixture request inventory differs')
     proof = metrics.get('sourceCompilation')
-    member = (Path(closure['apphostMember']).parent / 'plugins/sources/Lainchan.cs').as_posix()
+    member = (Path(closure['apphostMember']).parent / 'plugins/sources/VichanFamily.cs').as_posix()
     source = next((entry for entry in closure['entries'] if entry['path'] == member), {})
-    if (not isinstance(proof, dict) or proof.get('source') != 'plugins/sources/Lainchan.cs'
+    if (not isinstance(proof, dict) or proof.get('source') != 'plugins/sources/VichanFamily.cs'
             or not source.get('sha256') or proof.get('sourceSha256') != source['sha256']
             or proof.get('cachedBuild') is not True
             or any(not isinstance(proof.get(key), str) or not re.fullmatch('[0-9a-fA-F]{64}', proof[key])
                    for key in ('executionRevision', 'assemblySha256'))
-            or phase == 'download' and (proof.get('pluginId') != 'meowchan.source.lainchan' or proof.get('sdkVersion') != '1.1.0'
+            or phase == 'download' and (proof.get('pluginId') != 'meowchan.source.vichan' or proof.get('sdkVersion') != '1.1.0'
                                        or proof.get('uncachedBuild') is not True or proof.get('describedInWorker') is not True)):
         raise ValueError('Compiled plugin source proof differs from delivered source')
     return validate_assembly_bindings(metrics, closure)

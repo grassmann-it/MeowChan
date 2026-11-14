@@ -17,7 +17,8 @@ namespace MeowChan.Desktop;
 internal sealed class ApphostIntegrityProcessSmoke : IDisposable
 {
     internal const string Switch = "--smoke-source-policy-process";
-    internal const string Source = "wizchan", Owner = "meowchan.source.wizchan";
+    // Wizchan is an experimental site of the vichan family plugin, behind its own site switch.
+    internal const string Source = "wizchan", Owner = ChanSourceFamilies.Vichan;
     internal const string ThreadUrl = "https://wizchan.org/demo/res/123.html";
     internal const string OriginalUrl = "https://wizchan.org/demo/src/1000-0.png";
     internal ApphostWorkflowSmoke Descriptor { get; }
