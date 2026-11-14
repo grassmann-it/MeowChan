@@ -43,13 +43,19 @@ public sealed class SurfaceStyleTests
     }
 
     [Fact]
-    public void TheMediaFilterSurfaceAndTheArchiveOneFollowTheOverlayReveal()
+    public void TheMediaFilterSectionIsInlineAndTheArchiveSurfaceStillFollowsTheOverlayReveal()
     {
         string media = File.ReadAllText(Root("Desktop/Views/Media/MediaPage.FilterSurface.cs"));
-        Assert.Contains("Classes = { \"workspace-overlay\" }", media);
+        // S1: a section in the header that pushes the grid, not an overlay: no overlay class, no stacking level, no Close button.
+        Assert.Contains("Classes = { \"workspace-section\" }", media);
+        Assert.DoesNotContain("workspace-overlay", media);
+        Assert.DoesNotContain("ZIndex", media);
+        Assert.DoesNotContain("_filterClose", media);
         Assert.Contains("new FilterSurfaceController(this, _filters, surface", media);
+        Assert.Contains("overlay: false", media);
+        Assert.Contains("_headerBody.Children.Add(filterSurface);", File.ReadAllText(Root("Desktop/Views/Media/MediaPage.cs")));
         Assert.Contains("new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.FilterSurface.cs")));
-        Assert.Contains("OverlayReveal.Follow(surface)", File.ReadAllText(Root("Desktop/Controls/FilterSurfaceController.cs")));
+        Assert.Contains("if (overlay) OverlayReveal.Follow(surface)", File.ReadAllText(Root("Desktop/Controls/FilterSurfaceController.cs")));
     }
 
     [Fact]

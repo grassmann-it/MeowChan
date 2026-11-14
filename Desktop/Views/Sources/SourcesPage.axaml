@@ -60,7 +60,7 @@
                         <Button x:Name="SourcePluginButton" wv:WorkViewElement.Id="sources.detail.plugin" Click="OnPluginClick" />
                         <Button x:Name="SourceDiagnosticsButton" wv:WorkViewElement.Id="sources.detail.diagnostics" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
                         <!-- What the work view moved off this row (rules, plugin settings, diagnostics): shown only when something is there. -->
-                        <Button x:Name="SourcesMoreButton" Classes="plugin-overflow" Width="32" Height="32" IsVisible="False" Click="OnSourcesMoreClick" />
+                        <Button x:Name="SourcesMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnSourcesMoreClick" />
                     </WrapPanel>
                     <TextBlock Tag="sources.watches" Classes="section-title localized" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />

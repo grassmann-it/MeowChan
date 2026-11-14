@@ -104,7 +104,7 @@ public partial class ArchivePage
         long revision = _draftRevision;
         ArchiveSearchRequest? applied = _appliedSearch;
         var origin = owner.FocusManager?.GetFocusedElement();
-        if (_invalidSearchEditor != null) { ArchiveFilters.IsExpanded = true; EnsureFilterEditorShown(_invalidSearchEditor); }
+        if (_invalidSearchEditor != null) { ArchiveFilters.IsChecked = true; EnsureFilterEditorShown(_invalidSearchEditor); }
         else editor.Focusable = true;
         bool Current() => !_ended && !_lifetime.IsCancellationRequested && CanRead && !_busy && IsEffectivelyVisible && owner.IsActive
             && generation == _searchValidationGeneration && revision == _draftRevision && ReferenceEquals(applied, _appliedSearch)

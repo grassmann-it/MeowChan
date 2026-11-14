@@ -57,12 +57,12 @@ public partial class MainWindow
                 item.Content = new StackPanel { Spacing = 3, MaxWidth = 320, Children =
                 {
                     new TextBlock { Text = title },
-                    new TextBlock { Text = Texts.T("mode." + mode + "Description"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.MetaText(),
+                    new TextBlock { Text = Texts.T("workview.description." + mode), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.MetaText(),
                     new TextBlock { Text = Texts.T("mode.sameSession"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.CaptionText()
                 }};
             }
             else item.Content = title;
-            AutomationProperties.SetName(item, open ? title + ". " + Texts.T("mode." + mode + "Description") + ". " + Texts.T("mode.sameSession") : title);
+            AutomationProperties.SetName(item, open ? title + ". " + Texts.T("workview.description." + mode) + ". " + Texts.T("mode.sameSession") : title);
         }
         // The selected item object stays the same when its label is localized. Avalonia
         // can keep the TextBlock built by SelectionBoxItemTemplate, so replace that

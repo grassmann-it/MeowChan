@@ -123,7 +123,7 @@ internal static partial class GalleryToolbarLayoutChecks
                     Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
                     Button slideshow = Find<Button>(viewer, "GallerySlideshowToggle");
                     Require(!chrome.IsVisualAncestorOf(slideshow), "The slideshow control sits on the toolbar in manual mode.");
-                    mode.SelectedIndex = 2;
+                    mode.SelectedIndex = (int)GalleryPlaybackMode.Slideshow;
                     await LayoutAsync(window);
                     Require(chrome.IsVisualAncestorOf(slideshow) && slideshow.IsEffectivelyVisible,
                         "The slideshow control did not move onto the toolbar for a chosen slideshow.");
@@ -153,13 +153,14 @@ internal static partial class GalleryToolbarLayoutChecks
 
     private static readonly string[] Primary =
     {
-        "GalleryClose", "GalleryPrevious", "GalleryCompactPosition", "GalleryNext", "GalleryFit", "GalleryActual",
+        "GalleryPrevious", "GalleryCompactPosition", "GalleryNext", "GalleryFit", "GalleryActual",
         "GalleryToggleContext", "GalleryFavorite", "GalleryMore", "GalleryToolsToggle"
     };
     private static readonly string[] Rare =
     {
         "GalleryPlus", "GalleryMinus", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryPlaybackModeSelector",
-        "GallerySlideshowToggle", "GalleryOverlayToggle", "GalleryPostOverlayToggle", "GalleryFullscreen", "GalleryHelp"
+        "GallerySlideshowToggle", "GalleryOverlayToggle", "GalleryPostOverlayToggle", "GalleryFullscreen", "GalleryHelp",
+        "GalleryVideoRepeatToggle", "GallerySaveFrame"
     };
 
     // Frequent controls stay visible on one row inside the viewer; none of the rare ones is on the toolbar.
@@ -177,6 +178,12 @@ internal static partial class GalleryToolbarLayoutChecks
         }
         foreach (string name in Rare)
             Require(!chrome.IsVisualAncestorOf(Find<Control>(viewer, name)), $"{tag}: rare control still on the toolbar: {name}");
+        // The way back is not a toolbar button: it floats at the top left of the picture, labelled with its target.
+        Button back = Find<Button>(viewer, "GalleryClose");
+        Point? backPoint = back.TranslatePoint(default, viewer);
+        Require(back.IsEffectivelyVisible && !chrome.IsVisualAncestorOf(back) && backPoint is { } origin
+            && origin.X <= 24 && origin.Y <= 24 && origin.X + back.Bounds.Width <= viewer.Bounds.Width + 1,
+            $"{tag}: the way back is not at the top left of the picture.");
         Require(chrome.Bounds.Height <= 64, $"{tag}: the toolbar needs more than one row ({chrome.Bounds.Height} dip).");
         Button more = Find<Button>(viewer, "GalleryMore");
         Require(!string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(more))

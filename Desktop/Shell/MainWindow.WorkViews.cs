@@ -35,6 +35,8 @@ public partial class MainWindow
             RefreshReadingResumePresentation();
         };
         _workViews.Changed += (_, view) => ApplyWorkViewToRulesSourcesPlugins(view, viewChanged: true);
+        // Diagnostics and Statistics are built lazily: a built page follows every later change of the view.
+        _workViews.Changed += (_, current) => ApplyWorkViewToLazyPages(current);
     }
 
     // Rules, Sources and Plugins are built after the first frame: a page applies the view when it appears and again on every change (R13).
@@ -43,6 +45,13 @@ public partial class MainWindow
         _rulesPage?.ApplyWorkView(view, viewChanged);
         _sourcesPage?.ApplyWorkView(view, viewChanged);
         _pluginsPage?.ApplyWorkView(view, viewChanged);
+    }
+
+    // Diagnostics and Statistics (WV7). A page that does not exist yet is skipped: NavigateWorkspace applies the view when it is shown.
+    private void ApplyWorkViewToLazyPages(WorkView view)
+    {
+        _diagnosticsPage?.ApplyWorkView(view);
+        _statisticsPage?.ApplyWorkView(view);
     }
 
     // view-barebones|view-simple|view-advanced are for density only (margins, spacing), never for what is shown;

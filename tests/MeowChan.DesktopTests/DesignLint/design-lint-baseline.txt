@@ -2,20 +2,15 @@
 # rule<TAB>file<TAB>count<TAB>snippet. Generated; do not edit by hand. The tests fail on anything not listed here
 # and on entries that no longer occur. Regenerate after burning violations down:
 #   MEOWCHAN_DESIGN_LINT_UPDATE=1 dotnet test tests/MeowChan.DesktopTests --filter FullyQualifiedName~DesignLint
-color-hex	Desktop/Views/Archive/ArchivePage.axaml	1	#A6000000
 control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button Height=44
 control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button MinHeight=44
 control-height-literal	Desktop/Shell/MainWindow.axaml	1	Button Height="34"
 control-height-literal	Desktop/Views/Admission/BoardAdmissionWindow.cs	1	Button MinHeight=32
-control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	1	Button style Height="32"
-control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	2	Button style MinHeight="24"
-control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	1	Button style MinHeight="32"
 control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	2	ToggleButton MinHeight="32"
 control-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	TextBox MinHeight="36"
 control-height-literal	Desktop/Views/Rules/RulesPage.axaml	2	Button MinHeight="24"
 control-height-literal	Desktop/Views/Rules/RulesPage.axaml	1	TagInput style MinHeight="32"
 control-height-literal	Desktop/Views/Settings/SettingsEditor.axaml	1	ToggleButton style MinHeight="34"
-font-size-literal	Desktop/Views/Archive/ArchivePage.axaml	1	FontSize="12"
 glyph-icon	Desktop/GalleryViewer.cs	1	"−(U+2212)"
 glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous thread"
 glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous"
@@ -51,7 +46,6 @@ spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	ColumnSpacing=10
 spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	2	Margin=new Thickness(10, 6, 10, 0)
 spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	Margin=new Thickness(6, 4)
 spacing-off-grid	Desktop/GalleryViewer.Playback.cs	1	Margin=new Thickness(6, 0)
-spacing-off-grid	Desktop/GalleryViewer.cs	1	Spacing=6
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	Margin=new Thickness(6, 6, 6, 4)
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	RowSpacing=3
@@ -87,29 +81,16 @@ spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Choice.cs	1	LineSpacin
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	LineSpacing=6
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	Spacing=6
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.Favorites.cs	3	LineSpacing=6
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.Reader.cs	1	Margin=new Thickness(20)
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	ColumnSpacing="10"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	4	ColumnSpacing="6"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	9	ItemSpacing="6"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	9	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	5	ItemSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	5	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="-8,-8,-8,0"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,0,24,56"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,2,6,2"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,3"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="10,2,0,2"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="6,2"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="6,4"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="8,40,8,8"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10,6"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10,8"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	RowSpacing="10"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	RowSpacing="6"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="10"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="3"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	Spacing="5"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	6	Spacing="6"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml.cs	1	Spacing=5
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	Spacing="6"
 spacing-off-grid	Desktop/Views/Archive/InterruptedTransfersDialog.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Archive/MediaHashSearchDialog.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Archive/PostFilterDialog.cs	3	Spacing=6
@@ -135,7 +116,6 @@ spacing-off-grid	Desktop/Views/Media/ManualImportDialog.cs	1	Spacing=10
 spacing-off-grid	Desktop/Views/Media/MediaPage.ExportAll.cs	1	LineSpacing=6
 spacing-off-grid	Desktop/Views/Media/MediaPage.FilterChips.cs	1	Padding=new Thickness(6, 2)
 spacing-off-grid	Desktop/Views/Media/MediaPage.FilterSurface.cs	1	Padding=new Thickness(10, 8)
-spacing-off-grid	Desktop/Views/Media/MediaPage.FilterSurface.cs	1	RowSpacing=6
 spacing-off-grid	Desktop/Views/Media/MediaPage.Filters.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/Views/Media/MediaPage.Filters.cs	2	LineSpacing=6
 spacing-off-grid	Desktop/Views/Media/MediaPage.Selection.cs	1	ItemSpacing=6

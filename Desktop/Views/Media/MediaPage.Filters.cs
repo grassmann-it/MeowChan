@@ -37,9 +37,8 @@ public sealed partial class MediaPage
     private readonly CheckBox _favoritesOnly = new() { Name = "MediaFavoritesOnly" };
     private readonly CheckBox _withoutMediaTags = new() { Name = "MediaWithoutMediaTags" };
     private readonly ComboBox _minRating = new() { Name = "MediaMinRating", MinWidth = 130 };
-    private readonly ComboBox _tagChoice = new() { Name = "MediaTagChoice", MinWidth = 160 };
-    private readonly Button _tagInclude = new() { Name = "MediaTagInclude" };
-    private readonly Button _tagExclude = new() { Name = "MediaTagExclude" };
+    // The tag part of the surface: one "Add tag…" popover with search; the tags in the filter are the chips of the header row.
+    private readonly TagFilterPicker _tagAdd = new() { Name = "MediaTagAdd" };
     private readonly ComboBox _tagMode = new() { Name = "MediaTagMode", MinWidth = 160 };
     private readonly Button _filterReset = new() { Name = "MediaFilterReset" };
     private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 6, LineSpacing = 6 };
@@ -61,7 +60,6 @@ public sealed partial class MediaPage
 
     private sealed record Choice(string? Value, string Label) { public override string ToString() => Label; }
     private sealed record BoardChoice(string? Source, string? Board, string Label) { public override string ToString() => Label; }
-    private sealed record TagOption(Guid? Id, string Label) { public override string ToString() => Label; }
 
     /// <summary>Reads the profile's own tags, favorites and ratings; null parts are unavailable.</summary>
     internal Func<MediaLibraryUserData>? ReadUserData { get; set; }
@@ -72,11 +70,13 @@ public sealed partial class MediaPage
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
         foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
-            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _moreFilters, _audioNote })
+            _tagAdd, _tagMode, _filterReset, _moreFilters, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _filterReset.IsEnabled = false;
-        _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
+        _tagAdd.Snapshot = () => _userData.TagSnapshot;
+        _tagAdd.Used = () => _includeTags.Concat(_excludeTags).Select(id => new TagId(id)).ToHashSet();
+        _tagAdd.Picked = (id, exclude) => TryIncludeOrExclude(id, !exclude);
         _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) FilterEdited(); };
         _searchScope.CarryActions = SearchCarryActions;
         foreach (ComboBox combo in new[] { _minRating, _tagMode })
@@ -96,9 +96,6 @@ public sealed partial class MediaPage
         _boardFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
         _favoritesOnly.IsCheckedChanged += (_, _) => FilterEdited();
         _withoutMediaTags.IsCheckedChanged += (_, _) => FilterEdited();
-        _tagChoice.SelectionChanged += (_, _) => UpdateTagButtons();
-        _tagInclude.Click += (_, _) => AddTag(include: true);
-        _tagExclude.Click += (_, _) => AddTag(include: false);
         _filterReset.Click += (_, _) => ResetFilters();
         AttachedToVisualTree += (_, _) =>
         {
@@ -198,6 +195,15 @@ public sealed partial class MediaPage
         if (focused) FocusGrid();
     }
 
+    /// <summary>Shift+click on a tag chip of a tile: hide the media with this tag (S7). Excluding takes the shown tile out of the grid.</summary>
+    internal void ExcludeTag(Guid id)
+    {
+        if (_includeTags.Contains(id) || _excludeTags.Contains(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
+        bool focused = FocusWithin(_grid);
+        if (!IncludeOrExclude(id, include: false)) return;
+        if (focused) FocusGrid();
+    }
+
     /// <summary>Thread as a meta tag: only the media of this thread.</summary>
     /// <summary>Shows only one import batch (or any borrowed thread identity) by its identity and title.</summary>
     internal void FilterToThread(ResourceId thread, string title)
@@ -237,54 +243,76 @@ public sealed partial class MediaPage
         FilterEdited();
     }
 
-    private void AddTag(bool include)
-    {
-        if (_tagChoice.SelectedItem is TagOption { Id: Guid id }) IncludeOrExclude(id, include);
-    }
+    /// <summary>Adds a tag to the filter as an inclusion or an exclusion (the popover and the tests); null when added, else why not.</summary>
+    internal string? AddTagFilter(Guid id, bool include) => TryIncludeOrExclude(id, include);
+
+    /// <summary>Test seam of the tag popover: adds the own tag with this display name; null when added, else why not.</summary>
+    internal string? AddTagFilterByName(string name, bool include) =>
+        _userData.TagSnapshot?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found
+            ? TryIncludeOrExclude(found.Id.Value, include) : "Unknown tag: " + name;
+
+    /// <summary>Test seam of the chip toggle: switches the own tag with this display name between include and exclude.</summary>
+    internal string? ToggleTagFilterByName(string name) =>
+        _userData.TagSnapshot?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found ? ToggleTagFilter(found.Id.Value) : "Unknown tag: " + name;
+
+    /// <summary>Test seam: the names the tag popover offers for an empty search, in ordinal order.</summary>
+    internal string[] AddableTagNames => TagFilterPicker.Choices(_userData.TagSnapshot, _includeTags.Concat(_excludeTags).Select(id => new TagId(id)).ToHashSet(), null)
+        .Select(item => item.Name.Display).Order(StringComparer.Ordinal).ToArray();
 
     private bool IncludeOrExclude(Guid id, bool include)
     {
+        string? refusal = TryIncludeOrExclude(id, include);
+        if (refusal == null) return true;
+        _filterError.Text = refusal;
+        _filterError.IsVisible = true;
+        return false;
+    }
+
+    private string? TryIncludeOrExclude(Guid id, bool include)
+    {
+        if (_includeTags.Contains(id) || _excludeTags.Contains(id)) return null;
         try
         {
             _ = new ArchiveTagFilter(include ? _includeTags.Append(id) : _includeTags, include ? _excludeTags : _excludeTags.Append(id));
         }
-        catch (ArgumentException)
-        {
-            _filterError.Text = Texts.T("media.filter.error.tooManyTags");
-            _filterError.IsVisible = true;
-            return false;
-        }
+        catch (ArgumentException) { return Texts.T("media.filter.error.tooManyTags"); }
         (include ? _includeTags : _excludeTags).Add(id);
         RenderTagOptions();
         FilterEdited();
-        return true;
+        return null;
+    }
+
+    /// <summary>
+    /// The explicit include/exclude toggle of a tag chip: moves the tag to the other list. Clicking the chip body to do the same is
+    /// an open owner decision (follow-up); the toggle button on the chip and the popover's "Add as" are the explicit routes.
+    /// </summary>
+    internal string? ToggleTagFilter(Guid id)
+    {
+        bool wasIncluded = _includeTags.Contains(id);
+        if (!wasIncluded && !_excludeTags.Contains(id)) return null;
+        try
+        {
+            _ = new ArchiveTagFilter(wasIncluded ? _includeTags.Where(tag => tag != id) : _includeTags.Append(id),
+                wasIncluded ? _excludeTags.Append(id) : _excludeTags.Where(tag => tag != id));
+        }
+        catch (ArgumentException)
+        {
+            string refusal = Texts.T("media.filter.error.tooManyTags");
+            _filterError.Text = refusal;
+            _filterError.IsVisible = true;
+            return refusal;
+        }
+        (wasIncluded ? _includeTags : _excludeTags).Remove(id);
+        (wasIncluded ? _excludeTags : _includeTags).Add(id);
+        RenderTagOptions();
+        FilterEdited();
+        return null;
     }
 
     private string TagLabel(Guid id) => _userData.TagSnapshot?.Find(new TagId(id))?.Name.Display ?? Texts.T("tags.filter.deleted");
 
-    private void RenderTagOptions()
-    {
-        PrivateTagStoreSnapshot? tags = _userData.TagSnapshot;
-        HashSet<Guid> used = _includeTags.Concat(_excludeTags).ToHashSet();
-        // A tag already in the filter is not offered again, so include and exclude cannot overlap.
-        TagOption[] options = new[] { new TagOption(null, Texts.T(tags == null ? "tags.filter.unavailable"
-                : tags.Tags.Count == 0 ? "tags.filter.none" : "tags.filter.choose")) }
-            .Concat((tags?.Tags ?? Array.Empty<PrivateTagDefinition>()).Where(tag => !used.Contains(tag.Id.Value))
-                .Select(tag => new TagOption(tag.Id.Value, tag.Name.Display))).ToArray();
-        Guid? selected = (_tagChoice.SelectedItem as TagOption)?.Id;
-        bool localizing = _localizing;
-        _localizing = true;
-        try
-        {
-            _tagChoice.ItemsSource = options;
-            _tagChoice.SelectedItem = options.FirstOrDefault(option => selected != null && option.Id == selected) ?? options[0];
-        }
-        finally { _localizing = localizing; }
-        UpdateTagButtons();
-    }
-
-    private void UpdateTagButtons() =>
-        _tagInclude.IsEnabled = _tagExclude.IsEnabled = _tagChoice.SelectedItem is TagOption { Id: not null };
+    // The popover reads the tags and the filter when it opens; the button only says whether a tag is left to add.
+    private void RenderTagOptions() => _tagAdd.Refresh();
 
     // Keep a selected identity even if a new index no longer contains it: dropping it would widen the results.
     private static string UnavailableOption(string label) => label + " (" + Texts.T("mediahash.unavailable") + ")";
@@ -362,22 +390,18 @@ public sealed partial class MediaPage
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
         _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
         ToolTip.SetTip(_withoutMediaTags, Texts.T("media.filter.withoutTagsHint"));
-        _tagInclude.Content = Texts.T("tags.filter.include");
-        _tagExclude.Content = Texts.T("tags.filter.exclude");
         _filterReset.Content = Texts.T("media.filter.reset");
         ToolTip.SetTip(_soundFilter, Texts.T("media.filter.sound.hint"));
-        ToolTip.SetTip(_tagInclude, Texts.T("media.filter.includeHint"));
-        ToolTip.SetTip(_tagExclude, Texts.T("media.filter.excludeHint"));
+        _tagAdd.IncludeHint = Texts.T("media.filter.includeHint");
+        _tagAdd.ExcludeHint = Texts.T("media.filter.excludeHint");
+        _tagAdd.ApplyTexts();
         foreach ((Control control, string key) in new (Control, string)[]
         {
             (_nameFilter, "media.filter.name"), (_kindFilter, "media.filter.kind"), (_soundFilter, "media.filter.sound"), (_sourceFilter, "media.filter.source"),
-            (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"), (_tagChoice, "tags.filter.label"),
-            (_tagMode, "tags.filter.matchLabel"), (_tagInclude, "tags.filter.include"), (_tagExclude, "tags.filter.exclude"),
+            (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"),
+            (_tagMode, "tags.filter.matchLabel"),
             (_filterChips, "media.filter.active")
         }) AutomationProperties.SetName(control, Texts.T(key));
-        // The name is the visible label (speech control, label-in-name); the hint is the description.
-        AutomationProperties.SetHelpText(_tagInclude, Texts.T("media.filter.includeHint"));
-        AutomationProperties.SetHelpText(_tagExclude, Texts.T("media.filter.excludeHint"));
         RenderSourceOptions();
         RenderTagOptions();
         RenderFilterChips();

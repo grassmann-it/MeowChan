@@ -202,6 +202,17 @@ public static class CommandBindings
     public static Control Icon(string id, int size = 16, string? state = null) =>
         IconFromKey(CommandCatalog.IconForState(id, state), size);
 
+    /// <summary>
+    /// A catalog icon by its file name (<c>sliders</c>, <c>refresh-cw</c>) for a control that has no command of its own. Needs the
+    /// platform's asset loader, so owners create it when they are shown. It follows the foreground of the control that holds it.
+    /// </summary>
+    public static Control NamedIcon(string icon, int size = 16)
+    {
+        Border border = (Border)IconFromKey(icon, size);
+        border.Bind(Border.BackgroundProperty, border.GetObservable(TextElement.ForegroundProperty));
+        return border;
+    }
+
     /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
     internal static Control IconFromKey(string icon, int size = 16)
     {
@@ -389,7 +400,8 @@ public static class CommandBindings
     internal static bool MatchesGalleryTransport(KeyEventArgs e, string id, Control seek, Control volume)
     {
         if (e.Handled || ShortcutService.IsCapturing) return false;
-        bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down";
+        bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down"
+            or "video.seek-back" or "video.seek-forward" or "video.seek-back-far" or "video.seek-forward-far";
         if (transportAction && e.Source is Visual visual)
         {
             foreach (var parent in visual.GetSelfAndVisualAncestors())

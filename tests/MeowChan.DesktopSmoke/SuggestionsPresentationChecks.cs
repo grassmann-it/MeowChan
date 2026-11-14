@@ -96,7 +96,7 @@ internal static class SuggestionsPresentationChecks
                 await Program.WaitUntilAsync(() => Math.Abs(host.Bounds.Width - cell.Width) < 1 && Math.Abs(host.Bounds.Height - cell.Height) < 1);
                 AssertPresentation(owner, host, cell, expectedScale);
                 host.Content = archive; await Settle();
-                C<Expander>(archive, "ArchiveFilters").IsExpanded = true;
+                C<Avalonia.Controls.Primitives.ToggleButton>(archive, "ArchiveFilters").IsChecked = true;
                 await Settle();
                 await Field(archive, "ArchiveSourceFilter", "A", false, "archive-source", () =>
                     Require(ArchiveSearchSpecJson.Serialize(archive.AppliedSearchSpec!) == applied, "Suggestion applied an archive search."));

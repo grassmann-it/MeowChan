@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -71,7 +72,7 @@ public partial class ArchivePage
         _exportFormatField.Set(Texts.T("export.format"), formats, _exportFormat, enabled);
         List<ExportChoiceField.Option> scopes = new();
         if (_exportSessionMembers.Length == 1) scopes.Add(new(ExportScope.Selection, Texts.T("export.scope.thread")));
-        else if (_exportSessionMembers.Length > 1) scopes.Add(new(ExportScope.Selection, Texts.T("export.scope.selection", _exportSessionMembers.Length)));
+        else if (_exportSessionMembers.Length > 1) scopes.Add(new(ExportScope.Selection, Texts.Count("export.scope.selection", _exportSessionMembers.Length)));
         if (_exportFormat == ExportFormat.Html && ExportResultsOffered) scopes.Add(new(ExportScope.AllResults, Texts.T("export.scope.results")));
         _exportScopeField.Set(Texts.T("export.scope"), scopes, CurrentExportScope, enabled);
     }
@@ -122,6 +123,10 @@ public partial class ArchivePage
         bool html = _exportFormat == ExportFormat.Html;
         foreach (string name in HtmlOnlyExportControls) Control<Control>(name).IsVisible = html;
         if (!html) foreach (string name in ConditionalHtmlExportControls) Control<Control>(name).IsVisible = false;
+        // The extras section is on the dialog only while one of its parts is (a link list or a collection can leave none).
+        Expander options = Control<Expander>("ArchiveExportMoreOptions");
+        options.IsVisible = html && ((Panel)options.Content!).Children.Any(child => child.IsVisible);
+        OpenExportOptionsForUpdate();
         Button start = Control<Button>("ArchiveExportStart");
         Button close = Control<Button>("ArchiveExportClose");
         bool closePrimary = _exportPrimaryClose && !_exportRunning;

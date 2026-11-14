@@ -194,7 +194,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
     {
         var config = new Config { VideoVolume = 29, VideoStartMuted = true, VideoAutoplay = false };
         var baseline = GalleryPlaybackPreferences.FromConfig(config);
-        var edited = baseline.WithControlsOverlay(true) with { Mode = GalleryPlaybackMode.Repeat };
+        var edited = baseline.WithControlsOverlay(true) with { VideoRepeat = true };
         // A newer live volume has priority over an unrelated playback draft.
         config.VideoVolume = 61;
         edited.ApplyChangesTo(config, baseline);
@@ -202,7 +202,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
         Assert.Equal(61, config.VideoVolume);
         Assert.True(config.VideoStartMuted);
         Assert.False(config.VideoAutoplay);
-        Assert.Equal(GalleryPlaybackMode.Repeat, GalleryPlaybackPreferences.FromConfig(config).Mode);
+        Assert.True(GalleryPlaybackPreferences.FromConfig(config).VideoRepeat);
     }
 
     [Fact]

@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -724,8 +725,12 @@ public partial class MainWindow
         // Keep this named text surface for the existing automation consumers.
         string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
             && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
+        // R9: a shortcut whose button this view keeps under "More" says so.
+        WorkView helpView = ConfiguredWorkView;
+        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(_selectedPage.ToString(), _largeReaderOpen);
         string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-            + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty);
+            + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)
+            + (WorkViewHelp.UnderMore(id, helpView, helpPages) ? " · " + Texts.T("workview.underMore") : string.Empty);
         List<string> sections = new();
         foreach ((string label, bool shell) in new[] { ("help.scope.current", false), ("help.scope.application", true) })
         {

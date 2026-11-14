@@ -26,7 +26,7 @@ public sealed class MediaWorkViewTests
     public void FilterFieldsGrowFromBarebonesToAdvanced()
     {
         string[] always = ["media.filter.kind", "media.filter.favorites"];
-        string[] fromSimple = ["media.filter.source", "media.filter.board", "media.filter.rating", "media.filter.tags", "media.filter.tag-include", "media.filter.tag-exclude"];
+        string[] fromSimple = ["media.filter.source", "media.filter.board", "media.filter.rating", "media.filter.tags"];
         string[] fromAdvanced = ["media.filter.sound", "media.filter.without-media-tags", "media.filter.tag-mode"];
         Assert.All(always, id => Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Direct, P(id, view))));
         Assert.All(fromSimple, id => Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], WorkViewSetting.All.Select(view => P(id, view))));

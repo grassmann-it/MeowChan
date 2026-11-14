@@ -46,6 +46,18 @@ internal static class GalleryPlaybackCatalog
         ("viewer.playback.postOverlay", "Post overlay", "Post-Overlay"),
         ("viewer.playback.overlayUnavailable", "Overlay unavailable for this native video surface. Controls remain docked.", "Overlay für diese native Videofläche nicht verfügbar. Controls bleiben angedockt."),
         ("viewer.playback.enableOverlay", "Enable a supported controls overlay first", "Zuerst ein unterstütztes Controls-Overlay aktivieren"),
+        ("viewer.playback.repeatHelp", "Repeats the shown video outside a slideshow. In a running slideshow the video rule decides.", "Wiederholt das gezeigte Video außerhalb der Diashow. In einer laufenden Diashow entscheidet die Videoregel."),
+        ("viewer.playback.repeatInSlideshow", "The running slideshow decides about repeating (⋯ → Videos in the slideshow)", "Die laufende Diashow entscheidet über Wiederholungen (⋯ → Videos in der Diashow)"),
+        ("viewer.playback.videoRule", "Videos in the slideshow", "Videos in der Diashow"),
+        ("viewer.playback.videoRule.once", "Play once", "Einmal abspielen"),
+        ("viewer.playback.videoRule.atLeast", "Loop for a minimum time", "Für eine Mindestdauer wiederholen"),
+        ("viewer.playback.videoRule.repeat", "Repeat a number of times", "Mehrmals wiederholen"),
+        ("viewer.playback.videoRuleHelp", "Images stay for the seconds per image. With a minimum time, the pass that crosses it plays to its end; then the slideshow continues. Moving on yourself always works.", "Bilder bleiben die Sekunden pro Bild stehen. Bei einer Mindestdauer läuft der Durchlauf, in dem sie überschritten wird, bis zum Ende; dann geht die Diashow weiter. Selbst weiterblättern geht immer."),
+        ("viewer.playback.videoSeconds", "Minimum time (seconds)", "Mindestdauer (Sekunden)"),
+        ("viewer.playback.videoSecondsHelp", "The pass that crosses this time plays to its end.", "Der Durchlauf, in dem diese Zeit überschritten wird, läuft bis zum Ende."),
+        ("viewer.playback.videoRepeats", "Passes", "Durchläufe"),
+        ("viewer.playback.numberHelp", "Arrow keys ±1, Page Up/Page Down ±10", "Pfeiltasten ±1, Bild auf/Bild ab ±10"),
+        ("viewer.playback.reducedMotion", "Reduced motion is on: videos play once in the slideshow.", "Reduzierte Bewegung ist an: Videos laufen in der Diashow einmal."),
     };
 
     internal static string Get(string key) => Texts.T(key);

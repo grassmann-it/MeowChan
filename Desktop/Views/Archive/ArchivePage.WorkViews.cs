@@ -35,7 +35,7 @@ public partial class ArchivePage
         // The surface opens with the groups placed for what the fields hold right now (R6); a closed surface is not reshuffled.
         ArchiveFilters.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Expander.IsExpandedProperty && e.NewValue is true) PlaceArchiveFilterGroups();
+            if (e.Property == Avalonia.Controls.Primitives.ToggleButton.IsCheckedProperty && e.NewValue is true) PlaceArchiveFilterGroups();
         };
         _appliedWorkView = ArchiveWorkView;
         ApplyArchiveWorkView(viewChanged: false);
@@ -47,7 +47,7 @@ public partial class ArchivePage
         WorkView view = ArchiveWorkView;
         ApplyArchiveSearchScope();
         // R13: entering a view closes the filter surface and "More filters"; later the user's choice stays.
-        WorkViewPresenter.ApplyExpander(ArchiveFilters, view, viewChanged);
+        WorkViewPresenter.ApplyToggle(ArchiveFilters, view, viewChanged);
         WorkViewPresenter.ApplyExpander(ArchiveMoreFilters, view, viewChanged);
         PlaceArchiveFilterGroups();
     }
@@ -85,7 +85,7 @@ public partial class ArchivePage
         WorkViewGate.Apply(ArchiveSearchScope, ArchiveWorkView, stateVisible: true, nonDefaultState: ArchiveScope != SearchScope.Text);
         // Without the chip the field says how to reach the scopes.
         bool chipShown = ArchiveSearchScope.IsVisible;
-        ToolTip.SetTip(ArchiveSearchText, chipShown ? null : Texts.T("search.scope.tip") + " · Alt+↓");
+        ToolTip.SetTip(ArchiveSearchText, chipShown ? null : SearchScopeChip.TipWithShortcut());
     }
 
     // ---- Filter surface: fields the view reduces go under "More filters" (the same surface) ----

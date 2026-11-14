@@ -32,6 +32,11 @@ internal static class WorkspaceIcons
     internal const string ChevronUp = "chevron-up";
     internal const string ArrowDown = "arrow-down";
     internal const string ArrowUp = "arrow-up";
+    // The four message severities of a banner: four different shapes, so the severity is not carried by colour alone.
+    internal const string SeverityError = "severity-error";
+    internal const string SeverityWarning = "severity-warning";
+    internal const string SeverityInfo = "severity-info";
+    internal const string SeveritySuccess = "severity-success";
 
     /// <summary>The style class every icon carries (size, round caps, no hit testing; see WorkspaceStyles.axaml).</summary>
     internal const string StyleClass = "glyph-icon";
@@ -56,7 +61,12 @@ internal static class WorkspaceIcons
         [ChevronLeft] = new("M10,3.5 L5.5,8 L10,12.5", HeavyClass),
         [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass),
         [ArrowDown] = new("M8,3 L8,13 M3,8 L8,13 L13,8"),
-        [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8")
+        [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8"),
+        // Circle with a cross (error), triangle with a stroke and a dot (warning), circle with an "i" (information), circle with a tick (success).
+        [SeverityError] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M5.9,5.9 L10.1,10.1 M10.1,5.9 L5.9,10.1"),
+        [SeverityWarning] = new("M8,2 L14.6,13.6 L1.4,13.6 Z M8,6.4 L8,9.4 M8,11.5 L8.1,11.5"),
+        [SeverityInfo] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M8,7.3 L8,11.3 M8,4.9 L8.1,4.9"),
+        [SeveritySuccess] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M5.1,8.2 L7.1,10.2 L10.9,6")
     };
 
     private static readonly Dictionary<string, Geometry> Built = new();

@@ -231,30 +231,34 @@ internal static partial class MediaPageChecks
             C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(withoutTags.IsChecked == false && page.ShownEntries.Count == 3 && untagged.IsVisible, "Reset did not clear without media tags.");
 
-            ComboBox tags = C<ComboBox>(page, "MediaTagChoice"), mode = C<ComboBox>(page, "MediaTagMode");
-            Button include = C<Button>(page, "MediaTagInclude"), exclude = C<Button>(page, "MediaTagExclude");
+            ComboBox mode = C<ComboBox>(page, "MediaTagMode");
+            MeowChan.Desktop.Controls.TagFilterPicker addTag = C<MeowChan.Desktop.Controls.TagFilterPicker>(page, "MediaTagAdd");
             Button reset = C<Button>(page, "MediaFilterReset");
             WrapPanel chips = page.FilterChips;
-            Require(tags.Items.Count == 3 && !include.IsEnabled, "Tag choice must offer both tags behind a placeholder.");
-            void Choose(string name) => tags.SelectedItem = tags.Items.Cast<object>().Single(item => item.ToString() == name);
+            Require(page.AddableTagNames.SequenceEqual(new[] { "cute", "rpt" }) && addTag.IsEnabled, "The tag popover must offer both tags: " + string.Join(",", page.AddableTagNames));
+            void Include(string name) => Require(page.AddTagFilterByName(name, include: true) == null, "Including " + name + " failed.");
+            void Exclude(string name) => Require(page.AddTagFilterByName(name, include: false) == null, "Excluding " + name + " failed.");
             string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")));
 
             // A thread tag reaches every file of the thread, the loose file included.
-            Choose("rpt");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Include("rpt");
             Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && reset.IsEnabled, "Thread tag filter failed: " + Shown());
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 2, 3), "Filtered count is wrong.");
-            Choose("cute");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Include("cute");
             Require(page.ShownEntries.Count == 0 && C<TextBlock>(page, "MediaEmpty").IsVisible
                 && C<TextBlock>(page, "MediaEmpty").Text == Texts.T("media.filter.noMatch"), "All-of two tags must match nothing: " + Shown());
             mode.SelectedIndex = 1;
             Require(page.ShownEntries.Count == 3 && chips.Children.Count == 3, "At-least-one must match all three: " + Shown());
             reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(page.ShownEntries.Count == 3 && !chips.IsVisible && !reset.IsEnabled && mode.SelectedIndex == 0, "Reset did not clear the tag filter.");
-            Choose("cute");
-            exclude.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Exclude("cute");
             Require(Shown() == "100:100,100:-", "Excluding a media tag must hide only that file: " + Shown());
+            // S1/M2: a tag chip carries its state and an explicit toggle; toggling moves the tag to the other list and filters again.
+            Ursa.Controls.ClosableTag cuteChip() => page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single();
+            Require(cuteChip().Classes.Contains("chip-exclude") && ArchivePage.FilterTagLabel(cuteChip()) == Texts.T("tags.filter.excludeChip", "cute"), "An excluded tag chip must say so.");
+            Require(page.ToggleTagFilterByName("cute") == null && page.ShownEntries.Count == 1 && !cuteChip().Classes.Contains("chip-exclude")
+                && ArchivePage.FilterTagLabel(cuteChip()) == Texts.T("tags.filter.includeChip", "cute"), "Toggling an excluded tag must include it: " + Shown());
+            Require(page.ToggleTagFilterByName("cute") == null && Shown() == "100:100,100:-" && cuteChip().Classes.Contains("chip-exclude"), "Toggling back must exclude it again: " + Shown());
             reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
             // Favorites, rating, and both together.
@@ -340,8 +344,7 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Count == 3 && !chips.IsVisible, "Removing the thread chip did not widen back.");
 
             // A deleted tag in the filter is refused: explanation, empty grid, no silent widening.
-            Choose("cute");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Include("cute");
             Require(Shown() == "200:200", "Media tag filter failed: " + Shown());
             PrivateTagLoadSnapshot before = host.GetPublishedPrivateTagSnapshot();
             await host.DeletePrivateTagAsync(cute.Tag, before.Snapshot!.Revision).WaitAsync(Deadline);
@@ -409,6 +412,15 @@ internal static partial class MediaPageChecks
                 Require(chip.Focus(), "A tag chip must take keyboard focus.");
                 chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
                 Require(page.ShownEntries.SequenceEqual(new[] { two }) && page.FilterChips.Children.Count == 1, "Enter on the tag chip did not filter by it.");
+                await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+                RemoveChip(page.FilterChips, 0);
+                // S7: Shift+Enter (like Shift+click) on a tile chip hides the media that carry the tag; its filter chip says "Without tag".
+                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
+                Require(chip.Focus(), "A tag chip must take keyboard focus for the exclusion.");
+                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = KeyModifiers.Shift });
+                Require(!page.ShownEntries.Contains(two) && page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single().Classes.Contains("chip-exclude"),
+                    "Shift+Enter on the tag chip did not exclude its tag.");
                 await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
                 RemoveChip(page.FilterChips, 0);
                 Button threadTag = null!;
@@ -537,9 +549,7 @@ internal static partial class MediaPageChecks
             Require(threads[0].Thread == in400.Thread && threads[0].PostId == in400.PostId, "Show in thread jumped to the wrong occurrence.");
 
             // A filter matches a group by one occurrence; the tile still lists all of them.
-            ComboBox choice = C<ComboBox>(page, "MediaTagChoice");
-            choice.SelectedItem = choice.Items.Cast<object>().Single(item => item.ToString() == "cute");
-            C<Button>(page, "MediaTagInclude").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(page.AddTagFilterByName("cute", include: true) == null, "Including cute failed.");
             Require(page.Tiles.Count == 1 && page.Tiles[0].Occurrences.Count == 3 && page.Tiles[0].ThreadCount == 3 && page.Tiles[0].Entry == in400,
                 "A media tag on one occurrence must keep the whole group, shown by the matching occurrence.");
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
@@ -971,7 +981,7 @@ internal static partial class MediaPageChecks
             Button goDownloads = C<Button>(page, "MediaGoDownloads");
             Require(goDownloads.IsEffectivelyVisible && AutomationProperties.GetName(goDownloads) == Texts.T("nav.goDownloads"),
                 "The empty media page did not offer a labelled Downloads button.");
-            Require(!C<Expander>(page, "MediaFilters").IsEffectivelyVisible && !C<ComboBox>(page, "MediaSort").IsEffectivelyVisible
+            Require(!C<Avalonia.Controls.Primitives.ToggleButton>(page, "MediaFilters").IsEffectivelyVisible && !C<ComboBox>(page, "MediaSort").IsEffectivelyVisible
                 && !C<TextBlock>(page, "MediaStatus").IsEffectivelyVisible && !C<Control>(page, "MediaSelectionRow").IsEffectivelyVisible
                 && !C<Button>(page, "MediaExportAll").IsEffectivelyVisible && !C<Button>(page, "MediaRefresh").IsEffectivelyVisible,
                 "The empty media page must not show filters, counters or actions.");

@@ -7,25 +7,24 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private readonly TextBlock _archiveFilterHeader = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private void InitializeArchivePresentation()
     {
         SearchStateChanged += RefreshArchiveSearchContext;
         AppliedSearchChanged += RefreshArchiveSearchContext;
     }
 
-    private void RefreshArchiveSearchContext()
+    private void RefreshArchiveSearchContext() => UpdateArchiveFilterToggle();
+
+    // S2: the toggle's text, its count badge (one per applied filter chip, as on Media) and the unapplied-draft marker.
+    // Use the existing side-effect-free draft comparison. Pending/invalid raw fields remain drafts; this projection never
+    // validates or applies them.
+    private void UpdateArchiveFilterToggle()
     {
-        // Use the existing side-effect-free draft comparison. Pending/invalid raw
-        // fields remain drafts; this projection never validates or applies them.
         bool draft = _appliedSearch != null && HasUnappliedSearchDraft;
-        Expander filters = ArchiveFilters;
-        _archiveFilterHeader.Text = Texts.T("archive.filters")
-            + (draft ? " · " + Texts.T("archive.unappliedShort") : string.Empty);
-        filters.Header = _archiveFilterHeader;
-        string? hint = draft ? Texts.T("archive.unappliedHint") : null;
-        ToolTip.SetTip(filters, hint);
-        AutomationProperties.SetHelpText(filters, hint ?? string.Empty);
+        int count = _appliedFilterCount;
+        string label = Texts.T("archive.filters") + (draft ? " · " + Texts.T("archive.unappliedShort") : string.Empty);
+        string name = count > 0 ? Texts.Count("archive.filters.countName", count) : Texts.T("archive.filters");
+        ArchiveFilters.Show(label, count, draft ? name + ", " + Texts.T("archive.unappliedShort") : name, draft ? Texts.T("archive.unappliedHint") : null);
     }
 
     private void RefreshArchiveSelectionContext()

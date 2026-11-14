@@ -71,7 +71,7 @@ public partial class ArchivePage
             Control<TextBlock>(field + "Label").Text = Texts.T(key);
             AutomationProperties.SetName(Control<Control>(field), Texts.T(key));
         }
-        ArchiveFilters.Header = Texts.T("archive.filters");
+        UpdateArchiveFilterToggle();
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
         SetOptions("ArchivePostsFilter", "archive.allContent", "archive.withPosts", "archive.withoutPosts");

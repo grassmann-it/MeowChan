@@ -11,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using Ursa.Controls;
 
 namespace MeowChan.Desktop.Commands;
@@ -21,6 +22,13 @@ public sealed class ShortcutEditor : UserControl
     private readonly StackPanel _root = new() { Spacing = 12 };
     private readonly TextBlock _heading = new() { Name = "SettingsShortcutsHeading" };
     public Control SectionHeading => _heading;
+    // The table sits in the settings group "More settings" (work views, WV8); the hint and the single-key switch stay above it.
+    private readonly Expander _more = new() { HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch };
+    private readonly StackPanel _moreBody = new() { Spacing = 12, Margin = new Thickness(0, 8, 0, 0) };
+    /// <summary>The collapsible group around the shortcut table; its policy row is settings.group.shortcuts.</summary>
+    internal Expander MoreGroup => _more;
+    /// <summary>Whether the editor currently shows shortcut issues (conflicts, advisory warnings); they always open the group.</summary>
+    internal bool HasIssues => !string.IsNullOrEmpty(_errors.Text);
     private readonly MeowChan.Desktop.Controls.SearchBox _search = new();
     private readonly ListBox _actions = new() { Height = 210 };
     private readonly StackPanel _detail = new() { Spacing = 8 };
@@ -101,6 +109,8 @@ public sealed class ShortcutEditor : UserControl
         ShowIssues(snapshot.Issues);
         var issue = snapshot.Issues.FirstOrDefault(i => i.BlocksSave);
         if (issue == null) return true;
+        // The error and its row must be on the surface before the deferred reveal below looks for them (R6).
+        _more.IsExpanded = true;
         _search.Text = "";
         _selected = issue.CommandId;
         RefreshList();
@@ -312,7 +322,10 @@ public sealed class ShortcutEditor : UserControl
         var singleKeysHelp = LocalizedText(() => Texts.T("settings.shortcutsEditor.singleKeys.help"), _frameTexts);
         singleKeysHelp.Classes.Add("workspace-help");
         _root.Children.Add(singleKeysHelp);
-        _root.Children.Add(_search);
+        _more.Content = _moreBody;
+        WorkViewElement.SetId(_more, "settings.group.shortcuts");
+        _root.Children.Add(_more);
+        _moreBody.Children.Add(_search);
         var tableHeader = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0) };
         foreach (var (label, column) in new (Func<string>, int)[] { (() => Texts.T("settings.shortcutsEditor.action"), 0), (() => Texts.T("settings.shortcutsEditor.context"), 1), (() => Texts.T("settings.shortcutsEditor.effectiveBinding"), 2) })
         {
@@ -321,12 +334,12 @@ public sealed class ShortcutEditor : UserControl
             Grid.SetColumn(text, column);
             tableHeader.Children.Add(text);
         }
-        _root.Children.Add(tableHeader);
-        _root.Children.Add(_actions);
-        _root.Children.Add(_detailFrame);
-        _root.Children.Add(_errors);
+        _moreBody.Children.Add(tableHeader);
+        _moreBody.Children.Add(_actions);
+        _moreBody.Children.Add(_detailFrame);
+        _moreBody.Children.Add(_errors);
         _reset = Button(() => Texts.T("settings.shortcutsEditor.resetAll"), () => { Draft = Draft.ResetKnown(); Changed(); }, _frameTexts);
-        _root.Children.Add(_reset);
+        _moreBody.Children.Add(_reset);
     }
     private void RefreshList()
     {
@@ -512,11 +525,14 @@ public sealed class ShortcutEditor : UserControl
     private void ShowIssues(IReadOnlyList<ShortcutIssue> issues)
     {
         _errors.Focusable = issues.Any(issue => issue.BlocksSave);
+        bool hadIssues = HasIssues;
         _errors.Text = string.Join("\n", issues.Select(i => (CommandCatalog.TryGet(i.CommandId, out var c) ? c!.Label : i.CommandId) + (i.OtherCommandId != null ? " ↔ " + CommandCatalog.Label(i.OtherCommandId) : "") + ": " + ShortcutIssueCatalog.Render(i)));
         // Advisory warnings stay visible without replacing recorder instructions.
         AutomationProperties.SetHelpText(_capture, issues.Any(issue => issue.BlocksSave)
             ? Texts.T("settings.shortcutsEditor.issuesHelp") + _errors.Text
             : Texts.T("settings.shortcutsEditor.recordHelp"));
+        // R6: an error or warning is never behind a collapsed group (opens when it appears, not on every refresh).
+        if (!hadIssues && HasIssues) _more.IsExpanded = true;
     }
     private void SetPendingText(Func<string>? text)
     { _pendingText = text; _pendingLabel.Text = text?.Invoke() ?? ""; }

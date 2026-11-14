@@ -579,7 +579,7 @@ internal static class PrivateTagBarChecks
         Require(await page.ApplySearchSpecAsync(stored), "Stored tag definition did not apply.");
         Require(Rows().SequenceEqual(new[] { "3001", "3004" }) && Draft().SequenceEqual(new[] { "Without tag: blue" }), "Stored definition result or draft is wrong.");
         Capture(page, "filter");
-        f.C<Expander>("ArchiveFilters").IsExpanded = true;
+        f.C<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters").IsChecked = true;
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         mode.BringIntoView();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

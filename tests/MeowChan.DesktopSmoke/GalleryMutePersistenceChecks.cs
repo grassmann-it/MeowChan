@@ -29,7 +29,7 @@ internal static class GalleryMutePersistenceChecks
             await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
             await WaitAsync(p => p.State == "Paused");
             await ClickMuteAsync(true, "Paused");
-            viewer!.ConfigurePlayback(new GalleryPlaybackPreferences { Mode = GalleryPlaybackMode.Repeat });
+            viewer!.ConfigurePlayback(new GalleryPlaybackPreferences { VideoRepeat = true });
 
             // Exercise changed-value Configure, not just an idempotent settings echo. AudioReady
             // also reconciles after these operations; hold observations beyond a single sample.

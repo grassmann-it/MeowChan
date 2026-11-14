@@ -76,16 +76,18 @@ public static class WorkViewShortcuts
 public static class WorkViewOverflow
 {
     /// <summary>A menu entry for <paramref name="target"/> under its catalog command <paramref name="commandId"/>.</summary>
-    public static MenuItem CreateForwardingItem(Button target, string commandId, Func<string?>? unavailableReason = null) =>
+    public static MenuItem CreateForwardingItem(Button target, string commandId, Func<string?>? unavailableReason = null,
+        Func<string>? label = null) =>
         CommandBindings.CreateMenuItem(commandId, () => CommandBindings.InvokeAction(target),
-            () => target.IsEnabled && (target.Command?.CanExecute(target.CommandParameter) ?? true), unavailableReason);
+            () => target.IsEnabled && (target.Command?.CanExecute(target.CommandParameter) ?? true), unavailableReason, label);
 
     /// <summary>
     /// Fills <paramref name="menu"/> with one forwarding entry per button of <paramref name="buttons"/> that the policy puts
     /// into the overflow (<see cref="Presence.Overflow"/>) in <paramref name="view"/> and whose state shows it, in policy order.
-    /// Returns the number of entries (for "More, n actions", R7).
+    /// Returns the number of entries (for "More, n actions", R7). <paramref name="labelOf"/> lets an entry carry the button's own
+    /// text (a count in its label) instead of the catalog label.
     /// </summary>
-    public static int Populate(ItemsControl menu, IEnumerable<Button> buttons, WorkView view)
+    public static int Populate(ItemsControl menu, IEnumerable<Button> buttons, WorkView view, Func<Button, string>? labelOf = null)
     {
         menu.Items.Clear();
         var entries = buttons
@@ -95,7 +97,7 @@ public static class WorkViewOverflow
             .Where(item => item.Entry.For(view) == Presence.Overflow && item.Entry.CommandId != null)
             .OrderBy(item => item.Entry.OverflowOrder).ToArray();
         foreach (var (button, entry) in entries)
-            menu.Items.Add(CreateForwardingItem(button, entry.CommandId!));
+            menu.Items.Add(CreateForwardingItem(button, entry.CommandId!, label: labelOf == null ? null : () => labelOf(button)));
         return entries.Length;
     }
 }

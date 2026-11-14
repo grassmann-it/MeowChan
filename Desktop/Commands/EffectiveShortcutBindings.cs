@@ -35,7 +35,11 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         var resolved = Resolve(platform);
         if (platform == ShortcutPlatform.MacOS) return DisplayMac(resolved);
         string key = Key.StartsWith("D", StringComparison.Ordinal) && Key.Length == 2 && char.IsDigit(Key[1]) ? Key[1..] : Key;
-        key = key switch { "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu", _ => key };
+        key = key switch
+        {
+            "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
+            "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", "Back" => Texts.T("key.backspace"), _ => key
+        };
         // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
         string prefix = string.Join("+", Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
             : m == "Shift" ? Texts.T("key.shift") : m));
@@ -53,7 +57,8 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
         {
             "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",
             "Left" => "←", "Right" => "→", "Up" => "↑", "Down" => "↓", "PageUp" or "Prior" => "⇞", "PageDown" or "Next" => "⇟",
-            "Home" => "↖", "End" => "↘", "OemComma" => ",", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
+            "Home" => "↖", "End" => "↘", "OemComma" => ",", "OemPeriod" => ".", "OemPlus" => "+", "OemMinus" => "−", "Apps" => "Menu",
+            "OemOpenBrackets" => "[", "OemCloseBrackets" => "]",
             _ when Key.Length == 2 && Key[0] == 'D' && char.IsDigit(Key[1]) => Key[1..],
             _ when Key.Length >= 2 && Key[0] == 'F' && int.TryParse(Key.AsSpan(1), out _) => Key + " (Fn)",
             _ => Key.ToUpperInvariant()
@@ -102,7 +107,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 4;
+    public const int DefaultsRevision = 5;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -132,6 +137,10 @@ public sealed class EffectiveShortcutBindings
         // New in revision 4: Primary+6 and Primary+7 swapped (Plugins is the 6th page, Diagnostics the 7th, MainPageOrder), and media tags moved from
         // Primary+T to Primary+Shift+T (thread tags keep Primary+T). Both yield to a saved binding of another command, like every changed default.
         ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
+        // New in revision 5: viewer quick wins (seek, mute, speed, frame snapshot).
+        ["video.mute"] = 5, ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
+        ["video.seek-forward-far"] = 5, ["video.speed-down"] = 5, ["video.speed-up"] = 5, ["video.speed-reset"] = 5,
+        ["video.snapshot"] = 5,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -181,6 +190,10 @@ public sealed class EffectiveShortcutBindings
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
             case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
+            // [ and ] sit behind AltGr/Option on many layouts (German, French …): "<"/">" as on US keyboards (Shift with the
+            // comma and period keys, the video players' convention) is the always reachable second gesture.
+            case "video.speed-down": list.Add(ShortcutGesture.Parse("Shift+OemComma")); break;
+            case "video.speed-up": list.Add(ShortcutGesture.Parse("Shift+OemPeriod")); break;
         }
         return list.AsReadOnly();
     }
@@ -229,7 +242,8 @@ public sealed class EffectiveShortcutBindings
         return gesture.Symbol != null || key.Length == 1 && char.IsAsciiLetter(key[0])
             || key.Length == 2 && key[0] == 'D' && char.IsAsciiDigit(key[1])
             || key.Length == 7 && key.StartsWith("NumPad", StringComparison.Ordinal) && char.IsAsciiDigit(key[6])
-            || key is "Add" or "Subtract" or "Multiply" or "Divide" or "OemPlus" or "OemMinus" or "OemComma" or "OemPeriod" or "OemQuestion";
+            || key is "Add" or "Subtract" or "Multiply" or "Divide" or "OemPlus" or "OemMinus" or "OemComma" or "OemPeriod" or "OemQuestion"
+                or "OemOpenBrackets" or "OemCloseBrackets";
     }
     public static string? InvalidReason(ShortcutGesture gesture, ShortcutPlatform platform)
         => InvalidIssueReason(gesture, platform)?.LegacyMessage;
@@ -364,7 +378,7 @@ public sealed class EffectiveShortcutBindings
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery", "dialog:media-rating" };
-        if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help") return new[] { "shell" };
+        if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };
         // The large reader owns thread find; the archive search box is not reachable from it.
         if (id is "reader.find" or "reader.find-next" or "reader.find-previous") return new[] { "large-reader" };
         if (id == "input.focus-search") return new[] { "archive", "reader", "about" };

@@ -51,9 +51,15 @@ public partial class ArchivePage
         if (root != null && origin.IsEffectivelyVisible
             && ReferenceEquals(TopLevel.GetTopLevel(origin), root)
             && origin.GetVisualAncestors().Contains(toolbar)) return origin;
-        if (toolbar.OverflowHost?.Children.Contains(origin) != true) return origin;
-        return toolbar.More is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } more
-            && root != null && ReferenceEquals(TopLevel.GetTopLevel(more), root) ? more : null;
+        // A reduced origin (A19: a shortcut or the context menu ran an action the work view moved off the bar): it sits in the closed
+        // "More" popup or is left out by the view ("K"). Either way focus returns to the toolbar's "More", never to the hidden control.
+        Control? more = toolbar.More is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } toggle
+            && root != null && ReferenceEquals(TopLevel.GetTopLevel(toggle), root) ? toggle : null;
+        if (toolbar.OverflowHost?.Children.Contains(origin) == true) return more;
+        if (more != null) return more;
+        // Left out and nothing overflows (no "More" on the bar): the first action still shown keeps the keyboard in the toolbar.
+        return root == null ? origin : toolbar.Items.OfType<Control>().FirstOrDefault(item =>
+            item.Focusable && item.IsEffectivelyVisible && item.IsEffectivelyEnabled && ReferenceEquals(TopLevel.GetTopLevel(item), root));
     }
 
     private void RefreshArchiveResultActions()

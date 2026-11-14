@@ -17,7 +17,7 @@
           <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" wv:WorkViewElement.Id="plugins.header.review-repairs" Click="OnReviewBundledRepairsClick" />
           <!-- What the work view moved off this row (add file, plugin folder): shown only when something is there. -->
-          <Button x:Name="PluginsMoreButton" Classes="plugin-overflow" Width="32" Height="32" IsVisible="False" Click="OnPluginsMoreClick" />
+          <Button x:Name="PluginsMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnPluginsMoreClick" />
         </WrapPanel>
       </Grid>
       <!-- The status row stays in the tree (its live region keeps announcing) but takes no height while it is empty. -->

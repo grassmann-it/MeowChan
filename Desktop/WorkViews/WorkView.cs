@@ -39,6 +39,14 @@ public static class WorkViewSetting
         _ => BarebonesName
     };
 
+    /// <summary>The view after <paramref name="view"/> in the cycle Barebones, Simple, Advanced (R8: "Switch work view"; wraps around).</summary>
+    public static WorkView Next(WorkView view) => view switch
+    {
+        WorkView.Barebones => WorkView.Simple,
+        WorkView.Simple => WorkView.Advanced,
+        _ => WorkView.Barebones
+    };
+
     /// <summary>The window style class of a view (density only, never function visibility).</summary>
     public static string StyleClass(this WorkView view) => "view-" + view.ToSetting().ToLowerInvariant();
 }

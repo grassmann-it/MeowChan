@@ -132,7 +132,7 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
-    [InlineData("video.mute")]
+    // video.mute has Shift+M since the viewer quick wins (ViewerQuickWinsTests).
     [InlineData("video.loop")]
     [InlineData("gallery.tools-toggle")]
     public void OptionalGalleryCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)

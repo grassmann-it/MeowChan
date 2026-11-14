@@ -23,9 +23,12 @@ namespace MeowChan.Desktop;
 internal readonly record struct GalleryOverlayActivity(bool Overlay, bool AutoHide, bool Available,
     bool ActiveWindow, bool Focused, bool Captured, bool Popup, bool Reading, bool Notice = false, bool Hovered = false)
 {
-    internal bool CanHide(TimeSpan idle) => Overlay && AutoHide && Available && ActiveWindow
+    /// <summary>Whether the overlay controls may hide after <paramref name="idle"/> without activity; they wait the
+    /// "Hide controls after" setting (<see cref="Config.ControlsIdleHideMs"/>, clamped to its range).</summary>
+    internal bool CanHide(TimeSpan idle, int hideAfterMs = Config.ControlsIdleHideMsDefault) => Overlay && AutoHide && Available && ActiveWindow
         // Notice is retained as a source-compatible observation, never an interaction hold.
-        && !Focused && !Captured && !Popup && !Reading && !Hovered && idle >= TimeSpan.FromMilliseconds(500);
+        && !Focused && !Captured && !Popup && !Reading && !Hovered
+        && idle >= TimeSpan.FromMilliseconds(Math.Clamp(hideAfterMs, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum));
 }
 
 internal readonly record struct GalleryOverlayPlacement(bool Controls, bool PostContext)
@@ -55,6 +58,13 @@ internal sealed partial class GalleryViewer
     private bool _swallowRevealTap;
     private long? _revealPointerId;
     private bool _applyingOverlayPlacement;
+    private int _controlsIdleHideMs = Config.ControlsIdleHideMsDefault;
+    /// <summary>Idle time before the overlay controls hide ("Hide controls after"; the reader's arrow cross uses the same value).</summary>
+    internal int ControlsIdleHideMs
+    {
+        get => _controlsIdleHideMs;
+        set => _controlsIdleHideMs = Math.Clamp(value, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+    }
     private GalleryOverlayPlacement EffectiveOverlayPlacement => GalleryOverlayPlacement.Resolve(_playbackPreferences,
         _entry?.Kind == SavedMediaKind.Video && OperatingSystem.IsWindows(), _nativeOverlayActive, _nativeOverlayFallback);
     private bool OverlayControlsEffective => EffectiveOverlayPlacement.Controls;
@@ -191,6 +201,10 @@ internal sealed partial class GalleryViewer
             MoveOverlayControl(indicator, OverlayHost);
             Grid.SetRow(indicator, 0); Grid.SetRowSpan(indicator, 1);
         }
+        // The way back follows the picture into the native overlay; in the transparency fallback the picture is row 1.
+        MoveOverlayControl(_close, OverlayHost);
+        Grid.SetRow(_close, _nativeOverlayFallback && !_nativeOverlayActive ? 1 : 0); Grid.SetRowSpan(_close, 1);
+        UpdateBackButtonOpacity();
         // Keep a hovered handle hit-testable through reveal until the pointer leaves.
         // Otherwise its pending click/tap could land on the media or transport below.
         bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator);
@@ -371,6 +385,7 @@ internal sealed partial class GalleryViewer
         }
         _viewport.IsVisible = true; // The picture is never replaced by the panel.
         UpdateEdgeIndicators();
+        UpdateFavoriteIndicators();
     }
 
     private void ApplyOverlayBackgrounds()
@@ -603,7 +618,7 @@ internal sealed partial class GalleryViewer
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
             _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText,
             Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator);
-        if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity)))
+        if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity), _controlsIdleHideMs))
         {
             if (controlHasFocus) { FocusGallerySurface(); _keyboardInteraction = false; }
             _overlayHidden = true;

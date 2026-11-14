@@ -13,6 +13,7 @@ internal static class ExportCatalog
         ("export.format.originals", "Original files", "Originaldateien"),
         ("export.scope.thread", "This thread", "Dieser Thread"),
         ("export.scope.selection", "Selected threads ({0})", "Ausgewählte Threads ({0})"),
+        ("export.scope.selection.one", "Selected thread ({0})", "Ausgewählter Thread ({0})"),
         ("export.scope.results", "All matches", "Alle Treffer"),
         ("export.link.hint", "Saves only the page link of this thread as a UTF-8 text file. The next step shows exactly what is written and asks where to save it.", "Speichert nur den Seitenlink dieses Threads als UTF-8-Textdatei. Der nächste Schritt zeigt genau, was geschrieben wird, und fragt nach dem Speicherort."),
         ("export.link.review", "Review link file…", "Linkdatei prüfen…"),

@@ -42,7 +42,7 @@ internal static class ArchiveExactIdentityChecks
             page = new ArchivePage(token => ArchiveReader.OpenAsync(directory, token), (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, ArchiveColumnModePreference = "Advanced" };
             host = new Window { Title = "Archive exact identity regression — harness", Width = 900, Height = 700, Content = page };
             host.Show(owner);
-            C<Expander>("ArchiveFilters").IsExpanded = true;
+            C<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters").IsChecked = true;
             await Settle();
 
             T C<T>(string name) where T : Control => page.FindControl<T>(name) ?? throw new InvalidOperationException("Missing " + name);

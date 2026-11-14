@@ -127,7 +127,7 @@
             </Grid>
         </Border>
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
-        <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" IsVisible="False" Margin="12,8,12,0">
+        <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" ShowSeverityIcon="True" IsVisible="False" Margin="12,8,12,0">
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
@@ -145,7 +145,16 @@
                 </Button>
             </Grid>
         </controls:WorkspaceBanner>
-        <Border x:Name="ClipboardSuggestionPanel" Grid.Row="1" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8"
+        <StackPanel Grid.Row="1">
+        <!-- One-time notice for profiles that existed before the work views reduced every page (plan AP5 question 3). -->
+        <Border x:Name="WorkViewNoticePanel" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <TextBlock x:Name="WorkViewNoticeText" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <Button x:Name="WorkViewNoticeAdvanced" Grid.Column="1" Click="OnWorkViewNoticeAdvanced" />
+                <Button x:Name="WorkViewNoticeDismiss" Grid.Column="2" Classes="primary" Click="OnWorkViewNoticeDismiss" />
+            </Grid>
+        </Border>
+        <Border x:Name="ClipboardSuggestionPanel" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8"
                 KeyDown="OnClipboardSuggestionKeyDown">
             <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                 <TextBlock x:Name="ClipboardSuggestionTitle" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -156,6 +165,7 @@
                 <TextBlock x:Name="ClipboardSuggestionNotice" Grid.Row="2" Grid.ColumnSpan="3" Classes="muted" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
             </Grid>
         </Border>
+        </StackPanel>
         <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
             <Grid x:Name="WorkspaceHeading" wv:WorkViewElement.Id="downloads.header.heading">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />

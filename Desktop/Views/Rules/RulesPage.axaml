@@ -74,7 +74,7 @@
                     <!-- The scope being edited, always; the page's "More" (⋯) holds what the work view moved off the page. -->
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
                         <TextBlock x:Name="RulesEditingHeader" wv:WorkViewElement.Id="rules.scope.editing-header" Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button x:Name="RulesMoreButton" Grid.Column="1" Classes="plugin-overflow" Width="32" Height="32" IsVisible="False" Click="OnRulesMoreClick" />
+                        <Button x:Name="RulesMoreButton" Grid.Column="1" Classes="subtle icon-square" IsVisible="False" Click="OnRulesMoreClick" />
                     </Grid>
                     <Grid x:Name="RuleBreadcrumbRow" wv:WorkViewElement.Id="rules.scope.breadcrumb" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
                         <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" VerticalAlignment="Center"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>

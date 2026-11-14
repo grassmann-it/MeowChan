@@ -114,9 +114,9 @@ public sealed class SecondarySettingsLocalizationGalleryTests : IDisposable
                 Assert.Equal("en", editor.SelectedLanguage!.Code); // UI language != unsaved language draft
                 Assert.Equal("Slideshow", editor.SelectedGalleryPlaybackMode!.Value);
                 Assert.Equal(17m, editor.GallerySlideshowSeconds);
-                Assert.Equal(new[] { "Manual", "Repeat", "Slideshow" },
+                Assert.Equal(new[] { "Manual", "Slideshow" },
                     editor.GalleryPlaybackModeChoices.Select(choice => choice.Value));
-                Assert.Equal(new[] { GalleryPlaybackCatalog.Manual, GalleryPlaybackCatalog.Repeat, GalleryPlaybackCatalog.Slideshow },
+                Assert.Equal(new[] { GalleryPlaybackCatalog.Manual, GalleryPlaybackCatalog.Slideshow },
                     editor.GalleryPlaybackModeChoices.Select(choice => choice.Label));
                 Assert.Equal(GalleryPlaybackCatalog.Title, editor.GalleryPlaybackTitle);
                 Assert.Equal(GalleryPlaybackCatalog.Mode, editor.GalleryPlaybackModeLabel);
@@ -132,7 +132,7 @@ public sealed class SecondarySettingsLocalizationGalleryTests : IDisposable
         }
 
         // The label guard must not suppress real input after the presentation refresh.
-        editor.SelectedGalleryPlaybackMode = editor.GalleryPlaybackModeChoices.Single(choice => choice.Value == "Repeat");
+        editor.SelectedGalleryPlaybackMode = editor.GalleryPlaybackModeChoices.Single(choice => choice.Value == "Manual");
         Assert.Equal(38L, Get<long>(editor, "_draftRevision"));
         Assert.True(wait.IsCancellationRequested);
         Assert.Null(Get<DownloadDestinationStatus?>(editor, "_destinationStatus"));

@@ -77,6 +77,9 @@ namespace MeowChan
         private int _videoVolume = 70;
         private string _galleryPlaybackMode = "Manual";
         private int _gallerySlideshowSeconds = 5;
+        private string _gallerySlideshowVideoRule = nameof(Desktop.SlideshowVideoRule.PlayOnce);
+        private int _gallerySlideshowVideoSeconds = GallerySlideshowVideoSecondsDefault;
+        private int _gallerySlideshowVideoRepeats = GallerySlideshowVideoRepeatsDefault;
         private double _windowWidth = 1380;
         private double _windowHeight = 850;
         private double? _windowPositionX;
@@ -84,6 +87,7 @@ namespace MeowChan
         private Dictionary<string, PresentationProfile> _layoutProfiles = new(StringComparer.Ordinal);
         private Dictionary<string, PresentationProfile>? _deserializedLayoutProfiles;
         private string _lastExportDirectory = string.Empty;
+        private string _galleryFrameDirectory = string.Empty;
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
@@ -94,6 +98,12 @@ namespace MeowChan
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
         public bool ShowBoardAdmissionWizard { get; set; } = true;
+        /// <summary>
+        /// One-time notice (plan AP5 question 3): a profile that existed before the work views reduced every page is told once that
+        /// Barebones and Simple now show fewer tools. Loading a stored profile whose file lacks the field turns it on; a new
+        /// profile and every in-memory configuration start false, and dismissing or acting on the notice saves false.
+        /// </summary>
+        public bool WorkViewNoticePending { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool RememberReadingPosition { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -549,11 +559,44 @@ namespace MeowChan
         public string GalleryPlaybackMode
         {
             get => _galleryPlaybackMode;
-            set => _galleryPlaybackMode = string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase) ? "Repeat"
-                : string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+            set
+            {
+                // Read migration: "Repeat video" was the third playback mode until it became its own choice. An old
+                // profile's "Repeat" turns it on and leaves the mode Manual; the file changes only on its next save.
+                if (string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase)) GalleryVideoRepeat = true;
+                _galleryPlaybackMode = string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+            }
         }
         [JsonConverter(typeof(DesktopPreferenceSlideshowSecondsConverter))]
         public int GallerySlideshowSeconds { get => _gallerySlideshowSeconds; set => _gallerySlideshowSeconds = Math.Clamp(value, 1, 300); }
+        /// <summary>Repeat the shown video outside a slideshow (the transport's loop button).</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryVideoRepeat { get; set; }
+        /// <summary>What a running slideshow does with a video: play it once, loop it for at least
+        /// <see cref="GallerySlideshowVideoSeconds"/> or repeat it <see cref="GallerySlideshowVideoRepeats"/> times.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GallerySlideshowVideoRule
+        {
+            get => _gallerySlideshowVideoRule;
+            set => _gallerySlideshowVideoRule = Desktop.GalleryPlaybackPreferences.ParseVideoRule(value).ToString();
+        }
+        [JsonConverter(typeof(DesktopPreferenceSlideshowVideoSecondsConverter))]
+        public int GallerySlideshowVideoSeconds
+        {
+            get => _gallerySlideshowVideoSeconds;
+            set => _gallerySlideshowVideoSeconds = Math.Clamp(value, GallerySlideshowVideoSecondsMinimum, GallerySlideshowVideoSecondsMaximum);
+        }
+        internal const int GallerySlideshowVideoSecondsDefault = 10, GallerySlideshowVideoSecondsMinimum = 1, GallerySlideshowVideoSecondsMaximum = 600;
+        [JsonConverter(typeof(DesktopPreferenceSlideshowVideoRepeatsConverter))]
+        public int GallerySlideshowVideoRepeats
+        {
+            get => _gallerySlideshowVideoRepeats;
+            set => _gallerySlideshowVideoRepeats = Math.Clamp(value, GallerySlideshowVideoRepeatsMinimum, GallerySlideshowVideoRepeatsMaximum);
+        }
+        internal const int GallerySlideshowVideoRepeatsDefault = 2, GallerySlideshowVideoRepeatsMinimum = 1, GallerySlideshowVideoRepeatsMaximum = 50;
+        /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
+        public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
+        internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -604,6 +647,9 @@ namespace MeowChan
         }
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
+        /// <summary>The folder saved video frames go to: chosen by the person on the first "Save frame as image", never an export folder. Empty until then.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFrameDirectory { get => _galleryFrameDirectory; set => _galleryFrameDirectory = value ?? string.Empty; }
         /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveBridgeHintSeen { get; set; }
@@ -856,6 +902,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardUrlLimit), "ClipboardUrlLimit is outside its supported range (" + ClipboardUrlLimitMinimum + " to " + ClipboardUrlLimitMaximum + ").");
             if (ClipboardTextLimitKiB is < ClipboardTextLimitKiBMinimum or > ClipboardTextLimitKiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
+            if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -926,6 +974,8 @@ namespace MeowChan
             { throw new ArgumentException("The download directory path is invalid.", nameof(DownloadPath), error); }
             if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
                 throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
+            if (GalleryFrameDirectory.Length > 4096 || GalleryFrameDirectory.Any(char.IsControl))
+                throw new ArgumentException("The video frame directory is invalid.", nameof(GalleryFrameDirectory));
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             {
                 PresentationProfile profile = GetLayoutProfile(mode);
@@ -953,6 +1003,7 @@ namespace MeowChan
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
+                WorkViewNoticePending = WorkViewNoticePending,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -991,6 +1042,7 @@ namespace MeowChan
                 ClipboardUrlLimit = ClipboardUrlLimit,
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
+                ControlsIdleHideMs = ControlsIdleHideMs,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1053,6 +1105,10 @@ namespace MeowChan
                 VideoVolume = VideoVolume,
                 GalleryPlaybackMode = GalleryPlaybackMode,
                 GallerySlideshowSeconds = GallerySlideshowSeconds,
+                GalleryVideoRepeat = GalleryVideoRepeat,
+                GallerySlideshowVideoRule = GallerySlideshowVideoRule,
+                GallerySlideshowVideoSeconds = GallerySlideshowVideoSeconds,
+                GallerySlideshowVideoRepeats = GallerySlideshowVideoRepeats,
                 GalleryMediaFocus = GalleryMediaFocus,
                 GalleryOverlayControls = GalleryOverlayControls,
                 GalleryAutoHideControls = GalleryOverlayControls,
@@ -1068,6 +1124,7 @@ namespace MeowChan
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
+                GalleryFrameDirectory = GalleryFrameDirectory,
                 ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
@@ -1104,6 +1161,7 @@ namespace MeowChan
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            WorkViewNoticePending = source.WorkViewNoticePending;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1142,6 +1200,7 @@ namespace MeowChan
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            ControlsIdleHideMs = source.ControlsIdleHideMs;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1203,6 +1262,7 @@ namespace MeowChan
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
+            GalleryFrameDirectory = source.GalleryFrameDirectory;
             ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
@@ -1257,6 +1317,7 @@ namespace MeowChan
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            ControlsIdleHideMs = source.ControlsIdleHideMs;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1531,6 +1592,9 @@ namespace MeowChan
                     }
                     if (!document.RootElement.TryGetProperty(nameof(DownloadPath), out _))
                         config.DownloadPath = GetDefaultDownloadPath("oChan");
+                    // A profile saved before the field existed predates the reduced work views: tell it once.
+                    if (!document.RootElement.TryGetProperty(nameof(WorkViewNoticePending), out _))
+                        config.WorkViewNoticePending = true;
                 }
                 // These three limits had no maximum before 1.1.0. A larger value an older version saved keeps the
                 // file loadable and is reduced to today's maximum, which is also what was effective for parallel downloads.
@@ -1628,6 +1692,32 @@ namespace MeowChan
                 return Math.Clamp(value, 1, 300);
             reader.Skip();
             return 5;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowVideoSecondsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
+            reader.Skip();
+            return Config.GallerySlideshowVideoSecondsDefault;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowVideoRepeatsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
+            reader.Skip();
+            return Config.GallerySlideshowVideoRepeatsDefault;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

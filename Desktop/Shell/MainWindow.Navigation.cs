@@ -82,6 +82,7 @@ public partial class MainWindow
         _archivePage.CanFollowLive = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
+        _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
         _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
         _archivePage.ArchiveColumnModePreference = _config.WorkspaceMode;
         _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;
@@ -204,6 +205,9 @@ public partial class MainWindow
                 _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
                 _settingsEditor.Updates = _session.Updates;
                 _settingsEditor.BusyChanged += OnSettingsBusyChanged;
+                // The page is built after the first frame: it starts in the window's view and follows every later change (WV8).
+                _settingsEditor.ApplyWorkView(_workViews.Current, viewChanged: true);
+                _workViews.Changed += (_, current) => _settingsEditor?.ApplyWorkView(current, viewChanged: true);
                 SettingsPageHost.Content = _settingsEditor;
                 return true;
             case 1:
@@ -348,7 +352,8 @@ public partial class MainWindow
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
         UpdateSpeedSamplingState(); // the page claims samples while it is shown, and gives them up when left
-        if (page == WorkspacePage.Statistics) ShowStatisticsPage();
+        if (page == WorkspacePage.Diagnostics) _diagnosticsPage?.ApplyWorkView(ConfiguredWorkView);
+        if (page == WorkspacePage.Statistics) { _statisticsPage?.ApplyWorkView(ConfiguredWorkView); ShowStatisticsPage(); }
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();

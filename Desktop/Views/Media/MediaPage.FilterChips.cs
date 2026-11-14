@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
+using Ursa.Controls;
 
 namespace MeowChan;
 
@@ -26,7 +27,7 @@ public sealed partial class MediaPage
     private readonly Button _emptySearchInArchive = new() { Name = "MediaEmptySearchInArchive", IsVisible = false };
     private string[] _renderedChips = Array.Empty<string>();
 
-    private sealed record FilterChip(string Key, string Label, Action Remove, bool Exclude = false);
+    private sealed record FilterChip(string Key, string Label, Action Remove, bool Exclude = false, Guid? Tag = null);
 
     /// <summary>The number of active filter values, one per chip; the toggle shows it.</summary>
     internal int ActiveFilterCount { get; private set; }
@@ -41,7 +42,7 @@ public sealed partial class MediaPage
             bool focused = _filterResetAll.IsFocused || FocusWithin(_filterChips);
             ResetFilters();
             // The row is gone after a reset; the toggle is the nearest place to continue.
-            if (focused) FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
+            if (focused) FilterSurfaceToggle.Focus(NavigationMethod.Tab);
         };
         _emptyReset.Click += (_, _) =>
         {
@@ -81,9 +82,9 @@ public sealed partial class MediaPage
     {
         List<FilterChip> chips = new();
         chips.AddRange(_includeTags.ToArray().Select(id => new FilterChip("tag+" + id, Texts.T("tags.filter.includeChip", TagLabel(id)),
-            () => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); })));
+            () => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); }, Tag: id)));
         chips.AddRange(_excludeTags.ToArray().Select(id => new FilterChip("tag-" + id, Texts.T("tags.filter.excludeChip", TagLabel(id)),
-            () => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }, Exclude: true)));
+            () => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }, Exclude: true, Tag: id)));
         if (_includeTags.Count > 1 && _tagMode.SelectedIndex == 1)
             chips.Add(new FilterChip("tagMatch", Texts.T("tags.filter.anyChip"), () => _tagMode.SelectedIndex = 0));
         if (_threadFilter is { } thread)
@@ -132,8 +133,24 @@ public sealed partial class MediaPage
         {
             FilterChip chip = chips[index];
             int position = index;
-            _filterChips.Children.Add(ArchivePage.CreateFilterTag(chip.Label, () => RemoveFilterChip(position, chip.Remove), chip.Exclude));
+            _filterChips.Children.Add(chip.Tag is { } tagId
+                ? ArchivePage.CreateTagFilterChip(chip.Label, TagLabel(tagId), tagId, chip.Exclude, () => RemoveFilterChip(position, chip.Remove), () => ToggleFilterChip(tagId))
+                : ArchivePage.CreateFilterTag(chip.Label, () => RemoveFilterChip(position, chip.Remove), chip.Exclude));
         }
+    }
+
+    // A tag chip's toggle rebuilds the chip (its key and place change); keyboard users stay on the toggle of the same tag.
+    private void ToggleFilterChip(Guid tagId)
+    {
+        bool focused = FocusWithin(_filterChips);
+        if (ToggleTagFilter(tagId) != null || !focused) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_lifetime.IsCancellationRequested) return;
+            ClosableTag? chip = _filterChips.Children.OfType<ClosableTag>().FirstOrDefault(tag => tag.Tag is Guid id && id == tagId);
+            if (chip?.Content is StackPanel { Children: [Control toggle, ..] }) toggle.Focus(NavigationMethod.Tab);
+            else FilterSurfaceToggle.Focus(NavigationMethod.Tab);
+        }, DispatcherPriority.Loaded);
     }
 
     // Like the archive's chips: a removal made from the row keeps keyboard users in the row (the neighbour chip), or on the
@@ -147,7 +164,7 @@ public sealed partial class MediaPage
         {
             if (_lifetime.IsCancellationRequested) return;
             if (_filterChips.Children.Count > 0) _filterChips.Children[Math.Min(position, _filterChips.Children.Count - 1)].Focus(NavigationMethod.Tab);
-            else FilterSurfaceToggle?.Focus(NavigationMethod.Tab);
+            else FilterSurfaceToggle.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }
 }

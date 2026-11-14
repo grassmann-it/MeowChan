@@ -3,23 +3,24 @@ using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
-// UX103 P2: the archive filter drafts open as a local surface over the result
-// list. Presentation only: the expander keeps the toggle command, IsExpanded and
-// the draft marker; drafts, Search and the applied chips keep their contracts.
+// UX103 P2, S2: the archive filter drafts open as a local surface over the result
+// list (an overlay until the full-width header, L1). Presentation only: the filter toggle
+// (a FilterToggleButton) keeps the toggle command, IsChecked and the draft marker; drafts,
+// Search and the applied chips keep their contracts.
 public partial class ArchivePage
 {
     private FilterSurfaceController _filterSurface = null!;
 
-    private void InitializeFilterSurface() => _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended, drivesVisibility: false);
+    private void InitializeFilterSurface() => _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended, drivesVisibility: false, overlay: true);
 
-    internal bool IsFilterSurfaceOpen => ArchiveFilters.IsExpanded;
+    internal bool IsFilterSurfaceOpen => ArchiveFilters.IsChecked == true;
 
     /// <summary>The filters shortcut: opens the filter surface and moves into it, or closes it and returns to the toggle.</summary>
     internal void ToggleFilterSurfaceByShortcut()
     {
         if (_ended) return;
         if (IsFilterSurfaceOpen) { CloseFilterSurface(restoreFocus: true); return; }
-        ArchiveFilters.IsExpanded = true;
+        ArchiveFilters.IsChecked = true;
         _filterSurface.FocusFirstField();
     }
 

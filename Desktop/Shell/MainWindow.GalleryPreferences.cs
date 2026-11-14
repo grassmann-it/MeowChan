@@ -31,11 +31,13 @@ public partial class MainWindow
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
+        if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
         if (_archivePage != null)
         {
             _archivePage.ReadingFontSizePreference = ReadingFontSize();
             _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
             ReaderSettingsPreferences.Apply(_archivePage, _config);
+            _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
         }
     }
 

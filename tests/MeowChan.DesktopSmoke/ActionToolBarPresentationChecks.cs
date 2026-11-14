@@ -114,7 +114,9 @@ internal static class ActionToolBarPresentationChecks
                             await Program.WaitUntilAsync(() => surface.Toolbar.OverflowHost.IsEffectivelyVisible
                                 && TopLevel.GetTopLevel(surface.Toolbar.OverflowHost) is { IsVisible: true });
                             await Settle(owner, host);
-                            Require(AutomationProperties.GetName(surface.Toolbar.More) == Texts.T("downloads.more"), "Actual overflow toggle label is not localized.");
+                            // R7: the toggle announces how many actions it holds ("More, 5 actions"); its tooltip stays "More".
+                            Require(AutomationProperties.GetName(surface.Toolbar.More)
+                                == Texts.Count("workview.moreCount", surface.Toolbar.OverflowHost.Children.Count(c => c.IsVisible)), "Actual overflow toggle label is not localized or does not count its actions.");
                         }
                         if (surface.Name == "downloads")
                             Require(AutomationProperties.GetName(owner.FindControl<Button>("CopyAllUrlsButton")!)

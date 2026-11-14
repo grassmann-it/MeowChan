@@ -3,6 +3,7 @@
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
              xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
              x:Class="MeowChan.DiagnosticsPage" SizeChanged="OnDiagnosticPageSizeChanged">
     <UserControl.Styles>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
@@ -19,23 +20,27 @@
                         <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
                         <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock x:Name="DiagnosticsSummary" Grid.Column="1" Classes="muted" TextWrapping="Wrap" MaxWidth="360"
+                    <TextBlock x:Name="DiagnosticsSummary" wv:WorkViewElement.Id="diagnostics.summary" Grid.Column="1" Classes="muted" TextWrapping="Wrap" MaxWidth="360"
                                TextAlignment="Right" VerticalAlignment="Top" />
                 </Grid>
-                <WrapPanel Classes="workspace-toolbar">
-                    <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
-                    <controls:SearchBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
-                    <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
-                    <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False" MaxWidth="280"
-                              IsCheckedChanged="OnDiagnosticFilterChanged">
-                        <TextBlock Tag="diagnostics.includeWaiting" Classes="localized" TextWrapping="Wrap" />
-                    </CheckBox>
-                    <Button x:Name="DiagnosticClearFilters" Click="OnClearDiagnosticFilters" />
-                </WrapPanel>
-                <TextBlock x:Name="DiagnosticFilterSummary" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <!-- Work views: Barebones starts with the filters closed (an active filter opens them, R6); the data and the default values are the same in every view. -->
+                <Expander x:Name="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <WrapPanel Classes="workspace-toolbar">
+                        <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
+                        <controls:SearchBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
+                        <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
+                        <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False" MaxWidth="280"
+                                  IsCheckedChanged="OnDiagnosticFilterChanged">
+                            <TextBlock Tag="diagnostics.includeWaiting" Classes="localized" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <Button x:Name="DiagnosticClearFilters" Click="OnClearDiagnosticFilters" />
+                    </WrapPanel>
+                </Expander>
+                <TextBlock x:Name="DiagnosticFilterSummary" wv:WorkViewElement.Id="diagnostics.filter-summary" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Tag="diagnostics.current" Classes="section-title localized" TextWrapping="Wrap" />
                 <Grid x:Name="DiagnosticSplit" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="12">
-                    <Border x:Name="DiagnosticListPane" Classes="panel">
+                    <Border x:Name="DiagnosticListPane" wv:WorkViewElement.Id="diagnostics.table" Classes="panel">
                         <!-- The "no problems" hint has its own row above the list: the platform information rows are
                              always listed, so an overlay inside the grid cell would draw over them (MS-R2). -->
                         <Grid RowDefinitions="Auto,Auto">
@@ -52,7 +57,7 @@
                             </DataGrid>
                         </Grid>
                     </Border>
-                    <Border x:Name="DiagnosticDetailPane" Grid.Row="1" Classes="workspace-section">
+                    <Border x:Name="DiagnosticDetailPane" wv:WorkViewElement.Id="diagnostics.details" Grid.Row="1" Classes="workspace-section">
                         <StackPanel Classes="workspace-section-header">
                             <TextBlock x:Name="DiagnosticSelectionHint" Classes="workspace-help" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
                             <TextBlock x:Name="DiagnosticSelectionTitle" Classes="section-title" TextWrapping="Wrap" IsVisible="False" />
@@ -61,7 +66,7 @@
                         </StackPanel>
                     </Border>
                 </Grid>
-                <Expander x:Name="SessionFeedbackSection" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                <Expander x:Name="SessionFeedbackSection" wv:WorkViewElement.Id="diagnostics.session-messages" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <StackPanel Spacing="6">
                         <TextBlock x:Name="SessionFeedbackEmpty" Tag="feedback.empty" Classes="muted localized" TextWrapping="Wrap" />
                         <DataGrid x:Name="SessionFeedbackGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="160"
@@ -84,16 +89,19 @@
         </ScrollViewer>
         <StackPanel Grid.Row="1" Spacing="8">
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="DiagnosticsActionError" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <TextBlock x:Name="DiagnosticsActionError" wv:WorkViewElement.Id="diagnostics.error" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
             <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="workspace-help localized"
                        TextWrapping="Wrap" />
+            <!-- Work views: the three error-path actions never move; "retry filtered" and "copy details" sit under More where the view says so.
+                 The row keeps wrapping like before (no width-driven overflow); More lists exactly what the view moved. -->
             <WrapPanel Classes="workspace-toolbar">
-                <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="RetryDiagnosticSelectionButton" Click="OnRetryDiagnosticSelection" />
-                <Button x:Name="RetryDiagnosticFilteredButton" Click="OnRetryDiagnosticFiltered" />
-                <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
-                <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
+                <Button x:Name="RetryDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.check-now" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
+                <Button x:Name="RetryDiagnosticSelectionButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-selection" Click="OnRetryDiagnosticSelection" />
+                <Button x:Name="RetryDiagnosticFilteredButton" wv:WorkViewElement.Id="diagnostics.toolbar.retry-filtered" Click="OnRetryDiagnosticFiltered" />
+                <Button x:Name="CopyDiagnosticButton" wv:WorkViewElement.Id="diagnostics.toolbar.copy" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
+                <Button x:Name="OpenDiagnosticWatchButton" wv:WorkViewElement.Id="diagnostics.toolbar.show-in-downloads" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
+                <Button x:Name="DiagnosticMoreButton" wv:WorkViewElement.Id="diagnostics.toolbar.more" IsVisible="False" Click="OnDiagnosticMoreClick" />
             </WrapPanel>
         </StackPanel>
     </Grid>

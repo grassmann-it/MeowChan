@@ -86,11 +86,17 @@ public class SearchBox : TextBox
         set
         {
             if (ReferenceEquals(_scopeChip, value)) return;
-            if (_scopeChip != null) _scopeChip.PropertyChanged -= OnScopeChipPropertyChanged;
+            if (_scopeChip != null)
+            {
+                _scopeChip.PropertyChanged -= OnScopeChipPropertyChanged;
+                // The scope help text belongs to the field that currently holds the chip.
+                if (ReferenceEquals(_scopeChip.Owner, this)) _scopeChip.Owner = null;
+                ClearValue(Avalonia.Automation.AutomationProperties.HelpTextProperty);
+            }
             _scopeChip = value;
             if (value != null) value.PropertyChanged += OnScopeChipPropertyChanged;
             if (value != null && value.Owner is { } previous && !ReferenceEquals(previous, this)) previous.ScopeChip = null;
-            if (value != null) value.Owner = this;
+            if (value != null) { value.Owner = this; value.ApplyOwnerHelp(); }
             ApplyLeadingContent();
         }
     }

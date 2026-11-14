@@ -79,7 +79,7 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
 
         // A genuine later mode change must still update the conditional editor.
         slideshowVisibility.Clear();
-        editor.SelectedGalleryPlaybackMode = editor.GalleryPlaybackModeChoices.Single(item => item.Value == "Repeat");
+        editor.SelectedGalleryPlaybackMode = editor.GalleryPlaybackModeChoices.Single(item => item.Value == "Manual");
         Assert.False(editor.IsGallerySlideshow);
         Assert.Equal(new[] { false }, slideshowVisibility);
         Assert.Equal(39L, Get<long>(editor, "_draftRevision"));

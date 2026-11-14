@@ -18,6 +18,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -116,6 +117,7 @@ public partial class SettingsEditor
         _searchPanel.Classes.Add("workspace-overlay");
         _searchPanel.Bind(Layoutable.WidthProperty, _searchBox.GetObservable(Layoutable.WidthProperty));
 
+        WorkViewElement.SetId(_searchBox, "settings.search");
         SettingsHeader.Children.Add(_searchBox);
         SettingsHeader.Children.Add(_searchPanel);
         ApplySearchTexts();
@@ -129,10 +131,25 @@ public partial class SettingsEditor
         _searchBox.SelectAll();
     }
 
+    /// <summary>
+    /// Runs <paramref name="query"/> and commits its first hit as Enter does (the work-views smoke: the search finds every setting,
+    /// also in a collapsed group, and opens what it jumps to). Null when nothing matches.
+    /// </summary>
+    internal (string Label, string CategoryId, int Groups, bool AllOpen)? ProbeSearchJump(string query)
+    {
+        if (_searchBox == null || _isClosed) return null;
+        _searchBox.Text = query;
+        OnSearchQueryChanged();
+        if (_searchHits.Count == 0 || !_searchTargets.TryGetValue(_searchHits[0].Document.Id, out SearchTarget? target)) return null;
+        CommitSearchHit(_searchHits[0]);
+        return (_searchHits[0].Document.Label, target.CategoryId, target.Expanders.Count, target.Expanders.All(expander => expander.IsExpanded));
+    }
+
     /// <summary>A language change or a rebuilt navigation: texts and the read index are stale.</summary>
     private void SearchLanguageRefreshed()
     {
         _searchIndexDirty = true;
+        RefreshGroupHeaders();
         if (_searchBox == null) return;
         ApplySearchTexts();
         if (_searchBox.HasText) OnSearchQueryChanged();
@@ -382,7 +399,8 @@ public partial class SettingsEditor
             if (page is ShortcutEditor)
             {
                 string title = Texts.T("shortcuts.title");
-                result.Add(new SearchEntryBuilder { Element = page, CategoryId = id, Group = SettingsTitle, Label = title, Key = "shortcuts" });
+                result.Add(new SearchEntryBuilder { Element = page, CategoryId = id, Group = SettingsTitle, Label = title, Key = "shortcuts",
+                    Expanders = ((ShortcutEditor)page).MoreGroup is { } shortcutGroup ? [shortcutGroup] : Array.Empty<Expander>() });
                 continue;
             }
             if (page is not Panel panel) continue;
@@ -414,7 +432,8 @@ public partial class SettingsEditor
             if (child is Expander expander && expander.Content is Panel inner && IsComposite(inner))
             {
                 string header = expander.Header as string ?? string.Empty;
-                if (!string.IsNullOrWhiteSpace(header))
+                // The "More settings" groups of the work views are containers, not settings: their content is listed, they are not.
+                if (!string.IsNullOrWhiteSpace(header) && WorkViewElement.GetId(expander) == null)
                     output.Add(new SearchEntryBuilder { Element = expander, CategoryId = categoryId, Group = group, Label = header,
                         Expanders = expanders });
                 ScanFlow(inner, categoryId, pageTitle, group, expanders.Append(expander).ToArray(), output, pageRoot: false);

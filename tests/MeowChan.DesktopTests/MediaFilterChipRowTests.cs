@@ -26,7 +26,7 @@ public sealed class MediaFilterChipRowTests : IDisposable
             "\"source\"", "\"board\"", "\"rating\"", "\"favorites\"" })
             Assert.Contains("new FilterChip(" + key, chips);
         Assert.Contains("ArchivePage.CreateFilterTag(chip.Label", chips); // the archive's chip pattern, styled chip-filter
-        Assert.Contains("Texts.T(\"media.filters.count\", count)", Source("Desktop/Views/Media/MediaPage.FilterSurface.cs"));
+        Assert.Contains("_filters.Show(label, count, count > 0 ? Texts.Count(\"media.filters.countName\", count) : label);", Source("Desktop/Views/Media/MediaPage.FilterSurface.cs"));
         Assert.Contains("_filterError.Classes.Add(\"workspace-error\");", chips);
     }
 

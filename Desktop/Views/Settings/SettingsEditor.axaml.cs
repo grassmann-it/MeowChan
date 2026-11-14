@@ -285,6 +285,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(config);
             LoadReaderDraft(config);
+            LoadViewerDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -331,6 +332,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            InitializeWorkViews();
 
             Texts.Changed += OnLanguageChanged;
             DownloadDestinationValidator.Shared.CleanupFailed += OnDestinationCleanupFailed;
@@ -578,7 +580,10 @@ namespace MeowChan
                 // the focused slideshow editor; publish the final semantic state
                 // once RefreshChoices has restored the selection.
                 if (!_refreshingLanguageLabels)
+                {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+                    RaiseViewerVisibilityChanged();
+                }
             }
         }
         public bool IsGallerySlideshow => SelectedGalleryPlaybackMode?.Value == "Slideshow";
@@ -615,6 +620,7 @@ namespace MeowChan
             GalleryMediaFocus = _initialGalleryPlayback.MediaFocus;
             GalleryOverlayControls = _initialGalleryPlayback.OverlayControls;
             GalleryOverlayPostContext = _initialGalleryPlayback.OverlayPostContext;
+            LoadGalleryVideoDraft(_initialGalleryPlayback);
         }
 
         public bool ShowShortcutHelp { get => _showShortcutHelp; set => SetField(ref _showShortcutHelp, value, nameof(ShowShortcutHelp)); }
@@ -868,6 +874,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadViewerDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -910,6 +917,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
             SetErrorMessage(null);
             SetStatusMessage(null);
@@ -1012,6 +1020,7 @@ namespace MeowChan
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
+                RaiseViewerTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {
@@ -1084,7 +1093,6 @@ namespace MeowChan
             GalleryPlaybackModeChoices = new SettingsChoice[]
             {
                 new("Manual", GalleryPlaybackCatalog.Manual),
-                new("Repeat", GalleryPlaybackCatalog.Repeat),
                 new("Slideshow", GalleryPlaybackCatalog.Slideshow)
             };
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GalleryPlaybackModeChoices)));
@@ -1094,6 +1102,7 @@ namespace MeowChan
             // transient null notification to preserve focus/raw input state.
             if (_refreshingLanguageLabels)
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+            RefreshViewerChoices();
             WorkspaceChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Barebones", Texts.T("mode.barebones")),
@@ -1278,6 +1287,7 @@ namespace MeowChan
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
+                ApplyViewerDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1396,6 +1406,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadViewerDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1438,6 +1449,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
         }
 
@@ -1464,6 +1476,7 @@ namespace MeowChan
                 GallerySlideshowSecondsInput.NumberFormat, out _) && !DataValidationErrors.GetHasErrors(GallerySlideshowSecondsInput)) return true;
             GallerySlideshowSecondsInputError.Text = Texts.T("settings.fieldInteger", GallerySlideshowSecondsLabel, 1, 300);
             GallerySlideshowSecondsInputError.IsVisible = true;
+            SweepGroups();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
             _firstInvalidInput ??= GallerySlideshowSecondsInput;
             return FinishFieldValidation(focusError);
@@ -1474,13 +1487,10 @@ namespace MeowChan
             // Inactive slideshow controls cannot block an unrelated save with rejected hidden text.
             int seconds = TryParseGalleryImageSeconds(GallerySlideshowSecondsInput.Text, GallerySlideshowSecondsInput.ParsingNumberStyle,
                 GallerySlideshowSecondsInput.NumberFormat, out int parsed) ? parsed : _initialGalleryPlayback.ImageSeconds;
-            GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value switch
-            {
-                "Repeat" => GalleryPlaybackMode.Repeat,
-                "Slideshow" => GalleryPlaybackMode.Slideshow,
-                _ => GalleryPlaybackMode.Manual
-            };
-            return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext);
+            GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value == "Slideshow" ? GalleryPlaybackMode.Slideshow : GalleryPlaybackMode.Manual;
+            var video = CaptureGalleryVideoDraft();
+            return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext,
+                video.Repeat, video.Rule, video.Seconds, video.Repeats);
         }
 
         private static int GetInteger(decimal? value, string label, int minimum, int maximum)
@@ -1507,7 +1517,8 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale);
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    or nameof(SelectedGallerySlideshowVideoRule);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;

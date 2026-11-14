@@ -51,6 +51,49 @@ public partial class MainWindow
         _gallery.ProviderPostCopyRequested += entry => _ = RunGalleryActionAsync(() => CopyGalleryProviderPostAsync(entry), entry.Key.ToString());
         _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
             NotificationType.Information, operation: "gallery.menu");
+        _gallery.SaveFrameRequested += entry => _ = RunGalleryActionAsync(SaveGalleryFrameAsync, entry.Key.ToString());
+    }
+
+    // Test seam: the folder the person would pick for saved frames (null: the picker was cancelled).
+    internal Func<Task<string?>>? GalleryFramePickerForTests { get; set; }
+
+    /// <summary>
+    /// The folder a saved video frame goes to: the dedicated frames folder chosen earlier (when it still exists and is not
+    /// the archive export folder), else the one the person picks now, which is then remembered. Null when nothing was
+    /// chosen; <paramref name="cancelled"/> tells a refusal from a picker that failed.
+    /// </summary>
+    internal async Task<(string? Directory, bool Cancelled)> ResolveGalleryFrameDirectoryAsync()
+    {
+        string remembered = _config.GalleryFrameDirectory;
+        if (GalleryFrameFile.IsDedicatedFolder(remembered, _config.LastExportDirectory)
+            && await Task.Run(() => Directory.Exists(remembered))) return (remembered, false);
+        string? chosen;
+        if (GalleryFramePickerForTests is { } seam) chosen = await seam();
+        else
+        {
+            LocalFolderPickResult result = await LocalFolderPicker.PickAsync(StorageProvider, Texts.T("gallery.frame.pickFolder"));
+            if (result.Status == LocalFolderPickStatus.Cancelled) return (null, true);
+            chosen = result.Status == LocalFolderPickStatus.Selected ? result.Path : null;
+        }
+        if (string.IsNullOrWhiteSpace(chosen)) return (null, GalleryFramePickerForTests != null);
+        // A folder picked here is used now; it is remembered only when it is not the export folder.
+        if (GalleryFrameFile.IsDedicatedFolder(chosen, _config.LastExportDirectory))
+        {
+            try { await _session.SaveViewPreferencesAsync(current => current.GalleryFrameDirectory = chosen); }
+            catch (Exception error) when (error is not OutOfMemoryException) { /* The frame is still saved; the folder is asked again next time. */ }
+        }
+        return (chosen, false);
+    }
+
+    private async Task SaveGalleryFrameAsync()
+    {
+        if (_gallery is not { } gallery) return;
+        (string? directory, bool cancelled) = await ResolveGalleryFrameDirectoryAsync();
+        if (_isClosing || cancelled) return;
+        string? path = directory == null ? null : await gallery.SaveVideoFrameAsync(directory);
+        if (_isClosing) return;
+        if (path != null) ShowNotification(Texts.T("gallery.frame.saved"), path, NotificationType.Information, operation: "video.snapshot");
+        else ShowNotification(Texts.T("notification.error"), Texts.T("gallery.frame.failed"), NotificationType.Warning, operation: "video.snapshot");
     }
 
     // Test seam: no program is ever started; the path that would have been handed to the desktop is passed instead.

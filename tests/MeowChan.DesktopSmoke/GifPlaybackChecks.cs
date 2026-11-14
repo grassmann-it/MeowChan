@@ -318,11 +318,13 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task CheckGifEncodedLoopsAsync(MainWindow owner, GalleryEntry animated, GalleryEntry finite, GalleryEntry single, GalleryEntry disposal)
     {
-        foreach (GalleryPlaybackMode mode in new[] { GalleryPlaybackMode.Manual, GalleryPlaybackMode.Repeat })
+        // "Repeat video" is a separate choice since the viewer quick wins; a GIF keeps its encoded loop count either way.
+        foreach (bool repeat in new[] { false, true })
         {
+            string mode = repeat ? "RepeatVideo" : "Manual";
             await using Fixture fixture = new(owner); await fixture.ReadyAsync();
             GalleryViewer viewer = fixture.Viewer; int moves = 0; viewer.MoveRequested += _ => moves++;
-            viewer.ConfigurePlayback(new(mode, 1));
+            viewer.ConfigurePlayback(new(GalleryPlaybackMode.Manual, 1, VideoRepeat: repeat));
             await fixture.ShowAsync(finite);
             await GifChangingPixelsAsync(viewer, "finite-" + mode);
             await UntilAsync(() => GifState(viewer).Ended, "Encoded finite GIF never ended in " + mode);

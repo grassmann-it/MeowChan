@@ -40,8 +40,8 @@ internal static class FilterPointerSelectionChecks
             await Program.WaitUntilAsync(() => host.IsActive && page.IsEffectivelyVisible && page.Bounds.Width > 0);
             Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec()), "Filter pointer fixture did not establish an applied search.");
             ArchiveSearchSpec applied = page.AppliedSearchSpec ?? throw new InvalidOperationException("Applied fixture search is missing.");
-            Expander filters = page.FindControl<Expander>("ArchiveFilters")!;
-            filters.IsExpanded = true;
+            Avalonia.Controls.Primitives.ToggleButton filters = page.FindControl<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters")!;
+            filters.IsChecked = true;
             await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveFilterSurface")!.IsEffectivelyVisible);
 
             using MediaNativeInput native = new(host);

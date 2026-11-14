@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
@@ -24,12 +25,12 @@ public sealed partial class MediaPage
     private bool _workViewRegistered;
     private readonly Button _more = new()
     {
-        Name = "MediaMore", Content = "⋯", MinWidth = 32, MinHeight = 32, Padding = new Avalonia.Thickness(8, 0),
+        Name = "MediaMore",
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     private readonly Button _selMore = new()
     {
-        Name = "MediaSelectionMore", Content = "⋯", MinWidth = 32, Padding = new Avalonia.Thickness(8, 0),
+        Name = "MediaSelectionMore",
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     // The fields of the filter surface that a view may hold back, opened by this toggle until the view changes (R13: nothing is saved).
@@ -63,9 +64,8 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_sourceFilter, "media.filter.source");
         WorkViewElement.SetId(_boardFilter, "media.filter.board");
         WorkViewElement.SetId(_minRating, "media.filter.rating");
-        WorkViewElement.SetId(_tagChoice, "media.filter.tags");
-        WorkViewElement.SetId(_tagInclude, "media.filter.tag-include");
-        WorkViewElement.SetId(_tagExclude, "media.filter.tag-exclude");
+        // S7: one picker adds a tag as included or excluded, so the two former include/exclude rows are this one.
+        WorkViewElement.SetId(_tagAdd, "media.filter.tags");
         WorkViewElement.SetId(_soundFilter, "media.filter.sound");
         WorkViewElement.SetId(_withoutMediaTags, "media.filter.without-media-tags");
         WorkViewElement.SetId(_tagMode, "media.filter.tag-mode");
@@ -80,6 +80,9 @@ public sealed partial class MediaPage
         ((MenuFlyout)_more.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
+        // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
+        WorkspaceIcons.MakeSquare(_more, WorkspaceIcons.More, Texts.T("workview.more"));
+        WorkspaceIcons.MakeSquare(_selMore, WorkspaceIcons.More, Texts.T("workview.more"));
         _workViewRegistered = true;
     }
 
@@ -99,7 +102,7 @@ public sealed partial class MediaPage
         "media.filter.source" => _sourceFilter.SelectedItem is Choice { Value: not null },
         "media.filter.board" => _boardFilter.SelectedItem is BoardChoice { Board: not null },
         "media.filter.rating" => _minRating.SelectedIndex > 0,
-        "media.filter.tags" or "media.filter.tag-include" or "media.filter.tag-exclude" => _includeTags.Count + _excludeTags.Count > 0,
+        "media.filter.tags" => _includeTags.Count + _excludeTags.Count > 0,
         "media.filter.sound" => SoundFilterActive,
         "media.filter.without-media-tags" => _withoutMediaTags.IsChecked == true,
         "media.filter.tag-mode" => _tagMode.SelectedIndex > 0,
@@ -108,7 +111,7 @@ public sealed partial class MediaPage
 
     private IEnumerable<Control> FilterFields() => new Control[]
     {
-        _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagChoice, _tagInclude, _tagExclude,
+        _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagAdd,
         _soundFilter, _withoutMediaTags, _tagMode
     };
 

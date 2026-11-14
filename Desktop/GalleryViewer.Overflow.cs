@@ -237,15 +237,17 @@ internal sealed partial class GalleryViewer
     }
 
     private IEnumerable<Control> OverflowFocusables() => _overflowPanel.GetVisualDescendants().OfType<Control>()
-        .Where(control => (control is Button || control is ComboBox) && control.Focusable && control.IsEffectivelyVisible
-            && control.IsEffectivelyEnabled && !control.GetVisualAncestors().OfType<ComboBox>().Any());
+        .Where(control => (control is Button || control is ComboBox || control is NumericUpDown) && control.Focusable && control.IsEffectivelyVisible
+            && control.IsEffectivelyEnabled && !control.GetVisualAncestors().Any(parent => parent is ComboBox or NumericUpDown));
 
-    // Arrow keys move through the rows (also past the two choice boxes, which would otherwise keep Up/Down for their own
+    // Arrow keys move through the rows (also past the choice boxes, which would otherwise keep Up/Down for their own
     // selection and trap the keyboard); Enter, Space or F4 still open a choice box. Escape closes the menu.
     private void OnOverflowKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Source is Visual open && open.GetSelfAndVisualAncestors().OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { _overflowFlyout.Hide(); e.Handled = true; return; }
+        // A number field keeps its own keys: Up/Down step the value, Home/End move the caret.
+        if (e.Source is Visual number && number.GetSelfAndVisualAncestors().OfType<NumericUpDown>().Any()) return;
         if (e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Down or Key.Up or Key.Home or Key.End)) return;
         Control[] items = OverflowFocusables().ToArray();
         if (items.Length == 0) return;

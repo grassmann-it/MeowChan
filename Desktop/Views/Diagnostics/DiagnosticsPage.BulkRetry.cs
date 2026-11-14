@@ -61,6 +61,7 @@ public partial class DiagnosticsPage
         }
         ApplyDiagnosticFilters();
         RefreshSelection();
+        OnDiagnosticFilterStateChanged();
     }
 
     private void OnClearDiagnosticFilters(object? sender, RoutedEventArgs e)
@@ -76,6 +77,7 @@ public partial class DiagnosticsPage
         }
         finally { _refreshingDiagnosticFilters = false; }
         ApplyDiagnosticFilters(); RefreshSelection();
+        OnDiagnosticFilterStateChanged();
     }
 
     private void ApplyDiagnosticFilters()
@@ -127,6 +129,7 @@ public partial class DiagnosticsPage
         // Preserve the wrapping TextBlock content; Refresh localizes it using the latest language.
         AutomationProperties.SetName(this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!, Texts.T("diagnostics.includeWaiting"));
         this.FindControl<Button>("DiagnosticClearFilters")!.Content = Texts.T("diagnostics.clearFilters");
+        RefreshWorkViewTexts();
     }
 
     private bool CanRetryScope(IReadOnlyList<DiagnosticRetryTarget> scope) => !_ended && _available && !_retryBusy

@@ -76,6 +76,8 @@ public partial class MainWindow
             TextBlock text = ShellActionError;
             AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.AllowsPopup(_config, category)
                 ? AutomationLiveSetting.Off : AutomationLiveSetting.Assertive);
+            // The icon shows the severity; the screen reader hears it as the first word of the live text (the visible text stays the message).
+            AutomationProperties.SetName(text, MeowChan.Desktop.Controls.WorkspaceBanner.AnnouncedText(type, message));
             text.Text = message;
             ShellActionErrorBanner.Type = type;
             ShellActionErrorBanner.IsVisible = true;

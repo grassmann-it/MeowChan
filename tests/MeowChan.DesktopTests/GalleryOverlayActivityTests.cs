@@ -17,9 +17,10 @@ public sealed class GalleryOverlayActivityTests
         ActiveWindow: true, Focused: false, Captured: false, Popup: false, Reading: false, Notice: false);
 
     [Theory]
+    // The default "Hide controls after" is 2000 ms (Config.ControlsIdleHideMs).
     [InlineData(0, false)]
-    [InlineData(499, false)]
-    [InlineData(500, true)]
+    [InlineData(1999, false)]
+    [InlineData(2000, true)]
     [InlineData(60000, true)]
     public void OnlyAnIdleOverlayMayHide(int milliseconds, bool expected) =>
         Assert.Equal(expected, Idle.CanHide(TimeSpan.FromMilliseconds(milliseconds)));
@@ -54,7 +55,7 @@ public sealed class GalleryOverlayActivityTests
     public void HoverProtectsOnlyItsPanelAndMouseFocusAloneIsNotKeyboardOwnership()
     {
         Assert.False((Idle with { Hovered = true }).CanHide(TimeSpan.FromSeconds(9)));
-        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(1))); // caller maps pointer focus to Focused=false
+        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(2))); // caller maps pointer focus to Focused=false
         Assert.False((Idle with { Focused = true }).CanHide(TimeSpan.FromSeconds(9)));
     }
 

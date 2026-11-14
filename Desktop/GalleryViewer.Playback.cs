@@ -36,9 +36,22 @@ internal sealed partial class GalleryViewer
     private Action<string>? _videoNoticeHandler;
     private Action<bool>? _videoPlaybackHandler;
     private readonly ComboBox _playbackMode = new() { Name = "GalleryPlaybackModeSelector", MinWidth = 120 };
-    // How long each image stays in the slideshow; shown only in slideshow mode, written through the same preferences as the settings page.
-    private readonly ComboBox _slideshowSeconds = new() { Name = "GallerySlideshowSecondsSelector", MinWidth = 72, IsVisible = false };
-    private int[] _slideshowSecondChoices = Array.Empty<int>();
+    // How long each image stays in the slideshow (1–300 s, typed or stepped ±1, PageUp/PageDown ±10); shown only in slideshow
+    // mode, written through the same preferences as the settings page.
+    private readonly AccessibleNumberInput _slideshowSeconds = SlideshowNumber("GallerySlideshowSecondsInput",
+        GalleryPlaybackPreferences.ImageSecondsMinimum, GalleryPlaybackPreferences.ImageSecondsMaximum);
+    // "Repeat video" for the shown video outside a slideshow; the transport's loop button writes the same preference.
+    private readonly ToggleButton _videoRepeatToggle = new() { Name = "GalleryVideoRepeatToggle" };
+    // What a running slideshow does with a video, and the number its rule needs (seconds or passes).
+    private readonly ComboBox _videoRule = new() { Name = "GallerySlideshowVideoRuleSelector", MinWidth = 120, IsVisible = false };
+    private readonly AccessibleNumberInput _videoSeconds = SlideshowNumber("GallerySlideshowVideoSecondsInput",
+        Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
+    private readonly AccessibleNumberInput _videoRepeats = SlideshowNumber("GallerySlideshowVideoRepeatsInput",
+        Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
+    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0), IsVisible = false };
+    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 2, 12, 0), IsVisible = false };
+    private readonly TextBlock _reducedMotionNote = new() { Name = "GallerySlideshowReducedMotionNote", Classes = { "workspace-help" },
+        Margin = new Thickness(12, 2, 12, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
     private readonly ToggleButton _overlayToggle = new() { Name = "GalleryOverlayToggle" };
     private readonly ToggleButton _autoHideToggle = new() { Name = "GalleryAutoHideToggle" };
@@ -51,8 +64,7 @@ internal sealed partial class GalleryViewer
     internal void ConfigurePlayback(GalleryPlaybackPreferences prefs)
     {
         ArgumentNullException.ThrowIfNull(prefs);
-        prefs = prefs.Normalize() with { Mode = Enum.IsDefined(prefs.Mode) ? prefs.Mode : GalleryPlaybackMode.Manual,
-            ImageSeconds = Math.Clamp(prefs.ImageSeconds, 1, 300) };
+        prefs = prefs.Normalize();
         if (prefs == _playbackPreferences) return;
         bool modeChanged = _playbackPreferences.Mode != prefs.Mode;
         bool durationChanged = _playbackPreferences.ImageSeconds != prefs.ImageSeconds;
@@ -63,7 +75,8 @@ internal sealed partial class GalleryViewer
         if (enablingEdgeControls) _overlayHidden = true;
         if (modeChanged) _slideshow.SetMode(prefs.Mode);
         if (durationChanged) _slideshow.SetImageDuration(TimeSpan.FromSeconds(prefs.ImageSeconds));
-        _video?.SetLoopEnabled(prefs.Mode == GalleryPlaybackMode.Repeat);
+        ApplySlideshowVideoRule();
+        ApplyEffectiveVideoLoop();
         SetMediaFocus(prefs.MediaFocus, notify: false);
         ApplyOverlayPlacement();
         RefreshPlaybackControls();
@@ -90,32 +103,51 @@ internal sealed partial class GalleryViewer
 
     private void InitializePlaybackControls(WrapPanel toolbar, StackPanel focusTools)
     {
-        _slideshow = new GallerySlideshowController(RequestSlideshowNext);
+        _slideshow = new GallerySlideshowController(RequestSlideshowNext, requestReplay: RequestSlideshowReplay);
+        _slideshow.StateChanged += ApplyEffectiveVideoLoop; // Running or not decides who repeats a video.
         _slideshow.SetMode(_playbackPreferences.Mode);
         _slideshow.SetImageDuration(TimeSpan.FromSeconds(_playbackPreferences.ImageSeconds));
-        // Playback choices are rows of the "⋯" menu: a caption above each choice, then the slideshow control
-        // (it moves to the toolbar while a slideshow is chosen, see PlaceSlideshowToggle).
+        ApplySlideshowVideoRule();
+        // Playback choices are rows of the "⋯" menu: "Repeat video", then a caption above each slideshow choice, then the
+        // slideshow control (it moves to the toolbar while a slideshow is chosen, see PlaceSlideshowToggle).
         _slideshowHome = new StackPanel { Name = "GalleryPlaybackTools", Spacing = 2 };
-        foreach (ComboBox choice in new[] { _playbackMode, _slideshowSeconds })
+        AddOverflowItem(_videoRepeatToggle, "video.loop", check: true, keepOpen: true,
+            label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
+        _videoRepeatToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = !_playbackPreferences.VideoRepeat });
+        foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
         { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = new Thickness(6, 0); }
         _slideshowHome.Children.Add(_modeCaption);
         _slideshowHome.Children.Add(_playbackMode);
         _slideshowHome.Children.Add(_secondsCaption);
         _slideshowHome.Children.Add(_slideshowSeconds);
-        _slideshowSeconds.SelectionChanged += (_, _) =>
+        _slideshowHome.Children.Add(_videoRuleCaption);
+        _slideshowHome.Children.Add(_videoRule);
+        _slideshowHome.Children.Add(_videoValueCaption);
+        _slideshowHome.Children.Add(_videoSeconds);
+        _slideshowHome.Children.Add(_videoRepeats);
+        _slideshowHome.Children.Add(_reducedMotionNote);
+        void Number(AccessibleNumberInput input, Func<int, GalleryPlaybackPreferences> change) => input.ValueChanged += (_, e) =>
         {
-            int index = _slideshowSeconds.SelectedIndex;
-            if (!_updatingPlaybackControls && index >= 0 && index < _slideshowSecondChoices.Length)
-                ChangePlaybackPreferences(_playbackPreferences with { ImageSeconds = _slideshowSecondChoices[index] });
+            if (!_updatingPlaybackControls && e.NewValue is decimal value && value >= (decimal)input.Minimum && value <= (decimal)input.Maximum)
+                ChangePlaybackPreferences(change(decimal.ToInt32(decimal.Round(value))));
         };
-        _slideshowSeconds.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
-        _slideshowSeconds.DropDownClosed += (_, _) => RefreshPlaybackControls();
-        _playbackMode.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
-        _playbackMode.DropDownClosed += (_, _) => RefreshPlaybackControls();
+        Number(_slideshowSeconds, seconds => _playbackPreferences with { ImageSeconds = seconds });
+        Number(_videoSeconds, seconds => _playbackPreferences with { VideoSeconds = seconds });
+        Number(_videoRepeats, repeats => _playbackPreferences with { VideoRepeats = repeats });
+        foreach (ComboBox choice in new[] { _playbackMode, _videoRule })
+        {
+            choice.DropDownOpened += (_, _) => { HoldSlideshowAdvance(); RefreshPlaybackControls(); };
+            choice.DropDownClosed += (_, _) => RefreshPlaybackControls();
+        }
         _playbackMode.SelectionChanged += (_, _) =>
         {
-            if (!_updatingPlaybackControls && _playbackMode.SelectedIndex is >= 0 and <= 2)
+            if (!_updatingPlaybackControls && _playbackMode.SelectedIndex is >= 0 and <= 1)
                 ChangePlaybackPreferences(_playbackPreferences with { Mode = (GalleryPlaybackMode)_playbackMode.SelectedIndex });
+        };
+        _videoRule.SelectionChanged += (_, _) =>
+        {
+            if (!_updatingPlaybackControls && _videoRule.SelectedIndex is >= 0 and <= 2)
+                ChangePlaybackPreferences(_playbackPreferences with { VideoRule = (SlideshowVideoRule)_videoRule.SelectedIndex });
         };
         foreach (var (button, id) in PlaybackActions())
         {
@@ -214,10 +246,10 @@ internal sealed partial class GalleryViewer
         _updatingPlaybackControls = true;
         try
         {
-            RefreshPlaybackModeChoices(new[] { GalleryPlaybackCatalog.Get("viewer.playback.manual"), GalleryPlaybackCatalog.Get("viewer.playback.repeat"), GalleryPlaybackCatalog.Get("viewer.playback.slideshow") });
+            RefreshPlaybackModeChoices(new[] { GalleryPlaybackCatalog.Get("viewer.playback.manual"), GalleryPlaybackCatalog.Get("viewer.playback.slideshow") });
             AutomationProperties.SetName(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.mode"));
             ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
-            RefreshSlideshowSecondsChoices();
+            RefreshSlideshowNumbers();
             SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
@@ -250,28 +282,6 @@ internal sealed partial class GalleryViewer
         UpdateViewerInteractionTimer();
     }
 
-    /// <summary>The offered slide durations: the usual ones plus the saved one when it is none of them.</summary>
-    internal static int[] SlideshowSecondChoices(int current) =>
-        new[] { 3, 5, 10, 30 }.Append(current).Distinct().Order().ToArray();
-
-    private void RefreshSlideshowSecondsChoices()
-    {
-        int[] choices = SlideshowSecondChoices(_playbackPreferences.ImageSeconds);
-        string[] labels = choices.Select(seconds => Texts.T("gallery.slideshow.seconds", seconds)).ToArray();
-        if (!choices.SequenceEqual(_slideshowSecondChoices) || _slideshowSeconds.ItemsSource is not string[] current
-            || !current.SequenceEqual(labels, StringComparer.Ordinal))
-        {
-            _slideshowSecondChoices = choices;
-            _slideshowSeconds.ItemsSource = labels;
-        }
-        int selected = Array.IndexOf(choices, _playbackPreferences.ImageSeconds);
-        if (_slideshowSeconds.SelectedIndex != selected) _slideshowSeconds.SelectedIndex = selected;
-        _slideshowSeconds.IsVisible = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow;
-        string name = Texts.T("gallery.slideshow.secondsLabel");
-        AutomationProperties.SetName(_slideshowSeconds, name);
-        ToolTip.SetTip(_slideshowSeconds, name);
-    }
-
     // Compare resolved text rather than a language code: Texts.Changed also fires
     // for a same-code pack reload. Keep the existing ItemsSource on no-op ticks.
     // The semantic mode, not a transient ComboBox clear, owns the restored index.
@@ -296,15 +306,112 @@ internal sealed partial class GalleryViewer
         ToolTip.SetTip(button, label);
     }
 
-    private void OnVideoLoopChanged(bool enabled) => ChangePlaybackPreferences(_playbackPreferences with
-    { Mode = enabled ? GalleryPlaybackMode.Repeat : _playbackPreferences.Mode == GalleryPlaybackMode.Repeat
-        ? GalleryPlaybackMode.Manual : _playbackPreferences.Mode });
+    private static AccessibleNumberInput SlideshowNumber(string name, int minimum, int maximum)
+    {
+        AccessibleNumberInput input = new()
+        {
+            Name = name, Minimum = minimum, Maximum = maximum, Increment = 1, FormatString = "0",
+            ParsingNumberStyle = System.Globalization.NumberStyles.Integer, ClipValueToMinMax = true, IsVisible = false, MinWidth = 120
+        };
+        // ±1 with the arrows and the spinner (the control's own), ±10 with PageUp/PageDown.
+        input.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (e.KeyModifiers != Avalonia.Input.KeyModifiers.None || e.Key is not (Avalonia.Input.Key.PageUp or Avalonia.Input.Key.PageDown)) return;
+            decimal current = input.Value ?? (decimal)input.Minimum;
+            input.Value = Math.Clamp(current + (e.Key == Avalonia.Input.Key.PageUp ? 10 : -10), (decimal)input.Minimum, (decimal)input.Maximum);
+            e.Handled = true;
+        }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        return input;
+    }
+
+    /// <summary>The rule a running slideshow applies to videos now: the chosen one, or "play once" while the
+    /// operating system or the Animations setting asks for reduced motion (no automatic repetition then).</summary>
+    internal SlideshowVideoRule EffectiveSlideshowVideoRule => Motion.MotionPolicy.IsOff ? SlideshowVideoRule.PlayOnce : _playbackPreferences.VideoRule;
+
+    private void ApplySlideshowVideoRule() => _slideshow?.SetVideoRule(EffectiveSlideshowVideoRule,
+        TimeSpan.FromSeconds(_playbackPreferences.VideoSeconds), _playbackPreferences.VideoRepeats);
+
+    // The player repeats a video by itself only outside a running slideshow; inside, the slideshow's video rule decides
+    // (two loops must never compete). The loop button then shows the saved choice as unavailable and says why.
+    private void ApplyEffectiveVideoLoop()
+    {
+        if (_video == null || _slideshow == null) return;
+        bool slideshowOwns = _slideshow.IsRunning;
+        _video.SetRepeatOwnedBySlideshow(slideshowOwns, GalleryPlaybackCatalog.Get("viewer.playback.repeatInSlideshow"));
+        _video.SetLoopEnabled(_playbackPreferences.VideoRepeat && !slideshowOwns);
+    }
+
+    private void SetNumber(AccessibleNumberInput input, int value, bool visible, string name, string? help = null)
+    {
+        if (input.Value != value) input.Value = value;
+        input.IsVisible = visible;
+        AutomationProperties.SetName(input, name);
+        string tip = help == null ? name : name + " · " + help;
+        AutomationProperties.SetHelpText(input, tip);
+        ToolTip.SetTip(input, tip);
+    }
+
+    private void RefreshSlideshowNumbers()
+    {
+        bool slideshow = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow;
+        SetNumber(_slideshowSeconds, _playbackPreferences.ImageSeconds, slideshow, Texts.T("gallery.slideshow.secondsLabel"),
+            GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
+        string[] rules =
+        {
+            GalleryPlaybackCatalog.Get("viewer.playback.videoRule.once"), GalleryPlaybackCatalog.Get("viewer.playback.videoRule.atLeast"),
+            GalleryPlaybackCatalog.Get("viewer.playback.videoRule.repeat")
+        };
+        bool wasUpdating = _updatingPlaybackControls;
+        _updatingPlaybackControls = true;
+        try
+        {
+            if (_videoRule.ItemsSource is not string[] current || !current.SequenceEqual(rules, StringComparer.Ordinal)) _videoRule.ItemsSource = rules;
+            if (_videoRule.SelectedIndex != (int)_playbackPreferences.VideoRule) _videoRule.SelectedIndex = (int)_playbackPreferences.VideoRule;
+        }
+        finally { _updatingPlaybackControls = wasUpdating; }
+        _videoRule.IsVisible = _videoRuleCaption.IsVisible = slideshow;
+        string ruleName = GalleryPlaybackCatalog.Get("viewer.playback.videoRule");
+        _videoRuleCaption.Text = ruleName;
+        AutomationProperties.SetName(_videoRule, ruleName);
+        string ruleHelp = GalleryPlaybackCatalog.Get("viewer.playback.videoRuleHelp");
+        AutomationProperties.SetHelpText(_videoRule, ruleHelp);
+        ToolTip.SetTip(_videoRule, ruleName + " · " + ruleHelp);
+        bool seconds = slideshow && _playbackPreferences.VideoRule == SlideshowVideoRule.LoopAtLeastSeconds;
+        bool repeats = slideshow && _playbackPreferences.VideoRule == SlideshowVideoRule.RepeatTimes;
+        string secondsName = GalleryPlaybackCatalog.Get("viewer.playback.videoSeconds");
+        string repeatsName = GalleryPlaybackCatalog.Get("viewer.playback.videoRepeats");
+        SetNumber(_videoSeconds, _playbackPreferences.VideoSeconds, seconds, secondsName, GalleryPlaybackCatalog.Get("viewer.playback.videoSecondsHelp"));
+        SetNumber(_videoRepeats, _playbackPreferences.VideoRepeats, repeats, repeatsName, GalleryPlaybackCatalog.Get("viewer.playback.numberHelp"));
+        _videoValueCaption.IsVisible = seconds || repeats;
+        _videoValueCaption.Text = seconds ? secondsName : repeats ? repeatsName : string.Empty;
+        _reducedMotionNote.Text = GalleryPlaybackCatalog.Get("viewer.playback.reducedMotion");
+        _reducedMotionNote.IsVisible = slideshow && Motion.MotionPolicy.IsOff && _playbackPreferences.VideoRule != SlideshowVideoRule.PlayOnce;
+        _videoRepeatToggle.IsChecked = _playbackPreferences.VideoRepeat;
+        string repeatTip = CommandBindings.Tooltip("video.loop", GalleryPlaybackCatalog.Get("viewer.playback.repeatHelp"),
+            GalleryPlaybackCatalog.Get("viewer.playback.repeat"));
+        ToolTip.SetTip(_videoRepeatToggle, repeatTip);
+        AutomationProperties.SetName(_videoRepeatToggle, GalleryPlaybackCatalog.Get("viewer.playback.repeat"));
+        AutomationProperties.SetHelpText(_videoRepeatToggle, repeatTip);
+    }
+
+
+    // The transport's loop button: the same "Repeat video" preference as the menu row; the playback mode stays as it is.
+    private void OnVideoLoopChanged(bool enabled) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = enabled });
+
+    // The slideshow's video rule asks for another pass of the same video: replay it from the start (silently, as the
+    // slideshow's own playback). Selection and generation stay; a newer selection has already rebound these signals.
+    private void RequestSlideshowReplay()
+    {
+        if (_video == null || _entry?.Kind != SavedMediaKind.Video || _navigationPending || _videoReadyRequest != _request) return;
+        _ = _video.PlayForSlideshowAsync();
+    }
 
     private void BeginSlideshowMedia(GalleryEntry entry)
     {
         UnbindVideoPlaybackSignals();
         _navigationPending = false; _mediaFailed = false; _selectionVideoPaused = false;
         _imageReadyRequest = _videoReadyRequest = -1;
+        ApplySlideshowVideoRule(); // The reduced-motion answer may have changed since the last medium.
         _slideshow.BeginMedia(++_slideshowGeneration, entry.Kind == SavedMediaKind.Video, _next.IsEnabled);
         // Readiness may arrive before the next interaction tick while a panel is open.
         // Start held so no hidden/loading interval is charged to the next image.
@@ -399,6 +506,7 @@ internal sealed partial class GalleryViewer
         // request. Re-arm with a new identity, not a duplicate old Ended callback.
         _slideshow.BeginMedia(++_slideshowGeneration, _entry.Kind == SavedMediaKind.Video, _next.IsEnabled);
         if (_imageReadyRequest == _request) _slideshow.ImageReady(_slideshowGeneration);
+        if (_entry.Kind == SavedMediaKind.Video && _videoReadyRequest == _request) _slideshow.VideoReady(_slideshowGeneration);
         if (_entry.Kind == SavedMediaKind.Video) BindVideoPlaybackSignals(_request);
         _slideshow.SetAdvanceHeld(_slideshowGeneration, IsSlideshowAdvanceBlocked);
         _slideshow.Start();

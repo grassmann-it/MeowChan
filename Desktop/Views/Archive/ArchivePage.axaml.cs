@@ -1095,7 +1095,7 @@ public partial class ArchivePage : UserControl
         RefreshArchiveResultActions();
         LocalizeArchiveColumns();
         CommandBindings.Apply(SearchArchiveButton, "archive.search", iconOnly: true);
-        CommandBindings.Apply(ArchiveBackButton, "archive.back-to-list");
+        CommandBindings.Apply(ArchiveBackButton, "archive.back-to-list", iconWithLabel: true);
         CommandBindings.Apply(PreviousThreadsButton, "archive.previous-page", iconOnly: true);
         CommandBindings.Apply(NextThreadsButton, "archive.next-page", iconOnly: true);
         CommandBindings.Apply(PreviousPostsButton, "pagination.previous", iconOnly: true);

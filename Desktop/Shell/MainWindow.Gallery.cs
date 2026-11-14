@@ -129,6 +129,17 @@ public partial class MainWindow
         }, stillRequested: stillRequested);
     }
 
+    internal GalleryReturnTarget GalleryReturnTargetFor(Control? origin, bool readerOrigin, WorkspacePage originPage) =>
+        origin != null && ReferenceEquals(origin, _mediaPage?.Grid) ? GalleryReturnTarget.Media
+        : readerOrigin ? GalleryReturnTarget.Thread
+        : originPage switch
+        {
+            WorkspacePage.Archive => GalleryReturnTarget.Archive,
+            WorkspacePage.Downloads => GalleryReturnTarget.Downloads,
+            WorkspacePage.Media => GalleryReturnTarget.Media,
+            _ => GalleryReturnTarget.None
+        };
+
     private async Task StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null, Func<bool>? stillRequested = null)
@@ -168,8 +179,9 @@ public partial class MainWindow
             _galleryIndex = Math.Max(0, start);
         }
         _galleryCancellation = new CancellationTokenSource();
-        // A gallery opened from the Medien grid closes back to it (CloseGallery focuses the tile), so its close action says so.
-        _gallery = new GalleryViewer { ClosesToMedia = origin != null && ReferenceEquals(origin, _mediaPage?.Grid), ProviderContext = BooruGalleryContext };
+        // The gallery's way back names where closing returns to: the Medien grid (CloseGallery focuses the tile), the thread
+        // in the reader, or the Archive/Downloads list it was opened from.
+        _gallery = new GalleryViewer { ReturnTarget = GalleryReturnTargetFor(origin, readerOrigin, originPage), ProviderContext = BooruGalleryContext };
         UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>

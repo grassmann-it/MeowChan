@@ -64,6 +64,9 @@ public partial class StatisticsPage : UserControl
 
     internal bool IsResetConfirmationOpen => ResetConfirmation.IsOpen;
     internal Button ResetButton => ResetStatisticsButton;
+    /// <summary>Whether the user can reach Reset right now: on the bar, or behind the bar's More button.</summary>
+    internal bool ResetIsReachable => ResetStatisticsButton.IsEffectivelyVisible
+        || StatisticsActions.OverflowHost?.Children.Contains(ResetStatisticsButton) == true && StatisticsActions.More is { IsEffectivelyVisible: true };
     internal Button ConfirmButton => ConfirmResetButton;
     internal Button CancelButton => CancelResetButton;
     internal DataGrid RowsGrid => StatisticsGrid;
@@ -100,6 +103,7 @@ public partial class StatisticsPage : UserControl
         SourcesEmpty.Text = Texts.T("stats.sources.empty");
         StatisticsFootnote.Text = Texts.T("stats.footnote");
         ResetStatisticsButton.Content = Texts.T("stats.reset");
+        StatisticsActions.RefreshOverflowLabel();
         ResetQuestion.Text = Texts.T("stats.reset.question");
         ConfirmResetButton.Content = Texts.T("stats.reset.confirm");
         CancelResetButton.Content = Texts.T("stats.reset.cancel");
@@ -231,7 +235,7 @@ public partial class StatisticsPage : UserControl
     {
         if (ResetConfirmation.IsOpen) CancelResetButton.Focus();
         else if (StatisticsGrid.IsVisible) StatisticsGrid.Focus();
-        else ResetStatisticsButton.Focus();
+        else FocusReset();
     }
 
     private void OnResetClick(object? sender, RoutedEventArgs e) => OpenConfirmation();
@@ -243,7 +247,8 @@ public partial class StatisticsPage : UserControl
         _statusHide?.Dispose();
         _restoreResetFocus = true;
         ++_resetFocusGeneration;
-        ResetConfirmation.ShowAt(ResetStatisticsButton);
+        // Where Reset sits under More, the closed popup cannot anchor the question: the bar does.
+        ResetConfirmation.ShowAt(ResetStatisticsButton.IsEffectivelyVisible ? ResetStatisticsButton : StatisticsActions);
     }
 
     private void CloseConfirmation(bool focusReset)
@@ -251,7 +256,14 @@ public partial class StatisticsPage : UserControl
         _restoreResetFocus = focusReset;
         ResetConfirmation.Hide();
         if (!_resetting) ResetStatisticsButton.IsEnabled = true;
-        if (focusReset) ResetStatisticsButton.Focus();
+        if (focusReset) FocusReset();
+    }
+
+    // Where Reset sits under More, the closed popup cannot take focus: the More button of the same bar does (R11).
+    private void FocusReset()
+    {
+        if (ResetStatisticsButton.IsEffectivelyVisible) ResetStatisticsButton.Focus();
+        else StatisticsActions.More?.Focus();
     }
 
     private void OnResetConfirmationOpened(object? sender, EventArgs e)
@@ -270,7 +282,7 @@ public partial class StatisticsPage : UserControl
     private void OnResetConfirmationClosed(object? sender, EventArgs e)
     {
         ++_resetFocusGeneration;
-        if (!_ended && IsVisible && !_resetting && _restoreResetFocus) ResetStatisticsButton.Focus();
+        if (!_ended && IsVisible && !_resetting && _restoreResetFocus) FocusReset();
     }
 
     private void OnCancelResetClick(object? sender, RoutedEventArgs e) => CloseConfirmation(focusReset: true);

@@ -185,6 +185,14 @@ internal static class CommandLabelCatalog
         ("command.video.volume-down", "Decrease video volume", "Videolautstärke verringern"),
         ("command.video.mute", "Mute / unmute", "Ton aus / an"),
         ("command.video.loop", "Repeat video", "Video wiederholen"),
+        ("command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück"),
+        ("command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor"),
+        ("command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück"),
+        ("command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor"),
+        ("command.video.speed-down", "Slower", "Langsamer"),
+        ("command.video.speed-up", "Faster", "Schneller"),
+        ("command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit"),
+        ("command.video.snapshot", "Save frame as image", "Einzelbild als Bild speichern"),
         ("command.about.copy-version", "Copy version", "Version kopieren"),
         ("command.about.open-license", "Open license text", "Lizenztext öffnen"),
         ("command.about.show-credits", "Acknowledgements", "Danksagungen"),
@@ -224,6 +232,10 @@ internal static class CommandLabelCatalog
         // UX flows AP9: the large reader's Close names the page it returns to (presentation only; the command stays reader.close).
         ("command.reader.close.toArchive", "Back to Archive", "Zurück zum Archiv"),
         ("command.reader.close.toDownloads", "Back to Downloads", "Zurück zu Downloads"),
+        // The same gallery.close, naming the thread, Archive or Downloads list it returns to.
+        ("command.gallery.close.thread", "Back to thread", "Zurück zum Thread"),
+        ("command.gallery.close.archive", "Back to Archive", "Zurück zum Archiv"),
+        ("command.gallery.close.downloads", "Back to Downloads", "Zurück zu Downloads"),
         ("command.gallery.favorite.compact", "Favorite", "Favorit"),
         ("command.gallery.export-original.compact", "Original…", "Original…"),
     };

@@ -296,7 +296,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.False(badge.IsHitTestVisible);
         Assert.False(badge.Focusable);
         Assert.False(badge.IsVisible);
-        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.Equal(new Thickness(7, 3), badge.Padding);
@@ -316,14 +316,13 @@ public sealed class GalleryFavoriteStateTests
     }
 
     [Fact]
-    public void FavoriteIndicatorUsesLeftSafeAreaAwayFromRightPostContext()
+    public void FavoriteIndicatorSitsTopRightBecauseTheTopLeftIsTheWayBack()
     {
         Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
 
-        // Post context is an opaque right-hand overlay. The favorite badge is
-        // passive chrome and must remain in the opposite safe area instead of
-        // relying on a higher Z-index to sit on top of post text.
-        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
+        // The top left of the picture belongs to the gallery's way back. The passive badge sits top right and moves
+        // left of an open post panel (UpdateFavoriteIndicators) instead of relying on a Z-index above post text.
+        Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.True(badge.ZIndex > 0);

@@ -18,6 +18,7 @@ internal static class WorkViewCatalog
         ("workview.activeCount", "{0} active", "{0} aktiv"),
         ("workview.moreSettings", "More settings", "Weitere Einstellungen"),
         ("workview.moreFilters", "More filters", "Weitere Filter"),
+        ("workview.moreOptions", "More options", "Weitere Optionen"),
         ("workview.developerArea", "Developer area", "Entwicklerbereich"),
         // R8: label of the bindable view-switch command (no default shortcut).
         ("workview.viewCycle", "Switch work view", "Arbeitsansicht wechseln"),

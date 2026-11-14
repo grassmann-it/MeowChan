@@ -35,16 +35,9 @@
                         <controls:SearchBox x:Name="ArchiveHashQuery" MaxLength="256" IsVisible="False" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
-                    <!-- P2: the expander stays the filter toggle (command, IsExpanded, draft marker);
-                         its fields open as ArchiveFilterSurface over the results instead of
-                         pushing them down inside this capped search area. -->
-                    <Expander x:Name="ArchiveFilters" wv:WorkViewElement.Id="archive.filters.expander" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,8,0,0">
-                        <Expander.Styles>
-                            <Style Selector="Expander /template/ :is(Control)#ExpanderContent, Expander /template/ :is(Control)#PART_ContentPresenter, Expander /template/ :is(Control)#ExpanderContentLayoutContainer">
-                                <Setter Property="MaxHeight" Value="0" />
-                            </Style>
-                        </Expander.Styles>
-                    </Expander>
+                    <!-- P2/S2: the filter toggle is a ToggleButton with the active-filter count (IsChecked, command, draft marker);
+                         its fields open as ArchiveFilterSurface over the results instead of pushing them down inside this capped search area. -->
+                    <controls:FilterToggleButton x:Name="ArchiveFilters" wv:WorkViewElement.Id="archive.filters.expander" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
                     <WrapPanel x:Name="ArchiveAppliedFilters" wv:WorkViewElement.Id="archive.filters.applied" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
                     <StackPanel x:Name="ArchiveSearchErrorHost" Grid.Row="3" Spacing="8">
                         <controls:SearchCarryOffer x:Name="ArchiveSearchCarryOffer" />
@@ -71,7 +64,7 @@
                 <!-- P2: local filter surface anchored over the result list. Same controls and
                      names as before; Search applies via the existing path, Escape closes. -->
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="10"
-                        VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsExpanded}"
+                        VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
                         KeyboardNavigation.TabNavigation="Cycle">
                     <!-- The toggle directly above names the surface; no repeated title. -->
                     <Grid RowDefinitions="*,Auto" RowSpacing="8">
