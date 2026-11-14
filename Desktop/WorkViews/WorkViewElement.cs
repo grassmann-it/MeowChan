@@ -63,12 +63,16 @@ public sealed class WorkViewElement
         }
     }
 
-    /// <summary>Every live control with an id (any window). Callers filter by owner or page.</summary>
+    /// <summary>
+    /// Every live control with an id (any window) that the calling thread may read. Callers filter by owner or page.
+    /// The registry is process-wide; a control owned by another dispatcher thread (parallel test classes) is skipped instead of
+    /// throwing from its property read. In the app every registered control lives on the one UI thread, so nothing is skipped.
+    /// </summary>
     internal static IReadOnlyList<Control> All()
     {
         lock (Registered)
             return Registered.Select(reference => reference.TryGetTarget(out Control? control) ? control : null)
-                .OfType<Control>().Where(control => GetId(control) != null).ToArray();
+                .OfType<Control>().Where(control => control.CheckAccess() && GetId(control) != null).ToArray();
     }
 
     /// <summary>Registered controls whose id belongs to <paramref name="page"/>.</summary>

@@ -120,6 +120,28 @@ public sealed class WorkViewPresenterTests
     }
 
     [Fact]
+    public void TheRegistrySkipsControlsOwnedByAnotherThreadInsteadOfThrowing()
+    {
+        // Parallel test classes register controls on their own threads; reading the process-wide registry must not touch them.
+        Button? foreign = null;
+        Thread owner = new(() =>
+        {
+            foreign = new Button();
+            WorkViewElement.SetId(foreign, "archive.results.gallery");
+        });
+        owner.Start();
+        owner.Join();
+        Assert.NotNull(foreign);
+        Button own = new();
+        WorkViewElement.SetId(own, "archive.results.gallery");
+        IReadOnlyList<Control> all = WorkViewElement.All();
+        Assert.Contains(own, all);
+        Assert.DoesNotContain(foreign!, all);
+        WorkViewElement.SetId(own, null);
+        GC.KeepAlive(foreign);
+    }
+
+    [Fact]
     public void StateRaisesChangedForLaterViewsOnly()
     {
         WorkViewState state = new();
