@@ -184,6 +184,25 @@ public sealed class MediaFilterChipTests : IDisposable
         Assert.Equal((3, 5), (removed, toggled));
     }
 
+    // Wave-3 smoke regression (media-page): the label was the chip's content first and then moved into the switch panel, so the
+    // chip cleared the label's logical parent after the panel had taken it and adding the chip to the page threw.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void EveryPartOfATermChipHasItsLogicalParent(bool negatable)
+    {
+        ClosableTag chip = WorkspaceChips.CreateTermChip("Type: Images", negatable, exclude: false, () => { }, negatable ? () => { } : null, "Images", menu: true);
+        Control content = Assert.IsAssignableFrom<Control>(chip.Content);
+        Assert.Same(chip, content.Parent);
+        if (content is StackPanel panel)
+        {
+            Assert.True(negatable);
+            Assert.Equal(2, panel.Children.Count);
+            Assert.All(panel.Children, child => Assert.Same(panel, child.Parent));
+        }
+        else Assert.False(negatable);
+    }
+
     [Fact]
     public void AnExcludedChipSaysSoAndItsMenuOffersEdit()
     {
