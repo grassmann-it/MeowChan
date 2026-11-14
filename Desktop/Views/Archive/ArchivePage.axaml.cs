@@ -675,22 +675,6 @@ public partial class ArchivePage : UserControl
         PreviousPostsButton.IsEnabled = readReady && _postOffset > 0;
         NextPostsButton.IsEnabled = readReady && _thread != null && _postOffset + ReaderPageSize < shownPosts;
         ArchivePostNavigation.IsVisible = shownPosts > ReaderPageSize;
-        CapturePostsButton.IsEnabled = ready && _thread != null;
-        Button capture = CapturePostsButton;
-        string captureAction = Texts.T(_thread?.Summary.CaptureEnabled == true ? "archive.captureOff" : "archive.captureOn");
-        capture.Content = new StackPanel
-        {
-            Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4,
-            Children =
-            {
-                CommandBindings.Icon("archive.capture-toggle", 16, _thread?.Summary.CaptureEnabled == true ? "capturing" : "stopped"),
-                new TextBlock { Text = captureAction, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center }
-            }
-        };
-        string captureTip = captureAction + " · " + Texts.T("archive.captureHint");
-        ToolTip.SetTip(capture, captureTip);
-        AutomationProperties.SetName(capture, captureAction);
-        AutomationProperties.SetHelpText(capture, captureTip);
         PreviewArchiveMediaButton.IsEnabled = ready && SelectedMediaRow() != null;
         ArchiveOpenGallery.IsEnabled = ready && _selectedThread != null;
         ArchiveReadPosts.IsEnabled = readReady && _selectedThread != null
@@ -703,7 +687,8 @@ public partial class ArchivePage : UserControl
     }
     private static string PageLabel(int offset, int total, int pageSize = PageSize) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + pageSize, total), total);
 
-    private async void OnCaptureClick(object? sender, RoutedEventArgs e)
+    /// <summary>Starts or stops post capture for the open thread (the "Thread" menu's capture entry).</summary>
+    internal async Task ToggleThreadCaptureAsync()
     {
         if (_ended || _busy || !_available || _thread == null || _setCapture == null) return;
         ResourceId id = _thread.Summary.Id;
@@ -1070,6 +1055,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon);
         CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon);
         CommandBindings.ShowIconBeforeText(ReaderViewOpen, "eye");
+        CommandBindings.ShowIconBeforeText(ReaderThreadOpen, "sliders");
         CommandBindings.ShowIconBeforeText(ReaderUnreadReturn, CommandCatalog.Get("reader.history-back").Icon);
         CommandBindings.ShowIconBeforeText(ReaderSkipUnavailableGroupMember, CommandCatalog.Get("reader.skip-unavailable-group-member").Icon);
     }

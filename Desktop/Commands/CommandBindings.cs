@@ -64,10 +64,10 @@ public static class CommandBindings
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 
     public static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute = null,
-        Func<string?>? unavailableReason = null, Func<string>? label = null)
+        Func<string?>? unavailableReason = null, Func<string>? label = null, bool showShortcut = true)
     {
         var item = new MenuItem { Command = new DelegateCommand(execute, canExecute) };
-        Apply(item, id, unavailableReason, label);
+        Apply(item, id, unavailableReason, label, showShortcut);
         item.IsEnabled = canExecute?.Invoke() ?? true;
         return item;
     }
@@ -89,16 +89,21 @@ public static class CommandBindings
         return button;
     }
 
-    public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null, Func<string>? label = null)
+    /// <param name="showShortcut">False for a menu whose surface does not run the command's default gesture (the reader's
+    /// "Thread" menu offers commands whose shortcuts act in the lists): no gesture column and no shortcut in the tip.</param>
+    public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null, Func<string>? label = null,
+        bool showShortcut = true)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason, label));
+        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut));
         var definition = CommandCatalog.Get(id);
         string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
         item.Header = visibleLabel;
         item.Icon = Icon(id);
-        item.InputGesture = Gesture(definition);
-        var tip = Tooltip(id, unavailableReason?.Invoke(), visibleLabel);
+        item.InputGesture = showShortcut ? Gesture(definition) : null;
+        string? reason = unavailableReason?.Invoke();
+        var tip = showShortcut ? Tooltip(id, reason, visibleLabel)
+            : string.IsNullOrWhiteSpace(reason) ? visibleLabel : visibleLabel + " · " + reason;
         ToolTip.SetTip(item, tip);
         // A disabled entry explains itself: the reason is part of its tip and help text, so it must show while disabled.
         ToolTip.SetShowOnDisabled(item, true);

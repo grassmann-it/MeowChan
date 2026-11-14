@@ -37,11 +37,13 @@ public partial class ArchivePage
     private readonly List<IReaderPostClassifier> _postClassifiers = new();
     private IReaderPostOrdering? _postOrdering;
     private readonly List<ReaderViewOption> _viewOptions = new();
-    private sealed record ReaderViewOption(string CommandId, Func<bool>? IsChecked, Action Toggle);
-    // Fixed menu order; options registered later (P2, P4) slot in here, unknown ones go last.
+    private sealed record ReaderViewOption(string CommandId, Func<bool>? IsChecked, Action Toggle,
+        Func<bool>? IsEnabled = null, Func<string?>? Note = null, bool ShortcutViaRouter = false);
+    // Fixed menu order; options registered later (P2, P4) slot in here, unknown ones go last. R3: "Show new posts automatically"
+    // (the command keeps its id watch.follow-live) stands before the post filters.
     private static readonly string[] ReaderViewOptionOrder =
         { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
-          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.post-filters", "reader.quick-settings" };
+          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "watch.follow-live", "reader.post-filters", "reader.quick-settings" };
 
     private ReaderPostProjection? _projection;
     private ReaderPostProjection? _announcedProjection;
@@ -101,6 +103,11 @@ public partial class ArchivePage
         open.Content = label;
         ToolTip.SetTip(open, label);
         Avalonia.Automation.AutomationProperties.SetName(open, label);
+        string threadLabel = Texts.T("reader.thread.menu");
+        Button thread = ReaderThreadOpen;
+        thread.Content = threadLabel;
+        ToolTip.SetTip(thread, threadLabel);
+        Avalonia.Automation.AutomationProperties.SetName(thread, threadLabel);
     }
 
     internal void RegisterPostClassifier(IReaderPostClassifier classifier)
@@ -121,13 +128,16 @@ public partial class ArchivePage
     }
 
     /// <summary>One entry of the "View" menu, as a check item (or a plain item when <paramref name="isChecked"/> is
-    /// null, like "Post filters…"). The command needs no default gesture; a user shortcut toggles it too.</summary>
-    internal void RegisterViewOption(string commandId, Func<bool>? isChecked, Action toggle)
+    /// null, like "Post filters…"). The command needs no default gesture; a user shortcut toggles it too, unless the shell
+    /// routes the shortcut itself (<paramref name="shortcutViaRouter"/>). <paramref name="isEnabled"/> and <paramref name="note"/>
+    /// let an entry be disabled with its reason in the tip (shown on the disabled entry too).</summary>
+    internal void RegisterViewOption(string commandId, Func<bool>? isChecked, Action toggle,
+        Func<bool>? isEnabled = null, Func<string?>? note = null, bool shortcutViaRouter = false)
     {
         ArgumentNullException.ThrowIfNull(toggle);
         CommandCatalog.Get(commandId);
         _viewOptions.RemoveAll(option => option.CommandId == commandId);
-        _viewOptions.Add(new ReaderViewOption(commandId, isChecked, toggle));
+        _viewOptions.Add(new ReaderViewOption(commandId, isChecked, toggle, isEnabled, note, shortcutViaRouter));
     }
 
     internal IReadOnlyList<string> ReaderViewOptionIds => OrderedViewOptions().Select(option => option.CommandId).ToArray();
@@ -152,7 +162,7 @@ public partial class ArchivePage
         {
             ReaderViewOption frozen = option;
             MenuItem item = CommandBindings.CreateMenuItem(frozen.CommandId, () => { if (!_ended) frozen.Toggle(); },
-                () => !_ended && !IsFilenameSearchOpen);
+                () => !_ended && !IsFilenameSearchOpen && (frozen.IsEnabled?.Invoke() ?? true), frozen.Note);
             item.Tag = frozen.CommandId;
             if (frozen.IsChecked != null)
             {
@@ -161,13 +171,8 @@ public partial class ArchivePage
             }
             menu.Items.Add(item);
         }
-        // The media rules of the open thread (the same command as the lists' "Media rules…"), below the view switches.
-        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
-        MenuItem rules = CommandBindings.CreateMenuItem("rules.edit-scope", EditThreadRulesFromReader, () => CanEditThreadRules,
-            () => CanEditThreadRules ? null : Texts.T("archive.command.noWatch"), () => Texts.T("rules.thisThread"));
-        rules.Tag = "rules.edit-scope";
-        ToolTip.SetShowOnDisabled(rules, true);
-        menu.Items.Add(rules);
+        // Slot for the reader settings (R7 adds its separator and "Reader settings…" entry here, after the view options).
+        // The media rules and the other downloader-side thread actions are in the "Thread" menu (ArchivePage.ThreadMenu.cs).
         return menu;
     }
 
@@ -194,7 +199,7 @@ public partial class ArchivePage
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen || _thread == null) return;
         foreach (ReaderViewOption option in OrderedViewOptions())
         {
-            if (!CommandBindings.Matches(e, option.CommandId)) continue;
+            if (option.ShortcutViaRouter || !CommandBindings.Matches(e, option.CommandId)) continue;
             e.Handled = true;
             option.Toggle();
             return;

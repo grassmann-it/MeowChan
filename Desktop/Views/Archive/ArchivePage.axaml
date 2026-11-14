@@ -281,14 +281,15 @@
                     <Button x:Name="ReaderFindOpen" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
                     <Button x:Name="ReaderViewOpen" wv:WorkViewElement.Id="reader.toolbar.view" Click="OnReaderViewMenuClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu next to "View"; "View" stays the reader's own look, the bar's "More" stays "More". -->
+                    <Button x:Name="ReaderThreadOpen" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
                     <Button x:Name="ArchiveReadPosts" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
+                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <Button x:Name="ArchiveReaderFullscreen" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     <Button x:Name="ArchiveHistoryBack" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <!-- Starting/stopping post capture is a tool (R3 Top 10d); whether posts are captured stays in the status line. -->
-                    <Button x:Name="CapturePostsButton" wv:WorkViewElement.Id="reader.toolbar.capture" Classes="ghost" Click="OnCaptureClick" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
@@ -329,7 +330,8 @@
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
-                        <CheckBox x:Name="ReaderFollowLive" wv:WorkViewElement.Id="reader.status.follow-live" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
+                        <!-- R3: following live is "Show new posts automatically" in the View menu; this line only says whether it is on. -->
+                        <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>

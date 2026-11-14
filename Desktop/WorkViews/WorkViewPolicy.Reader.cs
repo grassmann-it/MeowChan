@@ -11,8 +11,9 @@ public static partial class WorkViewPolicy
     /// <summary>
     /// The reader toolbar's one keep-visible order (OverflowOrder, lower stays on the bar longer). The toolbar has
     /// PrioritizedOverflow, so this list, not the visual order of the bar, decides what a narrow window moves into "More"
-    /// first: the tail of this list. HTML export ranks before full screen and View (owner, 14.11.); the rarely used
-    /// history return and the post-capture switch go first. Required items (way back, favourite star, state returns) never move.
+    /// first: the tail of this list. HTML export ranks before full screen, View and Thread (owner, 14.11.); the rarely used
+    /// history return goes first. The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
+    /// Required items (way back, favourite star, state returns) never move.
     /// </summary>
     public static IReadOnlyList<string> ReaderToolbarKeepVisibleOrder => ReaderKeepVisible();
 
@@ -20,7 +21,7 @@ public static partial class WorkViewPolicy
     private static string[] ReaderKeepVisible() =>
     [
         "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-        "reader.toolbar.fullscreen", "reader.toolbar.view", "reader.toolbar.history-back", "reader.toolbar.capture"
+        "reader.toolbar.fullscreen", "reader.toolbar.view", "reader.toolbar.thread", "reader.toolbar.history-back"
     ];
 
     private static int ReaderOrder(string id) => 10 * (System.Array.IndexOf(ReaderKeepVisible(), id) + 1);
@@ -49,13 +50,15 @@ public static partial class WorkViewPolicy
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
         ReaderTool("reader.toolbar.fullscreen", Overflow, Overflow, Direct, "window.fullscreen"),
         ReaderTool("reader.toolbar.view", Overflow, Direct, Direct, null),
+        // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
+        // a menu button like View, so Barebones moves it under More, where it opens the same menu.
+        ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
         // Shown only with a history (state); as a navigation it stays on the bar in every view while it fits.
         ReaderTool("reader.toolbar.history-back", Direct, Direct, Direct, "reader.history-back"),
-        // R3 Top 10d: the switch is a tool; whether posts are captured stays in the status line (Required, below).
-        ReaderTool("reader.toolbar.capture", Overflow, Overflow, Direct, "archive.capture-toggle"),
 
         // ---- Status line and messages: state and safety, Required in every view (R5). ----
         Same("reader.status.capture", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),
+        // R3: the text that says new posts are shown automatically; the switch is the View menu's "Show new posts automatically".
         Same("reader.status.follow-live", WorkViewPage.Reader, WorkViewKind.Element, Required, "watch.follow-live", safety: true),
         Same("reader.status.new-posts", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),
         Same("reader.status.show-new-posts", WorkViewPage.Reader, WorkViewKind.Element, Required, "reader.show-new-posts", safety: true),

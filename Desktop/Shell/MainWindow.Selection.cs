@@ -143,7 +143,10 @@ public partial class MainWindow
         {
             if (_sessionRowsApplying) return;
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
-            if (row != null) OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
+            if (row == null) return;
+            // From the large reader (its "Thread" menu) the Downloads page behind it is not reachable: leave the reader first.
+            if (_largeReaderOpen && _gallery == null && _restoreCompleted && !WorkspaceCommandBusy) CloseLargeReader(restoreOrigin: false);
+            OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
     }
 
