@@ -13,124 +13,36 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `font-size-off-scale` | 0 | 0 | P5: onto the scale |
 | `color-hex` | 0 | 0 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
-| `spacing-off-grid` | 144 | 45 | P7: 0/2/4/8/12/16/24/32 or Inset token |
+| `spacing-off-grid` | 0 | 0 | P7: 0/2/4/8/12/16/24/32 or Inset token |
 | `glyph-icon` | 9 | 4 | P6: catalog path icon |
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 11 | 7 | P1: Workspace.Size token |
 | `page-inset` | 2 | 2 | P2: Workspace.Inset.Page |
-| **total** | **168** | 53 | |
+| **total** | **24** | 13 | |
 
 ## Counts per file
 
 | File | `font-size-literal` | `font-size-off-scale` | `color-hex` | `color-code` | `spacing-off-grid` | `glyph-icon` | `row-height-literal` | `control-height-literal` | `page-inset` | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `Desktop/Shell/MainWindow.axaml` |  |  |  |  | 23 |  |  | 1 |  | 24 |
-| `Desktop/Views/Archive/ArchivePage.axaml` |  |  |  |  | 19 |  |  | 2 |  | 21 |
-| `Desktop/Views/Settings/SettingsEditor.axaml` |  |  |  |  | 10 |  |  | 1 | 1 | 12 |
-| `Desktop/Views/Media/BooruMediaDetailsDialog.cs` |  |  |  |  | 7 | 1 |  |  |  | 8 |
 | `Desktop/Localization/ArchiveCatalog.cs` |  |  |  |  |  | 6 |  |  |  | 6 |
-| `Desktop/Views/Rules/RulesPage.axaml` |  |  |  |  | 3 |  |  | 3 |  | 6 |
-| `Desktop/Views/Settings/FirstRunSetupWindow.axaml` |  |  |  |  | 6 |  |  |  |  | 6 |
-| `Desktop/MediaLibraryTileView.cs` |  |  |  |  | 5 |  |  |  |  | 5 |
-| `Desktop/Views/Media/ManualImportDialog.cs` |  |  |  |  | 5 |  |  |  |  | 5 |
-| `Desktop/GalleryViewer.Overflow.cs` |  |  |  |  | 4 |  |  |  |  | 4 |
-| `Desktop/Views/Archive/ArchivePage.Export.Dialog.cs` |  |  |  |  | 4 |  |  |  |  | 4 |
-| `Desktop/Views/Booru/BooruWorkbenchView.cs` |  |  |  |  | 4 |  |  |  |  | 4 |
-| `Desktop/Controls/SearchCarryOffer.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/GalleryVideoPlayer.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Plugins/PluginSettingsEditor.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Shell/MainWindow.Presentation.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Views/Archive/PostFilterDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Views/Media/MediaSelectionTagDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Views/Plugins/PluginsPage.Migration.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/ArchiveMediaTileView.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
-| `Desktop/Commands/CommandBindings.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
-| `Desktop/Controls/TagToggleListBox.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
+| `Desktop/Views/Rules/RulesPage.axaml` |  |  |  |  |  |  |  | 3 |  | 3 |
 | `Desktop/GalleryViewer.Overlay.cs` |  |  |  |  |  |  |  | 2 |  | 2 |
-| `Desktop/SectionNavigationControl.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
+| `Desktop/Views/Archive/ArchivePage.axaml` |  |  |  |  |  |  |  | 2 |  | 2 |
 | `Desktop/Views/Diagnostics/DiagnosticsPage.axaml` |  |  |  |  |  |  | 1 | 1 |  | 2 |
-| `Desktop/Views/Media/MediaPage.Filters.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
-| `Desktop/Views/Rules/RulesPage.Plugins.cs` |  |  |  |  | 2 |  |  |  |  | 2 |
-| `Desktop/ArchiveAttachmentView.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Controls/SearchScopeChip.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Controls/WorkspaceChips.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/GalleryViewer.Favorites.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/GalleryViewer.FileOnly.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/GalleryViewer.Playback.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
+| `Desktop/Views/Settings/SettingsEditor.axaml` |  |  |  |  |  |  |  | 1 | 1 | 2 |
 | `Desktop/GalleryViewer.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
-| `Desktop/Shell/MainWindow.DownloadsHeader.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Shell/MainWindow.axaml.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/About/AboutWindow.axaml` |  |  |  |  | 1 |  |  |  |  | 1 |
+| `Desktop/Shell/MainWindow.axaml` |  |  |  |  |  |  |  | 1 |  | 1 |
 | `Desktop/Views/Admission/BoardAdmissionWindow.cs` |  |  |  |  |  |  |  | 1 |  | 1 |
-| `Desktop/Views/Archive/ArchivePage.Export.Choice.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Archive/ArchivePage.Favorites.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Archive/InterruptedTransfersDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Archive/MediaHashSearchDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Collections/MediaTagDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Media/MediaPage.ExportAll.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Media/MediaPage.FilterChips.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Media/MediaPage.FilterSurface.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Media/MediaPage.Selection.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
+| `Desktop/Views/Media/BooruMediaDetailsDialog.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
 | `Desktop/Views/Media/MediaPage.cs` |  |  |  |  |  |  |  |  | 1 | 1 |
-| `Desktop/Views/Plugins/PluginsPage.ChangeReview.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Plugins/PluginsPage.axaml` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Rules/RulesPage.Templates.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Statistics/StatisticsPage.axaml` |  |  |  |  |  |  | 1 |  |  | 1 |
 | `Desktop/Views/Statistics/StatisticsPage.axaml.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
 
 ## Violations per file
 
-### `Desktop/ArchiveAttachmentView.cs` (1)
-
-- `spacing-off-grid`: L72 `Margin=new Thickness(3, 0, 0, 0)`
-
-### `Desktop/ArchiveMediaTileView.cs` (2)
-
-- `spacing-off-grid`: L81 `Spacing=3`, L84 `RowSpacing=5`
-
-### `Desktop/Commands/CommandBindings.cs` (2)
-
-- `spacing-off-grid`: L180 `Spacing=5`, L296 `Spacing=5`
-
-### `Desktop/Controls/SearchCarryOffer.cs` (3)
-
-- `spacing-off-grid`: L27 `Padding=new Thickness(8, 6)`, L32 `ItemSpacing=6`, L34 `Spacing=6`
-
-### `Desktop/Controls/SearchScopeChip.cs` (1)
-
-- `spacing-off-grid`: L64 `Padding=new Thickness(2, 0, 6, 0)`
-
-### `Desktop/Controls/TagToggleListBox.cs` (2)
-
-- `spacing-off-grid`: L138 `Margin=new Thickness(0, 0, 6, 0)`, L185 `new Thickness(0, 6, 0, 0)`
-
-### `Desktop/Controls/WorkspaceChips.cs` (1)
-
-- `spacing-off-grid`: L60 `Spacing=6`
-
-### `Desktop/GalleryVideoPlayer.cs` (3)
-
-- `spacing-off-grid`: L40 `Padding=new Thickness(10)`, L41 `Padding=new Thickness(7)`, L42 `Padding=new Thickness(7)`
-
-### `Desktop/GalleryViewer.Favorites.cs` (1)
-
-- `spacing-off-grid`: L28 `Padding=new Thickness(7, 3)`
-
-### `Desktop/GalleryViewer.FileOnly.cs` (1)
-
-- `spacing-off-grid`: L47 `Spacing=10`
-
-### `Desktop/GalleryViewer.Overflow.cs` (4)
-
-- `spacing-off-grid`: L51 `Margin=new Thickness(10, 6, 10, 0)`, L52 `Margin=new Thickness(10, 6, 10, 0)`, L155 `ColumnSpacing=10`, L179 `Margin=new Thickness(6, 4)`
-
 ### `Desktop/GalleryViewer.Overlay.cs` (2)
 
 - `control-height-literal`: L104 `Button Height=44`, L104 `Button MinHeight=44`
-
-### `Desktop/GalleryViewer.Playback.cs` (1)
-
-- `spacing-off-grid`: L118 `Margin=new Thickness(6, 0)`
 
 ### `Desktop/GalleryViewer.cs` (1)
 
@@ -140,154 +52,37 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 - `glyph-icon`: L109 `"↑(U+2191) Previous post"`, L109 `"↑(U+2191) Voriger Post"`, L111 `"←(U+2190) Previous thread"`, L111 `"←(U+2190) Voriger Thread"`, L115 `"←(U+2190) Previous"`, L115 `"←(U+2190) Zurü(U+00FC)ck"`
 
-### `Desktop/MediaLibraryTileView.cs` (5)
+### `Desktop/Shell/MainWindow.axaml` (1)
 
-- `spacing-off-grid`: L160 `Spacing=3`, L175 `RowSpacing=3`, L175 `Margin=new Thickness(6, 6, 6, 4)`, L190 `ItemSpacing=6`, L334 `Spacing=6`
-
-### `Desktop/Plugins/PluginSettingsEditor.cs` (3)
-
-- `spacing-off-grid`: L42 `Spacing=10`, L45 `Spacing=6`, L63 `Margin=new Thickness(0, 3, 0, 0)`
-
-### `Desktop/SectionNavigationControl.cs` (2)
-
-- `spacing-off-grid`: L31 `Spacing=6`, L61 `Margin=new Thickness(0, 0, 8, 6)`
-
-### `Desktop/Shell/MainWindow.DownloadsHeader.cs` (1)
-
-- `spacing-off-grid`: L57 `Spacing=3`
-
-### `Desktop/Shell/MainWindow.Presentation.cs` (3)
-
-- `spacing-off-grid`: L199 `new Thickness(20, 0)`, L572 `new Thickness(barebones ? 8 : WorkspacePageInset, 6)`, L604 `Margin=new Thickness(0, compactIntake ? 4 : 6, 0, 0)`
-
-### `Desktop/Shell/MainWindow.axaml` (24)
-
-- `spacing-off-grid`: L22 `Margin="20,0"`, L40 `Spacing="6"`, L192 `Padding="10,6"`, L217 `Spacing="6"`, L217 `Margin="0,6,0,0"`, L247 `ColumnSpacing="6"`, L272 `Spacing="6"`, L302 `ColumnSpacing="10"`, L304 `Spacing="5"`, L397 `Margin="8,2,8,6"`, L398 `ColumnSpacing="6"`, L411 `Margin="16,10,10,8"`, L419 `Spacing="5"`, L494 `Padding="20,0"`, L503 `Padding="12,5"`, L505 `Spacing="5"`, L507 `Spacing="9"`, L523 `Spacing="9"`, L544 `Spacing="9"`, L569 `Padding="28,22"`, L569 `Margin="20"`, L570 `Spacing="6"`, L578 `Margin="20"`
 - `control-height-literal`: L24 `Button Height="34"`
-
-### `Desktop/Shell/MainWindow.axaml.cs` (1)
-
-- `spacing-off-grid`: L650 `Padding=new Thickness(10, 2)`
-
-### `Desktop/Views/About/AboutWindow.axaml` (1)
-
-- `spacing-off-grid`: L77 `Spacing="6"`
 
 ### `Desktop/Views/Admission/BoardAdmissionWindow.cs` (1)
 
 - `control-height-literal`: L314 `Button MinHeight=32`
 
-### `Desktop/Views/Archive/ArchivePage.Export.Choice.cs` (1)
+### `Desktop/Views/Archive/ArchivePage.axaml` (2)
 
-- `spacing-off-grid`: L52 `LineSpacing=6`
-
-### `Desktop/Views/Archive/ArchivePage.Export.Dialog.cs` (4)
-
-- `spacing-off-grid`: L108 `LineSpacing=6`, L116 `Spacing=6`, L120 `Spacing=6`, L150 `LineSpacing=6`
-
-### `Desktop/Views/Archive/ArchivePage.Favorites.cs` (1)
-
-- `spacing-off-grid`: L286 `LineSpacing=6`
-
-### `Desktop/Views/Archive/ArchivePage.axaml` (21)
-
-- `spacing-off-grid`: L19 `ColumnSpacing="6"`, L41 `ItemSpacing="6"`, L41 `LineSpacing="6"`, L66 `Padding="10"`, L82 `ColumnSpacing="6"`, L86 `ItemSpacing="6"`, L86 `LineSpacing="6"`, L91 `ColumnSpacing="6"`, L95 `ItemSpacing="6"`, L95 `LineSpacing="6"`, L103 `ItemSpacing="6"`, L103 `LineSpacing="6"`, L112 `ItemSpacing="6"`, L112 `LineSpacing="6"`, L676 `Spacing="6"`, L709 `Margin="0,0,24,56"`, L754 `Spacing="6"`, L760 `RowSpacing="10"`, L769 `ColumnSpacing="10"`
 - `control-height-literal`: L51 `ToggleButton MinHeight="32"`, L52 `ToggleButton MinHeight="32"`
-
-### `Desktop/Views/Archive/InterruptedTransfersDialog.cs` (1)
-
-- `spacing-off-grid`: L28 `Spacing=6`
-
-### `Desktop/Views/Archive/MediaHashSearchDialog.cs` (1)
-
-- `spacing-off-grid`: L256 `Spacing=6`
-
-### `Desktop/Views/Archive/PostFilterDialog.cs` (3)
-
-- `spacing-off-grid`: L60 `Spacing=6`, L63 `Spacing=6`, L96 `Spacing=6`
-
-### `Desktop/Views/Booru/BooruWorkbenchView.cs` (4)
-
-- `spacing-off-grid`: L938 `Margin=new Thickness(6)`, L952 `RowSpacing=1`, L1005 `Margin=new Thickness(0, 3, 3, 0)`, L1010 `Margin=new Thickness(3, 0, 0, 3)`
-
-### `Desktop/Views/Collections/MediaTagDialog.cs` (1)
-
-- `spacing-off-grid`: L66 `Spacing=6`
 
 ### `Desktop/Views/Diagnostics/DiagnosticsPage.axaml` (2)
 
 - `row-height-literal`: L44 `RowHeight="44"`
 - `control-height-literal`: L86 `TextBox MinHeight="36"`
 
-### `Desktop/Views/Media/BooruMediaDetailsDialog.cs` (8)
+### `Desktop/Views/Media/BooruMediaDetailsDialog.cs` (1)
 
-- `spacing-off-grid`: L66 `Spacing=10`, L119 `ItemSpacing=6`, L119 `LineSpacing=6`, L147 `LineSpacing=6`, L148 `Spacing=6`, L222 `LineSpacing=6`, L251 `Margin=new Thickness(0, 6, 0, 0)`
 - `glyph-icon`: L170 `"×(U+00D7)"`
-
-### `Desktop/Views/Media/ManualImportDialog.cs` (5)
-
-- `spacing-off-grid`: L56 `ItemSpacing=6`, L56 `LineSpacing=6`, L110 `ItemSpacing=6`, L110 `LineSpacing=6`, L114 `Spacing=10`
-
-### `Desktop/Views/Media/MediaPage.ExportAll.cs` (1)
-
-- `spacing-off-grid`: L23 `LineSpacing=6`
-
-### `Desktop/Views/Media/MediaPage.FilterChips.cs` (1)
-
-- `spacing-off-grid`: L27 `Padding=new Thickness(6, 2)`
-
-### `Desktop/Views/Media/MediaPage.FilterSurface.cs` (1)
-
-- `spacing-off-grid`: L37 `Padding=new Thickness(10, 8)`
-
-### `Desktop/Views/Media/MediaPage.Filters.cs` (2)
-
-- `spacing-off-grid`: L52 `ItemSpacing=6`, L52 `LineSpacing=6`
-
-### `Desktop/Views/Media/MediaPage.Selection.cs` (1)
-
-- `spacing-off-grid`: L28 `ItemSpacing=6`
 
 ### `Desktop/Views/Media/MediaPage.cs` (1)
 
 - `page-inset`: L1 `no reference to Workspace.Inset.Page`
 
-### `Desktop/Views/Media/MediaSelectionTagDialog.cs` (3)
+### `Desktop/Views/Rules/RulesPage.axaml` (3)
 
-- `spacing-off-grid`: L82 `ItemSpacing=6`, L82 `LineSpacing=6`, L87 `Spacing=6`
-
-### `Desktop/Views/Plugins/PluginsPage.ChangeReview.cs` (1)
-
-- `spacing-off-grid`: L167 `Spacing=6`
-
-### `Desktop/Views/Plugins/PluginsPage.Migration.cs` (3)
-
-- `spacing-off-grid`: L69 `Spacing=6`, L198 `Spacing=6`, L290 `Spacing=6`
-
-### `Desktop/Views/Plugins/PluginsPage.axaml` (1)
-
-- `spacing-off-grid`: L39 `Margin="0,0,14,0"`
-
-### `Desktop/Views/Rules/RulesPage.Plugins.cs` (2)
-
-- `spacing-off-grid`: L235 `Spacing=6`, L262 `LineSpacing=6`
-
-### `Desktop/Views/Rules/RulesPage.Templates.cs` (1)
-
-- `spacing-off-grid`: L178 `LineSpacing=6`
-
-### `Desktop/Views/Rules/RulesPage.axaml` (6)
-
-- `spacing-off-grid`: L122 `Margin="0,6,0,0"`, L141 `Margin="0,6,0,0"`, L183 `LineSpacing="6"`
 - `control-height-literal`: L18 `TagInput style MinHeight="32"`, L195 `Button MinHeight="24"`, L208 `Button MinHeight="24"`
 
-### `Desktop/Views/Settings/FirstRunSetupWindow.axaml` (6)
+### `Desktop/Views/Settings/SettingsEditor.axaml` (2)
 
-- `spacing-off-grid`: L15 `Padding="20,16,20,8"`, L19 `Padding="20,0,20,8"`, L28 `Spacing="6"`, L37 `Spacing="10"`, L37 `Margin="20,4,20,16"`, L38 `Spacing="10"`
-
-### `Desktop/Views/Settings/SettingsEditor.axaml` (12)
-
-- `spacing-off-grid`: L19 `Padding="10,7"`, L63 `Margin="20,12,20,12"`, L75 `Margin="20,0,20,16"`, L209 `Spacing="3"`, L218 `Spacing="3"`, L434 `Spacing="3"`, L664 `Padding="0,10"`, L687 `Padding="0,10"`, L1378 `Spacing="6"`, L1394 `Margin="0,0,10,0"`
 - `control-height-literal`: L18 `ToggleButton style MinHeight="34"`
 - `page-inset`: L62 `Grid no inset`
 
@@ -313,3 +108,4 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)
+
