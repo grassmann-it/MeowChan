@@ -4499,6 +4499,9 @@
     "settings.reader.inlineVideoPlayers": "Přehrávače videa připravené ve čtečce",
     "settings.reader.inlineVideoPlayers.hint": "Více přehrávačů drží pozastavená videa připravená k pokračování, ale spotřebuje více paměti; jako první se zavře ten nejdéle nepoužitý.",
     "settings.reader.inlineVideoMaxFile": "Největší video přehrávané ve čtečce (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "Větší video se zde nepřehraje; čtečka na to upozorní a galerie ho přehraje dál."
+    "settings.reader.inlineVideoMaxFile.hint": "Větší video se zde nepřehraje; čtečka na to upozorní a galerie ho přehraje dál.",
+    "settings.discardQuestion": "Zahodit neuložené změny nastavení?",
+    "dialog.keepEditing": "Pokračovat v úpravách",
+    "dialog.discardChanges": "Zahodit změny"
   }
 }

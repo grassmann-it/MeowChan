@@ -4371,6 +4371,9 @@
     "settings.reader.inlineVideoPlayers": "리더에 준비해 두는 동영상 플레이어",
     "settings.reader.inlineVideoPlayers.hint": "플레이어가 많을수록 일시 중지한 동영상을 바로 이어서 재생할 수 있지만 메모리를 더 사용합니다. 가장 오래 사용하지 않은 것부터 닫습니다.",
     "settings.reader.inlineVideoMaxFile": "리더에서 재생할 최대 동영상 크기 (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "이보다 큰 동영상은 여기에서 재생되지 않습니다. 리더가 이를 알려 주며, 갤러리에서는 계속 재생할 수 있습니다."
+    "settings.reader.inlineVideoMaxFile.hint": "이보다 큰 동영상은 여기에서 재생되지 않습니다. 리더가 이를 알려 주며, 갤러리에서는 계속 재생할 수 있습니다.",
+    "settings.discardQuestion": "저장하지 않은 설정 변경 사항을 삭제하시겠습니까?",
+    "dialog.keepEditing": "계속 편집",
+    "dialog.discardChanges": "변경 사항 삭제"
   }
 }

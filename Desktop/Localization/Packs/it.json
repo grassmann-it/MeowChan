@@ -4462,6 +4462,9 @@
     "settings.reader.inlineVideoPlayers": "Lettori video tenuti pronti nel lettore",
     "settings.reader.inlineVideoPlayers.hint": "Più lettori tengono pronti i video in pausa per riprenderli, ma usano più memoria; si chiude per primo quello inutilizzato da più tempo.",
     "settings.reader.inlineVideoMaxFile": "Video più grande riprodotto nel lettore (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "Un video più grande non viene riprodotto qui; il lettore lo segnala e la galleria continua a riprodurlo."
+    "settings.reader.inlineVideoMaxFile.hint": "Un video più grande non viene riprodotto qui; il lettore lo segnala e la galleria continua a riprodurlo.",
+    "settings.discardQuestion": "Scartare le modifiche non salvate alle impostazioni?",
+    "dialog.keepEditing": "Continua a modificare",
+    "dialog.discardChanges": "Scarta modifiche"
   }
 }

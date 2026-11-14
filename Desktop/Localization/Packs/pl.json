@@ -4502,6 +4502,9 @@
     "settings.reader.inlineVideoPlayers": "Odtwarzacze wideo trzymane w czytniku",
     "settings.reader.inlineVideoPlayers.hint": "Więcej odtwarzaczy trzyma wstrzymane wideo gotowe do wznowienia, ale zużywa więcej pamięci; najpierw zamykany jest ten, którego najdłużej nie używano.",
     "settings.reader.inlineVideoMaxFile": "Największe wideo odtwarzane w czytniku (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "Większe wideo nie jest tu odtwarzane; czytnik o tym informuje, a galeria nadal je odtwarza."
+    "settings.reader.inlineVideoMaxFile.hint": "Większe wideo nie jest tu odtwarzane; czytnik o tym informuje, a galeria nadal je odtwarza.",
+    "settings.discardQuestion": "Odrzucić niezapisane zmiany ustawień?",
+    "dialog.keepEditing": "Kontynuuj edycję",
+    "dialog.discardChanges": "Odrzuć zmiany"
   }
 }

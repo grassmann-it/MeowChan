@@ -4456,6 +4456,9 @@
     "settings.reader.inlineVideoPlayers": "Reproductores de vídeo preparados en el lector",
     "settings.reader.inlineVideoPlayers.hint": "Más reproductores mantienen los vídeos en pausa listos para continuar, pero usan más memoria; primero se cierra el que lleva más tiempo sin usarse.",
     "settings.reader.inlineVideoMaxFile": "Vídeo más grande que se reproduce en el lector (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "Un vídeo más grande no se reproduce aquí; el lector lo indica y la galería lo sigue reproduciendo."
+    "settings.reader.inlineVideoMaxFile.hint": "Un vídeo más grande no se reproduce aquí; el lector lo indica y la galería lo sigue reproduciendo.",
+    "settings.discardQuestion": "¿Descartar los cambios sin guardar de la configuración?",
+    "dialog.keepEditing": "Seguir editando",
+    "dialog.discardChanges": "Descartar cambios"
   }
 }

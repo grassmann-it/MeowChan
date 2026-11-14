@@ -4456,6 +4456,9 @@
     "settings.reader.inlineVideoPlayers": "Lecteurs vidéo gardés prêts",
     "settings.reader.inlineVideoPlayers.hint": "Davantage de lecteurs vidéo gardent les vidéos en pause prêtes à reprendre, mais utilisent plus de mémoire ; celui qui n’a pas servi depuis le plus longtemps est fermé en premier.",
     "settings.reader.inlineVideoMaxFile": "Plus grande vidéo lue dans le lecteur (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "Une vidéo plus grande n’est pas lue ici ; le lecteur l’indique et la galerie la lit toujours."
+    "settings.reader.inlineVideoMaxFile.hint": "Une vidéo plus grande n’est pas lue ici ; le lecteur l’indique et la galerie la lit toujours.",
+    "settings.discardQuestion": "Abandonner les modifications non enregistrées des paramètres ?",
+    "dialog.keepEditing": "Continuer à modifier",
+    "dialog.discardChanges": "Abandonner les modifications"
   }
 }

@@ -31,6 +31,7 @@ internal static class DialogFooter
             Name = ActionsName, ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center
         };
+        actions.Classes.Add("workspace-actions"); // the shared action-row style: 8 dip spacing, right aligned (as set above)
         foreach (Control control in Order(primary, secondary)) actions.Children.Add(control);
         Border footer = new();
         footer.Classes.Add("workspace-dialog-footer");
@@ -51,6 +52,33 @@ internal static class DialogFooter
         row.Children.Add(status);
         footer.Child = row;
         return footer;
+    }
+
+    /// <summary>
+    /// Fills the footer border <paramref name="host"/> of a window declared in XAML (the named <c>DialogFrameFooter</c>) the way
+    /// <see cref="Build"/> does for code-built dialogs. The controls keep their names; they are taken out of the XAML's own
+    /// panels first, so a control keeps its single parent.
+    /// </summary>
+    internal static void Fill(Border host, Control? primary, IReadOnlyList<Control>? secondary = null, Control? status = null, bool statusAbove = false)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        host.Child = null;
+        foreach (Control control in Order(primary, secondary)) Detach(control);
+        if (status != null) Detach(status);
+        Border built = Build(primary, secondary, status, statusAbove);
+        Control? content = built.Child;
+        built.Child = null;
+        host.Child = content;
+    }
+
+    private static void Detach(Control control)
+    {
+        switch (control.Parent)
+        {
+            case Panel panel: panel.Children.Remove(control); break;
+            case Decorator decorator: decorator.Child = null; break;
+            case ContentControl holder: holder.Content = null; break;
+        }
     }
 
     /// <summary>Left-to-right order of the actions: the secondary ones as given, the primary one last.</summary>

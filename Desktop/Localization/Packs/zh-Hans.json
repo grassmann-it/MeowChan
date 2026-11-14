@@ -4371,6 +4371,9 @@
     "settings.reader.inlineVideoPlayers": "阅读器中保留的视频播放器",
     "settings.reader.inlineVideoPlayers.hint": "播放器越多，越能让暂停的视频随时继续，但会占用更多内存；最久未使用的播放器最先关闭。",
     "settings.reader.inlineVideoMaxFile": "阅读器中播放的最大视频 (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "更大的视频不会在此播放；阅读器会给出提示，图库仍可播放。"
+    "settings.reader.inlineVideoMaxFile.hint": "更大的视频不会在此播放；阅读器会给出提示，图库仍可播放。",
+    "settings.discardQuestion": "要放弃设置中尚未保存的更改吗？",
+    "dialog.keepEditing": "继续编辑",
+    "dialog.discardChanges": "放弃更改"
   }
 }

@@ -4371,6 +4371,9 @@
     "settings.reader.inlineVideoPlayers": "リーダーで保持する動画プレーヤー",
     "settings.reader.inlineVideoPlayers.hint": "プレーヤーが多いほど一時停止中の動画をすぐ再開できますが、メモリを多く使います。最も長く使われていないものから閉じます。",
     "settings.reader.inlineVideoMaxFile": "リーダーで再生する動画の最大サイズ (MiB)",
-    "settings.reader.inlineVideoMaxFile.hint": "これより大きい動画はここでは再生されません。リーダーにその旨が表示され、ギャラリーでは引き続き再生できます。"
+    "settings.reader.inlineVideoMaxFile.hint": "これより大きい動画はここでは再生されません。リーダーにその旨が表示され、ギャラリーでは引き続き再生できます。",
+    "settings.discardQuestion": "設定の未保存の変更を破棄しますか？",
+    "dialog.keepEditing": "編集を続ける",
+    "dialog.discardChanges": "変更を破棄"
   }
 }

@@ -60,4 +60,14 @@ internal static class DialogWindow
         ArgumentNullException.ThrowIfNull(window);
         window.Content = WindowChrome.Frame(window, content, KindFor(modal), captionName);
     }
+
+    /// <summary>
+    /// The XAML twin of <see cref="Frame"/>: a window whose content is declared in XAML (and which keeps its own named frame
+    /// parts) gets the app caption of the right variant around the loaded content. Call after the XAML is loaded.
+    /// </summary>
+    internal static WindowChromeBar Wrap(Window window, bool modal, string? captionName = null)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        return WindowChrome.WrapContent(window, KindFor(modal), captionName);
+    }
 }
