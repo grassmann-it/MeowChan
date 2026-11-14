@@ -192,6 +192,7 @@ public sealed partial class MediaPage : UserControl
         _empty.Classes.Add(WorkspaceEmptyState.TextClass);
         _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
+        InstallFocus(body); // M4: the rows the focus mode hides are grouped, its row takes their place (MediaPage.Focus.cs)
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "workspace-section-flush" } };
@@ -569,6 +570,7 @@ public sealed partial class MediaPage : UserControl
         UpdateSearchResult();
         UpdateFilterToggle();
         UpdateSelectionBar();
+        EndFocusWithoutHeader();
     }
 
     // The status line alone: what a progress tick changes. Every count in it is kept, so a tick costs no pass over the index.
@@ -588,6 +590,7 @@ public sealed partial class MediaPage : UserControl
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
         if (CacheLimitNote() is { } note) parts.Add(note);
         _status.Text = string.Join(" · ", parts);
+        RefreshFocusRow();
     }
 
     // The saved index has a write limit (a setting); near it and above it the page says so instead of silently rebuilding.
@@ -1072,6 +1075,7 @@ public sealed partial class MediaPage : UserControl
         WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");
         WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
+        LocalizeFocus();
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;

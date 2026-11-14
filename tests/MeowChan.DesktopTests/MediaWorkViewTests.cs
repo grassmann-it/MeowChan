@@ -24,6 +24,17 @@ public sealed class MediaWorkViewTests
     }
 
     [Fact]
+    public void TheFocusModeIsUnderMoreInBarebonesAndAButtonFromSimpleAndKeepsItsCatalogCommand()
+    {
+        // M4: Barebones keeps the header calm (⤢ under More), Simple and Advanced show the button; the entry under More forwards to the command.
+        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], WorkViewSetting.All.Select(view => P("media.toolbar.focus", view)));
+        Assert.Equal("media.focus-mode", WorkViewPolicy.Get("media.toolbar.focus").CommandId);
+        Assert.Equal(WorkViewKind.Action, WorkViewPolicy.Get("media.toolbar.focus").Kind);
+        // It is the first entry under More: before refresh (10) and shuffle (20).
+        Assert.True(WorkViewPolicy.Get("media.toolbar.focus").OverflowOrder < WorkViewPolicy.Get("media.toolbar.refresh").OverflowOrder);
+    }
+
+    [Fact]
     public void FilterFieldsGrowFromBarebonesToAdvanced()
     {
         string[] always = ["media.filter.kind", "media.filter.favorites"];

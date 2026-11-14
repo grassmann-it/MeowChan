@@ -82,9 +82,15 @@ public partial class MainWindow
             () => _gallery == null && _selectedPage is WorkspacePage.Media or WorkspacePage.Archive,
             () => !_isClosing && !_ratingManagerOpen, () => _ = ManageMediaRatingsAsync(), Priority: 100));
         if (_mediaPage is { } media)
+        {
             _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.SelectedTiles.Count > 0, () => _ = media.EditTagsByShortcutAsync(), Priority: 100));
+            // The focus mode (M4): Shift+F is a typed capital in a text field, so the router leaves it to the field (no AllowInTextInput).
+            _shortcutRouter.Register(new CommandRegistration(MediaFocusMode.CommandId, media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.CanToggleFocusMode, media.ToggleFocusModeByShortcut, Priority: 100));
+        }
     }
 
     private void RegisterRuleTemplateCommands()

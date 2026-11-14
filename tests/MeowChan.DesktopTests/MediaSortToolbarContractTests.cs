@@ -133,12 +133,13 @@ public sealed class MediaSortToolbarContractTests
         Assert.Empty(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Wide));
         foreach (MediaToolbarLayout.Level level in new[] { MediaToolbarLayout.Level.Reduced, MediaToolbarLayout.Level.Compact })
         {
-            Assert.Equal(["media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(level));
+            Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(level));
             Assert.All(MediaToolbarLayout.MovedUnderMore(level), id => Assert.True(MediaToolbarLayout.IsMovedUnderMore(level, id)));
             foreach (string kept in new[] { "media.sort", "media.search", "media.filter.toggle", "media.toolbar.more", "media.toolbar.export-all", null })
                 Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, kept), kept);
         }
         Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Wide, "media.toolbar.refresh"));
+        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Wide, "media.toolbar.focus"));
         // Every id that can move is a policy row of the media page that the view puts under More as well, so it has a place and an order there.
         Assert.All(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced), id =>
         {

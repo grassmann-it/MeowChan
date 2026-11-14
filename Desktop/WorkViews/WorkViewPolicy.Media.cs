@@ -18,6 +18,9 @@ public static partial class WorkViewPolicy
         Same("media.sort", WorkViewPage.Media, WorkViewKind.Element, Required),
         // The "More" (⋯) button itself: shown whenever the view keeps something under it.
         Same("media.toolbar.more", WorkViewPage.Media, WorkViewKind.Element, Required),
+        // M4: the focus mode (⤢) hides the header rows above the grid; Barebones keeps it under More, from Simple it is a button of the
+        // header. The shortcut (Shift+F) is the catalog's in every view, so the entry under More forwards to the same command.
+        new("media.toolbar.focus", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.focus-mode", OverflowOrder: 5),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
         // Since S3 the header holds search, filter toggle, order and refresh; exporting every match is under More in every view

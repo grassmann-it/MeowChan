@@ -55,6 +55,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_filters, "media.filter.toggle");
         WorkViewElement.SetId(_sort, "media.sort");
         WorkViewElement.SetId(_more, "media.toolbar.more");
+        WorkViewElement.SetId(_focus, "media.toolbar.focus");
         WorkViewElement.SetId(_refresh, "media.toolbar.refresh");
         WorkViewElement.SetId(_shuffle, "media.toolbar.shuffle");
         WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
@@ -126,6 +127,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_nameFilter, view);
         WorkViewGate.Apply(_filters, view);
         WorkViewGate.Apply(_sort, view);
+        WorkViewGate.Apply(_focus, view);
         WorkViewGate.Apply(_refresh, view);
         WorkViewGate.Apply(_shuffle, view, stateVisible: Sort == MediaLibrarySort.Random);
         WorkViewGate.Apply(_exportAll, view);
@@ -152,7 +154,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_refresh, _shuffle, _exportAll, _manageRatings);
+    private List<Control> HeaderOverflow() => Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 

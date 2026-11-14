@@ -9,7 +9,7 @@ namespace MeowChan;
 // S3: the media toolbar is one row in two groups (the shop pattern). Left: the file name search and the filter toggle. Right: the order
 // (criterion and direction), "Shuffle again" in front of it while the order is random, then "Refresh" and "More" (⋯). M1: the shuffle and
 // the refresh are drawn icons in square buttons (name as tooltip and accessible name), so the only text in the group is the criterion;
-// the focus mode (M4) joins the group as one more square between "Refresh" and "More". Export all and the
+// the focus mode (M4, MediaPage.Focus.cs) is one more square between "Refresh" and "More". Export all and the
 // saved-ratings manager always sit under More; "show missing files" is a filter (a field of the filter section and a chip of the active
 // filters). When the row runs short the less important tools move under More first and the order stays visible (MediaToolbarLayout).
 public sealed partial class MediaPage
@@ -35,7 +35,7 @@ public sealed partial class MediaPage
         tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (Control control in new Control[] { _shuffle, _sort, _sortDirection, _refresh, _exportAll, _manageRatings, _more })
+        foreach (Control control in new Control[] { _shuffle, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -69,7 +69,7 @@ public sealed partial class MediaPage
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _refresh, _shuffle })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

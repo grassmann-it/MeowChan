@@ -616,6 +616,7 @@ public sealed partial class MediaPage
     internal void FocusSearch()
     {
         if (_lifetime.IsCancellationRequested) return;
+        SetFocusMode(false); // the search field is one of the rows the focus mode hides (M4): asking for it shows them again
         void Focus()
         {
             if (_lifetime.IsCancellationRequested || !_nameFilter.IsEffectivelyVisible) return;

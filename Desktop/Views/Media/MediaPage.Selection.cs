@@ -77,24 +77,26 @@ public sealed partial class MediaPage
 
     internal void ClearSelection() => _grid.Selection.Clear();
 
-    // Escape (fixed) clears and media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
+    // Escape (fixed) ends the focus mode, then dismisses the "export all" question, then clears; media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
+        // PT1: a pending "add to tagging queue" question is dismissed before the levels below.
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _queueAsk.IsVisible)
         {
             DismissQueueAsk();
             e.Handled = true;
             return true;
         }
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _exportAllAsk.IsVisible)
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
-            DismissExportAllAsk();
-            e.Handled = true;
-            return true;
-        }
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _grid.Selection.Count > 0)
-        {
-            ClearSelection();
+            // The levels in order (MediaFocusMode.Escape): the focus mode, a pending "export all" question, the selection.
+            switch (MediaFocusMode.Escape(_focusMode, _exportAllAsk.IsVisible, _grid.Selection.Count))
+            {
+                case MediaEscapeStep.ExitFocus: SetFocusMode(false); break;
+                case MediaEscapeStep.DismissExportAll: DismissExportAllAsk(); break;
+                case MediaEscapeStep.ClearSelection: ClearSelection(); break;
+                default: return false;
+            }
             e.Handled = true;
             return true;
         }
