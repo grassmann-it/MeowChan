@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Lainchan;
+using MeowChan.Plugins.Examples.VichanFamily;
 using MeowChan.Plugins.Examples.AnonImageboards;
 using MeowChan.Plugins.Examples.BbwChan;
 using MeowChan.Plugins.Examples.CapybaraChan;
@@ -18,23 +18,24 @@ public sealed class ExamplePluginTests
     [Fact]
     public void DescriptionsAreInertDistinctSdkOnlySources()
     {
-        PluginDescription[] descriptions = [new LainchanPlugin().Describe(), new KohlchanPlugin().Describe()];
+        PluginDescription[] descriptions = [new VichanFamilyPlugin().Describe(), new KohlchanPlugin().Describe()];
         Assert.Empty(SdkValidation.ValidateDescriptions(descriptions));
         Dictionary<string, string> expectedNames = new(StringComparer.Ordinal)
         { ["lainchan"] = "Lainchan", ["kohlchan"] = "Kohlchan" };
+        Assert.Equal("Kohlchan", Assert.Single(descriptions[1].Sources).Name);
+        Assert.Equal("Kohlchan", descriptions[1].Name);
         Assert.All(descriptions, description =>
         {
             Assert.Empty(description.Settings.Fields);
-            Assert.Single(description.Sources);
-            SourceDescription source = description.Sources[0];
+            // The vichan family declares several sites; Lainchan keeps its own source identity and name.
+            SourceDescription source = Assert.Single(description.Sources, item => expectedNames.ContainsKey(item.SourceId));
             Assert.Contains(source.SourceId, expectedNames.Keys);
-            Assert.Equal(expectedNames[source.SourceId], description.Name);
             Assert.Equal(expectedNames[source.SourceId], source.Name);
             Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
             Assert.False(source.Capabilities.HasFlag(SourceCapabilities.Previews));
             Assert.Equal("/{board}/res/{thread}.html", Assert.Single(source.Routes, route => route.Kind == SourceResourceKind.Thread).PathTemplate);
         });
-        foreach (Type type in new[] { typeof(LainchanPlugin), typeof(KohlchanPlugin) })
+        foreach (Type type in new[] { typeof(VichanFamilyPlugin), typeof(KohlchanPlugin) })
         {
             string[] references = type.Assembly.GetReferencedAssemblies().Select(reference => reference.Name!).ToArray();
             Assert.Contains("MeowChan.PluginSdk", references);
@@ -810,7 +811,7 @@ public sealed class ExamplePluginTests
 
     private static ISourcePlugin CreatePlugin(string source) => source switch
     {
-        "lainchan" => new LainchanPlugin(),
+        "lainchan" => new VichanFamilyPlugin(),
         "kohlchan" => new KohlchanPlugin(),
         "sevenchan" => new SevenChanPlugin(),
         "bbwchan" => new BbwChanPlugin(),
@@ -839,7 +840,7 @@ public sealed class ExamplePluginTests
         {
             Plugin = CreatePlugin(source);
             PluginDescription description = Plugin.Describe();
-            Source = description.Sources.Count == 0 ? null! : description.Sources[0];
+            Source = description.Sources.FirstOrDefault(item => item.SourceId == source) ?? (description.Sources.Count == 0 ? null! : description.Sources[0]);
             ThreadRequest = new ThreadReadRequest(new SourceThreadId(description.Sources.Count == 0 ? source : Source.SourceId, board, thread));
             CatalogRequest = new CatalogReadRequest(new SourceBoardId(description.Sources.Count == 0 ? source : Source.SourceId, board));
             Http = new StubHttp(body, status, Validators);

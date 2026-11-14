@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Leftypol;
+using MeowChan.Plugins.Examples.VichanFamily;
 
 namespace MeowChan.ExamplePlugins.Tests;
 
@@ -11,9 +11,9 @@ public sealed class LeftypolPluginTests
     [Fact]
     public void DescriptionIsPassiveSdkOnlyAndDeclaresObservedRoutesAndHostPurposes()
     {
-        PluginDescription description = new LeftypolPlugin().Describe();
-        SourceDescription source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source.leftypol", description.PluginId);
+        PluginDescription description = new VichanFamilyPlugin().Describe();
+        SourceDescription source = Assert.Single(description.Sources, s => s.SourceId == "leftypol");
+        Assert.Equal(VichanFamilyPlugin.PluginId, description.PluginId);
         Assert.Equal("leftypol", source.SourceId);
         Assert.Empty(SdkValidation.ValidateDescriptions([description]));
         Assert.Empty(description.Settings.Fields);
@@ -26,10 +26,10 @@ public sealed class LeftypolPluginTests
         Assert.Equal(RouteIdentifierKind.Decimal, thread.ThreadIdentifierKind);
         Assert.All(source.Routes, r => { Assert.Equal("leftypol.org", r.Host); Assert.True(r.IsCanonical); Assert.False(r.LowercaseBoardId); });
         Assert.Equal(new HttpHostDeclaration("leftypol.org", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
-        string[] references = typeof(LeftypolPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
+        string[] references = typeof(VichanFamilyPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
         Assert.Contains("MeowChan.PluginSdk", references);
         Assert.DoesNotContain(references, name => name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
-        Assert.Single(typeof(LeftypolPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
+        Assert.Single(typeof(VichanFamilyPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
     }
 
     [Fact]
@@ -244,8 +244,8 @@ public sealed class LeftypolPluginTests
     private static string Fixture(string name) => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "leftypol-" + name + ".json"));
     private sealed class Harness
     {
-        internal LeftypolPlugin Plugin { get; } = new();
-        internal SourceDescription Source => Plugin.Describe().Sources[0];
+        internal VichanFamilyPlugin Plugin { get; } = new();
+        internal SourceDescription Source => Plugin.Describe().Sources.Single(s => s.SourceId == "leftypol");
         internal SourceValidators Validators { get; } = new(EntityTag: "\"unaccepted\"");
         internal ThreadReadRequest ThreadRequest { get; } = new(new SourceThreadId("leftypol", "demo", "123"));
         internal CatalogReadRequest CatalogRequest { get; } = new(new SourceBoardId("leftypol", "demo"));

@@ -31,9 +31,9 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 
 | Plugin or sample | What it demonstrates | Scope |
 | --- | --- | --- |
-| [Lainchan.cs](../../plugins/Examples/Lainchan/Lainchan.cs) · [notes and evidence](../../plugins/Examples/Lainchan/README.md) | Thread/catalog parsing, field presence, ordered primary/additional files, validators | Source plugin; no archived-thread detection; see provider notes for evidence and limits |
+| [VichanFamily.cs](../../plugins/Examples/VichanFamily/VichanFamily.cs) · [sites, notes and evidence](../../plugins/Examples/VichanFamily/README.md) | One engine-family plugin for several sites: a site table with per-site hosts, routes and evidence-backed quirks; thread/catalog parsing, field presence, ordered primary/additional files, validators | Source plugin for Lainchan, Leftypol, SushiChan, Uboachan and Wizchan; no archived-thread detection; see the site notes for evidence and limits |
 | [Kohlchan.cs](../../plugins/Examples/Kohlchan/Kohlchan.cs) · [notes and evidence](../../plugins/Examples/Kohlchan/README.md) | LynxChan OP/reply shape, multiple files, original paths, final archived snapshot | Source plugin; catalog coverage remains limited; see provider notes for evidence and limits |
-| [Wizchan.cs](../../plugins/Examples/Wizchan/Wizchan.cs) · [notes and evidence](../../plugins/Examples/Wizchan/README.md) | Independent SDK-only source, thread/catalog metadata and ordered attachments | Source plugin; see provider notes for evidence and limits |
+| [JschanFamily.cs](../../plugins/Examples/JschanFamily/JschanFamily.cs) · [sites, notes and evidence](../../plugins/Examples/JschanFamily/README.md) | Engine family for jschan sites: JSON root opener and replies, provider SHA-256 and size | Source plugin for ZZZchan; see the site notes for evidence and limits |
 | [Endchan.cs](../../plugins/Examples/Endchan/Endchan.cs) · [notes and evidence](../../plugins/Examples/Endchan/README.md) | Independent SDK-only source, LynxChan OP/replies and original-media metadata | Source plugin; see provider notes for evidence and limits |
 | [ImageDimensionsFilter.cs](../../plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs) | Scoped rule schema, domain validation, token-based original-byte reads | Static JPEG/PNG dimensions and aspect ratio; no OCR or general image decoding |
 | [SyntheticPlugin.cs](../../samples/MeowChan.PluginSdk.Consumer/SyntheticPlugin.cs) · [consumer](../../samples/MeowChan.PluginSdk.Consumer/Program.cs) | Small independent SDK consumer, settings and passive information | Synthetic data only; references the SDK package |
@@ -41,15 +41,15 @@ editable `.cs` file; there is no separate documentation copy to keep in sync.
 
 ## Packaged inventory
 
-The current packaging allowlists define **24 plugins**: **19 source-plugin
-entries** and **5 image filters**, with **21 editable example/filter source
+The current packaging allowlists define **20 plugins**: **15 source-plugin
+entries** and **5 image filters**, with **17 editable example/filter source
 files**. The exact split is:
 
 | Delivery group | Plugin bundles | Source-plugin entries | Image filters | Editable `.cs` files |
 | --- | --- | --- | --- | --- |
 | Official | 3 | 3 | 0 | 0 |
-| Examples / filters | 21 | 16 | 5 | 21 |
-| **Total** | **24** | **19** | **5** | **21** |
+| Examples / filters | 17 | 12 | 5 | 17 |
+| **Total** | **20** | **15** | **5** | **17** |
 
 Each bundle has one `.plugin.json` manifest under `plugins/` and one assembly
 under `plugins/assemblies/`. The editable files are copied from
@@ -57,13 +57,15 @@ under `plugins/assemblies/`. The editable files are copied from
 package**. Official implementations are available in the repository for
 [authoring and local builds](../../plugins/Official/README.md#authoring-and-local-builds).
 
-The source-plugin count includes 18 board/thread entries and one booru entry
+The source-plugin count includes 14 board/thread entries and one booru entry
 (Danbooru). Two board/thread entries, **Anon Imageboards** and **Guro.cx**, are
 blocked placeholders: they register no source or URL routes. Thus the inventory
 is not a count of usable or enabled sources. Danbooru uses post search, not the
-board/thread URL workflow. The other example sources are Lainchan, Kohlchan,
-Wizchan, Endchan, Leftypol, 2ch / Двач, Uboachan, ZZZchan, SushiChan, 7chan,
-BBW-Chan, CapybaraChan, 8chan.moe and Fchan. Filters are Image dimensions,
+board/thread URL workflow. Two entries are engine families that each serve
+several sites with their own source IDs: the vichan family (Lainchan, Leftypol,
+SushiChan, Uboachan, Wizchan) and the jschan family (ZZZchan). The other example
+sources are Kohlchan, Endchan, 2ch / Двач, 7chan, BBW-Chan, CapybaraChan,
+8chan.moe and Fchan. Filters are Image dimensions,
 File rules, Hash blocklist, Animation format and PNG metadata; see the
 [local media filter guide](local-media-filters.md).
 

@@ -57,7 +57,7 @@ public sealed class EndchanPluginTests
     {
         PluginDescription description = new EndchanPlugin().Describe();
         Assert.Empty(SdkValidation.ValidateDescriptions([
-            new MeowChan.Plugins.Examples.Lainchan.LainchanPlugin().Describe(),
+            new MeowChan.Plugins.Examples.VichanFamily.VichanFamilyPlugin().Describe(),
             new MeowChan.Plugins.Examples.Kohlchan.KohlchanPlugin().Describe(), description]));
         SourceDescription otherSource = description.Sources[0] with { SourceId = "other" };
         PluginDescription overlapping = description with { PluginId = "fixture.other", Sources = [otherSource] };

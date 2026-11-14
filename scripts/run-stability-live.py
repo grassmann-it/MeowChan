@@ -44,7 +44,7 @@ EXIT_FAIL, EXIT_USAGE, EXIT_INFRA = 1, 2, 3
 SELFTEST_MANIFEST = {
     'schemaVersion': 1,
     'sources': [
-        {'pluginId': 'meowchan.source.lainchan', 'sourceId': 'lainchan', 'approval': '2026-11-11, chat',
+        {'pluginId': 'meowchan.source.vichan', 'sourceId': 'lainchan', 'approval': '2026-11-11, chat',
          'boards': [{'board': 'demo'}, {'board': 'demo2'}, {'board': 'demo3'}]},
         {'pluginId': 'meowchan.source.kohlchan', 'sourceId': 'kohlchan', 'approval': '2026-11-11, chat',
          'boards': [{'board': 'demo'}, {'board': 'demo2'}, {'board': 'demo3'}]},
@@ -366,7 +366,7 @@ def main(argv=None) -> int:
         if args.selftest:
             args.artifacts_dir.mkdir(parents=True, exist_ok=True)
             selftest_repo = Path(tempfile.mkdtemp(prefix='stability-selftest-', dir=args.artifacts_dir))
-            for name in ('Lainchan', 'Kohlchan'):
+            for name in ('VichanFamily/Sites/Lainchan', 'Kohlchan'):
                 (selftest_repo / 'plugins' / 'Examples' / name).mkdir(parents=True)
             args.evidence_repo = selftest_repo
             manifest_path = run_dir / 'selftest-manifest.json'

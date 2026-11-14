@@ -8,8 +8,8 @@ are required for the corresponding plugin operations. See
 ## First session
 
 1. Open **Plugins** from the app menu or footer (under **More** in compact views).
-   The supplied inventory contains **24 plugins**: **19 source-plugin entries**
-   and **5 image filters**, with **21 editable example/filter source files**.
+   The supplied inventory contains **20 plugins**: **15 source-plugin entries**
+   and **5 image filters**, with **17 editable example/filter source files**.
    This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
    21 example/filter plugins. Only example/filter `.cs` files are delivered under
    `plugins/sources/`; official source code is available in the repository, not

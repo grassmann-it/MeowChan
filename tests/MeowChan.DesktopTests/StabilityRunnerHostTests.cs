@@ -13,9 +13,12 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
     private const string Contract = "docs/plugins/source-stability.md@0123456789abcdef0123456789abcdef01234567";
 
     private static StabilityChanApproval Chan(string sourceId, string[]? boards = null, int fromList = 0, string? listUrl = null,
-        StabilityRedirect[]? redirects = null, string? assembly = null) => new("meowchan.source." + sourceId, sourceId, "2026-11-11, chat",
+        StabilityRedirect[]? redirects = null, string? assembly = null) => new(PluginOf(sourceId), sourceId, "2026-11-11, chat",
         (boards ?? StabilityStubSite.Boards).Select(board => new StabilityBoardRequest(board, null)).ToArray(), fromList, listUrl,
         redirects ?? [], assembly);
+
+    // Lainchan is a site of the vichan family plugin; its source ID is unchanged.
+    private static string PluginOf(string sourceId) => sourceId == "lainchan" ? "meowchan.source.vichan" : "meowchan.source." + sourceId;
 
     private sealed class Run : IDisposable
     {
@@ -287,7 +290,7 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
     public async Task AUserChosenThreadIsUsedAndOneFromAnotherBoardIsRefusedWithoutThreadRequest()
     {
         using Run run = new();
-        StabilityChanApproval chosen = new("meowchan.source.lainchan", "lainchan", "2026-11-11, chat",
+        StabilityChanApproval chosen = new("meowchan.source.vichan", "lainchan", "2026-11-11, chat",
             [new("demo", "https://lainchan.org/demo/res/123.html")], 0, null, [], null);
         StabilityChanRun online = await Online(run, chosen, boards: 1);
         Assert.Empty(online.Failures);
@@ -335,7 +338,7 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         using Run run = new();
         string text = """
             {"schemaVersion":1,"sources":[
-            {"pluginId":"meowchan.source.lainchan","sourceId":"lainchan","approval":"2026-11-11, chat","boards":[{"board":"demo"}]},
+            {"pluginId":"meowchan.source.vichan","sourceId":"lainchan","approval":"2026-11-11, chat","boards":[{"board":"demo"}]},
             {"pluginId":"meowchan.source.kohlchan","sourceId":"kohlchan","approval":"2026-11-11, chat","boards":[{"board":"demo"}]}]}
             """;
         StabilityRunManifest manifest = StabilityRunManifest.Parse(Encoding.UTF8.GetBytes(text));
@@ -454,13 +457,13 @@ public sealed class StabilityRunnerHostTests(ITestOutputHelper output)
         Assert.Empty(StabilityEvidence.ValidateShape(document.RootElement));
         JsonElement root = document.RootElement;
         Assert.Equal(Contract, root.GetProperty("contract").GetString());
-        Assert.Equal("meowchan.source.lainchan", root.GetProperty("pluginId").GetString());
+        Assert.Equal("meowchan.source.vichan", root.GetProperty("pluginId").GetString());
         Assert.Equal("2026-11-11, chat", root.GetProperty("approvedByUser").GetString());
         Assert.False(root.GetProperty("integrityExceptionUsed").GetBoolean());
         Assert.Equal("pass", root.GetProperty("outcome").GetString());
         Assert.Matches("^[0-9a-f]{64}$", root.GetProperty("assemblySha256").GetString());
         Assert.Matches("^[0-9a-f]{64}$", root.GetProperty("descriptionSha256").GetString());
-        Assert.StartsWith("MeowChan.Plugin.Lainchan.plugin.json sha256:", root.GetProperty("package").GetString());
+        Assert.StartsWith("MeowChan.Plugin.VichanFamily.plugin.json sha256:", root.GetProperty("package").GetString());
         JsonElement board = root.GetProperty("boards")[0];
         Assert.Equal(3, board.GetProperty("requests").GetArrayLength());
         JsonElement original = board.GetProperty("original");
