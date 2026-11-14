@@ -59,8 +59,6 @@ internal static class DesignLintScanner
     /// <summary>Documented exceptions from section 1 of the spec. Keep this list short; everything else is baseline debt.</summary>
     public static readonly DesignException[] Exceptions =
     {
-        new(DesignRules.FontSizeOffScale, "Desktop/Views/About/AboutWindow.axaml", "FontSize=\"26\"",
-            "Brand logo text of the About window (spec 1.1: only size outside the scale besides gallery overlay glyphs)."),
         // Media overlays lie on arbitrary image content and stay theme-independent (palette review 2026-11-13, items 4, 5, 6, 8).
         new(DesignRules.ColorCode, "Desktop/ArchiveAttachmentView.cs", "Color.FromArgb", "Video play badge on arbitrary media (palette item 4)."),
         new(DesignRules.ColorCode, "Desktop/ArchiveAttachmentView.cs", "Brushes.White", "Play triangle of the video badge (palette item 4)."),
