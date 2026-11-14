@@ -51,7 +51,7 @@ internal static class ContextMenusHeaderChecks
         await Program.WaitUntilAsync(() => host.OpenMenu == null && speed.IsFocused, () => $"menu open {host.OpenMenu != null}, focus on the display {speed.IsFocused}");
 
         // A context request (the right-click without a pointer position) shows the new state, and Escape closes it.
-        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await RequestContextAsync(speed);
         await WaitOpenAsync(host);
         RequireMenu(host, "Disk");
         Program.CaptureWindow(window, "smoke-context-menu-header-disk.png");
@@ -59,7 +59,7 @@ internal static class ContextMenusHeaderChecks
         await Program.WaitUntilAsync(() => host.OpenMenu == null, () => "Escape did not close the header menu");
 
         // Settings: the row shows the same value, and the entry opens the page at that row.
-        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await RequestContextAsync(speed);
         await WaitOpenAsync(host);
         Invoke(host, "navigation.settings");
         await Program.WaitUntilAsync(() => window.SettingsPageVisible, () => "the settings page did not open");
@@ -78,7 +78,7 @@ internal static class ContextMenusHeaderChecks
         await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto" && settings.SelectedStatsHeaderGraph?.Value == "Auto",
             () => $"file {Config.LoadConfig().StatsHeaderGraph}, settings row {settings.SelectedStatsHeaderGraph?.Value}");
         await Program.WaitUntilAsync(() => host.OpenMenu == null, () => "the menu stayed open");
-        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await RequestContextAsync(speed);
         await WaitOpenAsync(host);
         Invoke(host, "navigation.status");
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Status, () => "page " + window.SelectedPage);
@@ -93,11 +93,11 @@ internal static class ContextMenusHeaderChecks
         Button speed = window.FindControl<Button>("TransferSpeed")!;
         ContextMenuHost host = window.HeaderIoMenuHost!;
         // From the settings page (no statistics page open), so only the header could claim samples.
-        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await RequestContextAsync(speed);
         await WaitOpenAsync(host);
         Invoke(host, "navigation.settings");
         await Program.WaitUntilAsync(() => window.SettingsPageVisible, () => "the settings page did not open");
-        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await RequestContextAsync(speed);
         await WaitOpenAsync(host);
         Choose(host, "Off");
         await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Off" && !speed.IsVisible && window.IoStatsClaim == IoStatsVisibility.None,
@@ -105,12 +105,20 @@ internal static class ContextMenusHeaderChecks
         window.ShowStatistics();
         await Program.WaitUntilAsync(() => window.IoStatsClaim == IoStatsVisibility.Window, () => "the open statistics page does not claim samples: " + window.IoStatsClaim);
         Program.CaptureWindow(window, "smoke-context-menu-header-off.png");
-        CheckBox box = ((StatisticsPage)window.FindControl<ContentControl>("StatisticsPageHost")!.Content!).HeaderMonitorBox;
+        CheckBox box = ((StatisticsPage)window.StatisticsPageHost.Content!).HeaderMonitorBox;
         Require(box.IsChecked == false, "The statistics page's header checkbox is not cleared while the display is off.");
         box.IsChecked = true;
         box.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto" && speed.IsVisible,
             () => $"file {Config.LoadConfig().StatsHeaderGraph}, display visible {speed.IsVisible}");
+    }
+
+    // A positionless ContextRequested right after a Menu-key opening is the pair Avalonia sends with the key and is consumed
+    // (ContextMenuHost.PairedRequestWindow, 400 ms). This is the separate, deliberate request, so it waits that window out.
+    private static async Task RequestContextAsync(Control origin)
+    {
+        await Task.Delay(450);
+        origin.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
     }
 
     private static async Task WaitOpenAsync(ContextMenuHost host) =>
