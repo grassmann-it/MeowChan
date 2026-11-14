@@ -977,6 +977,14 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding QuickTagMarkedMediaLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagStampSizeFieldLabel" Text="{Binding QuickTagStampSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagStampSizeInput" Value="{Binding QuickTagStampSize, Mode=TwoWay}" Minimum="1" Maximum="18" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagStampSizeFieldLabel}" AutomationProperties.Name="{Binding QuickTagStampSizeLabel}" AutomationProperties.HelpText="{Binding QuickTagStampSizeHelp}" />
+                                <TextBlock x:Name="QuickTagStampSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagStampSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="workspace-help" TextWrapping="Wrap" />

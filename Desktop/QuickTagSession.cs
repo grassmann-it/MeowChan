@@ -76,7 +76,7 @@ internal sealed record QuickTagOptions
     internal const int DefaultMarkedMediaLimit = 500, MinimumMarkedMediaLimit = 10, MaximumMarkedMediaLimit = 5000;
     /// <summary>Suggestions 1–9 get a number and the Alt/⌘ shortcut; more chips are shown without one.</summary>
     internal const int NumberedSuggestions = 9;
-    /// <summary>The stamp size (PT5, setting <c>TagStampSize</c> with PT7): the most tags the stamp set holds.</summary>
+    /// <summary>The stamp size (PT5, setting <c>QuickTagStampSize</c>): the most tags the stamp set holds.</summary>
     internal const int DefaultStampSize = 9, MinimumStampSize = 1, MaximumStampSize = 18;
     internal static readonly QuickTagOptions Default = new();
 

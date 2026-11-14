@@ -3825,6 +3825,8 @@
     "budgets.quickTagSourceTagsHint": "Danbooruなどのソースがメディアに付けたタグのうち、新しい独自タグの候補として表示する数です。0にすると無効になります。既定値: {0}、許容範囲: {1}～{2}。",
     "budgets.quickTagMarked": "タグ付け用にマークするメディア数",
     "budgets.quickTagMarkedHint": "ギャラリーでマークし、1回の操作でタグ付けできるメディアの数です。タグファイルの割り当て数には、別途固定の上限があります。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagStamp": "スタンプのタグ数",
+    "budgets.quickTagStampHint": "スタンプに入れておける自分のタグの数です。スタンプを適用すると、表示中のメディアにすべてのタグがまとめて付きます。値を小さくするとスタンプの末尾のタグが外れますが、タグ自体は残ります。既定値: {0}、許容範囲: {1}～{2}。",
     "tags.quick.gallery.position": "メディア {0} / {1}",
     "tags.quick.gallery.positionMore": "メディア {0} / {1} 以上",
     "tags.quick.marked": "マーク済み：{0}",

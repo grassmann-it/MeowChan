@@ -497,6 +497,11 @@ namespace MeowChan
         /// <summary>Media files the gallery can mark for one tag change; the write itself stays under the fixed assignment limit of the tag store.</summary>
         public int QuickTagMarkedMediaLimit { get; set; } = QuickTagMarkedMediaLimitDefault;
         internal const int QuickTagMarkedMediaLimitDefault = 500, QuickTagMarkedMediaLimitMinimum = 10, QuickTagMarkedMediaLimitMaximum = 5000;
+        /// <summary>Own tags the tag stamp (PT5) holds; lowering it drops the last stamp tags, the tags themselves stay.</summary>
+        public int QuickTagStampSize { get; set; } = QuickTagStampSizeDefault;
+        internal const int QuickTagStampSizeDefault = Desktop.QuickTagOptions.DefaultStampSize;
+        internal const int QuickTagStampSizeMinimum = Desktop.QuickTagOptions.MinimumStampSize;
+        internal const int QuickTagStampSizeMaximum = Desktop.QuickTagOptions.MaximumStampSize;
         private string _readerDateStyle = "System", _readerSpoilers = "Hide";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string ReaderDateStyle
@@ -656,6 +661,7 @@ namespace MeowChan
             QuickTagFilenameTokens = Math.Clamp(QuickTagFilenameTokens, QuickTagFilenameTokensMinimum, QuickTagFilenameTokensMaximum);
             QuickTagSourceTagsPerMedium = Math.Clamp(QuickTagSourceTagsPerMedium, QuickTagSourceTagsPerMediumMinimum, QuickTagSourceTagsPerMediumMaximum);
             QuickTagMarkedMediaLimit = Math.Clamp(QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitMinimum, QuickTagMarkedMediaLimitMaximum);
+            QuickTagStampSize = Math.Clamp(QuickTagStampSize, QuickTagStampSizeMinimum, QuickTagStampSizeMaximum);
             VideoScrubCacheLimitMiB = Math.Clamp(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBMinimum, VideoScrubCacheLimitMiBMaximum);
             ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
@@ -1238,6 +1244,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(QuickTagSourceTagsPerMedium), "QuickTagSourceTagsPerMedium is outside its supported range (" + QuickTagSourceTagsPerMediumMinimum + " to " + QuickTagSourceTagsPerMediumMaximum + ").");
             if (QuickTagMarkedMediaLimit is < QuickTagMarkedMediaLimitMinimum or > QuickTagMarkedMediaLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(QuickTagMarkedMediaLimit), "QuickTagMarkedMediaLimit is outside its supported range (" + QuickTagMarkedMediaLimitMinimum + " to " + QuickTagMarkedMediaLimitMaximum + ").");
+            if (QuickTagStampSize is < QuickTagStampSizeMinimum or > QuickTagStampSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagStampSize), "QuickTagStampSize is outside its supported range (" + QuickTagStampSizeMinimum + " to " + QuickTagStampSizeMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -1404,6 +1412,7 @@ namespace MeowChan
                 QuickTagFilenameTokens = QuickTagFilenameTokens,
                 QuickTagSourceTagsPerMedium = QuickTagSourceTagsPerMedium,
                 QuickTagMarkedMediaLimit = QuickTagMarkedMediaLimit,
+                QuickTagStampSize = QuickTagStampSize,
                 ReaderDateStyle = ReaderDateStyle,
                 ReaderSpoilers = ReaderSpoilers,
                 MediaSort = MediaSort,
@@ -1601,6 +1610,7 @@ namespace MeowChan
             QuickTagFilenameTokens = source.QuickTagFilenameTokens;
             QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium;
             QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit;
+            QuickTagStampSize = source.QuickTagStampSize;
             ReaderDateStyle = source.ReaderDateStyle;
             ReaderSpoilers = source.ReaderSpoilers;
             MediaSort = source.MediaSort;
@@ -1757,6 +1767,7 @@ namespace MeowChan
             QuickTagFilenameTokens = source.QuickTagFilenameTokens;
             QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium;
             QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit;
+            QuickTagStampSize = source.QuickTagStampSize;
             ReaderDateStyle = source.ReaderDateStyle;
             ReaderSpoilers = source.ReaderSpoilers;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;

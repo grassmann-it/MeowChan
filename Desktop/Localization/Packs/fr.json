@@ -3865,6 +3865,8 @@
     "budgets.quickTagSourceTagsHint": "Le nombre d’étiquettes qu’une source telle que Danbooru fournit pour un média et qui sont proposées comme nouvelles étiquettes personnelles. 0 les désactive. Par défaut : {0}, autorisé : de {1} à {2}.",
     "budgets.quickTagMarked": "Médias marqués pour l’étiquetage",
     "budgets.quickTagMarkedHint": "Le nombre de médias qui peuvent être marqués dans la galerie et étiquetés en une seule étape. Le fichier d’étiquettes conserve sa propre limite fixe d’attributions. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagStamp": "Étiquettes du tampon",
+    "budgets.quickTagStampHint": "Le nombre d’étiquettes personnelles que contient le tampon ; appliquer le tampon les attribue toutes en une fois au média affiché. Une valeur plus faible retire les dernières étiquettes du tampon, les étiquettes elles-mêmes restent. Par défaut : {0}, autorisé : de {1} à {2}.",
     "tags.quick.gallery.position": "Média {0} sur {1}",
     "tags.quick.gallery.positionMore": "Média {0} sur au moins {1}",
     "tags.quick.marked": "Marqués : {0}",

@@ -165,6 +165,7 @@ public static class SettingsTransfer
             QuickTagFilenameTokens = source.QuickTagFilenameTokens,
             QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium,
             QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit,
+            QuickTagStampSize = source.QuickTagStampSize,
             ReaderDateStyle = source.ReaderDateStyle,
             ReaderSpoilers = source.ReaderSpoilers,
             MediaSort = source.MediaSort,

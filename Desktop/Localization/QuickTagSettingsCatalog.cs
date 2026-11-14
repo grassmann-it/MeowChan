@@ -18,6 +18,7 @@ internal static class QuickTagSettingsCatalog
         (nameof(Config.QuickTagFilenameTokens), "quickTagFilename"),
         (nameof(Config.QuickTagSourceTagsPerMedium), "quickTagSourceTags"),
         (nameof(Config.QuickTagMarkedMediaLimit), "quickTagMarked"),
+        (nameof(Config.QuickTagStampSize), "quickTagStamp"),
     };
 
     internal static readonly (string Key, string English, string German)[] Entries =
@@ -51,5 +52,9 @@ internal static class QuickTagSettingsCatalog
         ("budgets.quickTagMarkedHint",
             "How many media can be marked in the gallery and tagged in one step. The tag file keeps its own fixed limit for assignments. Default: {0}, allowed: {1} to {2}.",
             "Wie viele Medien in der Galerie markiert und in einem Schritt getaggt werden können. Die Tag-Datei behält ihre eigene feste Grenze für Zuweisungen. Standard: {0}, erlaubt: {1} bis {2}."),
+        ("budgets.quickTagStamp", "Tags in the tag stamp", "Tags im Tag-Stempel"),
+        ("budgets.quickTagStampHint",
+            "How many own tags the tag stamp holds; applying the stamp gives them all to the shown medium at once. A lower value drops the last stamp tags, the tags themselves stay. Default: {0}, allowed: {1} to {2}.",
+            "Wie viele eigene Tags der Tag-Stempel enthält; der Stempel gibt sie alle auf einmal dem angezeigten Medium. Ein kleinerer Wert entfernt die letzten Stempel-Tags, die Tags selbst bleiben. Standard: {0}, erlaubt: {1} bis {2}."),
     };
 }

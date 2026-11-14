@@ -34,7 +34,7 @@ public partial class MainWindow
         get
         {
             if (_quickTagStamp != null) return _quickTagStamp;
-            _quickTagStamp = QuickTagOptions.Default.CreateStamp(_config.TagStamp);
+            _quickTagStamp = QuickTagSettings.SurfaceOptions(_config).CreateStamp(_config.TagStamp);
             _quickTagStamp.Changed += OnQuickTagStampChanged;
             return _quickTagStamp;
         }
