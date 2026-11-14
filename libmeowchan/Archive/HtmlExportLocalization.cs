@@ -74,7 +74,7 @@ internal enum HtmlExportText
 }
 
 /// <summary>Small, dependency-free localization surface for generated HTML framing text.</summary>
-internal sealed class HtmlExportLocalization
+internal sealed partial class HtmlExportLocalization
 {
     private static readonly IReadOnlyDictionary<HtmlExportText, string> English = new Dictionary<HtmlExportText, string>
     {
@@ -431,7 +431,7 @@ internal sealed class HtmlExportLocalization
         string code = NormalizeLanguage(language);
         Language = code;
         if (Translations.TryGetValue(code, out IReadOnlyDictionary<HtmlExportText, string>? translated)
-            || HtmlExportAdditionalTranslations.All.TryGetValue(code, out translated))
+            || AdditionalTranslations.TryGetValue(code, out translated))
             _strings = translated;
         else
             _strings = English;
@@ -468,17 +468,23 @@ internal sealed class HtmlExportLocalization
 
     private static string NormalizeLanguage(string? language)
     {
-        if (string.IsNullOrWhiteSpace(language) || language.Length > 35) return "en";
+        if (string.IsNullOrWhiteSpace(language)) return "en";
+
         string tag = language.Trim();
+        if (tag.Length == 0 || tag.Length > 35) return "en";
         foreach (char character in tag)
             if (!char.IsAsciiLetterOrDigit(character) && character is not ('-' or '_')) return "en";
+
         string normalized = tag.Replace('_', '-');
-        string code = normalized.Split('-', 2)[0].ToLowerInvariant();
+        string[] segments = normalized.Split('-');
+        if (segments.Length is < 1 or > 2 || Array.Exists(segments, static segment => segment.Length == 0)) return "en";
+
+        string code = segments[0].ToLowerInvariant();
         if (code is "de" or "es" or "fr" or "ru" or "cs" or "it" or "ja" or "ko" or "pl")
             return code;
-        if (code == "pt" && string.Equals(normalized, "pt-BR", StringComparison.OrdinalIgnoreCase))
+        if (code == "pt" && segments.Length == 2 && string.Equals(segments[1], "BR", StringComparison.OrdinalIgnoreCase))
             return "pt-BR";
-        if (code == "zh" && string.Equals(normalized, "zh-Hans", StringComparison.OrdinalIgnoreCase))
+        if (code == "zh" && segments.Length == 2 && string.Equals(segments[1], "Hans", StringComparison.OrdinalIgnoreCase))
             return "zh-Hans";
         return "en";
     }

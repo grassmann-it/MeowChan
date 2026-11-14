@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using MeowChan.Archive;
 
@@ -32,14 +33,50 @@ public sealed class HtmlExportLocalizationTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("fr-\"><script>alert(1)</script>")]
+    [InlineData("fr-")]
+    [InlineData("fr--CA")]
     [InlineData("pt-PT")]
+    [InlineData("pt-BR-extra")]
     [InlineData("zh-Hant")]
+    [InlineData("zh-Hans-extra")]
     public void UnknownLanguageFallsBackToSafeEnglishFrame(string? language)
     {
         HtmlExportLocalization localization = new(language);
 
         Assert.Equal("en", localization.Language);
         Assert.Equal("Export result", localization.Html(HtmlExportText.ExportResult));
+    }
+
+    [Theory]
+    [InlineData(" CS_cz ", "cs")]
+    [InlineData("IT-it", "it")]
+    [InlineData("ja_JP", "ja")]
+    [InlineData("KO-kr", "ko")]
+    [InlineData("pl-PL", "pl")]
+    [InlineData("PT_br", "pt-BR")]
+    [InlineData("zh_hans", "zh-Hans")]
+    public void SupportedLanguageTagsAreNormalizedToExportCodes(string language, string expectedCode)
+    {
+        HtmlExportLocalization localization = new(language);
+
+        Assert.Equal(expectedCode, localization.Language);
+        Assert.NotEqual("Export result", localization.Get(HtmlExportText.ExportResult));
+    }
+
+    [Fact]
+    public void AdditionalTranslationsCoverEveryFrameKeyExactlyOnce()
+    {
+        HtmlExportText[] keys = Enum.GetValues<HtmlExportText>();
+        string[] languages = ["cs", "it", "ja", "ko", "pl", "pt-BR", "zh-Hans"];
+
+        foreach (string language in languages)
+        {
+            Assert.True(HtmlExportLocalization.AdditionalTranslations.TryGetValue(language, out IReadOnlyDictionary<HtmlExportText, string>? translation));
+            Assert.NotNull(translation);
+            Assert.Equal(keys.Length, translation!.Count);
+            foreach (HtmlExportText key in keys)
+                Assert.True(translation.ContainsKey(key), $"{language} is missing {key}");
+        }
     }
 
     [Fact]
@@ -77,6 +114,23 @@ public sealed class HtmlExportLocalizationTests
             Assert.Equal(Placeholders(original), Placeholders(value));
             Assert.Equal(WebUtility.HtmlEncode(string.Format(System.Globalization.CultureInfo.InvariantCulture, value, values)),
                 translated.Html(key, values));
+        }
+    }
+
+    [Fact]
+    public void FrameFormattingUsesInvariantCulture()
+    {
+        CultureInfo original = CultureInfo.CurrentCulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("de-DE");
+            HtmlExportLocalization localization = new("it");
+
+            Assert.Equal(WebUtility.HtmlEncode("Dimensione: 1.5 byte"), localization.Html(HtmlExportText.Size, 1.5));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = original;
         }
     }
 

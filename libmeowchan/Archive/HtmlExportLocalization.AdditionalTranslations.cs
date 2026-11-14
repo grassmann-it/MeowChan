@@ -3,10 +3,10 @@ using System.Collections.Generic;
 
 namespace MeowChan.Archive;
 
-/// <summary>Additional HTML-export frame translations kept separate from the original shipped languages.</summary>
-internal static class HtmlExportAdditionalTranslations
+/// <summary>Additional HTML-export frame translations for the built-in desktop language codes.</summary>
+internal sealed partial class HtmlExportLocalization
 {
-    internal static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<HtmlExportText, string>> All =
+    internal static readonly IReadOnlyDictionary<string, IReadOnlyDictionary<HtmlExportText, string>> AdditionalTranslations =
         new Dictionary<string, IReadOnlyDictionary<HtmlExportText, string>>(StringComparer.OrdinalIgnoreCase)
         {
             ["cs"] = new Dictionary<HtmlExportText, string>

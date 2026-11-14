@@ -86,6 +86,13 @@ public sealed class HtmlExportLocalizationRenderingTests
     [InlineData("es", "Colección de MeowChan", "Página inicial de la colección")]
     [InlineData("fr", "Collection MeowChan", "Page d’accueil de la collection")]
     [InlineData("ru", "Коллекция MeowChan", "Начальная страница коллекции")]
+    [InlineData("cs", "Kolekce MeowChan", "Úvodní stránka kolekce")]
+    [InlineData("it", "Raccolta MeowChan", "Pagina iniziale della raccolta")]
+    [InlineData("ja", "MeowChan コレクション", "コレクションの開始ページ")]
+    [InlineData("ko", "MeowChan 컬렉션", "컬렉션 시작 페이지")]
+    [InlineData("pl", "Kolekcja MeowChan", "Strona początkowa kolekcji")]
+    [InlineData("pt-BR", "Coleção MeowChan", "Página inicial da coleção")]
+    [InlineData("zh-Hans", "MeowChan 集合", "集合起始页")]
     public async Task CollectionIndexAndMemberPagesShareLanguageAndKeepOfflineLinks(string language, string title, string navigation)
     {
         using TempDirectory directory = new();
