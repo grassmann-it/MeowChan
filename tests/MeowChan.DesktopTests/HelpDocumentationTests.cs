@@ -818,6 +818,38 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
+    public void DocumentedHeaderChoicesCoverTheCurrentSettingsListInBothLanguages()
+    {
+        // Documentation/source contract only: no SettingsEditor or sampler is constructed here.
+        string choices = Read("Desktop/Views/Settings/SettingsEditor.StatsHeaderGraph.cs");
+        string[] keys = Regex.Matches(choices, "Texts\\.T\\(\"(?<key>stats\\.headerGraph\\.(?:auto|network|disk|networkAndDisk|sideBySide|text|off))\"\\)")
+            .Select(match => match.Groups["key"].Value).Distinct(StringComparer.Ordinal).ToArray();
+        Assert.NotEmpty(keys);
+        foreach (string suffix in new[] { "auto", "network", "disk", "networkAndDisk", "sideBySide", "text" })
+            Assert.Contains("stats.headerGraph." + suffix, keys);
+        string documented = Plain(Section(Read(Help), "Statistics and disk traffic"));
+        foreach (string key in keys)
+        {
+            var label = Assert.Single(IoStatsPageTexts.Entries, entry => entry.Key == key);
+            Assert.Contains(Plain(label.English), documented, StringComparison.Ordinal);
+            Assert.Contains(Plain(label.German), documented, StringComparison.Ordinal);
+        }
+        Assert.Contains("does not turn off statistics collection", documented, StringComparison.Ordinal);
+        Assert.Contains("schaltet die Statistikmessung nicht aus", documented, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GermanBooruGuideKeepsManualChecksAvailableDuringGlobalPause()
+    {
+        string guide = Plain(Read("docs/user-guide/danbooru.md"));
+        Assert.Contains("Sitzungspause verhindert neue automatische Prüfungen", guide, StringComparison.Ordinal);
+        Assert.Contains("Jetzt prüfen führt auch während der globalen Pause eine manuelle Prüfung aus", guide, StringComparison.Ordinal);
+        Assert.Contains("ohne die Sitzung fortzusetzen oder einen Provider-Cooldown zu umgehen", guide, StringComparison.Ordinal);
+        Assert.Contains("individuelle Pausen und Cooldowns bleiben erhalten", guide, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sitzungspause verhindert ebenfalls neue Prüfungen", guide, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StatisticsCatalogAndHeaderValuesNameTheMeasurementLimits()
     {
         // The catalogs are read as data (no language state), and the visible Help wording is pinned alongside the display seams.
