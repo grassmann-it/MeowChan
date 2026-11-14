@@ -402,6 +402,7 @@ internal static class WorkViewCaptures
     // No orphaned rows: every control-backed row of the policy is registered by a control of this window.
     private static void CheckRegistrations(MainWindow window)
     {
+        _ = window.RulesPage; // builds every deferred page (Rules, Sources, Plugins), so their ids are registered before the check
         Control[] mine = WorkViewElement.All().Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window)
             || control.FindLogicalAncestorOfType<MainWindow>() == window).ToArray();
         HashSet<string> registered = mine.Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
@@ -457,6 +458,7 @@ internal static class WorkViewCaptures
             ActionToolBar readerBar = window.ArchivePage.FindControl<ActionToolBar>("ReaderToolbar")!;
             ReaderWorkViewChecks.RequireOverflowFollowsPolicy(window.ArchivePage, readerBar, () => $"reader/{view} at {window.ClientSize}");
         }
+        CheckPagePresence(window, page, view, workView);
         foreach (ActionToolBar toolbar in window.GetVisualDescendants().OfType<ActionToolBar>().Where(toolbar => toolbar.IsEffectivelyVisible))
         {
             string? fallback = toolbar.Name == "ArchiveResultActions" ? "archive.results.other" : null;
@@ -492,6 +494,34 @@ internal static class WorkViewCaptures
             if (!export.IsVisible || toolbar.OverflowHost?.Children.Contains(export) == true || !export.IsEffectivelyVisible)
                 throw new InvalidOperationException($"reader/Advanced/{width:0}: Export as HTML… moved under More: " + Describe());
             ReaderWorkViewChecks.RequireOverflowFollowsPolicy(archive, toolbar, Describe);
+        }
+    }
+
+    // Rules, Sources and Plugins (WV6): Save/Discard and Refresh stay on the surface in every view, and the page's own More (⋯)
+    // button is shown exactly when the view moved something under it (the plugin header actions here).
+    private static void CheckPagePresence(MainWindow window, string page, string viewName, WorkView view)
+    {
+        static Control Find(MainWindow window, WorkViewPage workViewPage, string id) =>
+            WorkViewElement.For(workViewPage).First(control => WorkViewElement.GetId(control) == id
+                && control.FindLogicalAncestorOfType<MainWindow>() == window);
+        switch (page)
+        {
+            case "rules":
+                foreach (string id in new[] { "rules.footer.save", "rules.footer.discard" })
+                    if (!Find(window, WorkViewPage.Rules, id).IsEffectivelyVisible)
+                        throw new InvalidOperationException($"rules/{viewName}: {id} is a required element but is not shown.");
+                break;
+            case "plugins":
+                if (!Find(window, WorkViewPage.Plugins, "plugins.header.refresh").IsEffectivelyVisible)
+                    throw new InvalidOperationException($"plugins/{viewName}: Refresh is not shown.");
+                Control more = Find(window, WorkViewPage.Plugins, "plugins.header.add").FindLogicalAncestorOfType<PluginsPage>()!
+                    .FindControl<Button>("PluginsMoreButton")!;
+                bool moved = new[] { "plugins.header.add", "plugins.header.folder" }
+                    .Any(id => WorkViewPolicy.Resolve(id, view) == Presence.Overflow
+                        && WorkViewElement.GetStateVisible(Find(window, WorkViewPage.Plugins, id)));
+                if (more.IsVisible != moved)
+                    throw new InvalidOperationException($"plugins/{viewName}: the More button is {(more.IsVisible ? "shown" : "hidden")} but the view {(moved ? "moved" : "moved no")} header action(s) under it.");
+                break;
         }
     }
 

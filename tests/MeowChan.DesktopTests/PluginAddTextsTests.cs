@@ -60,7 +60,7 @@ public sealed class PluginAddTextsTests : IDisposable
     public void ThePageOffersTheAddActionAndTheStepsWithoutAnActivationPathOfTheirOwn()
     {
         string xaml = Read("PluginsPage.axaml");
-        Assert.Contains("x:Name=\"PluginsAdd\" Click=\"OnAddClick\"", xaml);
+        Assert.Matches("<Button x:Name=\"PluginsAdd\"[^>]* Click=\"OnAddClick\"", xaml); // the work view may place it under More
         Assert.Contains("x:Name=\"PluginStepChips\"", xaml);
         Assert.Contains("x:Name=\"PluginLifecycleNext\"", xaml);
         // The steps only display: no profile call, no command execution, no navigation.
