@@ -3493,6 +3493,16 @@
     "rules.thisThread": "Regole di questo thread…",
     "media.rulesThreadUnavailable": "Questo media non appartiene a un thread scaricato, quindi non ci sono regole del thread da modificare.",
     "archive.referencesCount": "Riferimenti ({0})",
-    "archive.referencesHelp": "Risposte acquisite che citano il post selezionato. Scegline una per saltarci."
+    "archive.referencesHelp": "Risposte acquisite che citano il post selezionato. Scegline una per saltarci.",
+    "tags.filter.add": "Aggiungi tag…",
+    "tags.filter.add.search": "Cerca tra i tuoi tag",
+    "tags.filter.add.mode": "Aggiungi come",
+    "tags.filter.add.hint": "Invio aggiunge il tag. Maiusc+Invio o un «-» iniziale lo esclude.",
+    "tags.filter.add.noMatch": "Nessun tag personale corrisponde a «{0}»",
+    "tags.filter.add.allUsed": "Tutti i tag personali sono già nel filtro",
+    "tags.filter.toExclude": "Passa a escludi: {0}",
+    "tags.filter.toInclude": "Passa a includi: {0}",
+    "archive.filters.countName": "Filtri e ordinamento, {0} attivi",
+    "archive.filters.countName.one": "Filtri e ordinamento, {0} attivo"
   }
 }

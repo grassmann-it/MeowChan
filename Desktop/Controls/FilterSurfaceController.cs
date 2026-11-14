@@ -11,8 +11,10 @@ using MeowChan.Desktop.Motion;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The behaviour that the archive and the media filter surfaces share (UX103 P2/P8): an <see cref="Expander"/> that only keeps
-/// the toggle, and a <c>workspace-overlay</c> border that opens over the page and fades in through <see cref="OverlayReveal"/>.
+/// The behaviour that the archive and the media filter surfaces share (UX103 P2/P8, S1/S2): a <see cref="ToggleButton"/> (the
+/// <see cref="FilterToggleButton"/>; checked = open) and a border with the filter fields. The archive surface is still a
+/// <c>workspace-overlay</c> that opens over the page and fades in through <see cref="OverlayReveal"/> (<c>overlay</c>); the media
+/// surface is an inline section that pushes the tiles down and has no reveal (S1).
 /// Escape closes the surface and returns focus to the toggle; hiding it never strands focus on an invisible field; only a
 /// deliberate open from the toggle moves focus into the first field. What differs per page stays with the page: who drives the
 /// surface's visibility (<c>drivesVisibility</c>: the media page sets it here, the archive page binds it in XAML) and what
@@ -21,29 +23,29 @@ namespace MeowChan.Desktop.Controls;
 internal sealed class FilterSurfaceController
 {
     private readonly Visual _host;
-    private readonly Expander _expander;
+    private readonly ToggleButton _toggle;
     private readonly Border _surface;
     private readonly Func<bool> _isEnded;
     private readonly bool _drivesVisibility;
 
-    internal FilterSurfaceController(Visual host, Expander expander, Border surface, Func<bool> isEnded, bool drivesVisibility)
+    internal FilterSurfaceController(Visual host, ToggleButton toggle, Border surface, Func<bool> isEnded, bool drivesVisibility, bool overlay = true)
     {
         _host = host;
-        _expander = expander;
+        _toggle = toggle;
         _surface = surface;
         _isEnded = isEnded;
         _drivesVisibility = drivesVisibility;
-        OverlayReveal.Follow(surface);
+        if (overlay) OverlayReveal.Follow(surface);
         surface.KeyDown += OnKeyDown;
-        expander.PropertyChanged += (_, e) =>
+        toggle.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Expander.IsExpandedProperty) OnToggled(e.GetNewValue<bool>());
+            if (e.Property == ToggleButton.IsCheckedProperty) OnToggled(e.GetNewValue<bool?>() == true);
         };
     }
 
-    internal bool IsOpen => _expander.IsExpanded;
+    internal bool IsOpen => _toggle.IsChecked == true;
 
-    internal ToggleButton? Toggle => _expander.GetVisualDescendants().OfType<ToggleButton>().FirstOrDefault();
+    internal ToggleButton Toggle => _toggle;
 
     /// <summary>Whether the keyboard focus sits on <paramref name="owner"/> or inside it.</summary>
     internal static bool FocusWithin(Visual host, Control owner) => TopLevel.GetTopLevel(host)?.FocusManager?.GetFocusedElement() is Visual focused
@@ -59,13 +61,13 @@ internal sealed class FilterSurfaceController
             // Hiding the surface must not strand keyboard focus on an invisible field.
             bool focused = FocusWithin(_surface);
             if (_drivesVisibility) _surface.IsVisible = false;
-            if (focused) Toggle?.Focus(NavigationMethod.Tab);
+            if (focused) Toggle.Focus(NavigationMethod.Tab);
             return;
         }
         if (_drivesVisibility) _surface.IsVisible = true;
         // Only a deliberate open from the toggle moves focus in; programmatic opens
         // (invalid draft reveal, commands) keep their own focus target.
-        if (!FocusWithin(_expander)) return;
+        if (!FocusWithin(_toggle)) return;
         FocusFirstField();
     }
 
@@ -84,8 +86,8 @@ internal sealed class FilterSurfaceController
     internal void Close(bool restoreFocus)
     {
         bool focused = FocusWithin(_surface);
-        _expander.IsExpanded = false;
-        if (restoreFocus || focused) Toggle?.Focus(NavigationMethod.Tab);
+        _toggle.IsChecked = false;
+        if (restoreFocus || focused) Toggle.Focus(NavigationMethod.Tab);
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)

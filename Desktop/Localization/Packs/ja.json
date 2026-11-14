@@ -3455,6 +3455,15 @@
     "rules.thisThread": "このスレッドのルール…",
     "media.rulesThreadUnavailable": "このメディアはダウンロード済みスレッドに属していないため、編集できるスレッドのルールはありません。",
     "archive.referencesCount": "参照 ({0})",
-    "archive.referencesHelp": "選択した投稿を引用している、取得済みの返信です。選ぶとその位置に移動します。"
+    "archive.referencesHelp": "選択した投稿を引用している、取得済みの返信です。選ぶとその位置に移動します。",
+    "tags.filter.add": "タグを追加…",
+    "tags.filter.add.search": "独自タグを検索",
+    "tags.filter.add.mode": "追加の種類",
+    "tags.filter.add.hint": "Enterでタグを追加します。Shift+Enterまたは先頭の「-」で除外します。",
+    "tags.filter.add.noMatch": "「{0}」に一致する独自タグはありません",
+    "tags.filter.add.allUsed": "すべての独自タグがすでにフィルターに入っています",
+    "tags.filter.toExclude": "除外に切り替え: {0}",
+    "tags.filter.toInclude": "含めるに切り替え: {0}",
+    "archive.filters.countName": "フィルターと並べ替え、{0}件が有効"
   }
 }

@@ -7,6 +7,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -39,6 +40,42 @@ public partial class ArchivePage
         tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
         return tag;
     }
+    /// <summary>The text of a filter chip, whether it is a plain chip or a tag chip with its include/exclude toggle.</summary>
+    internal static string FilterTagLabel(ClosableTag tag) =>
+        (tag.Content as TextBlock ?? (tag.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault())?.Text ?? string.Empty;
+
+    /// <summary>
+    /// A tag chip with its state (S1/M2): the chip says "Tag: x" (included) or "Without tag: x" (excluded, <c>chip-exclude</c>), a small
+    /// toggle button in front of the text switches between the two, and the chip's own close mark removes the tag. The toggle is
+    /// the explicit route; switching by a click on the chip body is a follow-up the owner has not decided.
+    /// </summary>
+    internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle)
+    {
+        ClosableTag tag = CreateFilterTag(label, remove, exclude);
+        TextBlock text = (TextBlock)tag.Content!;
+        string name = Texts.T(exclude ? "tags.filter.toInclude" : "tags.filter.toExclude", tagName);
+        Avalonia.Controls.Shapes.Path glyph = new()
+        {
+            Width = 12, Height = 12, Stretch = Avalonia.Media.Stretch.None, StrokeThickness = 1.5, StrokeLineCap = Avalonia.Media.PenLineCap.Round,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false
+        };
+        string geometry = exclude ? WorkspaceChips.MarkMissing : "M6,2 L6,10 M2,6 L10,6";
+        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Avalonia.Media.Geometry.Parse(geometry);
+        Button button = new()
+        {
+            Name = "MediaFilterTagToggle", Content = glyph, Width = 20, Height = 20, MinWidth = 0, MinHeight = 0, Padding = new Avalonia.Thickness(0),
+            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = new Avalonia.Thickness(0),
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
+        };
+        glyph.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, Avalonia.AvaloniaObjectExtensions.GetObservable(button, TemplatedControl.ForegroundProperty));
+        button.Click += (_, e) => { e.Handled = true; toggle(); };
+        ToolTip.SetTip(button, name); AutomationProperties.SetName(button, name);
+        tag.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, Children = { button, text } };
+        tag.Tag = id;
+        return tag;
+    }
+
     internal static IReadOnlyList<(string Field, string? Value, string Label)> AppliedFilterLabels(ArchiveSearchSpec spec,
         Func<Guid, string?>? tagName = null)
     {
@@ -62,11 +99,28 @@ public partial class ArchivePage
         }
         return tags.AsReadOnly();
     }
+    // S7: "Reset all" follows the last applied chip, like on Media. It is the empty state's reset (search text and every filter;
+    // the sort stays), so the chips and the link always agree on what is cleared.
+    private readonly Button _appliedResetAll = new()
+    {
+        Name = "ArchiveAppliedResetAll", Classes = { "link" }, MinHeight = 24, Padding = new Avalonia.Thickness(6, 2),
+        BorderThickness = new Avalonia.Thickness(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+    };
+    private bool _appliedResetAllWired;
+    private int _appliedFilterCount;
+
     private void UpdateAppliedFilters()
     {
         WrapPanel panel = ArchiveAppliedFilters; panel.Children.Clear();
-        if (_appliedSearch == null) { SyncSearchPanelGaps(); return; }
+        if (!_appliedResetAllWired)
+        {
+            _appliedResetAllWired = true;
+            _appliedResetAll.Click += (_, e) => OnResetArchiveFiltersClick(_appliedResetAll, e);
+        }
+        _appliedFilterCount = 0;
+        if (_appliedSearch == null) { UpdateArchiveFilterToggle(); SyncSearchPanelGaps(); return; }
         var tags = AppliedFilterLabels(_appliedSearch.Spec, TagFilterName);
+        _appliedFilterCount = tags.Count;
         if (tags.Count > 0)
         {
             TextBlock label = new() { Text = Texts.T("archive.appliedFilters"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
@@ -78,6 +132,14 @@ public partial class ArchivePage
             var item = tags[i]; int index = i;
             panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude"));
         }
+        if (tags.Count > 0)
+        {
+            _appliedResetAll.Content = Texts.T("media.filter.resetAll");
+            ToolTip.SetTip(_appliedResetAll, Texts.T("media.filter.resetAllHint"));
+            AutomationProperties.SetName(_appliedResetAll, Texts.T("media.filter.resetAllHint"));
+            panel.Children.Add(_appliedResetAll);
+        }
+        UpdateArchiveFilterToggle();
         SyncSearchPanelGaps();
     }
     /// <summary>The search panel's rows carry no gap of their own; a row that shows something gets its 8 dip above it.</summary>

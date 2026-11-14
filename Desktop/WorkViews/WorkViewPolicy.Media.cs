@@ -34,8 +34,6 @@ public static partial class WorkViewPolicy
         new("media.filter.board", WorkViewPage.Media, WorkViewKind.Element, Overflow, Direct, Direct),
         new("media.filter.rating", WorkViewPage.Media, WorkViewKind.Element, Overflow, Direct, Direct),
         new("media.filter.tags", WorkViewPage.Media, WorkViewKind.Element, Overflow, Direct, Direct),
-        new("media.filter.tag-include", WorkViewPage.Media, WorkViewKind.Element, Overflow, Direct, Direct),
-        new("media.filter.tag-exclude", WorkViewPage.Media, WorkViewKind.Element, Overflow, Direct, Direct),
         new("media.filter.sound", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("media.filter.without-media-tags", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("media.filter.tag-mode", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),

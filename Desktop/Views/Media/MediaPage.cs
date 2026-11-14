@@ -172,14 +172,16 @@ public sealed partial class MediaPage : UserControl
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
-        // The filter fields open as a surface over the grid (MediaPage.FilterSurface.cs); what is applied stays in the header.
+        // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
+        // what is applied stays in the header above it.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
         _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildStatusRow(_status));
+        _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
-            TagFilter = FilterToTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
+            TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
@@ -191,7 +193,6 @@ public sealed partial class MediaPage : UserControl
         layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "panel" } };
         layout.Children.Add(surface); Avalonia.Controls.Grid.SetRow(surface, 1);
-        layout.Children.Add(filterSurface); Avalonia.Controls.Grid.SetRow(filterSurface, 1);
         Content = layout;
 
         _sort.SelectionChanged += (_, _) => OnSortChanged();
@@ -1020,7 +1021,7 @@ public sealed partial class MediaPage : UserControl
         AutomationProperties.SetName(_sort, Texts.T("media.sort"));
         _shuffle.Content = Texts.T("media.shuffle");
         _missing.Content = Texts.T("media.showMissing");
-        _refresh.Content = Texts.T("media.refresh");
+        IconButtons.Apply(_refresh, "refresh-cw", Texts.T("media.refresh"));
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;

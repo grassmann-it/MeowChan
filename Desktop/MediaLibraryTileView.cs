@@ -7,6 +7,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
@@ -134,6 +136,8 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Action<MediaLibraryEntry>? ThreadFilter { get; set; }
     /// <summary>Set by the page: shows only the media that carry this own tag.</summary>
     internal Action<Guid>? TagFilter { get; set; }
+    /// <summary>Set by the page: hides the media that carry this own tag (Shift+click or Shift+Enter on the chip, S7).</summary>
+    internal Action<Guid>? TagExclude { get; set; }
     /// <summary>Set by the page: lists every occurrence of the tile's bytes.</summary>
     internal Action<MediaLibraryTile>? ShowOccurrences { get; set; }
     /// <summary>Set by the page: adds or removes the shown occurrence as a favourite (the shared media action). Null hides the star.</summary>
@@ -191,7 +195,18 @@ internal sealed class MediaLibraryTileView : UserControl
             DockPanel content = new() { Children = { mark, label } };
             DockPanel.SetDock(mark, Dock.Left);
             Button chip = _tagChips[index] = WorkspaceChips.MarkOwn(new Button { Name = "MediaTileTag", IsVisible = false, Content = content }, compact: true);
-            chip.Click += (_, e) => { e.Handled = true; if (chip.Tag is PrivateTagDefinition tag) TagFilter?.Invoke(tag.Id.Value); };
+            // Shift turns the click (or Enter/Space) into an exclusion; the modifier is read where the gesture starts.
+            bool excludeIntent = false;
+            chip.AddHandler(PointerPressedEvent, (_, e) => excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift), RoutingStrategies.Tunnel);
+            chip.AddHandler(KeyDownEvent, (_, e) => { if (e.Key is Key.Enter or Key.Space) excludeIntent = e.KeyModifiers.HasFlag(KeyModifiers.Shift); }, RoutingStrategies.Tunnel);
+            chip.Click += (_, e) =>
+            {
+                e.Handled = true;
+                bool exclude = excludeIntent;
+                excludeIntent = false;
+                if (chip.Tag is not PrivateTagDefinition tag) return;
+                if (exclude && TagExclude != null) TagExclude(tag.Id.Value); else TagFilter?.Invoke(tag.Id.Value);
+            };
             tags.Children.Add(chip);
         }
         tags.Children.Add(_moreTags);

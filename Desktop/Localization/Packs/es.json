@@ -3487,6 +3487,16 @@
     "rules.thisThread": "Reglas de este hilo…",
     "media.rulesThreadUnavailable": "Este medio no pertenece a un hilo descargado, así que no hay reglas de hilo que editar.",
     "archive.referencesCount": "Referencias ({0})",
-    "archive.referencesHelp": "Respuestas capturadas que citan la publicación seleccionada. Elija una para saltar a ella."
+    "archive.referencesHelp": "Respuestas capturadas que citan la publicación seleccionada. Elija una para saltar a ella.",
+    "tags.filter.add": "Añadir etiqueta…",
+    "tags.filter.add.search": "Buscar en sus etiquetas",
+    "tags.filter.add.mode": "Añadir como",
+    "tags.filter.add.hint": "Intro añade la etiqueta. Mayús+Intro o un «-» al principio la excluye.",
+    "tags.filter.add.noMatch": "Ninguna etiqueta propia coincide con «{0}»",
+    "tags.filter.add.allUsed": "Todas las etiquetas propias ya están en el filtro",
+    "tags.filter.toExclude": "Cambiar a excluir: {0}",
+    "tags.filter.toInclude": "Cambiar a incluir: {0}",
+    "archive.filters.countName": "Filtros y orden, {0} activos",
+    "archive.filters.countName.one": "Filtros y orden, {0} activo"
   }
 }

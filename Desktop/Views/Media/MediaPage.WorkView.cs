@@ -63,9 +63,8 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_sourceFilter, "media.filter.source");
         WorkViewElement.SetId(_boardFilter, "media.filter.board");
         WorkViewElement.SetId(_minRating, "media.filter.rating");
-        WorkViewElement.SetId(_tagChoice, "media.filter.tags");
-        WorkViewElement.SetId(_tagInclude, "media.filter.tag-include");
-        WorkViewElement.SetId(_tagExclude, "media.filter.tag-exclude");
+        // S7: one picker adds a tag as included or excluded, so the two former include/exclude rows are this one.
+        WorkViewElement.SetId(_tagAdd, "media.filter.tags");
         WorkViewElement.SetId(_soundFilter, "media.filter.sound");
         WorkViewElement.SetId(_withoutMediaTags, "media.filter.without-media-tags");
         WorkViewElement.SetId(_tagMode, "media.filter.tag-mode");
@@ -99,7 +98,7 @@ public sealed partial class MediaPage
         "media.filter.source" => _sourceFilter.SelectedItem is Choice { Value: not null },
         "media.filter.board" => _boardFilter.SelectedItem is BoardChoice { Board: not null },
         "media.filter.rating" => _minRating.SelectedIndex > 0,
-        "media.filter.tags" or "media.filter.tag-include" or "media.filter.tag-exclude" => _includeTags.Count + _excludeTags.Count > 0,
+        "media.filter.tags" => _includeTags.Count + _excludeTags.Count > 0,
         "media.filter.sound" => SoundFilterActive,
         "media.filter.without-media-tags" => _withoutMediaTags.IsChecked == true,
         "media.filter.tag-mode" => _tagMode.SelectedIndex > 0,
@@ -108,7 +107,7 @@ public sealed partial class MediaPage
 
     private IEnumerable<Control> FilterFields() => new Control[]
     {
-        _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagChoice, _tagInclude, _tagExclude,
+        _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagAdd,
         _soundFilter, _withoutMediaTags, _tagMode
     };
 

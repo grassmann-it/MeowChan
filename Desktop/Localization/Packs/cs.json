@@ -3522,6 +3522,16 @@
     "rules.thisThread": "Pravidla pro toto vlákno…",
     "media.rulesThreadUnavailable": "Toto médium nepatří ke staženému vláknu, proto zde nejsou žádná pravidla vlákna k úpravě.",
     "archive.referencesCount": "Odkazy ({0})",
-    "archive.referencesHelp": "Zachycené odpovědi, které citují vybraný příspěvek. Výběrem některé na ni přeskočíte."
+    "archive.referencesHelp": "Zachycené odpovědi, které citují vybraný příspěvek. Výběrem některé na ni přeskočíte.",
+    "tags.filter.add": "Přidat štítek…",
+    "tags.filter.add.search": "Hledat ve vlastních štítcích",
+    "tags.filter.add.mode": "Přidat jako",
+    "tags.filter.add.hint": "Enter štítek přidá. Shift+Enter nebo úvodní „-“ ho vyloučí.",
+    "tags.filter.add.noMatch": "Žádný vlastní štítek neodpovídá „{0}“",
+    "tags.filter.add.allUsed": "Všechny vlastní štítky už ve filtru jsou",
+    "tags.filter.toExclude": "Přepnout na vyloučení: {0}",
+    "tags.filter.toInclude": "Přepnout na zahrnutí: {0}",
+    "archive.filters.countName": "Filtry a řazení, aktivní: {0}",
+    "archive.filters.countName.one": "Filtry a řazení, aktivní: {0}"
   }
 }

@@ -324,7 +324,7 @@ internal static class ArchiveComparisonChecks
     {
         await Reset(page, e);
         e.Predict("matrix-pair", "product-pair-list", PairIds("A/x", "B/y"));
-        e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
+        e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "expand filters", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = true); await Settle();
         await Source(page, "A", e); await Source(page, "B", e); await Board(page, "A", "x", e); await Board(page, "B", "y", e);
         await Search(page, e, PairIds("A/x", "B/y"));
         e.Action(C<WrapPanel>(page, "ArchiveDraftBoards"), "inspect qualified pair labels (programmatic scroll)", () => { }); await Settle();
@@ -335,7 +335,7 @@ internal static class ArchiveComparisonChecks
         e.Predict("matrix-date-error", "product-paired-editors", new { raw = "2026-02-29", retainApplied = true, naturalReveal = true });
         object? applied = page.AppliedSearchSpec; string[] before = Rows(page);
         Edit(start, "2026-02-29", e); Edit(end, "", e);
-        e.Action(C<Expander>(page, "ArchiveFilters"), "collapse filters before invalid Search", () => C<Expander>(page, "ArchiveFilters").IsExpanded = false);
+        e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "collapse filters before invalid Search", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = false);
         Click(C<Button>(page, "SearchArchiveButton"), e); await Settle();
         bool rawVisible = InViewport(start, e.Window!), focused = ReferenceEquals(e.Window!.FocusManager?.GetFocusedElement(), start);
         e.Write("result", new { raw = start.Text, retainedRows = Rows(page), naturalInvalidFieldInViewport = rawVisible, focused,
@@ -474,7 +474,7 @@ internal static class ArchiveComparisonChecks
     {
         e.Predict("calendar-locale", "product-paired-editors", new { languages = new[] { "en", "de", "en" }, navigation = "next/previous month, year/month selection, reopen", processCultureUnchanged = true });
         await Reset(page, e, new(sources: ["D"], dateRange: new(new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 31), "Europe/Berlin")));
-        e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters before locale editor inspection", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
+        e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "expand filters before locale editor inspection", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = true); await Settle();
         ArchiveDateEditor editor = C<ArchiveDateEditor>(page, "ArchiveStartDate");
         await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.GetVisualDescendants().OfType<TextBox>().Any(box => !box.IsReadOnly)
             && C<ArchiveDateEditor>(page, "ArchiveEndDate").GetVisualDescendants().OfType<TextBox>().Any(box => !box.IsReadOnly)
@@ -669,7 +669,7 @@ internal static class ArchiveComparisonChecks
 
     private static async Task PairTasks(ArchivePage page, Evidence e)
     {
-        e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters (control property edit)", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
+        e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "expand filters (control property edit)", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = true); await Settle();
         await Reset(page, e);
         e.Predict("pair-exact", "product-pair-list", PairIds("A/x", "B/y"));
         await Source(page, "A", e); await Source(page, "B", e); await Board(page, "A", "x", e); await Board(page, "B", "y", e);
@@ -751,7 +751,7 @@ internal static class ArchiveComparisonChecks
     private static async Task ProductDates(ArchivePage page, Evidence e)
     {
         await Reset(page, e, new(sources: ["D"], dateRange: new(new DateOnly(2026, 1, 1), null, "Europe/Berlin")));
-        e.Action(C<Expander>(page, "ArchiveFilters"), "expand filters (control property edit)", () => C<Expander>(page, "ArchiveFilters").IsExpanded = true); await Settle();
+        e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "expand filters (control property edit)", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = true); await Settle();
         TextBox start = Raw(C<ArchiveDateEditor>(page, "ArchiveStartDate")), end = Raw(C<ArchiveDateEditor>(page, "ArchiveEndDate"));
         foreach (var task in DateTasks())
         {
@@ -762,7 +762,7 @@ internal static class ArchiveComparisonChecks
             if (task.Valid) await Search(page, e, task.Expected.Select(id => "D/dates/" + id).ToArray());
             else
             {
-                e.Action(C<Expander>(page, "ArchiveFilters"), "collapse filters before invalid Search", () => C<Expander>(page, "ArchiveFilters").IsExpanded = false);
+                e.Action(C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters"), "collapse filters before invalid Search", () => C<Avalonia.Controls.Primitives.ToggleButton>(page, "ArchiveFilters").IsChecked = false);
                 Click(C<Button>(page, "SearchArchiveButton"), e); await Settle();
                 Require(ReferenceEquals(applied, page.AppliedSearchSpec) && Rows(page).SequenceEqual(oldRows) && start.Text == task.Start && end.Text == task.End, "Invalid dates widened search or lost raw text.");
                 TextBlock error = C<TextBlock>(page, "ArchiveSearchError");

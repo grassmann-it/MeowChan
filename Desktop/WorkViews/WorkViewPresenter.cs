@@ -56,6 +56,15 @@ public static class WorkViewPresenter
         Presence presence = WorkViewPolicy.Resolve(id, view, nonDefaultState);
         if (viewChanged || nonDefaultState) expander.IsExpanded = presence != Presence.Collapsed;
     }
+
+    /// <summary>The same rule (R13) for a toggle that opens a surface, such as the filter toggle of Archive and Media.</summary>
+    public static void ApplyToggle(Avalonia.Controls.Primitives.ToggleButton toggle, WorkView view, bool viewChanged, bool nonDefaultState = false)
+    {
+        string id = WorkViewElement.GetId(toggle)
+            ?? throw new InvalidOperationException("A work-view toggle needs a WorkViewElement.Id.");
+        Presence presence = WorkViewPolicy.Resolve(id, view, nonDefaultState);
+        if (viewChanged || nonDefaultState) toggle.IsChecked = presence != Presence.Collapsed;
+    }
 }
 
 /// <summary>

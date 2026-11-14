@@ -63,7 +63,7 @@ internal static class ArchiveFilterSurfaceChecks
         host.RequestedThemeVariant = theme;
         Texts.SetLanguage(code);
         host.Width = width; host.Height = height;
-        Expander filters = page.FindControl<Expander>("ArchiveFilters")!;
+        Avalonia.Controls.Primitives.ToggleButton filters = page.FindControl<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters")!;
         Border surface = page.FindControl<Border>("ArchiveFilterSurface")!;
         Border results = page.FindControl<Border>("ArchiveResultsSurface")!;
         Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
@@ -89,14 +89,14 @@ internal static class ArchiveFilterSurfaceChecks
         }
         Rect client = new(default, host.ClientSize);
 
-        Require(!filters.IsExpanded && !surface.IsEffectivelyVisible, state + ": filter surface is open before the toggle.");
+        Require(filters.IsChecked != true && !surface.IsEffectivelyVisible, state + ": filter surface is open before the toggle.");
         Rect resultsClosed = Bounds(results);
-        ToggleButton toggle = filters.GetVisualDescendants().OfType<ToggleButton>().First();
+        Avalonia.Controls.Primitives.ToggleButton toggle = filters; // S2: the filter toggle is the ToggleButton itself
         Require(Bounds(filters).Height <= 48, state + ": the collapsed filter toggle still reserves field height.");
 
         // Deliberate open from the toggle moves focus into the surface.
         toggle.Focus(NavigationMethod.Tab);
-        filters.IsExpanded = true;
+        filters.IsChecked = true;
         await Program.WaitUntilAsync(() => { host.UpdateLayout(); return surface.IsEffectivelyVisible && FocusIn(surface); });
         Rect area = Bounds(surface), list = Bounds(listPane);
         ScrollViewer scroll = page.FindControl<ScrollViewer>("ArchiveFilterSurfaceScroll")!;
@@ -142,14 +142,14 @@ internal static class ArchiveFilterSurfaceChecks
         await Program.WaitUntilAsync(() => sort.IsDropDownOpen);
         Key(Avalonia.Input.Key.Escape);
         await Program.WaitUntilAsync(() => !sort.IsDropDownOpen);
-        Require(filters.IsExpanded, state + ": Escape on an open dropdown closed the whole filter surface.");
+        Require(filters.IsChecked == true, state + ": Escape on an open dropdown closed the whole filter surface.");
         sort.Focus(NavigationMethod.Tab);
         Key(Avalonia.Input.Key.Escape);
-        await Program.WaitUntilAsync(() => !filters.IsExpanded && !surface.IsEffectivelyVisible && FocusIn(filters));
+        await Program.WaitUntilAsync(() => filters.IsChecked != true && !surface.IsEffectivelyVisible && FocusIn(filters));
 
         // A programmatic open (command, invalid-draft reveal) keeps the current focus.
         search.Focus(NavigationMethod.Tab);
-        filters.IsExpanded = true;
+        filters.IsChecked = true;
         await Program.WaitUntilAsync(() => surface.IsEffectivelyVisible);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Require(ReferenceEquals(Focused(), search) || FocusIn(search), state + ": a programmatic open stole focus from the search field.");
@@ -162,15 +162,32 @@ internal static class ArchiveFilterSurfaceChecks
         SmokeActionClick.Execute(apply);
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Require(filters.IsExpanded && ReferenceEquals(applied, page.AppliedSearchSpec),
+        Require(filters.IsChecked == true && ReferenceEquals(applied, page.AppliedSearchSpec),
             state + ": an invalid filter draft was applied or closed the surface.");
         start.RawText = string.Empty;
         ArchiveThreadSort target = applied.Sort == ArchiveThreadSort.Title ? ArchiveThreadSort.LatestCapture : ArchiveThreadSort.Title;
         sort.SelectedIndex = target == ArchiveThreadSort.Title ? 2 : 0;
         apply.Focus(NavigationMethod.Tab);
         SmokeActionClick.Execute(apply);
-        await Program.WaitUntilAsync(() => !page.IsBusy && !filters.IsExpanded && page.AppliedSearchSpec?.Sort == target);
+        await Program.WaitUntilAsync(() => !page.IsBusy && filters.IsChecked != true && page.AppliedSearchSpec?.Sort == target);
         await Program.WaitUntilAsync(() => FocusIn(filters));
         Require(Same(Bounds(results), resultsClosed), state + ": applying from the filter surface left the list layout shifted.");
+
+        // S2/S7: an applied filter raises the toggle's count badge; "Reset all" behind the last chip clears the filters again.
+        MeowChan.Desktop.Controls.FilterToggleButton badge = (MeowChan.Desktop.Controls.FilterToggleButton)filters;
+        Require(badge.Count == 0 && !badge.IsBadgeVisible, state + ": the archive filter toggle shows a count before a filter is applied.");
+        filters.IsChecked = true;
+        await Program.WaitUntilAsync(() => surface.IsEffectivelyVisible);
+        page.FindControl<ComboBox>("ArchivePostsFilter")!.SelectedIndex = 1;
+        apply.Focus(NavigationMethod.Tab);
+        SmokeActionClick.Execute(apply);
+        await Program.WaitUntilAsync(() => !page.IsBusy && filters.IsChecked != true && page.AppliedSearchSpec?.HasPosts == true);
+        Button resetAll = page.GetVisualDescendants().OfType<Button>().First(button => button.Name == "ArchiveAppliedResetAll");
+        Require(badge.Count == 1 && badge.BadgeText == "1" && badge.IsBadgeVisible && resetAll.IsEffectivelyVisible
+            && Avalonia.Automation.AutomationProperties.GetName(badge) == Texts.Count("archive.filters.countName", 1),
+            state + ": the archive filter toggle must count the applied filter and offer Reset all: " + badge.Count);
+        SmokeActionClick.Execute(resetAll);
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.AppliedSearchSpec?.HasPosts == null);
+        Require(badge.Count == 0 && !badge.IsBadgeVisible && !resetAll.IsEffectivelyVisible, state + ": Reset all must clear the applied filters and the badge.");
     }
 }

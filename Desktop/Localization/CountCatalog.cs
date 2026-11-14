@@ -17,6 +17,7 @@ internal static class CountCatalog
         ("archive.delete.ratings.one", "{0} media rating will be removed.", "{0} Medienbewertung wird entfernt."),
         ("archive.delete.summary.one", "Permanently delete {0} thread and {1} local files ({2:N0} bytes)?", "{0} Thread und {1} lokale Dateien ({2:N0} Bytes) endgültig löschen?"),
         ("media.filters.countName.one", "Filters, {0} active", "Filter, {0} aktiv"),
+        ("archive.filters.countName.one", "Filters and sorting, {0} active", "Filter und Sortierung, {0} aktiv"),
         ("media.count.one", "{0} media in {1} thread", "{0} Medien in {1} Thread"),
         ("media.countMissing.one", "{0} media in {1} thread, {2} missing", "{0} Medien in {1} Thread, davon {2} fehlend"),
         ("downloads.searchCount.one", "{0} result", "{0} Treffer"),

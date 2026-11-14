@@ -3455,6 +3455,15 @@
     "rules.thisThread": "이 스레드의 규칙…",
     "media.rulesThreadUnavailable": "이 미디어는 내려받은 스레드에 속하지 않아 편집할 스레드 규칙이 없습니다.",
     "archive.referencesCount": "참조 ({0})",
-    "archive.referencesHelp": "선택한 게시물을 인용한 수집된 답글입니다. 하나를 고르면 그곳으로 이동합니다."
+    "archive.referencesHelp": "선택한 게시물을 인용한 수집된 답글입니다. 하나를 고르면 그곳으로 이동합니다.",
+    "tags.filter.add": "태그 추가…",
+    "tags.filter.add.search": "내 태그 검색",
+    "tags.filter.add.mode": "추가 방식",
+    "tags.filter.add.hint": "Enter를 누르면 태그가 추가됩니다. Shift+Enter 또는 맨 앞의 “-”는 제외합니다.",
+    "tags.filter.add.noMatch": "“{0}”와 일치하는 내 태그가 없습니다",
+    "tags.filter.add.allUsed": "내 태그가 모두 이미 필터에 있습니다",
+    "tags.filter.toExclude": "제외로 전환: {0}",
+    "tags.filter.toInclude": "포함으로 전환: {0}",
+    "archive.filters.countName": "필터 및 정렬, {0}개 활성"
   }
 }

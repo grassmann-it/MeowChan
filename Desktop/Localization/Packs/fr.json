@@ -3487,6 +3487,16 @@
     "rules.thisThread": "Règles de ce fil…",
     "media.rulesThreadUnavailable": "Ce média n’appartient pas à un fil téléchargé ; il n’y a donc aucune règle de fil à modifier.",
     "archive.referencesCount": "Références ({0})",
-    "archive.referencesHelp": "Réponses enregistrées qui citent le message sélectionné. Choisissez-en une pour y accéder."
+    "archive.referencesHelp": "Réponses enregistrées qui citent le message sélectionné. Choisissez-en une pour y accéder.",
+    "tags.filter.add": "Ajouter une étiquette…",
+    "tags.filter.add.search": "Rechercher dans vos étiquettes",
+    "tags.filter.add.mode": "Ajouter comme",
+    "tags.filter.add.hint": "Entrée ajoute l’étiquette. Maj+Entrée ou un « - » au début l’exclut.",
+    "tags.filter.add.noMatch": "Aucune étiquette personnelle ne correspond à « {0} »",
+    "tags.filter.add.allUsed": "Toutes les étiquettes personnelles sont déjà dans le filtre",
+    "tags.filter.toExclude": "Passer en exclusion : {0}",
+    "tags.filter.toInclude": "Passer en inclusion : {0}",
+    "archive.filters.countName": "Filtres et tri, {0} actifs",
+    "archive.filters.countName.one": "Filtres et tri, {0} actif"
   }
 }

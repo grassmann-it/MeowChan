@@ -9,44 +9,57 @@ namespace MeowChan.DesktopTests;
 // the keyboard focus return needs a real TopLevel and stays with the native filter-surface smokes.
 public sealed class FilterSurfaceControllerTests
 {
-    private static (FilterSurfaceController Controller, Expander Expander, Border Surface) Make(bool drivesVisibility, Func<bool>? ended = null)
+    private static (FilterSurfaceController Controller, FilterToggleButton Toggle, Border Surface) Make(bool drivesVisibility, Func<bool>? ended = null, bool overlay = true)
     {
-        Expander expander = new();
+        FilterToggleButton toggle = new();
         Border surface = new() { IsVisible = false };
-        return (new FilterSurfaceController(new Border(), expander, surface, ended ?? (() => false), drivesVisibility), expander, surface);
+        return (new FilterSurfaceController(new Border(), toggle, surface, ended ?? (() => false), drivesVisibility, overlay), toggle, surface);
     }
 
     private static KeyEventArgs Key(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
 
     [Fact]
-    public void TheSurfaceFollowsTheOverlayReveal()
+    public void AnOverlayFollowsTheOverlayRevealAndAnInlineSectionDoesNot()
     {
-        (_, _, Border surface) = Make(drivesVisibility: true);
-        Assert.Contains(OverlayReveal.StyleClass, surface.Classes);
+        (_, _, Border overlay) = Make(drivesVisibility: true);
+        Assert.Contains(OverlayReveal.StyleClass, overlay.Classes);
+        (_, _, Border inline) = Make(drivesVisibility: true, overlay: false);
+        Assert.DoesNotContain(OverlayReveal.StyleClass, inline.Classes);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WhenItDrivesVisibilityTheToggleShowsAndHidesTheSurface(bool overlay)
+    {
+        (FilterSurfaceController controller, FilterToggleButton toggle, Border surface) = Make(drivesVisibility: true, overlay: overlay);
+        Assert.False(controller.IsOpen);
+        toggle.IsChecked = true;
+        Assert.True(controller.IsOpen);
+        Assert.True(surface.IsVisible);
+        toggle.IsChecked = false;
+        Assert.False(controller.IsOpen);
+        Assert.False(surface.IsVisible);
     }
 
     [Fact]
-    public void WhenItDrivesVisibilityTheToggleShowsAndHidesTheSurface()
+    public void TheToggleIsTheControllersOwnButtonAndStartsClosed()
     {
-        (FilterSurfaceController controller, Expander expander, Border surface) = Make(drivesVisibility: true);
+        (FilterSurfaceController controller, FilterToggleButton toggle, _) = Make(drivesVisibility: true);
+        Assert.Same(toggle, controller.Toggle);
         Assert.False(controller.IsOpen);
-        expander.IsExpanded = true;
-        Assert.True(controller.IsOpen);
-        Assert.True(surface.IsVisible);
-        expander.IsExpanded = false;
-        Assert.False(controller.IsOpen);
-        Assert.False(surface.IsVisible);
+        Assert.NotEqual(true, toggle.IsChecked);
     }
 
     [Fact]
     public void WhenThePageBindsVisibilityTheControllerLeavesItAlone()
     {
-        (_, Expander expander, Border surface) = Make(drivesVisibility: false);
-        expander.IsExpanded = true;
+        (_, FilterToggleButton toggle, Border surface) = Make(drivesVisibility: false);
+        toggle.IsChecked = true;
         Assert.False(surface.IsVisible);
         surface.IsVisible = true;
-        expander.IsExpanded = false;
+        toggle.IsChecked = false;
         Assert.True(surface.IsVisible);
     }
 
@@ -54,21 +67,21 @@ public sealed class FilterSurfaceControllerTests
     public void AnEndedPageIgnoresTheToggle()
     {
         bool ended = false;
-        (_, Expander expander, Border surface) = Make(drivesVisibility: true, () => ended);
+        (_, FilterToggleButton toggle, Border surface) = Make(drivesVisibility: true, () => ended);
         ended = true;
-        expander.IsExpanded = true;
+        toggle.IsChecked = true;
         Assert.False(surface.IsVisible);
     }
 
     [Fact]
     public void EscapeClosesTheSurfaceAndMarksTheKeyHandled()
     {
-        (_, Expander expander, Border surface) = Make(drivesVisibility: true);
-        expander.IsExpanded = true;
+        (_, FilterToggleButton toggle, Border surface) = Make(drivesVisibility: true);
+        toggle.IsChecked = true;
         KeyEventArgs escape = Key(Avalonia.Input.Key.Escape);
         surface.RaiseEvent(escape);
         Assert.True(escape.Handled);
-        Assert.False(expander.IsExpanded);
+        Assert.NotEqual(true, toggle.IsChecked);
         Assert.False(surface.IsVisible);
     }
 
@@ -79,26 +92,26 @@ public sealed class FilterSurfaceControllerTests
     [InlineData(Avalonia.Input.Key.Escape, KeyModifiers.None, true)]
     public void OnlyAPlainUnhandledEscapeCloses(Key key, KeyModifiers modifiers, bool alreadyHandled)
     {
-        (_, Expander expander, Border surface) = Make(drivesVisibility: true);
-        expander.IsExpanded = true;
+        (_, FilterToggleButton toggle, Border surface) = Make(drivesVisibility: true);
+        toggle.IsChecked = true;
         KeyEventArgs args = Key(key, modifiers);
         args.Handled = alreadyHandled;
         surface.RaiseEvent(args);
-        Assert.True(expander.IsExpanded);
+        Assert.True(toggle.IsChecked);
         Assert.True(surface.IsVisible);
         Assert.Equal(alreadyHandled, args.Handled);
     }
 
     [Fact]
-    public void CloseCollapsesTheExpanderWithOrWithoutFocusRestore()
+    public void CloseUnchecksTheToggleWithOrWithoutFocusRestore()
     {
-        (FilterSurfaceController controller, Expander expander, _) = Make(drivesVisibility: true);
-        expander.IsExpanded = true;
+        (FilterSurfaceController controller, FilterToggleButton toggle, _) = Make(drivesVisibility: true);
+        toggle.IsChecked = true;
         controller.Close(restoreFocus: true);
-        Assert.False(expander.IsExpanded);
-        expander.IsExpanded = true;
+        Assert.NotEqual(true, toggle.IsChecked);
+        toggle.IsChecked = true;
         controller.Close(restoreFocus: false);
-        Assert.False(expander.IsExpanded);
+        Assert.NotEqual(true, toggle.IsChecked);
     }
 
     [Fact]

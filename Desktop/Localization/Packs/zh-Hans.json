@@ -3455,6 +3455,15 @@
     "rules.thisThread": "此串的规则…",
     "media.rulesThreadUnavailable": "此媒体不属于已下载的串，因此没有可编辑的串规则。",
     "archive.referencesCount": "引用 ({0})",
-    "archive.referencesHelp": "引用了所选帖子的已采集回复。选择其中一条即可跳转过去。"
+    "archive.referencesHelp": "引用了所选帖子的已采集回复。选择其中一条即可跳转过去。",
+    "tags.filter.add": "添加标签…",
+    "tags.filter.add.search": "搜索我的标签",
+    "tags.filter.add.mode": "添加方式",
+    "tags.filter.add.hint": "按 Enter 添加标签。按 Shift+Enter 或以“-”开头则排除该标签。",
+    "tags.filter.add.noMatch": "没有与“{0}”匹配的我的标签",
+    "tags.filter.add.allUsed": "我的标签都已在过滤条件中",
+    "tags.filter.toExclude": "切换为排除：{0}",
+    "tags.filter.toInclude": "切换为包含：{0}",
+    "archive.filters.countName": "过滤和排序，{0} 个已启用"
   }
 }

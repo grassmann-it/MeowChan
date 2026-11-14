@@ -3502,6 +3502,16 @@
     "rules.thisThread": "Правила этого треда…",
     "media.rulesThreadUnavailable": "Этот медиафайл не относится к загруженному треду, поэтому правил треда для правки нет.",
     "archive.referencesCount": "Ссылки ({0})",
-    "archive.referencesHelp": "Сохранённые ответы, цитирующие выбранный пост. Выберите один, чтобы перейти к нему."
+    "archive.referencesHelp": "Сохранённые ответы, цитирующие выбранный пост. Выберите один, чтобы перейти к нему.",
+    "tags.filter.add": "Добавить тег…",
+    "tags.filter.add.search": "Поиск по своим тегам",
+    "tags.filter.add.mode": "Добавить как",
+    "tags.filter.add.hint": "Enter добавляет тег. Shift+Enter или «-» в начале исключает его.",
+    "tags.filter.add.noMatch": "Ни один собственный тег не подходит к «{0}»",
+    "tags.filter.add.allUsed": "Все собственные теги уже в фильтре",
+    "tags.filter.toExclude": "Переключить на исключение: {0}",
+    "tags.filter.toInclude": "Переключить на включение: {0}",
+    "archive.filters.countName": "Фильтры и сортировка, активно: {0}",
+    "archive.filters.countName.one": "Фильтры и сортировка, активно: {0}"
   }
 }

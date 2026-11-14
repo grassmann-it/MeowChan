@@ -23,12 +23,12 @@ internal static class WorkViewArchiveChecks
     internal static async Task CaptureFilterSurfaceAsync(MainWindow window, string view, string file, string output)
     {
         ArchivePage archive = window.ArchivePage;
-        Expander filters = archive.FindControl<Expander>("ArchiveFilters")!;
+        var filters = archive.FindControl<Avalonia.Controls.Primitives.ToggleButton>("ArchiveFilters")!;
         Expander more = archive.FindControl<Expander>("ArchiveMoreFilters")!;
         Border surface = archive.FindControl<Border>("ArchiveFilterSurface")!;
         try
         {
-            filters.IsExpanded = true;
+            filters.IsChecked = true;
             await SettleAsync(window);
             RequirePlacement(window, view);
             // The groups the policy puts on the surface are really shown when the surface is (the ones under More sit in the closed section).
@@ -52,7 +52,7 @@ internal static class WorkViewArchiveChecks
         finally
         {
             more.IsExpanded = false;
-            filters.IsExpanded = false;
+            filters.IsChecked = false;
             await SettleAsync(window);
         }
     }
