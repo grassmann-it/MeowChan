@@ -8,14 +8,19 @@ using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
-// F03 review regression: DesktopSessionHost keeps every Booru composition that reached StartAsync as a transport
-// owner until the shared queue and the Booru start/stop have drained (F1). The review claimed unbounded growth under
-// repeated re-authorisation / AvailabilityChanged. These tests drive several real availability cycles through the
-// production binding event and the production session shutdown, with the real queue/catalog/profile lease; only the
-// provider wire is the in-memory stub.
+// F03 review regression / non-fix contract: availability changes replace only the watcher generation of a published
+// composition. They do not replace its original-media transport, and the session retains every composition that may
+// have handed work to the shared DownloadQueue until the queue has physically stopped (F1). The availability gate and
+// watcher drain are therefore not treated as a transport-retirement proof. This is intentional: the current queue has
+// no owner-scoped drain that can prove an accepted job will never call that composition's client again.
 //
-// Not covered here (see BooruUnpublishedTransportTests): an unpublished recovery that already handed work to the
-// shared queue.
+// These tests drive several real availability cycles through the production binding event and the production session
+// shutdown, with the real queue/catalog/profile lease; only the provider wire is the in-memory stub. An unpublished
+// recovery that already handed work to the shared queue is covered by BooruUnpublishedTransportTests.
+//
+// Rest contract: ReleaseTransport is legal only from DesktopSessionHost's post-queue-drain path. A future early
+// retirement must add a queue ownership/drain fence first; disposing on Disable, reactivation, or watcher replacement
+// alone is a regression.
 public sealed class BooruTransportRetentionRegressionTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);
@@ -205,7 +210,9 @@ public sealed class BooruTransportRetentionRegressionTests
             Assert.False(await beforeQueueDrain.Task.WaitAsync(Deadline), "the queue must not be stopping during Booru drain");
             Assert.False(shutdown.IsCompleted);
 
-            // F1 contract: no owner (failed or published) is released before the shared queue has drained.
+            // F1/F03 non-fix contract: no owner (failed or published) is released before the shared queue has drained.
+            // This remains true even for failed starts with no currently active original: start/recovery ownership
+            // is not proven empty by ActiveCount alone.
             Assert.Equal(retained, TransportOwners(host));
             foreach (HttpClient mediaClient in mediaClients) await AssertServesAsync(mediaClient, post);
 

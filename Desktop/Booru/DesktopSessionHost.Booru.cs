@@ -11,6 +11,11 @@ namespace MeowChan.Desktop;
 
 // Danbooru composition lifecycle of one desktop session.
 //
+// A published composition owns the original-media client for the whole session. Availability changes replace only
+// the watcher generation; they do not replace the composition or its queue owner. The shared DownloadQueue has no
+// owner-scoped drain that can prove an old client is no longer referenced, so a transport is retired only by the
+// terminal queue-drain path below.
+//
 // Start: only once the session is Ready (registry restored, profile admission Ready, shared queue running) and only
 // while the Danbooru plugin is delivered and enabled. A plugin enabled later in the running session composes then.
 // Stop: first step of the engine shutdown, BEFORE the shared queue and the registry stop and before the profile is
@@ -21,6 +26,10 @@ internal sealed partial class DesktopSessionHost
     private readonly SemaphoreSlim _booruGate = new(1, 1);
     private readonly object _booruSync = new();
     private BooruSessionComposition? _booru;
+    // Every composition that may have reached StartAsync is retained until the shared queue has physically drained.
+    // This is deliberately broader than the UI availability gate: a recovery or an accepted original may still hold
+    // the composition's client after its watcher host was stopped. There is no owner-scoped DownloadQueue drain in
+    // this layer, so removing an entry on Disable/Replace would be an unsafe, unproved early retirement.
     private readonly List<BooruSessionComposition> _booruTransportOwners = new();
     private BooruProviderBinding? _booruBinding;
     private BooruWorkbenchServices? _booruServicesOverride;
@@ -166,7 +175,8 @@ internal sealed partial class DesktopSessionHost
             BooruSessionComposition composition = BooruSessionComposition.Create(binding, _downloadQueue, catalog,
                 Path.GetFullPath(Config.DownloadPath), _booruProducers, BooruClockForTests, BooruSchedulerOptionsForTests);
             // Recovery may hand originals to the shared queue before StartAsync completes. The session owns
-            // their transport even if this composition never publishes; release only after both drains.
+            // their transport even if this composition never publishes. Stop/availability drain only producer
+            // ingress; the only proven transport retirement point remains after the shared queue has stopped.
             lock (_booruSync) _booruTransportOwners.Add(composition);
             try
             {
@@ -251,7 +261,11 @@ internal sealed partial class DesktopSessionHost
         BooruChanged?.Invoke();
     }
 
-    /// <summary>After queue and Booru start/stop drain, release even transports that never published. Idempotent.</summary>
+    /// <summary>
+    /// The sole transport-retirement point: the shared queue has stopped, so no accepted job can call the
+    /// composition's provider client again. Booru/availability drains alone are intentionally insufficient.
+    /// Idempotent for both published and unpublished owners.
+    /// </summary>
     private void ReleaseBooruAfterQueue()
     {
         BooruSessionComposition[] owners;

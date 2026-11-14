@@ -66,6 +66,11 @@ internal sealed class BooruProviderBinding
 /// registry's existing download queue and the profile's <see cref="BooruCatalogStore"/>, the
 /// <see cref="BooruWatcherSearchPort"/> and the <see cref="DanbooruWatcherHost"/> in its documented start order, plus
 /// the four UI ports of the Danbooru window. <see cref="StopAsync"/> must run before the queue and the registry stop.
+///
+/// Stopping this object revokes Booru ingress and drains watcher work only. It is not a drain of the shared
+/// DownloadQueue: an accepted original can still use the media client after <see cref="StopAsync"/> completes.
+/// Consequently <see cref="ReleaseTransport"/> is owned by the session's post-queue-drain path, never by a
+/// reversible availability change or watcher-host replacement.
 /// </summary>
 internal sealed class BooruSessionComposition : IAsyncDisposable
 {
@@ -288,7 +293,10 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         }
     }
 
-    /// <summary>Releases the media client once the shared queue no longer runs jobs that could use it.</summary>
+    /// <summary>
+    /// Releases the media client after the session proved that the shared queue stopped. Do not call this from
+    /// <see cref="StopAsync"/>: that method drains Booru ingress, not already accepted queue jobs.
+    /// </summary>
     internal void ReleaseTransport() => _mediaClient.Dispose();
 
     public async ValueTask DisposeAsync()
