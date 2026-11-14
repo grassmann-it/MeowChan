@@ -155,8 +155,7 @@ public sealed class GalleryCacheIntegrityTests
         cache.Release(first);
         using CancellationTokenSource canceled = new();
         canceled.Cancel();
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            GalleryImageCache.DecodeThrough(cache, Decode, secondEntry, Fit, canceled.Token));
+        await AssertCanceledAsync(GalleryImageCache.DecodeThrough(cache, Decode, secondEntry, Fit, canceled.Token));
 
         Assert.True(cache.TryAcquire(GalleryImageCache.KeyOf(firstEntry)!, Fit, out Img? stillThere, out _));
         Assert.Same(first, stillThere);
@@ -246,7 +245,10 @@ public sealed class GalleryCacheIntegrityTests
         Task<(Img Bitmap, GalleryImageInfo Info)> cold = GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, CancellationToken.None);
         await started.Task.WaitAsync(Patience);
         Img image = new(100, 100);
-        decoded.SetResult((image, Info)); // completed on the UI thread: the cache's continuation starts right here
+        SynchronizationContext? previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        try { decoded.SetResult((image, Info)); } // UI thread without a context: presence is not a safe ownership test
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
         (Img shown, _) = await cold.WaitAsync(Patience);
 
         Assert.Same(image, shown);
@@ -283,8 +285,7 @@ public sealed class GalleryCacheIntegrityTests
         // exactly then: the hit is already leased when the request learns about it.
         using CancellationTokenSource moved = new();
         probe.OnRead = path => { if (path == firstEntry.Asset.Path) moved.Cancel(); };
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            GalleryImageCache.DecodeThrough(cache, Decode, secondEntry, Fit, moved.Token));
+        await AssertCanceledAsync(GalleryImageCache.DecodeThrough(cache, Decode, secondEntry, Fit, moved.Token));
         probe.OnRead = null;
 
         Assert.Equal(1, decodes);
@@ -308,14 +309,42 @@ public sealed class GalleryCacheIntegrityTests
         using CancellationTokenSource moved = new();
         int reads = 0;
         probe.OnRead = _ => { if (Interlocked.Increment(ref reads) == 2) moved.Cancel(); }; // the read after the decode
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
-            GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, moved.Token));
+        await AssertCanceledAsync(GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, moved.Token));
 
         Assert.Equal(0, probe.OnUi);
         Assert.Equal(1, cache.Count); // the verified decode stays available to the next request
         Assert.False(image.Disposed);
         cache.BudgetBytes = 0;
         Assert.True(image.Disposed); // but the cancelled request holds no lease on it
+    });
+
+    [Fact]
+    public Task CancellingAColdDecodeAfterItsOriginalBecomesInvalidHandsOutNothing() => OnUiContextAsync(async ui =>
+    {
+        using TempDirectory temp = new();
+        GalleryEntry entry = await EntryAsync(Path.Combine(temp.Path, "one"), "image.png", "original image"u8.ToArray());
+        IdentityProbe probe = new(ui);
+        GalleryImageCache<Img> cache = new(image => image.Size, Budget) { IdentityOf = probe.Read };
+        Img image = new(100, 100);
+        Task<(Img Bitmap, GalleryImageInfo Info)> Decode(GalleryEntry _, GalleryDecodeRequest __, CancellationToken ___) =>
+            Task.FromResult((image, Info));
+
+        using CancellationTokenSource canceled = new();
+        int reads = 0;
+        probe.OnRead = path =>
+        {
+            if (Interlocked.Increment(ref reads) == 2)
+            {
+                canceled.Cancel();
+                File.Delete(path); // make the post-decode identity check reject the occurrence
+            }
+        };
+
+        await AssertCanceledAsync(GalleryImageCache.DecodeThrough(cache, Decode, entry, Fit, canceled.Token));
+
+        Assert.Equal(0, probe.OnUi);
+        Assert.Equal(0, cache.Count);
+        Assert.True(image.Disposed);
     });
 
     [Fact]
@@ -367,6 +396,12 @@ public sealed class GalleryCacheIntegrityTests
         Assert.True(fresh.Disposed);
         Assert.Equal(0, probe.OnUi);
     });
+
+    private static async Task AssertCanceledAsync(Task task)
+    {
+        // Task.Run/await may surface either OperationCanceledException or its TaskCanceledException subclass.
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+    }
 
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
 

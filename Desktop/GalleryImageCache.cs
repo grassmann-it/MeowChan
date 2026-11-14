@@ -471,10 +471,9 @@ internal static class GalleryImageCache
             }
             else validity = Capture(entry, identityOf); // capture before the decoder opens the original
             (T bitmap, GalleryImageInfo decodedInfo) = await decode(entry, request, cancellationToken).ConfigureAwait(false);
-            // A decoder may complete on a thread with a UI context, where this continuation then runs inline: re-check there no file.
-            return SynchronizationContext.Current is null
-                ? Keep(bitmap, decodedInfo, validity)
-                : await Task.Run(() => Keep(bitmap, decodedInfo, validity), CancellationToken.None).ConfigureAwait(false);
+            // The decoder may complete on a UI thread even though this operation started on the pool. Always hop before the
+            // post-decode identity check instead of using SynchronizationContext presence as a proxy for UI-thread ownership.
+            return await Task.Run(() => Keep(bitmap, decodedInfo, validity), CancellationToken.None).ConfigureAwait(false);
         }
 
         (T Bitmap, GalleryImageInfo Info) Keep(T bitmap, GalleryImageInfo decodedInfo, FileValidity? validity)
@@ -486,7 +485,17 @@ internal static class GalleryImageCache
                 throw;
             }
             // A decode may have raced a replace. Do not memoize or keep a bitmap whose source identity no longer matches.
-            if (validity == null || !validity.IsCurrent()) return (bitmap, decodedInfo);
+            if (validity == null) return (bitmap, decodedInfo);
+            bool current = validity.IsCurrent();
+            // Cancellation may arrive while the post-decode identity read is in progress. Even when that read rejects the
+            // occurrence (and would otherwise return the unkept bitmap), a cancelled request must not hand any bitmap to its caller.
+            try { cancellationToken.ThrowIfCancellationRequested(); }
+            catch
+            {
+                bitmap.Dispose();
+                throw;
+            }
+            if (!current) return (bitmap, decodedInfo);
             // Just confirmed current: the decoder's proof belongs to exactly this occurrence (as RememberVerified, without a second stat).
             cache.VerifiedFiles.Remember(validity.Path, validity.Identity, validity.Sha256);
             T shown = cache.Add(key, bitmap, decodedInfo, validity);
