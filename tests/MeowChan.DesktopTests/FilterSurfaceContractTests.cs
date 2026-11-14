@@ -65,11 +65,29 @@ public sealed class FilterSurfaceContractTests
     }
 
     [Fact]
-    public void TagChipsInTheMediaHeaderCarryTheToggle()
+    public void TheMediaHeaderChipsAreTermChipsOfTheOneFactoryAndNegatableOnesToggle()
     {
-        string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs");
-        Assert.Contains("ArchivePage.CreateTagFilterChip(", chips);
-        Assert.Contains("ToggleTagFilter(tagId)", chips);
+        // M2: one chip model for both pages; the archive's tag chip factory is a thin wrapper over it.
+        string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs"), archive = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.cs");
+        Assert.Contains("WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable,", chips);
+        Assert.Contains("chip.Negatable ? () => ToggleFilterChip(term!) : null", chips);
+        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true)", archive);
+        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove)", archive);
+        Assert.DoesNotContain("ArchivePage.CreateTagFilterChip(", chips);
+    }
+
+    [Fact]
+    public void TheMediaTermSetIsTheOneTruthOfTheFilter()
+    {
+        string filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
+        Assert.Contains("private readonly List<MediaFilterTerm> _terms = new();", filters);
+        Assert.Contains("MediaFilterTerms.ToFilter(AllTerms(), _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All)", filters);
+        // The fields write the set (EditTerms) and show it (SyncFilterControls); no field is read to build the filter any more.
+        Assert.Contains("private void SyncFilterControls()", filters);
+        foreach (string gone in new[] { "_includeTags", "_excludeTags", "_threadFilter", "(MediaLibraryKindFilter)Math.Clamp(_kindFilter.SelectedIndex" })
+            Assert.DoesNotContain(gone, filters);
+        Assert.Contains("_filterAdd.PickedTerm = AddFilterTerm;", Source("Desktop/Views/Media/MediaPage.FilterChips.cs"));
+        Assert.Contains("WorkViewElement.SetId(_filterAdd, \"media.filter.add\")", Source("Desktop/Views/Media/MediaPage.WorkView.cs"));
     }
 
     [Fact]

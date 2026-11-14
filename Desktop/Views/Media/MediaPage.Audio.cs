@@ -32,7 +32,7 @@ public sealed partial class MediaPage
     internal MediaAudioMap AudioResults => _audio;
     internal int UncheckedVideos => _audioUnknown;
 
-    private bool SoundFilterActive => _soundFilter.SelectedIndex > 0;
+    private bool SoundFilterActive => HasField(MediaFilterField.Sound);
 
     private string? AudioCachePath => _cacheFile?.Path is not { } cachePath ? null
         : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(cachePath))!, MediaAudioCache.FileName);

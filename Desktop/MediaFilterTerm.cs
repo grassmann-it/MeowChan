@@ -175,7 +175,7 @@ internal static class MediaFilterTerms
             kinds = includeTypes;
         }
         else if (excludeTypes.Count > 0) kinds = MediaLibraryFilter.AllKindsExcept([.. excludeTypes]);
-        return new MediaLibraryFilter(ArchiveTagFilter.OrNull(includeTags, excludeTags, tagMatch), MediaLibraryKindFilter.Any, favorites, rating,
+        return new MediaLibraryFilter(ArchiveTagFilter.OrNull(includeTags, excludeTags, tagMatch, ArchiveTagFilter.MaximumConfigurableTagsPerList), MediaLibraryKindFilter.Any, favorites, rating,
             source, board, name, thread, sound, untagged, kinds, excludeSources, excludeBoards);
     }
 

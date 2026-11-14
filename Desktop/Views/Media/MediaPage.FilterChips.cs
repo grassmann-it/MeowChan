@@ -7,14 +7,19 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Ursa.Controls;
 
 namespace MeowChan;
 
 // C3: every active media filter is a removable chip in one row under the toolbar, visible while the filter surface is closed,
-// with "Reset all" directly behind the last chip and the count on the toggle ("Filters (3)"). Same chip factory as the archive's applied filters
-// (ArchivePage.CreateFilterTag); removing a chip resets exactly that field, and keyboard focus stays in the row.
+// with "Reset all" directly behind the last chip and the count on the toggle ("Filters (3)"). M2: the chips are the term set
+// (MediaFilterTerm, one chip per term), built by the one chip factory of the archive and the media page
+// (WorkspaceChips.CreateTermChip): tag, type, source and board chips switch between include and exclude (their toggle, a click on
+// the body, Enter, or the context menu), the others only remove. "+ Filter" behind the chips opens the picker over every field.
+// Removing a chip removes exactly that term, and keyboard focus stays in the row.
 public sealed partial class MediaPage
 {
     private readonly Button _filterResetAll = new()
@@ -22,18 +27,26 @@ public sealed partial class MediaPage
         Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 24, Padding = new Thickness(6, 2),
         BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Top, VerticalContentAlignment = VerticalAlignment.Center
     };
+    // "+ Filter": the picker over every field (types, sounds, sources, boards, ratings, flags and the own tags), behind the last chip.
+    private readonly FilterTermPicker _filterAdd = new() { Name = "MediaFilterAdd", VerticalAlignment = VerticalAlignment.Top };
     // A filter that matches nothing offers the way back in the empty grid as well.
     private readonly Button _emptyReset = new() { Name = "MediaEmptyReset", IsVisible = false };
     private readonly Button _emptySearchInArchive = new() { Name = "MediaEmptySearchInArchive", IsVisible = false };
     private string[] _renderedChips = Array.Empty<string>();
 
-    private sealed record FilterChip(string Key, string Label, Action Remove, bool Exclude = false, Guid? Tag = null);
+    // Term: the chip's term (null for the tag mode chip); ValueName: what its switch names ("Switch to exclude: Videos").
+    private sealed record FilterChip(string Key, string Label, Action Remove, MediaFilterTerm? Term = null, string? ValueName = null)
+    {
+        internal bool Negatable => Term != null && MediaFilterTerm.CanExclude(Term.Field);
+    }
 
     /// <summary>The number of active filter values, one per chip; the toggle shows it.</summary>
     internal int ActiveFilterCount { get; private set; }
     internal Button FilterResetAll => _filterResetAll;
+    /// <summary>The "+ Filter" picker at the end of the chip row.</summary>
+    internal FilterTermPicker FilterAdd => _filterAdd;
 
-    /// <summary>The chip row (chips, then "Reset all" behind the last one) that replaces the bare chip panel in the header.</summary>
+    /// <summary>The chip row (chips, "+ Filter", then "Reset all" behind them) that replaces the bare chip panel in the header.</summary>
     private Control BuildFilterChipRow()
     {
         _filterError.Classes.Add("workspace-error");
@@ -57,63 +70,94 @@ public sealed partial class MediaPage
             if (!_lifetime.IsCancellationRequested && name.Length > 0) SearchInArchiveRequested?.Invoke(name);
         };
         _emptyActions.Children.Add(_emptySearchInArchive);
-        // "Reset all" follows the last chip directly (M1): both columns are Auto, so the chips are held to the row width
-        // minus the link by hand; they wrap there, and the link stays on the first line at the chip height.
-        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
+        _filterAdd.Snapshot = () => _userData.TagSnapshot;
+        _filterAdd.Used = UsedTags;
+        _filterAdd.Others = PickerChoices;
+        _filterAdd.PickedTerm = AddFilterTerm;
+        _filterAdd.IsVisible = false;
+        // "+ Filter" and "Reset all" follow the last chip directly (M1): the columns are Auto, so the chips are held to the row width
+        // minus both by hand; they wrap there, and the two stay on the first line at the chip height.
+        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8 };
         row.Children.Add(_filterChips);
-        row.Children.Add(_filterResetAll); Avalonia.Controls.Grid.SetColumn(_filterResetAll, 1);
+        row.Children.Add(_filterAdd); Avalonia.Controls.Grid.SetColumn(_filterAdd, 1);
+        row.Children.Add(_filterResetAll); Avalonia.Controls.Grid.SetColumn(_filterResetAll, 2);
         _filterResetAll.HorizontalAlignment = HorizontalAlignment.Left;
         void FitChips()
         {
-            double width = row.Bounds.Width - row.ColumnSpacing - Math.Ceiling(_filterResetAll.DesiredSize.Width);
+            double add = _filterAdd.IsVisible ? Math.Ceiling(_filterAdd.DesiredSize.Width) + row.ColumnSpacing : 0;
+            double width = row.Bounds.Width - row.ColumnSpacing - add - Math.Ceiling(_filterResetAll.DesiredSize.Width);
             if (width < 120) width = 120;
             if (double.IsInfinity(_filterChips.MaxWidth) || Math.Abs(_filterChips.MaxWidth - width) > 0.5) _filterChips.MaxWidth = width;
         }
         row.SizeChanged += (_, _) => FitChips();
         _filterResetAll.SizeChanged += (_, _) => FitChips();
+        _filterAdd.SizeChanged += (_, _) => FitChips();
         return row;
     }
 
     /// <summary>
-    /// Every value the filter controls hold, in the order of the existing chips (tags, thread, without media tags) followed by the
-    /// fields that had no chip before. Labels reuse the field texts, so a chip reads like the choice it undoes.
+    /// One chip per term of the filter (the set plus the file name), in the order the chips had before M2: tags, the tag mode, thread,
+    /// without media tags, name, type, sound, source, board, rating, favourites, missing. Labels reuse the field texts, so a chip reads
+    /// like the choice it undoes; an excluded value says "Without …".
     /// </summary>
     private List<FilterChip> ActiveFilterChips()
     {
         List<FilterChip> chips = new();
-        chips.AddRange(_includeTags.ToArray().Select(id => new FilterChip("tag+" + id, Texts.T("tags.filter.includeChip", TagLabel(id)),
-            () => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); }, Tag: id)));
-        chips.AddRange(_excludeTags.ToArray().Select(id => new FilterChip("tag-" + id, Texts.T("tags.filter.excludeChip", TagLabel(id)),
-            () => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }, Exclude: true, Tag: id)));
-        if (_includeTags.Count > 1 && _tagMode.SelectedIndex == 1)
-            chips.Add(new FilterChip("tagMatch", Texts.T("tags.filter.anyChip"), () => _tagMode.SelectedIndex = 0));
-        if (_threadFilter is { } thread)
-            chips.Add(new FilterChip("thread", Texts.T("media.filter.threadChip", thread.Title), () => { _threadFilter = null; FilterEdited(); }));
-        // Reached from the status line while the filter fields are closed, so it is removable without opening them.
-        if (_withoutMediaTags.IsChecked == true)
-            chips.Add(new FilterChip("untagged", Texts.T("media.filter.withoutTags"), () => _withoutMediaTags.IsChecked = false));
-        if (!string.IsNullOrWhiteSpace(_nameFilter.Text))
-            chips.Add(new FilterChip("name", Texts.T("media.filter.nameChip", _nameFilter.Text.Trim()), () =>
+        bool modeShown = false;
+        void AddMode()
+        {
+            if (modeShown) return;
+            modeShown = true;
+            if (TagTerms(false).Count() > 1 && _tagMode.SelectedIndex == 1)
+                chips.Add(new FilterChip("tagMatch", Texts.T("tags.filter.anyChip"), () => _tagMode.SelectedIndex = 0));
+        }
+        foreach (MediaFilterTerm term in MediaFilterTermSet.Ordered(AllTerms()))
+        {
+            if (term.Field != MediaFilterField.Tag) AddMode();
+            string key = (term.Exclude ? "-" : "+") + MediaFilterTermSet.IdentityKey(term);
+            void Add(string label, string? valueName = null) => chips.Add(new FilterChip(key, label, () => RemoveFilterTerm(term), term, valueName));
+            switch (term.Field)
             {
-                _nameFilter.Text = string.Empty;
-                FilterEdited(); // Text changes reach the filter after a dispatcher turn; the chip goes at once.
-            }));
-        if (_kindFilter.SelectedIndex > 0 && _kindFilter.SelectedItem is string kind)
-            chips.Add(new FilterChip("kind", Texts.T("media.filter.kindChip", kind), () => _kindFilter.SelectedIndex = 0));
-        if (SoundFilterActive && _soundFilter.SelectedItem is string sound)
-            chips.Add(new FilterChip("sound", sound, () => _soundFilter.SelectedIndex = 0));
-        if (_sourceFilter.SelectedItem is Choice { Value: { } source })
-            chips.Add(new FilterChip("source", Texts.T("archive.sourceChip", SourceLabel(source)), () => _sourceFilter.SelectedIndex = 0));
-        if (_boardFilter.SelectedItem is BoardChoice { Board: { } board, Source: { } boardSource })
-            chips.Add(new FilterChip("board", Texts.T("archive.boardChip", _sourceFilter.SelectedItem is Choice { Value: not null }
-                ? "/" + board + "/" : Texts.T("media.filter.boardOfSource", board, boardSource)), () => _boardFilter.SelectedIndex = 0));
-        if (_minRating.SelectedIndex > 0)
-            chips.Add(new FilterChip("rating", Texts.T("media.filter.ratingChip", _minRating.SelectedIndex), () => _minRating.SelectedIndex = 0));
-        if (_favoritesOnly.IsChecked == true)
-            chips.Add(new FilterChip("favorites", Texts.T("media.filter.favorites"), () => _favoritesOnly.IsChecked = false));
-        // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
-        if (_missing.IsChecked == true)
-            chips.Add(new FilterChip("missing", Texts.T("media.filter.missingChip"), () => _missing.IsChecked = false));
+                case MediaFilterField.Tag:
+                    string tag = TagLabel(Guid.Parse(term.Value));
+                    Add(Texts.T(term.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", tag), tag);
+                    break;
+                case MediaFilterField.Thread:
+                    Add(Texts.T("media.filter.threadChip", _threadTitle ?? "#" + term.Value));
+                    break;
+                case MediaFilterField.Untagged:
+                    // Reached from the status line while the filter fields are closed, so it is removable without opening them.
+                    Add(Texts.T("media.filter.withoutTags"));
+                    break;
+                case MediaFilterField.Name:
+                    Add(Texts.T("media.filter.nameChip", term.Value.Trim()));
+                    break;
+                case MediaFilterField.Type when MediaFilterTerm.TypeOf(term.Value) is { } kind:
+                    Add(Texts.T(term.Exclude ? "media.filter.kindExcludeChip" : "media.filter.kindChip", KindLabel(kind)), KindLabel(kind));
+                    break;
+                case MediaFilterField.Sound:
+                    Add(Texts.T(term.Value == "with" ? "media.filter.sound.with" : "media.filter.sound.without"));
+                    break;
+                case MediaFilterField.Source:
+                    Add(Texts.T(term.Exclude ? "media.filter.sourceExcludeChip" : "archive.sourceChip", SourceLabel(term.Value)), SourceLabel(term.Value));
+                    break;
+                case MediaFilterField.Board:
+                    string board = BoardLabel(term.Scope!, term.Value);
+                    Add(Texts.T(term.Exclude ? "media.filter.boardExcludeChip" : "archive.boardChip", board), board);
+                    break;
+                case MediaFilterField.Rating:
+                    Add(Texts.T("media.filter.ratingChip", int.Parse(term.Value, System.Globalization.CultureInfo.InvariantCulture)));
+                    break;
+                case MediaFilterField.Favorite:
+                    Add(Texts.T("media.filter.favorites"));
+                    break;
+                case MediaFilterField.Missing:
+                    // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
+                    Add(Texts.T("media.filter.missingChip"));
+                    break;
+            }
+        }
+        AddMode();
         return chips;
     }
 
@@ -125,6 +169,7 @@ public sealed partial class MediaPage
         _emptyReset.Content = Texts.T("media.filter.reset");
         List<FilterChip> chips = ActiveFilterChips();
         ActiveFilterCount = chips.Count;
+        _filterAdd.IsVisible = chips.Count > 0; // the work view re-applies it below (media.filter.add)
         RefreshWorkView(); // an active filter keeps its field shown in every view (R6)
         _filterChips.IsVisible = _filterResetAll.IsVisible = chips.Count > 0;
         // An unchanged row is kept as it is: a late text event must not rebuild the chips under the keyboard focus.
@@ -136,25 +181,40 @@ public sealed partial class MediaPage
         {
             FilterChip chip = chips[index];
             int position = index;
-            _filterChips.Children.Add(chip.Tag is { } tagId
-                ? ArchivePage.CreateTagFilterChip(chip.Label, TagLabel(tagId), tagId, chip.Exclude, () => RemoveFilterChip(position, chip.Remove), () => ToggleFilterChip(tagId))
-                : ArchivePage.CreateFilterTag(chip.Label, () => RemoveFilterChip(position, chip.Remove), chip.Exclude));
+            MediaFilterTerm? term = chip.Term;
+            ClosableTag tag = WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable, term?.Exclude == true,
+                () => RemoveFilterChip(position, chip.Remove), chip.Negatable ? () => ToggleFilterChip(term!) : null, chip.ValueName,
+                menu: true, edit: term != null && FilterTermPicker.GroupOrder(term.Field) <= FilterTermPicker.GroupOrder(MediaFilterField.Untagged)
+                    ? () => EditFilterChip(term.Field) : null);
+            if (term != null) tag.Tag = MediaFilterTermSet.IdentityKey(term);
+            _filterChips.Children.Add(tag);
         }
     }
 
-    // A tag chip's toggle rebuilds the chip (its key and place change); keyboard users stay on the toggle of the same tag.
-    private void ToggleFilterChip(Guid tagId)
+    // "Edit…" on a chip: the picker opens on that field's entries (another type, another rating, …).
+    private void EditFilterChip(MediaFilterField field)
+    {
+        if (_lifetime.IsCancellationRequested || !_filterAdd.IsEffectivelyVisible) return;
+        _filterAdd.OpenFor(field);
+    }
+
+    // A switch rebuilds the chip (its key and place change); keyboard users stay on the toggle of the same value.
+    private void ToggleFilterChip(MediaFilterTerm term)
     {
         bool focused = FocusWithin(_filterChips);
-        if (ToggleTagFilter(tagId) != null || !focused) return;
+        if (ToggleFilterTerm(term) != null || !focused) return;
+        string identity = MediaFilterTermSet.IdentityKey(term);
         Dispatcher.UIThread.Post(() =>
         {
             if (_lifetime.IsCancellationRequested) return;
-            ClosableTag? chip = _filterChips.Children.OfType<ClosableTag>().FirstOrDefault(tag => tag.Tag is Guid id && id == tagId);
-            if (chip?.Content is StackPanel { Children: [Control toggle, ..] }) toggle.Focus(NavigationMethod.Tab);
+            ClosableTag? chip = _filterChips.Children.OfType<ClosableTag>().FirstOrDefault(tag => tag.Tag as string == identity);
+            if (chip != null && WorkspaceChips.TermChipToggle(chip) is { } toggle) toggle.Focus(NavigationMethod.Tab);
             else FilterSurfaceToggle.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }
+
+    /// <summary>Test seam of a chip's switch: switches the term with this identity (as the chip's toggle and body click do).</summary>
+    internal string? ToggleFilterChipFor(MediaFilterTerm term) => ToggleFilterTerm(term);
 
     // Like the archive's chips: a removal made from the row keeps keyboard users in the row (the neighbour chip), or on the
     // filter toggle once the row is empty. Pointer removals and other re-renders leave focus alone.

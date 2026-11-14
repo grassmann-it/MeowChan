@@ -199,7 +199,7 @@ public sealed partial class MediaPage : UserControl
         _sort.SelectionChanged += (_, _) => OnSortChanged();
         _sortDirection.Click += (_, _) => { if (!_localizing) ToggleSortDirection(); };
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
-        _missing.IsCheckedChanged += (_, _) => FilterEdited(); // a filter: chips, work view and the grid follow
+        // Showing missing files is a filter term since M2 (MediaPage.Filters.cs WireFlag): chips, work view and the grid follow.
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
@@ -410,7 +410,7 @@ public sealed partial class MediaPage : UserControl
         catch (ArgumentException) { invalid = true; }
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
         return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
-            Sort, SortDirection, _missing.IsChecked == true, _seed, _userData, snapshot == null ? null : _userOrder,
+            Sort, SortDirection, HasField(MediaFilterField.Missing), _seed, _userData, snapshot == null ? null : _userOrder,
             _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
     }
 
@@ -513,7 +513,7 @@ public sealed partial class MediaPage : UserControl
         _audioUnknown = result.AudioUnknown;
         _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
         _filterError.IsVisible = result.ErrorKey != null;
-        _filterReset.IsEnabled = _filterActive || _missing.IsChecked == true;
+        _filterReset.IsEnabled = _filterActive || HasField(MediaFilterField.Missing);
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
         // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.

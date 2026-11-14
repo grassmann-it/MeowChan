@@ -508,7 +508,7 @@ internal static class WorkViewCaptures
         if (page.CurrentWorkView != workView)
             throw new InvalidOperationException($"media/{view}: the page applied {page.CurrentWorkView}.");
         // Visibility of these follows page state or is derived from the lists below.
-        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more"];
+        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more", "media.filter.add"];
         Control[] controls = WorkViewElement.For(WorkViewPage.Media).Where(control => control.FindLogicalAncestorOfType<MediaPage>() == page).ToArray();
         foreach (Control control in controls)
         {

@@ -40,6 +40,9 @@ public static partial class WorkViewPolicy
         // Showing captured but missing files is a maintenance view: under "More filters" until Advanced; switched on it is a state
         // (an active filter with its chip) and stays shown in every view (R6).
         new("media.filter.missing", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
+        // M2: "+ Filter" at the end of the chip row opens the picker over every field. It shows with the row (while a filter is
+        // active) in every view: it sits beside the chips, which no view reduces (R4/R5).
+        Same("media.filter.add", WorkViewPage.Media, WorkViewKind.Element, Direct),
         // The toggle that opens the fields a view keeps back; shown while any is held back or while it is open.
         Same("media.filter.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         // The "N without media tags" count is derived information; Barebones leaves it out (its filter is under More filters).
