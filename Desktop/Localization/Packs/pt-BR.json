@@ -4465,6 +4465,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Um vídeo maior não é reproduzido aqui; o leitor avisa, e a galeria continua reproduzindo-o.",
     "settings.discardQuestion": "Descartar as alterações não salvas nas configurações?",
     "dialog.keepEditing": "Continuar editando",
-    "dialog.discardChanges": "Descartar alterações"
+    "dialog.discardChanges": "Descartar alterações",
+    "profile.new.media.option": "Adicionar uma pasta de mídia",
+    "profile.new.media.folder": "Pasta de mídia",
+    "profile.new.media.hint": "O MeowChan apenas lê esta pasta. Ele nunca cria, grava nem altera nada nela. O novo perfil a adiciona como pasta somente leitura na primeira inicialização.",
+    "profile.new.chooseMedia": "Escolher pasta de mídia",
+    "profile.error.mediaAbsolute": "Escolha a pasta de mídia como um caminho completo ou desative a opção.",
+    "profile.error.mediaUnavailable": "A pasta de mídia não existe, não é uma pasta, é um link ou não pode ser lida. O MeowChan não a cria.",
+    "profile.error.mediaUnsafe": "A pasta de mídia não pode ser uma pasta de perfil ou de downloads, estar dentro de uma delas nem conter uma.",
+    "profile.startMedia.added": "A pasta de mídia “{0}” foi adicionada como pasta somente leitura. O MeowChan está examinando-a agora.",
+    "profile.startMedia.refused": "A pasta de mídia deste perfil não foi adicionada. {0}",
+    "profile.startMedia.badArgument": "O argumento de inicialização da pasta de mídia estava incompleto.",
+    "profile.startMedia.needsProfile": "Uma pasta de mídia só pode ser passada ao abrir um perfil."
   }
 }

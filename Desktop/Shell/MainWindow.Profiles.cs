@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -63,6 +64,9 @@ public partial class MainWindow
         // An ordinary start records this profile in the list once the session is up (never for environment-chosen
         // profiles, tests or smokes: ProfileStartup.RecordsInProfileList).
         if (ProfileStartup.RecordsInProfileList) Dispatcher.UIThread.Post(() => _ = RecordProfileAfterRestoreAsync(), DispatcherPriority.Background);
+        // A media folder the "New profile" dialog handed to this process becomes a read-only folder source on this first start.
+        if (ProfileStartup.TakeMediaFolder() is { } mediaFolder)
+            Dispatcher.UIThread.Post(() => _ = RegisterStartupMediaFolderAfterRestoreAsync(mediaFolder), DispatcherPriority.Background);
     }
 
     private void OnProfileMenuLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(RefreshProfileMenu);
@@ -136,6 +140,34 @@ public partial class MainWindow
         {
             // The list is a convenience: a failure never reaches the person.
             Log.Warning(error, "This profile could not be recorded in the profile list.");
+        }
+    }
+
+    /// <summary>Test seam: awaits the registration of the media folder start argument.</summary>
+    internal Task? StartupMediaFolderTask { get; private set; }
+
+    private Task RegisterStartupMediaFolderAfterRestoreAsync(StartupMediaFolderArgument argument) =>
+        StartupMediaFolderTask = RegisterStartupMediaFolderCoreAsync(argument);
+
+    private async Task RegisterStartupMediaFolderCoreAsync(StartupMediaFolderArgument argument)
+    {
+        try
+        {
+            await _restoreTask;
+            if (_isClosing || _session.State != DesktopSessionState.Ready) return;
+            DesktopSessionHost session = _session;
+            ProfileSwitchService service = CreateProfileService();
+            string[] others = await Task.Run(() => service.KnownProfileFolders()
+                .Where(path => !ProfileRegistry.SamePath(path, session.ProfileDirectory)).ToArray());
+            StartupMediaFolderResult result = await StartupMediaFolderRegistration.RegisterAsync(session, argument, others);
+            if (_isClosing || result.MessageKey == null) return;
+            ShowNotification(Texts.T("profile.menu"), StartupMediaFolderRegistration.Message(result),
+                result.Status == StartupMediaFolderStatus.Added ? NotificationType.Success : NotificationType.Warning, operation: "profile.mediaFolder");
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            // The folder is a convenience of the first start: a failure is logged, never fatal.
+            Log.Warning(error, "The media folder of this profile's start could not be added.");
         }
     }
 }

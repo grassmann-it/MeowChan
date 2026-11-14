@@ -4459,6 +4459,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Une vidéo plus grande n’est pas lue ici ; le lecteur l’indique et la galerie la lit toujours.",
     "settings.discardQuestion": "Abandonner les modifications non enregistrées des paramètres ?",
     "dialog.keepEditing": "Continuer à modifier",
-    "dialog.discardChanges": "Abandonner les modifications"
+    "dialog.discardChanges": "Abandonner les modifications",
+    "profile.new.media.option": "Ajouter un dossier de médias",
+    "profile.new.media.folder": "Dossier de médias",
+    "profile.new.media.hint": "MeowChan lit uniquement ce dossier. Il n’y crée, n’y écrit et n’y modifie jamais rien. Le nouveau profil l’ajoute comme dossier en lecture seule à son premier démarrage.",
+    "profile.new.chooseMedia": "Choisir le dossier de médias",
+    "profile.error.mediaAbsolute": "Indiquez le dossier de médias sous forme de chemin complet, ou désactivez l’option.",
+    "profile.error.mediaUnavailable": "Le dossier de médias n’existe pas, n’est pas un dossier, est un lien ou n’est pas lisible. MeowChan ne le crée pas.",
+    "profile.error.mediaUnsafe": "Le dossier de médias ne doit être ni un dossier de profil ou de téléchargement, ni se trouver dans l’un d’eux, ni en contenir un.",
+    "profile.startMedia.added": "Le dossier de médias « {0} » a été ajouté comme dossier en lecture seule. MeowChan le parcourt maintenant.",
+    "profile.startMedia.refused": "Le dossier de médias de ce profil n’a pas été ajouté. {0}",
+    "profile.startMedia.badArgument": "L’argument de démarrage du dossier de médias était incomplet.",
+    "profile.startMedia.needsProfile": "Un dossier de médias ne peut être transmis qu’à l’ouverture d’un profil."
   }
 }

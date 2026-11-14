@@ -41,6 +41,62 @@ internal static class ProfileCommandLine
     }
 }
 
+/// <summary>Why the <c>--media-folder</c> start argument cannot be used as given.</summary>
+internal enum StartupMediaFolderProblem
+{
+    None,
+    /// <summary>No folder after the switch, an empty or control-character value, or the switch twice.</summary>
+    Malformed,
+    /// <summary>The argument came without <c>--profile</c>: it belongs to a new profile's first start only.</summary>
+    NeedsProfile
+}
+
+/// <summary>The <c>--media-folder &lt;folder&gt;</c> start argument as read from the command line. A problem never stops the
+/// start; the window explains it once the session is up.</summary>
+internal sealed record StartupMediaFolderArgument(string? Path, StartupMediaFolderProblem Problem);
+
+/// <summary>Reads <c>--media-folder &lt;folder&gt;</c> (or <c>=&lt;folder&gt;</c>) and removes it from the arguments. The folder
+/// is the one the "New profile" dialog picked: the new process registers it as a read-only folder source on its first start.</summary>
+internal static class StartupMediaFolderCommandLine
+{
+    internal const string Switch = "--media-folder";
+
+    internal static string[] Extract(IReadOnlyList<string> args, bool hasProfile, out StartupMediaFolderArgument? argument)
+    {
+        ArgumentNullException.ThrowIfNull(args);
+        argument = null;
+        List<string> rest = new(args.Count);
+        bool seen = false, malformed = false;
+        string? path = null;
+        for (int index = 0; index < args.Count; index++)
+        {
+            string arg = args[index];
+            string? value;
+            if (arg == Switch)
+            {
+                if (index + 1 >= args.Count || args[index + 1].StartsWith("--", StringComparison.Ordinal)) { malformed = true; seen = true; continue; }
+                value = args[++index];
+            }
+            else if (arg.StartsWith(Switch + "=", StringComparison.Ordinal)) value = arg[(Switch.Length + 1)..];
+            else { rest.Add(arg); continue; }
+            malformed |= seen || string.IsNullOrWhiteSpace(value) || value.Any(char.IsControl);
+            seen = true;
+            if (!malformed) path = Normalize(value);
+            malformed |= path == null;
+        }
+        if (!seen) return rest.ToArray();
+        argument = malformed ? new(null, StartupMediaFolderProblem.Malformed)
+            : !hasProfile ? new(path, StartupMediaFolderProblem.NeedsProfile) : new(path, StartupMediaFolderProblem.None);
+        return rest.ToArray();
+    }
+
+    private static string? Normalize(string value)
+    {
+        try { return System.IO.Path.TrimEndingDirectorySeparator(System.IO.Path.GetFullPath(value)); }
+        catch (Exception error) when (error is ArgumentException or NotSupportedException or System.IO.PathTooLongException) { return null; }
+    }
+}
+
 /// <summary>How the profile of this process was chosen. Only a profile opened by <c>--profile</c> or the default
 /// profile records itself in the profile list; a profile chosen by an environment variable (tests, smokes,
 /// scripted starts) leaves the list as it is, so the variables keep their exact former behaviour.</summary>
@@ -49,6 +105,18 @@ internal static class ProfileStartup
     /// <summary>Set by the app's entry point for an ordinary start; false everywhere else (tests, smokes, tools).</summary>
     internal static bool RecordsInProfileList { get; set; }
 
+    private static StartupMediaFolderArgument? s_mediaFolder;
+
+    /// <summary>Set by the app's entry point from <c>--media-folder</c>; the window takes it once.</summary>
+    internal static StartupMediaFolderArgument? MediaFolder
+    {
+        get => System.Threading.Volatile.Read(ref s_mediaFolder);
+        set => System.Threading.Volatile.Write(ref s_mediaFolder, value);
+    }
+
+    /// <summary>The start argument for a media folder, once: a second call (or another window) gets nothing.</summary>
+    internal static StartupMediaFolderArgument? TakeMediaFolder() => System.Threading.Interlocked.Exchange(ref s_mediaFolder, null);
+
     internal static bool SelectedByEnvironment(string? meowChanProfile, string? oChanProfile, string? argument) =>
         string.IsNullOrWhiteSpace(argument) && (!string.IsNullOrWhiteSpace(meowChanProfile) || !string.IsNullOrWhiteSpace(oChanProfile));
 }
@@ -56,21 +124,24 @@ internal static class ProfileStartup
 /// <summary>Opens a profile in a new app process. The test seam: smokes use a fake that records instead of starting.</summary>
 internal interface IProfileLauncher
 {
-    void Launch(string profileDirectory);
+    /// <param name="profileDirectory">The profile folder to open.</param>
+    /// <param name="mediaFolder">A validated media folder the new window adds as a read-only folder source, or null.</param>
+    void Launch(string profileDirectory, string? mediaFolder = null);
 }
 
 /// <summary>Starts this app again with <c>--profile</c>. The child never inherits <c>MEOWCHAN_PROFILE</c>/<c>OCHAN_PROFILE</c>:
 /// the argument alone chooses its profile.</summary>
 internal sealed class ProcessProfileLauncher : IProfileLauncher
 {
-    public void Launch(string profileDirectory)
+    public void Launch(string profileDirectory, string? mediaFolder = null)
     {
         ProcessStartInfo info = CreateStartInfo(profileDirectory, Environment.ProcessPath,
-            System.Reflection.Assembly.GetEntryAssembly()?.Location, Environment.GetEnvironmentVariable("APPIMAGE"));
+            System.Reflection.Assembly.GetEntryAssembly()?.Location, Environment.GetEnvironmentVariable("APPIMAGE"), mediaFolder);
         using Process process = Process.Start(info) ?? throw new InvalidOperationException("The new window could not be started.");
     }
 
-    internal static ProcessStartInfo CreateStartInfo(string profileDirectory, string? processPath, string? entryAssembly, string? appImage)
+    internal static ProcessStartInfo CreateStartInfo(string profileDirectory, string? processPath, string? entryAssembly, string? appImage,
+        string? mediaFolder = null)
     {
         if (!Path.IsPathFullyQualified(profileDirectory)) throw new ArgumentException("The profile folder must be absolute.", nameof(profileDirectory));
         // An AppImage is restarted through its image: the mount of this process ends with it.
@@ -82,6 +153,12 @@ internal sealed class ProcessProfileLauncher : IProfileLauncher
             info.ArgumentList.Add(entryAssembly);
         info.ArgumentList.Add(ProfileCommandLine.Switch);
         info.ArgumentList.Add(ProfileLease.NormalizeDirectory(profileDirectory));
+        if (mediaFolder != null)
+        {
+            if (!Path.IsPathFullyQualified(mediaFolder)) throw new ArgumentException("The media folder must be absolute.", nameof(mediaFolder));
+            info.ArgumentList.Add(StartupMediaFolderCommandLine.Switch);
+            info.ArgumentList.Add(ProfileLease.NormalizeDirectory(mediaFolder));
+        }
         info.Environment.Remove("MEOWCHAN_PROFILE");
         info.Environment.Remove("OCHAN_PROFILE");
         return info;

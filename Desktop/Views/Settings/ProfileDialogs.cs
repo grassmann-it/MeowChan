@@ -34,6 +34,12 @@ internal sealed class NewProfileDialog : Window
     private readonly TextBox _downloads = new() { Name = "NewProfileDownloads", MaxLength = ProfileRegistry.MaximumPathLength };
     private readonly Button _chooseDownloads = new() { Name = "NewProfileChooseDownloads" };
     private readonly TextBlock _downloadsHint = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly CheckBox _mediaOption = new() { Name = "NewProfileMediaOption" };
+    private readonly TextBlock _mediaLabel = new() { Name = "NewProfileMediaLabel" };
+    private readonly TextBox _media = new() { Name = "NewProfileMedia", MaxLength = ProfileRegistry.MaximumPathLength };
+    private readonly Button _chooseMedia = new() { Name = "NewProfileChooseMedia" };
+    private readonly TextBlock _mediaHint = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly StackPanel _mediaRow = new() { Spacing = 4, IsVisible = false };
     private readonly TextBlock _error = new() { Name = "NewProfileError", TextWrapping = TextWrapping.Wrap };
     private readonly Button _cancel = new() { Name = "NewProfileCancel" };
     private readonly Button _create = new() { Name = "NewProfileCreate" };
@@ -46,6 +52,8 @@ internal sealed class NewProfileDialog : Window
     internal TextBox FolderBox => _folder;
     internal TextBox DownloadsBox => _downloads;
     internal Button CreateButton => _create;
+    internal CheckBox MediaOption => _mediaOption;
+    internal TextBox MediaBox => _media;
     internal TextBlock ErrorText => _error;
     internal TextBlock ExistingNotice => _existing;
     /// <summary>Folder picker seam (smokes): returns the chosen folder or null.</summary>
@@ -55,15 +63,16 @@ internal sealed class NewProfileDialog : Window
     {
         _service = service; _language = language;
         Name = "NewProfileDialog";
-        Width = 600; Height = 560; MinWidth = 380; MinHeight = 420;
+        Width = 600; Height = 680; MinWidth = 380; MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         _intro.Classes.Add("workspace-help");
-        foreach (TextBlock label in new[] { _nameLabel, _folderLabel, _downloadsLabel }) label.Classes.Add("workspace-field-label");
-        _folderHint.Classes.Add("workspace-help"); _downloadsHint.Classes.Add("workspace-help"); _existing.Classes.Add("workspace-meta");
+        foreach (TextBlock label in new[] { _nameLabel, _folderLabel, _downloadsLabel, _mediaLabel }) label.Classes.Add("workspace-field-label");
+        _folderHint.Classes.Add("workspace-help"); _downloadsHint.Classes.Add("workspace-help"); _mediaHint.Classes.Add("workspace-help"); _existing.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_existing, AutomationLiveSetting.Polite);
         AutomationProperties.SetLabeledBy(_name, _nameLabel);
         AutomationProperties.SetLabeledBy(_folder, _folderLabel);
         AutomationProperties.SetLabeledBy(_downloads, _downloadsLabel);
+        AutomationProperties.SetLabeledBy(_media, _mediaLabel);
         _cancel.Classes.Add("subtle"); _create.Classes.Add("primary");
 
         Grid FolderRow(TextBox box, Button choose)
@@ -76,7 +85,9 @@ internal sealed class NewProfileDialog : Window
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         StackPanel nameRow = new() { Spacing = 4, Children = { _nameLabel, _name } };
         StackPanel folderRow = new() { Spacing = 4, Children = { _folderLabel, FolderRow(_folder, _chooseFolder), _folderHint, _existing } };
+        _mediaRow.Children.Add(_mediaLabel); _mediaRow.Children.Add(FolderRow(_media, _chooseMedia)); _mediaRow.Children.Add(_mediaHint);
         body.Children.Add(nameRow); body.Children.Add(folderRow); body.Children.Add(_downloadsRow);
+        body.Children.Add(_mediaOption); body.Children.Add(_mediaRow);
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { _cancel, _create } };
         Content = WindowChrome.Frame(this, DialogFrame.Build(_intro, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)), WindowChromeKind.Dialog);
 
@@ -85,6 +96,14 @@ internal sealed class NewProfileDialog : Window
         _downloads.TextChanged += (_, _) => { if (!_syncing) { _downloadsEdited = true; ClearError(); } };
         _chooseFolder.Click += async (_, _) => await ChooseAsync(_folder, "profile.new.chooseFolder");
         _chooseDownloads.Click += async (_, _) => await ChooseAsync(_downloads, "profile.new.chooseDownloads");
+        _chooseMedia.Click += async (_, _) => await ChooseAsync(_media, "profile.new.chooseMedia");
+        _media.TextChanged += (_, _) => ClearError();
+        _mediaOption.IsCheckedChanged += (_, _) =>
+        {
+            _mediaRow.IsVisible = _mediaOption.IsChecked == true;
+            ClearError();
+            if (_mediaOption.IsChecked == true) _media.Focus();
+        };
         _cancel.Click += (_, _) => { if (!_busy) Close(); };
         _create.Click += async (_, _) => await CreateAsync();
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
@@ -109,7 +128,11 @@ internal sealed class NewProfileDialog : Window
         _existing.Text = Texts.T("profile.new.existing");
         _downloadsLabel.Text = Texts.T("profile.new.downloads");
         _downloadsHint.Text = Texts.T("profile.new.downloadsHint");
-        _chooseFolder.Content = _chooseDownloads.Content = Texts.T("profile.new.choose");
+        _mediaOption.Content = Texts.T("profile.new.media.option");
+        _mediaLabel.Text = Texts.T("profile.new.media.folder");
+        _mediaHint.Text = Texts.T("profile.new.media.hint");
+        _chooseFolder.Content = _chooseDownloads.Content = _chooseMedia.Content = Texts.T("profile.new.choose");
+        AutomationProperties.SetName(_chooseMedia, Texts.T("profile.new.chooseMedia"));
         AutomationProperties.SetName(_chooseFolder, Texts.T("profile.new.chooseFolder"));
         AutomationProperties.SetName(_chooseDownloads, Texts.T("profile.new.chooseDownloads"));
         _cancel.Content = Texts.T("profile.new.cancel");
@@ -173,15 +196,20 @@ internal sealed class NewProfileDialog : Window
     {
         if (_busy || _closed) return;
         string name = (_name.Text ?? string.Empty).Trim(), folder = (_folder.Text ?? string.Empty).Trim(), downloads = (_downloads.Text ?? string.Empty).Trim();
-        if (_service.Validate(name, folder, downloads) is { } problem)
+        // The option is on: the folder is checked like "Add folder…" does (it must exist, be readable and be no profile or download
+        // folder) before anything is created or started, and it is never created here.
+        string? media = _mediaOption.IsChecked == true ? (_media.Text ?? string.Empty).Trim() : null;
+        string? problem = media is { Length: 0 } ? "profile.error.mediaAbsolute" : _service.Validate(name, folder, downloads, media);
+        if (problem != null)
         {
             ShowError(problem);
-            (problem.StartsWith("profile.error.name", StringComparison.Ordinal) ? _name : problem.StartsWith("profile.error.downloads", StringComparison.Ordinal) ? _downloads : (Control)_folder).Focus();
+            (problem.StartsWith("profile.error.name", StringComparison.Ordinal) ? _name : problem.StartsWith("profile.error.downloads", StringComparison.Ordinal) ? _downloads
+                : problem.StartsWith("profile.error.media", StringComparison.Ordinal) ? _media : (Control)_folder).Focus();
             return;
         }
         SetBusy(true);
         ProfileActionResult result;
-        try { result = await Task.Run(() => _service.Create(new NewProfileRequest(name, folder, downloads, _language))); }
+        try { result = await Task.Run(() => _service.Create(new NewProfileRequest(name, folder, downloads, _language, media))); }
         finally { SetBusy(false); }
         if (_closed) return;
         if (result.Status == ProfileActionStatus.Started) { Result = result; Close(result); return; }
@@ -191,7 +219,7 @@ internal sealed class NewProfileDialog : Window
     private void SetBusy(bool busy)
     {
         _busy = busy;
-        foreach (Control control in new Control[] { _name, _folder, _chooseFolder, _cancel, _create }) control.IsEnabled = !busy;
+        foreach (Control control in new Control[] { _name, _folder, _chooseFolder, _mediaOption, _media, _chooseMedia, _cancel, _create }) control.IsEnabled = !busy;
         RefreshFolderKind();
     }
 }

@@ -4459,6 +4459,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Un vídeo más grande no se reproduce aquí; el lector lo indica y la galería lo sigue reproduciendo.",
     "settings.discardQuestion": "¿Descartar los cambios sin guardar de la configuración?",
     "dialog.keepEditing": "Seguir editando",
-    "dialog.discardChanges": "Descartar cambios"
+    "dialog.discardChanges": "Descartar cambios",
+    "profile.new.media.option": "Añadir una carpeta de medios",
+    "profile.new.media.folder": "Carpeta de medios",
+    "profile.new.media.hint": "MeowChan solo lee esta carpeta. Nunca crea, escribe ni cambia nada en ella. El perfil nuevo la añade como carpeta de solo lectura en su primer inicio.",
+    "profile.new.chooseMedia": "Elegir carpeta de medios",
+    "profile.error.mediaAbsolute": "Elija la carpeta de medios como ruta completa o desactive la opción.",
+    "profile.error.mediaUnavailable": "La carpeta de medios no existe, no es una carpeta, es un enlace o no se puede leer. MeowChan no la crea.",
+    "profile.error.mediaUnsafe": "La carpeta de medios no puede ser una carpeta de perfil ni de descargas, estar dentro de una ni contener una.",
+    "profile.startMedia.added": "La carpeta de medios “{0}” se añadió como carpeta de solo lectura. MeowChan la está revisando ahora.",
+    "profile.startMedia.refused": "La carpeta de medios de este perfil no se añadió. {0}",
+    "profile.startMedia.badArgument": "El argumento de inicio de la carpeta de medios estaba incompleto.",
+    "profile.startMedia.needsProfile": "Una carpeta de medios solo se puede entregar al abrir un perfil."
   }
 }

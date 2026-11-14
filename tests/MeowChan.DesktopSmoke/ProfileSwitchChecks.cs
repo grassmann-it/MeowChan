@@ -21,7 +21,8 @@ internal static class ProfileSwitchChecks
     private sealed class RecordingLauncher : IProfileLauncher
     {
         internal readonly List<string> Started = new();
-        public void Launch(string profileDirectory) => Started.Add(profileDirectory);
+        internal readonly List<string?> MediaFolders = new();
+        public void Launch(string profileDirectory, string? mediaFolder = null) { Started.Add(profileDirectory); MediaFolders.Add(mediaFolder); }
     }
 
     internal static async Task RunAsync(MainWindow owner)

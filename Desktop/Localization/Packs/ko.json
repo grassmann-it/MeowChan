@@ -4374,6 +4374,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "이보다 큰 동영상은 여기에서 재생되지 않습니다. 리더가 이를 알려 주며, 갤러리에서는 계속 재생할 수 있습니다.",
     "settings.discardQuestion": "저장하지 않은 설정 변경 사항을 삭제하시겠습니까?",
     "dialog.keepEditing": "계속 편집",
-    "dialog.discardChanges": "변경 사항 삭제"
+    "dialog.discardChanges": "변경 사항 삭제",
+    "profile.new.media.option": "미디어 폴더 추가",
+    "profile.new.media.folder": "미디어 폴더",
+    "profile.new.media.hint": "MeowChan은 이 폴더를 읽기만 합니다. 폴더 안에 무언가를 만들거나 쓰거나 변경하지 않습니다. 새 프로필은 첫 시작 때 이 폴더를 읽기 전용 폴더로 추가합니다.",
+    "profile.new.chooseMedia": "미디어 폴더 선택",
+    "profile.error.mediaAbsolute": "미디어 폴더를 전체 경로로 선택하거나 이 옵션을 끄세요.",
+    "profile.error.mediaUnavailable": "미디어 폴더가 없거나, 폴더가 아니거나, 링크이거나, 읽을 수 없습니다. MeowChan은 폴더를 만들지 않습니다.",
+    "profile.error.mediaUnsafe": "미디어 폴더는 프로필 폴더나 다운로드 폴더일 수 없고, 그 안에 있거나 그 폴더를 포함할 수도 없습니다.",
+    "profile.startMedia.added": "미디어 폴더 “{0}”을(를) 읽기 전용 폴더로 추가했습니다. MeowChan이 지금 폴더를 살펴보고 있습니다.",
+    "profile.startMedia.refused": "이 프로필의 미디어 폴더를 추가하지 못했습니다. {0}",
+    "profile.startMedia.badArgument": "미디어 폴더의 시작 인수가 완전하지 않았습니다.",
+    "profile.startMedia.needsProfile": "미디어 폴더는 프로필을 열 때만 전달할 수 있습니다."
   }
 }

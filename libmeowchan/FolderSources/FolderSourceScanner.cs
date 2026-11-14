@@ -184,6 +184,9 @@ internal static class FolderSourceValidation
         {
             DirectoryInfo info = new(full);
             if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0) return FolderSourceError.FolderUnavailable;
+            // Readable: listing the first entry fails for a folder the person may not read (nothing is created or opened).
+            using IEnumerator<string> probe = Directory.EnumerateFileSystemEntries(full).GetEnumerator();
+            probe.MoveNext();
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return FolderSourceError.FolderUnavailable; }
         // The profile and the download folder may lie inside a source (the scan skips both), but a source never lies inside them.

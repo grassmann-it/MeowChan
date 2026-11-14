@@ -4502,6 +4502,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Větší video se zde nepřehraje; čtečka na to upozorní a galerie ho přehraje dál.",
     "settings.discardQuestion": "Zahodit neuložené změny nastavení?",
     "dialog.keepEditing": "Pokračovat v úpravách",
-    "dialog.discardChanges": "Zahodit změny"
+    "dialog.discardChanges": "Zahodit změny",
+    "profile.new.media.option": "Přidat složku s médii",
+    "profile.new.media.folder": "Složka s médii",
+    "profile.new.media.hint": "MeowChan tuto složku pouze čte. Nikdy v ní nic nevytváří, nezapisuje ani nemění. Nový profil ji při prvním spuštění přidá jako složku jen pro čtení.",
+    "profile.new.chooseMedia": "Vybrat složku s médii",
+    "profile.error.mediaAbsolute": "Zadejte složku s médii jako úplnou cestu, nebo volbu vypněte.",
+    "profile.error.mediaUnavailable": "Složka s médii neexistuje, není složkou, je odkazem nebo ji nelze přečíst. MeowChan ji nevytváří.",
+    "profile.error.mediaUnsafe": "Složka s médii nesmí být složkou profilu ani stahování, nesmí ležet uvnitř takové složky ani ji obsahovat.",
+    "profile.startMedia.added": "Složka s médii „{0}“ byla přidána jako složka jen pro čtení. MeowChan ji právě prochází.",
+    "profile.startMedia.refused": "Složka s médii pro tento profil nebyla přidána. {0}",
+    "profile.startMedia.badArgument": "Spouštěcí argument pro složku s médii byl neúplný.",
+    "profile.startMedia.needsProfile": "Složku s médii lze předat jen při otevření profilu."
   }
 }

@@ -4505,6 +4505,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Większe wideo nie jest tu odtwarzane; czytnik o tym informuje, a galeria nadal je odtwarza.",
     "settings.discardQuestion": "Odrzucić niezapisane zmiany ustawień?",
     "dialog.keepEditing": "Kontynuuj edycję",
-    "dialog.discardChanges": "Odrzuć zmiany"
+    "dialog.discardChanges": "Odrzuć zmiany",
+    "profile.new.media.option": "Dodaj folder multimediów",
+    "profile.new.media.folder": "Folder multimediów",
+    "profile.new.media.hint": "MeowChan tylko odczytuje ten folder. Nigdy niczego w nim nie tworzy, nie zapisuje ani nie zmienia. Nowy profil doda go jako folder tylko do odczytu przy pierwszym uruchomieniu.",
+    "profile.new.chooseMedia": "Wybierz folder multimediów",
+    "profile.error.mediaAbsolute": "Podaj folder multimediów jako pełną ścieżkę albo wyłącz tę opcję.",
+    "profile.error.mediaUnavailable": "Folder multimediów nie istnieje, nie jest folderem, jest skrótem lub nie można go odczytać. MeowChan go nie tworzy.",
+    "profile.error.mediaUnsafe": "Folder multimediów nie może być folderem profilu ani pobierania, leżeć w takim folderze ani go zawierać.",
+    "profile.startMedia.added": "Folder multimediów „{0}” został dodany jako folder tylko do odczytu. MeowChan właśnie go przegląda.",
+    "profile.startMedia.refused": "Folder multimediów dla tego profilu nie został dodany. {0}",
+    "profile.startMedia.badArgument": "Argument startowy folderu multimediów był niekompletny.",
+    "profile.startMedia.needsProfile": "Folder multimediów można przekazać tylko przy otwieraniu profilu."
   }
 }

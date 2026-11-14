@@ -4374,6 +4374,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "これより大きい動画はここでは再生されません。リーダーにその旨が表示され、ギャラリーでは引き続き再生できます。",
     "settings.discardQuestion": "設定の未保存の変更を破棄しますか？",
     "dialog.keepEditing": "編集を続ける",
-    "dialog.discardChanges": "変更を破棄"
+    "dialog.discardChanges": "変更を破棄",
+    "profile.new.media.option": "メディアフォルダーを追加",
+    "profile.new.media.folder": "メディアフォルダー",
+    "profile.new.media.hint": "MeowChan はこのフォルダーを読み取るだけです。フォルダー内に何かを作成したり、書き込んだり、変更したりすることはありません。新しいプロファイルは、最初の起動時にこれを読み取り専用フォルダーとして追加します。",
+    "profile.new.chooseMedia": "メディアフォルダーを選択",
+    "profile.error.mediaAbsolute": "メディアフォルダーを完全なパスで指定するか、このオプションをオフにしてください。",
+    "profile.error.mediaUnavailable": "メディアフォルダーが存在しない、フォルダーではない、リンクである、または読み取れません。MeowChan はフォルダーを作成しません。",
+    "profile.error.mediaUnsafe": "メディアフォルダーには、プロファイルフォルダーやダウンロードフォルダーを指定したり、それらの中にあるフォルダー、またはそれらを含むフォルダーを指定したりすることはできません。",
+    "profile.startMedia.added": "メディアフォルダー「{0}」を読み取り専用フォルダーとして追加しました。MeowChan がいま内容を確認しています。",
+    "profile.startMedia.refused": "このプロファイルのメディアフォルダーは追加されませんでした。{0}",
+    "profile.startMedia.badArgument": "メディアフォルダーの起動引数が不完全でした。",
+    "profile.startMedia.needsProfile": "メディアフォルダーを渡せるのは、プロファイルを開くときだけです。"
   }
 }

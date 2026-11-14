@@ -89,5 +89,17 @@ internal static class ProfileCatalog
         ("budgets.profileRegistry", "Known profiles", "Bekannte Profile"),
         ("budgets.profileRegistryHint", "How many profiles “Switch profile…” lists. The list is shared by all profiles; lowering the limit keeps every entry, only new profiles are no longer listed. Allowed: 1 to 256.",
             "Wie viele Profile „Profil wechseln…“ aufführt. Die Liste teilen sich alle Profile; eine niedrigere Grenze behält jeden Eintrag, nur neue Profile werden nicht mehr aufgeführt. Erlaubt: 1 bis 256."),
+
+        ("profile.new.media.option", "Add a media folder", "Medienordner hinzufügen"),
+        ("profile.new.media.folder", "Media folder", "Medienordner"),
+        ("profile.new.media.hint", "MeowChan only reads this folder. It never creates, writes or changes anything in it. The new profile adds it as a read-only folder on its first start.", "MeowChan liest diesen Ordner nur. Es legt darin nie etwas an, schreibt nichts hinein und ändert nichts. Das neue Profil fügt ihn bei seinem ersten Start als nur lesbaren Ordner hinzu."),
+        ("profile.new.chooseMedia", "Choose media folder", "Medienordner auswählen"),
+        ("profile.error.mediaAbsolute", "Choose the media folder as a complete path, or turn the option off.", "Wähle den Medienordner als vollständigen Pfad oder schalte die Option aus."),
+        ("profile.error.mediaUnavailable", "The media folder does not exist, is not a folder, is a link, or cannot be read. MeowChan does not create it.", "Der Medienordner existiert nicht, ist kein Ordner, ist eine Verknüpfung oder ist nicht lesbar. MeowChan legt ihn nicht an."),
+        ("profile.error.mediaUnsafe", "The media folder must not be a profile or download folder, lie inside one, or contain one.", "Der Medienordner darf kein Profil- oder Download-Ordner sein, nicht in einem liegen und keinen enthalten."),
+        ("profile.startMedia.added", "The media folder “{0}” was added as a read-only folder. MeowChan is looking through it now.", "Der Medienordner „{0}“ wurde als nur lesbarer Ordner hinzugefügt. MeowChan sieht ihn jetzt durch."),
+        ("profile.startMedia.refused", "The media folder for this profile was not added. {0}", "Der Medienordner für dieses Profil wurde nicht hinzugefügt. {0}"),
+        ("profile.startMedia.badArgument", "The start argument for the media folder was incomplete.", "Das Startargument für den Medienordner war unvollständig."),
+        ("profile.startMedia.needsProfile", "A media folder can only be handed over when a profile is opened.", "Ein Medienordner kann nur beim Öffnen eines Profils mitgegeben werden."),
     };
 }

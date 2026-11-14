@@ -16,8 +16,10 @@ public sealed class ProfileSwitchTests
     private sealed class RecordingLauncher : IProfileLauncher
     {
         internal readonly List<string> Started = new();
+        internal readonly List<string?> MediaFolders = new();
         internal Exception? Failure;
-        public void Launch(string profileDirectory) { if (Failure != null) throw Failure; Started.Add(profileDirectory); }
+        public void Launch(string profileDirectory, string? mediaFolder = null)
+        { if (Failure != null) throw Failure; Started.Add(profileDirectory); MediaFolders.Add(mediaFolder); }
     }
 
     private sealed class Fixture : IDisposable

@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using MeowChan.FolderSources;
 using MeowChan.Persistence;
 using Serilog;
 
@@ -24,7 +27,9 @@ internal enum ProfileActionStatus
 internal sealed record ProfileActionResult(ProfileActionStatus Status, string MessageKey, string? ListNoteKey = null, object? ListNoteArgument = null);
 
 /// <summary>A validated "New profile" request.</summary>
-internal sealed record NewProfileRequest(string Name, string Folder, string DownloadFolder, string? Language);
+/// <param name="MediaFolder">A folder of the person's own that the new window adds as a read-only folder source on its first start,
+/// or null. It is only ever read: never created, written or moved.</param>
+internal sealed record NewProfileRequest(string Name, string Folder, string DownloadFolder, string? Language, string? MediaFolder = null);
 
 /// <summary>
 /// New profile, switch profile and the profile list for one window (plan PLAN-POWER-TAGGEN PR1). Each profile opens in a
@@ -56,7 +61,54 @@ internal sealed class ProfileSwitchService
         _registry?.Read() ?? new ProfileRegistrySnapshot(Array.Empty<ProfileRegistryEntry>(), ProfileRegistryState.Missing);
 
     /// <summary>The first problem of a "New profile" form as a text key, or null when it can be created.</summary>
-    internal string? Validate(string? name, string? folder, string? downloadFolder)
+    internal string? Validate(string? name, string? folder, string? downloadFolder, string? mediaFolder = null)
+    {
+        if (ValidateProfile(name, folder, downloadFolder) is { } problem) return problem;
+        if (mediaFolder == null) return null;
+        string target = ProfileLease.NormalizeDirectory(folder!.Trim());
+        // A folder that already is a profile keeps its own download folder, which is unknown here; the new window checks it again.
+        string? downloads = ProfileOpenPolicy.Classify(target) == ProfileFolderKind.Existing ? null : ProfileLease.NormalizeDirectory(downloadFolder!.Trim());
+        return MediaFolderProblem(mediaFolder, target, downloads);
+    }
+
+    /// <summary>
+    /// The first problem of a media folder for a new window as a text key, or null. Reuses the folder source validation (the folder
+    /// exists, is a real directory and a link neither, is readable, and is no profile or download folder) and adds the
+    /// locations that must stay out of a user's folder: this window's and every listed profile's folder and download folder, and
+    /// the new profile's own folders in both directions. The folder is never created.
+    /// </summary>
+    internal string? MediaFolderProblem(string mediaFolder, string profileFolder, string? downloadFolder)
+    {
+        if (string.IsNullOrWhiteSpace(mediaFolder) || !Path.IsPathFullyQualified(mediaFolder.Trim())) return "profile.error.mediaAbsolute";
+        FolderSourceError error = StartupMediaFolderPolicy.Check(mediaFolder.Trim(), profileFolder, downloadFolder ?? profileFolder,
+            ProtectedFolders(profileFolder, downloadFolder), Array.Empty<FolderSourceRoot>());
+        return StartupMediaFolderPolicy.ProfileDialogKey(error);
+    }
+
+    private IReadOnlyList<string> ProtectedFolders(string profileFolder, string? downloadFolder)
+    {
+        List<string> folders = new() { profileFolder, CurrentProfile, CurrentDownloadPath };
+        if (downloadFolder != null) folders.Add(downloadFolder);
+        folders.AddRange(KnownProfileFolders());
+        return folders;
+    }
+
+    /// <summary>The folders of every listed profile and the folder that holds the profile list (nothing there may be a source).</summary>
+    internal IReadOnlyList<string> KnownProfileFolders()
+    {
+        List<string> folders = new();
+        if (_registry == null) return folders;
+        try
+        {
+            folders.AddRange(ReadList().Entries.Select(entry => entry.Path));
+            if (Path.GetDirectoryName(_registry.FilePath) is { Length: > 0 } listFolder) folders.Add(listFolder);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
+        { _logger.Warning(error, "The profile list could not be read for the media folder check."); }
+        return folders;
+    }
+
+    private string? ValidateProfile(string? name, string? folder, string? downloadFolder)
     {
         if (string.IsNullOrWhiteSpace(name)) return "profile.error.nameRequired";
         if (string.IsNullOrWhiteSpace(folder) || !Path.IsPathFullyQualified(folder.Trim())) return "profile.error.folderAbsolute";
@@ -82,7 +134,7 @@ internal sealed class ProfileSwitchService
     /// <summary>Creates (or, for a folder that already is a profile, adopts) the profile, lists it and opens it in a new window.</summary>
     internal ProfileActionResult Create(NewProfileRequest request)
     {
-        if (Validate(request.Name, request.Folder, request.DownloadFolder) is { } problem) return new(ProfileActionStatus.Refused, problem);
+        if (Validate(request.Name, request.Folder, request.DownloadFolder, request.MediaFolder) is { } problem) return new(ProfileActionStatus.Refused, problem);
         string target = ProfileLease.NormalizeDirectory(request.Folder.Trim());
         Guid? id = null;
         if (ProfileOpenPolicy.Classify(target) == ProfileFolderKind.New)
@@ -106,7 +158,7 @@ internal sealed class ProfileSwitchService
             catch (InvalidDataException) { id = null; }
         }
         (string? note, object? argument) = List(target, request.Name, id, includeCurrent: true);
-        ProfileActionResult started = Start(target);
+        ProfileActionResult started = Start(target, request.MediaFolder == null ? null : ProfileLease.NormalizeDirectory(request.MediaFolder.Trim()));
         return started.Status == ProfileActionStatus.Started ? started with { ListNoteKey = note, ListNoteArgument = argument } : started;
     }
 
@@ -169,11 +221,11 @@ internal sealed class ProfileSwitchService
         }
     }
 
-    private ProfileActionResult Start(string target)
+    private ProfileActionResult Start(string target, string? mediaFolder = null)
     {
         try
         {
-            _launcher.Launch(target);
+            _launcher.Launch(target, mediaFolder);
             _logger.Information("Opened another profile in a new window.");
             return new(ProfileActionStatus.Started, "profile.status.started");
         }
@@ -202,4 +254,42 @@ internal sealed class ProfileSwitchService
         config.SaveConfig(lease.ProfileDirectory);
         return ProfileInstanceIdentity.ReadOrCreate(lease).Id;
     }
+}
+
+/// <summary>
+/// The rules for a media folder handed to a new window. The same check runs in the dialog (before anything is created or started)
+/// and again in the new process, which alone knows its own download folder and folder sources. Nothing is created: a missing
+/// folder is refused, never made.
+/// </summary>
+internal static class StartupMediaFolderPolicy
+{
+    /// <param name="folder">The folder to add.</param>
+    /// <param name="profile">The profile folder the folder source will belong to.</param>
+    /// <param name="downloads">That profile's download folder.</param>
+    /// <param name="protectedFolders">Other profile, download and profile-list folders: the media folder must neither lie inside
+    /// one nor contain one.</param>
+    /// <param name="existing">The folder sources that already exist there.</param>
+    internal static FolderSourceError Check(string? folder, string profile, string downloads, IEnumerable<string> protectedFolders,
+        IEnumerable<FolderSourceRoot> existing)
+    {
+        FolderSourceError error = FolderSourceValidation.Check(folder, profile, downloads, existing);
+        if (error != FolderSourceError.None) return error;
+        string full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder!));
+        // The profile and download folder of a source's own profile may lie inside the folder (a scan skips them), but nothing
+        // of MeowChan may be created inside a user's folder, and other profiles' data are no media of this one.
+        if (FolderSourceValidation.Overlaps(full, profile)) return FolderSourceError.FolderIsProfile;
+        if (FolderSourceValidation.Overlaps(full, downloads)) return FolderSourceError.FolderIsDownloads;
+        foreach (string other in protectedFolders)
+            if (!string.IsNullOrWhiteSpace(other) && Path.IsPathFullyQualified(other) && FolderSourceValidation.Overlaps(full, other))
+                return FolderSourceError.FolderIsProfile;
+        return FolderSourceError.None;
+    }
+
+    /// <summary>The dialog's text for a check result, or null when the folder can be used. Never names a path.</summary>
+    internal static string? ProfileDialogKey(FolderSourceError error) => error switch
+    {
+        FolderSourceError.None => null,
+        FolderSourceError.FolderUnavailable => "profile.error.mediaUnavailable",
+        _ => "profile.error.mediaUnsafe"
+    };
 }

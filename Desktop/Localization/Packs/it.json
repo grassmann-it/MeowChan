@@ -4465,6 +4465,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "Un video più grande non viene riprodotto qui; il lettore lo segnala e la galleria continua a riprodurlo.",
     "settings.discardQuestion": "Scartare le modifiche non salvate alle impostazioni?",
     "dialog.keepEditing": "Continua a modificare",
-    "dialog.discardChanges": "Scarta modifiche"
+    "dialog.discardChanges": "Scarta modifiche",
+    "profile.new.media.option": "Aggiungi una cartella multimediale",
+    "profile.new.media.folder": "Cartella multimediale",
+    "profile.new.media.hint": "MeowChan legge questa cartella soltanto. Non crea, non scrive e non modifica mai nulla al suo interno. Il nuovo profilo la aggiunge come cartella di sola lettura al primo avvio.",
+    "profile.new.chooseMedia": "Scegli la cartella multimediale",
+    "profile.error.mediaAbsolute": "Scegli la cartella multimediale come percorso completo oppure disattiva l’opzione.",
+    "profile.error.mediaUnavailable": "La cartella multimediale non esiste, non è una cartella, è un collegamento oppure non è leggibile. MeowChan non la crea.",
+    "profile.error.mediaUnsafe": "La cartella multimediale non può essere una cartella di profilo o di download, trovarsi in una di esse né contenerne una.",
+    "profile.startMedia.added": "La cartella multimediale “{0}” è stata aggiunta come cartella di sola lettura. MeowChan la sta esaminando.",
+    "profile.startMedia.refused": "La cartella multimediale di questo profilo non è stata aggiunta. {0}",
+    "profile.startMedia.badArgument": "L’argomento di avvio per la cartella multimediale era incompleto.",
+    "profile.startMedia.needsProfile": "Una cartella multimediale può essere passata solo quando si apre un profilo."
   }
 }

@@ -4374,6 +4374,17 @@
     "settings.reader.inlineVideoMaxFile.hint": "更大的视频不会在此播放；阅读器会给出提示，图库仍可播放。",
     "settings.discardQuestion": "要放弃设置中尚未保存的更改吗？",
     "dialog.keepEditing": "继续编辑",
-    "dialog.discardChanges": "放弃更改"
+    "dialog.discardChanges": "放弃更改",
+    "profile.new.media.option": "添加媒体文件夹",
+    "profile.new.media.folder": "媒体文件夹",
+    "profile.new.media.hint": "MeowChan 只会读取此文件夹，绝不会在其中创建、写入或更改任何内容。新配置文件会在首次启动时将其添加为只读文件夹。",
+    "profile.new.chooseMedia": "选择媒体文件夹",
+    "profile.error.mediaAbsolute": "请以完整路径选择媒体文件夹，或关闭此选项。",
+    "profile.error.mediaUnavailable": "媒体文件夹不存在、不是文件夹、是链接，或无法读取。MeowChan 不会创建它。",
+    "profile.error.mediaUnsafe": "媒体文件夹不能是配置文件文件夹或下载文件夹，不能位于其中，也不能包含它们。",
+    "profile.startMedia.added": "已将媒体文件夹“{0}”添加为只读文件夹。MeowChan 正在浏览其中的内容。",
+    "profile.startMedia.refused": "未添加此配置文件的媒体文件夹。{0}",
+    "profile.startMedia.badArgument": "媒体文件夹的启动参数不完整。",
+    "profile.startMedia.needsProfile": "只有在打开配置文件时才能传入媒体文件夹。"
   }
 }
