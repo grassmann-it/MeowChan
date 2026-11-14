@@ -26,7 +26,7 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("Name = \"ArchiveAppliedResetAll\"", chips);
         Assert.Contains("panel.Children.Add(_appliedResetAll);", chips);
         // The link is added after the chips, and runs the same reset as the empty state.
-        Assert.True(chips.IndexOf("panel.Children.Add(CreateFilterTag(", StringComparison.Ordinal) < chips.IndexOf("panel.Children.Add(_appliedResetAll);", StringComparison.Ordinal));
+        Assert.True(chips.IndexOf("panel.Children.Add(CreateAppliedChip(", StringComparison.Ordinal) < chips.IndexOf("panel.Children.Add(_appliedResetAll);", StringComparison.Ordinal));
         Assert.Contains("OnResetArchiveFiltersClick(_appliedResetAll, e)", chips);
         Assert.Contains("ArchiveFilters.Show(", presentation);
         Assert.Contains("Texts.Count(\"archive.filters.countName\", count)", presentation);
@@ -81,5 +81,17 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("DataValidationErrors.SetErrors(ArchiveTagChoiceHost, pending", editors);
         Assert.Contains("_invalidSearchEditor = ArchiveTagChoiceHost;", editors);
         Assert.Contains("private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;", tags);
+    }
+
+    [Fact]
+    public void AppliedTagChipsCarryTheSameToggleAndSearchAgainAtOnce()
+    {
+        string chips = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.cs"), toggle = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.Toggle.cs");
+        Assert.Contains("CreateTagFilterChip(item.Label, TagFilterLabel(id), id, item.Field == \"tagExclude\"", toggle);
+        Assert.Contains("async () => await ToggleAppliedTag(id)", toggle);
+        // The toggle and the removal share one search path, so a refused definition and a late draft edit behave the same.
+        Assert.Contains("SearchFromAppliedChip(applied.WithTags(filter), \"tags\")", toggle);
+        Assert.Contains("await SearchFromAppliedChip(CopySearch(", chips);
+        Assert.Contains("ArchiveTagFilter.MaximumTagsPerList", toggle);
     }
 }

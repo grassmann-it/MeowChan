@@ -62,6 +62,46 @@ public sealed class ArchiveTagFilterUiTests : IDisposable
         Assert.Equal(1, cleared.SchemaVersion);
     }
 
+    [Fact]
+    public void ToggledAppliedChipMovesOnlyThatTagAndKeepsTheRestOfTheDefinition()
+    {
+        ArchiveSearchSpec spec = new ArchiveSearchSpec("needle", ["s"]).WithTags(new ArchiveTagFilter([A, Gone], [B], ArchiveTagMatch.Any));
+
+        (ArchiveTagFilter? excluded, string? refusal) = ArchivePage.ToggledTagFilter(spec.Tags!, A);
+        Assert.Null(refusal);
+        Assert.Equal(new ArchiveTagFilter([Gone], [A, B]), excluded);
+        // With two included tags left the match mode is kept; below two the definition canonically means "all" (as for draft chips).
+        (ArchiveTagFilter? restored, _) = ArchivePage.ToggledTagFilter(new ArchiveTagFilter([A, Gone], [B], ArchiveTagMatch.Any), B);
+        Assert.Equal(new ArchiveTagFilter([A, B, Gone], null, ArchiveTagMatch.Any), restored);
+        Assert.Equal(new ArchiveTagFilter([A, Gone], [B]), ArchivePage.ToggledTagFilter(excluded!, A).Filter);
+        // Everything outside the tag filter is untouched, and the chips follow the new state.
+        ArchiveSearchSpec next = spec.WithTags(excluded);
+        Assert.Equal("needle", next.Text);
+        Assert.Equal(new[] { "s" }, next.Sources);
+        Assert.Contains(("tagExclude", A.ToString("D"), "Without tag: alpha"), ArchivePage.AppliedFilterLabels(next, Name));
+        Assert.DoesNotContain(ArchivePage.AppliedFilterLabels(next, Name), chip => chip.Field == "tagInclude" && chip.Value == A.ToString("D"));
+        // A tag the filter does not hold changes nothing.
+        Assert.Equal(spec.Tags, ArchivePage.ToggledTagFilter(spec.Tags!, new Guid("00000000-0000-0000-0000-0000000000cc")).Filter);
+        // The last included tag moving over leaves an exclude-only filter.
+        Assert.Equal(new ArchiveTagFilter(null, [A]), ArchivePage.ToggledTagFilter(new ArchiveTagFilter([A], null), A).Filter);
+    }
+
+    [Fact]
+    public void ToggledAppliedChipIsRefusedWhenTheOtherListIsFullLikeTheDraftChip()
+    {
+        Guid[] full = Enumerable.Range(1, ArchiveTagFilter.MaximumTagsPerList).Select(index => new Guid(index, 0, 0, new byte[8])).ToArray();
+        ArchiveTagFilter tags = new([A], full);
+
+        (ArchiveTagFilter? filter, string? refusal) = ArchivePage.ToggledTagFilter(tags, A);
+
+        Assert.Null(filter);
+        Assert.Equal(Texts.T("tags.filter.error.tooMany", ArchiveTagFilter.MaximumTagsPerList), refusal);
+        // The draft refusal for adding to a full list says the same sentence.
+        Assert.Equal(refusal, ArchivePage.DraftTagRefusal(full, [], A));
+        // The other direction has room and works.
+        Assert.NotNull(ArchivePage.ToggledTagFilter(tags, full[0]).Filter);
+    }
+
     [Theory]
     [InlineData("en", "Tags (at least one): alpha, (deleted tag)", "Without tags: beta")]
     [InlineData("de", "Tags (mindestens einer): alpha, (gelöschter Tag)", "Ohne Tags: beta")]

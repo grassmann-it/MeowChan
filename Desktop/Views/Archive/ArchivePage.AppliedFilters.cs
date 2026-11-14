@@ -129,8 +129,7 @@ public partial class ArchivePage
         }
         for (int i = 0; i < tags.Count; i++)
         {
-            var item = tags[i]; int index = i;
-            panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude"));
+            panel.Children.Add(CreateAppliedChip(tags[i], i));
         }
         if (tags.Count > 0)
         {
@@ -212,18 +211,7 @@ public partial class ArchivePage
     internal async Task<bool> RemoveAppliedFilter(string field, string? value = null, int focusIndex = 0)
     {
         if (_busy || _ended || !CanRead || _appliedSearch == null) return false;
-        ArchiveSearchSpec applied = _appliedSearch.Spec;
-        ArchiveSearchSpec next = CopySearch(applied, field, value);
-        string category = DraftCategory(field);
-        long revision = _editorRevisions.GetValueOrDefault(category);
-        bool matches = DraftFieldMatches(applied, category);
-        ArchiveSearchRequest request;
-        try { request = CreateSearchRequest(next); }
-        catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
-        bool success = await LoadListAsync(NewListLoad(request, afterCommit: () =>
-        {
-            if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
-        }));
+        bool success = await SearchFromAppliedChip(CopySearch(_appliedSearch.Spec, field, value), DraftCategory(field));
         if (success)
         {
             var tags = ArchiveAppliedFilters.Children.OfType<ClosableTag>().ToArray();
@@ -231,5 +219,22 @@ public partial class ArchivePage
             else ArchiveScopedBox.Focus();
         }
         return success;
+    }
+    /// <summary>
+    /// Searches again with a changed copy of the applied definition (a removed or toggled chip). The draft category follows only
+    /// when it still showed what was applied and was not edited meanwhile; a refused definition explains itself and keeps the list.
+    /// </summary>
+    private async Task<bool> SearchFromAppliedChip(ArchiveSearchSpec next, string category)
+    {
+        ArchiveSearchSpec applied = _appliedSearch!.Spec;
+        long revision = _editorRevisions.GetValueOrDefault(category);
+        bool matches = DraftFieldMatches(applied, category);
+        ArchiveSearchRequest request;
+        try { request = CreateSearchRequest(next); }
+        catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
+        return await LoadListAsync(NewListLoad(request, afterCommit: () =>
+        {
+            if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
+        }));
     }
 }

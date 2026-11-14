@@ -545,6 +545,17 @@ internal static class PrivateTagBarChecks
         await SearchAsync();
         Require(Rows().SequenceEqual(new[] { "3001" }) && Applied().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude result is wrong: " + string.Join(",", Rows()));
 
+        // An applied chip's toggle switches include/exclude and searches again at once; the draft follows; toggling back restores.
+        Button AppliedToggle(string label) => (Button)((StackPanel)f.C<WrapPanel>("ArchiveAppliedFilters").Children.OfType<Ursa.Controls.ClosableTag>()
+            .Single(tag => ArchivePage.FilterTagLabel(tag) == label).Content!).Children[0];
+        Require(Avalonia.Automation.AutomationProperties.GetName(AppliedToggle("Without tag: blue")) == Texts.T("tags.filter.toInclude", "blue"),
+            "The applied chip's toggle does not name its action.");
+        Require(await page.ToggleAppliedTagByName("blue") == null, "Toggling the applied chip failed.");
+        Require(Rows().SequenceEqual(new[] { "3002" }) && Applied().Order().SequenceEqual(new[] { "Tag: blue", "Tag: red" })
+            && Draft().Order().SequenceEqual(new[] { "Tag: blue", "Tag: red" }), "The applied toggle did not include blue and search again: " + string.Join(",", Rows()));
+        Require(await page.ToggleAppliedTagByName("blue") == null && Rows().SequenceEqual(new[] { "3001" })
+            && Applied().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "The applied toggle did not switch back.");
+
         // A chosen but not added tag is an unfinished entry: explained, nothing searched. Unlike a source or
         // board (added on Search), the app cannot guess Include or Exclude. The request to choose stands once,
         // under the tag choice in the opened filter surface, not again above the toolbar.
