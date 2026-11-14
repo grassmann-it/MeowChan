@@ -12,6 +12,7 @@ using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Import;
+using MeowChan.Interop.Links;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
 using MeowChan.Tags;
@@ -20,13 +21,14 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Documentation contracts, not evidence of live provider behavior or native UI acceptance.
-/// Reads repository Markdown and embedded resources only: no profile, language-state mutation,
+/// Reads repository Markdown/source and embedded resources only: no profile, language-state mutation,
 /// store construction, HTTP client or application startup is needed.
 /// </summary>
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
     private const string DanbooruGuide = "docs/user-guide/danbooru.md";
+    private const string SettingsLimitsGuide = "docs/user-guide/settings-export-and-limits.md";
 
     public static TheoryData<string, int, int, int> Limits()
     {
@@ -1040,7 +1042,7 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void WorkViewOverviewAndNoticeHelpDistinguishesDefaultsUndoAndThePendingDetailsHost()
+    public void WorkViewOverviewAndNoticeHelpDescribesTheConnectedDetailsHostAndVisibleDuration()
     {
         string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
         foreach (string key in new[] { "settings.section.workViews", "workview.overview.page", "workview.overview.filter",
@@ -1050,7 +1052,7 @@ public sealed class HelpDocumentationTests
             Assert.Contains(entry.English, text, StringComparison.Ordinal);
             Assert.Contains(entry.German, text, StringComparison.Ordinal);
         }
-        foreach (string key in new[] { "workview.switch.title", "workview.switch.undo", "workview.switch.details" })
+        foreach (string key in new[] { "workview.switch.title", "workview.switch.undo", "workview.switch.details", "settings.workViewSwitchNoticeSeconds" })
         {
             var entry = Assert.Single(WorkViewSwitchCatalog.Entries, candidate => candidate.Key == key);
             Assert.Contains(entry.English, text, StringComparison.Ordinal);
@@ -1075,12 +1077,117 @@ public sealed class HelpDocumentationTests
         Assert.Equal(Config.WorkViewSwitchNoticeSecondsMaximum, Number(range.Groups["maximum"].Value));
         foreach (string phrase in new[] { "read-only comparison", "policy defaults, not a live visibility inventory",
             "Undo restores the previous view, not unrelated settings or data", "0 disables the toast including Undo/Details",
-            "navigation host is not connected", "no settings input for that duration yet", "not a custom-view editor",
+            "not a custom-view editor", "Settings → Notifications", "duration stays in the draft until Save",
             "schreibgeschützten Vergleich", "Vorgaben, keine Liste der gerade sichtbaren Controls",
-            "Navigationsanschluss an die Übersicht fehlt", "Ein Eingabefeld für die Dauer fehlt" })
+            "Einstellungen → Benachrichtigungen", "Dauer bleibt bis Speichern im Entwurf" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
-        Assert.Contains("WorkViewOverviewRequested", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
-        Assert.Contains("workview.switch.overviewUnavailable", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+        foreach (string obsolete in new[] { "navigation host is not connected", "no settings input for that duration yet",
+            "Navigationsanschluss an die Übersicht fehlt", "Ein Eingabefeld für die Dauer fehlt" })
+            Assert.DoesNotContain(obsolete, text, StringComparison.Ordinal);
+        Assert.Contains("WorkViewOverviewRequested += OpenWorkViewOverviewAsync;", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+        WorkViewSwitchNoticeState notices = new();
+        notices.BeginSwitch();
+        Assert.Null(notices.Applied(WorkView.Barebones, WorkView.Simple, 0, informationAllowed: true));
+    }
+
+    [Fact]
+    public void DetailsNavigationHelpKeepsTheDraftCurrentViewChangedRowsAndNormalEntryResetDistinct()
+    {
+        string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
+        foreach (string phrase in new[]
+        {
+            "normal protected Settings route", "without saving or discarding your existing settings draft",
+            "session is restoring, closing or busy", "only the policy rows changed by that switch, across all pages",
+            "active column follows the currently applied view", "Keyboard focus moves to Find an element",
+            "Page/text filters narrow the changed rows further", "Clear filters removes the difference restriction too",
+            "entering Work views normally also clears the previous difference, page and text filters",
+            "normalen geschützten Einstellungsweg", "ohne deinen vorhandenen Einstellungsentwurf zu speichern oder zu verwerfen",
+            "aktive Spalte folgt der aktuell angewandten Ansicht", "Tastaturfokus geht zu Element suchen",
+            "Differenz-, Seiten- und Textfilter für den vollständigen Vergleich gelöscht"
+        }) Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.Contains(BuiltInCatalog.English["diagnostics.clearFilters"], text, StringComparison.Ordinal);
+        Assert.Contains(BuiltInCatalog.German["diagnostics.clearFilters"], text, StringComparison.Ordinal);
+
+        // Source contracts only: no editor, Window, dispatcher, profile or navigation is started here.
+        string host = Read("Desktop/Shell/MainWindow.WorkViewDetails.cs");
+        foreach (string seam in new[] { "if (_isClosing || !_restoreCompleted || WorkspaceCommandBusy)",
+            "if (!NavigateWorkspace(WorkspacePage.Settings))", "SettingsEditor editor = SettingsEditor;",
+            "editor.ApplyWorkView(_workViews.Current, viewChanged: false);", "editor.ShowWorkViewOverview(diff);",
+            "editor.FocusWorkViewOverview();" }) Assert.Contains(seam, host, StringComparison.Ordinal);
+        Assert.DoesNotContain("new SettingsEditor", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("CancelChanges", host, StringComparison.Ordinal);
+        string overview = Read("Desktop/Views/Settings/SettingsEditor.WorkViewOverview.cs");
+        foreach (string seam in new[] { "overview.EnsureLoaded();", "overview.SetActiveView(CurrentWorkView);",
+            "overview.SetDifferenceFilter(diff);", "overview.SetDifferenceFilter(null);", "overview.SetPageFilter(page);",
+            "overview.SetTextFilter(text);", "WorkViewOverviewTextFilter", "WorkViewOverviewTable", "target.Focus(NavigationMethod.Tab);" })
+            Assert.Contains(seam, overview, StringComparison.Ordinal);
+        Assert.Contains("_workViewOverview?.SetDifferenceFilter(null);", Read("Desktop/Views/Settings/SettingsEditor.Sections.cs"), StringComparison.Ordinal);
+        string control = Read("Desktop/Views/Settings/WorkViewOverviewControl.cs");
+        Assert.Contains("diff.Changes.Select(change => change.Entry.Id)", control, StringComparison.Ordinal);
+        Assert.Contains("(_differenceIds == null || _differenceIds.Contains(row.Id)) && WorkViewOverview.Matches", control, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoticeDurationHelpNamesTheActualNotificationsInputAndItsSaveResetValidationSeams()
+    {
+        var markup = System.Xml.Linq.XDocument.Parse(Read("Desktop/Views/Settings/SettingsEditor.axaml"));
+        System.Xml.Linq.XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var input = Assert.Single(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "WorkViewSwitchNoticeSecondsInput");
+        Assert.Contains(input.Ancestors(), element => (string?)element.Attribute(x + "Name") == "SettingsNotificationsSection");
+        Assert.Equal("{Binding WorkViewSwitchNoticeSeconds, Mode=TwoWay}", (string?)input.Attribute("Value"));
+        Assert.Equal("{Binding WorkViewSwitchNoticeSecondsMinimum}", (string?)input.Attribute("Minimum"));
+        Assert.Equal("{Binding WorkViewSwitchNoticeSecondsMaximum}", (string?)input.Attribute("Maximum"));
+        string notice = Read("Desktop/Views/Settings/SettingsEditor.WorkViewNotice.cs");
+        Assert.Contains("candidate.WorkViewSwitchNoticeSeconds = GetInteger", notice, StringComparison.Ordinal);
+        Assert.Contains("ApplyWorkViewSwitchNoticeDraft(candidate);", Read("Desktop/Views/Settings/SettingsEditor.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewSwitchNoticeSeconds = defaults.WorkViewSwitchNoticeSeconds;", Read("Desktop/Views/Settings/SettingsEditor.Reset.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewNoticeNumericFields", Read("Desktop/Views/Settings/SettingsEditor.Validation.cs"), StringComparison.Ordinal);
+        string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
+        Assert.Contains("Discard draft restores the saved value", text, StringComparison.Ordinal);
+        Assert.Contains("resetting Notifications loads the default into the draft", text, StringComparison.Ordinal);
+        Assert.Contains("Zurücksetzen der Benachrichtigungen lädt den Standard in den Entwurf", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UrlExportHelpLinksTheReferenceAndDoesNotTurnTheWriterBudgetIntoAFormatExpansion()
+    {
+        string section = Section(Read(Help), "Storage and limits");
+        Assert.Equal(2, Regex.Matches(section, @"\]\(user-guide/settings-export-and-limits\.md\)").Count);
+        string text = Plain(section);
+        AssertNumber(text, @"fixed (?<value>\d+) MiB ceiling", PlainUrlText.MaxBytes / (1024 * 1024));
+        AssertNumber(text, @"ceiling, (?<value>\d+) lines", PlainUrlText.MaxLines);
+        AssertNumber(text, @"and (?<value>\d+) UTF-16 code units per line", PlainUrlText.MaxLineCharacters);
+        AssertNumber(text, @"URL-Textformat bleibt auf (?<value>\d+) MiB", PlainUrlText.MaxBytes / (1024 * 1024));
+        Assert.Equal(1, UrlTextExportFileWriter.MinimumLimitMiB);
+        Assert.Equal(64, UrlTextExportFileWriter.MaximumLimitMiB);
+        foreach (string phrase in new[] { "current archive plan exports exactly one thread page URL",
+            "64 MiB does not enable a 64-MiB URL export", "heutige Archivplan exportiert genau eine Thread-Seiten-URL",
+            "64 MiB Writerbudget ermöglichen keinen 64-MiB-URL-Export" }) Assert.Contains(phrase, text, StringComparison.Ordinal);
+        string reference = Read(SettingsLimitsGuide);
+        Assert.Contains("Technischer Formatvertrag: höchstens 1 MiB", reference, StringComparison.Ordinal);
+        Assert.Contains("64 MiB einzustellen ermöglicht deshalb heute keinen 64-MiB-URL-Export", reference, StringComparison.Ordinal);
+        Assert.Contains("parsed.Links.Count != 1", Read("Desktop/ArchiveUrlTextExportPlan.cs"), StringComparison.Ordinal);
+        Assert.Contains("count >= PlainUrlText.MaxBytes", Read("Desktop/ArchiveUrlTextExportPlan.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalBooruMediaLinkHelpDescribesTheIntegratedWindowBridgeNotAFutureFooterPage()
+    {
+        string text = Plain(Section(Read(Help), "Local links to Media"));
+        foreach (string key in new[] { "booru.ui.result.showInMedia", "media.toolbar.booru" })
+        {
+            var entry = Assert.Single(BooruCrossLinksCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        foreach (string phrase in new[] { "does not fetch the post or download its original", "missing/filtered-out local tile",
+            "opens the existing window without starting a search", "not a new Booru footer page or a settings toggle",
+            "weder der Post abgerufen noch sein Original heruntergeladen", "keine neue Booru-Fußleistenseite und kein Einstellungsschalter" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.Contains("window.ShowInMedia = ShowBooruPostInMediaAsync;", Read("Desktop/Booru/MainWindow.BooruMedia.cs"), StringComparison.Ordinal);
+        Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
+        Assert.Contains("_booruWindow = window;", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("navigation.booru", MainPageOrder.CommandIds);
     }
 
     [Fact]
@@ -1228,6 +1335,7 @@ public sealed class HelpDocumentationTests
     [Theory]
     [InlineData(Help)]
     [InlineData(DanbooruGuide)]
+    [InlineData(SettingsLimitsGuide)]
     public void LocalMarkdownLinksResolveInsideTheCheckout(string document)
     {
         // Inline links and reference definitions used by these guides; deliberately not a web
