@@ -4447,6 +4447,21 @@
     "settings.tagging.cardsStart.hint": "Um percurso pela fila de tags abre com os cartões em vez do painel de tags. A tecla K durante um percurso altera esta escolha.",
     "settings.tagging.cards": "Cartões de decisão",
     "settings.tagging.cards.hint": "O que cada cartão faz, da esquerda para a direita (teclas 1 a 5). Escolher uma decisão que outro cartão já tem troca os dois cartões de lugar. Vale a partir do próximo percurso.",
-    "settings.tagging.cardSlot": "Cartão {0}"
+    "settings.tagging.cardSlot": "Cartão {0}",
+    "reader.video.play": "Reproduzir o vídeo aqui: {0}",
+    "reader.video.playHint": "Enter ou um clique reproduz o vídeo aqui; a barra de espaço o pausa ou o retoma.",
+    "reader.video.playing": "Reproduzindo: {0}",
+    "reader.video.paused": "Pausado: {0}",
+    "reader.video.unnamed": "Vídeo",
+    "reader.video.tooLarge": "O arquivo {0} é maior que {1}, o limite para vídeos no leitor. Abra-o na galeria.",
+    "reader.video.failed": "O vídeo não pode ser reproduzido aqui: {0}",
+    "settings.reader.inlineVideo": "Reproduzir vídeos no leitor",
+    "settings.reader.inlineVideo.hint": "Um clique ou Enter em um vídeo de uma postagem ou da barra lateral de mídia o reproduz no próprio lugar em vez de abrir a galeria; a barra de espaço o pausa ou o retoma. Só um vídeo é reproduzido por vez; ele pausa quando sai da visualização. Desativado por padrão.",
+    "settings.reader.inlineVideoAutoplay": "Reproduzir vídeos automaticamente sem som",
+    "settings.reader.inlineVideoAutoplay.hint": "O vídeo da barra lateral de mídia ou da postagem selecionada começa sozinho, sem som, assim que a seleção para. Requer “Reproduzir vídeos no leitor”. Desativado por padrão.",
+    "settings.reader.inlineVideoPlayers": "Players de vídeo mantidos prontos no leitor",
+    "settings.reader.inlineVideoPlayers.hint": "Mais players mantêm os vídeos pausados prontos para continuar, mas usam mais memória; o que está há mais tempo sem uso é fechado primeiro.",
+    "settings.reader.inlineVideoMaxFile": "Maior vídeo reproduzido no leitor (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "Um vídeo maior não é reproduzido aqui; o leitor avisa, e a galeria continua reproduzindo-o."
   }
 }

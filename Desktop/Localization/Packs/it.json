@@ -4447,6 +4447,21 @@
     "settings.tagging.cardsStart.hint": "Uno scorrimento della coda di tagging si apre con le schede invece del pannello dei tag. Il tasto K durante uno scorrimento cambia questa scelta.",
     "settings.tagging.cards": "Schede di decisione",
     "settings.tagging.cards.hint": "Che cosa fa ogni scheda, da sinistra (tasti da 1 a 5). Se scegli una decisione che ha già un’altra scheda, le due schede si scambiano. Vale dal prossimo scorrimento.",
-    "settings.tagging.cardSlot": "Scheda {0}"
+    "settings.tagging.cardSlot": "Scheda {0}",
+    "reader.video.play": "Riproduci il video qui: {0}",
+    "reader.video.playHint": "Invio o un clic riproduce il video qui; la barra spaziatrice lo mette in pausa o lo riprende.",
+    "reader.video.playing": "In riproduzione: {0}",
+    "reader.video.paused": "In pausa: {0}",
+    "reader.video.unnamed": "Video",
+    "reader.video.tooLarge": "Il file {0} supera {1}, il limite per i video nel lettore. Aprilo nella galleria.",
+    "reader.video.failed": "Il video non può essere riprodotto qui: {0}",
+    "settings.reader.inlineVideo": "Riproduci i video nel lettore",
+    "settings.reader.inlineVideo.hint": "Un clic o Invio su un video in un post o nella barra laterale dei media lo riproduce sul posto invece di aprire la galleria; la barra spaziatrice lo mette in pausa o lo riprende. Si riproduce un solo video alla volta; si mette in pausa quando esce dalla vista. Disattivato per impostazione predefinita.",
+    "settings.reader.inlineVideoAutoplay": "Riproduci automaticamente i video senza audio",
+    "settings.reader.inlineVideoAutoplay.hint": "Il video nella barra laterale dei media o del post selezionato parte da solo, senza audio, appena la selezione si ferma. Richiede «Riproduci i video nel lettore». Disattivato per impostazione predefinita.",
+    "settings.reader.inlineVideoPlayers": "Lettori video tenuti pronti nel lettore",
+    "settings.reader.inlineVideoPlayers.hint": "Più lettori tengono pronti i video in pausa per riprenderli, ma usano più memoria; si chiude per primo quello inutilizzato da più tempo.",
+    "settings.reader.inlineVideoMaxFile": "Video più grande riprodotto nel lettore (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "Un video più grande non viene riprodotto qui; il lettore lo segnala e la galleria continua a riprodurlo."
   }
 }

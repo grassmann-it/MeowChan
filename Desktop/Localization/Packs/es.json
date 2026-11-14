@@ -4441,6 +4441,21 @@
     "settings.tagging.cardsStart.hint": "Un recorrido por la cola de etiquetado se abre con las tarjetas en lugar del panel de etiquetas. La tecla K durante un recorrido cambia esta elección.",
     "settings.tagging.cards": "Tarjetas de decisión",
     "settings.tagging.cards.hint": "Qué hace cada tarjeta, de izquierda a derecha (teclas 1 a 5). Si eliges una decisión que ya tiene otra tarjeta, ambas tarjetas se intercambian. Se aplica desde el siguiente recorrido.",
-    "settings.tagging.cardSlot": "Tarjeta {0}"
+    "settings.tagging.cardSlot": "Tarjeta {0}",
+    "reader.video.play": "Reproducir el vídeo aquí: {0}",
+    "reader.video.playHint": "Intro o un clic reproduce el vídeo aquí; la barra espaciadora lo pausa o lo reanuda.",
+    "reader.video.playing": "Reproduciendo: {0}",
+    "reader.video.paused": "En pausa: {0}",
+    "reader.video.unnamed": "Vídeo",
+    "reader.video.tooLarge": "El archivo {0} supera {1}, el límite para vídeos en el lector. Ábralo en la galería.",
+    "reader.video.failed": "El vídeo no se puede reproducir aquí: {0}",
+    "settings.reader.inlineVideo": "Reproducir vídeos en el lector",
+    "settings.reader.inlineVideo.hint": "Un clic o Intro sobre un vídeo de un mensaje o de la barra lateral de medios lo reproduce en su sitio en lugar de abrir la galería; la barra espaciadora lo pausa o lo reanuda. Solo se reproduce un vídeo a la vez; se pausa cuando sale de la vista. Desactivado de forma predeterminada.",
+    "settings.reader.inlineVideoAutoplay": "Reproducir vídeos automáticamente sin sonido",
+    "settings.reader.inlineVideoAutoplay.hint": "El vídeo de la barra lateral de medios o del mensaje seleccionado empieza solo y sin sonido en cuanto la selección se detiene. Requiere «Reproducir vídeos en el lector». Desactivado de forma predeterminada.",
+    "settings.reader.inlineVideoPlayers": "Reproductores de vídeo preparados en el lector",
+    "settings.reader.inlineVideoPlayers.hint": "Más reproductores mantienen los vídeos en pausa listos para continuar, pero usan más memoria; primero se cierra el que lleva más tiempo sin usarse.",
+    "settings.reader.inlineVideoMaxFile": "Vídeo más grande que se reproduce en el lector (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "Un vídeo más grande no se reproduce aquí; el lector lo indica y la galería lo sigue reproduciendo."
   }
 }

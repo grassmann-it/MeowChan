@@ -4356,6 +4356,21 @@
     "settings.tagging.cardsStart.hint": "태그 지정 대기열 둘러보기를 태그 패널 대신 카드로 시작합니다. 둘러보는 중에 K 키를 누르면 이 선택이 바뀝니다.",
     "settings.tagging.cards": "결정 카드",
     "settings.tagging.cards.hint": "각 카드가 하는 일을 왼쪽부터 정합니다(1~5번 키). 다른 카드가 이미 가진 결정을 고르면 두 카드의 위치가 서로 바뀝니다. 다음 둘러보기부터 적용됩니다.",
-    "settings.tagging.cardSlot": "카드 {0}"
+    "settings.tagging.cardSlot": "카드 {0}",
+    "reader.video.play": "여기에서 동영상 재생: {0}",
+    "reader.video.playHint": "Enter 키나 클릭으로 동영상을 여기에서 재생하고, Space 키로 일시 중지하거나 이어서 재생합니다.",
+    "reader.video.playing": "재생 중: {0}",
+    "reader.video.paused": "일시 중지됨: {0}",
+    "reader.video.unnamed": "동영상",
+    "reader.video.tooLarge": "{0}은(는) 리더의 동영상 한도인 {1}보다 큽니다. 갤러리에서 여세요.",
+    "reader.video.failed": "여기에서 동영상을 재생할 수 없습니다: {0}",
+    "settings.reader.inlineVideo": "리더에서 동영상 재생",
+    "settings.reader.inlineVideo.hint": "게시물이나 미디어 사이드바의 동영상을 클릭하거나 Enter 키를 누르면 갤러리를 열지 않고 그 자리에서 재생합니다. Space 키로 일시 중지하거나 이어서 재생합니다. 한 번에 하나의 동영상만 재생되며, 화면에서 벗어나면 일시 중지됩니다. 기본값은 꺼짐입니다.",
+    "settings.reader.inlineVideoAutoplay": "동영상을 음소거로 자동 재생",
+    "settings.reader.inlineVideoAutoplay.hint": "미디어 사이드바의 동영상이나 선택한 게시물의 동영상이 선택이 멈추면 소리 없이 저절로 시작됩니다. '리더에서 동영상 재생'이 필요합니다. 기본값은 꺼짐입니다.",
+    "settings.reader.inlineVideoPlayers": "리더에 준비해 두는 동영상 플레이어",
+    "settings.reader.inlineVideoPlayers.hint": "플레이어가 많을수록 일시 중지한 동영상을 바로 이어서 재생할 수 있지만 메모리를 더 사용합니다. 가장 오래 사용하지 않은 것부터 닫습니다.",
+    "settings.reader.inlineVideoMaxFile": "리더에서 재생할 최대 동영상 크기 (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "이보다 큰 동영상은 여기에서 재생되지 않습니다. 리더가 이를 알려 주며, 갤러리에서는 계속 재생할 수 있습니다."
   }
 }

@@ -4356,6 +4356,21 @@
     "settings.tagging.cardsStart.hint": "浏览标签队列时先显示卡片，而不是标签面板。浏览过程中按 K 键可改变此选择。",
     "settings.tagging.cards": "决定卡片",
     "settings.tagging.cards.hint": "从左起每张卡片的作用（按键 1 至 5）。如果选择的决定已被另一张卡片使用，两张卡片会互换。从下一次浏览起生效。",
-    "settings.tagging.cardSlot": "卡片 {0}"
+    "settings.tagging.cardSlot": "卡片 {0}",
+    "reader.video.play": "在此播放视频：{0}",
+    "reader.video.playHint": "按 Enter 键或单击即在此播放视频；按空格键暂停或继续。",
+    "reader.video.playing": "正在播放：{0}",
+    "reader.video.paused": "已暂停：{0}",
+    "reader.video.unnamed": "视频",
+    "reader.video.tooLarge": "{0} 大于 {1}，即阅读器中视频的上限。请在图库中打开。",
+    "reader.video.failed": "无法在此播放视频：{0}",
+    "settings.reader.inlineVideo": "在阅读器中播放视频",
+    "settings.reader.inlineVideo.hint": "单击或按 Enter 键播放帖子或媒体侧栏中的视频时，会就地播放，而不是打开图库；按空格键暂停或继续。同一时间只播放一个视频；视频移出视野时会暂停。默认关闭。",
+    "settings.reader.inlineVideoAutoplay": "静音自动播放视频",
+    "settings.reader.inlineVideoAutoplay.hint": "选择停下后，媒体侧栏中的视频或所选帖子的视频会自动静音开始播放。需要开启“在阅读器中播放视频”。默认关闭。",
+    "settings.reader.inlineVideoPlayers": "阅读器中保留的视频播放器",
+    "settings.reader.inlineVideoPlayers.hint": "播放器越多，越能让暂停的视频随时继续，但会占用更多内存；最久未使用的播放器最先关闭。",
+    "settings.reader.inlineVideoMaxFile": "阅读器中播放的最大视频 (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "更大的视频不会在此播放；阅读器会给出提示，图库仍可播放。"
   }
 }

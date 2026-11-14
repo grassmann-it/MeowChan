@@ -4356,6 +4356,21 @@
     "settings.tagging.cardsStart.hint": "タグ付けキューの巡回を、タグパネルではなくカードで開始します。巡回中に K キーを押すと、この選択が変わります。",
     "settings.tagging.cards": "判断カード",
     "settings.tagging.cards.hint": "各カードの動作を左から順に指定します（キー 1～5）。ほかのカードが使っている判断を選ぶと、2 枚のカードが入れ替わります。次の巡回から有効です。",
-    "settings.tagging.cardSlot": "カード {0}"
+    "settings.tagging.cardSlot": "カード {0}",
+    "reader.video.play": "ここで動画を再生: {0}",
+    "reader.video.playHint": "Enter キーまたはクリックで動画をここで再生し、Space キーで一時停止または再開します。",
+    "reader.video.playing": "再生中: {0}",
+    "reader.video.paused": "一時停止: {0}",
+    "reader.video.unnamed": "動画",
+    "reader.video.tooLarge": "{0} はリーダーで再生できる上限 {1} を超えています。ギャラリーで開いてください。",
+    "reader.video.failed": "ここでは動画を再生できません: {0}",
+    "settings.reader.inlineVideo": "リーダーで動画を再生",
+    "settings.reader.inlineVideo.hint": "投稿内やメディアサイドバーの動画をクリックするか Enter キーを押すと、ギャラリーを開かずにその場で再生します。Space キーで一時停止または再開します。同時に再生される動画は 1 本だけで、表示範囲から外れると一時停止します。既定ではオフです。",
+    "settings.reader.inlineVideoAutoplay": "動画を消音で自動再生",
+    "settings.reader.inlineVideoAutoplay.hint": "メディアサイドバーの動画、または選択した投稿の動画が、選択が止まると音声なしで自動的に始まります。「リーダーで動画を再生」が必要です。既定ではオフです。",
+    "settings.reader.inlineVideoPlayers": "リーダーで保持する動画プレーヤー",
+    "settings.reader.inlineVideoPlayers.hint": "プレーヤーが多いほど一時停止中の動画をすぐ再開できますが、メモリを多く使います。最も長く使われていないものから閉じます。",
+    "settings.reader.inlineVideoMaxFile": "リーダーで再生する動画の最大サイズ (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "これより大きい動画はここでは再生されません。リーダーにその旨が表示され、ギャラリーでは引き続き再生できます。"
   }
 }

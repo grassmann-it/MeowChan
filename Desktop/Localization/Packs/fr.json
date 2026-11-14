@@ -4441,6 +4441,21 @@
     "settings.tagging.cardsStart.hint": "Un parcours de la file d’étiquetage s’ouvre avec les cartes au lieu du panneau d’étiquettes. La touche K pendant un parcours modifie ce choix.",
     "settings.tagging.cards": "Cartes de décision",
     "settings.tagging.cards.hint": "Ce que fait chaque carte, de gauche à droite (touches 1 à 5). Choisir une décision qu’une autre carte a déjà échange les deux cartes. S’applique dès le prochain parcours.",
-    "settings.tagging.cardSlot": "Carte {0}"
+    "settings.tagging.cardSlot": "Carte {0}",
+    "reader.video.play": "Lire la vidéo ici : {0}",
+    "reader.video.playHint": "Entrée ou un clic lit la vidéo ici ; la barre d’espace la met en pause ou la reprend.",
+    "reader.video.playing": "Lecture : {0}",
+    "reader.video.paused": "En pause : {0}",
+    "reader.video.unnamed": "Vidéo",
+    "reader.video.tooLarge": "Le fichier {0} dépasse {1}, la limite des vidéos dans le lecteur. Ouvrez-le dans la galerie.",
+    "reader.video.failed": "Impossible de lire la vidéo ici : {0}",
+    "settings.reader.inlineVideo": "Lire les vidéos dans le lecteur",
+    "settings.reader.inlineVideo.hint": "Un clic ou Entrée sur une vidéo d’un message ou du panneau des médias la lit sur place au lieu d’ouvrir la galerie ; la barre d’espace la met en pause ou la reprend. Une seule vidéo est lue à la fois ; elle se met en pause dès qu’elle sort de la vue. Désactivé par défaut.",
+    "settings.reader.inlineVideoAutoplay": "Lire automatiquement les vidéos sans le son",
+    "settings.reader.inlineVideoAutoplay.hint": "La vidéo du panneau des médias ou du message sélectionné démarre d’elle-même, sans le son, dès que la sélection s’arrête. Nécessite « Lire les vidéos dans le lecteur ». Désactivé par défaut.",
+    "settings.reader.inlineVideoPlayers": "Lecteurs vidéo gardés prêts",
+    "settings.reader.inlineVideoPlayers.hint": "Davantage de lecteurs vidéo gardent les vidéos en pause prêtes à reprendre, mais utilisent plus de mémoire ; celui qui n’a pas servi depuis le plus longtemps est fermé en premier.",
+    "settings.reader.inlineVideoMaxFile": "Plus grande vidéo lue dans le lecteur (MiB)",
+    "settings.reader.inlineVideoMaxFile.hint": "Une vidéo plus grande n’est pas lue ici ; le lecteur l’indique et la galerie la lit toujours."
   }
 }
