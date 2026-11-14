@@ -55,10 +55,36 @@ public sealed partial class MediaPage
     internal void EndPendingReturn() => _returnRun = null;
 
     /// <summary>Focuses exactly one already-present tile, without falling back to an ID substring or a neighbouring tile.</summary>
-    internal async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
+    internal Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
     {
         ArgumentNullException.ThrowIfNull(match);
-        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return false;
+        object run = new();
+        _returnRun = run;
+        return FocusExactEntryAsync(match, missingText, run);
+    }
+
+    // Captures both requested and applied presentation generations: PresentCount alone cannot detect a
+    // pending replacement, and PresentTask alone cannot distinguish two synchronous presentations.
+    // No profile identifier is needed: the page lifetime, snapshot/index and build task pin this page's data.
+    private Func<bool> CaptureNavigationContext(object run, bool awaitingPresent)
+    {
+        var snapshot = _snapshot;
+        var presentIndex = _presentIndex;
+        Task present = PresentTask, build = BuildTask;
+        int generation = PresentCount + (awaitingPresent && _presentPending ? 1 : 0);
+        int requested = PresentRunCount;
+        long selection = _selectionStamp;
+        return () => !_lifetime.IsCancellationRequested && ReferenceEquals(_returnRun, run)
+            && ReferenceEquals(snapshot, _snapshot) && ReferenceEquals(presentIndex, _presentIndex)
+            && ReferenceEquals(build, BuildTask) && _building == null
+            && ReferenceEquals(present, PresentTask) && PresentCount == generation && PresentRunCount == requested
+            && !_presentPending && selection == _selectionStamp;
+    }
+
+    private async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText, object run)
+    {
+        Func<bool> context = CaptureNavigationContext(run, awaitingPresent: false);
+        if (!context() || !IsEffectivelyVisible) return false;
         int[] matches = _shown.Select((entry, index) => (entry, index)).Where(item => match(item.entry)).Select(item => item.index).ToArray();
         if (matches.Length != 1)
         {
@@ -66,18 +92,34 @@ public sealed partial class MediaPage
             return false;
         }
         int index = matches[0];
+        var shown = _shown;
+        var tiles = _tiles;
+        object? rows = _grid.ItemsSource;
+        MediaLibraryEntry exact = shown[index];
+        // Full occurrence/row identity, not just byte grouping: another post may have identical bytes.
+        bool Current() => context() && IsEffectivelyVisible
+            && ReferenceEquals(shown, _shown) && ReferenceEquals(tiles, _tiles) && ReferenceEquals(rows, _grid.ItemsSource)
+            && index < _shown.Count && index < _tiles.Count && index < _grid.ItemCount
+            && ReferenceEquals(exact, _shown[index]) && ReferenceEquals(exact, _tiles[index].Entry) && match(_shown[index]);
+        if (!Current()) return false;
         for (int attempt = 0; attempt < 2 && _grid.ContainerFromIndex(index) is not Control; attempt++)
         {
             _grid.ScrollIntoView(index);
+            if (!Current()) return false; // Scrolling can reenter layout/presentation.
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+            if (!Current()) return false;
         }
+        if (!Current()) return false;
         if (_grid.ContainerFromIndex(index) is not Control tile)
         {
             ShowSelectionNote(missingText);
             return false;
         }
-        tile.Focus();
-        return true;
+        // A recycled container must still carry this exact row and occurrence, never the neighbour now at index.
+        if (tile.DataContext is not MediaLibraryTileRow row || row.Index != index
+            || !ReferenceEquals(row, _grid.Items[index]) || !ReferenceEquals(row.Tile, _tiles[index])
+            || !ReferenceEquals(row.Entry, exact) || !tile.IsEffectivelyVisible || !Current()) return false;
+        return tile.Focus();
     }
 
     // Any own input on the page ends a pending second restore: the user has taken over.
