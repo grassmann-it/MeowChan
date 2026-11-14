@@ -17,7 +17,7 @@ The supplied payload contains **24 plugins**: **19 source-plugin entries**
 **21 editable example/filter source files**; official plugins are prebuilt,
 with their source code available in the repository, not the application package.
 See the [packaged inventory](plugins/README.md#packaged-inventory) for the split;
-the entry count is not a count of usable or enabled sources. Open **Sources & Plugins** (German: **Quellen & Plugins**)
+the entry count is not a count of usable or enabled sources. Open **Plugins**
 from the app menu or footer (under **More** in compact views). Choose **All plugins**
 and select a plugin to see its purpose, status and actions. See
 [the shared page](#sources-and-plugins). The [plugin guide](plugins/README.md)
@@ -59,7 +59,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 
 1. For the published 1.0.2 build, choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
-3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Sources & Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
+3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
@@ -83,8 +83,8 @@ back to **Barebones**. A valid saved **Barebones**, **Simple** or **Advanced**
 choice, including one recovered from a valid settings backup, remains unchanged.
 Use the footer view selector to switch.
 
-The footer groups destinations as **Work** (Downloads, Archive, Media, Booru), **Set up**
-(Rules, Sources & Plugins) and **Observe** (Status), followed by
+The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, Booru), **Set up**
+(Rules, Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
 only destinations moved out of the footer; it does not duplicate Downloads or
@@ -92,9 +92,11 @@ Settings. Advanced shows all main destinations directly when there is enough roo
 a narrow window moves the extra destinations into More. The app menu uses the same
 page order and groups. Booru is offered only while the source is composed and
 **Show Booru** is on; it is under More in Barebones and directly available from
-Simple when there is room. In German the destination order is **Downloads, Archiv,
-Medien, Booru | Regeln, Quellen & Plugins | Status**, followed by **Mehr** and
-**Einstellungen**. The display switch is described under
+Simple when there is room. **Tagging** (German: **Taggen**) is a footer page right
+after Media; it has no Ctrl+digit shortcut (you can assign one in the shortcut
+window) and is under More in Barebones. In German the destination order is
+**Downloads, Archiv, Medien, Taggen, Booru | Regeln, Plugins | Status**, followed by
+**Mehr** and **Einstellungen**. The display switch is described under
 [Booru page and display switch](#booru-page-and-display-switch).
 
 **Continue reading** (German: **Weiterlesen**) is a book icon immediately left
@@ -106,7 +108,7 @@ the archive list, use the app-menu entry to check the reading-position state.
 ### Integrated work-view behavior
 
 The integrated work-view behavior covers **Downloads**, **Archive**, **Reader**,
-**Gallery**, **Media**, **Booru**, **Rules**, **Sources & Plugins**,
+**Gallery**, **Media**, **Booru**, **Rules**, **Plugins**,
 **Diagnostics and Statistics** within **Status**, **Settings**, and **dialogs and
 menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
 Advanced (**Erweitert**) change how much is shown directly, not whether the data
@@ -127,8 +129,9 @@ on the page.
   available. Reader tools and media-tab actions can move into the same **More**
   menu without hiding capture, live-follow, errors or active state.
 - **Gallery:** rating, media tags and slideshow controls are under More in
-  Barebones and on the toolbar from Simple on; playback mode and shortcut help
-  join them in Advanced. A chosen or running slideshow keeps its toggle on the
+  Barebones and on the toolbar from Simple on; shortcut help joins them in
+  Advanced. The playback mode and the slideshow's seconds per image stay under
+  More in every view; the slideshow button stays on the bar. A chosen or running slideshow keeps its toggle on the
   toolbar even in Barebones. Back, favorite state, position, video transport,
   errors and integrity warnings are never reduced; the post-panel toggle stays
   directly available. Shortcuts work in every view.
@@ -141,8 +144,8 @@ on the page.
   More in Barebones. **Restart from now** and catalog usage are under More in
   Barebones and Simple and directly available in Advanced. Hiding Booru with its
   separate display switch is not a work-view reduction or a watcher pause.
-- **Rules, Sources & Plugins:** the edited scope, fields and Save/Discard
-  remain available in Rules. The shared Sources & Plugins page keeps source
+- **Rules, Plugins:** the edited scope, fields and Save/Discard
+  remain available in Rules. The shared Plugins page keeps source
   identity, integrity consent, observed watches and errors available in its source
   details; plugin repair, activation and draft safety stay available in its plugin
   details. Less common actions have a labelled **More** route. **Plugin details**
@@ -299,7 +302,7 @@ persist independently of Save URLs on exit.
 Danbooru is a public, read-only post-search source, not a board source. Open
 the **Booru** main page from the footer (or **More**), or use **Danbooru search
 and watchers…** in the app menu to reach the same page. Its plugin must be enabled
-and available under **Sources & Plugins → All plugins**. Merely opening the page sends no new search;
+and available under **Plugins → All plugins**. Merely opening the page sends no new search;
 previously saved active watchers still follow their schedule.
 
 #### Booru page and display switch
@@ -308,10 +311,10 @@ previously saved active watchers still follow their schedule.
 window or a Status segment, and has no page-specific Back/Close button. The
 footer, app menu and context-sensitive F1 help follow that main-page order;
 width overflow and the current work view determine the visible footer buttons.
-The default is Ctrl+6 (Command+6 on macOS); Sources & Plugins keeps Ctrl+5 and
+The default is Ctrl+6 (Command+6 on macOS); Plugins keeps Ctrl+5 and
 Status keeps Ctrl+7. Only Ctrl+8 is unassigned by default. A saved Plugins binding
 to Primary+6 takes precedence over the new Booru default and opens **All plugins**
-on the shared Sources & Plugins page instead; F1 and tooltips show effective
+on the shared Plugins page instead; F1 and tooltips show effective
 bindings, not an extra default that overrides your saved choice. F1 can still list
 a hidden or unavailable page binding; it does not make that destination available.
 
@@ -332,9 +335,9 @@ kein separates Fenster und kein Status-Bereich; sie hat keinen eigenen
 Zurück-/Schließen-Knopf. Fußleiste, Appmenü und kontextbezogene F1-Hilfe folgen
 dieser Seitenreihenfolge. Unter Minimal liegt Booru in **Mehr**, ab Einfach bei
 hinreichender Breite direkt in der Fußleiste. Standard ist Strg+6 (⌘+6 auf macOS);
-Quellen & Plugins bleibt auf Strg+5 und Status auf Strg+7. Nur Strg/⌘+8 ist
+Plugins bleibt auf Strg+5 und Status auf Strg+7. Nur Strg/⌘+8 ist
 standardmäßig frei. Eine gespeicherte Plugins-Belegung auf Primary+6 hat Vorrang
-vor dem neuen Booru-Standard und öffnet **Alle Plugins** auf Quellen & Plugins.
+vor dem neuen Booru-Standard und öffnet **Alle Plugins** auf der Seite Plugins.
 F1 und Tooltips zeigen die wirksamen Belegungen. F1 kann auch ein ausgeblendetes
 oder nicht verfügbares Seitenkürzel weiter auflisten; das schaltet die Seite nicht frei.
 
@@ -498,7 +501,7 @@ for the same lifecycle in German.
 
 ### Sources and plugins
 
-**English:** **Sources & Plugins** is one page. In **Show**, choose **Sources**,
+**English:** **Plugins** is one page for sources, image filters and all plugins. In **Show**, choose **Sources**,
 **Image filters** or **All plugins**. Sources shows both registered sources and
 source plugins that are not active yet. Select a source for its capabilities,
 observed watches, integrity permission and the plugin behind it. The plugin block
@@ -508,14 +511,17 @@ repair, testing and technical information; **Back to source** returns to the sou
 In narrow windows, the list and details appear one after the other. Registration
 or a plugin's session status does not prove website availability.
 
-There is no separate Plugins footer page. The compatibility command **Show all
-plugins** and previously saved plugin-navigation shortcuts open **All plugins**
-on the same page. **Add plugin…** still asks you for a trusted `.cs` source file;
+There is no second plugins page: the former Sources & Plugins page is now simply
+called Plugins, and Ctrl+5 and the command IDs are unchanged. The compatibility
+command **Show all plugins** and previously saved plugin-navigation shortcuts open
+**All plugins** on the same page. Read-only media folders are not on this page;
+manage them under Settings › **Storage and limits** › **Media folders** (see
+[Read-only media folders](#read-only-media-folders)). **Add plugin…** still asks you for a trusted `.cs` source file;
 adding a file is not permission to activate it or bypass a required review or
 restart. Image-filter access is still granted per rule scope, not by opening
 this page.
 
-**Deutsch:** **Quellen & Plugins** ist eine gemeinsame Seite. Wähle unter
+**Deutsch:** **Plugins** ist die Seite für Quellen, Bildfilter und alle Plugins. Wähle unter
 **Anzeigen** zwischen **Quellen**, **Bildfilter** und **Alle Plugins**. Unter Quellen
 siehst du registrierte Quellen und noch nicht aktive Quellenplugins. Wähle eine
 Quelle für Fähigkeiten, Beobachtungen, Integritätserlaubnis und das zugehörige
@@ -526,9 +532,12 @@ technische Angaben; **Zurück zur Quelle** führt dich zur Quelle zurück. In sc
 Fenstern folgen Liste und Details aufeinander. Registrierung und Sitzungsstatus
 belegen nicht, dass die Website erreichbar ist.
 
-Eine eigene Fußleistenseite Plugins gibt es nicht mehr. Der Kompatibilitätsbefehl
-**Alle Plugins anzeigen** und früher gespeicherte Plugin-Navigationskürzel öffnen
-**Alle Plugins** auf derselben Seite. Mit **Plugin hinzufügen…** wählst du weiterhin
+Eine zweite Pluginseite gibt es nicht: Die frühere Seite Quellen & Plugins heißt
+jetzt einfach Plugins; Strg+5 und die Befehls-IDs bleiben unverändert. Der
+Kompatibilitätsbefehl **Alle Plugins anzeigen** und früher gespeicherte
+Plugin-Navigationskürzel öffnen **Alle Plugins** auf derselben Seite.
+Schreibgeschützte Medienordner verwaltest du unter Einstellungen › **Speicher und
+Grenzen** › **Medienordner**. Mit **Plugin hinzufügen…** wählst du weiterhin
 eine vertrauenswürdige `.cs`-Quelldatei aus. Das Hinzufügen aktiviert nichts und
 ersetzt weder Prüfung noch nötigen Neustart. Bildfilterzugriff erteilst du nach
 wie vor je Regelbereich, nicht durch Öffnen der Seite.
@@ -541,7 +550,7 @@ matching URL offers activation. For Kohlchan, Wizchan, Endchan and Leftypol,
 **Activate and allow differences** also explicitly permits provider size/MD5
 mismatches for that profile and source. 2ch, Uboachan, ZZZchan and SushiChan have
 strict checks and no mismatch permission. Manual **Enable plugin** grants no
-exception. Review or revoke the permission in the source details of **Sources & Plugins**; retry earlier failed
+exception. Review or revoke the permission in the source details of **Plugins**; retry earlier failed
 media explicitly with **Retry missing media**. See the
 [activation and integrity guide](plugins/using-plugins.md#experimental-sources-and-media-checks).
 
@@ -605,14 +614,14 @@ page's local search field. The default page shortcuts are:
 | Ctrl+3 | Media |
 | Ctrl+6 | Booru |
 | Ctrl+4 | Rules |
-| Ctrl+5 | Sources & Plugins |
+| Ctrl+5 | Plugins |
 | Ctrl+7 | Status |
 
 Use Command instead of Ctrl on macOS. Ctrl+8 (Command+8) is unassigned by default.
-Sources & Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. The
-removed Plugins page does not shift the digits: a saved `navigation.plugins`
-binding to Primary+6 keeps priority over the new Booru default and opens All plugins
-on Sources & Plugins. Diagnostics and Statistics have no default digit shortcuts;
+Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. Tagging is a
+footer page without a digit, so it has no row here. The former separate Plugins
+page does not shift the digits: a saved `navigation.plugins` binding to Primary+6
+keeps priority over the new Booru default and opens All plugins on Plugins. Diagnostics and Statistics have no default digit shortcuts;
 previously saved bindings still open their respective Status segment. The table
 follows the main-page order, not numeric sorting. The footer, the menus and the
 F1 help use the same order. Footer and menu destinations follow availability; F1
@@ -1091,7 +1100,7 @@ open Statistics. A source's Diagnostics action opens Status → Diagnostics with
 that source selected. Recovery failure opens Diagnostics; Statistics becomes
 available after session recovery. You can assign each segment a shortcut, and
 previously saved segment shortcuts keep working. Booru is a separate main page,
-not a Status segment: it uses slot 6, Sources & Plugins keeps slot 5 and Status
+not a Status segment: it uses slot 6, Plugins keeps slot 5 and Status
 keeps slot 7. Slot 8 is unassigned by default. For Booru visibility and the saved
 Plugins shortcut override, see [Booru page and display switch](#booru-page-and-display-switch).
 
@@ -1105,7 +1114,7 @@ einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach eine
 fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
 Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
 früher gespeicherte Bereichskürzel funktionieren weiter. Booru ist eine eigene
-Hauptseite, kein Status-Bereich: Booru belegt Strg/⌘+6, Quellen & Plugins bleibt
+Hauptseite, kein Status-Bereich: Booru belegt Strg/⌘+6, Plugins bleibt
 auf Strg/⌘+5 und Status auf Strg/⌘+7. Nur Strg/⌘+8 ist standardmäßig frei. Der
 [Booru-Anzeigeschalter und der gespeicherte Plugins-Kürzelvorrang](#booru-page-and-display-switch)
 sind davon getrennt; der Schalter pausiert keine Suchbeobachtungen.
@@ -1325,6 +1334,13 @@ wheel zoom and double-click Fit/1:1 work on
 videos too. **Shift+R** or **Rotate 90°** under More (also in the player menu)
 rotates the shown image or video clockwise. Rotation changes only the view, never
 the file, and resets for each new medium. Escape closes the gallery.
+Photos with a stored rotation (EXIF orientation, such as phone photos) are shown
+upright in the gallery, previews and tiles automatically; the file itself is never
+changed (German: Fotos mit gespeicherter Drehung werden in Galerie, Vorschauen und
+Kacheln automatisch aufrecht angezeigt; die Datei selbst wird nie verändert).
+The play button on video previews scales with the picture and is always centred on
+it. In the archive list the file line above the thumbnail is a single line; the
+tooltip shows the full name.
 The gallery keeps decoded images in memory and prepares the next three and previous two images in the background, so
 moving either direction can show them immediately. The cache is 256 MiB by default; set it to 0 to keep nothing.
 **Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
@@ -1343,9 +1359,10 @@ top right, with the favorite star directly to its left; the button names the
 return destination. The toolbar keeps Previous, position, Next, Fit, 1:1, the post
 panel and Tools available. Rating, media tags and slideshow controls move from
 **⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
-playback mode and shortcut help onto the bar. Zoom steps, original export, saved
-ratings, frame saving, video rules, overlays and fullscreen stay under More in
-every view. Their shortcuts still work directly. In a narrow window the
+shortcut help onto the bar. The slideshow's seconds per image and its playback
+mode stay under More in every view; the slideshow button stays on the bar. Zoom
+steps, original export, saved ratings, frame saving, video rules, overlays and
+fullscreen stay under More in every view. Their shortcuts still work directly. In a narrow window the
 toolbar uses icons and the post panel floats over the image.
 
 **Unreleased source-build controls:** Settings → Reading & media → **Gallery &
@@ -1479,7 +1496,45 @@ excludes tags, types, sources or boards only. Quotes keep spaces together.
 Unrecognized terms remain in the field with an explanation below the chips.
 Localized field names work too, such as German `typ:`, `quelle:`, `bewertung:`
 and `favorit`. **Copy filters as text** in the chip/row context menu copies the
-active filters as query text.
+active filters as query text. `queue:yes` and `queue:no` show media in or outside
+the tagging queue (chip **In tagging queue**, German **In der Tagging-Warteschlange**);
+`booru:tag` and `-booru:tag` filter downloaded Danbooru media by their source tags.
+
+Tiles in the tagging queue carry a queue mark in the lower left corner, next to
+the number of their own tags. The status line counts the open queue entries.
+After adding media, a message offers **Go through now** (German: **Jetzt
+durchgehen**); More (⋯) holds **Walk through tagging queue** and **Open the
+Tagging page** (German: **Seite Taggen öffnen**).
+
+**Deutsch:** Kacheln in der Tagging-Warteschlange tragen unten links ein
+Warteschlangen-Zeichen neben der Zahl ihrer eigenen Tags. Die Statuszeile zählt die
+offenen Einträge, der Filter **In der Tagging-Warteschlange** (oder `queue:yes` /
+`queue:no` in der Suche) zeigt sie. Nach dem Hinzufügen bietet eine Meldung **Jetzt
+durchgehen** an; unter Mehr (⋯) stehen **Tagging-Warteschlange durchgehen** und
+**Seite Taggen öffnen**. In der Suche filtern `booru:tag` und `-booru:tag`
+heruntergeladene Danbooru-Medien nach ihren Quell-Tags.
+
+#### Tag list beside the media grid
+
+**English:** The **tag list** (formerly called Booru mode; its toolbar button reads
+**Booru mode (tag list)**, under More in Barebones) lists every tag of the current
+results beside the grid, own tags and Danbooru tags in separate groups, with how
+many media carry each. Click a tag to show only media with it, Alt+click or
+Shift+Enter to hide them, and click again to take it out of the filter; Enter,
+Delete and the Menu key work from the keyboard. Sort by **Count** or **Name** and
+search the list. Each group shows its most frequent tags first; how many is set
+under Settings › **Storage and limits** (tags shown per group), and **Show all**
+lists the rest. The list stays visible in focus mode.
+
+**Deutsch:** Die **Tag-Liste** (früher Booru-Modus; der Knopf in der
+Medien-Werkzeugleiste heißt **Booru-Modus (Tag-Liste)**, in Minimal unter Mehr)
+listet neben dem Raster alle Tags der aktuellen Treffer, eigene Tags und
+Danbooru-Tags getrennt, jeweils mit der Zahl der Medien. Klick auf ein Tag zeigt
+nur Medien damit, Alt+Klick oder Umschalt+Enter blendet sie aus, ein erneuter Klick
+nimmt das Tag aus dem Filter; Enter, Entf und die Menütaste gehen per Tastatur.
+Sortierbar nach **Anzahl** oder **Name**, durchsuchbar; jede Gruppe zeigt zuerst die
+häufigsten Tags (Anzahl unter Einstellungen › **Speicher und Grenzen**), **Alle
+anzeigen** listet den Rest. Die Liste bleibt im Fokusmodus sichtbar.
 
 **Shift+F** or the focus button hides the toolbar, filter chips and filter section
 for more grid space. A slim row keeps the result count and active-filter count;
@@ -1791,6 +1846,25 @@ a replacement for a complete backup.
 
 ### Gallery tag panel
 
+**English:** The **View | Tag** switch at the start of the gallery bar (German:
+**Ansehen | Taggen**, Shift+T) turns tagging on in every gallery: the tag panel docks
+beside the medium with favorite, rating and tags that apply directly to the shown
+medium; nothing is added to the tagging queue. Only while walking the tagging queue
+does the decision strip with Back, Skip, Done & next and Stamp & next appear as
+well. The star next to the way back keeps showing the favorite. A slideshow may run
+while tagging: it waits while the tag panel has focus or text in its field, then
+continues with the shown medium.
+
+**Deutsch:** Der Schalter **Ansehen | Taggen** am Anfang der Galerieleiste
+(Umschalt+T) schaltet in jeder Galerie das Taggen ein: Das Tag-Panel dockt neben dem
+Medium an, mit Favorit, Bewertung und Tags, die direkt für das gezeigte Medium
+gelten; in die Tagging-Warteschlange kommt dabei nichts. Beim Durchgehen der
+Tagging-Warteschlange erscheint zusätzlich die Entscheidungszeile mit Zurück,
+Überspringen, Fertig & weiter und Stempel & weiter. Der Stern neben dem Rückweg
+zeigt den Favoriten weiter an. Eine Diashow darf beim Taggen laufen: Sie wartet,
+solange das Tag-Panel den Fokus oder Text im Feld hat, und macht danach mit dem
+gezeigten Medium weiter.
+
 **Tags** on the gallery toolbar (under **More** in Barebones), **Tag…**
 in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open the
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
@@ -1873,7 +1947,7 @@ for later work; it assigns no tags, favorites or ratings. **Q** is the default
 shortcut for adding the current medium where that action is available. Queue
 storage limits are under **Storage and limits**.
 
-Open **Tagging** (German: **Taggen**) in the app’s ⋯ menu to see queue progress,
+Open **Tagging** (German: **Taggen**) with its footer button right after Media (in Barebones under **More**) to see queue progress,
 the shared stamp editor and entries marked **Open**, **Finished** or **Skipped**.
 **Start tagging** or **Continue at n of m** opens a gallery walk over open entries.
 In the list, Enter continues at the selected entry, Delete removes it, Alt+Up/Down
@@ -2040,8 +2114,10 @@ evidence and limits; audio, GPU and other OS coverage must be assessed there.
 
 ### Read-only media folders
 
-Under **Sources & Plugins → Folders → Add folder…**, add a media folder without
-copying it. MeowChan only reads it: it never writes, moves or renames files there.
+Under Settings › **Storage and limits** › **Media folders** (German: Einstellungen ›
+**Speicher und Grenzen** › **Medienordner**), choose **Add folder…** to add a media
+folder without copying it. The settings search finds the group as well; the
+Plugins page only points there. MeowChan only reads it: it never writes, moves or renames files there.
 Its images/videos appear on Media under **Folders**. Choose whether to include
 subfolders; folder links are not followed. Profile/download folders and overlapping
 added folders are refused. Rename changes only the name shown in MeowChan.
@@ -2380,7 +2456,7 @@ plugin replacement is not currently implemented.
 ### Changed bundled-plugin capabilities or settings
 
 If an update changes a bundled plugin's capabilities or settings (for example
-Danbooru), open **Sources & Plugins → Review bundled repairs**. Complete the review in
+Danbooru), open **Plugins → Review bundled repairs**. Complete the review in
 that same dialog; do not delete the profile or try **NEW selection** for an
 already identified update.
 
@@ -2407,7 +2483,7 @@ or missing delivery proof cannot be overridden by this confirmation.
 ### Missing legacy plugin candidates
 
 If an older profile reports **Candidate is missing from the startup inventory**,
-open **Sources & Plugins → Review bundled repairs**. For supported, unambiguous entries,
+open **Plugins → Review bundled repairs**. For supported, unambiguous entries,
 **NEW selection** offers a currently delivered bundled build. Inspect its exact
 identity and the complete settings, explicitly check the acknowledgement, confirm,
 and restart the application. Enabled/disabled choices are preserved. This does

@@ -154,7 +154,7 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("not additional Settings choices", text);
         Assert.Contains("translated for English, German", text);
         Assert.Contains("Simplified Chinese", text);
-        Assert.Contains("**Sources & Plugins → Review bundled repairs**", text);
+        Assert.Contains("**Plugins → Review bundled repairs**", text);
         Assert.DoesNotContain("Review bundled updates", text);
         Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
     }
@@ -191,7 +191,7 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Media, "Media"),
             (WorkViewPage.Booru, "Booru"),
             (WorkViewPage.Rules, "Rules"),
-            (WorkViewPage.Sources, "Sources & Plugins"),
+            (WorkViewPage.Sources, "The shared Plugins page"),
             (WorkViewPage.Status, "Status (Diagnostics and Statistics)"),
             (WorkViewPage.Diagnostics, "Diagnostics and Statistics"),
             (WorkViewPage.Statistics, "Diagnostics and Statistics"),
@@ -346,7 +346,7 @@ public sealed class HelpDocumentationTests
     public void TaggingHelpMatchesThePageWalkAndCardSourceConnections()
     {
         string text = Plain(Section(Read(Help), "Tagging queue and settings"));
-        foreach (string phrase in new[] { "it assigns no tags, favorites or ratings", "Open Tagging (German: Taggen) in the app’s ⋯ menu",
+        foreach (string phrase in new[] { "it assigns no tags, favorites or ratings", "Open Tagging (German: Taggen) with its footer button right after Media",
             "Missing files stay in the queue", "Inside the tag panel, typing and chip keys keep their normal roles",
             "Ctrl+Shift+Enter applies the stamp and advances", "K toggles card mode during a walk",
             "Saving a smaller walk size does not remove queue entries" })
@@ -1581,7 +1581,7 @@ public sealed class HelpDocumentationTests
         Assert.All(pluginRows, entry => Assert.Equal(WorkViewPage.Sources, entry.Page));
         Assert.DoesNotContain("Plugins", Enum.GetNames<WorkViewPage>());
         Assert.Equal("Show all plugins", CommandCatalog.Get("navigation.plugins").LabelEn);
-        Assert.Contains("There is no separate Plugins footer page", sources, StringComparison.Ordinal);
+        Assert.Contains("There is no second plugins page", sources, StringComparison.Ordinal);
         Assert.Contains("opens the second level", sources, StringComparison.Ordinal);
         Assert.Contains("Kompatibilitätsbefehl", sources, StringComparison.Ordinal);
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
@@ -1590,7 +1590,7 @@ public sealed class HelpDocumentationTests
         Assert.Equal((int?)7, MainPageOrder.Digit("navigation.status"));
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
-            "Sources & Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
+            "it uses slot 6, Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
             "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
             "Nur Strg/⌘+8 ist standardmäßig frei" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);

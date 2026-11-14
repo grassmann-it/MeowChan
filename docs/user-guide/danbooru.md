@@ -7,7 +7,7 @@ Downloadwarteschlange gegeben. Es gibt keine Provider-Anmeldung und keine
 Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist noch
 nicht als fertiges Release abgenommen.
 
-Das Danbooru-Plugin muss unter **Quellen & Plugins → Alle Plugins** aktiviert und
+Das Danbooru-Plugin muss unter **Plugins → Alle Plugins** aktiviert und
 für das Profil verfügbar sein. Öffne die Hauptseite **Booru** über Fußleiste oder
 **Mehr**; **Danbooru-Suche und Suchbeobachtungen…** im Appmenü führt auf dieselbe
 Seite, nicht in ein separates Fenster. Das Erkennen einer Danbooru-Adresse und
@@ -19,7 +19,7 @@ und reiht das Original in einem Schritt als One-Shot ein.
 ## Booru-Seite, Anzeige und Tastenkürzel
 
 Die Fußleiste und das Appmenü ordnen die Hauptseiten als **Downloads, Archiv,
-Medien, Booru | Regeln, Quellen & Plugins | Status**. Die kontextbezogene F1-Hilfe
+Medien, Taggen, Booru | Regeln, Plugins | Status**. Die kontextbezogene F1-Hilfe
 folgt derselben Reihenfolge. Booru liegt unter Minimal in **Mehr**, ab Einfach
 bei ausreichender Breite direkt in der Fußleiste; bei Platzmangel wandern Ziele
 nach Mehr. Nach den Gruppen folgen **Mehr** und **Einstellungen**. Mehr enthält
@@ -27,10 +27,10 @@ nur aus der Fußleiste ausgelagerte Ziele, keine doppelten Einträge für Downlo
 oder Einstellungen; das Appmenü bietet weiterhin die verfügbaren Hauptseiten an.
 Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
 
-Strg+6 (⌘+6 auf macOS) öffnet standardmäßig Booru. Quellen & Plugins bleibt auf
+Strg+6 (⌘+6 auf macOS) öffnet standardmäßig Booru. Plugins bleibt auf
 Strg+5, Status auf Strg+7; nur Strg/⌘+8 ist standardmäßig frei. Eine gespeicherte
 Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard und öffnet
-**Alle Plugins** auf Quellen & Plugins. Vorhandene Bereichskürzel für Statistik
+**Alle Plugins** auf der Seite Plugins. Vorhandene Bereichskürzel für Statistik
 und Diagnose bleiben erhalten; Strg+7 öffnet den zuletzt benutzten Status-Bereich.
 F1 und die Fußleisten-Tooltips zeigen die wirksamen Belegungen, nicht einen zweiten
 Standard über deiner gespeicherten Wahl. Fußleiste und Menü folgen der aktuellen
@@ -55,7 +55,7 @@ Plugin-Aktivierung oder Suchbeobachtungspause. Quellen, Suchbeobachtungen und
 Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und Verfügbarkeitsregeln
 weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort, sendet
 keine Suche und umgeht diese Regeln nicht. Ausblenden ist nicht dasselbe wie das
-Deaktivieren des Plugins unter Quellen & Plugins.
+Deaktivieren des Plugins unter Plugins.
 
 ## Suchen und einzelne Posts
 
