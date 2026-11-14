@@ -350,6 +350,37 @@ public sealed class GalleryChromePlanTests
         Assert.True(row.Simple == Presence.Direct && row.Advanced == Presence.Direct);
     }
 
+    [Fact]
+    public void AFreeTagModeEndsWithItsPanelAndAWalkKeepsItsMode()
+    {
+        // M1: every way the tag panel goes (its ×, Ctrl+Shift+T, the side panel's Post segment or ×, the slot closing, the viewer stopping)
+        // runs through ReleaseTagPanel; that is where a Tag mode without a walk ends, so the switch shows View and Tag opens the panel again.
+        string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
+        int release = panel.IndexOf("private bool ReleaseTagPanel()", StringComparison.Ordinal);
+        string releaseBody = panel[release..panel.IndexOf("return true;", release, StringComparison.Ordinal)];
+        Assert.Contains("EndFreeTagModeWithPanel();", releaseBody);
+        Assert.Contains("surface.CloseRequested += CloseTagPanel;", panel);
+        Assert.Contains("if (CommandBindings.Matches(e, \"media.tags.edit\")) { CloseTagPanel();", panel);
+        Assert.Contains("ReleaseTagPanel();", Source("Desktop/GalleryViewer.SidePanel.cs"));
+        Assert.Contains("bool tagOnly = !open && ReleaseTagPanel();", Source("Desktop/GalleryViewer.cs"));
+
+        string chrome = Source("Desktop/GalleryViewer.Chrome.cs");
+        int end = chrome.IndexOf("private void EndFreeTagModeWithPanel()", StringComparison.Ordinal);
+        Assert.True(end > 0);
+        string body = chrome[end..chrome.IndexOf("internal void SetTaggingAvailable", end, StringComparison.Ordinal)];
+        // Only the free mode: a walk of the tagging queue keeps its Tag mode and decision row when the panel closes.
+        Assert.Contains("if (!_freeTagMode || _tagging != null) return;", body);
+        Assert.Contains("_freeTagMode = false;", body);
+        Assert.Contains("OnGalleryModeChanged();", body); // the switch, the chrome plan and the announcement follow
+        Assert.True(body.IndexOf("if (_terminalRetirement) return;", StringComparison.Ordinal) > body.IndexOf("_freeTagMode = false;", StringComparison.Ordinal));
+        // The Tag half compares with IsTagMode; after the panel went it is false again, so "Tag" starts the mode anew.
+        Assert.Contains("internal bool IsTagMode => _tagging != null || _freeTagMode;", chrome);
+        // EndFreeTagMode clears the flag before it closes the panel, so the release does not end the mode a second time.
+        int explicitEnd = chrome.IndexOf("internal void EndFreeTagMode()", StringComparison.Ordinal);
+        string explicitBody = chrome[explicitEnd..chrome.IndexOf("private void EndFreeTagModeWithPanel()", StringComparison.Ordinal)];
+        Assert.True(explicitBody.IndexOf("_freeTagMode = false;", StringComparison.Ordinal) < explicitBody.IndexOf("CloseTagPanel();", StringComparison.Ordinal));
+    }
+
     private static string Source(string relative) => File.ReadAllText(Root(relative));
 
     private static string Root(string path, [CallerFilePath] string source = "") =>

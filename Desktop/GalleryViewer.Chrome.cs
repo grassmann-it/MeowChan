@@ -126,6 +126,17 @@ internal sealed partial class GalleryViewer
         OnGalleryModeChanged();
     }
 
+    // M1: the tag panel went without the switch (its ×, Ctrl+Shift+T, the side panel's Post segment or ×, the slot closing): a free Tag
+    // mode ends with it, so the switch shows View again and Tag opens the panel anew. A walk keeps its mode (its decision row stays).
+    private void EndFreeTagModeWithPanel()
+    {
+        if (!_freeTagMode || _tagging != null) return;
+        _freeTagMode = false;
+        if (_terminalRetirement) return; // the viewer stops: nothing left to present
+        RefreshPlaybackControls();
+        OnGalleryModeChanged();
+    }
+
     /// <summary>The window tells whether the shown list is a walk of the tagging queue (open or parked); the switch's Tag half follows.</summary>
     internal void SetTaggingAvailable(bool available)
     {

@@ -156,6 +156,7 @@ internal sealed partial class GalleryViewer
         ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
+        EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
         return true;
     }
 
