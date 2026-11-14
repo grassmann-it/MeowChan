@@ -52,6 +52,33 @@ def valid_candidate(path: Path) -> dict:
     return RUNNER.inspect_package(path, PRODUCT_VERSION, SOURCE_COMMIT)
 
 
+def make_synthetic_gate_fixture(base: Path) -> dict[str, Path]:
+    source_root = base / "source"
+    source_root.mkdir()
+    (source_root / "Directory.Build.props").write_text(
+        "<Project><PropertyGroup><Version>1.1.0</Version></PropertyGroup></Project>",
+        encoding="utf-8",
+    )
+    (source_root / "global.json").write_text("{}\n", encoding="utf-8")
+
+    sample = base / "sample"
+    sample.mkdir()
+    project = sample / "Synthetic.Consumer.csproj"
+    project.write_text(
+        """<Project><PropertyGroup><MeowChanPluginSdkVersion>1.1.0</MeowChanPluginSdkVersion></PropertyGroup>
+        <ItemGroup><PackageReference Include="MeowChan.PluginSdk" Version="[$(MeowChanPluginSdkVersion)]" /></ItemGroup></Project>""",
+        encoding="utf-8",
+    )
+    (sample / "Program.cs").write_text("synthetic source", encoding="utf-8")
+    for generated in ("BIN", "Obj"):
+        (sample / generated / "Release" / "net10.0").mkdir(parents=True)
+        (sample / generated / "Release" / "net10.0" / "old.dll").write_bytes(b"old output")
+
+    package = base / "MeowChan.PluginSdk.1.1.0.nupkg"
+    make_package(package)
+    return {"source_root": source_root, "sample": sample, "project": project, "package": package}
+
+
 class SdkPackageConsumerSafetyTests(unittest.TestCase):
     def test_package_pin_version_and_id_are_exact(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -123,76 +150,84 @@ class SdkPackageConsumerSafetyTests(unittest.TestCase):
             self.assertFalse((copied / "BIN").exists())
             self.assertFalse((copied / "Obj").exists())
 
-    def test_mock_run_gate_accepts_fresh_generated_outputs_and_retains_consumer_dll(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
-            source_root = base / "source"
-            source_root.mkdir()
-            (source_root / "Directory.Build.props").write_text(
-                "<Project><PropertyGroup><Version>1.1.0</Version></PropertyGroup></Project>",
-                encoding="utf-8",
-            )
-            (source_root / "global.json").write_text("{}\n", encoding="utf-8")
+    def _run_mock_gate(
+        self,
+        fixture: dict[str, Path],
+        evidence: Path,
+        *,
+        create_consumer_dll: bool = True,
+        fail_consumer: bool = False,
+        mutate_sample: bool = False,
+        mutate_package: bool = False,
+    ) -> tuple[dict, list[str]]:
+        calls: list[str] = []
+        package = fixture["package"]
 
-            sample = base / "sample"
-            sample.mkdir()
-            project = sample / "Synthetic.Consumer.csproj"
-            project.write_text(
-                """<Project><PropertyGroup><MeowChanPluginSdkVersion>1.1.0</MeowChanPluginSdkVersion></PropertyGroup>
-                <ItemGroup><PackageReference Include="MeowChan.PluginSdk" Version="[$(MeowChanPluginSdkVersion)]" /></ItemGroup></Project>""",
-                encoding="utf-8",
-            )
-            (sample / "Program.cs").write_text("synthetic source", encoding="utf-8")
-            for generated in ("BIN", "Obj"):
-                (sample / generated / "Release" / "net10.0").mkdir(parents=True)
-                (sample / generated / "Release" / "net10.0" / "old.dll").write_bytes(b"old output")
-
-            source_inventory_before = RUNNER.inventory_tree(sample, "SDK consumer sample", skip_generated=True)
-            package = base / "MeowChan.PluginSdk.1.1.0.nupkg"
-            make_package(package)
-            evidence = base / "evidence"
-            calls = []
-            mutate_package = False
-
-            def fake_bounded(arguments, cwd, environment, log, timeout, label):
-                calls.append(label)
-                log.parent.mkdir(parents=True, exist_ok=True)
-                log.write_text("synthetic child\n", encoding="utf-8")
-                if label == "restore":
-                    project_path = Path(arguments[2])
-                    cache = Path(environment["NUGET_PACKAGES"])
-                    restored = cache / "meowchan.pluginsdk" / PRODUCT_VERSION
-                    (restored / "lib" / "net10.0").mkdir(parents=True)
-                    (restored / package.name).write_bytes(package.read_bytes())
-                    (restored / "lib" / "net10.0" / "MeowChan.PluginSdk.dll").write_bytes(b"sdk assembly")
-                    library = f"{RUNNER.PACKAGE_ID}/{PRODUCT_VERSION}"
-                    assets = {
-                        "packageFolders": {str(cache) + os.sep: {}},
-                        "libraries": {library: {"type": "package", "path": "meowchan.pluginsdk/1.1.0"}},
-                        "targets": {"net10.0": {library: {"type": "package"}}},
-                    }
-                    assets_path = project_path.parent / "obj" / "project.assets.json"
-                    assets_path.parent.mkdir(parents=True)
-                    assets_path.write_text(json.dumps(assets), encoding="utf-8")
-                elif label == "build":
-                    project_path = Path(arguments[2])
+        def fake_bounded(arguments, cwd, environment, log, timeout, label):
+            calls.append(label)
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text("synthetic child\n", encoding="utf-8")
+            if label == "restore":
+                project_path = Path(arguments[2])
+                cache = Path(environment["NUGET_PACKAGES"])
+                restored = cache / "meowchan.pluginsdk" / PRODUCT_VERSION
+                (restored / "lib" / "net10.0").mkdir(parents=True)
+                (restored / package.name).write_bytes(package.read_bytes())
+                (restored / "lib" / "net10.0" / "MeowChan.PluginSdk.dll").write_bytes(b"sdk assembly")
+                library = f"{RUNNER.PACKAGE_ID}/{PRODUCT_VERSION}"
+                assets = {
+                    "packageFolders": {str(cache) + os.sep: {}},
+                    "libraries": {library: {"type": "package", "path": "meowchan.pluginsdk/1.1.0"}},
+                    "targets": {"net10.0": {library: {"type": "package"}}},
+                }
+                assets_path = project_path.parent / "obj" / "project.assets.json"
+                assets_path.parent.mkdir(parents=True)
+                assets_path.write_text(json.dumps(assets), encoding="utf-8")
+            elif label == "build":
+                project_path = Path(arguments[2])
+                if create_consumer_dll:
                     assembly = project_path.parent / "bin" / "Release" / "net10.0" / f"{project_path.stem}.dll"
                     assembly.parent.mkdir(parents=True)
                     assembly.write_bytes(b"fresh consumer assembly")
-                    if mutate_package:
-                        package.write_bytes(package.read_bytes() + b"mutated during build")
-                return "synthetic success\n"
+                if mutate_sample:
+                    (fixture["sample"] / "Program.cs").write_text("mutated during build", encoding="utf-8")
+                if mutate_package:
+                    package.write_bytes(package.read_bytes() + b"mutated during build")
+            if label == "consumer" and fail_consumer:
+                raise RUNNER.ProcessCommandFailed(label, 17, log, "synthetic child failure\n")
+            return "synthetic success\n"
 
-            with mock.patch.object(RUNNER, "SAMPLE_ROOT", sample), \
-                 mock.patch.object(RUNNER, "SAMPLE_PROJECT", project), \
-                 mock.patch.object(RUNNER, "verify_source_pin", return_value={
-                     "commit": SOURCE_COMMIT, "headExact": True, "clean": True,
-                 }), \
-                 mock.patch.object(RUNNER, "run_bounded_command", side_effect=fake_bounded):
-                report = RUNNER.run_gate(
-                    package, SOURCE_COMMIT, evidence, timeout_seconds=30,
-                    source_root=source_root, heavy_lock_path=base / "heavy.lock",
-                )
+        with mock.patch.object(RUNNER, "SAMPLE_ROOT", fixture["sample"]), \
+             mock.patch.object(RUNNER, "SAMPLE_PROJECT", fixture["project"]), \
+             mock.patch.object(RUNNER, "verify_source_pin", return_value={
+                 "commit": SOURCE_COMMIT, "headExact": True, "clean": True,
+             }), \
+             mock.patch.object(RUNNER, "run_bounded_command", side_effect=fake_bounded):
+            report = RUNNER.run_gate(
+                package, SOURCE_COMMIT, evidence, timeout_seconds=30,
+                source_root=fixture["source_root"], heavy_lock_path=evidence.parent / "heavy.lock",
+            )
+        return report, calls
+
+    def _read_failed_report(self, evidence: Path) -> dict:
+        report_path = evidence / RUNNER.RESULT_NAME
+        self.assertTrue(report_path.is_file())
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        self.assertFalse(report["passed"])
+        self.assertTrue(report["completed"])
+        workspace = report.get("isolation", {}).get("workspace")
+        self.assertIsNotNone(workspace)
+        self.assertFalse(Path(workspace).exists())
+        return report
+
+    def test_mock_run_gate_accepts_fresh_generated_outputs_and_retains_consumer_dll(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            fixture = make_synthetic_gate_fixture(base)
+            source_inventory_before = RUNNER.inventory_tree(
+                fixture["sample"], "SDK consumer sample", skip_generated=True)
+            package_hash_before = RUNNER.sha256_file(fixture["package"])
+            report, calls = self._run_mock_gate(fixture, base / "evidence")
 
             self.assertTrue(report["passed"])
             self.assertEqual(["restore", "build", "consumer"], calls)
@@ -200,37 +235,77 @@ class SdkPackageConsumerSafetyTests(unittest.TestCase):
                              [item["path"] for item in report["isolation"]["consumerInputBefore"]["files"]])
             self.assertEqual(source_inventory_before["treeSha256"], report["inputs"]["before"]["sampleTreeSha256"])
             self.assertEqual(source_inventory_before["treeSha256"], report["inputs"]["after"]["sampleTreeSha256"])
-            self.assertTrue((sample / "BIN" / "Release" / "net10.0" / "old.dll").is_file())
-            self.assertTrue((sample / "Obj" / "Release" / "net10.0" / "old.dll").is_file())
+            self.assertEqual(package_hash_before, RUNNER.sha256_file(fixture["package"]))
+            self.assertFalse(Path(report["isolation"]["workspace"]).exists())
+            self.assertTrue((fixture["sample"] / "BIN" / "Release" / "net10.0" / "old.dll").is_file())
+            self.assertTrue((fixture["sample"] / "Obj" / "Release" / "net10.0" / "old.dll").is_file())
             assembly_evidence = Path(report["consumer"]["assembly"]["evidencePath"])
             self.assertTrue(assembly_evidence.is_file())
             self.assertEqual(b"fresh consumer assembly", assembly_evidence.read_bytes())
 
             mutate_package = True
             mutation_evidence = base / "mutation-evidence"
-            with mock.patch.object(RUNNER, "SAMPLE_ROOT", sample), \
-                 mock.patch.object(RUNNER, "SAMPLE_PROJECT", project), \
-                 mock.patch.object(RUNNER, "verify_source_pin", return_value={
-                     "commit": SOURCE_COMMIT, "headExact": True, "clean": True,
-                 }), \
-                 mock.patch.object(RUNNER, "run_bounded_command", side_effect=fake_bounded):
-                with self.assertRaisesRegex(RUNNER.GateError, "Supplied package changed"):
-                    RUNNER.run_gate(
-                        package, SOURCE_COMMIT, mutation_evidence, timeout_seconds=30,
-                        source_root=source_root, heavy_lock_path=base / "heavy.lock",
-                    )
-            mutation_report = json.loads((mutation_evidence / RUNNER.RESULT_NAME).read_text(encoding="utf-8"))
-            self.assertFalse(mutation_report["passed"])
+            with self.assertRaisesRegex(RUNNER.GateError, "Supplied package changed"):
+                self._run_mock_gate(fixture, mutation_evidence, mutate_package=mutate_package)
+            mutation_report = self._read_failed_report(mutation_evidence)
             self.assertIn("Supplied package changed", mutation_report["error"]["message"])
 
-    def test_missing_consumer_output_cannot_be_recorded_as_evidence(self):
+    def test_mock_run_gate_without_consumer_dll_writes_failure_and_cleans_workspace(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            base = Path(temporary)
+            fixture = make_synthetic_gate_fixture(base)
+            package_hash_before = RUNNER.sha256_file(fixture["package"])
+            sample_tree_before = RUNNER.inventory_tree(
+                fixture["sample"], "SDK consumer sample", skip_generated=True)["treeSha256"]
+            evidence = base / "missing-consumer-evidence"
             with self.assertRaisesRegex(RUNNER.GateError, "does not exist"):
-                RUNNER.persist_file_evidence(
-                    root / "missing.dll", root / "evidence" / "consumer.dll",
-                    "executed consumer assembly",
-                )
+                self._run_mock_gate(fixture, evidence, create_consumer_dll=False)
+
+            report = self._read_failed_report(evidence)
+            self.assertEqual(["restore", "build", "consumer"],
+                             [command["label"] for command in report["commands"]])
+            self.assertFalse((evidence / "consumer-evidence").exists())
+            self.assertEqual(package_hash_before, RUNNER.sha256_file(fixture["package"]))
+            self.assertEqual(sample_tree_before, RUNNER.inventory_tree(
+                fixture["sample"], "SDK consumer sample", skip_generated=True)["treeSha256"])
+            self.assertTrue((fixture["sample"] / "Program.cs").is_file())
+            self.assertTrue((fixture["sample"] / "BIN" / "Release" / "net10.0" / "old.dll").is_file())
+
+    def test_mock_run_gate_child_failure_writes_failure_and_cleans_workspace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            fixture = make_synthetic_gate_fixture(base)
+            package_hash_before = RUNNER.sha256_file(fixture["package"])
+            sample_tree_before = RUNNER.inventory_tree(
+                fixture["sample"], "SDK consumer sample", skip_generated=True)["treeSha256"]
+            evidence = base / "child-failure-evidence"
+            with self.assertRaisesRegex(RUNNER.CommandFailed, "exit code 17"):
+                self._run_mock_gate(fixture, evidence, fail_consumer=True)
+
+            report = self._read_failed_report(evidence)
+            self.assertEqual("CommandFailed", report["error"]["type"])
+            self.assertEqual(17, report["commands"][-1]["exitCode"])
+            self.assertEqual(package_hash_before, RUNNER.sha256_file(fixture["package"]))
+            self.assertEqual(sample_tree_before, RUNNER.inventory_tree(
+                fixture["sample"], "SDK consumer sample", skip_generated=True)["treeSha256"])
+            self.assertTrue((fixture["sample"] / "Program.cs").is_file())
+
+    def test_mock_run_gate_source_mutation_writes_failure_and_preserves_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            fixture = make_synthetic_gate_fixture(base)
+            package_hash_before = RUNNER.sha256_file(fixture["package"])
+            props_before = (fixture["source_root"] / "Directory.Build.props").read_bytes()
+            evidence = base / "source-mutation-evidence"
+            with self.assertRaisesRegex(RUNNER.GateError, "SDK consumer sample inputs changed"):
+                self._run_mock_gate(fixture, evidence, mutate_sample=True)
+
+            report = self._read_failed_report(evidence)
+            self.assertIn("SDK consumer sample inputs changed", report["error"]["message"])
+            self.assertEqual(package_hash_before, RUNNER.sha256_file(fixture["package"]))
+            self.assertEqual(props_before, (fixture["source_root"] / "Directory.Build.props").read_bytes())
+            self.assertEqual("mutated during build", (fixture["sample"] / "Program.cs").read_text(encoding="utf-8"))
+            self.assertTrue((fixture["sample"] / "BIN" / "Release" / "net10.0" / "old.dll").is_file())
 
     def test_assets_reject_project_reference_and_accept_exact_package_identity(self):
         with tempfile.TemporaryDirectory() as temporary:
