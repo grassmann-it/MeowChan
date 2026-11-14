@@ -58,6 +58,56 @@ internal static partial class RegularProfileFile
     }
 
     /// <summary>
+    /// Captures the identity of the object already opened by <paramref name="file"/>. Unlike the path overload,
+    /// this never performs a second final-name lookup; callers use it immediately after CreateNew to bind ownership
+    /// to the returned handle. Null means that the handle's regular-file identity could not be established.
+    /// </summary>
+    internal static RegularProfileFileIdentity? TryGetIdentity(FileStream file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        try
+        {
+            SafeFileHandle handle = file.SafeFileHandle;
+            if (handle.IsClosed || handle.IsInvalid) return null;
+            if (OperatingSystem.IsWindows())
+                return TryGetWindowsHandleIdentity(handle, out RegularProfileFileIdentity? identity) ? identity : null;
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return null;
+            if (UnixFStat(handle, out FileStatus status) != 0 || (status.Mode & UnixSpecialFileMask) != UnixRegularFileMode)
+                return null;
+            return new(status.Dev, status.Ino, status.Size, status.MTime, status.MTimeNsec, status.CTime, status.CTimeNsec);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or ObjectDisposedException or InvalidOperationException or DllNotFoundException
+            or EntryPointNotFoundException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryGetWindowsHandleIdentity(SafeFileHandle handle, out RegularProfileFileIdentity? identity)
+    {
+        identity = null;
+        if (handle.IsClosed || handle.IsInvalid) return false;
+        if (WindowsGetFileType(handle) != 1 /* FILE_TYPE_DISK */) return true;
+        if (!WindowsGetAttributeTag(handle, 9 /* FileAttributeTagInfo */, out WindowsAttributeTag tag,
+                (uint)Marshal.SizeOf<WindowsAttributeTag>()))
+            return false;
+        if (!IsWindowsRegularFile(tag.Attributes)) return true;
+        if (!WindowsGetBasicInfo(handle, 0 /* FileBasicInfo */, out WindowsFileBasicInfo basic,
+                (uint)Marshal.SizeOf<WindowsFileBasicInfo>())
+            || !WindowsGetStandardInfo(handle, 1 /* FileStandardInfo */, out WindowsFileStandardInfo standard,
+                (uint)Marshal.SizeOf<WindowsFileStandardInfo>())
+            || !WindowsGetIdInfo(handle, 18 /* FileIdInfo */, out WindowsFileIdInfo id,
+                (uint)Marshal.SizeOf<WindowsFileIdInfo>()))
+            return false;
+        identity = WindowsHandleIdentity(id.VolumeSerialNumber, id.FileIdLow, id.FileIdHigh, standard.EndOfFile,
+            basic.LastWriteTime, basic.ChangeTime);
+        return true;
+    }
+
+    /// <summary>
     /// True when <paramref name="path"/> is, without following a final link, a Unix FIFO, socket, character or block device:
     /// an entry whose open can block or read endlessly. False for regular files, folders, links, missing entries, every
     /// error and all other platforms (the open itself is still guarded by <see cref="OpenRead"/>). Never opens the entry.

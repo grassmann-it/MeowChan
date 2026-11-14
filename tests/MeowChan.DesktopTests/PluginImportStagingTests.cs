@@ -185,6 +185,69 @@ public sealed class PluginImportStagingTests : IDisposable
     }
 
     [Fact]
+    public void LeaseIdentityFailureQuarantinesTheCreatedLeaseWithoutDeletingByName()
+    {
+        Assert.Throws<IOException>(() => PluginImportStaging.Create(_plugins,
+            static (FileStream _) => (RegularProfileFileIdentity?)null));
+
+        string lease = Assert.Single(Directory.EnumerateFileSystemEntries(Staging));
+        Assert.EndsWith(".lock", lease, StringComparison.Ordinal);
+        Assert.Equal(1, new FileInfo(lease).Length);
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.True(File.Exists(lease)); // The unowned lease is quarantined, never guessed at by startup cleanup.
+    }
+
+    [Fact]
+    public async Task PayloadIdentityFailureQuarantinesPayloadAndLease()
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// identity unavailable"u8.ToArray(),
+                CancellationToken.None,
+                path => new RecordingPayloadStream(path, "none"),
+                static (FileStream _) => (RegularProfileFileIdentity?)null));
+            Assert.True(File.Exists(stage.PayloadPath));
+        }
+        finally { stage.Dispose(); }
+
+        string lease = Path.ChangeExtension(stage.PayloadPath, ".lock");
+        Assert.True(File.Exists(stage.PayloadPath));
+        Assert.Equal(1, new FileInfo(lease).Length);
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.True(File.Exists(stage.PayloadPath));
+        Assert.True(File.Exists(lease));
+    }
+
+    [Fact]
+    public async Task UnknownPayloadIdentityNeverLetsCleanupDeleteAForeignReplacement()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        string retained = Path.Combine(_root, "retained-unknown-payload.tmp");
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// must not be adopted"u8.ToArray(),
+                CancellationToken.None,
+                path =>
+                {
+                    FileStream output = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    File.Move(path, retained);
+                    File.WriteAllText(path, "foreign replacement");
+                    return output;
+                },
+                static (FileStream _) => (RegularProfileFileIdentity?)null));
+        }
+        finally { stage.Dispose(); }
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("foreign replacement", File.ReadAllText(stage.PayloadPath));
+        Assert.True(File.Exists(retained));
+        Assert.True(File.Exists(Path.ChangeExtension(stage.PayloadPath, ".lock")));
+    }
+
+    [Fact]
     public async Task PublicationAndDisposalDoNotClaimAReplacementRegularPayload()
     {
         PluginImportStaging stage = PluginImportStaging.Create(_plugins);

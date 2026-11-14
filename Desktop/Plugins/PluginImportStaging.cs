@@ -15,6 +15,9 @@ internal sealed class PluginImportStaging : IDisposable
 {
     internal const string DirectoryName = ".plugin-import-staging";
     private const string Prefix = ".plugin-import-";
+    // A nonempty lease is an explicit fail-closed quarantine for a payload whose handle identity was unavailable.
+    // CleanupAbandoned already leaves all nonempty leases untouched.
+    private const byte OwnershipUnknownLeaseMarker = 0x01;
     private readonly string _plugins;
     private readonly string _directory;
     private readonly string _leasePath;
@@ -33,8 +36,15 @@ internal sealed class PluginImportStaging : IDisposable
         _lease = lease; _leaseIdentity = leaseIdentity;
     }
 
-    internal static PluginImportStaging Create(string pluginDirectory)
+    internal static PluginImportStaging Create(string pluginDirectory) =>
+        Create(pluginDirectory, static lease => Identity(lease));
+
+    // The identity seam is internal and test-only: production always captures the identity from the CreateNew
+    // handle below. A failed capture leaves the newly created lease quarantined instead of deleting by name.
+    internal static PluginImportStaging Create(string pluginDirectory,
+        Func<FileStream, RegularProfileFileIdentity?> captureLeaseIdentity)
     {
+        ArgumentNullException.ThrowIfNull(captureLeaseIdentity);
         string plugins = Path.TrimEndingDirectorySeparator(Path.GetFullPath(pluginDirectory));
         ValidatePluginDirectory(plugins);
         string directory = Path.Combine(plugins, DirectoryName);
@@ -46,17 +56,34 @@ internal sealed class PluginImportStaging : IDisposable
         if (OperatingSystem.IsWindows()) File.SetAttributes(directory, File.GetAttributes(directory) | FileAttributes.Hidden);
         string stem = Path.Combine(directory, Prefix + Guid.NewGuid().ToString("N"));
         FileStream lease = new(stem + ".lock", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        try { return new(plugins, directory, stem + ".lock", stem + ".tmp", lease, Identity(stem + ".lock")); }
-        catch { lease.Dispose(); throw; }
+        try
+        {
+            RegularProfileFileIdentity leaseIdentity = RequireHandleIdentity(lease, captureLeaseIdentity);
+            return new(plugins, directory, stem + ".lock", stem + ".tmp", lease, leaseIdentity);
+        }
+        catch
+        {
+            // The handle is ours, but without a stable identity the pathname is not safe to unlink. Keep a
+            // nonempty quarantine lease for startup cleanup rather than guessing at the current pathname occupant.
+            try { MarkLeaseUnowned(lease); }
+            catch (Exception exception) when (IsFileError(exception)) { }
+            lease.Dispose();
+            throw;
+        }
     }
 
     internal Task WriteAsync(byte[] bytes, CancellationToken cancellationToken) =>
         WriteAsync(bytes, cancellationToken, static path => new FileStream(path, FileMode.CreateNew,
-            FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous));
+            FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous), Identity);
 
     // The factory seam lets regressions exercise real FileStream write/Flush(true)/close failures.
     // It must acquire this exact path with CreateNew; production always uses the overload above.
-    internal async Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload)
+    internal Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload) =>
+        WriteAsync(bytes, cancellationToken, createPayload, Identity);
+
+    // The identity seam is only for direct failure-path tests. Production binds ownership through the handle API.
+    internal async Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload,
+        Func<FileStream, RegularProfileFileIdentity?> captureIdentity)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -66,17 +93,20 @@ internal sealed class PluginImportStaging : IDisposable
             if (_writeStarted) throw new InvalidOperationException("A staging payload can only be written once.");
             _writeStarted = true;
             ValidateStaging(_plugins, _directory);
-            // Acquire ownership only after CreateNew succeeds, never from the reserved pathname alone.
+            ArgumentNullException.ThrowIfNull(createPayload);
+            ArgumentNullException.ThrowIfNull(captureIdentity);
+            // Acquire ownership only after CreateNew succeeds, from that exact handle and never from the reserved
+            // pathname alone. Capture again after flushing while the handle still reports the completed size.
             await using (FileStream output = createPayload(PayloadPath))
             {
-                _payloadIdentity = Identity(PayloadPath);
+                _payloadIdentity = RequireHandleIdentity(output, captureIdentity);
                 await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
                 output.Flush(flushToDisk: true);
+                _payloadIdentity = RequireHandleIdentity(output, captureIdentity);
             }
             // Closing/flush failure leaves an owned partial file for disposal, but never a publishable payload.
             RequireOwnedFile(PayloadPath, _payloadIdentity);
-            _payloadIdentity = Identity(PayloadPath);
             cancellationToken.ThrowIfCancellationRequested();
             _payloadReady = true;
         }
@@ -250,6 +280,19 @@ internal sealed class PluginImportStaging : IDisposable
         return identity;
     }
 
+    private static RegularProfileFileIdentity Identity(FileStream file) =>
+        RequireHandleIdentity(file, static handle => RegularProfileFile.TryGetIdentity(handle));
+
+    private static RegularProfileFileIdentity RequireHandleIdentity(FileStream file,
+        Func<FileStream, RegularProfileFileIdentity?> captureIdentity)
+    {
+        RegularProfileFileIdentity identity = captureIdentity(file)
+            ?? throw new IOException("Plugin import file ownership could not be verified from its open handle.");
+        if (identity.Device == 0 && identity.Inode == 0 && identity.InodeHigh == 0)
+            throw new IOException("Plugin import requires a stable file identity.");
+        return identity;
+    }
+
     private static void RequireOwnedFile(string path, RegularProfileFileIdentity? owned)
     {
         ValidateFile(path);
@@ -269,24 +312,40 @@ internal sealed class PluginImportStaging : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
-            bool payloadRemoved = false;
+            bool leaseMayBeRemoved = false;
             try
             {
                 ValidateStaging(_plugins, _directory);
-                if (_payloadIdentity is { } owned &&
-                    (File.Exists(PayloadPath) || Directory.Exists(PayloadPath) || new FileInfo(PayloadPath).LinkTarget != null))
+                if (EntryExists(PayloadPath))
                 {
-                    ValidateFile(PayloadPath);
-                    // A different regular file is not ours. Remove our lease below as well, so startup cleanup
-                    // cannot later mistake that foreign entry for our crash remnant.
-                    if (SameObject(Identity(PayloadPath), owned)) File.Delete(PayloadPath);
+                    if (_payloadIdentity is not { } owned)
+                    {
+                        // The CreateNew handle existed, but its identity was unavailable (or the factory failed
+                        // before returning it). Neither the payload nor its lease may be removed by pathname.
+                        MarkUnknownPayload();
+                    }
+                    else
+                    {
+                        ValidateFile(PayloadPath);
+                        // A different regular file is not ours. The known identity lets us remove our lease below
+                        // without making startup cleanup claim that foreign entry.
+                        if (SameObject(Identity(PayloadPath), owned)) File.Delete(PayloadPath);
+                        leaseMayBeRemoved = true;
+                    }
                 }
-                payloadRemoved = true;
+                else
+                {
+                    // No payload name remains (including after a successful publication); the lease is removable
+                    // once its own identity is checked below.
+                    leaseMayBeRemoved = true;
+                }
             }
-            catch (Exception exception) when (IsFileError(exception)) { }
+            catch (Exception exception) when (IsFileError(exception))
+            {
+                // Any inability to decide ownership is fail-closed: keep the lease as a discoverable remnant.
+            }
             finally { _lease.Dispose(); }
-            // Keep a discoverable crash pair if removing the owned payload failed. Never strand it unpaired.
-            if (!payloadRemoved) return;
+            if (!leaseMayBeRemoved) return;
             try
             {
                 ValidateStaging(_plugins, _directory);
@@ -297,4 +356,26 @@ internal sealed class PluginImportStaging : IDisposable
         }
         finally { _gate.Release(); }
     }
+
+    private void MarkUnknownPayload()
+    {
+        try
+        {
+            // Write through the already-open lease handle, not through its name. Even if the lease name was
+            // exchanged, this modifies only the original handle's object and never a foreign pathname occupant.
+            MarkLeaseUnowned(_lease);
+        }
+        catch (Exception exception) when (IsFileError(exception)) { }
+    }
+
+    private static void MarkLeaseUnowned(FileStream lease)
+    {
+        lease.Position = 0;
+        lease.SetLength(0);
+        lease.WriteByte(OwnershipUnknownLeaseMarker);
+        lease.Flush(flushToDisk: true);
+    }
+
+    private static bool EntryExists(string path) =>
+        File.Exists(path) || Directory.Exists(path) || new FileInfo(path).LinkTarget != null;
 }
