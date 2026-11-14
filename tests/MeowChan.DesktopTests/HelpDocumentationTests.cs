@@ -154,6 +154,7 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Downloads, "WV1 Downloads"),
             (WorkViewPage.Archive, "WV2 Archive"),
             (WorkViewPage.Reader, "WV3 Reader"),
+            (WorkViewPage.Gallery, "WV4 Gallery"),
             (WorkViewPage.Media, "WV5 Media"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
             (WorkViewPage.Sources, "Sources"),
@@ -169,11 +170,8 @@ public sealed class HelpDocumentationTests
             Assert.Contains(marker, workViews, StringComparison.Ordinal);
         }
 
-        // WV7–WV9 have policies now; only the separate WV4 gallery layout is still absent.
-        // Keep the boundary explicit rather than deleting the old negative assertions outright.
-        Assert.Empty(WorkViewPolicy.Entries.Where(entry => entry.Page == WorkViewPage.Gallery));
-        Assert.Contains("gallery still uses the same toolbar and overflow in every work view", workViews, StringComparison.Ordinal);
-        Assert.Contains("gallery work-view layout (WV4) and quick-tag suggestion panels are not part of this integrated checkout", workViews, StringComparison.Ordinal);
+        Assert.Contains("Quick-tag suggestion panels and popovers are not connected to the gallery or media context menus", workViews, StringComparison.Ordinal);
+        Assert.Contains("Edit media tags… still opens the existing tag dialog", workViews, StringComparison.Ordinal);
 
         var showPlugin = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.manageSource");
         var showSources = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.watches");
@@ -184,6 +182,11 @@ public sealed class HelpDocumentationTests
     }
 
     [Theory]
+    [InlineData("gallery.toolbar.rating", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
+    [InlineData("gallery.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
+    [InlineData("gallery.toolbar.slideshow", Presence.Overflow, Presence.Direct, Presence.Direct, "A chosen or running slideshow keeps its toggle on the toolbar even in Barebones")]
+    [InlineData("gallery.toolbar.playback-mode", Presence.Overflow, Presence.Overflow, Presence.Direct, "playback mode and shortcut help join them in Advanced")]
+    [InlineData("gallery.toolbar.help", Presence.Overflow, Presence.Overflow, Presence.Direct, "playback mode and shortcut help join them in Advanced")]
     [InlineData("diagnostics.filters", Presence.Collapsed, Presence.Direct, Presence.Direct, "Diagnostics starts with its filters collapsed in Barebones")]
     [InlineData("diagnostics.toolbar.copy", Presence.Overflow, Presence.Direct, Presence.Direct, "Copy moves under More in Barebones")]
     [InlineData("diagnostics.toolbar.retry-filtered", Presence.Overflow, Presence.Overflow, Presence.Direct, "retrying all filtered entries stays under More in Barebones and Simple")]
@@ -206,7 +209,8 @@ public sealed class HelpDocumentationTests
     [Theory]
     [InlineData("Add results and rejected URLs", "admission.problemsOnly")]
     [InlineData("Add results and rejected URLs", "admission.putBack")]
-    [InlineData("Archive filters and saved searches", "tags.filter.label")]
+    [InlineData("Archive filters and saved searches", "tags.filter.add")]
+    [InlineData("Archive filters and saved searches", "tags.filter.add.mode")]
     [InlineData("Archive filters and saved searches", "tags.filter.include")]
     [InlineData("Archive filters and saved searches", "tags.filter.exclude")]
     [InlineData("Saving a video frame", "command.video.snapshot")]
@@ -248,15 +252,73 @@ public sealed class HelpDocumentationTests
     public void ArchiveHelpSeparatesTheCurrentFilterEditorFromThreadAndMediaTagging()
     {
         string filters = Plain(Section(Read(Help), "Archive filters and saved searches"));
-        Assert.Contains("choose a tag in Filter by own tag", filters);
-        Assert.Contains("A selected tag not yet included or excluded is flagged when you search", filters);
-        Assert.DoesNotContain("Shift+Enter", filters); // The proposed picker is not wired in Archive yet.
+        Assert.Contains("open Add tag…", filters);
+        Assert.Contains("Enter includes it; Shift+Enter or a leading - excludes it", filters);
+        Assert.Contains("small toggle on a draft chip switches between include and exclude", filters);
+        Assert.Contains("Text typed but not added is flagged when you search", filters);
+        Assert.Contains("Adding or toggling a draft tag waits for Search", filters);
+        Assert.Equal(("tag", false), TagFilterPicker.ParseQuery("tag", false));
+        Assert.Equal(("tag", true), TagFilterPicker.ParseQuery("tag", true));
+        Assert.Equal(("tag", true), TagFilterPicker.ParseQuery("-tag", false));
+        string wiring = Read("Desktop/Views/Archive/ArchivePage.TagFilter.cs");
+        Assert.Contains("ArchiveTagChoice.Picked = (id, exclude) => AddDraftTag(id, include: !exclude)", wiring);
+        Assert.Contains("ArchiveTagChoice.KeepQueryOnDismiss = true", wiring);
+        Assert.Contains("() => ToggleDraftChip(drafted[position].Id)", wiring);
+        Assert.Contains("<controls:TagFilterPicker x:Name=\"ArchiveTagChoice\"", Read("Desktop/Views/Archive/ArchivePage.axaml"));
         string tags = Plain(Section(Read(Help), "Own tags and the shared media menu"));
         Assert.Contains("own-tag editor beside the posts", tags);
         Assert.Contains("inline editor follows the open thread until you close it", tags);
         Assert.Equal("Primary+T", CommandCatalog.Get("thread.tags").Shortcut);
         Assert.Equal("Primary+Shift+T", CommandCatalog.Get("media.tags.edit").Shortcut);
         Assert.Contains("Ctrl+Shift+T / Command+Shift+T", tags);
+    }
+
+    [Fact]
+    public void GalleryHelpMatchesRightEdgePlacementAndUnreducedSafetyState()
+    {
+        string text = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("alone at the top right, with the favorite star directly to its left", text);
+        Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
+        Assert.DoesNotContain("at the top left", text);
+        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Right", Read("Desktop/GalleryViewer.cs"));
+        Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
+        foreach (WorkView view in Enum.GetValues<WorkView>())
+        {
+            foreach (string id in new[] { "gallery.back", "gallery.favorite.indicator", "gallery.video.transport",
+                "gallery.status.media-unavailable", "gallery.info.provenance", "gallery.favorite.confirm" })
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("gallery.menu.save-frame", view));
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("gallery.toolbar.post-panel", view));
+        }
+        Assert.Contains("gallery.toolbar.slideshow", WorkViewPolicy.GalleryBarToolIds(WorkView.Barebones, slideshowActive: true));
+        Assert.DoesNotContain("gallery.toolbar.slideshow", WorkViewPolicy.GalleryBarToolIds(WorkView.Barebones));
+    }
+
+    [Fact]
+    public void MediaHelpMatchesSavedSortAndNarrowToolbarContracts()
+    {
+        string text = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("The sort criterion and direction are saved for the next start; Random is not remembered", text);
+        Assert.Contains("the next start uses By thread instead", text);
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed),
+            MediaSortPreference.Restore(MediaSortPreference.Format(MediaLibrarySort.Size),
+                MediaSortPreference.Format(MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed)));
+        Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default),
+            MediaSortPreference.Restore(MediaSortPreference.Format(MediaLibrarySort.Random),
+                MediaSortPreference.Format(MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed)));
+        Assert.Contains("_mediaPage.SaveSortAsync =", Read("Desktop/Shell/MainWindow.Media.cs"));
+        Assert.Contains("_mediaPage.RestoreSort(savedSort, savedDirection)", Read("Desktop/Shell/MainWindow.Media.cs"));
+        Assert.Contains("In narrow windows Refresh and Shuffle again also move under More; Order stays visible", text);
+        Assert.Equal(new[] { "media.toolbar.refresh", "media.toolbar.shuffle" },
+            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.sort"));
+        foreach (WorkView view in Enum.GetValues<WorkView>())
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("media.sort", view));
+        foreach (string key in new[] { "media.exportAll", "command.media.rating.manage", "media.showMissing", "media.filter.missingChip" })
+        {
+            Assert.Contains(BuiltInCatalog.English[key], text);
+            Assert.Contains(BuiltInCatalog.German[key], text);
+        }
     }
 
     [Fact]

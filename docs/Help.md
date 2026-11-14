@@ -98,8 +98,8 @@ the archive list, use the app-menu entry to check the reading-position state.
 ### Integrated work-view behavior
 
 The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
-**WV3 Reader**, **WV5 Media**, and the **WV6** setup pages **Rules**, **Sources**
-and **Plugins**, plus **WV7 Diagnostics and Statistics**, **WV8 Settings** and
+**WV3 Reader**, **WV4 Gallery**, **WV5 Media**, and the **WV6** setup pages **Rules**,
+**Sources** and **Plugins**, plus **WV7 Diagnostics and Statistics**, **WV8 Settings** and
 **WV9 dialogs and menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
 Advanced (**Erweitert**) change how much is shown directly, not whether the data
 can be reached. The work view decides which settings groups and buttons are shown
@@ -118,6 +118,12 @@ on the page.
 - **Reader:** the way back, state messages, tabs and saved-media data stay
   available. Reader tools and media-tab actions can move into the same **More**
   menu without hiding capture, live-follow, errors or active state.
+- **Gallery (WV4):** rating, media tags and slideshow controls are under More in
+  Barebones and on the toolbar from Simple on; playback mode and shortcut help
+  join them in Advanced. A chosen or running slideshow keeps its toggle on the
+  toolbar even in Barebones. Back, favorite state, position, video transport,
+  errors and integrity warnings are never reduced; the post-panel toggle stays
+  directly available. Shortcuts work in every view.
 - **Media:** search, filter state and the **Order** bar stay available. Refresh,
   shuffling, export and less common filters move to **More** or **More filters**;
   active filters and selections remain visible.
@@ -154,9 +160,10 @@ can be rebound. Existing profiles affected by the reduction can show a one-time
 notice with **Switch to Advanced** (**Zu Erweitert wechseln**) and **Got it**
 (**Verstanden**). This does not silently change the saved view.
 
-The gallery still uses the same toolbar and overflow in every work view; the
-separate gallery work-view layout (WV4) and quick-tag suggestion panels are not
-part of this integrated checkout.
+Quick-tag suggestion panels and popovers are not connected to the gallery or
+media context menus in this integrated checkout. **Edit media tags…** still opens
+the existing tag dialog; the quick-tag foundations do not make a new user flow
+available.
 
 ### Language packs
 
@@ -839,12 +846,14 @@ Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. Close the
-gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) at the top
-left; the button names the return destination. The toolbar keeps Previous,
-position, Next, Fit, 1:1, the post panel, Favorite and Tools visible. Use **⋯ (More gallery actions)**
-for zoom, rating, tags, original export, slideshow settings, overlays, fullscreen
-and shortcut help; these are overflow menu actions, not additional always-visible
-toolbar buttons. Their shortcuts still work directly. In a narrow window the
+gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) alone at the
+top right, with the favorite star directly to its left; the button names the
+return destination. The toolbar keeps Previous, position, Next, Fit, 1:1, the post
+panel and Tools available. Rating, media tags and slideshow controls move from
+**⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
+playback mode and shortcut help onto the bar. Zoom steps, original export, saved
+ratings, frame saving, video rules, overlays and fullscreen stay under More in
+every view. Their shortcuts still work directly. In a narrow window the
 toolbar uses icons and the post panel floats over the image.
 
 **Unreleased source-build controls:** Settings → Reading & media → **Gallery &
@@ -944,6 +953,16 @@ On **Media**, the **Order** selector (German: **Sortierung**) offers **By thread
 **Tag count** and **Rating**. Every order except **Random** has a direction toggle
 between its default and reversed order. **Random** has no direction toggle;
 **Shuffle again** (German: **Neu mischen**) changes its stable shuffle seed.
+The sort criterion and direction are saved for the next start; **Random** is not
+remembered, and the next start uses **By thread** instead.
+
+Search and Filters sit on the left of the Media toolbar, Order on the right.
+**Export all matches…** (German: **Alle Treffer exportieren…**) and **Manage saved
+ratings…** (**Gespeicherte Bewertungen verwalten…**) stay under **More** (**Mehr**).
+In narrow windows Refresh and Shuffle again also move under More; Order stays
+visible. **Show captured but missing files** (**Erfasste, aber fehlende Dateien
+zeigen**) is in Filters, with the active chip **Including missing files**
+(**Mit fehlenden Dateien**).
 
 ### Reading posts as cards
 
@@ -1077,13 +1096,15 @@ a board in one source from the same board name across all sources; accepting a
 source-qualified board suggestion uses that source. A board outside the selected
 sources cannot match until you adjust the source or board choices.
 
-For own-tag filters, choose a tag in **Filter by own tag** (German: **Nach eigenem
-Tag filtern**) and click **Include** (**Einschließen**) or **Exclude**
-(**Ausschließen**). Choose **All included tags** or **At least one included tag**
-for the inclusion match; an excluded tag rules a thread out. Remove a draft chip
-to remove that choice. A selected tag not yet included or excluded is flagged
-when you search: add it or clear the selection first. These are search filters,
-not changes to the tags assigned to a thread.
+For own-tag filters, open **Add tag…** (German: **Tag hinzufügen…**) and type to
+find an existing own tag. Enter includes it; Shift+Enter or a leading `-` excludes
+it. **Add as** (**Hinzufügen als**) also offers **Include** (**Einschließen**) and
+**Exclude** (**Ausschließen**) without a modifier key. The small toggle on a draft
+chip switches between include and exclude; × removes it. Choose **All included
+tags** or **At least one included tag** for the inclusion match; an excluded tag
+rules a thread out. Text typed but not added is flagged when you search: add the
+tag or clear the text first. Adding or toggling a draft tag waits for **Search**;
+these are search filters, not changes to the tags assigned to a thread.
 
 **First registered locally** filters the day a thread first entered the local
 archive catalog, including threads without captured posts. Enter **From** and/or
@@ -1246,7 +1267,7 @@ rating, including one whose original is no longer available.
 
 ### Saving a video frame
 
-In the gallery, **Save frame as image** (German: **Einzelbild als Bild speichern**,
+In the gallery, **Save frame as image** (German: **Einzelbild als Bilddatei speichern**,
 Shift+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
