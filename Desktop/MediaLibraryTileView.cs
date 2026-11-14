@@ -99,20 +99,16 @@ internal sealed class MediaLibraryTileView : UserControl
         HorizontalAlignment = HorizontalAlignment.Left, HorizontalContentAlignment = HorizontalAlignment.Left };
     // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
     private readonly Border _selectedMark = WorkspaceChips.CreateSelectionCheck("MediaTileSelected");
-    // I7: fixed corners on the preview, static and inside its 120 px (the tile keeps its height). Top left: provider badge; top
-    // right: type (GIF, video, other file) beside the selection check; bottom left: "not saved" / "no media tags yet" mark; bottom
-    // right: the favourite star, shown when set or while the tile is hovered or focused. Everything comes from the index and the
-    // own state the row already holds: no extra reads.
-    private readonly Border _kindBadge = WorkspaceChips.CreateCornerBadge("MediaTileKind", HorizontalAlignment.Right, VerticalAlignment.Top);
-    private readonly Border _stateMark = WorkspaceChips.CreateCornerMark("MediaTileStateMark", HorizontalAlignment.Left, VerticalAlignment.Bottom);
-    // MP1: beside the state mark, bottom left: "in the tagging queue" (a drawn queue mark) and the number of own tags (a tag mark and the
-    // number). Both have their meaning as tooltip and are part of the tile's name; the queue mark is refreshed alone when the queue changes.
-    private readonly Border _queueMark = WorkspaceChips.CreateCornerMark("MediaTileQueueMark", HorizontalAlignment.Left, VerticalAlignment.Bottom);
-    private readonly TextBlock _tagCountText = new() { Name = "MediaTileTagCountText", VerticalAlignment = VerticalAlignment.Center, Classes = { WorkspaceChips.Label, "tnum" } };
-    private readonly Border _tagCountBadge;
-    private readonly ToggleButton _favoriteToggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
-    // Downloaded provider media carry a small source badge next to the preview, so they are told apart without opening anything.
-    private readonly Border _providerBadge = CreateProviderBadge();
+    // MB1b: what the tile says about the medium (favourite, kind, file missing, queue, own tags or none yet, booru source) is drawn by the
+    // shared media badges over exactly the shown picture: one render-only view, no child control per badge. Only the favourite toggle stays a
+    // button (bottom right); the badge carries the state at rest, so the toggle is quiet unless the tile is hovered or focused. The queue
+    // badge is refreshed alone when the queue changes (RefreshQueueBadge).
+    private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage };
+    private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0) };
+    private MediaLibraryBadgeSentence _badgeText;
+    private string _sentence = string.Empty;
+    private readonly ToggleButton _favoriteToggle = CreateQuietFavoriteToggle();
     private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
     // Own tags act like the thread label beside them: each chip filters the page to that tag. The row is the favorite row of grouped tiles,
     // so the cell keeps its height; what does not fit is summarized as "+N" with the names in its tooltip.
@@ -156,10 +152,21 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Func<bool>? CanToggleFavorite { get; set; }
     /// <summary>Set by the page: whether the shown occurrence is in the tagging queue (MP1). Null: no queue mark.</summary>
     internal Func<MediaLibraryEntry, bool>? InTagQueue { get; set; }
-    /// <summary>The queue mark (smokes).</summary>
-    internal Border QueueMark => _queueMark;
-    /// <summary>The own-tag count badge (smokes).</summary>
-    internal Border TagCountBadge => _tagCountBadge;
+    /// <summary>The style class of the favourite toggle that is only shown while the tile is hovered or focused (the badge shows the state at rest).</summary>
+    internal const string QuietFavoriteClass = "tile-favorite-quiet";
+    /// <summary>The shared badge view over the shown picture (tests and smokes read its state and plan).</summary>
+    internal MediaBadgeView Badges => _badges;
+    /// <summary>The badge sentence in the tile's name (every fact of the medium, also the ones the Layout menu hides; empty when there is none).</summary>
+    internal string BadgeDescription => _sentence;
+    /// <summary>The favourite toggle (tests and smokes).</summary>
+    internal ToggleButton FavoriteToggleButton => _favoriteToggle;
+
+    private static ToggleButton CreateQuietFavoriteToggle()
+    {
+        ToggleButton toggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
+        toggle.Classes.Add(QuietFavoriteClass);
+        return toggle;
+    }
 
     /// <summary>
     /// MP5: the size and the caption parts the media page's Layout menu chose. Setting it changes sizes and visibility of this tile's own parts only
@@ -186,7 +193,7 @@ internal sealed class MediaLibraryTileView : UserControl
         if (_rows != null) _rows.RowDefinitions[0].Height = new GridLength(a.PreviewHeight);
         _name.IsVisible = a.Shows(MediaTileCaption.Name);
         _threadLink.IsVisible = a.Shows(MediaTileCaption.Source);
-        Present(); // the corner marks and the tile's name follow; the preview and its bitmap stay
+        Present(); // the badges and the tile's name follow; the preview and its bitmap stay
     }
 
     /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite/tag row plus margins. The page's panel uses it as cell height.</summary>
@@ -195,15 +202,16 @@ internal sealed class MediaLibraryTileView : UserControl
     public MediaLibraryTileView()
     {
         MaxWidth = 190; Height = TileHeight;
-        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it and the corner marks (provider
-        // badge, type, selection check, "not saved", star) are arranged on the picture, not on the cell edge.
+        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it, the badges lie exactly on the picture and
+        // the selection check and the star are arranged on its corners.
         LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174;
-        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kindBadge, _selectedMark } };
-        _tagCountBadge = CreateTagCountBadge(_tagCountText);
-        StackPanel bottomLeft = new() { Name = "MediaTileBottomLeft", Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(2, 0, 0, 2), Children = { _stateMark, _queueMark, _tagCountBadge } };
-        _favoriteToggle.Margin = new Thickness(0, 0, 2, 2);
+        _topRight.Children.Add(_selectedMark);
+        // The check keeps clear of a badge in the same corner; the badges' place follows the picture, so the inset follows its bounds.
+        _badges.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) UpdateTopRightInset(); };
+        // Top left, where the favourite badge sits: the toggle shows only on hover or focus and then takes the badge's place, so it never covers the
+        // tag count or the untagged mark of the bottom right corner, nor the kind of the bottom left.
+        _favoriteToggle.HorizontalAlignment = HorizontalAlignment.Left; _favoriteToggle.VerticalAlignment = VerticalAlignment.Top;
+        _favoriteToggle.Margin = new Thickness(2, 2, 0, 0);
         _favoriteToggle.Click += async (_, e) =>
         {
             e.Handled = true; // The tile itself is not activated by its star.
@@ -213,8 +221,8 @@ internal sealed class MediaLibraryTileView : UserControl
             try { await toggle(row.Entry); }
             finally { if (ReferenceEquals(DataContext, row)) _favoriteToggle.IsEnabled = true; }
         };
-        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(topRight);
-        preview.Children.Add(bottomLeft); preview.Children.Add(_favoriteToggle);
+        preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_badges); preview.Children.Add(_topRight);
+        preview.Children.Add(_favoriteToggle);
         Grid grid = _rows = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
@@ -281,8 +289,6 @@ internal sealed class MediaLibraryTileView : UserControl
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _name.Text = row?.Name;
         _thread.Text = row?.ThreadLabel;
-        _providerBadge.IsVisible = row?.IsProviderMedium == true && _appearance.Shows(MediaTileCaption.Source);
-        ((TextBlock)_providerBadge.Child!).Text = _providerBadge.IsVisible ? Texts.T("booru.media.badge") : null;
         string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
         ToolTip.SetTip(_threadLink, threadHint);
         AutomationProperties.SetName(_threadLink, threadHint);
@@ -297,67 +303,58 @@ internal sealed class MediaLibraryTileView : UserControl
         ToolTip.SetTip(_duplicatesLink, duplicatesHint);
         AutomationProperties.SetName(_duplicatesLink, duplicatesHint);
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
-        string kind = PresentCorners(row);
-        string untagged = row?.IsUntagged == true ? Texts.T("media.tile.untaggedMark") : string.Empty;
-        string tagCount = PresentTagCount(row);
-        _description = row == null ? Array.Empty<string>() : new[] { row.Name, row.IsProviderMedium ? Texts.T("booru.media.badge") : string.Empty, kind, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription, untagged, tagCount };
-        RefreshQueueBadge();
+        PresentCorners(row);
+        UpdateBadges(row);
+        UpdateName(row);
     }
 
-    private string[] _description = Array.Empty<string>();
+    // The tile's name (screen reader and tooltip): every fact of the row, shown on the tile or not. GIF and video are said by the badge sentence;
+    // only "file" (neither a picture nor a video) is added here.
+    private void UpdateName(MediaLibraryTileRow? row)
+    {
+        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name,
+            MediaLibraryFilterEngine.KindOf(row.Entry) == MediaLibraryKindFilter.Other ? Texts.T("media.tile.kind.other") : string.Empty,
+            _sentence, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription }.Where(part => part.Length > 0));
+        ToolTip.SetTip(this, description);
+        AutomationProperties.SetName(this, description);
+        AutomationProperties.SetHelpText(this, _sentence);
+    }
+
+    // The badges follow the row. The view is told the picture's size; the letterbox panel repeats that on every layout. Nothing is allocated when
+    // the state did not change (the view compares, the sentence is cached). The sentence names every fact, also the ones the Layout menu's caption
+    // parts hide from the picture.
+    private void UpdateBadges(MediaLibraryTileRow? row)
+    {
+        if (row == null) { _badges.Clear(); _badgeText.Reset(); _sentence = string.Empty; UpdateTopRightInset(); return; }
+        MediaBadgeState full = MediaLibraryBadges.ForRow(row, InTagQueue?.Invoke(row.Entry) == true);
+        _sentence = _badgeText.Get(full, _badges.Options);
+        _badges.Apply(MediaLibraryBadges.Visible(full, _appearance), _preview.PictureBounds.Size);
+        UpdateTopRightInset();
+    }
+
+    // The selection check is arranged on the marks band, which can be wider than a thin picture, so that difference is part of the inset.
+    private void UpdateTopRightInset()
+    {
+        Rect picture = _preview.PictureBounds, band = _preview.MarksBounds;
+        double inset = MediaLibraryBadges.CornerInset + Math.Max(0, band.Right - picture.Right) + MediaLibraryBadges.TopRightExtent(_badges.Plan, picture.Width);
+        if (_topRight.Margin.Right != inset) _topRight.Margin = new Thickness(0, 2, inset, 0);
+    }
 
     /// <summary>
-    /// MP1: shows or hides the queue mark for the occurrence and puts it into the tile's name. Cheap (one set lookup): the page calls it on
-    /// the realized tiles when the queue changed, without rebuilding them.
+    /// MP1: refreshes the queue badge for the occurrence and puts it into the tile's name. Cheap (one set lookup, nothing built when the state
+    /// is the same): the page calls it on the realized tiles when the queue changed, without rebuilding them.
     /// </summary>
     internal void RefreshQueueBadge()
     {
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
-        bool queued = row != null && InTagQueue?.Invoke(row.Entry) == true;
-        WorkspaceChips.SetCornerMark(_queueMark, queued && _appearance.Shows(MediaTileCaption.QueueMark) ? QueueMarkGeometry : null, Texts.T("media.tile.queued"));
-        string description = string.Join(Environment.NewLine, _description.Append(queued ? Texts.T("media.tile.queued") : string.Empty).Where(part => part.Length > 0));
-        ToolTip.SetTip(this, description);
-        AutomationProperties.SetName(this, description);
+        string before = _sentence;
+        UpdateBadges(row);
+        if (!ReferenceEquals(before, _sentence)) UpdateName(row);
     }
 
-    /// <summary>The queue mark: three lines of a list with an arrow into it (drawn on the 12 dip mark grid).</summary>
-    internal const string QueueMarkGeometry = "M1,2 L8,2 M1,6 L8,6 M1,10 L5,10 M10,6 L10,11 M8,9 L10,11 L12,9";
-
-    /// <summary>The tag mark of the own-tag count: the tag of the "no media tags yet" mark without its stroke.</summary>
-    internal const string TagMarkGeometry = "M1,1 L6,1 L11,6 L6,11 L1,6 Z M3.6,3.6 L3.7,3.7";
-
-    // "■ n": the number of own tags the occurrence carries (media and thread tags, as its chips); hidden when it carries none or they are unknown.
-    private string PresentTagCount(MediaLibraryTileRow? row)
+    /// <summary>Sets the favourite toggle (the badges are set by <see cref="UpdateBadges"/>).</summary>
+    private void PresentCorners(MediaLibraryTileRow? row)
     {
-        int count = row?.TagChips.Count ?? 0;
-        _tagCountBadge.IsVisible = count > 0 && _appearance.Shows(MediaTileCaption.TagCount);
-        _tagCountText.Text = count > 0 ? count.ToString("N0", Texts.Culture) : null;
-        string name = count > 0 ? Texts.Count("media.tile.ownTags", count, count.ToString("N0", Texts.Culture)) : string.Empty;
-        ToolTip.SetTip(_tagCountBadge, count > 0 ? name : null);
-        return name;
-    }
-
-    private static Border CreateTagCountBadge(TextBlock number)
-    {
-        Avalonia.Controls.Shapes.Path glyph = new() { Classes = { "tile-mark-glyph" }, Stretch = Stretch.Uniform, Width = 10, Height = 10, IsHitTestVisible = false,
-            VerticalAlignment = VerticalAlignment.Center };
-        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Geometry.Parse(TagMarkGeometry);
-        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 2, Children = { glyph, number } };
-        Border badge = new() { Name = "MediaTileTagCount", Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Badge, WorkspaceChips.Compact, WorkspaceChips.Corner },
-            IsVisible = false, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };
-        AutomationProperties.SetAccessibilityView(badge, AccessibilityView.Raw);
-        return badge;
-    }
-
-    /// <summary>Fills the fixed preview corners; returns the type label (also part of the tile's name), or empty for images.</summary>
-    private string PresentCorners(MediaLibraryTileRow? row)
-    {
-        string kind = row?.KindLabel ?? string.Empty;
-        _kindBadge.IsVisible = kind.Length > 0;
-        ((TextBlock)_kindBadge.Child!).Text = kind;
-        bool missing = row?.Entry.Presence == MediaLibraryPresence.Missing;
-        WorkspaceChips.SetCornerMark(_stateMark, missing ? WorkspaceChips.MarkMissing : row?.IsUntagged == true ? WorkspaceChips.MarkUntagged : null,
-            Texts.T(missing ? "media.tile.missing" : "media.tile.untaggedMark"));
         bool canFavorite = FavoriteToggle != null && CanToggleFavorite?.Invoke() != false && row is { Tile.IsGroup: false, State.Favorite: not MediaLibraryFlag.Unknown };
         bool marked = canFavorite && row!.State!.Favorite == MediaLibraryFlag.Yes;
         _favoriteToggle.IsVisible = canFavorite;
@@ -366,7 +363,6 @@ internal sealed class MediaLibraryTileView : UserControl
         string favoriteName = canFavorite ? Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add") : string.Empty;
         ToolTip.SetTip(_favoriteToggle, canFavorite ? favoriteName : null);
         AutomationProperties.SetName(_favoriteToggle, favoriteName);
-        return kind;
     }
 
     private void PresentTags(MediaLibraryTileRow? row)
@@ -401,17 +397,6 @@ internal sealed class MediaLibraryTileView : UserControl
     internal static TextBlock ChipLabel(Button chip) => (TextBlock)((DockPanel)chip.Content!).Children[1];
     /// <summary>The thread mark inside a tile chip; visible only for a thread tag.</summary>
     internal static Avalonia.Controls.Shapes.Path ChipThreadMark(Button chip) => (Avalonia.Controls.Shapes.Path)((DockPanel)chip.Content!).Children[0];
-
-    private static Border CreateProviderBadge()
-    {
-        Border badge = WorkspaceChips.CreateBadge("MediaTileProvider", string.Empty, compact: true);
-        badge.IsVisible = false;
-        badge.HorizontalAlignment = HorizontalAlignment.Left; badge.VerticalAlignment = VerticalAlignment.Top;
-        badge.Margin = new Thickness(2, 2, 0, 0);
-        // D0: a mark under 20 dip high takes the badge corners (tile-corner), as the selection check beside it does.
-        badge.Classes.Add(WorkspaceChips.Corner);
-        return badge;
-    }
 
     /// <summary>
     /// One line: the favorite and the "+N" summary keep their width, the chips share what is left and trim their names, so a long tag

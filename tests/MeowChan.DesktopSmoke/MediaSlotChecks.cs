@@ -9,6 +9,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -336,9 +337,13 @@ internal static class MediaSlotChecks
                 Rect picture = RectIn(image, host);
                 Rect drawn = Marks(Drawn(picture, image.Source!.Size.Width / image.Source.Size.Height));
                 Console.WriteLine("SMOKE media-slot media-tile: " + JsonSerializer.Serialize(new { label, control = picture.ToString(), drawn = drawn.ToString() }));
-                foreach (string overlayName in new[] { "MediaTileFavoriteToggle", "MediaTileKind" })
-                    if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == overlayName && c.IsVisible && c.Bounds.Width > 0) is { } overlay)
-                        Expect(Inside(drawn, RectIn(overlay, host)), $"{label}: {overlayName} {RectIn(overlay, host)} is not on the drawn image {drawn}.");
+                // The badges lie exactly on the shown picture and every badge of the plan is inside it; the star toggle is on the picture's marks band.
+                Rect badgeView = RectIn(tile.Badges, host);
+                Expect(Inside(drawn, badgeView) || badgeView.Width <= 0 || !tile.Badges.IsVisible, $"{label}: the badge view {badgeView} is not on the drawn image {drawn}.");
+                foreach (PlacedBadge placed in tile.Badges.Plan.Badges)
+                    Expect(Inside(new Rect(0, 0, badgeView.Width, badgeView.Height), placed.Bounds), $"{label}: badge {placed.Badge.Id} {placed.Bounds} is outside the picture {badgeView}.");
+                if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileFavoriteToggle" && c.IsVisible && c.Bounds.Width > 0) is { } star)
+                    Expect(Inside(drawn, RectIn(star, host)), $"{label}: MediaTileFavoriteToggle {RectIn(star, host)} is not on the drawn image {drawn}.");
             }
             foreach (ArchiveMediaTileView tile in archiveTiles)
             {
@@ -351,10 +356,13 @@ internal static class MediaSlotChecks
             }
             foreach (MediaLibraryTileView tile in libraryTiles)
             {
-                Control? kind = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileKind" && c.IsVisible && c.Bounds.Width > 0);
+                // The star takes the favourite badge's place (top left) and never covers a badge of another corner.
                 Control? star = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileFavoriteToggle" && c.IsVisible && c.Bounds.Width > 0);
-                if (kind != null && star != null)
-                    Expect(!RectIn(kind, host).Intersects(RectIn(star, host)), $"media tile #{(tile.DataContext as MediaLibraryTileRow)!.Index + 1} {name}: type badge and star overlap.");
+                if (star == null) continue;
+                Rect badgeView = RectIn(tile.Badges, host), starRect = RectIn(star, host);
+                foreach (PlacedBadge placed in tile.Badges.Plan.Badges)
+                    if (placed.Badge.Corner != MediaBadgeCorner.TopLeft && placed.Badge.Corner != MediaBadgeCorner.Center)
+                        Expect(!starRect.Intersects(placed.Bounds.Translate(new Vector(badgeView.X, badgeView.Y))), $"media tile #{(tile.DataContext as MediaLibraryTileRow)!.Index + 1} {name}: badge {placed.Badge.Id} and star overlap.");
             }
             Program.CaptureWindow(host, "media-slot-tiles-" + name + ".png", directory);
         }

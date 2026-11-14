@@ -1,3 +1,4 @@
+using MeowChan.Desktop.Controls;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -128,29 +129,29 @@ public sealed class MediaTileTagChipTests : IDisposable
         new MediaLibraryEntryState(favorite, true, null, true, mediaTags, Array.Empty<string>(), editable ? MediaTagSubjects.Of(entry) : null));
 
     [Fact]
-    public void CornersNameTypeUntaggedAndFavouriteFromTheRowAlone()
+    public void BadgesNameTypeUntaggedMissingAndFavouriteFromTheRowAlone()
     {
         MediaLibraryEntry gif = Entry("1", 'a') with { Name = "loop.GIF" };
         Assert.NotNull(MediaTagSubjects.Of(gif));
         List<MediaLibraryEntry> toggled = new();
         MediaLibraryTileView view = new() { FavoriteToggle = entry => { toggled.Add(entry); return Task.CompletedTask; },
             DataContext = StateRow(new MediaLibraryTile(gif, [gif]), MediaLibraryFlag.No, editable: true) };
-        Border kind = Named<Border>(view, "MediaTileKind"), mark = Named<Border>(view, "MediaTileStateMark");
         ToggleButton star = Named<ToggleButton>(view, "MediaTileFavoriteToggle");
-        Assert.True(kind.IsVisible);
-        Assert.Equal(Texts.T("media.tile.kind.gif"), ((TextBlock)kind.Child!).Text);
-        Assert.Contains("chip-badge", kind.Classes);
-        Assert.True(mark.IsVisible);
-        Assert.Equal(Texts.T("media.tile.untaggedMark"), ToolTip.GetTip(mark));
-        Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(mark));
-        // The tile's own name carries what the corners show.
+        MediaBadgeView badges = view.Badges;
+        Assert.Equal(MediaBadgeKind.Gif, badges.State.Kind);
+        Assert.Equal(0, badges.State.TagCount); // an editable occurrence without media tags
+        Assert.False(badges.State.Favorite || badges.State.Missing);
+        Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(badges));
+        // The tile's own name carries what the badges show.
         string name = AutomationProperties.GetName(view)!;
-        Assert.Contains(Texts.T("media.tile.kind.gif"), name);
-        Assert.Contains(Texts.T("media.tile.untaggedMark"), name);
+        Assert.Contains(Texts.T("media.badge.gif"), name);
+        Assert.Contains(Texts.T("media.badge.untagged"), name);
+        Assert.Equal(view.BadgeDescription, AutomationProperties.GetHelpText(view));
         // The star: a named, focusable toggle; clicking runs the page's favourite action for the shown occurrence, not the tile.
         Assert.True(star.IsVisible && star.Focusable);
         Assert.False(star.IsChecked);
         Assert.Contains("tile-favorite", star.Classes);
+        Assert.Contains(MediaLibraryTileView.QuietFavoriteClass, star.Classes); // the badge shows the state at rest
         Assert.False(MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content));
         Assert.Equal(Texts.T("viewer.favorite.add"), AutomationProperties.GetName(star));
         RoutedEventArgs click = new(Button.ClickEvent);
@@ -161,8 +162,10 @@ public sealed class MediaTileTagChipTests : IDisposable
         // A favourite with a media tag: star set, no untagged mark; a video names its type.
         MediaLibraryEntry video = Entry("2", 'b') with { Name = "clip.webm", Kind = SavedMediaKind.Video };
         view.DataContext = StateRow(new MediaLibraryTile(video, [video]), MediaLibraryFlag.Yes, editable: true, "cat");
-        Assert.Equal(Texts.T("media.tile.kind.video"), ((TextBlock)kind.Child!).Text);
-        Assert.False(mark.IsVisible);
+        Assert.Equal(MediaBadgeKind.Video, badges.State.Kind);
+        Assert.True(badges.State.Favorite);
+        Assert.Null(badges.State.TagCount); // tagged, but StateRow carries no tag chips: neither a count nor the untagged mark
+        Assert.Contains(Texts.T("media.badge.favorite"), AutomationProperties.GetName(view)!);
         Assert.True(star.IsChecked);
         Assert.True(MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content));
         Assert.Equal(Texts.T("viewer.favorite.remove"), AutomationProperties.GetName(star));
@@ -170,13 +173,15 @@ public sealed class MediaTileTagChipTests : IDisposable
         // A still image without a tag subject, favourites unavailable: no type badge, no mark, no star.
         MediaLibraryEntry still = Entry("3", 'c');
         view.DataContext = StateRow(new MediaLibraryTile(still, [still]), MediaLibraryFlag.Unknown, editable: false);
-        Assert.False(kind.IsVisible || mark.IsVisible || star.IsVisible);
+        Assert.False(star.IsVisible);
+        Assert.Equal(default, badges.State with { Kind = MediaBadgeKind.Image });
+        Assert.Null(badges.State.TagCount);
 
-        // A missing file shows the "not saved" mark instead.
+        // A missing file shows the "file missing" badge instead.
         MediaLibraryEntry missing = Entry("4", 'd') with { Presence = MediaLibraryPresence.Missing };
         view.DataContext = new MediaLibraryTileRow(new MediaLibraryTile(missing, [missing]), 0);
-        Assert.True(mark.IsVisible);
-        Assert.Equal(Texts.T("media.tile.missing"), ToolTip.GetTip(mark));
+        Assert.True(badges.State.Missing);
+        Assert.Contains(Texts.T("media.badge.missing"), AutomationProperties.GetName(view)!);
     }
 
     [Fact]

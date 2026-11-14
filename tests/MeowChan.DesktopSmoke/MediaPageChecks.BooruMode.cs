@@ -98,7 +98,7 @@ internal static partial class MediaPageChecks
             state + ": the queue must reach the page's marks and status: " + C<TextBlock>(page, "MediaStatus").Text);
         MediaLibraryTileView? tile = page.Grid.GetRealizedContainers().OfType<ListBoxItem>().Select(item => item.GetVisualDescendants().OfType<MediaLibraryTileView>().FirstOrDefault())
             .FirstOrDefault(view => (view?.DataContext as MediaLibraryTileRow)?.Entry == first);
-        Require(tile is { QueueMark.IsVisible: true } && AutomationProperties.GetName(tile).Contains(Texts.T("media.tile.queued"), StringComparison.Ordinal),
+        Require(tile is { Badges.State.Queued: true } && AutomationProperties.GetName(tile).Contains(Texts.T("media.badge.queued"), StringComparison.Ordinal),
             state + ": the queued tile must show the mark and say it.");
         Require(page.AddFilterTerm(MediaFilterTerm.InQueue()) == null, state + ": the queue term must be accepted.");
         await UntilAsync(() => page.ShownEntries.Count >= 1 && page.ShownEntries.All(page.IsInTagQueue));

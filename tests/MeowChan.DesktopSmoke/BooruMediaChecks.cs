@@ -222,10 +222,8 @@ internal static class BooruMediaChecks
         foreach (MediaLibraryTileView view in page.GetVisualDescendants().OfType<MediaLibraryTileView>())
         {
             MediaLibraryTileRow row = (MediaLibraryTileRow)view.DataContext!;
-            Border badge = view.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "MediaTileProvider");
-            Require(badge.IsVisible == row.IsProviderMedium, phase + ": the Danbooru badge must show on provider tiles only.");
-            if (row.IsProviderMedium)
-                Require(badge.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("booru.media.badge")), phase + ": badge text.");
+            Require(view.Badges.State.Booru == row.IsProviderMedium, phase + ": the booru source badge must be in the state of provider tiles only.");
+            Require(!row.IsProviderMedium || view.BadgeDescription.Contains(Texts.T("media.badge.booru"), StringComparison.Ordinal), phase + ": the badge sentence must name the booru source.");
         }
         await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>()
             .Any(view => view.GetVisualDescendants().OfType<Image>().Any(image => image.Source != null)));

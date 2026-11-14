@@ -82,7 +82,7 @@ internal static partial class MediaPageChecks
         await UntilAsync(() => !sidebar.IsVisible);
         int stopped = page.TagCountRuns;
         Require(!page.IsBooruMode && !chipRow.IsVisible && !statusRow.IsVisible && !subtitle.IsVisible && !page.TagListHandle.IsVisible && page.TileAppearance.Caption == MediaTileCaption.None
-            && Realized().All(tile => !tile.TagCountBadge.IsVisible && !tile.QueueMark.IsVisible), state + ": grid only must show the toolbar and the tiles.");
+            && Realized().All(tile => tile.Badges.State.TagCount is null or 0 && !tile.Badges.State.Queued), state + ": grid only must show the toolbar and the tiles.");
         Require(page.Grid.Bounds.Height > 100 && page.PresentCount == presents, state + ": the grid keeps its room and is not presented again.");
         page.ApplyLayout(page.PageLayout with { TileSize = MediaTileSize.Large });
         await UntilAsync(() => page.TileAppearance.CellWidth == MediaTileMetrics.LargeCellWidth);
