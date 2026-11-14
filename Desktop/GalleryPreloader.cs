@@ -60,6 +60,17 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         return RunAsync(entries, index, fit, after, before, source);
     }
 
+    private async Task<long> TouchVerifiedAsync(GalleryEntry entry, GalleryDecodeRequest.Fit fit, CancellationToken token)
+    {
+        string? key = GalleryImageCache.KeyOf(entry);
+        if (key == null || !_cache.HasCandidate(key, fit)) return -1;
+        GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry);
+        if (validity == null || !await GalleryImageCache.VerifyForCacheAsync(_cache, entry, validity, token).ConfigureAwait(false))
+            return -1;
+        token.ThrowIfCancellationRequested();
+        return _cache.Touch(key, fit, validity.IsCurrent);
+    }
+
     private async Task RunAsync(IReadOnlyList<GalleryEntry> entries, int index, GalleryDecodeRequest.Fit fit,
         int ahead, int behind, CancellationTokenSource source)
     {
@@ -71,23 +82,32 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
             // The memory of the window: the shown image plus what was kept or decoded for its neighbors. Upper bound of an image
             // not decoded yet: the whole viewport.
             long viewportBytes = (long)Math.Ceiling(Math.Max(1, fit.PhysicalWidth) * Math.Max(1, fit.PhysicalHeight)) * 4;
-            long window = Math.Max(0, _cache.Touch(GalleryImageCache.KeyOf(entries[index]) ?? string.Empty, fit));
-            foreach (int position in GalleryPreload.Plan(entries.Count, index, ahead, behind))
+            long window = await TouchVerifiedAsync(entries[index], fit, token).ConfigureAwait(false);
+            foreach (int position in GalleryPreload.Plan(entries.Count, index, ahead, before))
             {
                 token.ThrowIfCancellationRequested();
                 GalleryEntry entry = entries[position];
                 if (!GalleryPreload.Eligible(entry) || GalleryImageCache.KeyOf(entry) is not { } key) continue;
-                long kept = _cache.Touch(key, fit);
+                long kept = await TouchVerifiedAsync(entry, fit, token).ConfigureAwait(false);
                 if (kept >= 0) { window += kept; continue; }
                 // Farther images would not fit either: stop instead of pushing out the nearer ones.
                 if (window + viewportBytes > budget) break;
-                Func<bool>? valid = GalleryImageCache.Validity(entry); // before the decode reads the file
-                if (valid == null) continue;
+                GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry); // before the decode reads the file
+                if (validity == null) continue;
                 (T bitmap, GalleryImageInfo info) decoded;
                 try { decoded = await _decode(entry, fit, token).ConfigureAwait(false); }
                 catch (Exception exception) when (exception is not OperationCanceledException) { continue; }
+                try { token.ThrowIfCancellationRequested(); }
+                catch
+                {
+                    decoded.bitmap.Dispose();
+                    throw;
+                }
+                // A replacement during decode is not a cacheable proof. The decoder's result is not shown by the preloader.
+                if (!validity.IsCurrent()) { decoded.bitmap.Dispose(); continue; }
+                GalleryImageCache.RememberVerified(_cache, validity);
                 // Keep it (the lease of Add is not needed: nobody shows it yet) and let go of it.
-                T stored = _cache.Add(key, decoded.bitmap, decoded.info, valid);
+                T stored = _cache.Add(key, decoded.bitmap, decoded.info, validity.IsCurrent);
                 window += _cache.BytesOf(stored);
                 Interlocked.Increment(ref _decoded);
                 _cache.Release(stored);
