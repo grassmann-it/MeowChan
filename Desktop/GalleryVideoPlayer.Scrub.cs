@@ -12,6 +12,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
