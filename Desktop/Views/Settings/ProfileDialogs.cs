@@ -97,9 +97,16 @@ internal sealed class NewProfileDialog : Window
         Border footer = DialogFooter.Build(_create, new Control[] { _cancel });
         DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error, maxHeight: 96)), modal: true, captionName: "NewProfileChrome");
 
-        _name.TextChanged += (_, _) => { if (!_syncing) { SuggestFolders(); ClearError(); } };
-        _folder.TextChanged += (_, _) => { if (!_syncing) { _folderEdited = true; ClearError(); } RefreshFolderKind(); };
-        _downloads.TextChanged += (_, _) => { if (!_syncing) { _downloadsEdited = true; ClearError(); } };
+        // The Text property, not TextChanged: Avalonia posts TextChanged after the change, so the _syncing guard would already be
+        // cleared and a suggested folder would count as the person's own edit (then it stops following the name).
+        _name.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { SuggestFolders(); ClearError(); } };
+        _folder.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != TextBox.TextProperty) return;
+            if (!_syncing) { _folderEdited = true; ClearError(); }
+            RefreshFolderKind();
+        };
+        _downloads.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { _downloadsEdited = true; ClearError(); } };
         _chooseFolder.Click += async (_, _) => await ChooseAsync(_folder, "profile.new.chooseFolder");
         _chooseDownloads.Click += async (_, _) => await ChooseAsync(_downloads, "profile.new.chooseDownloads");
         _chooseMedia.Click += async (_, _) => await ChooseAsync(_media, "profile.new.chooseMedia");

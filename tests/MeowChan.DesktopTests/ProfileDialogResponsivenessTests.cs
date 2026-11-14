@@ -381,6 +381,33 @@ public sealed class ProfileDialogResponsivenessTests : IDisposable
         Assert.Contains("await Task.Run(() => _service.Create(", newProfile);
     }
 
+    // Smoke regression: Avalonia posts TextChanged, so the _syncing guard was already cleared when a suggested folder reported its change,
+    // which then counted as the person's own edit and stopped the suggestion from following the name. The fields observe the Text property.
+    [Fact]
+    public void NewProfileSuggestionsObserveTheTextPropertyNotTheDeferredTextChanged()
+    {
+        string source = File.ReadAllText(Source("Desktop/Views/Settings/ProfileDialogs.cs"));
+        string newProfile = source[..source.IndexOf("internal sealed record ProfileSwitchOutcome", StringComparison.Ordinal)];
+        foreach (string field in new[] { "_name", "_folder", "_downloads" })
+        {
+            Assert.DoesNotContain(field + ".TextChanged", newProfile);
+            Assert.Contains(field + ".PropertyChanged += (_, e) =>", newProfile);
+        }
+        Assert.Contains("_name.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { SuggestFolders(); ClearError(); } };", newProfile);
+        Assert.Contains("_downloads.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { _downloadsEdited = true; ClearError(); } };", newProfile);
+        // The folder field marks an own edit only outside the suggestion, and still re-probes the folder for every text change.
+        string folder = newProfile[newProfile.IndexOf("_folder.PropertyChanged", StringComparison.Ordinal)..];
+        folder = folder[..folder.IndexOf("};", StringComparison.Ordinal)];
+        Assert.Contains("if (e.Property != TextBox.TextProperty) return;", folder);
+        Assert.Contains("if (!_syncing) { _folderEdited = true; ClearError(); }", folder);
+        Assert.Contains("RefreshFolderKind();", folder);
+        // The suggestion itself still writes inside the guard.
+        string suggest = newProfile[newProfile.IndexOf("private void SuggestFolders()", StringComparison.Ordinal)..];
+        suggest = suggest[..suggest.IndexOf("private void RefreshFolderKind()", StringComparison.Ordinal)];
+        Assert.Contains("_syncing = true;", suggest);
+        Assert.Contains("finally { _syncing = false; }", suggest);
+    }
+
     [Fact]
     public void SwitchProfileDrawsFirstAndAsksTheFoldersInTheBackgroundAndForgetsAsynchronously()
     {
