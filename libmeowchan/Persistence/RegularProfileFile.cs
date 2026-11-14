@@ -317,7 +317,7 @@ internal static partial class RegularProfileFile
 }
 
 /// <summary>
-/// Cache-validation identity of a regular profile file (see <see cref="RegularProfileFile.TryGetIdentity"/>).
+/// Cache-validation identity of a regular profile file (see <see cref="RegularProfileFile.TryGetIdentity(string)"/>).
 /// <see cref="InodeHigh"/> is the high half of a 128-bit Windows file id and zero elsewhere.
 /// </summary>
 internal readonly record struct RegularProfileFileIdentity(long Device, long Inode, long Size,
