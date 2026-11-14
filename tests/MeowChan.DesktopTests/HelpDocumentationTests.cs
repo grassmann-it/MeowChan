@@ -178,19 +178,19 @@ public sealed class HelpDocumentationTests
         string workViews = Plain(Section(Read(Help), "Integrated work-view behavior"));
         (WorkViewPage Page, string Marker)[] integrated =
         [
-            (WorkViewPage.Downloads, "WV1 Downloads"),
-            (WorkViewPage.Archive, "WV2 Archive"),
-            (WorkViewPage.Reader, "WV3 Reader"),
-            (WorkViewPage.Gallery, "WV4 Gallery"),
-            (WorkViewPage.Media, "WV5 Media"),
+            (WorkViewPage.Downloads, "Downloads"),
+            (WorkViewPage.Archive, "Archive"),
+            (WorkViewPage.Reader, "Reader"),
+            (WorkViewPage.Gallery, "Gallery"),
+            (WorkViewPage.Media, "Media"),
             (WorkViewPage.Booru, "Booru"),
-            (WorkViewPage.Rules, "WV6 setup pages Rules"),
+            (WorkViewPage.Rules, "Rules"),
             (WorkViewPage.Sources, "Sources & Plugins"),
-            (WorkViewPage.Status, "Status (WV7 Diagnostics and Statistics)"),
-            (WorkViewPage.Diagnostics, "WV7 Diagnostics and Statistics"),
-            (WorkViewPage.Statistics, "WV7 Diagnostics and Statistics"),
-            (WorkViewPage.Settings, "WV8 Settings"),
-            (WorkViewPage.Dialogs, "WV9 dialogs and menus")
+            (WorkViewPage.Status, "Status (Diagnostics and Statistics)"),
+            (WorkViewPage.Diagnostics, "Diagnostics and Statistics"),
+            (WorkViewPage.Statistics, "Diagnostics and Statistics"),
+            (WorkViewPage.Settings, "Settings"),
+            (WorkViewPage.Dialogs, "Dialogs and menus")
         ];
         foreach ((WorkViewPage page, string marker) in integrated)
         {
@@ -198,10 +198,12 @@ public sealed class HelpDocumentationTests
             Assert.Contains(marker, workViews, StringComparison.Ordinal);
         }
 
-        // TP2 connected the quick tag panel to the gallery; the old "not connected" statements must not come back.
-        Assert.Contains("In the gallery, Tags and Edit media tags… open the quick tag panel in the slot of the post panel instead of a dialog", workViews, StringComparison.Ordinal);
+        // The panel, popover and explicit multi-target flow are integrated; do not restore the old unavailable claims.
+        Assert.DoesNotMatch(@"\b(?:AP|TP|PT|WV)\d+\b", workViews);
+        Assert.Contains("In the gallery, Tags and Tag… open the quick tag panel in the slot of the post panel instead of a dialog", workViews, StringComparison.Ordinal);
         Assert.Contains("[Gallery tag panel](#gallery-tag-panel)", Section(Read(Help), "Integrated work-view behavior"), StringComparison.Ordinal);
-        Assert.Contains("quick-tag popover for other pages and marking several media for one change are not available yet", workViews, StringComparison.Ordinal);
+        Assert.Contains("Media, reader attachments and Archive media tiles use a small tag popover", workViews, StringComparison.Ordinal);
+        Assert.Contains("the gallery panel can change tags on explicitly marked media together", workViews, StringComparison.Ordinal);
         Assert.DoesNotContain("not connected to the gallery", workViews, StringComparison.Ordinal);
         Assert.DoesNotContain("still opens the existing tag dialog", workViews, StringComparison.Ordinal);
         Assert.Contains("gallery-tag-panel", HeadingAnchors(Read(Help)));
@@ -222,16 +224,25 @@ public sealed class HelpDocumentationTests
     {
         string panel = Plain(Section(Read(Help), "Gallery tag panel"));
 
-        // What TP2 wires: paging, commit-and-next, the thread section, undo and the nine toggles. Marking (TP4) and the popover (TP3) are not.
-        string[] wired = [QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.ThreadSection, QuickTagCommands.Undo];
+        // Command/data contracts only; real host routing is pinned below without creating a gallery or tag store.
+        string[] wired = [QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext,
+            QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection,
+            QuickTagCommands.Undo, QuickTagCommands.StampApply];
         Assert.Equal(wired.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).Order(StringComparer.Ordinal),
             GalleryTagPanelCommands.Handled.Order(StringComparer.Ordinal));
-        Assert.Equal(new[] { QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious }.Order(StringComparer.Ordinal),
-            QuickTagCommands.AwaitingHandler.Order(StringComparer.Ordinal));
-        Assert.Contains("Marking with Shift+Page Down and Shift+Page Up does nothing yet", panel, StringComparison.Ordinal);
+        Assert.Empty(QuickTagCommands.AwaitingHandler);
+        Assert.Equal(GalleryTagPanelCommands.Handled.Order(StringComparer.Ordinal), QuickTagCommands.WiredIds.Order(StringComparer.Ordinal));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.MarkNext), GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkNext));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.UnmarkPrevious), GalleryTagPanelCommands.RouteOf(QuickTagCommands.MarkPrevious));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp), GalleryTagPanelCommands.RouteOf(QuickTagCommands.StampApply));
+        Assert.Contains("Shift+Page Down marks the shown medium and advances", panel, StringComparison.Ordinal);
+        Assert.Contains("Shift+Page Up goes back and removes the mark from the medium it reaches", panel, StringComparison.Ordinal);
         Assert.Equal("Shift+PageDown", CommandCatalog.Get(QuickTagCommands.MarkNext).Shortcut);
         Assert.Equal("Shift+PageUp", CommandCatalog.Get(QuickTagCommands.MarkPrevious).Shortcut);
-        Assert.Contains("quick-tag popover outside the gallery and marking several media for one change are not available yet", panel, StringComparison.Ordinal);
+        Assert.Contains("With marks present, tag changes apply to all marked media, not an unmarked shown medium", panel, StringComparison.Ordinal);
+        Assert.Contains("A tag carried by only some is under On some; one click gives it to all, the next removes it from all", panel, StringComparison.Ordinal);
+        Assert.Contains("Clear marks clears the marking selection", panel, StringComparison.Ordinal);
+        Assert.Contains("Outside the gallery, Tag… opens the small popover", panel, StringComparison.Ordinal);
         Assert.DoesNotContain("not connected", panel, StringComparison.Ordinal);
 
         // Shortcuts named in the text are the catalog defaults, not a second copy.
@@ -263,25 +274,139 @@ public sealed class HelpDocumentationTests
         Assert.Contains(english["tags.quick.reason.sameFile"], panel, StringComparison.Ordinal);
 
         // Medium, thread and source tags stay three things; the three named settings and the undo depth are the real labels.
-        Assert.Contains("Medium tags are your own tags on exactly the shown file", panel, StringComparison.Ordinal);
+        Assert.Contains("Medium tags are your own tags on exact media revisions", panel, StringComparison.Ordinal);
         Assert.Contains("Thread tags mark the thread, not its media files", panel, StringComparison.Ordinal);
         Assert.Contains("Source tags come from a source such as Danbooru", panel, StringComparison.Ordinal);
         Assert.Contains("Danbooru is not edited", panel, StringComparison.Ordinal);
         Assert.Contains("Nothing is assigned automatically", panel, StringComparison.Ordinal);
-        Assert.Contains("Favorites and ratings are separate gallery actions", panel, StringComparison.Ordinal);
+        Assert.Contains("The favorite/rating row above the field acts on the shown medium or all marked media", panel, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+Z undoes the newest tag, favorite or rating change made through the panel", panel, StringComparison.Ordinal);
+        Assert.Contains("Tags, favorites and ratings remain distinct: adding a tag never changes a rating or favorite by itself", panel, StringComparison.Ordinal);
+        Assert.Contains("it reverses exactly the media changed by that step", panel, StringComparison.Ordinal);
         Assert.Contains("the Tag undo steps setting", panel, StringComparison.Ordinal);
         Assert.Contains("Source tags per medium", panel, StringComparison.Ordinal);
         Assert.Equal("Tag undo steps", QuickTagLabel("quickTagUndo"));
         Assert.Equal("Source tags per medium", QuickTagLabel("quickTagSourceTags"));
 
-        // The limits table has the group, its German heading and the real defaults; the marking limit is documented as not active yet.
+        // The limits table has the real group/defaults; marking has a live selection limit, not a changed tag-store write ceiling.
         string limits = Plain(Section(Read(Help), "Storage and limits"));
         Assert.Contains("Quick tagging group (German: Schnell-Taggen)", limits, StringComparison.Ordinal);
         Assert.Equal("Quick tagging", english[QuickTagSettingsCatalog.GroupKey]);
         Assert.Equal("Schnell-Taggen", BuiltInCatalog.German[QuickTagSettingsCatalog.GroupKey]);
         Assert.Contains("applies a new value to panels you open afterwards", limits, StringComparison.Ordinal);
-        Assert.Contains("Media marked for tagging is stored for the later marking feature and has no effect yet", limits, StringComparison.Ordinal);
+        Assert.Contains("Media marked for tagging limits the [gallery marking selection](#gallery-tag-panel)", limits, StringComparison.Ordinal);
+        Assert.Contains("(default 500, 10–5000); its tag-store write limit stays fixed and separate", limits, StringComparison.Ordinal);
+        Assert.Contains("an already open panel keeps the limits it opened with", limits, StringComparison.Ordinal);
+        Assert.Contains("including 0, trims the remembered list at once, keeping the newest entries", limits, StringComparison.Ordinal);
         Assert.Equal(7, QuickTagSettingsCatalog.Limits.Length);
+    }
+
+    [Fact]
+    public void GalleryMarkStampAndPopoverHelpHasCurrentSourceConnections()
+    {
+        // Source contracts only: these pin actual adapters, not runtime writes, focus or native UI behavior.
+        string viewer = Read("Desktop/GalleryViewer.TagPanel.cs");
+        Assert.Contains("surface.NavigationRequested += OnTagNavigationRequested;", viewer, StringComparison.Ordinal);
+        Assert.Contains("ApplyMarkResult(controller.Mark(controller.ShownEntry()));", viewer, StringComparison.Ordinal);
+        Assert.Contains("ApplyMarkResult(controller.Unmark(previous));", viewer, StringComparison.Ordinal);
+        Assert.Contains("surface.MarksClearRequested += OnTagMarksClearRequested;", viewer, StringComparison.Ordinal);
+        Assert.Contains("surface.ExtraUndo = controller.ExtraUndo;", viewer, StringComparison.Ordinal);
+        Assert.Contains("run(decisions, controller.DecisionTargets())", viewer, StringComparison.Ordinal);
+        string model = Read("Desktop/GalleryTagPanelModel.cs");
+        Assert.Contains("if (Marks.Count > 0) return Selection(out reason);", model, StringComparison.Ordinal);
+        Assert.Contains("_owner.OpenSelectionTarget(Marks.Snapshot(), out reason)", model, StringComparison.Ordinal);
+
+        string panel = Plain(Section(Read(Help), "Gallery tag panel"));
+        Assert.Contains("gallery panel, Media/reader/Archive popovers and Tagging page share the same stamp for this profile, saved with its settings", panel, StringComparison.Ordinal);
+        Assert.Contains("each tag is its own undo step", panel, StringComparison.Ordinal);
+        Assert.Contains("Lowering that size removes names from the end of the stamp, not tags from media", panel, StringComparison.Ordinal);
+        Assert.Equal("Primary+Shift+Enter", CommandCatalog.Get(QuickTagCommands.StampApply).Shortcut);
+        string owner = Read("Desktop/Shell/MainWindow.GalleryTags.cs");
+        Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", owner, StringComparison.Ordinal);
+        Assert.Contains("_quickTagStamp.Capacity = _config.TagStampSize", owner, StringComparison.Ordinal);
+        Assert.Contains("config => config.TagStamp = (string[])names.Clone()", owner, StringComparison.Ordinal);
+        Assert.Contains("await RunAsync(target => target.AddExistingAsync(tag.Id, token));", Read("Desktop/QuickTagSession.cs"), StringComparison.Ordinal);
+        Assert.Contains("case QuickTagKeyAction.ApplyStamp: _ = ApplyStampAsync(); return true;", Plain(Read("Desktop/Controls/QuickTagSurface.cs")), StringComparison.Ordinal);
+        Assert.Contains("return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp))", Read("Desktop/Controls/QuickTagPopover.cs"), StringComparison.Ordinal);
+        Assert.Contains("TagPopoverAsync = OpenMediaLibraryTagPopoverAsync", Read("Desktop/Shell/MainWindow.Media.cs"), StringComparison.Ordinal);
+        Assert.Contains("_archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
+        string popover = Read("Desktop/Shell/MainWindow.QuickTags.cs");
+        Assert.Contains("if (!Current() || _mediaTagDialogOpen) return;", popover, StringComparison.Ordinal);
+        Assert.Contains("if (_isClosing || _galleryTagDialogOpen || !isCurrent()) return;", popover, StringComparison.Ordinal);
+        Assert.Contains("QuickTagPopover.OpenBlocked(anchor, label", popover, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TaggingHelpMatchesThePageWalkAndCardSourceConnections()
+    {
+        string text = Plain(Section(Read(Help), "Tagging queue and settings"));
+        foreach (string phrase in new[] { "it assigns no tags, favorites or ratings", "Open Tagging (German: Taggen) in the app’s ⋯ menu",
+            "Missing files stay in the queue", "Inside the tag panel, typing and chip keys keep their normal roles",
+            "Ctrl+Shift+Enter applies the stamp and advances", "K toggles card mode during a walk",
+            "Saving a smaller walk size does not remove queue entries" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.Equal("Q", CommandCatalog.Get("media.queue.add").Shortcut);
+        Assert.DoesNotContain("navigation.tagging", MainPageOrder.CommandIds);
+        // Pin the host-to-page-to-gallery chain, not just configuration fields or a plan comment.
+        string host = Read("Desktop/Shell/MainWindow.TaggingPage.cs");
+        Assert.Contains("CommandBindings.CreateMenuItem(\"navigation.tagging\"", host, StringComparison.Ordinal);
+        Assert.Contains("StartTagging = StartTaggingFromPageAsync", host, StringComparison.Ordinal);
+        Assert.Contains("Stamp = QuickTagStampSet", host, StringComparison.Ordinal);
+        Assert.Contains("private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync();", host, StringComparison.Ordinal);
+        Assert.Contains("_gallery.StartTaggingMode(walk,", Read("Desktop/Shell/MainWindow.TagQueue.cs"), StringComparison.Ordinal);
+        string mode = Read("Desktop/GalleryViewer.TaggingMode.cs");
+        Assert.Contains("inField && !listOpen && string.IsNullOrEmpty(surface.Input.Text)", mode, StringComparison.Ordinal);
+        Assert.Contains("surface.StampApplied += OnTaggingStampApplied;", mode, StringComparison.Ordinal);
+        Assert.Contains("return RouteCardKey(e);", mode, StringComparison.Ordinal);
+        Assert.Contains("if (!_cardsOn) return false;", Read("Desktop/GalleryViewer.Cards.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReaderHelpMatchesOptInVideoAndQuickSettingsSourceConnections()
+    {
+        string text = Plain(Section(Read(Help), "Reader media sidebar and inline video"));
+        foreach (string phrase in new[] { "Changes are saved and apply immediately", "full Settings page still uses Save/Discard",
+            "Media sidebar in the large reader is off by default", "Play videos in the reader is a separate opt-in, off by default",
+            "Only one inline video plays at a time", "On Windows, a video not wholly inside the post viewport is released",
+            "Autoplay videos muted is another opt-in, also off by default", "Neither option fetches video from a source" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.False(new Config().ReaderMediaSidebar);
+        Assert.False(new Config().ReaderInlineVideo);
+        Assert.False(new Config().ReaderInlineVideoAutoplayMuted);
+        // Only read the actual hosts; no player, decoder, settings window or session is constructed.
+        Assert.Contains("_archivePage.QuickSettingsHost = CreateQuickSettingsHost();", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
+        string media = Read("Desktop/Views/Archive/ArchivePage.ReaderMedia.cs");
+        Assert.Contains("InitializeInlineVideo();", media, StringComparison.Ordinal);
+        Assert.Contains("InitializeMediaSidebar();", media, StringComparison.Ordinal);
+        Assert.Contains("new QuickSettingsPopover(QuickSettingsSurfaces.Get(QuickSettingsSurfaces.Reader), host", Read("Desktop/Views/Archive/ArchivePage.QuickSettings.cs"), StringComparison.Ordinal);
+        string video = Read("Desktop/Views/Archive/ArchivePage.InlineVideo.cs");
+        Assert.Contains("ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);", video, StringComparison.Ordinal);
+        Assert.Contains("return _inlineVideo.ReleaseAllAsync();", video, StringComparison.Ordinal);
+        Assert.Contains("return _inlineVideo.PauseAllAsync();", video, StringComparison.Ordinal);
+        string controller = Read("Desktop/ReaderInlineVideo.cs");
+        Assert.Contains("await PauseOthersAsync(owner);", controller, StringComparison.Ordinal);
+        Assert.Contains("Trim(Options.MaxPlayers - 1, keep: owner);", controller, StringComparison.Ordinal);
+        Assert.Contains("nativeSurface ? (intersects && fullyVisible ? ViewportAction.Keep : ViewportAction.Release)", controller, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProfileHelpMatchesSeparateWindowAndListOnlyRemovalSourceContracts()
+    {
+        string text = Plain(Section(Read(Help), "Profiles in separate windows"));
+        foreach (string phrase in new[] { "this window stays open", "An already open profile is not started twice",
+            "checks the path and explains unsuitable choices without creating the folder", "added as a read-only folder source",
+            "the new window still starts and explains the refusal", "removing a list entry deletes neither the profile nor its media" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        // Source only: never instantiate a service/launcher/registry or inspect a real profile.
+        string host = Read("Desktop/Shell/MainWindow.Profiles.cs");
+        Assert.Contains("NewProfileDialog dialog = new(CreateProfileService(), _config.Language);", host, StringComparison.Ordinal);
+        Assert.Contains("StartupMediaFolderRegistration.RegisterAsync(session, argument, others)", host, StringComparison.Ordinal);
+        string service = Read("Desktop/ProfileSwitchService.cs");
+        Assert.Contains("case ProfileOpenCheck.InUse: return new(ProfileActionStatus.InUse", service, StringComparison.Ordinal);
+        Assert.Contains("if (Validate(request.Name, request.Folder, request.DownloadFolder, request.MediaFolder) is { } problem) return new(ProfileActionStatus.Refused, problem);", service, StringComparison.Ordinal);
+        Assert.Contains("return _registry.Forget(folder);", service, StringComparison.Ordinal);
+        Assert.Contains("_launcher.Launch(target, mediaFolder);", service, StringComparison.Ordinal);
+        Assert.Contains("Process.Start(info)", Read("Desktop/ProfileLauncher.cs"), StringComparison.Ordinal);
     }
 
     [Theory]
@@ -295,7 +420,7 @@ public sealed class HelpDocumentationTests
     [InlineData("diagnostics.toolbar.retry-filtered", Presence.Overflow, Presence.Overflow, Presence.Direct, "retrying all filtered entries stays under More in Barebones and Simple")]
     [InlineData("statistics.reset", Presence.Overflow, Presence.Overflow, Presence.Direct, "Reset statistics is under More in Barebones and Simple, directly available in Advanced")]
     [InlineData("settings.group.reading-media", Presence.Collapsed, Presence.Direct, Presence.Direct, "Simple opens interface extras, download extras, reading/media and behavior")]
-    [InlineData("settings.group.limits", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "storage limits and the shortcut table remain collapsed")]
+    [InlineData("settings.group.limits", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "storage limits and the keyboard-shortcuts group remain collapsed")]
     [InlineData("settings.group.shortcuts", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "Advanced opens all six groups")]
     [InlineData("dialogs.board-admission.text-rules", Presence.Collapsed, Presence.Direct, Presence.Direct, "board-admission text rules start collapsed only in Barebones")]
     [InlineData("dialogs.export.options", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "export update/backup options start collapsed in Barebones and Simple")]
@@ -395,7 +520,12 @@ public sealed class HelpDocumentationTests
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
         Assert.Contains("alone at the top right, with the favorite star directly to its left", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
-        Assert.DoesNotContain("at the top left", text);
+        // The left-hand Post | Tags segment is not the gallery's Back action.
+        Assert.DoesNotContain("Back at the top left", text);
+        Assert.Contains("The side panel has Post | Tags at the top left and × alone at the right", text);
+        string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
+        Assert.Contains("Children.Add(_segment);", sidePanel);
+        Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);
         Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Right", Read("Desktop/GalleryViewer.cs"));
         Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
@@ -415,14 +545,21 @@ public sealed class HelpDocumentationTests
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
         Assert.Contains("The sort criterion and direction are saved for the next start; Random is not remembered", text);
-        Assert.Contains("the next start uses By thread instead", text);
+        Assert.Contains("the next start returns to your last non-random criterion and direction", text);
+        Config saved = new(); // Pure preferences: no profile is opened or saved.
+        Assert.True(MediaSortPreference.Remember(saved, MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed));
+        Assert.False(MediaSortPreference.Remember(saved, MediaLibrarySort.Random, MediaLibrarySortDirection.Default));
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed),
+            MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
         Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed),
             MediaSortPreference.Restore(MediaSortPreference.Format(MediaLibrarySort.Size),
                 MediaSortPreference.Format(MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed)));
         Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default),
             MediaSortPreference.Restore(MediaSortPreference.Format(MediaLibrarySort.Random),
                 MediaSortPreference.Format(MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed)));
-        Assert.Contains("_mediaPage.SaveSortAsync =", Read("Desktop/Shell/MainWindow.Media.cs"));
+        string mediaHost = Read("Desktop/Shell/MainWindow.Media.cs");
+        Assert.Contains("_mediaPage.SaveSortAsync = (sort, direction) => sort == MediaLibrarySort.Random", mediaHost);
+        Assert.Contains("MediaSortPreference.Remember(config, sort, direction)", mediaHost);
         Assert.Contains("_mediaPage.RestoreSort(savedSort, savedDirection)", Read("Desktop/Shell/MainWindow.Media.cs"));
         Assert.Contains("In narrow windows Refresh and Shuffle again also move under More; Order stays visible", text);
         Assert.Equal(new[] { "media.toolbar.refresh", "media.toolbar.shuffle" },
@@ -529,14 +666,25 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void RightEdgeHelpListsOnlyRowsThatUseTheHeaderBarEndSlotAndNamesDialogsAsNotMovedYet()
+    public void RightEdgeHelpMatchesNamedHeaderRowsAndDialogEscapeGuards()
     {
         string text = Plain(Section(Read(Help), "Back and Close at the right edge"));
         Assert.Contains("stands alone at the right edge of that row", text, StringComparison.Ordinal);
         Assert.Contains("comes last in the Tab order", text, StringComparison.Ordinal);
         Assert.Contains("The gallery keeps its own placement of Back to {target} at the top right", text, StringComparison.Ordinal);
         Assert.Contains("Esc closes as before", text, StringComparison.Ordinal);
-        Assert.Contains("Dialogs and other rows are not moved by this layout yet", text, StringComparison.Ordinal);
+        Assert.Contains("Dialogs use their title-bar ×", text, StringComparison.Ordinal);
+        Assert.Contains("Esc first ends a local edit, recording or question; it does not close while saving or deleting", text, StringComparison.Ordinal);
+        Assert.Contains("Settings asks about unsaved changes", text, StringComparison.Ordinal);
+        // Source contracts, not a claim that every window or native title bar has been accepted.
+        Assert.Contains("WindowChrome.Frame(window, content, KindFor(modal), captionName)", Read("Desktop/Controls/DialogWindow.cs"), StringComparison.Ordinal);
+        string escape = Read("Desktop/Controls/DialogEscape.cs");
+        Assert.Contains("if (tryCancelLocal?.Invoke() == true) return DialogEscapeOutcome.CancelledLocal;", escape, StringComparison.Ordinal);
+        Assert.Contains("return isBusy?.Invoke() == true ? DialogEscapeOutcome.Busy : DialogEscapeOutcome.Close;", escape, StringComparison.Ordinal);
+        Assert.Contains("if (outcome != DialogEscapeOutcome.Close) return;", escape, StringComparison.Ordinal);
+        string settings = Read("Desktop/Views/Settings/SettingsWindow.axaml.cs");
+        Assert.Contains("tryCancelLocal: AskBeforeDiscardingOnEscape, isBusy: () => Editor.IsBusy", settings, StringComparison.Ordinal);
+        Assert.Contains("if (discard && !Editor.IsBusy) Close();", settings, StringComparison.Ordinal);
         Assert.True(HeaderBar.EndGap > 0 && HeaderBar.EndSpacing > 0);
 
         // Every button the Help names is declared in the end slot of a HeaderBar (static XAML check; layout and tab order
@@ -545,7 +693,7 @@ public sealed class HelpDocumentationTests
         string archive = Read("Desktop/Views/Archive/ArchivePage.axaml");
         (string Xaml, string Name)[] ends =
         [
-            (main, "DownloadSearchClose"), (main, "InspectorCloseButton"), (main, "ShellHelpClose"),
+            (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
             (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader"),
             (archive, "ReaderFindClose"), (archive, "ReaderTagClose"), (archive, "ClosePreviewButton")
         ];
@@ -560,6 +708,31 @@ public sealed class HelpDocumentationTests
         Assert.True(title >= 0);
         foreach (string name in new[] { "ArchiveGalleryReturn", "ArchiveMediaReturn", "ArchiveBackButton", "ArchiveCloseReader" })
             Assert.True(header.IndexOf(name, StringComparison.Ordinal) > title, name);
+    }
+
+    [Fact]
+    public void ShortcutHelpMatchesTheModelessSharedDraftSourceContract()
+    {
+        string text = Plain(Section(Read(Help), "Customizing shortcuts"));
+        foreach (string phrase in new[] { "open the same window, not another copy", "It stays open while you use the main window, reader or gallery",
+            "In the gallery it starts with Gallery, followed by Tag panel", "Esc first cancels a recording or local question",
+            "unsaved changes prompt before closing", "The window shares its draft with Settings",
+            "Conflicting bindings are marked and prevent saving until resolved" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        // Source contracts only. Do not construct a window/editor, mutate language state or save a profile.
+        string window = Read("Desktop/Views/Shortcuts/ShortcutsWindow.cs");
+        foreach (string connection in new[] { "ConditionalWeakTable<Window, ShortcutsWindow>",
+            "DialogWindow.Configure(this, DialogSize.L, modal: false)", "new ShortcutBindingsEditor(host.ShortcutSession)",
+            "SaveHandler = host.CommitShortcutsAsync", "window.Show(owner);", "if (For(owner) is { } open)",
+            "IsPassive(Window window) => window is ShortcutsWindow",
+            "DialogEscape.Attach(this, Editor.TryCancelLocal, () => Editor.IsSaving)", "Editor.AskBeforeClose(close =>" })
+            Assert.Contains(connection, window, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.ShowDialog", window, StringComparison.Ordinal);
+        string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
+        Assert.Contains("ShortcutsWindow.Open(this, SettingsEditor, context", shell, StringComparison.Ordinal);
+        Assert.Contains("!MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window)", shell, StringComparison.Ordinal);
+        Assert.Contains("ExpandedAreas: new[] { ShortcutGroups.TagPanel }", Read("Desktop/GalleryViewer.cs"), StringComparison.Ordinal);
+        Assert.Contains("if (!ValidateDraft()) { RefreshFooter(); return; }", Read("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -811,13 +984,19 @@ public sealed class HelpDocumentationTests
         Assert.True(Enum.IsDefined(typeof(IoGraphSource), IoGraphSource.DiskIo));
 
         string text = Plain(Section(Read(Help), "Statistics and disk traffic"));
-        Assert.Contains("Network I/O (NetworkIo) keeps Down and Up as separate directions", text, StringComparison.Ordinal);
-        Assert.Contains("Disk I/O (DiskIo) keeps Read and Write separate as well", text, StringComparison.Ordinal);
+        Assert.Contains("Network I/O keeps Down and Up as separate directions", text, StringComparison.Ordinal);
+        Assert.Contains("Disk I/O keeps Read and Write separate as well", text, StringComparison.Ordinal);
         Assert.Contains("Auto keeps both available in every work view where the layout fits", text, StringComparison.Ordinal);
         Assert.Contains("application-payload and media-I/O counters, not operating-system totals", text, StringComparison.Ordinal);
         Assert.Contains("explicit layout can select Network, Disk or text without summing the categories", text, StringComparison.Ordinal);
         Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Read then Write for disk traffic", text, StringComparison.Ordinal);
         Assert.Contains("The visible header keeps Down / Up and Read / Write in solid-series / dashed-series order, with no Network or Disk headings", text, StringComparison.Ordinal);
+        Assert.Contains("Off hides the display and stops its own sampling claim, not downloads or other statistics sampling", text, StringComparison.Ordinal);
+        // Header-off is not a global measurement switch; the page still has its independent visible claim.
+        Assert.Equal(IoStatsVisibility.None, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: false));
+        Assert.Equal(IoStatsVisibility.Window, IoStatsDisplay.Claim(windowShown: true, graphVisible: false, pageVisible: true));
+        Assert.Contains("IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown)",
+            Read("Desktop/Shell/MainWindow.Transfer.cs"), StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
@@ -1351,6 +1530,16 @@ public sealed class HelpDocumentationTests
         Assert.Contains("ConfigureBooruMediaLinks(BooruPage page) => ConfigureBooruMediaLinks(page.View)", media, StringComparison.Ordinal);
         Assert.Contains("view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);", media, StringComparison.Ordinal);
         Assert.Contains("page.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench)", media, StringComparison.Ordinal);
+        // Parent's origin-aware callback and cancellation chain: static contracts, not an async/runtime acceptance test.
+        Assert.Contains("Action cancelNotice = origin.CaptureLinkActionCancellation();", media, StringComparison.Ordinal);
+        Assert.Contains("bool Cancelled() { cancelNotice(); return false; }", media, StringComparison.Ordinal);
+        Assert.Contains("|| !ReferenceEquals(sourcePage.View, origin)) return Cancelled();", media, StringComparison.Ordinal);
+        Assert.Contains("Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();", media, StringComparison.Ordinal);
+        Assert.Contains("Func<bool> interactionCurrent = page.CaptureBooruHandoffInteraction();", media, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services)", media, StringComparison.Ordinal);
+        Assert.Contains("if (!Current() || !interactionCurrent()) return Cancelled();", media, StringComparison.Ordinal);
+        Assert.Contains("page.ShowBooruPostAsync(postId, Current, cancelNotice)", media, StringComparison.Ordinal);
+        Assert.Contains("error is not OutOfMemoryException && (!Current() || !interactionCurrent())", media, StringComparison.Ordinal);
         Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
         Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
         Assert.Contains("ConfigureBooruMediaLinks(page);", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
