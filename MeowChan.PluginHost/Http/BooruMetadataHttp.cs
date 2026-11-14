@@ -15,9 +15,9 @@ internal sealed class BooruMetadataHttp : IDisposable
     private readonly BooruHostHttp _host;
 
     internal BooruMetadataHttp(HttpClient transport, RequestPolicyState policy,
-        IReadOnlyList<SourceDescription> sources)
+        IReadOnlyList<SourceDescription> sources, Func<TimeSpan>? maximumCooldownProvider = null)
     {
-        _host = new BooruHostHttp(transport, policy, sources, disposeTransport: false);
+        _host = new BooruHostHttp(transport, policy, sources, maximumCooldownProvider, disposeTransport: false);
     }
 
     internal TimeProvider TimeProvider => _host.TimeProvider;

@@ -168,6 +168,31 @@ public sealed class DanbooruWatcherDomainTests
     }
 
     [Fact]
+    public void ResetProviderCooldownPreservesProgressAndPersonalPause()
+    {
+        DanbooruWatcher watcher = EstablishBaseline("100");
+        DanbooruWatcherTransition started = DanbooruWatcher.BeginCheck(watcher, Now);
+        DanbooruWatcherTransition deferred = DanbooruWatcher.ApplyDeferred(started.Watcher,
+            Now.AddDays(2), "provider_cooldown", Now);
+        DanbooruWatcherTransition reset = DanbooruWatcher.ResetProviderCooldown(deferred.Watcher);
+
+        Assert.True(reset.Accepted);
+        Assert.Equal(DanbooruWatcherState.Active, reset.Watcher.State);
+        Assert.Null(reset.Watcher.CooldownUntilUtc);
+        Assert.Null(reset.Watcher.ErrorCode);
+        Assert.Equal(deferred.Watcher.HighWaterMark, reset.Watcher.HighWaterMark);
+        Assert.Equal(deferred.Watcher.KnownPostIds, reset.Watcher.KnownPostIds);
+        Assert.Equal(deferred.Watcher.Progress, reset.Watcher.Progress);
+
+        DanbooruWatcherTransition paused = DanbooruWatcher.Pause(deferred.Watcher);
+        DanbooruWatcherTransition pausedReset = DanbooruWatcher.ResetProviderCooldown(paused.Watcher);
+        Assert.True(pausedReset.Accepted);
+        Assert.Equal(DanbooruWatcherState.Paused, pausedReset.Watcher.State);
+        Assert.Equal(DanbooruWatcherState.Paused, pausedReset.Watcher.ResumeState);
+        Assert.Null(pausedReset.Watcher.CooldownUntilUtc);
+    }
+
+    [Fact]
     public void RestartRecoveryResumesAnInterruptedPartialPageAndDoesNotDuplicatePosts()
     {
         DanbooruWatcher watcher = EstablishBaseline("100");

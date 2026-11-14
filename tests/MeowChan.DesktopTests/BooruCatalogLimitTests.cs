@@ -44,6 +44,29 @@ public sealed class BooruCatalogLimitTests
     }
 
     [Fact]
+    public void RetryAfterCooldownSettingDefaultsCopiesPersistsAndRejectsUnsafeValues()
+    {
+        using TempDirectory directory = new();
+        Assert.Equal(24, new Config().BooruRetryAfterCooldownHours);
+        Config original = new() { BooruRetryAfterCooldownHours = 168 };
+        Config live = new();
+        live.CopySettingsFieldsFrom(original.Clone());
+        Assert.Equal(168, live.BooruRetryAfterCooldownHours);
+        Config copy = live.Clone();
+        copy.SaveConfig(directory.Path);
+        Assert.Equal(168, Config.LoadConfig(directory.Path).BooruRetryAfterCooldownHours);
+
+        foreach (int invalid in new[] { 0, 169, int.MaxValue })
+        {
+            Config candidate = live.Clone();
+            candidate.BooruRetryAfterCooldownHours = invalid;
+            Assert.Throws<ArgumentOutOfRangeException>(() => candidate.Validate());
+            Assert.Throws<ArgumentOutOfRangeException>(() => live.CopySettingsFieldsFrom(candidate));
+            Assert.Equal(168, live.BooruRetryAfterCooldownHours);
+        }
+    }
+
+    [Fact]
     public async Task TheHostAppliesTheConfiguredLimitAtStartAndAfterSettingsChange()
     {
         using TempDirectory directory = new();

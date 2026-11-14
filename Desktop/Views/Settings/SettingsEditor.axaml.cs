@@ -131,6 +131,7 @@ namespace MeowChan
         private decimal? _sourceHeapMiB;
         private decimal? _filterHeapMiB;
         private decimal? _booruCatalogMiB;
+        private decimal? _booruRetryAfterCooldownHours;
         private decimal? _privateTagLimit;
         private decimal? _privateTagFileMiB;
         private decimal? _mediaIndexCacheMiB;
@@ -252,6 +253,7 @@ namespace MeowChan
             SourceHeapMiB = config.PluginSourceHeapMiB;
             FilterHeapMiB = config.PluginFilterHeapMiB;
             BooruCatalogMiB = config.BooruCatalogLimitMiB;
+            BooruRetryAfterCooldownHours = config.BooruRetryAfterCooldownHours;
             PrivateTagLimit = config.PrivateTagLimit;
             PrivateTagFileMiB = config.PrivateTagFileLimitMiB;
             MediaIndexCacheMiB = config.MediaIndexCacheLimitMiB;
@@ -301,6 +303,7 @@ namespace MeowChan
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
+            ResetNumber(BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
             ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);
@@ -373,6 +376,9 @@ namespace MeowChan
         public string BooruCatalogMiBLabel => Texts.T("budgets.booruCatalog");
         public string BooruCatalogMiBHint => Texts.T("budgets.booruCatalogHint");
         public decimal? BooruCatalogMiB { get => _booruCatalogMiB; set => SetField(ref _booruCatalogMiB, value, nameof(BooruCatalogMiB)); }
+        public string BooruRetryAfterCooldownHoursLabel => Texts.T("budgets.booruRetryAfterCooldown");
+        public string BooruRetryAfterCooldownHoursHint => Texts.T("budgets.booruRetryAfterCooldownHint");
+        public decimal? BooruRetryAfterCooldownHours { get => _booruRetryAfterCooldownHours; set => SetField(ref _booruRetryAfterCooldownHours, value, nameof(BooruRetryAfterCooldownHours)); }
         public string PrivateTagLimitLabel => Texts.T("budgets.privateTags");
         public string PrivateTagLimitHint => Texts.T("budgets.privateTagsHint");
         public decimal? PrivateTagLimit { get => _privateTagLimit; set => SetField(ref _privateTagLimit, value, nameof(PrivateTagLimit)); }
@@ -841,6 +847,7 @@ namespace MeowChan
             SourceHeapMiB = _config.PluginSourceHeapMiB;
             FilterHeapMiB = _config.PluginFilterHeapMiB;
             BooruCatalogMiB = _config.BooruCatalogLimitMiB;
+            BooruRetryAfterCooldownHours = _config.BooruRetryAfterCooldownHours;
             PrivateTagLimit = _config.PrivateTagLimit;
             PrivateTagFileMiB = _config.PrivateTagFileLimitMiB;
             MediaIndexCacheMiB = _config.MediaIndexCacheLimitMiB;
@@ -886,6 +893,7 @@ namespace MeowChan
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
+            ResetNumber(BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
             ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);
@@ -996,6 +1004,7 @@ namespace MeowChan
                     nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
+                    nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
                     nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBLabel), nameof(AudioProbeCacheLimitMiBHint), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesLabel), nameof(AudioProbeCacheEntriesHint), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBLabel), nameof(GalleryImageCacheMiBHint), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadLabel), nameof(GalleryPreloadAheadHint), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindLabel), nameof(GalleryPreloadBehindHint), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(ReaderPostWidthLabel), nameof(ReaderPostWidthHint), nameof(VideoAutoplayLabel),
@@ -1255,6 +1264,7 @@ namespace MeowChan
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
                 candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
                 candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
+                candidate.BooruRetryAfterCooldownHours = GetInteger(BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours);
                 candidate.PrivateTagLimit = GetInteger(PrivateTagLimit, PrivateTagLimitLabel, Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit);
                 candidate.PrivateTagFileLimitMiB = GetInteger(PrivateTagFileMiB, PrivateTagFileMiBLabel, Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB);
                 candidate.MediaIndexCacheLimitMiB = GetInteger(MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB);
@@ -1373,6 +1383,7 @@ namespace MeowChan
             SourceHeapMiB = _config.PluginSourceHeapMiB;
             FilterHeapMiB = _config.PluginFilterHeapMiB;
             BooruCatalogMiB = _config.BooruCatalogLimitMiB;
+            BooruRetryAfterCooldownHours = _config.BooruRetryAfterCooldownHours;
             PrivateTagLimit = _config.PrivateTagLimit;
             PrivateTagFileMiB = _config.PrivateTagFileLimitMiB;
             MediaIndexCacheMiB = _config.MediaIndexCacheLimitMiB;
@@ -1418,6 +1429,7 @@ namespace MeowChan
             ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
             ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(BooruCatalogMiBInput, BooruCatalogMiB!.Value);
+            ResetNumber(BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours!.Value);
             ResetNumber(PrivateTagLimitInput, PrivateTagLimit!.Value);
             ResetNumber(PrivateTagFileMiBInput, PrivateTagFileMiB!.Value);
             ResetNumber(MediaIndexCacheMiBInput, MediaIndexCacheMiB!.Value);

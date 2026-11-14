@@ -601,7 +601,7 @@ public sealed class BooruHostHttpTests
     [Theory]
     [InlineData(7 * 24 * 3600)]
     [InlineData(int.MaxValue)]
-    public async Task FarFutureRetryAfterCooldownIsNotShortened(int seconds)
+    public async Task FarFutureRetryAfterCooldownIsCappedAtTheDefaultMaximum(int seconds)
     {
         ManualClock clock = new();
         int sends = 0;
@@ -617,7 +617,7 @@ public sealed class BooruHostHttpTests
         BooruJob job = services.OpenJob();
         try
         {
-            DateTimeOffset expected = clock.GetUtcNow() + TimeSpan.FromSeconds(seconds);
+            DateTimeOffset expected = clock.GetUtcNow() + BooruHostHttp.DefaultMaximumCooldown;
             HostHttpDeferred first = Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default));
             Assert.Equal(expected, first.RetryAt);
             Assert.Equal(429, first.HttpStatusCode);
@@ -627,28 +627,42 @@ public sealed class BooruHostHttpTests
         }
         finally { services.CloseJob(job); }
 
-        // One day is not the provider's requested pause. Fresh jobs still cannot send.
-        clock.Advance(TimeSpan.FromHours(24));
-        BooruJob during = services.OpenJob();
-        try
-        {
-            Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), during.Operation, default));
-            Assert.Equal(1, sends);
-        }
-        finally { services.CloseJob(during); }
-        clock.Advance(TimeSpan.FromSeconds(seconds) - TimeSpan.FromHours(24));
-        Assert.False(services.TryGetCooldown("danbooru", out _));
+        // The cap is a real fence, not merely a display value. After it expires a new job
+        // may send again (the fixture answers another 429 and establishes a fresh fence).
+        clock.Advance(BooruHostHttp.DefaultMaximumCooldown);
         BooruJob later = services.OpenJob();
         try
         {
-            Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), later.Operation, default));
+            HostHttpDeferred second = Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), later.Operation, default));
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.DefaultMaximumCooldown, second.RetryAt);
             Assert.Equal(2, sends);
         }
         finally { services.CloseJob(later); }
     }
 
     [Fact]
-    public async Task FarFutureRetryAfterDateIsNotShortenedAndShortDateKeepsTheMinimum()
+    public async Task SyntacticallyValidHugeDeltaSaturatesAtTheConfiguredCap()
+    {
+        ManualClock clock = new();
+        using HttpClient transport = new(new Handler((_, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.TryAddWithoutValidation("Retry-After", "999999999999999999999999999999");
+            return Task.FromResult(response);
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.DefaultMaximumCooldown,
+                Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), job.Operation, default)).RetryAt);
+        }
+        finally { services.CloseJob(job); }
+    }
+
+    [Fact]
+    public async Task RetryAfterDateIsCappedAndExpiredDateKeepsTheMinimum()
     {
         ManualClock clock = new();
         DateTimeOffset retryAfterDate = default;
@@ -665,7 +679,7 @@ public sealed class BooruHostHttpTests
         BooruJob far = services.OpenJob();
         try
         {
-            Assert.Equal(retryAfterDate,
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.DefaultMaximumCooldown,
                 Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), far.Operation, default)).RetryAt);
         }
         finally { services.CloseJob(far); }
@@ -679,10 +693,22 @@ public sealed class BooruHostHttpTests
                 Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), near.Operation, default)).RetryAt);
         }
         finally { services.CloseJob(near); }
+
+        // An absolute date already in the past is invalid as a wait request and keeps the
+        // established 60-second floor rather than becoming an immediate retry.
+        clock.Advance(BooruHostHttp.MinimumCooldown);
+        retryAfterDate = clock.GetUtcNow().AddSeconds(-5);
+        BooruJob expired = services.OpenJob();
+        try
+        {
+            Assert.Equal(clock.GetUtcNow() + BooruHostHttp.MinimumCooldown,
+                Assert.IsType<HostHttpDeferred>(await services.SendHttpAsync(Get(), expired.Operation, default)).RetryAt);
+        }
+        finally { services.CloseJob(expired); }
     }
 
     [Fact]
-    public async Task RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit()
+    public async Task RetryAfterDeltaAndConfiguredCapSaturateAtTechnicalDateLimit()
     {
         ManualClock clock = new();
         // HttpClient correctly rejects delta-seconds above Int32.MaxValue. Exercise saturation

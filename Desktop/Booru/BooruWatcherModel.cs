@@ -25,13 +25,14 @@ internal sealed record BooruWatcherListView(
     bool Creating,
     BooruNotice? Notice,
     string? Code,
-    BooruCatalogUsageView? Storage = null);
+    BooruCatalogUsageView? Storage = null,
+    bool Resetting = false);
 
 /// <summary>Why a command is unavailable; the view shows it as the disabled button's explanation.</summary>
 internal enum BooruWatcherBlock { None, Busy, Removed, Paused, Checking, CoolingDown, NotPaused }
 
 /// <summary>
-/// Watcher list and its five explicit commands. Nothing here polls or schedules: a paused, checking,
+/// Watcher list and its five row commands plus the explicit host cooldown reset. Nothing here polls or schedules: a paused, checking,
 /// cooling or removed watcher is refused locally and the port is not called, so the UI itself can never
 /// cause a hidden provider request. Removal is confirmed inline and never touches local media.
 /// </summary>
@@ -207,6 +208,34 @@ internal sealed class BooruWatcherListModel : IDisposable
     internal Task<BooruWatcherCommandResult?> RestartFromNowAsync(string watcherId) => CommandAsync(watcherId, RestartBlock,
         (id, token) => _port.RestartFromNowAsync(id, token), _ => new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.restarted"),
         refreshAfter: true);
+
+    /// <summary>Clears only the Danbooru host/provider cooldown; it never starts a check or queues an original.</summary>
+    internal async Task<BooruWatcherCommandResult> ResetProviderCooldownAsync()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, "closed");
+            if (_view.Resetting) return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, "busy");
+            _view = _view with { Resetting = true, Notice = null };
+        }
+        RaiseChanged();
+        BooruWatcherCommandResult result = await RunAsync(() => _port.ResetProviderCooldownAsync(_lifetime.Token)).ConfigureAwait(false);
+        lock (_gate)
+        {
+            _view = _view with
+            {
+                Resetting = false,
+                Notice = result.Status == BooruWatcherCommandStatus.Done
+                    ? new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.msg.cooldownReset")
+                    : FailureMessage(result)
+            };
+        }
+        RaiseChanged();
+        // Refresh after both success and failure: a failed persistence/admission path must not leave
+        // a false success state in the list, and the notice remains while the read converges.
+        await RefreshAsync().ConfigureAwait(false);
+        return result;
+    }
 
     /// <summary>First step of removal: only opens the inline confirmation; nothing is removed yet.</summary>
     internal void RequestRemoval(string watcherId)

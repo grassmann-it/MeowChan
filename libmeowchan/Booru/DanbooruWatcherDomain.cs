@@ -307,6 +307,22 @@ internal sealed record DanbooruWatcher
         }, true);
     }
 
+    /// <summary>Clears a persisted provider cooldown without changing pause, progress, HWM or findings.</summary>
+    internal static DanbooruWatcherTransition ResetProviderCooldown(DanbooruWatcher watcher)
+    {
+        if (watcher.State != DanbooruWatcherState.Cooldown || watcher.CooldownUntilUtc is null)
+            return Reject(watcher, "cooldown_not_active");
+        DanbooruWatcherState resume = watcher.ResumeState == DanbooruWatcherState.Paused
+            ? DanbooruWatcherState.Paused : DanbooruWatcherState.Active;
+        return new DanbooruWatcherTransition(watcher with
+        {
+            State = resume,
+            ResumeState = resume,
+            CooldownUntilUtc = null,
+            ErrorCode = null
+        }, true);
+    }
+
     internal static DanbooruWatcherTransition ApplyError(DanbooruWatcher watcher,
         string errorCode, DateTimeOffset observedAtUtc)
     {

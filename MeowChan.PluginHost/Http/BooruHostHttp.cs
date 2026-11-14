@@ -24,6 +24,11 @@ public sealed class BooruHostHttp : IDisposable
     public static readonly TimeSpan MaximumJobLifetime = BooruJob.MaximumLifetime;
     public static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(15);
     public static readonly TimeSpan MinimumCooldown = TimeSpan.FromSeconds(60);
+    /// <summary>The default maximum for provider Retry-After cooldowns. The user-facing setting is bounded below/above.
+    /// </summary>
+    internal static readonly TimeSpan DefaultMaximumCooldown = TimeSpan.FromHours(24);
+    internal static readonly TimeSpan MinimumConfiguredCooldown = TimeSpan.FromHours(1);
+    internal static readonly TimeSpan MaximumConfiguredCooldown = TimeSpan.FromHours(168);
     /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
     private const int MaximumPostIdDigits = 18;
 
@@ -32,15 +37,26 @@ public sealed class BooruHostHttp : IDisposable
     private readonly TimeProvider _clock;
     private readonly string _userAgent;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
+    private readonly Func<TimeSpan>? _maximumCooldownProvider;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
+    // Keep the original public constructor shape for already compiled PluginHost consumers. The
+    // configurable cap is an internal host wiring detail, not a new SDK surface.
     public BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
         string? danbooruUserId = null, string? productVersion = null, bool disposeTransport = false)
+        : this(transport, policy, sources, null, danbooruUserId, productVersion, disposeTransport)
+    {
+    }
+
+    internal BooruHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
+        Func<TimeSpan>? maximumCooldownProvider, string? danbooruUserId = null,
+        string? productVersion = null, bool disposeTransport = false)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
         ArgumentNullException.ThrowIfNull(policy);
         _clock = policy.TimeProvider;
         _disposeTransport = disposeTransport;
+        _maximumCooldownProvider = maximumCooldownProvider;
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
             .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
@@ -79,15 +95,33 @@ public sealed class BooruHostHttp : IDisposable
         bool entered = false;
         try
         {
-            await state.SendGate.WaitAsync(token).ConfigureAwait(false);
-            entered = true;
+            // ResetCooldown serializes with the whole source operation. A caller that acquired the
+            // semaphore before reset is allowed to finish; a caller that races reset observes the
+            // reset barrier and cannot start an HTTP request until the fence has been cleared.
+            while (true)
+            {
+                await state.SendGate.WaitAsync(token).ConfigureAwait(false);
+                entered = true;
+                Task? reset = null;
+                lock (state.Gate)
+                    if (state.Resetting) reset = state.ResetCompleted!.Task;
+                if (reset is null) break;
+                state.SendGate.Release();
+                entered = false;
+                await reset.WaitAsync(token).ConfigureAwait(false);
+            }
             while (true)
             {
                 if (JobEnded(job) is HostHttpFailure ended) return ended;
                 DateTimeOffset now = _clock.GetUtcNow();
                 DateTimeOffset cooldownUntil;
                 // CooldownUntil is a 16-byte struct written under Gate: never read it torn.
-                lock (state.Gate) cooldownUntil = state.CooldownUntil;
+                lock (state.Gate)
+                {
+                    DateTimeOffset cap = AddSaturating(now, GetMaximumCooldown());
+                    if (state.CooldownUntil > cap) state.CooldownUntil = cap;
+                    cooldownUntil = state.CooldownUntil;
+                }
                 if (cooldownUntil > now)
                     return new HostHttpDeferred(cooldownUntil, "booru-cooldown");
                 if (now >= job.Deadline) return Failure("booru-budget", "The booru job budget is exhausted.");
@@ -132,6 +166,8 @@ public sealed class BooruHostHttp : IDisposable
             DateTimeOffset now = _clock.GetUtcNow();
             lock (state.Gate)
             {
+                DateTimeOffset cap = AddSaturating(now, GetMaximumCooldown());
+                if (state.CooldownUntil > cap) state.CooldownUntil = cap;
                 if (state.CooldownUntil > now)
                 {
                     retryAt = state.CooldownUntil;
@@ -141,6 +177,82 @@ public sealed class BooruHostHttp : IDisposable
         }
         retryAt = default;
         return false;
+    }
+
+    /// <summary>
+    /// Starts a host-fence reset transaction. The source gate is held until the caller either commits
+    /// after durable scheduler persistence or disposes to abort. This ordering is intentional: a request
+    /// cannot start in the gap between the durable reset and transport-fence release.
+    /// </summary>
+    internal CooldownReset? BeginCooldownReset(string sourceId)
+    {
+        if (!_sources.ContainsKey(sourceId)) return null;
+        SourceState state = _states.GetOrAdd(sourceId, static _ => new SourceState());
+
+        while (true)
+        {
+            Task? completion;
+            long resetVersion;
+            lock (state.Gate)
+            {
+                if (!state.Resetting)
+                {
+                    state.Resetting = true;
+                    state.ResetCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                    // Capture the version at barrier admission. A late 429 from an already running
+                    // request increments this version while we wait and must survive the reset.
+                    resetVersion = state.CooldownVersion;
+                    completion = null;
+                }
+                else
+                {
+                    completion = state.ResetCompleted!.Task;
+                    resetVersion = 0;
+                }
+            }
+            if (completion is not null)
+            {
+                completion.GetAwaiter().GetResult();
+                continue;
+            }
+
+            bool entered = false;
+            try
+            {
+                // Resetting is already visible under Gate, so a waiter that happens to acquire the
+                // semaphore before this call does so only to observe the barrier and wait.
+                state.SendGate.Wait();
+                entered = true;
+                return new CooldownReset(state, resetVersion);
+            }
+            catch
+            {
+                lock (state.Gate)
+                {
+                    state.Resetting = false;
+                    state.ResetCompleted!.TrySetResult();
+                }
+                if (entered) state.SendGate.Release();
+                throw;
+            }
+        }
+    }
+
+    /// <summary>Clears only the in-memory provider fence for one declared source. Pacing remains intact.</summary>
+    internal bool ResetCooldown(string sourceId)
+    {
+        CooldownReset? reset = BeginCooldownReset(sourceId);
+        if (reset is null) return false;
+        using (reset) return reset.Commit();
+    }
+
+    internal TimeSpan GetMaximumCooldown()
+    {
+        TimeSpan value;
+        try { value = _maximumCooldownProvider?.Invoke() ?? DefaultMaximumCooldown; }
+        catch { return DefaultMaximumCooldown; }
+        return value < MinimumConfiguredCooldown ? MinimumConfiguredCooldown
+            : value > MaximumConfiguredCooldown ? MaximumConfiguredCooldown : value;
     }
 
     private async Task<HostHttpResult> SendWithRetryAsync(HostHttpRequest request, SourceDescription source,
@@ -172,9 +284,12 @@ public sealed class BooruHostHttp : IDisposable
                     return Failure("http-redirect", "Metadata redirects are not followed.", status);
                 if (status == 429)
                 {
-                    DateTimeOffset cooldown = CooldownUntil(ReadRetryAfter(response), _clock.GetUtcNow());
+                    DateTimeOffset cooldown = CooldownUntil(ReadRetryAfter(response), _clock.GetUtcNow(), GetMaximumCooldown());
                     lock (state.Gate)
+                    {
+                        state.CooldownVersion++;
                         if (cooldown > state.CooldownUntil) state.CooldownUntil = cooldown;
+                    }
                     HostHttpDeferred deferred = new(cooldown, "booru-cooldown", status);
                     job.StopForCooldown(deferred);
                     return deferred;
@@ -182,7 +297,7 @@ public sealed class BooruHostHttp : IDisposable
                 if (status is 502 or 503 && !retried)
                 {
                     retried = true;
-                    DateTimeOffset retryAt = RetryAt(ReadRetryAfter(response), _clock.GetUtcNow());
+                    DateTimeOffset retryAt = RetryAt(ReadRetryAfter(response), _clock.GetUtcNow(), GetMaximumCooldown());
                     if (retryAt >= job.Deadline || job.IsExpired)
                         return Failure("booru-budget", "The booru job budget is exhausted.", status);
                     response.Dispose();
@@ -196,7 +311,8 @@ public sealed class BooruHostHttp : IDisposable
                 }
 
                 byte[] body = await ReadBodyAsync(response.Content, window, abort).ConfigureAwait(false);
-                return new HostHttpResponse(status, request.Url, ReadHeaders(response), body,
+                return new HostHttpResponse(status, request.Url,
+                    ReadHeaders(response, status is 502 or 503 ? GetMaximumCooldown() : null, _clock.GetUtcNow()), body,
                     new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -445,33 +561,82 @@ public sealed class BooruHostHttp : IDisposable
             || string.Equals(name, "Cookie", StringComparison.OrdinalIgnoreCase)
             || string.Equals(name, "Proxy-Authorization", StringComparison.OrdinalIgnoreCase));
 
-    private static IReadOnlyDictionary<string, string> ReadHeaders(HttpResponseMessage response)
+    private IReadOnlyDictionary<string, string> ReadHeaders(HttpResponseMessage response, TimeSpan? retryAfterMaximum = null,
+        DateTimeOffset? now = null)
     {
         Dictionary<string, string> headers = new(StringComparer.OrdinalIgnoreCase);
         foreach (string name in new[] { "ETag", "Last-Modified", "Content-Type", "Retry-After", "Cache-Control", "Date" })
             if (response.Headers.TryGetValues(name, out IEnumerable<string>? values)
                 || response.Content.Headers.TryGetValues(name, out values))
                 headers[name] = string.Join(", ", values);
+        // A second 502/503 response is deliberately returned to the plugin after the host's one retry.
+        // Normalize only a valid value beyond the live cap, otherwise the official plugin's own parser
+        // cannot silently turn the configurable 168 h upper bound back into an older hard-coded policy.
+        if (retryAfterMaximum is { } maximum && headers.ContainsKey("Retry-After")
+            && ReadRetryAfter(response) is { } parsed)
+        {
+            DateTimeOffset current = now ?? _clock.GetUtcNow();
+            DateTimeOffset? requested = RequestedRetryAt(parsed, current);
+            DateTimeOffset cap = AddSaturating(current, maximum);
+            if (requested is { } due && due > cap)
+                headers["Retry-After"] = maximum.TotalSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
         return headers;
     }
 
     /// <summary>
     /// Reads Retry-After without asking HttpClient to materialize an invalid header as a typed value.
     /// Provider input is untrusted: an invalid value means that only the contractual minimum applies.
+    /// Decimal delta-seconds are parsed with saturation because the HTTP grammar has no 32-bit limit;
+    /// a very large but syntactically valid value must hit the configured cap, not be mistaken for a
+    /// malformed header (and, in the final 502/503 response, escape through the official parser).
     /// </summary>
-    private static RetryConditionHeaderValue? ReadRetryAfter(HttpResponseMessage response)
+    private static RetryAfterValue? ReadRetryAfter(HttpResponseMessage response)
     {
         try
         {
             if (!response.Headers.TryGetValues("Retry-After", out IEnumerable<string>? values)) return null;
             foreach (string value in values)
-                if (RetryConditionHeaderValue.TryParse(value, out RetryConditionHeaderValue? parsed)) return parsed;
+                if (TryParseRetryAfter(value, out RetryAfterValue parsed)) return parsed;
         }
         catch (FormatException)
         {
             // A malformed provider header must not turn a 429/503 into an unhandled host fault.
         }
         return null;
+    }
+
+    private static bool TryParseRetryAfter(string? raw, out RetryAfterValue value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(raw)) return false;
+        string text = raw.Trim();
+        if (text.All(char.IsAsciiDigit))
+        {
+            long seconds = 0;
+            long maximumSeconds = TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerSecond;
+            foreach (char character in text)
+            {
+                int digit = character - '0';
+                if (seconds > (maximumSeconds - digit) / 10)
+                {
+                    seconds = maximumSeconds;
+                    break;
+                }
+                seconds = seconds * 10 + digit;
+            }
+            value = new RetryAfterValue(TimeSpan.FromSeconds(seconds), null);
+            return true;
+        }
+
+        if (DateTimeOffset.TryParseExact(text, "r", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out DateTimeOffset date))
+        {
+            value = new RetryAfterValue(null, date);
+            return true;
+        }
+        return false;
     }
 
     private static bool IsTerminalStatus(HttpResponseMessage? response) =>
@@ -481,23 +646,30 @@ public sealed class BooruHostHttp : IDisposable
     private static DateTimeOffset AddSaturating(DateTimeOffset now, TimeSpan delay) =>
         delay >= DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now + delay;
 
-    private static DateTimeOffset RetryAt(RetryConditionHeaderValue? header, DateTimeOffset now)
+    private static DateTimeOffset RetryAt(RetryAfterValue? header, DateTimeOffset now, TimeSpan maximumCooldown)
     {
         DateTimeOffset minimum = AddSaturating(now, RetryDelay);
-        DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
-            ? AddSaturating(now, delta)
-            : header?.Date is DateTimeOffset date && date > now ? date : null;
-        return requested is DateTimeOffset value && value > minimum ? value : minimum;
+        DateTimeOffset maximum = AddSaturating(now, maximumCooldown);
+        DateTimeOffset? requested = RequestedRetryAt(header, now);
+        return requested is DateTimeOffset value && value > minimum
+            ? value > maximum ? maximum : value
+            : minimum;
     }
 
-    private static DateTimeOffset CooldownUntil(RetryConditionHeaderValue? header, DateTimeOffset now)
+    private static DateTimeOffset CooldownUntil(RetryAfterValue? header, DateTimeOffset now, TimeSpan maximumCooldown)
     {
         DateTimeOffset minimum = AddSaturating(now, MinimumCooldown);
-        DateTimeOffset? requested = header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
+        DateTimeOffset maximum = AddSaturating(now, maximumCooldown);
+        DateTimeOffset? requested = RequestedRetryAt(header, now);
+        return requested is DateTimeOffset value && value > minimum
+            ? value > maximum ? maximum : value
+            : minimum;
+    }
+
+    private static DateTimeOffset? RequestedRetryAt(RetryAfterValue? header, DateTimeOffset now) =>
+        header?.Delta is TimeSpan delta && delta >= TimeSpan.Zero
             ? AddSaturating(now, delta)
             : header?.Date is DateTimeOffset date && date > now ? date : null;
-        return requested is DateTimeOffset value && value > minimum ? value : minimum;
-    }
 
     private async Task DelayUntilAsync(DateTimeOffset due, CancellationToken cancellationToken)
     {
@@ -520,12 +692,51 @@ public sealed class BooruHostHttp : IDisposable
         if (_disposeTransport) _transport.Dispose();
     }
 
+    internal sealed class CooldownReset : IDisposable
+    {
+        private readonly SourceState _state;
+        private readonly long _resetVersion;
+        private int _completed;
+
+        private CooldownReset(SourceState state, long resetVersion)
+        {
+            _state = state;
+            _resetVersion = resetVersion;
+        }
+
+        /// <summary>Commits the durable-first reset and releases the source transport barrier.</summary>
+        internal bool Commit() => Complete(clear: true);
+
+        /// <summary>Releases the barrier without clearing a fence after a persistence failure.</summary>
+        public void Dispose() => Complete(clear: false);
+
+        private bool Complete(bool clear)
+        {
+            if (Interlocked.Exchange(ref _completed, 1) != 0) return false;
+            lock (_state.Gate)
+            {
+                // A late 429 from a request admitted before the barrier changed the version. It is
+                // never removed, whether this transaction commits or aborts.
+                if (clear && _state.CooldownVersion == _resetVersion) _state.CooldownUntil = default;
+                _state.Resetting = false;
+                _state.ResetCompleted!.TrySetResult();
+            }
+            _state.SendGate.Release();
+            return true;
+        }
+    }
+
+    private readonly record struct RetryAfterValue(TimeSpan? Delta, DateTimeOffset? Date);
+
     private sealed class SourceState
     {
         internal readonly SemaphoreSlim SendGate = new(1, 1);
         internal readonly object Gate = new();
         internal DateTimeOffset NextStart;
         internal DateTimeOffset CooldownUntil;
+        internal long CooldownVersion;
+        internal bool Resetting;
+        internal TaskCompletionSource? ResetCompleted;
     }
 
     private sealed class AttemptWindow : IDisposable

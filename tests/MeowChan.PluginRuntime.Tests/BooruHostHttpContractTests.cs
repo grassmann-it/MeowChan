@@ -27,7 +27,8 @@ public sealed class BooruHostHttpContractTests
         internal readonly List<HttpRequestMessage> Seen = [];
         internal int Sends;
 
-        internal Rig(Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond)
+        internal Rig(Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond,
+            Func<TimeSpan>? maximumCooldownProvider = null)
         {
             Transport = new HttpClient(new Handler((request, token) =>
             {
@@ -35,7 +36,8 @@ public sealed class BooruHostHttpContractTests
                 lock (Seen) Seen.Add(request);
                 return respond(n, request, token);
             }));
-            Http = new BooruHostHttp(Transport, new RequestPolicyState(Clock), [Source(), Other(), ChanSource()]);
+            Http = new BooruHostHttp(Transport, new RequestPolicyState(Clock), [Source(), Other(), ChanSource()],
+                maximumCooldownProvider: maximumCooldownProvider);
             Services = new BooruHostServices(new Inner(), Http);
         }
 
@@ -358,6 +360,30 @@ public sealed class BooruHostHttpContractTests
     }
 
     [Fact]
+    public async Task FinalFiveOhThreeRetryAfterIsNormalizedToTheLiveCap()
+    {
+        using Rig rig = new((n, _, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.ServiceUnavailable, "x");
+            if (n == 2) response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromDays(30));
+            return Task.FromResult(response);
+        }, () => TimeSpan.FromHours(1));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            Task<HostHttpResult> pending = rig.Send(job);
+            await EventuallyAsync(() => rig.Sends == 1);
+            await rig.Clock.WaitForTimerAsync(BooruHostHttp.RetryDelay);
+            rig.Clock.Advance(BooruHostHttp.RetryDelay);
+            HostHttpResponse response = Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
+            Assert.Equal(503, response.StatusCode);
+            Assert.Equal("3600", response.Headers["Retry-After"]);
+            Assert.Equal(2, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Fact]
     public async Task RetryAfterBeyondTheJobDeadlineFailsAsBudgetWithoutWaitingOrRetrying()
     {
         using Rig rig = new((_, _, _) =>
@@ -464,6 +490,109 @@ public sealed class BooruHostHttpContractTests
             Assert.Equal(1, rig.Sends);
         }
         finally { rig.Services.CloseJob(job); }
+    }
+
+    [Theory]
+    [InlineData(1, 3600)]
+    [InlineData(24, 86400)]
+    [InlineData(168, 604800)]
+    public async Task RetryAfterCooldownIsCappedByTheConfiguredBound(int configuredHours, int expectedSeconds)
+    {
+        using Rig rig = new((_, _, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromDays(30));
+            return Task.FromResult(response);
+        }, () => TimeSpan.FromHours(configuredHours));
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            DateTimeOffset now = rig.Clock.GetUtcNow();
+            HostHttpDeferred deferred = Assert.IsType<HostHttpDeferred>(await rig.Send(job));
+            Assert.Equal(now.AddSeconds(expectedSeconds), deferred.RetryAt);
+            Assert.Equal(1, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(job); }
+    }
+
+    [Fact]
+    public async Task LoweringTheLiveCapShortensAnExistingInMemoryFence()
+    {
+        TimeSpan maximum = TimeSpan.FromHours(168);
+        using Rig rig = new((_, _, _) =>
+        {
+            HttpResponseMessage response = Response(HttpStatusCode.TooManyRequests, "busy");
+            response.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromDays(30));
+            return Task.FromResult(response);
+        }, () => maximum);
+        BooruJob first = rig.Services.OpenJob();
+        try
+        {
+            Assert.Equal(rig.Clock.GetUtcNow() + TimeSpan.FromHours(168),
+                Assert.IsType<HostHttpDeferred>(await rig.Send(first)).RetryAt);
+        }
+        finally { rig.Services.CloseJob(first); }
+
+        maximum = TimeSpan.FromHours(1);
+        BooruJob shortened = rig.Services.OpenJob();
+        try
+        {
+            HostHttpDeferred deferred = Assert.IsType<HostHttpDeferred>(await rig.Send(shortened));
+            Assert.Equal(rig.Clock.GetUtcNow() + TimeSpan.FromHours(1), deferred.RetryAt);
+            Assert.Equal(1, rig.Sends);
+        }
+        finally { rig.Services.CloseJob(shortened); }
+    }
+
+    [Fact]
+    public async Task ResetCooldownClearsOnlyTheHostFenceAndPreservesPacing()
+    {
+        using Rig rig = new((n, _, _) => Task.FromResult(Response(
+            n == 1 ? HttpStatusCode.TooManyRequests : HttpStatusCode.OK, "ok")));
+        BooruJob limited = rig.Services.OpenJob();
+        try
+        {
+            Assert.IsType<HostHttpDeferred>(await rig.Send(limited));
+            Assert.True(rig.Services.ResetCooldown("danbooru"));
+            Assert.Equal(1, rig.Sends); // reset itself never starts HTTP
+            BooruJob fresh = rig.Services.OpenJob();
+            try
+            {
+                Task<HostHttpResult> pending = rig.Send(fresh);
+                await rig.Clock.WaitForTimerAsync(BooruHostHttp.MinimumStartSpacing);
+                Assert.Equal(1, rig.Sends); // the existing start-spacing fence survived reset
+                rig.Clock.Advance(BooruHostHttp.MinimumStartSpacing);
+                Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
+                Assert.Equal(2, rig.Sends);
+            }
+            finally { rig.Services.CloseJob(fresh); }
+        }
+        finally { rig.Services.CloseJob(limited); }
+    }
+
+    [Fact]
+    public async Task ResetTransactionHoldsTheHostGateUntilDurableCallerCommits()
+    {
+        using Rig rig = new((_, _, _) => Task.FromResult(Response(HttpStatusCode.OK, "ok")));
+        BooruHostHttp.CooldownReset reset = rig.Http.BeginCooldownReset("danbooru")
+            ?? throw new InvalidOperationException("The declared Danbooru source must have a reset transaction.");
+        BooruJob job = rig.Services.OpenJob();
+        try
+        {
+            Task<HostHttpResult> pending = rig.Send(job);
+            await Task.Yield();
+            Assert.False(pending.IsCompleted);
+            Assert.Equal(0, rig.Sends);
+
+            Assert.True(reset.Commit());
+            Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
+            Assert.Equal(1, rig.Sends);
+        }
+        finally
+        {
+            reset.Dispose();
+            rig.Services.CloseJob(job);
+        }
     }
 
     [Fact]

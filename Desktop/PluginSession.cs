@@ -39,6 +39,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly RequestPolicyState _httpPolicy = new RequestPolicyState();
     private readonly DownloadQueue _queue;
     private readonly ILogger _logger;
+    private readonly Config _config;
     private readonly string _shippedDirectory;
     private readonly string[] _repairRestrictedSourceIds;
     private readonly PluginWorkerLaunch _launch;
@@ -65,7 +66,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null,
         SemaphoreSlim? sourcePermissionCommitGate = null)
     {
-        _queue = queue; _logger = logger;
+        _queue = queue; _logger = logger; _config = config ?? throw new ArgumentNullException(nameof(config));
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
@@ -405,7 +406,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         {
             if (!_pluginHttp.TryGetValue(description.PluginId, out http!))
             {
-                http = new PluginHostHttp(_transport, _httpPolicy, description.Sources);
+                http = new PluginHostHttp(_transport, _httpPolicy, description.Sources,
+                    maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
                 _pluginHttp.Add(description.PluginId, http);
                 _services.Add(http);
             }

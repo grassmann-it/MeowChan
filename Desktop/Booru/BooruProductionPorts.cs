@@ -167,17 +167,20 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
     private readonly BooruPortAvailabilityGate _availability;
     private readonly BooruCatalogStore? _catalog;
     private readonly string _sourceId;
+    private readonly Func<BooruHostHttp.CooldownReset?>? _beginTransportCooldownReset;
     private readonly object _noticeGate = new();
     private readonly Dictionary<string, DateTimeOffset> _reported = new(StringComparer.Ordinal);
     private int _disposed;
 
     internal BooruSchedulerWatcherPort(DanbooruWatcherScheduler scheduler, BooruCatalogStore? catalog = null,
-        string sourceId = DanbooruPostReference.ProviderId, BooruPortAvailabilityGate? availability = null)
+        string sourceId = DanbooruPostReference.ProviderId, BooruPortAvailabilityGate? availability = null,
+        Func<BooruHostHttp.CooldownReset?>? beginTransportCooldownReset = null)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         _availability = availability ?? new BooruPortAvailabilityGate();
         _catalog = catalog;
         _sourceId = sourceId;
+        _beginTransportCooldownReset = beginTransportCooldownReset;
         _scheduler.Changed += OnSchedulerChanged;
     }
 
@@ -277,6 +280,58 @@ internal sealed class BooruSchedulerWatcherPort : IBooruWatcherPort, IDisposable
 
     public Task<BooruWatcherCommandResult> RestartFromNowAsync(string watcherId, CancellationToken cancellationToken) =>
         Mutate(scheduler => scheduler.RestartFromNow(watcherId), cancellationToken);
+
+    public async Task<BooruWatcherCommandResult> ResetProviderCooldownAsync(CancellationToken cancellationToken)
+    {
+        // Establish the transport barrier before changing durable scheduler state. It remains held
+        // until that persistence has succeeded, so no request can enter the gap between the two fences.
+        if (_beginTransportCooldownReset is not { } beginTransportReset)
+            return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, "transport_reset_unavailable");
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
+        try
+        {
+            BooruWatcherCommandResult result = await Task.Run(() =>
+            {
+                BooruHostHttp.CooldownReset? transportReset = null;
+                bool committed = false;
+                try
+                {
+                    // Do not enter the availability monitor while waiting for an in-flight HTTP send:
+                    // that send's lease may need the same monitor to finish and dispose. The transport
+                    // barrier is still established before TryStart admits the durable scheduler mutation.
+                    if (!operation.IsCurrent) return Unavailable();
+                    try { transportReset = beginTransportReset(); }
+                    catch (Exception exception) when (exception is not OutOfMemoryException)
+                    { return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, "transport_reset_failed"); }
+                    if (transportReset is null)
+                        return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, "transport_reset_unavailable");
+                    BooruHostHttp.CooldownReset activeTransportReset = transportReset;
+
+                    if (!operation.TryStart(() =>
+                        {
+                            DanbooruWatcherCommandResult scheduler = _scheduler.ResetProviderCooldown();
+                            if (!scheduler.Accepted) return Command(scheduler);
+                            // The host barrier is released only after every durable scheduler reset above
+                            // has succeeded. A late 429 from a request admitted before the barrier remains
+                            // versioned in the host transaction and cannot be erased here.
+                            if (!activeTransportReset.Commit())
+                                return new BooruWatcherCommandResult(BooruWatcherCommandStatus.Failed, "transport_reset_failed");
+                            committed = true;
+                            return BooruWatcherCommandResult.Success();
+                        }, out BooruWatcherCommandResult value)) return Unavailable();
+                    return value;
+                }
+                finally
+                {
+                    if (!committed) transportReset?.Dispose();
+                }
+            }, operation.Token).ConfigureAwait(false);
+            return operation.IsCurrent ? result : Unavailable();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
+        { return Unavailable(); }
+    }
 
     private async Task<BooruWatcherCommandResult> Mutate(Func<DanbooruWatcherScheduler, DanbooruWatcherCommandResult> command,
         CancellationToken cancellationToken)

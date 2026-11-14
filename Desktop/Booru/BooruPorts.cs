@@ -133,6 +133,10 @@ internal interface IBooruWatcherPort
     Task<BooruWatcherCommandResult> ResumeAsync(string watcherId, CancellationToken cancellationToken);
     Task<BooruWatcherCommandResult> RemoveAsync(string watcherId, CancellationToken cancellationToken);
 
+    /// <summary>Clears the Danbooru provider cooldown for this host only; it never starts a check or queues an original.</summary>
+    Task<BooruWatcherCommandResult> ResetProviderCooldownAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new BooruWatcherCommandResult(BooruWatcherCommandStatus.Rejected, "rejected"));
+
     /// <summary>
     /// Accepts a gap for a watcher whose remaining new posts cannot be reached: the watcher is removed (local media
     /// stay) and a new one for the same query starts from now. Ports without the operation reject it.

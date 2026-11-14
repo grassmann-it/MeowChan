@@ -61,6 +61,8 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
     DateTimeOffset? IDanbooruWatcherSearchPort.GetProviderCooldownUntilUtc() =>
         _services.TryGetCooldown(SourceId, out DateTimeOffset retryAt) ? retryAt : null;
 
+    TimeSpan IDanbooruWatcherSearchPort.GetProviderCooldownMaximum() => _services.GetMaximumCooldown();
+
     IDanbooruWatcherSearchSession IDanbooruWatcherSearchPort.OpenCheck() => new CheckSession(this, _search.OpenScope());
 
     private sealed class CheckSession(BooruWatcherSearchPort port, BooruSearchScope scope) : IDanbooruWatcherSearchSession

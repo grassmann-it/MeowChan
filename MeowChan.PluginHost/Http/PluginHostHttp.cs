@@ -18,10 +18,18 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
     private readonly Dictionary<string, HttpClient> _clients = new(StringComparer.Ordinal);
     private readonly object _sync = new();
+    // Preserve the shipped constructor for binary PluginHost consumers. The live cap is
+    // supplied only by the desktop host's internal production wiring.
     public PluginHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources)
+        : this(transport, policy, sources, null)
+    {
+    }
+
+    internal PluginHostHttp(HttpClient transport, RequestPolicyState policy, IReadOnlyList<SourceDescription> sources,
+        Func<TimeSpan>? maximumCooldownProvider)
     {
         _borrowedTransport = transport;
-        _booru = new BooruMetadataHttp(transport, policy, sources);
+        _booru = new BooruMetadataHttp(transport, policy, sources, maximumCooldownProvider);
         _transport = new HttpClient(new HistoryTransport(transport)) { Timeout = Timeout.InfiniteTimeSpan }; _policy = policy;
         _sources = sources.ToDictionary(source => source.SourceId, StringComparer.Ordinal);
     }

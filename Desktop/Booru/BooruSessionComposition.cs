@@ -114,7 +114,8 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             _watcherHost = CreateWatcherHost();
             _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
             _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId, _availability);
-            _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId, _availability);
+            _watcherPort = new BooruSchedulerWatcherPort(WatcherHost.Scheduler, catalog, binding.Source.SourceId, _availability,
+                () => binding.Services.BeginCooldownReset(binding.Source.SourceId));
             Services = new BooruWorkbenchServices(
                 new BooruHostSearchAdapter(
                     Search, binding.GetWorkerAsync, binding.Source.SourceId, binding.Source.Name, _availability),

@@ -146,6 +146,11 @@ namespace MeowChan
         internal const int BooruCatalogDefaultLimitMiB = Archive.BooruCatalogStore.DefaultDocumentLimitBytes / (1024 * 1024);
         internal const int BooruCatalogMinimumLimitMiB = Archive.BooruCatalogStore.MinimumDocumentLimitBytes / (1024 * 1024);
         internal const int BooruCatalogMaximumLimitMiB = Archive.BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024);
+        /// <summary>Maximum provider-requested Retry-After cooldown for Danbooru, in hours.</summary>
+        public int BooruRetryAfterCooldownHours { get; set; } = BooruRetryAfterCooldownDefaultHours;
+        internal const int BooruRetryAfterCooldownDefaultHours = 24;
+        internal const int BooruRetryAfterCooldownMinimumHours = 1;
+        internal const int BooruRetryAfterCooldownMaximumHours = 168;
         /// <summary>
         /// Most own tags the profile may define. Lowering it below the current number keeps every tag readable and
         /// usable; only new tags are refused until the count is below the limit again.
@@ -866,6 +871,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must be between " + MinimumFreeSpaceGiBMinimum + " and " + MinimumFreeSpaceGiBMaximum + " GiB.");
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
                 throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
+            if (BooruRetryAfterCooldownHours is < BooruRetryAfterCooldownMinimumHours or > BooruRetryAfterCooldownMaximumHours)
+                throw new ArgumentOutOfRangeException(nameof(BooruRetryAfterCooldownHours), "The Danbooru Retry-After cooldown must be between 1 and 168 hours.");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between " + PrivateTagMinimumLimit + " and " + PrivateTagMaximumLimit + ".");
             if (PrivateTagFileLimitMiB is < PrivateTagFileMinimumLimitMiB or > PrivateTagFileMaximumLimitMiB)
@@ -1023,6 +1030,7 @@ namespace MeowChan
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
+                BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
                 PrivateTagLimit = PrivateTagLimit,
                 PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
                 MediaIndexCacheLimitMiB = MediaIndexCacheLimitMiB,
@@ -1181,6 +1189,7 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
+            BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
@@ -1298,6 +1307,7 @@ namespace MeowChan
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
+            BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;

@@ -42,6 +42,9 @@ internal interface IDanbooruWatcherSearchPort
     /// <summary>The provider-wide cooldown currently known to the transport, if any. Never sends.</summary>
     DateTimeOffset? GetProviderCooldownUntilUtc();
 
+    /// <summary>Maximum configured Retry-After cooldown. Invalid implementations fail closed to 24 hours.</summary>
+    TimeSpan GetProviderCooldownMaximum() => TimeSpan.FromHours(24);
+
     /// <summary>
     /// Opens the operation scope of exactly one watcher check. Every page of that check is requested through
     /// the returned session, so the host can bound the whole check (request count, lifetime) as one operation

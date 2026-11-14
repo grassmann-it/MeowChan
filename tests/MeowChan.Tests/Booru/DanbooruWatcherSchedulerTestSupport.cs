@@ -103,6 +103,7 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock) : IDanbooruWatcherS
     internal int MaxConcurrent { get; private set; }
     internal int Cancelled;
     internal DateTimeOffset? TransportCooldown { get; set; }
+    internal TimeSpan ProviderCooldownMaximum { get; set; } = TimeSpan.FromHours(24);
     internal Func<string, string?, CancellationToken, Task>? Hold { get; set; }
     internal Func<long, BooruPostClaim>? ClaimFactory { get; set; }
 
@@ -110,6 +111,8 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock) : IDanbooruWatcherS
 
     public DateTimeOffset? GetProviderCooldownUntilUtc() =>
         TransportCooldown is { } until && until > clock.GetUtcNow() ? until : null;
+
+    public TimeSpan GetProviderCooldownMaximum() => ProviderCooldownMaximum;
 
     internal int CallCount { get { lock (_gate) return Calls.Count; } }
 

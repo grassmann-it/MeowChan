@@ -171,11 +171,15 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
 
             DateTimeOffset now = _time.GetUtcNow();
+            DateTimeOffset providerCap = AddSaturating(now, MaximumProviderCooldown());
             foreach (DanbooruWatcher watcher in restored)
             {
                 // A check interrupted by a crash returns to its resume target with its cursor intact,
                 // before any selection could see a stale Checking watcher (preflight G14).
                 DanbooruWatcher recovered = DanbooruWatcher.RecoverAfterRestart(watcher);
+                if (recovered.State == DanbooruWatcherState.Cooldown && recovered.CooldownUntilUtc is { } persistedUntil
+                    && persistedUntil > providerCap)
+                    recovered = recovered with { CooldownUntilUtc = providerCap };
                 if (!ReferenceEquals(recovered, watcher))
                 {
                     if (!TryPersistLocked(recovered, out _, admission))
@@ -302,6 +306,37 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     internal DanbooruWatcherCommandResult Resume(string watcherId) =>
         Mutate(watcherId, watcher => DanbooruWatcher.Resume(watcher, _time.GetUtcNow()), cancelRunning: false);
+
+    /// <summary>
+    /// Clears provider-created durable cooldown fences without changing a user's pause or any traversal data.
+    /// The caller separately clears the host transport fence; this core operation itself never sends HTTP.
+    /// </summary>
+    internal DanbooruWatcherCommandResult ResetProviderCooldown()
+    {
+        DanbooruWatcherCommandResult result;
+        lock (_sync)
+        {
+            if (Unavailable() is { } code) return new(false, code, null);
+            using BooruProducerUse? use = _lifecycle?.TryEnter();
+            if (_lifecycle != null && use is null) return new(false, ProfileSuspendedCode, null);
+
+            foreach (DanbooruWatcher watcher in _watchers.Values.ToArray())
+            {
+                if (watcher.State != DanbooruWatcherState.Cooldown || watcher.CooldownUntilUtc is null) continue;
+                DanbooruWatcherTransition reset = DanbooruWatcher.ResetProviderCooldown(watcher);
+                if (!reset.Accepted) continue;
+                if (!TryPersistLocked(reset.Watcher, out _, use?.Admission))
+                    return new(false, "persist_failed", null);
+            }
+            // This is the scheduler's provider fence, not the user's global session pause or a
+            // persistence quiet period. Keep _sessionPaused, _lastAutomaticStart and _persistBackoffUntil.
+            _backoffUntil = null;
+            _wake.TrySetResult();
+            result = new(true, null, null);
+        }
+        RaiseChanged();
+        return result;
+    }
 
     /// <summary>
     /// Stops observation. Only the watcher record becomes a Removed tombstone; posts, findings, local
@@ -931,6 +966,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         DateTimeOffset retryAt = Max(deferred.RetryAtUtc.ToUniversalTime(), now + _options.MinimumDeferral);
         if (_search.GetProviderCooldownUntilUtc() is { } transport) retryAt = Max(retryAt, transport);
+        retryAt = Min(retryAt, AddSaturating(now, MaximumProviderCooldown()));
         _backoffUntil = Max(_backoffUntil, retryAt);
         string reason = SafeCode(deferred.ReasonCode, "provider_deferred");
         CommitWithoutRequestLocked(DanbooruWatcher.ApplyDeferred(current, retryAt, reason, now).Watcher, running);
@@ -1006,6 +1042,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     /// <summary>Gates that must hold before a check may send anything. Null means "may start".</summary>
     private DanbooruWatcherCheckSummary? Gate(DanbooruWatcher watcher, DateTimeOffset now, bool manual)
     {
+        if (_fault is { } fault) return Rejected(fault, now, manual);
         if (HoldCodeLocked(manual) is { } hold) return Rejected(hold, now, manual);
         if (ProviderCooldownLocked(now) is { } until && until > now)
             return Rejected("provider_cooldown", now, manual, until);
@@ -1021,9 +1058,48 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     private DateTimeOffset? ProviderCooldownLocked(DateTimeOffset now)
     {
-        DateTimeOffset? cooldown = _backoffUntil is { } backoff && backoff > now ? backoff : null;
-        if (_search.GetProviderCooldownUntilUtc() is { } transport && transport > now) cooldown = Max(cooldown, transport);
+        // A persistence fault is a scheduler fault, not a reason to continue with the in-memory
+        // shortened fence. Gate() rejects while the fault is visible, and the next start must
+        // repair/reload the durable record before any provider request is admitted.
+        if (_fault != null) return null;
+
+        DateTimeOffset cap = AddSaturating(now, MaximumProviderCooldown());
+        if (_backoffUntil is { } backoff && backoff > cap) _backoffUntil = cap;
+        foreach (string watcherId in _watchers.Keys.ToArray())
+        {
+            DanbooruWatcher watcher = _watchers[watcherId];
+            if (watcher.State != DanbooruWatcherState.Cooldown || watcher.CooldownUntilUtc is not { } until || until <= cap) continue;
+
+            // Do not merely shorten the in-memory projection. If the process restarts before the
+            // old date, reloading an untouched years-long record would extend the wait again on every
+            // restart. The cap change is therefore a durable, admission-bound mutation.
+            DanbooruWatcher bounded = watcher with { CooldownUntilUtc = cap };
+            if (!TryPersistProviderCooldownLocked(bounded, out bool profileUnavailable))
+            {
+                // A profile transition is a temporary admission fence: remain blocked and retry
+                // the durable cap after the next generation opens. A real storage/admission fault
+                // becomes a visible scheduler fault and never falls through to HTTP.
+                if (!profileUnavailable) _fault = "persist_failed";
+                return cap;
+            }
+        }
+        DateTimeOffset? cooldown = _backoffUntil is { } boundedBackoff && boundedBackoff > now ? boundedBackoff : null;
+        if (_search.GetProviderCooldownUntilUtc() is { } transport && transport > now) cooldown = Max(cooldown, Min(transport, cap));
         return cooldown;
+    }
+
+    /// <summary>Persists a live cap reduction with the current producer generation, or fails closed.</summary>
+    private bool TryPersistProviderCooldownLocked(DanbooruWatcher watcher, out bool profileUnavailable)
+    {
+        profileUnavailable = false;
+        BooruProducerUse? use = _lifecycle?.TryEnter();
+        if (_lifecycle != null && use is null)
+        {
+            profileUnavailable = true;
+            return false;
+        }
+        try { return TryPersistLocked(watcher, out _, use?.Admission); }
+        finally { use?.Dispose(); }
     }
 
     private string? Unavailable() => _stopping ? "scheduler_stopped" : !_loaded ? "scheduler_not_started" : _fault;
@@ -1142,6 +1218,20 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return fallback;
         return code;
     }
+
+    private TimeSpan MaximumProviderCooldown()
+    {
+        TimeSpan value;
+        try { value = _search.GetProviderCooldownMaximum(); }
+        catch { return TimeSpan.FromHours(24); }
+        return value < TimeSpan.FromHours(1) ? TimeSpan.FromHours(1)
+            : value > TimeSpan.FromHours(168) ? TimeSpan.FromHours(168) : value;
+    }
+
+    private static DateTimeOffset AddSaturating(DateTimeOffset now, TimeSpan delay) =>
+        delay >= DateTimeOffset.MaxValue - now ? DateTimeOffset.MaxValue : now + delay;
+
+    private static DateTimeOffset Min(DateTimeOffset left, DateTimeOffset right) => left <= right ? left : right;
 
     private static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right) => left >= right ? left : right;
 

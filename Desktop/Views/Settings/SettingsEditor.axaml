@@ -443,6 +443,14 @@
                     </Grid>
                     <TextBlock Text="{Binding BooruCatalogMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="BooruRetryAfterCooldownHoursFieldLabel" Text="{Binding BooruRetryAfterCooldownHoursLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruRetryAfterCooldownHoursInput" Value="{Binding BooruRetryAfterCooldownHours, Mode=TwoWay}" Minimum="1" Maximum="168" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruRetryAfterCooldownHoursFieldLabel}" AutomationProperties.Name="{Binding BooruRetryAfterCooldownHoursLabel}" AutomationProperties.HelpText="{Binding BooruRetryAfterCooldownHoursHelp}" />
+                                <TextBlock x:Name="BooruRetryAfterCooldownHoursInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding BooruRetryAfterCooldownHoursHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PrivateTagLimitFieldLabel" Text="{Binding PrivateTagLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PrivateTagLimitInput" Value="{Binding PrivateTagLimit, Mode=TwoWay}" Minimum="256" Maximum="20000" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=PrivateTagLimitFieldLabel}" AutomationProperties.Name="{Binding PrivateTagLimitLabel}" AutomationProperties.HelpText="{Binding PrivateTagLimitHelp}" />

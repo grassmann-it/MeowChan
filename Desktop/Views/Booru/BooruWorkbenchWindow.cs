@@ -25,7 +25,7 @@ namespace MeowChan.Desktop.Booru;
 
 /// <summary>
 /// The Danbooru window: a Search tab (tags or one post link, bounded paging, result cards) and a Watchers
-/// tab (list with the five explicit commands). It renders the models' immutable snapshots and sends every
+/// tab (list with the five row commands plus the host cooldown reset). It renders the models' immutable snapshots and sends every
 /// request through them; it never loads a URL, polls, or acts on its own. Built from the shared dialog frame,
 /// workspace classes and command-free buttons, like the other secondary tools.
 /// </summary>
@@ -62,6 +62,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string InputIssueName = "BooruInputIssue";
     internal const string NoticeName = "BooruNotice";
     internal const string WatcherNoticeName = "BooruWatcherNotice";
+    internal const string ResetCooldownName = "BooruResetProviderCooldown";
     internal const string ResultTagPrefix = "BooruResultTag:";
     internal const string DetailsPrefix = "BooruResultDetails:";
     internal const string MoreTagsPrefix = "BooruResultMoreTags:";
@@ -113,6 +114,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     private readonly TextBlock _watcherNoticeText = new() { Name = WatcherNoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _watchersState = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _watchersReload = new();
+    private readonly Button _resetCooldown = new() { Name = ResetCooldownName };
     private readonly StackPanel _watchers = new() { Name = WatchersName, Spacing = 8 };
     private readonly TextBlock _footerNote = new() { Name = NoFilterNoteName, Classes = { "workspace-help" } };
     private readonly Button _close = new();
@@ -299,11 +301,13 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         _watcherNoticeHost.Child = _watcherNoticeText;
         AutomationProperties.SetLiveSetting(_watcherNoticeText, AutomationLiveSetting.Polite);
         _watchersReload.Click += async (_, _) => await _model.Watchers.RefreshAsync();
+        _resetCooldown.Click += async (_, _) => await _model.Watchers.ResetProviderCooldownAsync();
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(_watchersIntro);
         tab.Children.Add(_removeNoteHost);
         tab.Children.Add(_watcherNoticeHost);
         tab.Children.Add(_storageHost);
+        tab.Children.Add(_resetCooldown);
         tab.Children.Add(_watchersState);
         tab.Children.Add(_watchersReload);
         tab.Children.Add(_watchers);
@@ -535,6 +539,11 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
             _ => string.Empty
         };
         _watchersState.Classes.Set("workspace-error", view.Status == BooruWatcherListStatus.Failed);
+        _resetCooldown.Content = Texts.T("booru.ui.watchers.resetCooldown");
+        _resetCooldown.IsEnabled = !view.Resetting && (view.Status is BooruWatcherListStatus.Ready or BooruWatcherListStatus.Empty);
+        AutomationProperties.SetName(_resetCooldown, Texts.T("booru.ui.watchers.resetCooldown"));
+        AutomationProperties.SetHelpText(_resetCooldown, Texts.T("booru.ui.watchers.resetCooldownHint"));
+        ToolTip.SetTip(_resetCooldown, Texts.T("booru.ui.watchers.resetCooldownHint"));
         _watchersReload.Content = Texts.T("booru.ui.watchers.retry");
         _watchersReload.IsVisible = view.Status == BooruWatcherListStatus.Failed;
 

@@ -912,8 +912,8 @@ public sealed class DanbooruSourceTests
     [InlineData(503, "  17 ", 17)]
     [InlineData(502, "3600", 3600)]
     [InlineData(429, "86400", 86400)]
-    [InlineData(429, "86401", 86400)]
-    [InlineData(429, "99999999999999999999999", 86400)]
+    [InlineData(429, "86401", 86401)]
+    [InlineData(429, "99999999999999999999999", 604800)]
     public async Task RetryAfterSecondsSetTheDueTime(int status, string header, int seconds)
     {
         HostHttpResponse response = Json("[]", status, headers: ("Retry-After", header));
@@ -944,7 +944,7 @@ public sealed class DanbooruSourceTests
         Assert.InRange(now.RetryAt, before, DateTimeOffset.UtcNow);
         string far = before.AddDays(30).ToString("r", CultureInfo.InvariantCulture);
         BooruSearchDeferred capped = Assert.IsType<BooruSearchDeferred>((await Search(Json("[]", 429, headers: ("Retry-After", far)))).Result);
-        Assert.InRange(capped.RetryAt, before.AddHours(24), DateTimeOffset.UtcNow.AddHours(24));
+        Assert.InRange(capped.RetryAt, before.AddHours(168), DateTimeOffset.UtcNow.AddHours(168));
     }
 
     [Theory]

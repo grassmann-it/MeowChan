@@ -558,6 +558,79 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task LoweredCapBoundsPersistedFarFutureCooldownAndSurvivesRestart()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock)
+        {
+            ProviderCooldownMaximum = TimeSpan.FromHours(168)
+        };
+        DanbooruWatcherScheduler first = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        first.Load();
+        string id = first.AddWatcher("cat").Watcher!.WatcherId;
+        BooruWatcherRecord stored = Assert.Single(profile.Catalog.Read().Watchers);
+        profile.Catalog.UpsertWatcher(stored with
+        {
+            State = "Cooldown",
+            CooldownUntilUtc = clock.GetUtcNow().AddYears(20),
+            ErrorCode = "provider_cooldown"
+        });
+
+        search.ProviderCooldownMaximum = TimeSpan.FromHours(1);
+        DanbooruWatcherScheduler bounded = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        bounded.Load();
+        DateTimeOffset expected = clock.GetUtcNow() + TimeSpan.FromHours(1);
+        Assert.Equal(expected, bounded.GetStatus(id)!.CooldownUntilUtc);
+        Assert.Equal(expected, Assert.Single(profile.Catalog.Read().Watchers).CooldownUntilUtc);
+
+        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        restarted.Load();
+        Assert.Equal(expected, restarted.GetStatus(id)!.CooldownUntilUtc);
+    }
+
+    [Fact]
+    public async Task ResetProviderCooldownPersistsResumeWithoutSendingOrChangingWatcherData()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock);
+        CountingAdmission admission = new();
+        search.Publish("cat", 100);
+        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        scheduler.Load();
+        string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        DateTimeOffset retryAt = clock.GetUtcNow() + TimeSpan.FromDays(2);
+        search.Next((_, _) => new DanbooruWatcherSearchDeferred(retryAt, "booru-cooldown", 429));
+        clock.Advance(Interval);
+        Assert.Equal(DanbooruWatcherCheckKind.Deferred, (await scheduler.RunNextAsync())!.Kind);
+        Assert.True(scheduler.Pause(id).Accepted);
+        int callsBeforeReset = search.CallCount;
+        BooruWatcherRecord before = Assert.Single(profile.Catalog.Read().Watchers);
+
+        DanbooruWatcherCommandResult reset = scheduler.ResetProviderCooldown();
+        Assert.True(reset.Accepted, reset.Code);
+        Assert.Equal(callsBeforeReset, search.CallCount);
+        DanbooruWatcherStatus status = scheduler.GetStatus(id)!;
+        Assert.Equal(DanbooruWatcherState.Paused, status.State);
+        Assert.Equal(DanbooruWatcherActivity.Paused, status.Activity);
+        Assert.Null(status.CooldownUntilUtc);
+        BooruWatcherRecord after = Assert.Single(profile.Catalog.Read().Watchers);
+        Assert.Equal("Paused", after.State);
+        Assert.Null(after.CooldownUntilUtc);
+        Assert.Equal(before.HighWaterMark, after.HighWaterMark);
+        Assert.Equal(before.CursorBeforePostId, after.CursorBeforePostId);
+
+        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        restarted.Load();
+        Assert.Equal(DanbooruWatcherState.Paused, restarted.GetStatus(id)!.State);
+        Assert.Null(restarted.GetStatus(id)!.CooldownUntilUtc);
+    }
+
+    [Fact]
     public async Task APausedWatcherKeepsTheProviderWaitAcrossARestartAndResumesIntoIt()
     {
         // CX2-R2: Pause cleared CooldownUntilUtc, the only durable copy of the provider's retry time. After a

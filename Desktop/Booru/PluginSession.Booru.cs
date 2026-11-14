@@ -40,7 +40,8 @@ internal sealed partial class PluginSession
             || selected != activation.PluginId)) return;
         string pluginId = activation.PluginId;
         lock (_state) if (_booru != null) return;
-        BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources);
+        BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
+            maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
         BooruHostServices services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
             token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger);

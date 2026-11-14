@@ -141,7 +141,7 @@ internal static class BooruText
             "booru.ui.watcher.create", "booru.ui.watcher.createHint", "booru.ui.watcher.created", "booru.ui.watcher.duplicate",
             "booru.ui.watcher.createNeedsTags", "booru.ui.watcher.createFailed",
             "booru.ui.watchers.intro", "booru.ui.watchers.removeNote", "booru.ui.watchers.empty", "booru.ui.watchers.loading",
-            "booru.ui.watchers.loadFailed", "booru.ui.watchers.retry",
+            "booru.ui.watchers.loadFailed", "booru.ui.watchers.retry", "booru.ui.watchers.resetCooldown", "booru.ui.watchers.resetCooldownHint",
             "booru.ui.watcher.lastCheck", "booru.ui.watcher.nextCheck", "booru.ui.watcher.never", "booru.ui.watcher.notScheduled",
             "booru.ui.watcher.pausedNext", "booru.ui.watcher.hits", "booru.ui.watcher.baseline", "booru.ui.watcher.budget",
             "booru.ui.watcher.cooldown", "booru.ui.watcher.error", "booru.ui.watcher.checkNow", "booru.ui.watcher.pause",
@@ -150,7 +150,7 @@ internal static class BooruText
             "booru.ui.watcher.removeConfirm", "booru.ui.watcher.msg.checked", "booru.ui.watcher.msg.checkedNone", "booru.ui.watcher.msg.checkedPaused",
             "booru.ui.watcher.msg.paused", "booru.ui.watcher.msg.resumed", "booru.ui.watcher.msg.removed",
             "booru.ui.watcher.msg.rateLimited", "booru.ui.watcher.msg.cooldown", "booru.ui.watcher.msg.offline",
-            "booru.ui.watcher.msg.failed", "booru.ui.watcher.reject",
+            "booru.ui.watcher.msg.failed", "booru.ui.watcher.msg.cooldownReset", "booru.ui.watcher.reject",
             "booru.ui.watcher.restart", "booru.ui.watcher.restartFor", "booru.ui.watcher.msg.restarted",
             "booru.ui.post.open", "booru.ui.post.openFor", "booru.ui.post.openTip", "booru.ui.post.copy", "booru.ui.post.copyFor", "booru.ui.link.copied", "booru.ui.link.openFailed", "booru.ui.link.copyFailed", "booru.ui.watcher.latest", "booru.ui.watcher.latestOpenFor", "booru.ui.watcher.latestCopyFor", "booru.ui.notify.queued.title", "booru.ui.notify.queued",
             "booru.ui.add.disabled", "booru.ui.add.opened", "booru.ui.add.openedSafe", "booru.ui.add.ignored", "booru.ui.add.ignoredRow", "booru.ui.add.post"

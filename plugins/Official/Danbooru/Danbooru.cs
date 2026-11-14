@@ -125,7 +125,7 @@ internal static class DanbooruParser
     private const int MaximumTags = 4096;
     private const int DefaultThrottleSeconds = 60;
     private const int DefaultUnavailableSeconds = 5;
-    private static readonly TimeSpan MaximumRetryAfter = TimeSpan.FromHours(24);
+    private static readonly TimeSpan MaximumRetryAfter = TimeSpan.FromHours(168);
 
     internal sealed class ResponseException(FailureDetail detail) : Exception("The Danbooru response is unusable.")
     {
@@ -229,7 +229,7 @@ internal static class DanbooruParser
         {
             if (value.All(char.IsAsciiDigit))
             {
-                // Too many digits for a 64-bit integer is simply "very long": the 24 hour cap applies.
+                // Too many digits for a 64-bit integer is simply "very long": the host-aligned 168 hour cap applies.
                 bool parsed = long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out long seconds);
                 return now + (!parsed || seconds >= MaximumRetryAfter.TotalSeconds ? MaximumRetryAfter : TimeSpan.FromSeconds(seconds));
             }

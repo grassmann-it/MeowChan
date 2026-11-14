@@ -133,6 +133,7 @@ public partial class SettingsEditor
     public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string BooruCatalogMiBHelp => FieldHelp(nameof(BooruCatalogMiBInput), Texts.T("settings.unitMiB") + ". " + BooruCatalogMiBHint);
+    public string BooruRetryAfterCooldownHoursHelp => FieldHelp(nameof(BooruRetryAfterCooldownHoursInput), Texts.T("settings.unitHours") + ". " + BooruRetryAfterCooldownHoursHint);
     public string PrivateTagLimitHelp => FieldHelp(nameof(PrivateTagLimitInput), Texts.T("settings.unitCount") + ". " + PrivateTagLimitHint);
     public string PrivateTagFileMiBHelp => FieldHelp(nameof(PrivateTagFileMiBInput), Texts.T("settings.unitMiB") + ". " + PrivateTagFileMiBHint);
     public string MediaIndexCacheMiBHelp => FieldHelp(nameof(MediaIndexCacheMiBInput), Texts.T("settings.unitMiB") + ". " + MediaIndexCacheMiBHint);
@@ -169,6 +170,7 @@ public partial class SettingsEditor
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
+            nameof(BooruRetryAfterCooldownHoursHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
             nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
@@ -209,6 +211,8 @@ public partial class SettingsEditor
         yield return (FilterHeapMiBInput, FilterHeapMiB, FilterHeapMiBLabel, Texts.T("settings.unitMiB"), 256, 2048, true);
         yield return (BooruCatalogMiBInput, BooruCatalogMiB, BooruCatalogMiBLabel, Texts.T("settings.unitMiB"),
             Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB, true);
+        yield return (BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Texts.T("settings.unitHours"),
+            Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours, true);
         yield return (PrivateTagLimitInput, PrivateTagLimit, PrivateTagLimitLabel, Texts.T("settings.unitCount"),
             Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit, true);
         yield return (PrivateTagFileMiBInput, PrivateTagFileMiB, PrivateTagFileMiBLabel, Texts.T("settings.unitMiB"),

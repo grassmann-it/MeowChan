@@ -135,6 +135,8 @@ internal sealed class BooruAvailabilityWatcherSearchPort(IDanbooruWatcherSearchP
 
     public DateTimeOffset? GetProviderCooldownUntilUtc() => inner.GetProviderCooldownUntilUtc();
 
+    public TimeSpan GetProviderCooldownMaximum() => inner.GetProviderCooldownMaximum();
+
     public IDanbooruWatcherSearchSession OpenCheck() => new Session(inner, gate.TryEnter(CancellationToken.None));
 
     private sealed class Session(IDanbooruWatcherSearchPort inner, BooruPortAvailabilityGate.Lease? lease)

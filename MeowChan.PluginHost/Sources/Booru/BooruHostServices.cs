@@ -51,6 +51,14 @@ public sealed class BooruHostServices : IPluginHostServices
     internal bool TryGetCooldown(string sourceId, out DateTimeOffset retryAt) =>
         _booruHttp.TryGetCooldown(sourceId, out retryAt);
 
+    /// <summary>Begins a host-owned cooldown reset transaction; it never starts a request.</summary>
+    internal BooruHostHttp.CooldownReset? BeginCooldownReset(string sourceId) => _booruHttp.BeginCooldownReset(sourceId);
+
+    /// <summary>Clears only the host-owned cooldown fence for one declared source; it never starts a request.</summary>
+    internal bool ResetCooldown(string sourceId) => _booruHttp.ResetCooldown(sourceId);
+
+    internal TimeSpan GetMaximumCooldown() => _booruHttp.GetMaximumCooldown();
+
     private static TimeProvider GetClock(BooruHostHttp http)
     {
         // The transport's policy is intentionally private; jobs use the same clock
