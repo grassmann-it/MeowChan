@@ -1,5 +1,7 @@
 using System.Reflection;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -170,6 +172,8 @@ public sealed class BooruExactFocusOutcomeTests
         object? previous = primary.GetValue(null);
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
+        using IDisposable scope = AvaloniaLocator.EnterScope();
+        AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
         try
         {
             primary.SetValue(null, owner);
