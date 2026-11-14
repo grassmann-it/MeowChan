@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -351,7 +352,16 @@ public sealed class VideoPosterCacheMaintenanceTests
         byte[] raw = [0, 1, 2, 3, 4];
         Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, StoredZlib(raw))));
         Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, FixedZlib(raw))));
-        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, DynamicZlib(raw))));
+        byte[] dynamicMember = DynamicZlib(raw);
+        // Prove this hand-built positive fixture with the independent BCL inflater, not just our boundary parser.
+        using (MemoryStream compressed = new(dynamicMember))
+        using (ZLibStream inflater = new(compressed, CompressionMode.Decompress))
+        using (MemoryStream inflated = new())
+        {
+            inflater.CopyTo(inflated);
+            Assert.Equal(raw, inflated.ToArray());
+        }
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, dynamicMember)));
         Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, MultiStoredZlib(raw))));
         Assert.True(VideoPosterCache.ValidStored(SyntheticPng(1, 1, StoredZlib([0, 1]), interlaceMethod: 1)));
 
@@ -476,18 +486,20 @@ public sealed class VideoPosterCacheMaintenanceTests
         DeflateBitWriter writer = new();
         writer.Bits(1, 1); // BFINAL
         writer.Bits(2, 2); // BTYPE=10, dynamic Huffman
-        writer.Bits(29, 5); // HLIT=286
+        writer.Bits(0, 5); // HLIT=257: 255 eight-bit codes and two nine-bit codes form a COMPLETE tree.
         writer.Bits(0, 5); // HDIST=1
         writer.Bits(15, 4); // HCLEN=19
-        foreach (int length in new[] { 2, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0 }) writer.Bits(length, 3);
+        foreach (int length in new[] { 2, 0, 0, 0, 2, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0 }) writer.Bits(length, 3);
 
-        WriteDynamicCodeLengthSymbol(writer, 9);
-        for (int repeat = 0; repeat < 47; repeat++) WriteDynamicRepeat(writer, 3); // code 16, repeat six nines
-        for (int repeat = 0; repeat < 3; repeat++) WriteDynamicCodeLengthSymbol(writer, 9);
-        WriteDynamicCodeLengthSymbol(writer, 1); // one mandatory one-bit distance code
+        WriteDynamicCodeLengthSymbol(writer, 8);
+        for (int repeat = 0; repeat < 42; repeat++) WriteDynamicRepeat(writer, 3); // six eights each: 1 + 252
+        for (int repeat = 0; repeat < 2; repeat++) WriteDynamicCodeLengthSymbol(writer, 8); // 255 eights total
+        WriteDynamicCodeLengthSymbol(writer, 9); // literal 255
+        WriteDynamicCodeLengthSymbol(writer, 9); // EOB 256
+        WriteDynamicCodeLengthSymbol(writer, 1); // one unused one-bit distance code
 
-        foreach (byte value in raw) WriteDeflateCode(writer, value, 9); // symbols 0..4 have nine-bit canonical codes 0..4
-        WriteDeflateCode(writer, 256, 9); // EOB
+        foreach (byte value in raw) WriteDeflateCode(writer, value == 255 ? 510 : value, value == 255 ? 9 : 8);
+        WriteDeflateCode(writer, 511, 9); // EOB, the final canonical code in the complete tree
         return Zlib(writer.ToArray(), raw);
     }
 
@@ -541,8 +553,8 @@ public sealed class VideoPosterCacheMaintenanceTests
     {
         switch (symbol)
         {
-            case 0: WriteDeflateCode(writer, 0, 2); break; // canonical code 00, length 2
-            case 1: WriteDeflateCode(writer, 1, 2); break; // canonical code 01, length 2
+            case 1: WriteDeflateCode(writer, 0, 2); break; // canonical code 00, length 2
+            case 8: WriteDeflateCode(writer, 1, 2); break; // canonical code 01, length 2
             case 9: WriteDeflateCode(writer, 2, 2); break; // canonical code 10, length 2
             case 16: WriteDeflateCode(writer, 3, 2); break; // canonical code 11, length 2
             default: throw new ArgumentOutOfRangeException(nameof(symbol));
