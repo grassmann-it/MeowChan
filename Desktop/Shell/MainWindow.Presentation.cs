@@ -97,7 +97,7 @@ public partial class MainWindow
     {
         RefreshWorkspaceMinimumAfterResize();
         ApplyHeaderGraphMode(); // below 1000 DIPs every graph goes and the labelled values stay; two blocks need 1280
-        ApplyHeaderMonitorVisibility(); // gone below 760 DIPs and with the setting "Off"
+        ApplyHeaderMonitorVisibility(); // gone below 760 DIPs (more with "Continue reading" shown) and with the setting "Off"
         if (ShellHelpOverlay.IsVisible)
             ShellHelpOverlay.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         RememberNormalGeometry();

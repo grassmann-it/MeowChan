@@ -400,4 +400,15 @@ public sealed class StatsHeaderGraphTests : IDisposable
             if (language is "en" or "de") Assert.Contains(language == "en" ? "Off hides" : "Aus blendet", Texts.T("stats.headerGraph.hint"));
         }
     }
+    [Theory]
+    [InlineData(false, 760, 0, true)]
+    [InlineData(false, 759, 0, false)]
+    // "Continue reading" (a saved position) takes one more icon's room: at the Simple minimum width the display gives way.
+    [InlineData(false, 760, 1, false)]
+    [InlineData(false, 795, 1, false)]
+    [InlineData(false, 796, 1, true)]
+    [InlineData(true, 1920, 0, false)]
+    [InlineData(false, 0, 1, true)]
+    public void TheHeaderDisplayMakesRoomForTheOptionalHeaderIcons(bool off, double width, int icons, bool shown) =>
+        Assert.Equal(shown, MainWindow.HeaderMonitorShown(off, width, icons));
 }

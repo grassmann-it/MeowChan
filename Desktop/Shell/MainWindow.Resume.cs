@@ -133,6 +133,8 @@ public partial class MainWindow
         // First entry of the tools group, directly behind the page group's separator.
         WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator) + 1, _resumeReadingMenu);
         ContinueReadingButton.Click += async (_, _) => await ResumeLastReadingAsync();
+        // The header display makes room for the book icon (HeaderMonitorShown).
+        ContinueReadingButton.PropertyChanged += (_, change) => { if (change.Property == IsVisibleProperty) ApplyHeaderMonitorVisibility(); };
         InitializeReadingHistoryMenus();
         RefreshReadingResumeLabels();
     }

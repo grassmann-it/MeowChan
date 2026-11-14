@@ -128,18 +128,27 @@ public partial class MainWindow
     /// <summary>The arrangement shown before "Off", for the statistics page's checkbox that shows the display again (Auto when none).</summary>
     private string? _lastShownHeaderGraph;
 
-    /// <summary>The narrowest window (DIPs) that has room for the header display.</summary>
-    private const double HeaderMonitorMinimumWidth = 760;
+    /// <summary>The narrowest window (DIPs) that has room for the header display beside the fixed header icons.</summary>
+    internal const double HeaderMonitorMinimumWidth = 760;
+    /// <summary>The room one optional header icon takes: the 30-dip icon and the 6-dip spacing of the utility row.</summary>
+    internal const double HeaderIconRoom = 36;
+
+    /// <summary>
+    /// Whether the header display is shown at this window width. Each optional icon in the utility row ("Continue reading", shown
+    /// with a saved position) takes room the display would otherwise have, so the display goes earlier; without that the row ran
+    /// past the header into the window controls at the Simple minimum width (760 DIPs).
+    /// </summary>
+    internal static bool HeaderMonitorShown(bool hiddenBySetting, double windowWidth, int optionalIcons) =>
+        !hiddenBySetting && (windowWidth <= 0 || windowWidth >= HeaderMonitorMinimumWidth + optionalIcons * HeaderIconRoom);
 
     /// <summary>
     /// Shows or hides the whole display: hidden by the setting "Off" (the user's explicit choice, which wins over the work view's
-    /// "Required" row) and below <see cref="HeaderMonitorMinimumWidth"/>. The sampling claim follows at once, so a hidden display
+    /// "Required" row) and below <see cref="HeaderMonitorMinimumWidth"/> plus the room of the optional header icons shown. The sampling claim follows at once, so a hidden display
     /// measures nothing (the statistics page still claims samples while it is open).
     /// </summary>
     private void ApplyHeaderMonitorVisibility()
     {
-        double width = Bounds.Width;
-        bool show = !_headerLayout.Hidden && (width <= 0 || width >= HeaderMonitorMinimumWidth);
+        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 : 0);
         if (TransferSpeed.IsVisible == show) return;
         TransferSpeed.IsVisible = show;
         UpdateSpeedSamplingState();
