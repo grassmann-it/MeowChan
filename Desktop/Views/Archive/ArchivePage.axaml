@@ -267,34 +267,35 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="4">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <Button x:Name="ArchiveBackButton" Tag="archive.back" Classes="localized" Click="OnBackClick" />
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <Button x:Name="ArchiveBackButton" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
                         <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                        <Button x:Name="CapturePostsButton" Grid.Column="2" Classes="ghost" Click="OnCaptureClick" />
                     </Grid>
-                    <!-- Wide readers carry up to ten labelled actions; rarely used ones overflow into More instead of wrapping. -->
-                    <desktop:ActionToolBar x:Name="ReaderToolbar">
+                    <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
+                         policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
+                    <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
-                    <Button x:Name="ArchiveCloseReader" ursa:ToolBar.OverflowMode="Never" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
-                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" ursa:ToolBar.OverflowMode="Never" />
-                    <Button x:Name="ReaderTagsOpen" ursa:ToolBar.OverflowMode="Never" Click="OnOpenThreadTags" />
-                    <Button x:Name="ArchiveOpenGallery" ursa:ToolBar.OverflowMode="Never" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <Button x:Name="ReaderUnreadReturn" ursa:ToolBar.OverflowMode="Never" IsVisible="False" Click="OnReaderUnreadReturnClick" />
-                    <Button x:Name="ReaderFindOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnOpenThreadFind" />
+                    <Button x:Name="ArchiveCloseReader" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
+                    <Button x:Name="ReaderTagsOpen" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <Button x:Name="ArchiveOpenGallery" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderUnreadReturn" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />
+                    <Button x:Name="ReaderFindOpen" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
-                    <Button x:Name="ReaderViewOpen" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnReaderViewMenuClick" />
-                    <Button x:Name="ArchiveReadPosts" ursa:ToolBar.OverflowMode="Never" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
-                    <Button x:Name="ArchiveGalleryReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                    <Button x:Name="ReaderViewOpen" wv:WorkViewElement.Id="reader.toolbar.view" Click="OnReaderViewMenuClick" />
+                    <Button x:Name="ArchiveReadPosts" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
+                    <Button x:Name="ArchiveGalleryReturn" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
                     <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
-                    <Button x:Name="ArchiveMediaReturn" ursa:ToolBar.OverflowMode="Never" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
+                    <Button x:Name="ArchiveMediaReturn" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
-                    <Button x:Name="ReaderSkipUnavailableGroupMember" ursa:ToolBar.OverflowMode="Never" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
-                    <!-- Overflow candidates by usefulness (find in thread first, export last): later ones move into More first. -->
-                    <Button x:Name="ArchiveReaderFullscreen" ursa:ToolBar.OverflowMode="AsNeeded" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <Button x:Name="ArchiveHistoryBack" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <Button x:Name="ExportArchiveButton" ursa:ToolBar.OverflowMode="AsNeeded" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
+                    <Button x:Name="ArchiveReaderFullscreen" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <Button x:Name="ArchiveHistoryBack" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <!-- Starting/stopping post capture is a tool (R3 Top 10d); whether posts are captured stays in the status line. -->
+                    <Button x:Name="CapturePostsButton" wv:WorkViewElement.Id="reader.toolbar.capture" Classes="ghost" Click="OnCaptureClick" />
                     </desktop:ActionToolBar>
-                    <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
@@ -327,17 +328,17 @@
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
-                        <TextBlock x:Name="ArchiveReaderStatus" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
-                        <CheckBox x:Name="ReaderFollowLive" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
-                        <TextBlock x:Name="ReaderNewPostsNotice" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Button x:Name="ReaderShowNewPosts" IsVisible="False" Click="OnShowReaderUpdates" />
+                        <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
+                        <CheckBox x:Name="ReaderFollowLive" wv:WorkViewElement.Id="reader.status.follow-live" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
+                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
                 <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="panel">
                     <Grid x:Name="ReaderContentSurface">
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
-                            <TabItem x:Name="ArchivePostsTab" Header="Posts">
+                            <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
                                 <Grid RowDefinitions="*,Auto" RowSpacing="8">
                                     <Grid>
                                         <!-- Reader post cards (study 2026-11-13, variant A): each post is a card with a
@@ -617,16 +618,19 @@
                                     </Grid>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="ArchiveMediaTab" Header="Media">
+                            <TabItem x:Name="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
                                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8" Margin="8,2">
-                                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="8">
-                                        <Button x:Name="ArchiveMediaMode" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
-                                        <Button x:Name="ArchiveMediaColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <Button x:Name="ArchiveFavoritesFilter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
-                                        <ComboBox x:Name="ArchiveRatingFilter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
-                                        <ComboBox x:Name="ArchiveMediaSort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
-                                        <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
-                                    </WrapPanel>
+                                    <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
+                                         An active favourites/rating filter or all versions stays on the bar (R6). -->
+                                    <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
+                                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="Margin" Value="0,0,8,0" /></Style><Style Selector="ComboBox"><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
+                                        <Button x:Name="ArchiveMediaMode" wv:WorkViewElement.Id="reader.media.layout" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
+                                        <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
+                                        <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
+                                        <ComboBox x:Name="ArchiveRatingFilter" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
+                                        <ComboBox x:Name="ArchiveMediaSort" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
+                                        <ComboBox x:Name="ArchiveVersionScope" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
+                                    </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
                                         <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
@@ -645,7 +649,7 @@
                                         </ListBox>
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
+                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="8" LineSpacing="8" IsVisible="False">
                                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
@@ -653,11 +657,11 @@
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
-                                        </WrapPanel><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" Click="OnManageMediaRatingsClick" /></WrapPanel></StackPanel>
+                                        </WrapPanel><desktop:ActionToolBar x:Name="ReaderMediaActions" HorizontalAlignment="Right" PrioritizedOverflow="True"><desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="Margin" Value="8,0,0,0" /></Style></desktop:ActionToolBar.Styles><Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" /></desktop:ActionToolBar></StackPanel>
                                 </Grid>
                             </TabItem>
                             <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
-                            <TabItem x:Name="ArchiveReferencesTab" IsVisible="False">
+                            <TabItem x:Name="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
                                 <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="8">
                                     <StackPanel Spacing="2">
                                         <TextBlock x:Name="ArchiveReferencesHelp" Tag="archive.referencesHelp" Classes="muted localized" TextWrapping="Wrap" />

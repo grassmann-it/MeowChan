@@ -46,6 +46,7 @@ public partial class ArchivePage
             ApplyArchiveColumns();
             ApplyArchiveWorkView(viewChanged);
             UpdateLayoutMode();
+            ApplyReaderWorkView();
         }
     }
 

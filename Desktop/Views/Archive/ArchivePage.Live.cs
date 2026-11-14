@@ -1,3 +1,4 @@
+using MeowChan.Desktop.WorkViews;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -91,10 +92,11 @@ public partial class ArchivePage
         ToolTip.SetTip(follow, tip);
         ToolTip.SetShowOnDisabled(follow, true);
         Avalonia.Automation.AutomationProperties.SetHelpText(follow, tip);
-        ReaderShowNewPosts.IsVisible = _pendingReaderUpdate != null;
+        // Live state: Required in every view (WorkViewPolicy.Reader), so the gate only records the state.
+        WorkViewGate.Apply(ReaderShowNewPosts, ArchiveWorkView, _pendingReaderUpdate != null);
         ReaderShowNewPosts.IsEnabled = !_busy;
         TextBlock notice = ReaderNewPostsNotice;
-        notice.IsVisible = _pendingReaderUpdate != null;
+        WorkViewGate.Apply(notice, ArchiveWorkView, _pendingReaderUpdate != null);
         int added = (_pendingReaderUpdate?.PostCount ?? 0) - (_thread?.PostCount ?? 0);
         notice.Text = _pendingReaderUpdate == null ? string.Empty
             : added > 0 ? Texts.T("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");

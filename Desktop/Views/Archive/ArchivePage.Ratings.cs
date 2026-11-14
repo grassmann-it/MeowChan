@@ -1,3 +1,4 @@
+using MeowChan.Desktop.WorkViews;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,7 +44,7 @@ public partial class ArchivePage
         ComboBox filter = ArchiveRatingFilter;
         filter.IsEnabled = _mediaRatingError == null && GetMediaRating != null;
         ArchiveRatingStatus.Text = _mediaRatingError;
-        ArchiveRatingStatus.IsVisible = _mediaRatingError != null;
+        WorkViewGate.Apply(ArchiveRatingStatus, ArchiveWorkView, _mediaRatingError != null); // an error: Required in every view
     }
     internal void RefreshMediaRatings()
     {

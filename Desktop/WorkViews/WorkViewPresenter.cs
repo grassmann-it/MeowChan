@@ -21,7 +21,7 @@ public static class WorkViewPresenter
 
     /// <summary>
     /// One <see cref="ActionToolBar"/> item: its id (or <paramref name="fallbackId"/> for items without one) decides the
-    /// overflow mode, and "K" (<see cref="Presence.Hidden"/>) leaves it out of the bar and the popup. Items with neither
+    /// overflow mode and, on a prioritized toolbar, which items move into "More" first (OverflowOrder), and "K" (<see cref="Presence.Hidden"/>) leaves it out of the bar and the popup. Items with neither
     /// keep their XAML overflow mode. Returns whether the item took part.
     /// </summary>
     public static bool ApplyToolBarItem(Control item, WorkView view, string? fallbackId = null, bool nonDefaultState = false)
@@ -31,6 +31,8 @@ public static class WorkViewPresenter
         Presence presence = WorkViewPolicy.Resolve(id, view, nonDefaultState);
         ToolBar.SetOverflowMode(item, ToolBarMode(presence));
         ActionToolBar.SetOmitted(item, presence == Presence.Hidden);
+        // Read only by toolbars with PrioritizedOverflow: the policy's OverflowOrder is then the one keep-visible order.
+        ActionToolBar.SetOverflowPriority(item, WorkViewPolicy.Get(id).OverflowOrder);
         return true;
     }
 

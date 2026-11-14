@@ -1,3 +1,4 @@
+using MeowChan.Desktop.WorkViews;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -266,7 +267,7 @@ public partial class ArchivePage
         _referencesCount = total;
         bool show = present || total is > 0;
         if (!show && ArchiveContentTabs.SelectedItem == ArchiveReferencesTab) ArchiveContentTabs.SelectedIndex = 0;
-        ArchiveReferencesTab.IsVisible = show;
+        WorkViewGate.Apply(ArchiveReferencesTab, ArchiveWorkView, show); // data access: shown in every view whenever it has replies
         ArchiveReferencesTab.Header = ReferencesTabHeader();
     }
     private int? _referencesCount;

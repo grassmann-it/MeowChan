@@ -43,6 +43,25 @@ public sealed class ActionToolBar : ToolBar
     public static bool GetOmitted(Control item) => item.GetValue(OmittedProperty);
     public static void SetOmitted(Control item, bool omitted) => item.SetValue(OmittedProperty, omitted);
 
+    /// <summary>
+    /// Opt-in: AsNeeded items keep their place on the bar by <see cref="OverflowPriorityProperty"/> (lower stays longer) instead
+    /// of by item order, so the visual order and the order things move into "More" are two separate decisions. Without it a
+    /// toolbar keeps the historical rule (later items overflow first). Ties keep item order.
+    /// </summary>
+    public static readonly StyledProperty<bool> PrioritizedOverflowProperty =
+        AvaloniaProperty.Register<ActionToolBar, bool>(nameof(PrioritizedOverflow));
+    public bool PrioritizedOverflow
+    {
+        get => GetValue(PrioritizedOverflowProperty);
+        set => SetValue(PrioritizedOverflowProperty, value);
+    }
+
+    /// <summary>The keep-visible rank of an AsNeeded item on a <see cref="PrioritizedOverflow"/> toolbar (WorkViewEntry.OverflowOrder).</summary>
+    public static readonly AttachedProperty<int> OverflowPriorityProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBar, Control, int>("OverflowPriority");
+    public static int GetOverflowPriority(Control item) => item.GetValue(OverflowPriorityProperty);
+    public static void SetOverflowPriority(Control item, int priority) => item.SetValue(OverflowPriorityProperty, priority);
+
     /// <summary>Items that are currently not in the bar itself: in the overflow popup (open or closed) or omitted.</summary>
     internal IEnumerable<Control> ReducedItems => Items.OfType<Control>()
         .Where(item => OverflowHost?.Children.Contains(item) == true || OmittedHost.Children.Contains(item));
@@ -60,9 +79,15 @@ public sealed class ActionToolBar : ToolBar
     static ActionToolBar()
     {
         // Items keep the toolbar as their logical parent wherever their panel is.
-        OmittedProperty.Changed.AddClassHandler<Control>((item, _) =>
+        foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty })
+            property.Changed.AddClassHandler<Control>((item, _) =>
+            {
+                if (item.Parent is not ActionToolBar toolbar) return;
+                toolbar.DirectHost?.InvalidateMeasure();
+                toolbar.InvalidateMeasure();
+            });
+        PrioritizedOverflowProperty.Changed.AddClassHandler<ActionToolBar>((toolbar, _) =>
         {
-            if (item.Parent is not ActionToolBar toolbar) return;
             toolbar.DirectHost?.InvalidateMeasure();
             toolbar.InvalidateMeasure();
         });
@@ -263,7 +288,8 @@ public sealed class ActionToolBarPanel : StackPanel
         bool[] visible = items.Select(c => c.IsVisible && !ActionToolBar.GetOmitted(c)).ToArray();
         double[] widths = items.Select((c, i) => visible[i] ? c.DesiredSize.Width : 0).ToArray();
         OverflowMode[] modes = items.Select(ToolBar.GetOverflowMode).ToArray();
-        bool[] overflow = ActionOverflowLayout.Resolve(widths, modes, visible, availableSize.Width + (owner.More?.IsVisible == true ? owner.MoreWidth() : 0), owner.MoreWidth());
+        int[]? priorities = owner.PrioritizedOverflow ? items.Select(ActionToolBar.GetOverflowPriority).ToArray() : null;
+        bool[] overflow = ActionOverflowLayout.Resolve(widths, modes, visible, availableSize.Width + (owner.More?.IsVisible == true ? owner.MoreWidth() : 0), owner.MoreWidth(), priorities);
         _overflow.Clear();
         _omitted.Clear();
         for (int i = 0; i < items.Length; i++)
@@ -311,8 +337,13 @@ public sealed class ActionToolBarPanel : StackPanel
 
 public static class ActionOverflowLayout
 {
+    /// <summary>
+    /// Which items go into "More". Never items always stay, Always items always move; AsNeeded items take the remaining
+    /// width in item order, or by ascending <paramref name="priorities"/> (ties in item order) when given. The first one
+    /// that does not fit and every later one in that order overflow, so what moves into "More" is always the tail.
+    /// </summary>
     public static bool[] Resolve(IReadOnlyList<double> widths, IReadOnlyList<OverflowMode> modes,
-        IReadOnlyList<bool> visible, double available, double moreWidth)
+        IReadOnlyList<bool> visible, double available, double moreWidth, IReadOnlyList<int>? priorities = null)
     {
         bool[] result = new bool[widths.Count];
         double total = 0, required = 0; bool forced = false;
@@ -325,7 +356,9 @@ public static class ActionOverflowLayout
         }
         double budget = Math.Max(0, available - (forced || total > available ? moreWidth : 0));
         bool spilling = false;
-        for (int i = 0; i < widths.Count; i++)
+        IEnumerable<int> order = Enumerable.Range(0, widths.Count);
+        if (priorities != null) order = order.OrderBy(i => priorities[i]).ThenBy(i => i);
+        foreach (int i in order)
         {
             if (!visible[i] || modes[i] == OverflowMode.Never) continue;
             if (modes[i] == OverflowMode.Always) { result[i] = true; continue; }

@@ -694,6 +694,7 @@ public partial class ArchivePage : UserControl
         ArchiveThreadPage.Text = PageLabel(_listOffset, _listTotal);
         ArchivePostPage.Text = PageLabel(_postOffset, shownPosts, ReaderPageSize);
         RefreshArchiveResultActions();
+        ApplyReaderWorkView();
     }
     private static string PageLabel(int offset, int total, int pageSize = PageSize) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + pageSize, total), total);
 
