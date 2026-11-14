@@ -113,8 +113,8 @@ public sealed class StatisticsReadabilityTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Network, 7 days")]
-    [InlineData("de", "Netz, 7 Tage")]
+    [InlineData("en", "Network, days: 7")]
+    [InlineData("de", "Netz, Tage: 7")]
     public void CompactRowDetailsKeepEveryHiddenCounterAndTheRealRetention(string language, string retention)
     {
         Texts.SetLanguage(language);
