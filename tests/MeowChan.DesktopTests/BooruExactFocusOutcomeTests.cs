@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
+using Avalonia.Skia;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -174,6 +175,7 @@ public sealed class BooruExactFocusOutcomeTests
         Dispatcher owner = Dispatcher.CurrentDispatcher;
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+        SkiaPlatform.Initialize(); // Bitmap-backed command icons need a renderer, not a native window.
         try
         {
             primary.SetValue(null, owner);

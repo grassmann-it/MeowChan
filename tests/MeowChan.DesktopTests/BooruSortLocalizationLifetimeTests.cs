@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Platform;
+using Avalonia.Skia;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
@@ -12,7 +13,7 @@ using MeowChan.Gallery;
 namespace MeowChan.DesktopTests;
 
 // Regression coverage for the real MediaPage sort-selection subscription. The page is created without a
-// Window/platform renderer; the ComboBox itself is real, and its ItemsSource/SelectedIndex changes raise
+// native Window; scoped Skia serves compiled icon bitmaps, while the real ComboBox ItemsSource/SelectedIndex changes raise
 // Avalonia SelectionChanged events through the production InstallReturnInterruption subscription.
 [Collection("Booru exact navigation")]
 public sealed class BooruSortLocalizationLifetimeTests
@@ -83,6 +84,7 @@ public sealed class BooruSortLocalizationLifetimeTests
         Dispatcher owner = Dispatcher.CurrentDispatcher;
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+        SkiaPlatform.Initialize(); // Bitmap-backed command icons need a renderer, not a native window.
         try
         {
             primary.SetValue(null, owner);
