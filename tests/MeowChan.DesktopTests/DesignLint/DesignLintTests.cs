@@ -102,21 +102,22 @@ public sealed class DesignLintTests
     }
 
     [Fact]
-    public void HeaderIoSpacingStaysSixAndTwo()
+    public void HeaderIoSpacingStaysFourAndTwo()
     {
-        // The header I/O column gap six and row gap two are the user's explicit spec: never eight. RowSpacing = 2 is on the
-        // grid and the scanner cannot flag a change to 8, so the exact assigned values are pinned here.
         string content = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Shell/MainWindow.Transfer.cs"));
-        Assert.Equal(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(content));
-        Assert.NotEqual(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource.Replace("RowSpacing = 2;", "RowSpacing = 8;", StringComparison.Ordinal)));
-        Assert.NotEqual(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource.Replace("ColumnSpacing = 6;", "ColumnSpacing = 8;", StringComparison.Ordinal)));
-        Assert.Equal(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource));
+        Assert.Equal(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content));
+        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content.Replace("RowSpacing = 2;", "RowSpacing = 8;", StringComparison.Ordinal)));
+        Assert.NotEqual(new[] { "ColumnSpacing=4", "RowSpacing=2" }, HeaderIoSpacingAssignments(content.Replace("ColumnSpacing = 4;", "ColumnSpacing = 8;", StringComparison.Ordinal)));
+        Assert.DoesNotContain(DesignLintScanner.LayoutContracts, c => c.File == TransferFile);
+        string body = HeaderIoBody(content)!;
+        Assert.DoesNotContain(DesignLintScanner.ScanFileWith(TransferFile, body, null, Array.Empty<DesignLayoutContract>()),
+            v => v.Rule == DesignRules.SpacingOffGrid);
     }
 
     private static string? HeaderIoBody(string content)
     {
         string stripped = DesignLintScanner.StripCodeComments(content);
-        return DesignLintScanner.TryFindContractBody(stripped, DesignLintScanner.LayoutContracts[0], out int start, out int end) ? stripped[start..end] : null;
+        return DesignLintScanner.TryFindContractBody(stripped, SyntheticHeaderContracts[0], out int start, out int end) ? stripped[start..end] : null;
     }
 
     private static string[] HeaderIoSpacingAssignments(string content)
@@ -175,12 +176,27 @@ public sealed class DesignLintTests
 
     private const string TransferFile = "Desktop/Shell/MainWindow.Transfer.cs";
 
-    /// <summary>The header I/O arrangement as in MainWindow.Transfer.cs, reduced to what the lint sees.</summary>
+    // Preserve the exact-method exception mechanism's regression coverage with an old, synthetic layout;
+    // production has no exception now that its gaps are on-grid.
+    private static readonly DesignLayoutContract[] SyntheticHeaderContracts =
+    [
+        new(DesignRules.SpacingOffGrid, TransferFile,
+            "internal static void ArrangeHeaderRates(Grid grid, Control firstWord, TextBlock firstValue, Control secondWord, TextBlock secondValue, bool stacked)",
+            "grid.ColumnSpacing = 6;", "ColumnSpacing=6", "Synthetic contract test."),
+        new(DesignRules.SpacingOffGrid, TransferFile,
+            "internal static void ArrangeHeaderRates(Grid grid, Control firstWord, TextBlock firstValue, Control secondWord, TextBlock secondValue, bool stacked)",
+            "secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);", "Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)", "Synthetic contract test.")
+    ];
+
+    private static string[] RunContract(string file, string content) =>
+        DesignLintScanner.ScanFileWith(file, content, null, SyntheticHeaderContracts).Select(v => v.Rule + "|" + v.Snippet).ToArray();
+
+    /// <summary>Historical off-grid arrangement used only to test narrow contract recognition.</summary>
     private const string HeaderIoSource = @"
 partial class MainWindow
 {
-    internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue,
-        TextBlock secondWord, TextBlock secondValue, bool stacked)
+    internal static void ArrangeHeaderRates(Grid grid, Control firstWord, TextBlock firstValue,
+        Control secondWord, TextBlock secondValue, bool stacked)
     {
         grid.ColumnDefinitions = new ColumnDefinitions(stacked ? ""Auto,Auto"" : ""Auto,Auto,Auto,Auto"");
         grid.ColumnSpacing = 6;
@@ -194,42 +210,42 @@ partial class MainWindow
     public void HeaderIoLayoutContractCoversOnlyTheNamedStatements()
     {
         // Positive: exactly the two statements of exactly that method in exactly that file are covered.
-        Assert.Empty(Run(TransferFile, HeaderIoSource));
+        Assert.Empty(RunContract(TransferFile, HeaderIoSource));
         Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6", "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)" },
             DesignLintScanner.ScanFileWith(TransferFile, HeaderIoSource, null, Array.Empty<DesignLayoutContract>()).Select(v => v.Rule + "|" + v.Snippet).ToArray());
 
         // Negative: the same code elsewhere is not covered; the contract is never file- or folder-wide.
-        Assert.Equal(2, Run("Desktop/Shell/MainWindow.Other.cs", HeaderIoSource).Length);
-        Assert.Equal(2, Run("Desktop/Views/Statistics/Transfer.cs", HeaderIoSource).Length);
+        Assert.Equal(2, RunContract("Desktop/Shell/MainWindow.Other.cs", HeaderIoSource).Length);
+        Assert.Equal(2, RunContract("Desktop/Views/Statistics/Transfer.cs", HeaderIoSource).Length);
 
         // Negative: other statements, values and receivers inside the method are still checked.
-        string[] sixToTen = Run(TransferFile, HeaderIoSource.Replace("ColumnSpacing = 6;", "ColumnSpacing = 10;", StringComparison.Ordinal));
+        string[] sixToTen = RunContract(TransferFile, HeaderIoSource.Replace("ColumnSpacing = 6;", "ColumnSpacing = 10;", StringComparison.Ordinal));
         Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=10" }, sixToTen);
-        string[] marginFive = Run(TransferFile, HeaderIoSource.Replace("stacked ? 0 : 6", "stacked ? 0 : 5", StringComparison.Ordinal));
+        string[] marginFive = RunContract(TransferFile, HeaderIoSource.Replace("stacked ? 0 : 6", "stacked ? 0 : 5", StringComparison.Ordinal));
         Assert.Equal(new[] { "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 5, 0, 0, 0)" }, marginFive);
-        string[] rowFive = Run(TransferFile, HeaderIoSource.Replace("RowSpacing = 2;", "RowSpacing = 5;", StringComparison.Ordinal));
+        string[] rowFive = RunContract(TransferFile, HeaderIoSource.Replace("RowSpacing = 2;", "RowSpacing = 5;", StringComparison.Ordinal));
         Assert.Equal(new[] { "spacing-off-grid|RowSpacing=5" }, rowFive);
-        string[] otherReceiver = Run(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "other.ColumnSpacing = 6;", StringComparison.Ordinal));
+        string[] otherReceiver = RunContract(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "other.ColumnSpacing = 6;", StringComparison.Ordinal));
         Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, otherReceiver);
-        string[] otherMargin = Run(TransferFile, HeaderIoSource.Replace("secondWord.Margin", "firstWord.Margin", StringComparison.Ordinal));
+        string[] otherMargin = RunContract(TransferFile, HeaderIoSource.Replace("secondWord.Margin", "firstWord.Margin", StringComparison.Ordinal));
         Assert.Equal(new[] { "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)" }, otherMargin);
 
         // Negative: a repeated statement is covered once, the repeat is reported.
         string twice = HeaderIoSource.Replace("grid.RowSpacing = 2;", "grid.RowSpacing = 2;\n        grid.ColumnSpacing = 6;", StringComparison.Ordinal);
-        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, twice));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, RunContract(TransferFile, twice));
 
         // Negative: the same statements in another method of the file, or a changed signature, are not covered.
-        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("ArrangeHeaderRates", "ArrangeSomethingElse", StringComparison.Ordinal)).Length);
-        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("bool stacked)", "bool stacked, bool extra)", StringComparison.Ordinal)).Length);
-        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("Grid grid", "StackPanel grid", StringComparison.Ordinal)).Length);
+        Assert.Equal(2, RunContract(TransferFile, HeaderIoSource.Replace("ArrangeHeaderRates", "ArrangeSomethingElse", StringComparison.Ordinal)).Length);
+        Assert.Equal(2, RunContract(TransferFile, HeaderIoSource.Replace("bool stacked)", "bool stacked, bool extra)", StringComparison.Ordinal)).Length);
+        Assert.Equal(2, RunContract(TransferFile, HeaderIoSource.Replace("Grid grid", "StackPanel grid", StringComparison.Ordinal)).Length);
         string beforeAndAfter = HeaderIoSource + "\nclass Later { void M(Grid grid) { grid.ColumnSpacing = 6; } }";
-        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, beforeAndAfter));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, RunContract(TransferFile, beforeAndAfter));
 
         // Negative: a definition that exists twice is ambiguous and covers nothing.
-        Assert.Equal(4, Run(TransferFile, HeaderIoSource + HeaderIoSource).Length);
+        Assert.Equal(4, RunContract(TransferFile, HeaderIoSource + HeaderIoSource).Length);
 
         // Negative: a trailing statement on the same line is not the declared statement.
-        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "grid.ColumnSpacing = 6; x = 1;", StringComparison.Ordinal)));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, RunContract(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "grid.ColumnSpacing = 6; x = 1;", StringComparison.Ordinal)));
     }
 
     [Fact]

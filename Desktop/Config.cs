@@ -287,6 +287,9 @@ namespace MeowChan
             set => _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.NormalizeHeaderGraph(value);
         }
         private string _statsHeaderGraph = Desktop.Stats.IoStatsDisplay.HeaderGraphAuto;
+        /// <summary>Use coloured network/disk direction icons instead of words in the header. Off by default; the accessible description is unchanged.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool StatsHeaderIcons { get; set; }
         /// <summary>Memory in MiB for the decoded images of the gallery (decoded at display size), so stepping back and forth shows them at once; 0 keeps nothing.</summary>
         public int GalleryImageCacheMiB { get; set; } = GalleryImageCacheMiBDefault;
         internal const int GalleryImageCacheMiBDefault = (int)(Desktop.GalleryImageCache.DefaultBudgetBytes / (1024 * 1024));
@@ -1131,6 +1134,7 @@ namespace MeowChan
                 StatsPersistIntervalMinutes = StatsPersistIntervalMinutes,
                 StatsMaxSources = StatsMaxSources,
                 StatsHeaderGraph = StatsHeaderGraph,
+                StatsHeaderIcons = StatsHeaderIcons,
                 GalleryImageCacheMiB = GalleryImageCacheMiB,
                 GalleryPreloadAhead = GalleryPreloadAhead,
                 GalleryPreloadBehind = GalleryPreloadBehind,
@@ -1299,6 +1303,7 @@ namespace MeowChan
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
+            StatsHeaderIcons = source.StatsHeaderIcons;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;
@@ -1426,6 +1431,7 @@ namespace MeowChan
             StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes;
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
+            StatsHeaderIcons = source.StatsHeaderIcons;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;

@@ -853,6 +853,10 @@
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
                             </ComboBox>
                         </Grid>
+                        <CheckBox x:Name="StatsHeaderIconsInput" IsChecked="{Binding StatsHeaderIcons, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsHeaderIconsLabel}" AutomationProperties.HelpText="{Binding StatsHeaderIconsHint}">
+                            <TextBlock Text="{Binding StatsHeaderIconsLabel}" TextWrapping="Wrap" />
+                        </CheckBox>
+                        <TextBlock Text="{Binding StatsHeaderIconsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="StatsSampleIntervalMsFieldLabel" Text="{Binding StatsSampleIntervalMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">

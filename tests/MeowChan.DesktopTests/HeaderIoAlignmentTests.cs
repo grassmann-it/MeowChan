@@ -27,17 +27,17 @@ public sealed class HeaderIoAlignmentTests
             Assert.Equal(stacked ? 0 : 2, Grid.GetColumn(secondWord));
             Assert.Equal(stacked ? 1 : 0, Grid.GetRow(secondValue));
             Assert.Equal(stacked ? 1 : 3, Grid.GetColumn(secondValue));
-            Assert.Equal(6, grid.ColumnSpacing);
+            Assert.Equal(4, grid.ColumnSpacing);
             Assert.Equal(2, grid.RowSpacing);
             Assert.Equal("HeaderIoLabel", grid.ColumnDefinitions[0].SharedSizeGroup);
             Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[1].SharedSizeGroup);
-            Assert.Equal(72, grid.ColumnDefinitions[1].MinWidth);
-            Assert.Equal(stacked ? 0 : 6, secondWord.Margin.Left);
+            Assert.Equal(56, grid.ColumnDefinitions[1].MinWidth);
+            Assert.Equal(stacked ? 0 : 8, secondWord.Margin.Left);
             if (!stacked)
             {
                 Assert.Equal("HeaderIoLabel2", grid.ColumnDefinitions[2].SharedSizeGroup);
                 Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[3].SharedSizeGroup);
-                Assert.Equal(72, grid.ColumnDefinitions[3].MinWidth);
+                Assert.Equal(56, grid.ColumnDefinitions[3].MinWidth);
                 Assert.Equal(12, grid.ColumnSpacing + secondWord.Margin.Left);
             }
         }
@@ -77,11 +77,11 @@ public sealed class HeaderIoAlignmentTests
             XElement block = Named(name);
             Assert.Equal("Grid", block.Name.LocalName);
             Assert.Equal("2", (string?)block.Attribute("RowSpacing"));
-            Assert.Equal("6", (string?)block.Attribute("ColumnSpacing"));
+            Assert.Equal("4", (string?)block.Attribute("ColumnSpacing"));
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel");
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel2");
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoRate"
-                && (string?)node.Attribute("MinWidth") == "72");
+                && (string?)node.Attribute("MinWidth") == "56");
         }
         Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferSpeedTitle" or "TransferDiskTitle");
         Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferDownIcon" or "TransferUpIcon");
@@ -105,18 +105,58 @@ public sealed class HeaderIoAlignmentTests
     }
 
     [Theory]
-    [InlineData("TransferSpeedText", "TransferDownMark", "TransferSpeedLabel", "TransferUpMark", "TransferUploadLabel")]
-    [InlineData("TransferDiskText", "TransferReadMark", "TransferDiskReadLabel", "TransferWriteMark", "TransferDiskLabel")]
+    [InlineData("TransferSpeedText", "TransferDownCell", "TransferSpeedLabel", "TransferUpCell", "TransferUploadLabel")]
+    [InlineData("TransferDiskText", "TransferReadCell", "TransferDiskReadLabel", "TransferWriteCell", "TransferDiskLabel")]
     public void InitialMatrixOrdersTheSolidDirectionBeforeTheDashedDirection(string gridName,
         string firstWord, string firstRate, string secondWord, string secondRate)
     {
         XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement grid = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == gridName);
-        XElement[] cells = grid.Elements().Where(node => node.Name.LocalName == "TextBlock").ToArray();
+        XElement[] cells = grid.Elements().Where(node => node.Attribute(x + "Name") != null).ToArray();
         Assert.Equal(new[] { firstWord, firstRate, secondWord, secondRate }, cells.Select(node => (string?)node.Attribute(x + "Name")));
         for (int i = 0; i < cells.Length; i++)
             Assert.Equal(i, (int?)cells[i].Attribute("Grid.Column") ?? 0);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IconModeIsOptInAndSwitchesBackWithoutHidingTheCell(bool firstIcons)
+    {
+        Grid cell = new();
+        TextBlock word = new();
+        Control marker = new();
+        cell.Children.Add(word);
+        cell.Children.Add(marker);
+        foreach (bool icons in new[] { firstIcons, !firstIcons, firstIcons })
+        {
+            MainWindow.SetHeaderMarkerMode(word, marker, icons);
+            Assert.Equal(!icons, word.IsVisible);
+            Assert.Equal(icons, marker.IsVisible);
+            Assert.True(cell.IsVisible);
+        }
+    }
+
+    [Theory]
+    [InlineData("Down", "NetworkDown", "Workspace.Accent")]
+    [InlineData("Up", "NetworkUp", "Workspace.Accent")]
+    [InlineData("Read", "DiskRead", "Workspace.Stats.Disk")]
+    [InlineData("Write", "DiskWrite", "Workspace.Stats.Disk")]
+    public void OptionalMarkersUseGraphColoursAndKeepOneAccessibleButton(string name, string direction, string brush)
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement cell = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == "Transfer" + name + "Cell");
+        XElement icon = cell.Elements().Single(node => node.Name.LocalName == "HeaderIoMarker");
+        Assert.Equal(direction, (string?)icon.Attribute("Direction"));
+        Assert.Equal("False", (string?)icon.Attribute("IsVisible"));
+        Assert.Equal("{DynamicResource " + brush + "}", (string?)icon.Attribute("Stroke"));
+        Assert.Equal("Raw", (string?)icon.Attribute("AutomationProperties.AccessibilityView"));
+        Assert.Equal("Raw", (string?)cell.Attribute("AutomationProperties.AccessibilityView"));
+        Assert.Equal("Transparent", (string?)cell.Attribute("Background"));
+        Assert.DoesNotContain(cell.DescendantsAndSelf().Attributes(), a => a.Name.LocalName is "Click" or "PointerPressed");
+        Assert.Equal("Button", cell.Ancestors().First(node => node.Name.LocalName == "Button").Name.LocalName);
     }
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>

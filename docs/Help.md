@@ -721,6 +721,19 @@ Write is the dashed second series, not a combined disk total. **Reset statistics
 is under More in Barebones and Simple and directly available in Advanced. It asks
 for confirmation before clearing the counters, not media.
 
+Rates use at most three digits with adaptive precision, for example **127 KiB/s**,
+**1.27 MiB/s**, or **12.7 MiB/s** (decimal commas in languages that use them).
+Units stay binary; values move to the next unit before the number needs four digits.
+This compact rate formatting also applies to the statistics page and tray; it does
+not change file-size totals or the underlying measurements.
+
+**Use icons for header I/O labels** in **Settings → Behavior → Statistics** is
+optional and off by default. It replaces the direction words with network/disk
+symbols and arrows in the corresponding graph colours. Hovering a direction shows
+its full name, current rate, and whether its series is solid or dashed. Clicking
+still opens Statistics; the button keeps its full screen-reader description.
+This option also works when the graphs are hidden. Turning it off restores the words.
+
 Settings → **Behavior → Statistics** controls the sampling and persistence:
 
 | Setting | Default | Allowed |

@@ -79,22 +79,8 @@ internal static class DesignLintScanner
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
     };
 
-    /// <summary>Signature of the header I/O word-matrix arrangement. The receivers named in the statements below are its parameters.</summary>
-    private const string HeaderIoArrangeSignature =
-        "internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue, TextBlock secondWord, TextBlock secondValue, bool stacked)";
-
-    /// <summary>Header I/O word matrix (explicit user spec, never 8): column gap 6 between a word and its value, row gap 2 between the
-    /// stacked pairs, and a left margin of 6 on the second word that adds up to twelve between pairs. Only these statements
-    /// of this method are covered; <c>RowSpacing = 2</c> is on the grid and is pinned by a test instead.</summary>
-    public static readonly DesignLayoutContract[] LayoutContracts =
-    {
-        new(DesignRules.SpacingOffGrid, "Desktop/Shell/MainWindow.Transfer.cs", HeaderIoArrangeSignature,
-            "grid.ColumnSpacing = 6;", "ColumnSpacing=6",
-            "Header I/O word matrix: the gap between a word and its value is six (user spec; never eight)."),
-        new(DesignRules.SpacingOffGrid, "Desktop/Shell/MainWindow.Transfer.cs", HeaderIoArrangeSignature,
-            "secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);", "Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)",
-            "Header I/O word matrix: six from ColumnSpacing plus six from this margin make twelve between pairs (user spec)."),
-    };
+    // The compact header now uses normal 4/8-DIP spacing. It needs no off-grid waiver.
+    public static readonly DesignLayoutContract[] LayoutContracts = [];
 
     private static readonly Regex FontSizeXaml = new(
         @"(?:\bFontSize\s*=\s*""|Property\s*=\s*""FontSize""\s+Value\s*=\s*"")(?<v>[0-9]+(?:\.[0-9]+)?)""", RegexOptions.Compiled);

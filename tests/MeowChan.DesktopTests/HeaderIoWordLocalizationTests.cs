@@ -5,7 +5,7 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// The header's I/O captions are words (network Down/Up, disk Write/Read), one key each, in all twelve languages: no arrows,
+/// The header's default I/O captions are words (network Down/Up, disk Read/Write), one key each, in all twelve languages: no arrows,
 /// no single letters, no ALLCAPS, no punctuation. The retired single-letter keys are gone from the catalog and every pack.
 /// </summary>
 [Collection("Localization")]

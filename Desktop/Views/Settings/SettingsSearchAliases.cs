@@ -47,6 +47,7 @@ internal static class SettingsSearchAliases
         ["RestoreSession"] = "session restore startup wiederherstellen sitzung start",
         ["CloseToTray"] = "tray system tray taskbar background infobereich schließen hintergrund",
         ["MinimizeToTray"] = "tray system tray taskbar background infobereich minimieren hintergrund",
+        ["StatsHeaderIcons"] = "statistics header icons symbols words network disk graph statistik kopfleiste symbole wörter netz platte",
         ["StatsHeaderGraph"] = "statistics graph network disk traffic statistik diagramm netz platte",
         ["StatsPersist"] = "statistics history save verlauf speichern statistik",
     };

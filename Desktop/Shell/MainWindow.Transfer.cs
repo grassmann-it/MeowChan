@@ -21,6 +21,7 @@ public partial class MainWindow
     private string? _graphDescription;
     private IoStatsDisplay.HeaderLayout _headerLayout = IoStatsDisplay.ResolveHeaderLayout(null);
     private bool _headerLayoutApplied;
+    private bool _headerIcons;
 
     /// <summary>The claim this window currently holds on the statistics hub (None while nothing needs samples).</summary>
     internal IoStatsVisibility IoStatsClaim => _ioClaim?.Visibility ?? IoStatsVisibility.None;
@@ -65,9 +66,14 @@ public partial class MainWindow
     private void ApplyHeaderGraphMode()
     {
         IoStatsDisplay.HeaderLayout layout = IoStatsDisplay.ResolveHeaderLayout(_config.StatsHeaderGraph, Bounds.Width <= 0 ? double.PositiveInfinity : Bounds.Width);
-        if (_headerLayoutApplied && layout == _headerLayout && TransferDiskText.IsVisible == layout.DiskValue && TransferSpeedText.IsVisible == layout.NetValue) return;
+        if (_headerLayoutApplied && _headerIcons == _config.StatsHeaderIcons && layout == _headerLayout && TransferDiskText.IsVisible == layout.DiskValue && TransferSpeedText.IsVisible == layout.NetValue) return;
         _headerLayout = layout;
         _headerLayoutApplied = true;
+        _headerIcons = _config.StatsHeaderIcons;
+        SetHeaderMarkerMode(TransferDownMark, TransferDownMarker, _headerIcons);
+        SetHeaderMarkerMode(TransferUpMark, TransferUpMarker, _headerIcons);
+        SetHeaderMarkerMode(TransferReadMark, TransferReadMarker, _headerIcons);
+        SetHeaderMarkerMode(TransferWriteMark, TransferWriteMarker, _headerIcons);
         bool blocks = layout.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks;
         bool twoLine = layout.TwoLineLabels;
         bool diskGraphShown = layout.DiskGraph;
@@ -78,10 +84,10 @@ public partial class MainWindow
         double graphHeight = blocks ? BlockGraphHeight : RowGraphHeight;
         TransferSpeedGraph.Width = TransferDiskGraph.Width = blocks ? BlockGraphWidth : RowGraphWidth;
         TransferSpeedGraph.Height = TransferDiskGraph.Height = graphHeight;
-        ArrangeHeaderRates(TransferSpeedText, TransferDownMark, TransferSpeedLabel,
-            TransferUpMark, TransferUploadLabel, twoLine);
-        ArrangeHeaderRates(TransferDiskText, TransferReadMark, TransferDiskReadLabel,
-            TransferWriteMark, TransferDiskLabel, twoLine);
+        ArrangeHeaderRates(TransferSpeedText, TransferDownCell, TransferSpeedLabel,
+            TransferUpCell, TransferUploadLabel, twoLine);
+        ArrangeHeaderRates(TransferDiskText, TransferReadCell, TransferDiskReadLabel,
+            TransferWriteCell, TransferDiskLabel, twoLine);
         // Solid series first, dashed second: Down over Up / Read over Write in blocks,
         // Down above Read / Up above Write in compact rows. Remove unused tracks so
         // their spacing cannot survive a layout switch or enlarge a single block.
@@ -97,29 +103,36 @@ public partial class MainWindow
         if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
 
-    internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue,
-        TextBlock secondWord, TextBlock secondValue, bool stacked)
+    internal static void ArrangeHeaderRates(Grid grid, Control firstWord, TextBlock firstValue,
+        Control secondWord, TextBlock secondValue, bool stacked)
     {
         grid.ColumnDefinitions = new ColumnDefinitions(stacked ? "Auto,Auto" : "Auto,Auto,Auto,Auto");
         grid.RowDefinitions = new RowDefinitions(stacked ? "Auto,Auto" : "Auto");
-        grid.ColumnSpacing = 6;
+        grid.ColumnSpacing = 4;
         grid.RowSpacing = 2;
         grid.ColumnDefinitions[0].SharedSizeGroup = "HeaderIoLabel";
         grid.ColumnDefinitions[1].SharedSizeGroup = "HeaderIoRate";
-        grid.ColumnDefinitions[1].MinWidth = 72;
+        grid.ColumnDefinitions[1].MinWidth = 56;
         if (!stacked)
         {
             grid.ColumnDefinitions[2].SharedSizeGroup = "HeaderIoLabel2";
             grid.ColumnDefinitions[3].SharedSizeGroup = "HeaderIoRate";
-            grid.ColumnDefinitions[3].MinWidth = 72;
+            grid.ColumnDefinitions[3].MinWidth = 56;
         }
         Grid.SetRow(firstWord, 0); Grid.SetColumn(firstWord, 0);
         Grid.SetRow(firstValue, 0); Grid.SetColumn(firstValue, 1);
         Grid.SetRow(secondWord, stacked ? 1 : 0); Grid.SetColumn(secondWord, stacked ? 0 : 2);
         Grid.SetRow(secondValue, stacked ? 1 : 0); Grid.SetColumn(secondValue, stacked ? 1 : 3);
-        // Six from ColumnSpacing + six from this margin = twelve between pairs;
-        // the word-to-value gaps remain six in both arrangements.
-        secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);
+        // Four from ColumnSpacing + eight from this margin = twelve between pairs;
+        // the direction-to-value gap stays compact in both arrangements.
+        secondWord.Margin = new Thickness(stacked ? 0 : 8, 0, 0, 0);
+    }
+
+    /// <summary>Only presentation changes: the button retains its name, action and keyboard target.</summary>
+    internal static void SetHeaderMarkerMode(TextBlock word, Control marker, bool icons)
+    {
+        word.IsVisible = !icons;
+        marker.IsVisible = icons;
     }
 
     private void StopSpeedSampling()
@@ -182,6 +195,11 @@ public partial class MainWindow
         {
             _graphDescription = description;
             ToolTip.SetTip(TransferSpeed, description);
+            // Local tips identify each symbol without requiring colour vision or guessing an arrow's meaning.
+            ToolTip.SetTip(TransferDownCell, Texts.T("stats.headerIcons.downTip", ByteUnits.Rate(snapshot.Rate.NetDown)));
+            ToolTip.SetTip(TransferUpCell, Texts.T("stats.headerIcons.upTip", ByteUnits.Rate(snapshot.Rate.NetUp)));
+            ToolTip.SetTip(TransferReadCell, Texts.T("stats.headerIcons.readTip", ByteUnits.Rate(snapshot.Rate.DiskRead)));
+            ToolTip.SetTip(TransferWriteCell, Texts.T("stats.headerIcons.writeTip", ByteUnits.Rate(snapshot.Rate.DiskWrite)));
             AutomationProperties.SetName(TransferSpeed, description);
         }
     }

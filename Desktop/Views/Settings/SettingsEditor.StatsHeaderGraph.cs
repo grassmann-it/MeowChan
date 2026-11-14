@@ -14,6 +14,15 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private SettingsChoice? _selectedStatsHeaderGraph;
+    private bool _statsHeaderIcons;
+
+    public string StatsHeaderIconsLabel => Texts.T("stats.headerIcons.label");
+    public string StatsHeaderIconsHint => Texts.T("stats.headerIcons.hint");
+    public bool StatsHeaderIcons
+    {
+        get => _statsHeaderIcons;
+        set => SetField(ref _statsHeaderIcons, value, nameof(StatsHeaderIcons));
+    }
 
     public string StatsHeaderGraphLabel => Texts.T("stats.headerGraph.label");
     public string StatsHeaderGraphHint => Texts.T("stats.headerGraph.hint");
@@ -37,7 +46,7 @@ public partial class SettingsEditor
             new(IoStatsDisplay.HeaderGraphSideBySide, Texts.T("stats.headerGraph.sideBySide")),
             new(IoStatsDisplay.HeaderGraphText, Texts.T("stats.headerGraph.text"))
         };
-        foreach (string property in new[] { nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices) })
+        foreach (string property in new[] { nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices), nameof(StatsHeaderIconsLabel), nameof(StatsHeaderIconsHint) })
             RaiseStatsHeaderGraphChanged(property);
         string normalized = IoStatsDisplay.NormalizeHeaderGraph(value);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.First(item => item.Value == normalized);

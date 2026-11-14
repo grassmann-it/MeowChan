@@ -123,6 +123,7 @@ public partial class SettingsEditor
         StatsBackgroundIntervalMs = config.StatsBackgroundIntervalMs;
         StatsTrayTooltip = config.StatsTrayTooltip;
         StatsTrayMenu = config.StatsTrayMenu;
+        StatsHeaderIcons = config.StatsHeaderIcons;
         StatsPersist = config.StatsPersist;
         StatsRetentionDays = config.StatsRetentionDays;
         StatsPersistIntervalMinutes = config.StatsPersistIntervalMinutes;
@@ -143,6 +144,7 @@ public partial class SettingsEditor
         candidate.StatsBackgroundIntervalMs = StatisticsNumber(StatsBackgroundIntervalMs, StatsBackgroundIntervalMsLabel, Config.StatsBackgroundIntervalMsMinimum, Config.StatsBackgroundIntervalMsMaximum, StatsBackgroundIntervalMsEnabled, saved.StatsBackgroundIntervalMs);
         candidate.StatsTrayTooltip = StatsTrayTooltip;
         candidate.StatsTrayMenu = StatsTrayMenu;
+        candidate.StatsHeaderIcons = StatsHeaderIcons;
         candidate.StatsPersist = StatsPersist;
         candidate.StatsRetentionDays = StatisticsNumber(StatsRetentionDays, StatsRetentionDaysLabel, Config.StatsRetentionDaysMinimum, Config.StatsRetentionDaysMaximum, StatsRetentionDaysEnabled, saved.StatsRetentionDays);
         candidate.StatsPersistIntervalMinutes = StatisticsNumber(StatsPersistIntervalMinutes, StatsPersistIntervalMinutesLabel, Config.StatsPersistIntervalMinutesMinimum, Config.StatsPersistIntervalMinutesMaximum, StatsPersistIntervalMinutesEnabled, saved.StatsPersistIntervalMinutes);
