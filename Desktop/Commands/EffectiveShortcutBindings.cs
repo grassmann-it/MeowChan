@@ -173,6 +173,9 @@ public sealed class EffectiveShortcutBindings
         ["reader.sidebar.toggle"] = 8, ["reader.sidebar.previous-media"] = 8, ["reader.sidebar.next-media"] = 8,
         // New in revision 8: the media page's focus mode (M4), Shift+F next to the favourite's F.
         ["media.focus-mode"] = 8,
+        // New in revision 8 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
+        // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
+        ["tags.queue.done-next"] = 8, ["tags.queue.skip"] = 8, ["tags.queue.back"] = 8, ["tags.queue.play-pause"] = 8,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
