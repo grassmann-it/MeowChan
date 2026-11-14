@@ -108,7 +108,8 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
             Texts.SetLanguage(language);
             string label = CommandCatalog.Label("archive.select-page");
             string? shortcut = CommandCatalog.ShortcutDisplay("archive.select-page");
-            Assert.Equal(label + (shortcut is null ? "" : " · " + shortcut) + " · " + suffix,
+            // HB1: the hint is the second line of the tooltip, the key stays on the first.
+            Assert.Equal(label + (shortcut is null ? "" : " · " + shortcut) + "\n" + suffix,
                 CommandBindings.Tooltip("archive.select-page"));
         }
     }
