@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -17,6 +18,9 @@ public partial class MainWindow
 {
     private BooruPage? _booruPage;
     private bool _updatingBooruToolsPresentation;
+    private readonly BooruUnavailableNavigation _booruUnavailableNavigation = new();
+    private bool _booruFallbackRestoreContinuation;
+    private bool _booruFallbackRestoreSettled;
 
     internal BooruPage? BooruPageForTests => _booruPage;
 
@@ -70,6 +74,7 @@ public partial class MainWindow
         if (_booruPage is { } page && !ReferenceEquals(page.Services, services)) DisposeBooruPage();
         if (_selectedPage == WorkspacePage.Booru && CanOpenBooru)
         {
+            _booruUnavailableNavigation.Clear();
             if (EnsureBooruPage())
             {
                 BooruPageHost.IsVisible = true;
@@ -78,11 +83,13 @@ public partial class MainWindow
         }
         else if (_selectedPage == WorkspacePage.Booru)
         {
-            // This is a safe presentation fallback, not a page disposal: a later re-enable
-            // must reveal the same draft while the service identity remains valid.
-            NavigateWorkspace(WorkspacePage.Downloads);
+            // Dispose the unavailable composition immediately, but do not bypass the shell's
+            // admission/restore gates for the fallback. A blocked route remains pending and is
+            // completed from the normal busy/restore transitions below.
+            RequestBooruUnavailableFallback();
         }
         UpdateInteractionState();
+        TryCompleteBooruUnavailableFallback();
     }
 
     /// <summary>Refreshes both switch surfaces without changing any non-presentation preference.</summary>
@@ -119,6 +126,44 @@ public partial class MainWindow
         finally { _updatingBooruToolsPresentation = false; }
     }
 
+    private void RequestBooruUnavailableFallback()
+    {
+        if (_isClosing || _selectedPage != WorkspacePage.Booru || CanOpenBooru) return;
+        // The disposed page must not remain the visible body while the ordinary route is gated.
+        BooruPageHost.IsVisible = false;
+        _booruUnavailableNavigation.Request();
+        TryCompleteBooruUnavailableFallback();
+    }
+
+    private void TryCompleteBooruUnavailableFallback()
+    {
+        if (!_booruUnavailableNavigation.IsPending || _isClosing || _selectedPage != WorkspacePage.Booru
+            || CanOpenBooru) return;
+        if (_booruUnavailableNavigation.TryComplete(() => NavigateWorkspace(WorkspacePage.Downloads))) return;
+        if (!_restoreCompleted && !_booruFallbackRestoreContinuation && !_booruFallbackRestoreSettled)
+        {
+            _booruFallbackRestoreContinuation = true;
+            // The restore task is assigned at the end of the constructor. Post once so an early
+            // composition callback cannot observe that field before its assignment.
+            Dispatcher.UIThread.Post(() => _ = CompleteBooruUnavailableFallbackAfterRestoreAsync());
+        }
+    }
+
+    private async Task CompleteBooruUnavailableFallbackAfterRestoreAsync()
+    {
+        try { await _restoreTask.ConfigureAwait(false); }
+        catch { /* The normal navigation gate remains closed after a failed restore. */ }
+        finally
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                _booruFallbackRestoreContinuation = false;
+                _booruFallbackRestoreSettled = true;
+                if (!_isClosing) TryCompleteBooruUnavailableFallback();
+            });
+        }
+    }
+
     private void OnBooruToolsToggleChanged(object? sender, RoutedEventArgs e)
     {
         if (_updatingBooruToolsPresentation) return;
@@ -149,5 +194,22 @@ public partial class MainWindow
                 Avalonia.Controls.Notifications.NotificationType.Error,
                 operation: "preferences.booru-visibility");
         }
+    }
+}
+
+internal sealed class BooruUnavailableNavigation
+{
+    internal bool IsPending { get; private set; }
+
+    internal void Request() => IsPending = true;
+
+    internal void Clear() => IsPending = false;
+
+    internal bool TryComplete(Func<bool> navigate)
+    {
+        ArgumentNullException.ThrowIfNull(navigate);
+        if (!IsPending || !navigate()) return false;
+        IsPending = false;
+        return true;
     }
 }

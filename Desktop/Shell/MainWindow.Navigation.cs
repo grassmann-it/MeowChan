@@ -306,7 +306,11 @@ public partial class MainWindow
 
     private void OnSettingsBusyChanged(object? sender, EventArgs e)
     {
-        if (!_isClosing) UpdateInteractionState();
+        if (!_isClosing)
+        {
+            UpdateInteractionState();
+            TryCompleteBooruUnavailableFallback();
+        }
     }
 
     private bool NavigateWorkspace(WorkspacePage page, bool activateArchive = true)
@@ -385,8 +389,12 @@ public partial class MainWindow
             // Availability and the presentation switch remove the destination completely. If a
             // transition races the refresh while the page is active, leave for Downloads without
             // disposing the still-composed page (the toggle must preserve its draft).
+            if (_selectedPage != WorkspacePage.Booru) _booruUnavailableNavigation.Clear();
             if (!_isClosing && _selectedPage == WorkspacePage.Booru && !CanOpenBooru)
-                NavigateWorkspace(WorkspacePage.Downloads);
+            {
+                _booruUnavailableNavigation.Request();
+                TryCompleteBooruUnavailableFallback();
+            }
             WorkView view = ConfiguredWorkView;
             Button downloads = DownloadsNavigationButton;
             Button settings = SettingsNavigationButton;
