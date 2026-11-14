@@ -8,6 +8,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Stats;
 using MeowChan.Import;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
