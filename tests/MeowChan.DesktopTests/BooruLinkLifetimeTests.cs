@@ -51,7 +51,7 @@ public sealed class BooruLinkLifetimeTests
     }
 
     [Fact]
-    public async Task ShowInMediaNavigationExceptionDoesNotEscapeTheAsyncClickHandler()
+    public async Task ShowInMediaNavigationExceptionShowsAnHonestActiveFailureNotice()
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -66,24 +66,26 @@ public sealed class BooruLinkLifetimeTests
 
         action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await invoked.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        await EventuallyAsync(() => !LinkNote(view).IsVisible);
+        string failure = Texts.T("booru.crossLinks.navigationFailed", PostId);
+        await EventuallyAsync(() => LinkNote(view).Text == failure);
 
-        // The test remains alive after the async-void continuation and no false "missing" result is shown.
-        Assert.False(LinkNote(view).IsVisible);
+        Assert.Equal(failure, LinkNote(view).Text);
+        Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
     }
 
     [Fact]
-    public async Task ANewNoticeInvalidatesAnOlderShowInMediaCompletion()
+    public async Task AStaleShowInMediaExceptionCannotReplaceANewerNotice()
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
         using BooruWorkbenchView view = new(model, ownsModel: false);
         TaskCompletionSource<bool> started = NewSource<bool>();
         TaskCompletionSource<bool> release = NewSource<bool>();
-        view.ShowInMedia = _ =>
+        view.ShowInMedia = async _ =>
         {
             started.TrySetResult(true);
-            return release.Task;
+            await release.Task;
+            throw new InvalidOperationException("retired media page");
         };
         Button action = ShowInMediaButton(view);
 
@@ -93,10 +95,39 @@ public sealed class BooruLinkLifetimeTests
         string currentNotice = Texts.T("booru.ui.tags.addedToSearch", "cat");
         Assert.Equal(currentNotice, LinkNote(view).Text);
 
-        release.SetResult(false);
-        await EventuallyAsync(() => !LinkNote(view).IsVisible || LinkNote(view).Text == currentNotice);
+        release.SetResult(true);
+        await Task.Delay(25);
 
         Assert.Equal(currentNotice, LinkNote(view).Text);
+        Assert.NotEqual(Texts.T("booru.crossLinks.navigationFailed", PostId), LinkNote(view).Text);
+        Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
+    }
+
+    [Fact]
+    public async Task DisposingDuringShowInMediaExceptionSuppressesTheFailureNotice()
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        TaskCompletionSource<bool> started = NewSource<bool>();
+        TaskCompletionSource<bool> release = NewSource<bool>();
+        view.ShowInMedia = async _ =>
+        {
+            started.TrySetResult(true);
+            await release.Task;
+            throw new InvalidOperationException("disposed media page");
+        };
+        Button action = ShowInMediaButton(view);
+
+        action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        view.Dispose();
+        release.SetResult(true);
+        await Task.Delay(25);
+
+        Assert.False(LinkNote(view).IsVisible);
+        Assert.NotEqual(Texts.T("booru.crossLinks.navigationFailed", PostId), LinkNote(view).Text);
+        Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
     }
 
     [Fact]

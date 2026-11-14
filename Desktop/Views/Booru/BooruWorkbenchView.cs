@@ -819,6 +819,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                 // A host/profile transition may retire the navigation callback while it is awaited.
                 // This is an action failure, not evidence that the local original is missing.
                 Log.Warning(exception, "Could not show a Danbooru post in local media");
+                SetLinkNote(("booru.crossLinks.navigationFailed", postId, true), revision);
             }
         };
         return show;
