@@ -125,6 +125,7 @@ internal static class ComparisonCaptures
         DataGridRow row = grid.GetVisualDescendants().OfType<DataGridRow>()
             .First(candidate => candidate.IsEffectivelyVisible && ReferenceEquals(candidate.DataContext, rows[1]));
         Point center = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Pointer(window, mouse, new Point(1, window.Bounds.Height - 2));
@@ -162,10 +163,14 @@ internal static class ComparisonCaptures
             if (!baseline && (fillOnRow < 4.5 || fillOnTrack < (dark ? 3.5 : 3.4) || trackOnRow < (dark ? 1.3 : 2.4)))
                 throw new InvalidOperationException($"The hovered row's progress bar is not readable: fill on row {fillOnRow:0.00}, fill on track {fillOnTrack:0.00}, track on row {trackOnRow:0.00}.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Pointer(window, mouse, new Point(1, window.Bounds.Height - 2));
-            await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !row.IsPointerOver; });
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Pointer(window, mouse, new Point(1, window.Bounds.Height - 2));
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !row.IsPointerOver; });
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ComparisonCaptures: " + exception));
         }
     }
 

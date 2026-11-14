@@ -21,6 +21,7 @@ internal static partial class GalleryToolbarLayoutChecks
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         await UntilAsync(() => host.Content is GalleryViewer);
         GalleryViewer viewer = (GalleryViewer)host.Content!;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await UntilAsync(() => Find<Image>(viewer, "GalleryImage").Source is Avalonia.Media.Imaging.Bitmap);
@@ -61,13 +62,17 @@ internal static partial class GalleryToolbarLayoutChecks
             viewer.MediaMenu!.Close();
             await LayoutAsync(window);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            viewer.SetOverflowOpen(false);
-            if (viewer.MediaMenu?.IsOpen == true) viewer.MediaMenu.Close();
-            Click(Find<Button>(viewer, "GalleryClose"));
-            await window.GalleryCleanupTask.WaitAsync(Deadline);
-            await UntilAsync(() => host.Content is not GalleryViewer);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                viewer.SetOverflowOpen(false);
+                if (viewer.MediaMenu?.IsOpen == true) viewer.MediaMenu.Close();
+                Click(Find<Button>(viewer, "GalleryClose"));
+                await window.GalleryCleanupTask.WaitAsync(Deadline);
+                await UntilAsync(() => host.Content is not GalleryViewer);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryToolbarLayoutChecks.Gallery: " + exception));
         }
     }
 

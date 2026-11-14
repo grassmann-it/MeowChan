@@ -330,6 +330,7 @@ internal static class WorkViewCaptures
         ICommand? productCommand = copy.Command;
         int executed = 0;
         List<string> findings = new();
+        Exception? failureBeforeCleanup = null;
         try
         {
             Click(window.FindControl<Button>("DownloadsNavigationButton")!);
@@ -387,15 +388,19 @@ internal static class WorkViewCaptures
                     throw new InvalidOperationException($"Shortcut probe: the {reduction} Copy URLs action was not placed or its shortcut did not run it.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            copy.Command = productCommand;
-            Config restore = window.SessionHost.Config.Clone();
-            restore.ShortcutBindings = originalBindings;
-            long revision = ShortcutService.Revision;
-            await window.SessionHost.ApplySettingsAsync(restore);
-            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
-            await PresentationChecks.SwitchModeAsync(window, modeBefore);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                copy.Command = productCommand;
+                Config restore = window.SessionHost.Config.Clone();
+                restore.ShortcutBindings = originalBindings;
+                long revision = ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(restore);
+                await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+                await PresentationChecks.SwitchModeAsync(window, modeBefore);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in WorkViewCaptures: " + exception));
         }
         Console.WriteLine("SMOKE work-views shortcut finding: " + string.Join("; ", findings) + ".");
     }

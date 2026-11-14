@@ -378,6 +378,7 @@ internal static class SettingsReaderDisplayChecks
             manifest, asset, null, null, false, false);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         GalleryViewer? viewer = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await window.OpenMediaGalleryAsync([entry], entry.EntryKey, stillRequested: () => true);
@@ -395,13 +396,17 @@ internal static class SettingsReaderDisplayChecks
             Console.WriteLine("SMOKE reader P1 live shell gallery: limited=" + config.GalleryFitUpscaleLimited
                 + " storedPercent=" + config.GalleryFitMaxUpscalePercent + " physicalZoom=" + viewer.CaptureState().PhysicalZoom);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (viewer != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                Click(viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
-                await Program.WaitUntilAsync(() => host.Content == null && !host.IsVisible);
-            }
+                if (viewer != null)
+                {
+                    Click(viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
+                    await Program.WaitUntilAsync(() => host.Content == null && !host.IsVisible);
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsReaderDisplayChecks: " + exception));
         }
     }
 

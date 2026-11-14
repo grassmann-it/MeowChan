@@ -154,6 +154,7 @@ internal static class HoverContrastChecks
     {
         Leave(window, mouse);
         combo.IsDropDownOpen = true;
+        Exception? failureBeforeCleanup = null;
         try
         {
             ComboBoxItem[] items = Array.Empty<ComboBoxItem>();
@@ -173,11 +174,15 @@ internal static class HoverContrastChecks
             if (selected != null) ProbeRow(image, surface, selected, tag, scene + " selected", failures, outline: false, bar: true);
             ProbeOverlayEdge(window, image, surface, tag, scene, failures);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Leave(window, mouse);
-            combo.IsDropDownOpen = false;
-            await Program.WaitUntilAsync(() => !combo.IsDropDownOpen);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Leave(window, mouse);
+                combo.IsDropDownOpen = false;
+                await Program.WaitUntilAsync(() => !combo.IsDropDownOpen);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in HoverContrastChecks: " + exception));
         }
     }
 
@@ -187,6 +192,7 @@ internal static class HoverContrastChecks
         MenuFlyout menu = tools.Flyout as MenuFlyout ?? throw new InvalidOperationException("Tools has no navigation menu.");
         double width = window.Width;
         window.Width = window.MinWidth; // hides destinations so the Tools menu carries them
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => tools.IsEffectivelyVisible && tools.Bounds.Width > 0);
@@ -200,13 +206,17 @@ internal static class HoverContrastChecks
             });
             await ProbeMenuAsync(window, mouse, items, $"smoke-hover-{tag}-tools-menu.png", tag, "tools menu", failures);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Leave(window, mouse);
-            menu.Hide();
-            await Program.WaitUntilAsync(() => !menu.IsOpen);
-            window.Width = width;
-            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Leave(window, mouse);
+                menu.Hide();
+                await Program.WaitUntilAsync(() => !menu.IsOpen);
+                window.Width = width;
+                await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in HoverContrastChecks: " + exception));
         }
     }
 
@@ -228,12 +238,17 @@ internal static class HoverContrastChecks
                 items = menu.Items.OfType<MenuItem>().Where(item => item.IsEffectivelyVisible && item.Bounds.Height > 0).ToArray();
                 return menu.IsOpen && items.Length >= 2;
             });
+            Exception? failureBeforeCleanup = null;
             try { await ProbeMenuAsync(window, mouse, items, $"smoke-hover-{tag}-context-menu.png", tag, "context menu", failures); }
+            catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
             finally
             {
-                Leave(window, mouse);
-                menu.Close();
-                await Program.WaitUntilAsync(() => !menu.IsOpen);
+                await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+                {
+                    Leave(window, mouse);
+                    menu.Close();
+                    await Program.WaitUntilAsync(() => !menu.IsOpen);
+                }, exception => Console.Error.WriteLine("SMOKE cleanup failed in HoverContrastChecks: " + exception));
             }
         }
         finally { if (overflow) actions.More!.IsChecked = false; }

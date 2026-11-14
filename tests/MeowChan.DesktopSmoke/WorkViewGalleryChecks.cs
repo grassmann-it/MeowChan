@@ -113,6 +113,7 @@ internal static class WorkViewGalleryChecks
         Border panel = (Border)Tool(viewer, "gallery.post-panel");
         bool wasOpen = toggle.IsChecked == true;
         if (!wasOpen) toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => panel.IsVisible && panel.Bounds.Height > 0);
@@ -136,10 +137,14 @@ internal static class WorkViewGalleryChecks
             if (panel.Bounds.Width < MeowChan.Config.GalleryPanelWidthMinimum - 24.5 || panel.Bounds.Width > MeowChan.Config.GalleryPanelWidthMaximum + 0.5)
                 throw new InvalidOperationException($"{scene}: the panel width {panel.Bounds.Width:0.#} is outside its limits.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (!wasOpen && toggle.IsChecked == true) toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => wasOpen || !panel.IsVisible);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                if (!wasOpen && toggle.IsChecked == true) toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => wasOpen || !panel.IsVisible);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in WorkViewGalleryChecks: " + exception));
         }
     }
 
