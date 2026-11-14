@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import tempfile
 from types import SimpleNamespace
 import unittest
@@ -74,6 +75,28 @@ class Legacy102HostWorkerRunnerTests(unittest.TestCase):
             with self.subTest(field=field):
                 with self.assertRaisesRegex(RUNNER.ProbeError, message):
                     RUNNER.validate_hostworker_probe({**value, field: replacement}, plugin_hash)
+
+    def test_fresh_probe_copy_excludes_case_insensitive_generated_dirs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source = base / "source"
+            source.mkdir()
+            (source / "README.txt").write_text("probe source", encoding="utf-8")
+            for generated in ("BIN", "obj"):
+                (source / generated / "Release").mkdir(parents=True)
+                (source / generated / "Release" / "stale.dll").write_bytes(b"old output")
+
+            inventory = RUNNER.inventory_tree(source, "probe input")
+            self.assertEqual(
+                {"BIN/Release/stale.dll", "obj/Release/stale.dll"},
+                {item["path"] for item in inventory["files"] if item["path"].endswith("stale.dll")},
+            )
+
+            copied = base / "copy"
+            RUNNER._copy_tree(source=source, destination=copied, label="probe", skip_build_dirs=True)
+            self.assertTrue((copied / "README.txt").is_file())
+            self.assertFalse((copied / "BIN").exists())
+            self.assertFalse((copied / "obj").exists())
 
     def test_input_and_runtime_copy_collisions_are_refused(self):
         with tempfile.TemporaryDirectory() as temporary:

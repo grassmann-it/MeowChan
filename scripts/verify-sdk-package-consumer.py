@@ -170,7 +170,7 @@ def _walk_files(root: Path, label: str, *, skip_generated: bool = False) -> Iter
         directory = pending.pop()
         with os.scandir(directory) as entries:
             for entry in sorted(entries, key=lambda item: item.name):
-                if skip_generated and entry.name in GENERATED_CONSUMER_DIRS:
+                if skip_generated and entry.name.casefold() in GENERATED_CONSUMER_DIRS:
                     continue
                 path = Path(entry.path)
                 if _path_has_forbidden_component(path):
@@ -367,7 +367,7 @@ def inspect_consumer_project(project: Path) -> dict[str, Any]:
     return {"project": str(project), "packageReferences": package_references, "packageOnly": True}
 
 
-def copy_tree(source: Path, destination: Path, label: str) -> None:
+def copy_tree(source: Path, destination: Path, label: str, *, skip_generated: bool = False) -> None:
     source = _normalise_absolute(source, label)
     _assert_directory(source, label)
     if destination.exists() or os.path.lexists(destination):
@@ -379,6 +379,8 @@ def copy_tree(source: Path, destination: Path, label: str) -> None:
         current_source, current_destination = pending.pop()
         with os.scandir(current_source) as entries:
             for entry in sorted(entries, key=lambda item: item.name):
+                if skip_generated and entry.name.casefold() in GENERATED_CONSUMER_DIRS:
+                    continue
                 source_path = Path(entry.path)
                 destination_path = current_destination / entry.name
                 info = entry.stat(follow_symlinks=False)
@@ -783,7 +785,7 @@ def run_gate(
             with report_stage(report, "isolation"):
                 workspace.mkdir()
                 copied_sample = workspace / SAMPLE_ROOT.name
-                copy_tree(SAMPLE_ROOT, copied_sample, "SDK consumer sample")
+                copy_tree(SAMPLE_ROOT, copied_sample, "SDK consumer sample", skip_generated=True)
                 isolated_project = copied_sample / SAMPLE_PROJECT.name
                 inspect_consumer_project(isolated_project)
                 # Keep SDK selection independent from the source checkout's

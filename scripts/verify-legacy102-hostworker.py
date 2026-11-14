@@ -51,6 +51,7 @@ SCOPE = "offline legacy 1.0.2 Host/Worker boundary; not SDK/Core/AP04/reauthoriz
 _FORBIDDEN_PATH_PARTS = {".ochan", "authstore"}
 _FORBIDDEN_DB_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
 _REQUIRED_CANDIDATE = (HOST_ASSEMBLY, SDK_ASSEMBLY, CORE_ASSEMBLY)
+_GENERATED_BUILD_DIRS = {"bin", "obj"}
 
 
 class ProbeError(RuntimeError):
@@ -270,7 +271,7 @@ def _copy_tree(source: Path, destination: Path, label: str, *, skip_build_dirs: 
         current_source, current_destination = pending.pop()
         with os.scandir(current_source) as entries:
             for entry in sorted(entries, key=lambda item: item.name):
-                if skip_build_dirs and entry.name in {"bin", "obj"}:
+                if skip_build_dirs and entry.name.casefold() in _GENERATED_BUILD_DIRS:
                     continue
                 source_path = Path(entry.path)
                 destination_path = current_destination / entry.name
