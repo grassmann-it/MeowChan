@@ -185,7 +185,15 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             bounded.CancelAfter(options.DecodeTimeout);
             // Another session for the same bytes may have stored it while this one queued.
             png = await _cache.ReadAsync(key, bounded.Token).ConfigureAwait(false);
-            if (png != null) return Publish(work, png);
+            if (png != null)
+            {
+                // The first verified handle was closed before waiting for the native gate. The original may
+                // have changed while queued, even if another session has since populated this cache entry.
+                opening = true;
+                await (await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+                opening = false;
+                return Publish(work, png);
+            }
             opening = true;
             video = await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false);
             opening = false;

@@ -332,13 +332,15 @@ public sealed class VideoScrubPreviewTests
         }
     }
 
-    [Fact]
-    public async Task DisposalIsBoundedForAnUncooperativeDecoderAndKeepsItsGateUntilItReturns()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DisposalIsBoundedForAnUncooperativeDecoderAndKeepsItsGateUntilItSettles(bool lateFault)
     {
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        FakeDecoder decoder = new() { Hold = release, IgnoreCancellation = true };
+        FakeDecoder decoder = new() { Hold = release, IgnoreCancellation = true, Fail = lateFault };
         using SemaphoreSlim gate = new(1, 1);
         VideoScrubPreviewCache cache = Cache(temp.Path, decoder, gate);
         VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
