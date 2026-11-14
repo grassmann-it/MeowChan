@@ -328,6 +328,15 @@ public sealed class GalleryFavoriteStateTests
         Assert.True(badge.ZIndex > 0);
     }
 
+    // GL5a: the star beside the way back dims with it (30 %) while the overlay controls are away, and comes back with it.
+    [Fact]
+    public void TheStarDimsAndReturnsWithTheWayBack([CallerFilePath] string source = "")
+    {
+        string viewer = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", "Desktop/GalleryViewer.cs")));
+        Assert.Contains("_close.Opacity = dimmed ? 0.3 : 1;", viewer);
+        Assert.Contains("_favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;", viewer);
+    }
+
     [Fact]
     public void RealIndicatorInitializerKeepsDistinctNamedControlsInEachRoot()
     {

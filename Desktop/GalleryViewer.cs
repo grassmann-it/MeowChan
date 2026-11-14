@@ -689,6 +689,8 @@ internal sealed partial class GalleryViewer : UserControl
         if (_close == null) return;
         bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin;
         _close.Opacity = dimmed ? 0.3 : 1;
+        // GL5a (UX spec S1): the star beside the way back dims with it (30 %) and comes back with it under the pointer or the focus.
+        _favoriteIndicator.Opacity = _nativeFavoriteIndicator.Opacity = dimmed ? 0.3 : 1;
     }
 
     private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
