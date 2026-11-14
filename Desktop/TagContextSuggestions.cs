@@ -321,12 +321,25 @@ internal static class TagContextSuggestions
         TopK<RankedTagSuggestion> provided = new(Math.Max(0, sourceLimit), CompareTyped);
         if (sources != null && sourceLimit > 0)
         {
-            foreach (TagSuggestion item in sources.Match(text, null, int.MaxValue, own.Keys))
+            // A source tag without context scores 0, so matches without context keep the index's order (kind, then uses,
+            // then name: the tie-break of CompareTyped). The best sourceLimit of them plus one slot per context candidate
+            // are enough; the context candidates themselves are looked up by name below. So a keystroke never scans and
+            // copies the whole catalog (the early stop of Match), and the result is the same as an unbounded match.
+            int matchLimit = sourceLimit > int.MaxValue - found.Count ? int.MaxValue : sourceLimit + found.Count;
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (TagSuggestion item in sources.Match(text, null, matchLimit, own.Keys))
             {
                 cancellation.ThrowIfCancellationRequested();
+                seen.Add(item.Name.Key);
                 if (!found.TryGetValue(item.Name.Key, out Candidate? candidate))
                     candidate = new Candidate(item.Name, null, TagSuggestionOrigin.Source, item.Uses);
                 provided.Offer(candidate.ToRanked(item.Kind));
+            }
+            foreach (Candidate candidate in found.Values)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (seen.Contains(candidate.Name.Key) || own.Keys.Contains(candidate.Name.Key)) continue;
+                if (sources.MatchKey(text, candidate.Name.Key) is { } item) provided.Offer(candidate.ToRanked(item.Kind));
             }
         }
         return new TypedTagSuggestions(mine.ToList(), provided.ToList());

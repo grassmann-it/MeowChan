@@ -410,6 +410,53 @@ public sealed class TagContextSuggestionTests
         Assert.Empty(typed.Own);
     }
 
+    // R05 (review 14.11. night): typed source matches stop early instead of copying the whole catalog per keystroke, and the
+    // result is exactly the one of an unbounded match (context candidates included, wherever they rank in the catalog).
+    [Fact]
+    public void TypedSourceTagsStopEarlyInALargeCatalogAndMatchTheUnboundedRanking()
+    {
+        PrivateTagDefinition own = Tag("a_own");
+        PrivateTagStoreSnapshot snapshot = Snap(new[] { own });
+        TagSuggestionIndex sources = TagSuggestionIndex.FromSourceTags(Enumerable.Range(0, 50_000)
+            .Select(i => ("a" + i.ToString("00000"), i % 97 + 1)).Append(("x_a_word", 3)).Append(("a_own", 500)));
+        TagContext context = new() { SourceTags = new[] { "a49999", "a12345", "x_a_word", "a_own" }, FileName = "a00007.png" };
+
+        TypedTagSuggestions bounded = default!, unbounded = default!;
+        for (int round = 0; round < 2; round++) // the second round measures with every cache warm
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            bounded = TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources);
+            long boundedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            before = GC.GetAllocatedBytesForCurrentThread();
+            unbounded = TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources, sourceLimit: 100_000);
+            long unboundedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            if (round == 1) Assert.True(boundedBytes * 8 < unboundedBytes, $"bounded {boundedBytes} B, unbounded {unboundedBytes} B");
+        }
+
+        Assert.Equal(TagSuggestionIndex.SourceLimit, bounded.Source.Count);
+        Assert.Equal(unbounded.Source.Take(TagSuggestionIndex.SourceLimit).Select(item => (item.Name.Display, item.Score, item.Uses, item.TypedMatch)),
+            bounded.Source.Select(item => (item.Name.Display, item.Score, item.Uses, item.TypedMatch)));
+        // The context tags lead the prefix group although the catalog ranks them far behind; an own tag is never a source row.
+        Assert.Contains("a49999", Names(bounded.Source));
+        Assert.Contains("a12345", Names(bounded.Source));
+        Assert.DoesNotContain(bounded.Source, item => item.Name.Display == "a_own");
+        Assert.Equal(new[] { "a_own" }, Names(bounded.Own));
+        // With a limit of one the strongest context tag still wins over the most used catalog names.
+        Assert.Equal(Names(unbounded.Source.Take(1)), Names(TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources, sourceLimit: 1).Source));
+    }
+
+    [Fact]
+    public void MatchKeyListsANameExactlyAsMatchDoes()
+    {
+        TagSuggestionIndex sources = TagSuggestionIndex.FromSourceTags(new[] { ("blue_eyes", 5), ("light_blue", 2), ("blue", 1), ("sky", 4) });
+        foreach (string text in new[] { "blue", "BLUE", "eyes", "ue", "lu" })
+            foreach (TagSuggestion item in sources.Match(text))
+                Assert.Equal(item, sources.MatchKey(text, item.Name.Key));
+        Assert.Null(sources.MatchKey("blue", "SKY"));
+        Assert.Null(sources.MatchKey("blue", "MISSING"));
+        Assert.Null(sources.MatchKey("  ", "BLUE"));
+    }
+
     // ------------------------------------------------------------------ order, limits, empty data
 
     [Fact]
