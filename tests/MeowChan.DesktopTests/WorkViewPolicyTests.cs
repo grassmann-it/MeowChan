@@ -111,7 +111,7 @@ public sealed class WorkViewPolicyTests
         Assert.Equal(["view-barebones", "view-simple", "view-advanced"], WorkViewSetting.All.Select(view => view.StyleClass()));
     }
 
-    // ---- WV0 ports today's special cases without changing them: the old rules, verbatim, against the policy ----
+    // ---- WV0 ported today's special cases; WV1 changed exactly two of them (marked below) and keeps the rest verbatim ----
 
     private static readonly string[] Modes = ["Barebones", "Simple", "Advanced"];
 
@@ -134,10 +134,12 @@ public sealed class WorkViewPolicyTests
                     _ => true
                 };
                 string id = WorkViewPolicy.DownloadColumnId("ThreadsDataGrid", column);
-                Assert.Equal(!(work && !advanced), WorkViewPolicy.ColumnOffered(id, view));
+                // WV1: the technical work columns are offered from Simple on (formerly only in Advanced); still off by default.
+                bool offered = !(work && barebones);
+                Assert.Equal(offered, WorkViewPolicy.ColumnOffered(id, view));
                 foreach (bool? saved in new bool?[] { null, true, false })
                 {
-                    bool former = work ? advanced && saved == true : saved ?? formerDefault;
+                    bool former = work ? offered && saved == true : saved ?? formerDefault;
                     Assert.Equal(former, WorkViewPolicy.ColumnVisible(id, view, saved));
                 }
             }
@@ -170,8 +172,10 @@ public sealed class WorkViewPolicyTests
         {
             bool barebones = view == WorkView.Barebones, advanced = view == WorkView.Advanced;
             Ursa.Controls.OverflowMode former = barebones ? Ursa.Controls.OverflowMode.Always : Ursa.Controls.OverflowMode.AsNeeded;
-            Assert.Equal(former, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("downloads.toolbar.columns", view)));
-            Assert.Equal(former, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("downloads.toolbar.copy-urls", view)));
+            // WV1: Columns… and Copy URLs also move under More in Simple (plan §1.3); the archive bar is unchanged here.
+            Ursa.Controls.OverflowMode downloadsTools = advanced ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always;
+            Assert.Equal(downloadsTools, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("downloads.toolbar.columns", view)));
+            Assert.Equal(downloadsTools, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("downloads.toolbar.copy-urls", view)));
             Assert.Equal(former, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.other", view)));
             Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.gallery", view)));
             Assert.Equal(Ursa.Controls.OverflowMode.Never, WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("archive.results.layout-list", view)));

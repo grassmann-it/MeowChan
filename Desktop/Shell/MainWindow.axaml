@@ -163,11 +163,11 @@
                                 MinWidth="100" MinHeight="{StaticResource Workspace.Size.InputProminent}" VerticalAlignment="Stretch" Click="OnAddUrl" />
                     </Grid>
                     <TextBlock x:Name="UrlInputHint" wv:WorkViewElement.Id="downloads.intake.url-hint" Tag="downloads.inputHint" Classes="localized workspace-help" TextWrapping="Wrap" />
-                    <controls:WorkspaceBanner x:Name="AdmissionRepairPanel" IsVisible="False" Type="Error">
+                    <controls:WorkspaceBanner x:Name="AdmissionRepairPanel" wv:WorkViewElement.Id="downloads.results.repair" IsVisible="False" Type="Error">
                         <ScrollViewer x:Name="AdmissionRepairScroll" MaxHeight="84" HorizontalScrollBarVisibility="Disabled"><SelectableTextBlock x:Name="AdmissionRepairText" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" /></ScrollViewer>
                     </controls:WorkspaceBanner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
-                        <Expander x:Name="AdmissionResultsExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
+                        <Expander x:Name="AdmissionResultsExpander" wv:WorkViewElement.Id="downloads.results.panel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />
@@ -344,10 +344,10 @@
                                 </Grid>
                         <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
                                     HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">
-                            <Button x:Name="DownloadSearchButton" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="DownloadSearchButton" wv:WorkViewElement.Id="downloads.toolbar.search" Classes="localized subtle" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DownloadsColumnsButton" wv:WorkViewElement.Id="downloads.toolbar.columns" Classes="subtle" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="DetailsToggleButton" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
+                            <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
                         <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
                             <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
@@ -378,25 +378,25 @@
                                         <TextBlock Tag="detail.status" Classes="localized workspace-meta" />
                                         <SelectableTextBlock x:Name="InspectorStatus" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel x:Name="InspectorErrorSection" Spacing="8">
+                                    <StackPanel x:Name="InspectorErrorSection" wv:WorkViewElement.Id="downloads.inspector.error" Spacing="8">
                                         <TextBlock Tag="detail.error" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}" />
                                         <SelectableTextBlock x:Name="InspectorError" Classes="workspace-error" TextWrapping="Wrap" />
                                     </StackPanel>
                                     <SelectableTextBlock x:Name="InspectorContext" Classes="workspace-warning" TextWrapping="Wrap" IsVisible="False" />
-                                    <TextBlock x:Name="InspectorNextStep" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+                                    <TextBlock x:Name="InspectorNextStep" wv:WorkViewElement.Id="downloads.inspector.next-step" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
                                     <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
-                                        <Button x:Name="InspectorCheckButton" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
-                                        <Button x:Name="InspectorMediaRetryButton" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />
+                                        <Button x:Name="InspectorCheckButton" wv:WorkViewElement.Id="downloads.inspector.check" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
+                                        <Button x:Name="InspectorMediaRetryButton" wv:WorkViewElement.Id="downloads.inspector.retry-media" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />
                                     </WrapPanel>
                                     <StackPanel Spacing="8">
-                                        <WrapPanel x:Name="InspectorLocalActions" Classes="workspace-toolbar" Orientation="Horizontal" IsVisible="False">
+                                        <WrapPanel x:Name="InspectorLocalActions" wv:WorkViewElement.Id="downloads.inspector.local-actions" Classes="workspace-toolbar" Orientation="Horizontal" IsVisible="False">
                                             <Button x:Name="InspectorReadPosts" Classes="ghost" Click="OnInspectorReadPosts" />
                                             <Button x:Name="InspectorGallery" Classes="ghost" Click="OnInspectorGallery" />
                                             <Button x:Name="InspectorHtmlExport" Classes="ghost" Click="OnInspectorHtmlExport" />
                                         </WrapPanel>
                                         <WrapPanel Classes="workspace-toolbar" Orientation="Horizontal">
-                                            <Button x:Name="InspectorOpenFolderButton" Tag="action.openFolder" Classes="localized ghost" Content="Open folder" Click="OnInspectorOpenFolderClick" />
-                                            <Button x:Name="InspectorOpenBrowserButton" Tag="action.openBrowser" Classes="localized ghost" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
+                                            <Button x:Name="InspectorOpenFolderButton" wv:WorkViewElement.Id="downloads.inspector.folder" Tag="action.openFolder" Classes="localized ghost" Content="Open folder" Click="OnInspectorOpenFolderClick" />
+                                            <Button x:Name="InspectorOpenBrowserButton" wv:WorkViewElement.Id="downloads.inspector.browser" Tag="action.openBrowser" Classes="localized ghost" Content="Open in browser" Click="OnInspectorOpenBrowserClick" />
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel x:Name="InspectorMediaSection" Classes="workspace-section-header">
@@ -406,7 +406,7 @@
                                         <ProgressBar x:Name="InspectorProgressBar" Minimum="0" Maximum="100" Height="4" MinHeight="0" MaxHeight="4" />
                                         <TextBlock x:Name="InspectorQueue" Classes="muted" />
                                     </StackPanel>
-                                    <Expander x:Name="InspectorSourceDetails">
+                                    <Expander x:Name="InspectorSourceDetails" wv:WorkViewElement.Id="downloads.inspector.source-details">
                                         <Expander.Header><TextBlock Tag="detail.source" Classes="localized" /></Expander.Header>
                                         <StackPanel Spacing="12">
                                             <StackPanel Spacing="4">
@@ -423,7 +423,7 @@
 
                                     <Border BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                         <StackPanel Spacing="8">
-                                            <Button x:Name="InspectorRemoveButton" Tag="action.remove" Classes="localized subtle danger" Content="Remove" Click="OnInspectorRemoveClick" />
+                                            <Button x:Name="InspectorRemoveButton" wv:WorkViewElement.Id="downloads.inspector.remove" Tag="action.remove" Classes="localized subtle danger" Content="Remove" Click="OnInspectorRemoveClick" />
                                             <TextBlock x:Name="InspectorRemoveHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Border>

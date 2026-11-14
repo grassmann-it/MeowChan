@@ -73,10 +73,10 @@ public partial class MainWindow
     private void UpdateDownloadsHeaderLayout()
     {
         if (!_workspaceInitialized) return;
-        // Only the items with a WorkViewElement.Id (Columns…, Copy URLs) follow the view; the others keep their XAML mode.
+        // Search, Columns…, Copy URLs and Details follow the view (WorkViewPolicy.Downloads); under "More" their shortcuts keep working.
         ActionToolBar toolbar = WorkspaceListActions;
         WorkViewPresenter.ApplyToolBar(toolbar, ConfiguredWorkView);
-        foreach (string name in new[] { "DownloadsColumnsButton", "CopyAllUrlsButton" })
+        foreach (string name in new[] { "DownloadSearchButton", "DownloadsColumnsButton", "CopyAllUrlsButton" })
             CommandBindings.Refresh(WorkspaceControl<Button>(name));
         AutomationProperties.SetName(toolbar, Texts.T("downloads.title"));
         toolbar.RefreshOverflowLabel();
