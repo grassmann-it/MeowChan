@@ -101,9 +101,10 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         Assert.All(letters, pair => Assert.Single(pair.Value));
         Assert.Equal(new Dictionary<string, string>
         {
-            ["A"] = "video.ab-loop", ["B"] = "favorites.add", ["D"] = "gallery.slideshow-toggle", ["F"] = "favorites.toggle", ["I"] = "media.details",
+            // Revision 14: X slower and C faster (next to [ and ], which need AltGr on DE/FR), plain letters like the other playback keys.
+            ["A"] = "video.ab-loop", ["B"] = "favorites.add", ["C"] = "video.speed-up", ["D"] = "gallery.slideshow-toggle", ["F"] = "favorites.toggle", ["I"] = "media.details",
             ["L"] = "video.loop", ["M"] = "video.mute", ["Q"] = "media.queue.add", ["R"] = "media.rating.edit", ["S"] = "video.snapshot",
-            ["T"] = "gallery.show-in-thread", ["U"] = "favorites.remove"
+            ["T"] = "gallery.show-in-thread", ["U"] = "favorites.remove", ["X"] = "video.speed-down"
         }.OrderBy(pair => pair.Key), letters.ToDictionary(pair => pair.Key, pair => pair.Value[0]).OrderBy(pair => pair.Key));
         // The playback letters of the scheme are among them.
         foreach (string id in GalleryShortcutScheme.PlaybackLetterIds)
@@ -176,6 +177,28 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
         foreach (string id in GalleryShortcutScheme.PanelToggleIds.Where(id => CommandCatalog.TryGet(id, out _)))
             foreach (ShortcutGesture gesture in EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id), platform))
                 Assert.True(GalleryShortcutScheme.IsShiftLetter(gesture), id);
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void TheSpeedKeysXAndCArePlainLettersBesideTheBracketsAndNothingElseUsesThem(ShortcutPlatform platform)
+    {
+        EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, platform);
+        Assert.Empty(bindings.Issues);
+        Assert.Equal(new[] { "OemOpenBrackets", "X" }, bindings.For("video.speed-down").Select(gesture => gesture.Key).ToArray());
+        Assert.Equal(new[] { "OemCloseBrackets", "C" }, bindings.For("video.speed-up").Select(gesture => gesture.Key).ToArray());
+        Assert.All(new[] { "video.speed-down", "video.speed-up" }, id =>
+            Assert.Contains(bindings.For(id), gesture => GalleryShortcutScheme.IsPlainLetter(gesture)));
+        // Neither letter is taken in any context of the application, with or without Shift (Ctrl+C copies, which is another gesture).
+        foreach (string letter in new[] { "X", "C" })
+            foreach (string[] modifiers in new[] { Array.Empty<string>(), new[] { "Shift" } })
+            {
+                string[] owners = CommandCatalog.All.Where(command => bindings.For(command.Id)
+                    .Any(g => g.Key == letter && g.Modifiers.OrderBy(m => m).SequenceEqual(modifiers))).Select(command => command.Id).ToArray();
+                Assert.Equal(modifiers.Length == 0 ? new[] { letter == "X" ? "video.speed-down" : "video.speed-up" } : Array.Empty<string>(), owners);
+            }
+        // The tagging mode (own context "gallery-tagging") routes Enter, Space, Backspace, Shift+Space, Shift+K and 1 to 5 first: none of its keys is X or C.
+        Assert.DoesNotContain(CommandCatalog.All.Where(command => command.ExecutionContexts.Contains("gallery-tagging")),
+            command => bindings.For(command.Id).Any(g => g.Key is "X" or "C"));
     }
 
     [Fact]

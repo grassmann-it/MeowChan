@@ -18,7 +18,7 @@ public sealed class DefaultShortcutInvariantTests
         // The media page's focus mode: Shift+F (the F alone is the favourite); a typed capital in a text field is left to the field.
         "media.focus-mode",
         // Gallery video (key scheme of revision 13): M mute, S frame snapshot, [ ] speed, A the A–B loop, Shift+. the next frame, "," and "."
-        // seek by the step setting, L repeats the video, D the slideshow.
+        // seek by the step setting, L repeats the video, D the slideshow. Revision 14: X slower and C faster next to [ and ] (AltGr on DE/FR).
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
         "video.step-back", "video.step-forward", "video.loop",
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).

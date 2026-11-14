@@ -140,6 +140,29 @@ public sealed class MediaShortcutRoutingTests
         Assert.False(e.Handled); // Eligibility/matching alone never executes an action.
     }
 
+    [Theory]
+    [InlineData(Key.X, "video.speed-down", "[")]
+    [InlineData(Key.C, "video.speed-up", "]")]
+    [InlineData(Key.OemOpenBrackets, "video.speed-down", "x")]
+    [InlineData(Key.OemCloseBrackets, "video.speed-up", "c")]
+    public void TheSpeedKeysXAndCAreTypedTextInATextBoxAndSpeedKeysOutsideOne(Key key, string id, string unused)
+    {
+        _ = unused;
+        // Typing an x or a c in any text field (the tag field, a search box, the note) never changes the video speed ...
+        var box = new TextBox { Text = "synthetic" };
+        var typed = Press(box, key);
+        Assert.True(EffectiveShortcutBindings.Build().Matches(typed, id)); // the gesture is the default ...
+        Assert.False(CommandBindings.Matches(typed, id));                  // ... and still stays with the field
+        Assert.False(GalleryViewer.IsGalleryShortcutInput(typed));
+        Assert.False(typed.Handled);
+        // ... while the same key on the gallery surface is the command, and Shift or Ctrl make it another gesture.
+        var surface = Press(new Border(), key);
+        Assert.True(CommandBindings.Matches(surface, id));
+        Assert.True(GalleryViewer.IsGalleryShortcutInput(surface));
+        Assert.False(EffectiveShortcutBindings.Build().Matches(Press(new Border(), key, KeyModifiers.Shift), id));
+        Assert.False(EffectiveShortcutBindings.Build().Matches(Press(new Border(), key, KeyModifiers.Control), id));
+    }
+
     [Fact]
     public void SliderUnusedSpaceMayReachDefaultPlaybackWhileButtonSpaceStaysNative()
     {

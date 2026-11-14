@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 13;
+    public const int DefaultsRevision = 14;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -147,7 +147,7 @@ public sealed class EffectiveShortcutBindings
         ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
         // New in revision 5: viewer quick wins (seek, mute, speed, frame snapshot).
         ["video.mute"] = 5, ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
-        ["video.seek-forward-far"] = 5, ["video.speed-down"] = 5, ["video.speed-up"] = 5, ["video.speed-reset"] = 5,
+        ["video.seek-forward-far"] = 5, ["video.speed-reset"] = 5,
         ["video.snapshot"] = 5,
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
         // commands are inactive (CommandDefinition.IsAwaitingHandler), their defaults already yield like any new default.
@@ -211,6 +211,10 @@ public sealed class EffectiveShortcutBindings
         // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched.
         ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
         ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
+        // Revision 14 (Tom's decision of 15.11.2026): video speed gets the extra keys X (slower) and C (faster), because [ and ] sit behind AltGr on
+        // German and French layouts and Ctrl+Alt is not a valid gesture. [ ] and Backspace (normal speed) stay. Both commands are listed since revision 5;
+        // the entry now says that a saved binding of another command on X or C also wins over the new key (the key alone yields, [ or ] stay).
+        ["video.speed-down"] = 14, ["video.speed-up"] = 14,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -262,7 +266,10 @@ public sealed class EffectiveShortcutBindings
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
             case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
-            // Speed stays on [ and ] alone: Shift+, is free (no previous frame) and Shift+. is the next frame.
+            // Speed: [ and ] (the catalog's key) plus X and C (revision 14), which need no AltGr on German and French layouts. Shift+, is free
+            // (no previous frame) and Shift+. is the next frame, so no "<" / ">" alias.
+            case "video.speed-down": list.Add(ShortcutGesture.Parse("X")); break;
+            case "video.speed-up": list.Add(ShortcutGesture.Parse("C")); break;
             default: list.AddRange(GalleryShortcutScheme.LayoutDefault(command.Id)); break;
         }
         return list.AsReadOnly();

@@ -347,6 +347,7 @@ public static class CommandCatalog
         // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.
         new("video.step-back", "command.video.step-back", "Back by the seek step", "Um die Sprungweite zurück", "rotate-ccw", "OemComma", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.step-forward", "command.video.step-forward", "Forward by the seek step", "Um die Sprungweite vor", "rotate-cw", "OemPeriod", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        // Speed: the catalog key [ / ] plus the extra defaults X (slower) and C (faster) of EffectiveShortcutBindings.Defaults (revision 14; [ ] need AltGr on DE/FR layouts).
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Back", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),

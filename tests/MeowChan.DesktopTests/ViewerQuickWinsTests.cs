@@ -313,7 +313,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
     }
 
     [Fact]
-    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedKeepsOnlyTheBrackets()
+    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedHasTheBracketsAndXAndC()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         // Revision 13: M mutes ("Add favorite" moved to B), D is the slideshow (S saves the frame).
@@ -321,9 +321,11 @@ public sealed class ViewerQuickWinsTests : IDisposable
         Assert.Contains(bindings.For("favorites.remove"), gesture => gesture.Key == "U" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("favorites.toggle"), gesture => gesture.Key == "F" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "D" && gesture.Modifiers.Count == 0);
-        // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting.
-        Assert.Single(bindings.For("video.speed-down"));
-        Assert.Single(bindings.For("video.speed-up"));
+        // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting. Revision 14 adds X and C
+        // next to [ and ] (the brackets need AltGr on German and French layouts).
+        Assert.Equal(new[] { "OemOpenBrackets", "X" }, bindings.For("video.speed-down").Select(gesture => gesture.Key).ToArray());
+        Assert.Equal(new[] { "OemCloseBrackets", "C" }, bindings.For("video.speed-up").Select(gesture => gesture.Key).ToArray());
+        Assert.All(bindings.For("video.speed-down").Concat(bindings.For("video.speed-up")), gesture => Assert.Empty(gesture.Modifiers));
         // Left/Right without a modifier stay previous/next medium.
         Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.Count == 0);
     }

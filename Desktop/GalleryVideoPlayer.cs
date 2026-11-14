@@ -40,7 +40,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16), Padding = new Thickness(4) }; // GL5b: 32 like every other control of the bar (was 40)
     private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
     private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
-    // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×, a right-click offers
+    // Playback speed: one click steps through Rates, the speed keys (video.speed-down / video.speed-up, [ ] and X C by default) step down/up, Backspace returns to 1×, a right-click offers
     // 0.25×–4× (VideoRates.Choices). Every medium starts at 1×.
     private readonly Button _speed = new() { Name = "GalleryVideoSpeed", Classes = { "media-control" }, MinWidth = 44, Height = 32,
         Padding = new Thickness(8, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
