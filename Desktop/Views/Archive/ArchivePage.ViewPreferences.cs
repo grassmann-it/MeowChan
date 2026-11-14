@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -19,7 +20,7 @@ public partial class ArchivePage
     private Dictionary<string, double> _archiveColumnWidths = new(StringComparer.Ordinal);
     private Dictionary<string, bool> _archiveColumnVisibility = new(StringComparer.Ordinal);
     private Dictionary<string, int> _archiveColumnOrder = new(StringComparer.Ordinal);
-    private string _archiveColumnMode = "Simple";
+    private string _archiveColumnMode = WorkViewSetting.SimpleName;
     internal Func<IReadOnlyDictionary<string, double>, Task>? SaveArchiveColumnWidthsAsync { get; set; }
     internal Func<IReadOnlyDictionary<string, bool>, Task>? SaveArchiveColumnVisibilityAsync { get; set; }
     internal Func<IReadOnlyDictionary<string, int>, Task>? SaveArchiveColumnOrderAsync { get; set; }
@@ -38,8 +39,11 @@ public partial class ArchivePage
     internal string ArchiveColumnModePreference
     {
         get => _archiveColumnMode;
-        set { _archiveColumnMode = value is "Barebones" or "Advanced" ? value : "Simple"; ApplyArchiveColumns(); UpdateLayoutMode(); }
+        set { _archiveColumnMode = WorkViewSetting.Parse(value, WorkView.Simple, exact: true).ToSetting(); ApplyArchiveColumns(); UpdateLayoutMode(); }
     }
+
+    /// <summary>The page's work view; an unknown setting is Simple, as it always was here.</summary>
+    private WorkView ArchiveWorkView => WorkViewSetting.Parse(_archiveColumnMode, WorkView.Simple, exact: true);
 
     internal IReadOnlyDictionary<string, bool> ArchiveColumnVisibilityPreference
     {
@@ -66,14 +70,9 @@ public partial class ArchivePage
     private static string[] ColumnKeys(DataGrid grid) => grid.Name == "ArchiveMediaGrid" ? MediaColumnKeys : ThreadColumnKeys;
     private static string ColumnPreferenceKey(DataGrid grid, string column) => grid.Name + "." + column;
     // Tags is appended as the last key: saved numeric widths and column orders of older versions stay valid.
-    internal static bool DefaultColumnVisible(string gridName, string mode, string key) => gridName == "ArchiveMediaGrid"
-        ? mode != "Barebones" || key is "name" or "size"
-        : mode switch
-        {
-            "Barebones" => key is "identity" or "title" or "posts" or "media",
-            "Simple" => key is not "work" and not "lastCapture" and not "tags",
-            _ => true
-        };
+    // The defaults per view are WorkViewPolicy.Archive; an unknown mode text shows every column, as it always did.
+    internal static bool DefaultColumnVisible(string gridName, string mode, string key) =>
+        WorkViewPolicy.DefaultColumnVisible(WorkViewPolicy.ArchiveColumnId(gridName, key), WorkViewSetting.Parse(mode, WorkView.Advanced, exact: true));
 
     private bool ColumnVisible(DataGrid grid, string key) => ResolveColumnVisible(grid.Name!, _archiveColumnMode, _archiveColumnVisibility, key);
 

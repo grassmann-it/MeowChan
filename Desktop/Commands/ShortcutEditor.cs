@@ -21,7 +21,7 @@ public sealed class ShortcutEditor : UserControl
     private readonly StackPanel _root = new() { Spacing = 12 };
     private readonly TextBlock _heading = new() { Name = "SettingsShortcutsHeading" };
     public Control SectionHeading => _heading;
-    private readonly TextBox _search = new();
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new();
     private readonly ListBox _actions = new() { Height = 210 };
     private readonly StackPanel _detail = new() { Spacing = 8 };
     private readonly Border _detailFrame = new() { IsVisible = false };

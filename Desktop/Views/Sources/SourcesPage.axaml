@@ -1,10 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:ursa="https://irihi.tech/ursa"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="12" Spacing="8">
+        <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
             <Grid x:Name="SourcesPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                 <StackPanel Spacing="5">
                     <TextBlock Tag="nav.sources" Classes="page-title localized" />
@@ -33,11 +33,11 @@
                         <TextBlock x:Name="SourceMediaIntegrityScope" Classes="workspace-help" TextWrapping="Wrap" />
                         <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="SourceMediaIntegrityRetryHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
-                        <ursa:Banner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="False">
+                        <controls:WorkspaceBanner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" IsVisible="False">
                             <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                                 <TextBlock x:Name="SourceMediaIntegrityError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                             </ScrollViewer>
-                        </ursa:Banner>
+                        </controls:WorkspaceBanner>
                     </StackPanel>
                     <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
                     <TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" />
@@ -79,9 +79,9 @@
                         <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
                         <TextBlock x:Name="SourcesOperationStatus" VerticalAlignment="Center" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
                     </StackPanel>
-                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" x:Name="SourcesActionErrorBanner" IsVisible="False">
+                    <controls:WorkspaceBanner Type="Error" x:Name="SourcesActionErrorBanner" IsVisible="False">
                         <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
-                    </ursa:Banner>
+                    </controls:WorkspaceBanner>
                 </StackPanel>
               </Border>
             </Grid>

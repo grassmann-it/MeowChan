@@ -7,7 +7,7 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-// MEDIA103-NAV P1: a gallery opened from the Medien page names its close action "To media". Presentation only:
+// MEDIA103-NAV P1: a gallery opened from the Medien page names its close action "Back to media". Presentation only:
 // no new command, no new shortcut. The real viewer, host and journey are covered by the media page smoke.
 [Collection("Localization")]
 public sealed class GalleryMediaCloseLabelTests : IDisposable
@@ -17,8 +17,8 @@ public sealed class GalleryMediaCloseLabelTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage(_previous); }
 
     [Theory]
-    [InlineData("en", "To media", "Close gallery")]
-    [InlineData("de", "Zu Medien", "Galerie schließen")]
+    [InlineData("en", "Back to media", "Close gallery")]
+    [InlineData("de", "Zurück zu Medien", "Galerie schließen")]
     [InlineData("es", null, null)]
     [InlineData("fr", null, null)]
     [InlineData("ru", null, null)]
@@ -46,7 +46,7 @@ public sealed class GalleryMediaCloseLabelTests : IDisposable
     public void TheLabelIsAPresentationEntryAndNoCommand()
     {
         Assert.Contains(CommandLabelCatalog.PresentationEntries, entry => entry.Key == "command.gallery.close.media"
-            && entry.English == "To media" && entry.German == "Zu Medien");
+            && entry.English == "Back to media" && entry.German == "Zurück zu Medien");
         Assert.DoesNotContain(CommandLabelCatalog.Entries, entry => entry.Key == "command.gallery.close.media");
         Assert.DoesNotContain(CommandCatalog.All, command => command.LabelKey == "command.gallery.close.media");
         // Escape and the binding stay those of gallery.close.
@@ -64,7 +64,7 @@ public sealed class GalleryMediaCloseLabelTests : IDisposable
         // The tooltip keeps whatever shortcut and scope gallery.close has; only the leading label changes.
         string standard = CommandBindings.Tooltip("gallery.close");
         Assert.StartsWith(CommandCatalog.Label("gallery.close"), standard, StringComparison.Ordinal);
-        Assert.Equal("To media" + standard[CommandCatalog.Label("gallery.close").Length..],
+        Assert.Equal("Back to media" + standard[CommandCatalog.Label("gallery.close").Length..],
             CommandBindings.Tooltip("gallery.close", visibleLabel: viewer.CloseLabel));
     }
 

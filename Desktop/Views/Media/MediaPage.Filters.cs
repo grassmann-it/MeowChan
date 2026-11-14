@@ -28,6 +28,8 @@ public sealed partial class MediaPage
     private int _searchImmediateEntries = 2000;
     internal int SearchImmediateEntries { get => _searchImmediateEntries; set { _searchImmediateEntries = value; UpdateSearchResult(); } }
     private readonly SearchBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
+    private readonly SearchScopeChip _searchScope = new() { Name = "MediaSearchScope", Scopes = new[] { SearchScope.FileName } };
+    private readonly SearchCarryOffer _searchCarryOffer = new() { Name = "MediaSearchCarryOffer" };
     private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter", MinWidth = 130 };
     private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter", MinWidth = 130 };
     private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter", MinWidth = 130 };
@@ -68,13 +70,14 @@ public sealed partial class MediaPage
     private Control BuildFilterRow()
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
+        foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
             _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _filterReset.IsEnabled = false;
         _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
         _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) FilterEdited(); };
+        _searchScope.CarryActions = SearchCarryActions;
         foreach (ComboBox combo in new[] { _minRating, _tagMode })
             combo.SelectionChanged += (_, _) => FilterEdited();
         // A sound choice implies videos: it sets the type to Videos, and choosing another type drops the sound choice.
@@ -352,6 +355,7 @@ public sealed partial class MediaPage
         }
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
+        _searchCarryOffer.Localize();
         UpdateSearchTip();
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
         _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
@@ -377,20 +381,49 @@ public sealed partial class MediaPage
         RenderFilterChips();
     }
 
-    /// <summary>Primary+F: opens the filter surface and puts the caret in the file name field.</summary>
+    /// <summary>Primary+F: puts the caret in the file name search field at the head of the tools (AP2: the same
+    /// place as the archive field; the filter surface stays as it is).</summary>
     internal void FocusSearch()
     {
         if (_lifetime.IsCancellationRequested) return;
-        _filters.IsExpanded = true;
         void Focus()
         {
             if (_lifetime.IsCancellationRequested || !_nameFilter.IsEffectivelyVisible) return;
             _nameFilter.Focus(NavigationMethod.Tab);
             _nameFilter.SelectAll();
         }
-        // The surface becomes visible with the expander change; its field can take focus once that is laid out.
         if (_nameFilter.IsEffectivelyVisible) Focus();
         else Dispatcher.UIThread.Post(Focus, DispatcherPriority.Loaded);
+    }
+
+    internal SearchScopeChip SearchScopeChip => _searchScope;
+    internal SearchBox NameFilter => _nameFilter;
+    internal SearchCarryOffer SearchCarryOffer => _searchCarryOffer;
+
+    /// <summary>Host: show Archive and hand it this query for its File name scope.</summary>
+    internal Action<string>? SearchInArchiveRequested { get; set; }
+
+    private IEnumerable<SearchCarryAction> SearchCarryActions()
+    {
+        if (SearchInArchiveRequested == null) yield break;
+        string draft = _nameFilter.Text ?? string.Empty;
+        string? reason = draft.Length == 0 ? Texts.T("search.carry.empty") : null;
+        yield return new SearchCarryAction("MediaSearchInArchive",
+            draft.Length == 0 ? Texts.T("search.carry.toArchivePlain") : Texts.T("search.carry.toArchive", draft), reason == null,
+            () => { if (!_lifetime.IsCancellationRequested) SearchInArchiveRequested?.Invoke(draft); }, reason);
+    }
+
+    /// <summary>A query carried from Archive or the reader: an empty name field takes it at once, a different one gets an offer.</summary>
+    internal bool ReceiveCarriedSearch(string query, string source)
+    {
+        if (_lifetime.IsCancellationRequested) return false;
+        return _searchCarryOffer.Carry(source, query, _nameFilter.Text ?? string.Empty, () =>
+        {
+            if (_lifetime.IsCancellationRequested) return;
+            _nameFilter.Text = query;
+            _nameFilter.FlushQuery();
+            FocusSearch();
+        });
     }
 
     // The shortcut in the tooltip follows the user's current binding.

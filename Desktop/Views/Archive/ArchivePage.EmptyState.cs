@@ -31,6 +31,21 @@ public partial class ArchivePage
         reset.IsVisible = constrained;
         // An archive that has nothing yet is filled from Downloads; a filter that matches nothing is reset instead.
         ArchiveGoDownloads.IsVisible = !constrained;
+        // AP2/A6: a text search that finds nothing here can be tried in Media in one step.
+        string text = _query.Text ?? string.Empty;
+        Button media = ArchiveEmptySearchInMedia;
+        media.IsVisible = constrained && text.Length > 0 && SearchInMediaRequested != null;
+        if (media.IsVisible)
+        {
+            media.Content = Texts.T("search.carry.toMedia", text);
+            Avalonia.Automation.AutomationProperties.SetName(media, Texts.T("search.carry.toMedia", text));
+        }
+    }
+
+    private void OnEmptySearchInMediaClick(object? sender, RoutedEventArgs e)
+    {
+        string text = _query.Text ?? string.Empty;
+        if (!_ended && text.Length > 0) SearchInMediaRequested?.Invoke(text);
     }
 
     /// <summary>The empty archive's next step: the Downloads command, labelled as a destination.</summary>
@@ -49,6 +64,6 @@ public partial class ArchivePage
         WriteSearchDraft(reset);
         _showReader = false; UpdateLayoutMode();
         await LoadListAsync(NewListLoad(ArchiveSearchRequest.Create(reset)));
-        ArchiveSearchText.Focus();
+        ArchiveScopedBox.Focus();
     }
 }

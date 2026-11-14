@@ -46,6 +46,8 @@
                     <SolidColorBrush x:Key="Workspace.Hover">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#121416</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#8ABBFF</SolidColorBrush>
+                    <!-- AccentHover as text colour (checked media toggle on hover): same value as AccentHover in Dark (4.8:1 or more on AccentSurface). -->
+                    <SolidColorBrush x:Key="Workspace.AccentHoverText">#8ABBFF</SolidColorBrush>
                     <!-- Status colours (palette review 2026-11-13): salmon #F49B9B and mint #83D4AC had the same lightness, so
                          under protanopia/deuteranopia they collapsed (dE 8-15). Error is a step darker and warmer (coral), Success
                          a step lighter; the smallest simulated distance between any two of Error, Warning, Success and Accent rises
@@ -56,9 +58,11 @@
                     <SolidColorBrush x:Key="Workspace.WarningSurface">#352C1D</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Success">#A7EFCB</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#20382D</SolidColorBrush>
-                    <!-- The fill is the accent blue again (same value as Workspace.Accent): 4.98:1 on the track, 4.98 to 7.55:1 on the surfaces. -->
+                    <!-- The fill is the accent blue again (same value as Workspace.Accent): 3.67:1 on the track, 4.98 to 7.55:1 on the surfaces.
+                         UX review 2026-11-13: the track was #30363E, the same value as Workspace.Hover, so the empty part vanished on a hovered
+                         row (1.00:1). #424A54 stays off every row fill: 1.86:1 on Panel, 1.65:1 on Raised, 1.36:1 on Hover, 1.40:1 on AccentSurface. -->
                     <SolidColorBrush x:Key="Workspace.Progress">#6AA7FF</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ProgressTrack">#424A54</SolidColorBrush>
                     <!-- Rows of the header and page graphs, each opaque with its own area colour, drawn as separate rows (own scale, own
                          value label), so no row is told apart by colour alone. Disk write (what MeowChan archives) is teal, disk read
                          violet; strokes are at least 3:1 on Panel, Background and Card (the tests measure it). -->
@@ -85,7 +89,7 @@
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#24282D</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#4A525C</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#30363E</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#25344A</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#6AA7FF</SolidColorBrush>
@@ -117,6 +121,76 @@
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#EEF1F4</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#6AA7FF</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (hover and pop-up contrast). Semi's overlay surfaces sat outside the palette (#43444A menus,
+                         drop-downs, suggestions, confirmations and toasts, a light-grey tooltip) with a 12 % white hover row (1.42:1) and an
+                         8 % edge (1.26:1), and its selection was Semi blue #54A9FF. Overlays are now Workspace.Overlay with a 1-px
+                         Workspace.ControlBorder edge (4.59:1 on Panel) and the one overlay shadow (D6). States, one each for every surface:
+                         hover = Workspace.Hover fill (the 1-px ControlBorder outline in the styles carries the 3:1 boundary, 3.34:1 on Hover),
+                         pressed = AccentSurface, selected = AccentSurface (+ accent bar), text = Workspace.Text (14.76:1 on Overlay, 10.75:1
+                         on Hover), shortcut and disabled text = Workspace.Muted (7.37:1 on Overlay; disabled stays exempt but readable). -->
+                    <SolidColorBrush x:Key="MenuFlyoutBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBackground">#1B1E22</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuFlyoutBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmContentForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBackground">#30363E</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedPointeroverBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedPointeroverBackground">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledInputGestureTextForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemHeaderDisabledForeground">#A4ADB8</SolidColorBrush>
+                    <!-- Line tabs (Threads/Boards): resting label Muted, hover/selected label Text; the 2-px pipe is ControlBorder on hover,
+                         the accent when pressed or selected (6.84:1 on Panel). -->
+                    <SolidColorBrush x:Key="TabItemLineHeaderForeground">#A4ADB8</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderSelectedForeground">#EEF1F4</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePointeroverBorderBrush">#7D8793</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipeSelectedBackground">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemIconSelectedForeground">#6AA7FF</SolidColorBrush>
+                    <!-- Selectors are Raised like buttons (outline ControlBorder); hover Hover, pressed AccentSurface with the accent edge. -->
+                    <SolidColorBrush x:Key="ComboBoxSelectorBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBackground">#24282D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBorderBrush">#6AA7FF</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBorderBrush">#6AA7FF</SolidColorBrush>
+                    <!-- The caption close button's red hover (#C42B1C) is 2.95:1 on the Dark Panel: a 1-px Text edge (10.75:1) carries the boundary. -->
+                    <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#EEF1F4</SolidColorBrush>
                     <!-- QW-20: marked-favorite tint; Gold is 10.6-13.2:1 on the dark surfaces. -->
                     <SolidColorBrush x:Key="Workspace.Favorite">#FFD700</SolidColorBrush>
                 </ResourceDictionary>
@@ -124,16 +198,22 @@
                     <SolidColorBrush x:Key="Workspace.Background">#E3DFD8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Panel">#EFECE6</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Raised">#DBD5CB</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Border">#A89F92</SolidColorBrush>
-                    <!-- LW-06 (B1, N7, N8, N10, N12): interactive outlines only; decorative lines stay on Workspace.Border. -->
-                    <SolidColorBrush x:Key="Workspace.ControlBorder">#7A7062</SolidColorBrush>
+                                        <!-- UX review 2026-11-13: decorative lines (grid lines, section and panel edges, dividers, disabled outlines) were #A89F92, 2.22:1 on
+                         Panel and 1.79:1 on Raised, so on the column head and the selected row the line vanished. #948A7D: 2.88:1 on Panel, 2.55:1 on
+                         Background, 2.32:1 on Raised, 2.35:1 on AccentSurface, 3.17:1 on Card; still decorative (below 3:1), but visible. -->
+                    <SolidColorBrush x:Key="Workspace.Border">#948A7D</SolidColorBrush>
+                    <!-- LW-06 (B1, N7, N8, N10, N12): interactive outlines only; decorative lines stay on Workspace.Border.
+                         UX review 2026-11-13: #7A7062 was 2.99:1 on Hover, so a hovered button, chip or row outline fell just under 3:1.
+                         #726858 is 3.37:1 on Hover, 3.75:1 on Raised, 3.79:1 on AccentSurface, 4.12:1 on Background, 4.64:1 on Panel/Overlay
+                         and 5.12:1 on Card; every Light key that mirrors it below carries the same value. -->
+                    <SolidColorBrush x:Key="Workspace.ControlBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Text">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.CardEdge">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Overlay">#EFECE6</SolidColorBrush>
                     <BoxShadows x:Key="Workspace.Shadow.Overlay">0 4 16 0 #26000000</BoxShadows>
                     <!-- D6: see Dark. -->
@@ -144,7 +224,7 @@
                     <BoxShadows x:Key="NotificationCardBoxShadows">0 4 16 0 #26000000</BoxShadows>
                     <SolidColorBrush x:Key="Workspace.Scrim">#66000000</SolidColorBrush>
                     <!-- Reader post cards are workspace cards (D3): warm near-white Card on the Background page. Edge = ControlBorder
-                         (= CardEdge), 3.66:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
+                         (= CardEdge), 4.12:1 against the page; card 1.24:1 above it. Active card: AccentSurface + accent edge. -->
                     <!-- Greentext: the study's #3F6D1A fell to 4.26:1 on the active card (AccentSurface); #386217
                          is 6.71:1 on the card, 4.97:1 on the active card and 5.40:1 on the page (opening post). -->
                     <SolidColorBrush x:Key="Workspace.ReaderGreentext">#386217</SolidColorBrush>
@@ -153,6 +233,10 @@
                     <SolidColorBrush x:Key="Workspace.Hover">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.OnAccent">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentHover">#9A4B0B</SolidColorBrush>
+                    <!-- UX review 2026-11-13: AccentHover (#9A4B0B) is a solid-button surface (white text 6.20:1) but as a text colour it is 4.30:1 on
+                         AccentSurface, 4.25:1 on Raised and 3.82:1 on Hover. As text the hover tone is one step darker, as Pressed is in Light:
+                         #6E3305 is 6.81:1 on AccentSurface, 6.05:1 on Hover. -->
+                    <SolidColorBrush x:Key="Workspace.AccentHoverText">#6E3305</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Error">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ErrorSurface">#F4E0E3</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Warning">#795100</SolidColorBrush>
@@ -162,10 +246,12 @@
                          on Panel, 4.57:1 on Raised, 6.24:1 on Card, 5.72:1 on SuccessSurface; simulated distance to Error 8.2 -> 14.4. -->
                     <SolidColorBrush x:Key="Workspace.Success">#1D6941</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.SuccessSurface">#E8F0E4</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.Progress">#333333</SolidColorBrush>
-                    <!-- The empty part of a bar is visible: 3.05:1 on Background, 3.44:1 on Panel/Overlay, 3.79:1 on Card, and the #333333 fill is 3.12:1 on it.
-                         3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1 fill: that would need a track
-                         luminance of at most 0.19 and at least 0.199. -->
+                    <SolidColorBrush x:Key="Workspace.Progress">#4A2203</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (progress variant A): the fill is a dark accent brown one step below the pressed accent (#662F05),
+                         no longer a foreign neutral grey (#333333, 3.12:1 on the track). The empty part of a bar is visible: 3.05:1 on
+                         Background, 3.44:1 on Panel/Overlay, 3.79:1 on Card, and the #4A2203 fill is 3.41:1 on it (11.71:1 on Panel, 8.50:1 on Hover,
+                         9.57:1 on AccentSurface). 3:1 on Raised (2.78), Hover (2.50) and AccentSurface (2.81) is not reachable together with a 3:1
+                         fill: that would need a track luminance of at most 0.19 and at least 0.199. -->
                     <SolidColorBrush x:Key="Workspace.ProgressTrack">#857D74</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Stats.Disk">#1F6B5C</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Stats.DiskSurface">#C5DDD5</SolidColorBrush>
@@ -175,8 +261,8 @@
                     <SolidColorBrush x:Key="ButtonDefaultPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultDisabledForeground">#575148</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultDisabledBorderBrush">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonDefaultPointeroverBorderBrush">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonDefaultPressedBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidForeground">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidPrimaryBackground">#803B06</SolidColorBrush>
@@ -188,20 +274,20 @@
                     <SolidColorBrush x:Key="ButtonSolidPrimaryPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledBackground">#DBD5CB</SolidColorBrush>
                     <SolidColorBrush x:Key="ButtonSolidDisabledForeground">#575148</SolidColorBrush>
-                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="ButtonSolidDisabledBorderBrush">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridRowPointeroverBackground">#D2CABE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridRowSelectedPointeroverBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="DataGridCellFocusBorderBrush">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="DataGridLineBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="DataGridLineBrush">#948A7D</SolidColorBrush>
                     <!-- LW-06 N7a/N7b/N8/N10: Semi gives fields no visible outline (1-px transparent border) and a
-                         translucent grey checkbox/scrollbar; use Workspace.ControlBorder (#7A7062) in Light only. -->
-                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="ScrollBarThumbForeground">#7A7062</SolidColorBrush>
+                         translucent grey checkbox/scrollbar; use Workspace.ControlBorder (#726858) in Light only. -->
+                    <SolidColorBrush x:Key="TextBoxDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxPointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ScrollBarThumbForeground">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ScrollBarThumbPointeroverForeground">#575148</SolidColorBrush>
                     <!-- LW-06 N1/N2/N3/N4/N8b/X2a: Semi blue left in Light. Selection uses Workspace.AccentSurface
                          (#E7D4BE), focus and state indicators Workspace.Accent (#803B06, hover #9A4B0B, pressed #662F05). -->
@@ -231,25 +317,119 @@
                     <SolidColorBrush x:Key="TextBoxPlaceholderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ComboBoxSelectorPlaceHolderForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="MenuItemInputGestureTextForeground">#575148</SolidColorBrush>
-                    <!-- C1 chips: the outline is LW-06 Workspace.ControlBorder (#7A7062, 3.3:1 or more on Background, Panel,
-                         Raised and AccentSurface). -->
+                    <!-- C1 chips: the outline is LW-06 Workspace.ControlBorder (#726858, 3.3:1 or more on Background, Panel,
+                         Raised, Hover and AccentSurface). -->
                     <SolidColorBrush x:Key="Workspace.ChipSurface">#DBD5CB</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ChipBorder">#7A7062</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipBorder">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ChipSourceBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipExcludeBorder">#A52736</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedSurface">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.ChipSelectedBorder">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Artist">#9E2B2B</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Copyright">#6B3BA3</SolidColorBrush>
-                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#2E6B3A</SolidColorBrush>
+                    <!-- #2E6B3A was 4.39:1 on ChipSurface; #275D33 is 5.33:1 on ChipSurface and 6.60:1 on Panel. -->
+                    <SolidColorBrush x:Key="Workspace.TagCategory.Character">#275D33</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.Meta">#795100</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.TagCategory.General">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagBackground">#DBD5CB</SolidColorBrush>
-                    <SolidColorBrush x:Key="ClosableTagBorder">#7A7062</SolidColorBrush>
+                    <SolidColorBrush x:Key="ClosableTagBorder">#726858</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonForeground">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPointeroverForeground">#1A1A1A</SolidColorBrush>
                     <SolidColorBrush x:Key="ClosableTagCloseButtonPressedForeground">#803B06</SolidColorBrush>
+                    <!-- UX review 2026-11-13: see the Dark block. Light overlays were pure white (#FFFFFF, cold against the warm palette) with a
+                         5 % hover row (1.09:1) and an 8 % edge (1.15:1); the resting line tab label was 4.40:1. Overlay #EFECE6 with a
+                         ControlBorder edge (4.64:1 on Panel), Text 14.76:1 and Muted 6.66:1 on it, Text 10.72:1 on Hover. -->
+                    <SolidColorBrush x:Key="MenuFlyoutBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBackground">#EFECE6</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuFlyoutBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxPopupBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="AutoCompleteBoxPopupBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="NotificationCardBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="ToolTipForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="FlyoutForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="PopConfirmContentForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPointeroverBackground">#D2CABE</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorPressedBackground">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemFocusForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemPressedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxItemSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemPressedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemDisabledInputGestureTextForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ListBoxItemDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemHeaderDisabledForeground">#575148</SolidColorBrush>
+                    <!-- Line tabs (Threads/Boards): resting label Muted, hover/selected label Text; the 2-px pipe is ControlBorder on hover,
+                         the accent when pressed or selected (7.00:1 on Panel). -->
+                    <SolidColorBrush x:Key="TabItemLineHeaderForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderPointeroverForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLineHeaderSelectedForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePointeroverBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="TabItemLinePipePressedBorderBrush">#803B06</SolidColorBrush>
+                    <!-- Selectors are Raised like buttons (outline ControlBorder); hover Hover, pressed AccentSurface with the accent edge. -->
+                    <SolidColorBrush x:Key="ComboBoxSelectorBackground">#DBD5CB</SolidColorBrush>
+                    <SolidColorBrush x:Key="ComboBoxSelectorFocusBackground">#DBD5CB</SolidColorBrush>
+                    <!-- In Light the red close hover itself is 4.80:1 on Panel; its edge is the same red. -->
+                    <SolidColorBrush x:Key="Workspace.CaptionCloseEdge">#C42B1C</SolidColorBrush>
+                    <!-- UX review 2026-11-13 (Light list 4, 7, 12, 13, 14, 15): Semi's translucent greys and its blue left in Light.
+                         Disabled text is opaque Workspace.Muted instead of 35 % black (2.11:1 on Panel; Muted is 6.66:1; disabled stays WCAG-exempt
+                         but readable). Radio buttons follow the checkbox overrides above: unchecked ring in the interactive outline (#726858, 4.64:1
+                         on Panel, the Workspace.ControlBorder value of the hover-contrast pass), checked and hover states in the accent tones.
+                         Expander text, chevron and rule, the menu/command/date separators (8 % black, 1.16:1) and the one settings slider use palette
+                         values; separators and the slider ticks are the decorative border (#948A7D, 2.88:1), the slider track is ProgressTrack. -->
+                    <SolidColorBrush x:Key="CheckBoxDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderHeaderDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="TextBoxDisabledForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconDefaultBorderBrush">#726858</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconPointeroverBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonUncheckIconPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBackground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBackground">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBackground">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderIconForeground">#575148</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderContentForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderHeaderForeground">#1A1A1A</SolidColorBrush>
+                    <SolidColorBrush x:Key="ExpanderSeparatorBorderBrush">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="MenuItemSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="CommandBarSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="DateTimePickerSeparatorBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTrackBackground">#857D74</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTrackForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbBorderBrush">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbPressedBorderBrush">#662F05</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderTickForeground">#948A7D</SolidColorBrush>
+                    <!-- Provision (no use today): a hyperlink button in the accent tones, the hover tone dark as for text. -->
+                    <SolidColorBrush x:Key="HyperlinkButtonForeground">#803B06</SolidColorBrush>
+                    <SolidColorBrush x:Key="HyperlinkButtonPointeroverForeground">#6E3305</SolidColorBrush>
+                    <SolidColorBrush x:Key="HyperlinkButtonPressedForeground">#662F05</SolidColorBrush>
                     <!-- QW-20: marked-favorite tint; Gold is 1.2:1 here. Dark amber is 4.8:1 on Workspace.Panel, 4.3:1 on Background, 3.9:1 on Raised. -->
                     <SolidColorBrush x:Key="Workspace.Favorite">#8A5F00</SolidColorBrush>
                 </ResourceDictionary>
@@ -279,10 +459,10 @@
              Radius: None 0 (window, title bar, caption, tab/nav bars, transport), Badge 3 (marks under 20 dip),
                Control 5 (buttons, inputs, cards, tiles), Group 8 (sections, overlays, dialog body),
                Chip 12 (pill at 24 dip), ChipCompact 9 (pill at 18 dip). Circles use Width/2 locally.
-             Size: Control 30 (button), Input 32 (text box, combo box, column head), Nav 36, Chip 24, ChipCompact 18,
+             Size: Control 30 (button), Input 32 (text box, combo box, column head), InputProminent 36 (Downloads URL entry), Nav 36, Chip 24, ChipCompact 18,
                TitleBar 48 (code mirror WorkspaceMetrics.TitleBarHeight), Caption 44 (caption-button width),
                Icon 16, IconCaption 10. Row heights stay in code (WorkspaceMetrics, density setting).
-             Space: 2/4/8/12/16/24/32. Inset: Section, Message, Footer, Chip, ChipCompact, Card, Overlay.
+             Space: 2/4/8/12/16/24/32. Inset: Section, Message, Footer, Chip, ChipCompact, Card, Overlay, Page (12, page margin).
              Text: Caption 11, Meta 12, Body 13, Section 14, Subtitle 16, Title 20 (the brand's 19 is a special case).
              From code bind a resource, e.g. control[!Border.CornerRadiusProperty] = new DynamicResourceExtension(key). -->
         <!-- Shared composition values. Density remains the existing preference,
@@ -311,9 +491,12 @@
         <CornerRadius x:Key="Workspace.Radius.Group">8</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Chip">12</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.ChipCompact">9</CornerRadius>
-        <x:Double x:Key="Workspace.Size.Control">30</x:Double>
+        <x:Double x:Key="Workspace.Size.Control">32</x:Double>
+        <x:Double x:Key="Workspace.Size.HeaderIcon">30</x:Double>
         <x:Double x:Key="Workspace.Size.Input">32</x:Double>
         <x:Double x:Key="Workspace.Size.Nav">36</x:Double>
+        <!-- The one prominent entry row of the app (Downloads URL box and its Add button): 36 instead of Input 32, by design. -->
+        <x:Double x:Key="Workspace.Size.InputProminent">36</x:Double>
         <x:Double x:Key="Workspace.Size.Chip">24</x:Double>
         <x:Double x:Key="Workspace.Size.ChipCompact">18</x:Double>
         <x:Double x:Key="Workspace.Size.TitleBar">48</x:Double>
@@ -322,11 +505,15 @@
         <x:Double x:Key="Workspace.Size.IconCaption">10</x:Double>
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
+        <Thickness x:Key="Workspace.Inset.EmptyState">28</Thickness>
+        <x:Double x:Key="Workspace.Size.EmptyStateWidth">360</x:Double>
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
+        <!-- Page margin of every work view (Downloads, Sources, Plugins, Diagnostics, Statistics, Media, Archive). -->
+        <Thickness x:Key="Workspace.Inset.Page">12</Thickness>
         <!-- List cards (Sources list, Plugins list): inner spacing and the start-edge selection bar (LW-06). -->
         <Thickness x:Key="Workspace.Inset.ListCard">14</Thickness>
         <Thickness x:Key="Workspace.ListCard.SelectionBar">3,0,0,0</Thickness>
@@ -353,7 +540,17 @@
     </Style>
     <Style Selector="ProgressBar"><Setter Property="Background" Value="{DynamicResource Workspace.ProgressTrack}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Progress}" /></Style>
     <Style Selector="TextBlock.muted, SelectableTextBlock.muted"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
-    <Style Selector="TextBlock.error, SelectableTextBlock.error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
+    <!-- DS-P3: the empty state of a list or grid (controls:WorkspaceEmptyState): centred, one muted sentence, at most one primary action. -->
+    <Style Selector="controls|WorkspaceEmptyState">
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="MaxWidth" Value="{StaticResource Workspace.Size.EmptyStateWidth}" />
+        <Setter Property="Margin" Value="{StaticResource Workspace.Inset.EmptyState}" />
+        <Setter Property="Spacing" Value="{StaticResource Workspace.Space.12}" />
+    </Style>
+    <Style Selector="TextBlock.workspace-empty-text, SelectableTextBlock.workspace-empty-text">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="TextAlignment" Value="Center" /><Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.page-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Title}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
     <Style Selector="TextBlock.section-title"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Section}" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
@@ -405,7 +602,7 @@
         <Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.header-icon">
-        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.HeaderIcon}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.HeaderIcon}" />
         <Setter Property="Padding" Value="6" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <!-- The network/disk graph in the header is a button: compact, no outline until it has focus or the pointer. -->
@@ -419,22 +616,52 @@
     <Style Selector="Button.window-caption">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Caption}" /><Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="VerticalAlignment" Value="Stretch" />
     </Style>
+    <!-- UX review 2026-11-13: the caption hover fill alone is 1.37:1 (Dark) / 1.38:1 (Light) on the bar; the 1-px edge reserved above
+         (transparent at rest, inside the square button, nothing moves) shows ControlBorder on hover and the accent when pressed. -->
+    <Style Selector="Button.window-caption:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.window-caption:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Button.window-close:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.window-close:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" />
+        <Setter Property="Background" Value="#C42B1C" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.CaptionCloseEdge}" />
     </Style>
     <Style Selector="Path.window-caption-icon">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.IconCaption}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.IconCaption}" />
         <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />
         <Setter Property="IsHitTestVisible" Value="False" />
     </Style>
-    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="12,8" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
-    <Style Selector="Button.nav.selected"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <!-- Thin rule between the footer groups; decorative, so it stays on the decorative border colour. -->
+    <Style Selector="Border.nav-separator"><Setter Property="Background" Value="{DynamicResource Workspace.Border}" /></Style>
+    <!-- Footer navigation (UX review 2026-11-13: the hover fill alone was 1.37:1 / 1.38:1 on the bar with a Muted label, the selected item
+         only Raised, 1.13:1 / 1.24:1). Every item reserves a 1-px edge (transparent at rest; padding 11,7 keeps the 12,8 inset, so nothing
+         moves). Hover: Hover fill, ControlBorder edge (3.34:1 / 3.37:1 on Hover, 4.59:1 / 4.64:1 on the bar), label and icon Text.
+         Pressed: AccentSurface with the accent edge. Selected: AccentSurface and a 3-px accent bar at the bottom edge like the tab pipe
+         (5.14:1 / 5.72:1 on the fill, 6.84:1 / 7.00:1 on the bar; padding 12,8,12,5 keeps the inset), label Text, icon Accent; selected
+         and hovered keeps the bar. -->
+    <Style Selector="Button.nav"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="Padding" Value="11,7" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /></Style>
+    <Style Selector="Button.nav:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Button.nav:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="0,0,0,3" /><Setter Property="Padding" Value="12,8,12,5" />
+    </Style>
+    <Style Selector="Button.nav.selected:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.nav.selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Button.nav TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav:pointerover TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav.selected TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="Button.nav:pointerover Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="Button.nav.selected Path"><Setter Property="Stroke" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="TextBox, ComboBox, NumericUpDown"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" /></Style>
     <!-- Semi's translucent dark-blue selection has little contrast on dark fields.
@@ -457,9 +684,17 @@
     <Style Selector="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Padding" Value="10,7" />
+        <!-- UX review 2026-11-13: Raised head on Panel body is 1.24:1 in Light, so the boundary rests on the fill alone; a lower edge of the
+             decorative line colour (2.32:1 on Raised in Light) closes the head. -->
+        <Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
     </Style>
     <Style Selector="DataGridCell"><Setter Property="Padding" Value="12,0" /><Setter Property="ClipToBounds" Value="True" /></Style>
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
+    <!-- UX review 2026-11-13: a hovered row is the Hover fill with a 1-px ControlBorder start edge (the fill alone was 1.13:1 / 1.24:1); drawn
+         on the background layer like the selection bar below, so cells do not move. The selected bar wins over it. -->
+    <Style Selector="DataGridRow:pointerover /template/ Border#BackgroundBorder">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
     <!-- LW-06 R1/N4a: selection is never the tint alone. A 3-px accent bar like the active reader post;
          on rows it is drawn on the background layer behind the cells, so cells do not move. -->
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
@@ -468,15 +703,39 @@
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
+    <!-- Rows of menus, drop-downs and plain lists (UX review 2026-11-13). Semi's rows had a translucent hover (1.09:1 to 1.42:1) and no edge.
+         Each row reserves a 1-px edge, transparent at rest; the padding gives it back (Semi's 16,8 menu and 12,8 drop-down/list insets), so
+         rows keep their size. Hover (menus: the highlighted row, :selected, also by keyboard) shows it in ControlBorder (3.34:1 / 3.37:1 on
+         Hover, 4.59:1 / 4.64:1 on Overlay), pressed in the accent. A chosen drop-down or list row is AccentSurface with a 3-px accent bar at its
+         start edge (5.14:1 / 5.72:1), never the tint alone. Lists with their own row design (reader posts, tile grids, chip lists, the
+         selection-bar lists above) keep it. Template parts checked against Semi 12.1.0.1: MenuItem Border#PART_LayoutRoot, ComboBoxItem and
+         ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
+    <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="15,7" /></Style>
+    <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
+    <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
+    <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item)">
+        <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
+    </Style>
+    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pressed">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
+    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):selected">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="Padding" Value="9,8,12,8" />
+    </Style>
 
     <!-- Opt-in composition roles; native templates, selection and automation stay
          with Semi/Ursa and the existing controls. Do not nest sections for decoration. -->
     <Style Selector="Button, ToggleButton, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
+    <!-- An inline link: accent text only, no outline and no fill (the default button outline made About links look like boxes). -->
     <Style Selector="Button.link">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
-        <Setter Property="Background" Value="Transparent" /><Setter Property="Padding" Value="8,6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="Padding" Value="0,6" />
     </Style>
     <Style Selector="Button.danger">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
@@ -507,7 +766,7 @@
         <Setter Property="Spacing" Value="{StaticResource Workspace.Space.12}" />
     </Style>
     <Style Selector="StackPanel.workspace-field"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.4}" /></Style>
-    <Style Selector="Border.workspace-section, Border.workspace-error, Border.workspace-warning, Border.workspace-status, Border.workspace-media-tools, Border.workspace-media-caption, Border.workspace-media-transport">
+    <Style Selector="Border.workspace-section, Border.workspace-error, Border.workspace-warning, Border.workspace-info, Border.workspace-success, Border.workspace-status, Border.workspace-media-tools, Border.workspace-media-caption, Border.workspace-media-transport">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Section}" />
@@ -520,13 +779,25 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Warning}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
     </Style>
+    <!-- DS-P3: information and success complete the message surface (WorkspaceBanner maps a severity to one of the four). -->
+    <Style Selector="Border.workspace-info">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
+    </Style>
+    <Style Selector="Border.workspace-success">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SuccessSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Success}" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
+    </Style>
     <Style Selector="Border.workspace-status">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.Chip}" />
     </Style>
-    <Style Selector="Border.workspace-status-active"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
-    <Style Selector="Border.workspace-status-warning"><Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" /></Style>
-    <Style Selector="Border.workspace-status-error"><Setter Property="Background" Value="{DynamicResource Workspace.ErrorSurface}" /></Style>
-    <Style Selector="Border.workspace-status-success"><Setter Property="Background" Value="{DynamicResource Workspace.SuccessSurface}" /></Style>
+    <!-- UX review 2026-11-13: the tint alone is 1.01 to 1.22:1 on Panel in Light (1.18 to 1.33 in Dark), so a status chip was only its
+         text colour. Each state keeps a 1-px outline in its tone, as the banner variants (workspace-error, workspace-warning) do:
+         Warning 5.61:1, Error 5.65:1, Success 5.72:1 and Accent 5.72:1 on their own tint in Light. -->
+    <Style Selector="Border.workspace-status-active"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="1" /></Style>
+    <Style Selector="Border.workspace-status-warning"><Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Warning}" /><Setter Property="BorderThickness" Value="1" /></Style>
+    <Style Selector="Border.workspace-status-error"><Setter Property="Background" Value="{DynamicResource Workspace.ErrorSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" /><Setter Property="BorderThickness" Value="1" /></Style>
+    <Style Selector="Border.workspace-status-success"><Setter Property="Background" Value="{DynamicResource Workspace.SuccessSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Success}" /><Setter Property="BorderThickness" Value="1" /></Style>
     <Style Selector="Border.workspace-status-active TextBlock, Border.workspace-status-active SelectableTextBlock, TextBlock.workspace-status-active, SelectableTextBlock.workspace-status-active"><Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Border.workspace-status-warning TextBlock, Border.workspace-status-warning SelectableTextBlock, TextBlock.workspace-status-warning, SelectableTextBlock.workspace-status-warning"><Setter Property="Foreground" Value="{DynamicResource Workspace.Warning}" /></Style>
     <Style Selector="Border.workspace-status-error TextBlock, Border.workspace-status-error SelectableTextBlock, TextBlock.workspace-status-error, SelectableTextBlock.workspace-status-error"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
@@ -543,60 +814,67 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
+    <!-- Media controls and gallery overflow rows reserve a 1-px edge (transparent at rest, the padding gives it back): ControlBorder on hover,
+         the accent when pressed or checked (UX review 2026-11-13; the fill alone was 1.37:1 / 1.38:1). -->
     <Style Selector="Button.media-control, ToggleButton.media-control">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
+    <Style Selector="Button.media-control"><Setter Property="Padding" Value="9,4" /></Style>
+    <Style Selector="ToggleButton.media-control"><Setter Property="Padding" Value="11,0" /></Style>
     <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
-        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <Style Selector="Button.gallery-overflow-item, ToggleButton.gallery-overflow-item">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-        <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="10,3" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="9,2" /><Setter Property="FontWeight" Value="Normal" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.gallery-overflow-item:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.gallery-overflow-item:checked:not(:pointerover):not(:focus-visible) /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
     </Style>
     <Style Selector="Button.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:pressed /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- Disabled rows are Muted text on the overlay (7.37:1 / 6.66:1), no extra dimming: the earlier 0.6 opacity put them at 3.54:1 / 2.72:1. -->
     <Style Selector="Button.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.gallery-overflow-item:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Button.media-play">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
     </Style>
     <Style Selector="Button.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="ToggleButton.media-control:checked /template/ ContentPresenter#PART_ContentPresenter, Button.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
     </Style>
     <Style Selector="ToggleButton.media-control:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
-        <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.AccentHoverText}" />
     </Style>
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
-        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
-        <Setter Property="Opacity" Value="0.6" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="Slider.media-slider">
         <Setter Property="Background" Value="{DynamicResource Workspace.ControlBorder}" />
@@ -665,17 +943,18 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <!-- Disabled: dimmed as a whole, no colour change, so the form (filled/outlined) stays recognisable. -->
+    <!-- Disabled: dimmed as a whole, no colour change, so the form (filled/outlined) stays recognisable. UX review 2026-11-13: 0.75 instead of
+         0.6, the label stays 6.17:1 on ChipSurface (3.99:1 at 0.6) and the outline 2.71:1 on Panel (2.15:1) in Light. -->
     <Style Selector="Button.chip:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
     <Style Selector="Button.chip.chip-available:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
-    <Style Selector="Button.chip:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+    <Style Selector="Button.chip:disabled"><Setter Property="Opacity" Value="0.75" /></Style>
     <Style Selector="Path.chip-thread-mark">
         <Setter Property="Width" Value="9" /><Setter Property="Height" Value="9" /><Setter Property="Margin" Value="0,0,4,0" />
-        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1.25" />
+        <Setter Property="Stroke" Value="{Binding $parent[Button].Foreground}" /><Setter Property="StrokeThickness" Value="1" />
     </Style>
 
     <Style Selector="ursa|ClosableTag.chip">
@@ -727,6 +1006,20 @@
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Warning}" />
     </Style>
 
+    <!-- The plugin lifecycle steps (Installed, Enabled, Active): a finished step in the success tone, the next one with the accent
+         outline; a step that is still ahead stays neutral. The label carries a mark and the automation name the state, so colour is only an addition. -->
+    <Style Selector="Border.chip-badge.chip-step-done">
+        <Setter Property="Background" Value="{DynamicResource Workspace.SuccessSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Success}" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-step-done TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Success}" /></Style>
+    <Style Selector="Border.chip-badge.chip-step-next">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-step-next TextBlock.chip-label"><Setter Property="FontWeight" Value="SemiBold" /></Style>
+
     <!-- Sources list: the selected card carries a bar at its start edge (as DataGrid and selection-bar lists do), not a text marker. -->
     <Style Selector="Button.source-card">
         <Setter Property="BorderThickness" Value="{StaticResource Workspace.ListCard.SelectionBar}" /><Setter Property="BorderBrush" Value="Transparent" />
@@ -755,6 +1048,7 @@
     </Style>
     <Style Selector="ursa|SelectionListItem.workspace-list-card:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource ButtonDefaultPointeroverBackground}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <!-- Ursa makes the selected item bold and light-on-accent; a selected card keeps its text as it is, as on the Sources list. -->
     <Style Selector="ursa|SelectionListItem.workspace-list-card:selected, ursa|SelectionListItem.workspace-list-card:selected:pointerover">
@@ -771,10 +1065,33 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
         <Setter Property="Padding" Value="0,12,0,0" />
     </Style>
-    <!-- A square "⋯" menu button (Plugins list and detail): only the icon, centred. -->
-    <Style Selector="Button.plugin-overflow">
+    <!-- icon-square (P6): the one icon-only button. Input height in both directions, the icon centred, no text; every use gives it a
+         tooltip and an accessible name. Menus ("more"; Plugins list and detail), close buttons in a surface, the remove
+         cross of a row and a refresh beside a field use it. -->
+    <Style Selector="Button.icon-square">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
+    <!-- Drawn glyph icons (WorkspaceIcons.cs): 16 dip grid, stroke weight 1.5 (glyph-thin 1, glyph-heavy 2; no other weights), round
+         caps. The stroke follows the foreground of the owner in code, so a disabled button greys its icon like its text. -->
+    <Style Selector="Path.glyph-icon">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Icon}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Icon}" />
+        <Setter Property="Stretch" Value="None" /><Setter Property="StrokeThickness" Value="1.5" />
+        <Setter Property="StrokeLineCap" Value="Round" /><Setter Property="StrokeJoin" Value="Round" />
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <!-- A text that is only for assistive technology (a drawn icon or badge has no automation peer of its own): it takes no room, draws nothing
+         and is no hit target, but stays in the content view with its text as the name. -->
+    <Style Selector="TextBlock.visually-hidden">
+        <Setter Property="Width" Value="1" /><Setter Property="Height" Value="1" /><Setter Property="Opacity" Value="0" />
+        <Setter Property="FontSize" Value="1" /><Setter Property="IsHitTestVisible" Value="False" /><Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Path.glyph-icon.glyph-small"><Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" /></Style>
+    <Style Selector="Path.glyph-icon.glyph-thin"><Setter Property="StrokeThickness" Value="1" /></Style>
+    <Style Selector="Path.glyph-icon.glyph-heavy"><Setter Property="StrokeThickness" Value="2" /></Style>
     <!-- A badge that states a plain fact (plugin type, file version, plugin id): the chip outline on a raised surface, no accent. -->
     <Style Selector="Border.chip-badge.chip-neutral"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
 
@@ -841,7 +1158,7 @@
     <Style Selector="Border.chip-badge.tile-corner"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Badge}" /></Style>
     <Style Selector="Path.tile-mark-glyph">
         <Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" />
-        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.4" />
+        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.5" />
     </Style>
     <Style Selector="ToggleButton.tile-favorite">
         <Setter Property="Width" Value="26" /><Setter Property="Height" Value="26" /><Setter Property="MinHeight" Value="0" />
@@ -867,14 +1184,6 @@
     <Style Selector="ToggleButton.tile-favorite:checked /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
-    </Style>
-    <Style Selector="Path.tile-favorite-star">
-        <Setter Property="Width" Value="13" /><Setter Property="Height" Value="13" />
-        <Setter Property="Stroke" Value="{DynamicResource Workspace.Text}" /><Setter Property="StrokeThickness" Value="1.3" />
-        <Setter Property="Fill" Value="Transparent" />
-    </Style>
-    <Style Selector="ToggleButton.tile-favorite:checked Path.tile-favorite-star">
-        <Setter Property="Fill" Value="{DynamicResource Workspace.Warning}" /><Setter Property="Stroke" Value="{DynamicResource Workspace.Warning}" />
     </Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
@@ -927,10 +1236,14 @@
     <!-- D5 typography. Subtitle (16, SemiBold): the heading of a DialogFrame (whatever class the dialog gave it: page-title 20 or
          section-title 14 before) and the title of a content card (Booru hit, watcher). tnum: tabular figures for counters, tables
          and transfer numbers, so a changing number does not make its neighbours jump (Inter ships the feature). -->
-    <Style Selector="Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title">
+    <Style Selector="Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title, SelectableTextBlock.card-title">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="TextBlock.tnum, SelectableTextBlock.tnum, DataGrid TextBlock"><Setter Property="FontFeatures" Value="tnum" /></Style>
+    <!-- Figures (D5 / P5): figure columns line up (right-aligned, tabular figures); a headline figure (statistics value tiles,
+         counters, transfer numbers) is one Subtitle step, SemiBold, tabular. -->
+    <Style Selector="TextBlock.stats-num"><Setter Property="TextAlignment" Value="Right" /><Setter Property="HorizontalAlignment" Value="Right" /><Setter Property="FontFeatures" Value="tnum" /></Style>
+    <Style Selector="TextBlock.stats-value"><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Subtitle}" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="FontFeatures" Value="tnum" /></Style>
 
     <!-- D3 surfaces (design language 5, 6.2). workspace-card: content card on Panel or Background (Booru hit, watcher, reader post
          through the same tokens): Card + CardEdge 1 px, radius 5, no shadow, never a card inside a card. workspace-card-active: the

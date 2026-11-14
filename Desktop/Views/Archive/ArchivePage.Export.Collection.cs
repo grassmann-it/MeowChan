@@ -31,10 +31,14 @@ public partial class ArchivePage
     }
 
     // Copy the ordered identity set before showing the modal or awaiting any work.
-    internal Task OpenExportForThreadsAsync(IReadOnlyList<ResourceId> frozenIds, Control? origin, Action? onClosed = null)
+    // offerResults: the entry sits on the archive results, so "all matches" is a further scope;
+    // format preselects the dialog (a link list needs exactly one thread).
+    internal Task OpenExportForThreadsAsync(IReadOnlyList<ResourceId> frozenIds, Control? origin, Action? onClosed = null,
+        bool offerResults = false, ExportFormat format = ExportFormat.Html)
     {
         ResourceId[] members = FreezeExportMembers(frozenIds);
-        return OpenExportCoreAsync(members[0], origin, members.Length > 1 ? members : null, onClosed);
+        return OpenExportCoreAsync(members[0], origin, members.Length > 1 ? members : null, onClosed,
+            offerResults: offerResults, format: format);
     }
     internal static ResourceId[] FreezeExportMembers(IReadOnlyList<ResourceId> ids)
     {
@@ -143,6 +147,7 @@ public partial class ArchivePage
             if (!Current()) return;
             LastCollectionExport = result;
             ExportStatus(ArchiveExportStatusText.CollectionResult(result));
+            MarkExportSucceeded();
             if (CollectionExportHistory != null)
             {
                 try

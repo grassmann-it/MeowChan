@@ -63,6 +63,7 @@ internal static partial class MediaPageChecks
             new Config().SaveConfig(profile);
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
+            await RatingsManagerEntryAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
             await BackgroundPresentRacesAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-present-races-"));
             await FilterSurfaceAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-filter-surface-"));

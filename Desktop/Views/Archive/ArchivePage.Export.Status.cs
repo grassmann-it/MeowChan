@@ -132,6 +132,6 @@ public partial class ArchivePage
         if (_exportCard == null) return;
         string rendered = _exportErrorText.Render();
         Control<TextBlock>("ArchiveExportError").Text = rendered;
-        Control<Ursa.Controls.Banner>("ArchiveExportErrorBanner").IsVisible = !string.IsNullOrEmpty(rendered);
+        Control<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner").IsVisible = !string.IsNullOrEmpty(rendered);
     }
 }

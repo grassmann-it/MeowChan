@@ -347,7 +347,7 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
                 && ReferenceEquals(error, Need<TextBlock>(page, "ArchiveExportError"))
                 && status.Text == expectedStatus() && error.Text == expectedError(), scenario + "/" + cell.Code + ": stale outcome text or replaced controls.");
             Require(status.IsEffectivelyVisible && Need<Border>(page, "ArchiveExportDialog").IsEffectivelyVisible
-                && Need<Ursa.Controls.Banner>(page, "ArchiveExportErrorBanner").IsVisible == (expectedError().Length > 0)
+                && Need<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "ArchiveExportErrorBanner").IsVisible == (expectedError().Length > 0)
                 && (expectedError().Length == 0 || error.IsEffectivelyVisible), scenario + ": outcome visibility mismatch.");
             Require(Equals(Need<Button>(page, "ArchiveExportClose").Content, Texts.T(running ? "archive.exportCancel" : "action.close"))
                 && Need<TextBlock>(page, "ArchiveExportTargetLabel").Text == Texts.T("export.target")

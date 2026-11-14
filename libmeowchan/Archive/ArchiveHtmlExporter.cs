@@ -433,7 +433,7 @@ public static class ArchiveHtmlExporter
         --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
         @media (prefers-color-scheme:light){html{background:#e3dfd8}.page{color-scheme:light;
         --bg:#e3dfd8;/* Workspace.Background */--panel:#efece6;/* Workspace.Panel */--raised:#dbd5cb;/* Workspace.Raised */
-        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#7a7062;/* Workspace.CardEdge */
+        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#726858;/* Workspace.CardEdge */
         --text:#1a1a1a;/* Workspace.Text */--muted:#575148;/* Workspace.Muted */--accent:#803b06;/* Workspace.Accent */
         --accent-surface:#e7d4be;/* Workspace.AccentSurface */--hover:#d2cabe;/* Workspace.Hover */
         --greentext:#386217;/* Workspace.ReaderGreentext */--code:#ece7dd;/* Workspace.ReaderCodeSurface */
@@ -441,7 +441,7 @@ public static class ArchiveHtmlExporter
         --scrim:rgba(0,0,0,.2);/* Workspace.Scrim #33000000 */--shadow:0 4px 16px rgba(0,0,0,.15)/* Workspace.Shadow.Overlay */}}
         #theme-light:checked~.page{color-scheme:light;
         --bg:#e3dfd8;/* Workspace.Background */--panel:#efece6;/* Workspace.Panel */--raised:#dbd5cb;/* Workspace.Raised */
-        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#7a7062;/* Workspace.CardEdge */
+        --border:#a89f92;/* Workspace.Border */--card:#faf7f1;/* Workspace.Card */--edge:#726858;/* Workspace.CardEdge */
         --text:#1a1a1a;/* Workspace.Text */--muted:#575148;/* Workspace.Muted */--accent:#803b06;/* Workspace.Accent */
         --accent-surface:#e7d4be;/* Workspace.AccentSurface */--hover:#d2cabe;/* Workspace.Hover */
         --greentext:#386217;/* Workspace.ReaderGreentext */--code:#ece7dd;/* Workspace.ReaderCodeSurface */

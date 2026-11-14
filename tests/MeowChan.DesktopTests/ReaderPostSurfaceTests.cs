@@ -12,7 +12,7 @@ public sealed class ReaderPostSurfaceTests
     private static readonly XNamespace Desktop = "clr-namespace:MeowChan.Desktop";
     [Theory]
     [InlineData("Dark", "#121416", "#20242A", "#5A636E")]
-    [InlineData("Light", "#E3DFD8", "#FAF7F1", "#7A7062")]
+    [InlineData("Light", "#E3DFD8", "#FAF7F1", "#726858")]
     public void PostCardTokensReplaceTheSeparatorWithoutChangingThePalette(string theme, string page, string card, string edge)
     {
         XElement dictionary = Theme(theme);
@@ -20,7 +20,7 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal(card, Resource(dictionary, "Workspace.Card").Value);
         Assert.Equal(edge, Resource(dictionary, "Workspace.CardEdge").Value);
         // The page is the window background tone; the shared palette roles stay as they were.
-        Assert.Equal(theme == "Dark" ? "#2D3239" : "#A89F92", Resource(dictionary, "Workspace.Border").Value);
+        Assert.Equal(theme == "Dark" ? "#2D3239" : "#948A7D", Resource(dictionary, "Workspace.Border").Value);
         Assert.Equal(theme == "Dark" ? "#1B1E22" : "#EFECE6", Resource(dictionary, "Workspace.Panel").Value);
         foreach (string retired in new[] { "Workspace.ReaderActiveSurface", "Workspace.ReaderPostSeparatorHeight", "Workspace.ReaderPage", "Workspace.ReaderPostSurface", "Workspace.ReaderPostEdge" })
             Assert.DoesNotContain(dictionary.Elements(), element => (string?)element.Attribute(X + "Key") == retired);

@@ -379,6 +379,8 @@ internal static partial class MediaRatingChecks
             Observe("Lowered item disappears without selecting replacement", !Visible().Contains(Row(8)) && Tiles.SelectedItem == null && Table.SelectedItem == null);
             Observe("Filter receives real focus after excluded selected item closes", ReferenceEquals(window.FocusManager?.GetFocusedElement(), Filter));
             await GalleryFreeze();
+            // AP6: the manager is reached from where ratings live (the archive rating row here, the Media page and the gallery menu elsewhere).
+            Observe("Archive rating row offers the saved-ratings manager", _page.FindControl<Button>("ArchiveManageRatingsButton") is { IsEnabled: true });
             await ManagerCancelFocus();
             Observe("Favorites byte-for-byte independent of ratings", Digest(Path.Combine(_profile, "media-favorites.json")) == favoritesBefore);
             Observe("Original files and absence unchanged", mediaBefore.All(pair => Digest(pair.Key) == pair.Value));

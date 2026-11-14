@@ -103,7 +103,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
         {
             var rulePanel = new StackPanel { Spacing = 8 };
-            var summary = new TextBlock { Name = "BoardAdmissionSummary", FontWeight = FontWeight.SemiBold, FontSize = 14, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+            var summary = new TextBlock { Name = "BoardAdmissionSummary", Classes = { "section-title" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
             var matches = Help(string.Empty); matches.Name = "BoardAdmissionMatches"; matches.IsVisible = false;
             var reinclude = new Button { Name = "BoardAdmissionReinclude", IsEnabled = false, IsVisible = false };
             var status = Help(Texts.T("wizard.loading")); status.Name = "BoardAdmissionStatus";
@@ -304,7 +304,7 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         AutomationProperties.SetName(field, Texts.T("wizard.ruleField"));
         AutomationProperties.SetName(action, Texts.T("wizard.ruleAction"));
         AutomationProperties.SetName(text, Texts.T("wizard.ruleText"));
-        var remove = new Button { Name = "BoardAdmissionRemoveRule", Content = "×" }; Avalonia.Automation.AutomationProperties.SetName(remove, Texts.T("wizard.removeRule"));
+        var remove = new Button { Name = "BoardAdmissionRemoveRule" }; WorkspaceIcons.MakeSquare(remove, WorkspaceIcons.Close, Texts.T("wizard.removeRule"), subtle: false);
         RefreshCommandHelp(remove, "admission.remove-rule");
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto"), ColumnSpacing = 8 };
         grid.Children.Add(field); Grid.SetColumn(action, 1); grid.Children.Add(action); Grid.SetColumn(text, 2); grid.Children.Add(text); Grid.SetColumn(remove, 3); grid.Children.Add(remove);

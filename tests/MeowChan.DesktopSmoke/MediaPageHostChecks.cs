@@ -118,7 +118,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => RefusalCount() == 1);
             Require(Refusals().Single().Summary == Texts.T("media.galleryFailed"), "A changed file is refused with the failure notice: " + Refusals().Single().Summary);
             Require(shell.FindControl<TextBlock>("ShellActionError")!.Text == Texts.T("media.galleryFailed")
-                && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible, "The refusal is not shown in the shell banner.");
+                && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible, "The refusal is not shown in the shell banner.");
             Require(shell.MediaPageTagWindow == null && !shell.OwnedWindows.OfType<MediaTagDialog>().Any(), "A changed file must not open the tag dialog.");
             await UntilAsync(FocusInGrid);
             // 2b. B's file lost its binding to the post: still there, but unbound.

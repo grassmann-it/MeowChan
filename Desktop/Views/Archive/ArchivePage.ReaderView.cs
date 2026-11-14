@@ -159,7 +159,23 @@ public partial class ArchivePage
             }
             menu.Items.Add(item);
         }
+        // The media rules of the open thread (the same command as the lists' "Media rules…"), below the view switches.
+        if (menu.Items.Count > 0) menu.Items.Add(new Separator());
+        MenuItem rules = CommandBindings.CreateMenuItem("rules.edit-scope", EditThreadRulesFromReader, () => CanEditThreadRules,
+            () => CanEditThreadRules ? null : Texts.T("archive.command.noWatch"), () => Texts.T("rules.thisThread"));
+        rules.Tag = "rules.edit-scope";
+        ToolTip.SetShowOnDisabled(rules, true);
+        menu.Items.Add(rules);
         return menu;
+    }
+
+    /// <summary>The open thread can have its own media rules: it is watched, and the shell can open the Rules page.</summary>
+    internal bool CanEditThreadRules => !_ended && !IsFilenameSearchOpen && _thread != null && SelectionLeadAction != null
+        && CanRemoveWatch?.Invoke(_thread.Summary.Id) == true;
+
+    internal void EditThreadRulesFromReader()
+    {
+        if (CanEditThreadRules) SelectionLeadAction!(_thread!.Summary.Id, "rules");
     }
 
     internal bool ToggleReaderViewOption(string commandId)

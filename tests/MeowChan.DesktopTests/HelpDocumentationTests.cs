@@ -315,6 +315,29 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
+    public void StatisticsCatalogAndHeaderValuesNameTheMeasurementLimits()
+    {
+        // The catalogs are read as data (no language state); the display seams are the production header rules.
+        string[] names = ["stats.header.networkTitle", "stats.header.diskTitle", "stats.header.netValues", "stats.header.diskValues", "stats.footnote"];
+        Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
+            .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
+        Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal("Network", english["stats.header.networkTitle"]);
+        Assert.Equal("Disk", english["stats.header.diskTitle"]);
+        Assert.Contains("request payload", english["stats.footnote"], StringComparison.Ordinal);
+        Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
+        Assert.DoesNotContain("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
+
+        // The header shows download and upload, write and read as values; Automatic draws both graphs in every work view.
+        IoRates rates = new(NetDown: 10, NetUp: 5, DiskWrite: 20, DiskRead: 3000, Requests: 4);
+        Assert.Equal(20, IoStatsDisplay.HeaderDiskRate(rates));
+        Assert.False(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetwork));
+        Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphAuto));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphNetworkAndDisk));
+    }
+
+    [Fact]
     public void ReaderApplyAndQuotePreviewDateGuidanceMatchesTheProductSeams()
     {
         // A preview whose target thread is not the open one has no opening post (see ReaderSettingsExcerptTests for the

@@ -3,7 +3,7 @@ internal static class CollectionExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("export.resultsAction", "Export all {0} results as HTML…", "Alle {0} Treffer als HTML exportieren…"),
+        ("export.resultsAction", "Export all {0} results…", "Alle {0} Treffer exportieren…"),
         ("export.resultsScope", "All matching threads across every results page. Page selection is unchanged.", "Alle passenden Threads über sämtliche Ergebnisseiten. Die Seitenauswahl bleibt erhalten."),
         ("export.resultsTitle", "Export all matching threads as HTML", "Alle passenden Threads als HTML exportieren"),
         ("export.resultsResolving", "Resolving all matching threads… Close to cancel.", "Alle passenden Threads werden ermittelt… Schließen bricht die Suche ab."),

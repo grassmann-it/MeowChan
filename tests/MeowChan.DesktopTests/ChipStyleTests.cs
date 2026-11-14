@@ -115,12 +115,13 @@ public sealed class ChipStyleTests
         foreach (string shown in new[] { "ToggleButton.tile-favorite:checked", "ToggleButton.tile-favorite:focus-visible",
             "ListBoxItem:pointerover ToggleButton.tile-favorite", "ListBoxItem:focus-within ToggleButton.tile-favorite" })
             Assert.Equal("1", Setting(shown, "Opacity"));
-        // Static frame, no shadow; the set star is filled with the warning colour (≥ 3:1 on the chip surface in both themes).
+        // Static frame, no shadow; the star itself is the shared FavoriteStar icon (filled in Workspace.Favorite when set, ≥ 3:1 on the
+        // chip surface in both themes: FavoriteTintContrastTests), not a styled path.
         Assert.Equal("{DynamicResource Workspace.ChipBorder}", Setting("ToggleButton.tile-favorite", "BorderBrush"));
         Assert.DoesNotContain(Styles().Descendants(A + "Setter"), setter => (string?)setter.Attribute("Property") == "BoxShadow"
             && ((string?)setter.Parent!.Attribute("Selector"))!.Contains("tile-", StringComparison.Ordinal));
-        Assert.Equal("{DynamicResource Workspace.Warning}", Setting("ToggleButton.tile-favorite:checked Path.tile-favorite-star", "Fill"));
-        foreach (string theme in new[] { "Dark", "Light" }) AssertContrast(theme, "Workspace.Warning", "Workspace.ChipSurface", 3.0);
+        Assert.DoesNotContain(Styles().Elements(A + "Style"), style => ((string?)style.Attribute("Selector"))!.Contains("tile-favorite-star", StringComparison.Ordinal));
+        foreach (string theme in new[] { "Dark", "Light" }) AssertContrast(theme, "Workspace.Favorite", "Workspace.ChipSurface", 3.0);
     }
 
     [Theory]

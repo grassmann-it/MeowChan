@@ -16,8 +16,9 @@
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
             <Border x:Name="DialogFrameHeader" Padding="20,16,20,8">
                 <StackPanel Spacing="6">
-                    <TextBlock x:Name="SetupHeading" Classes="section-title" FontSize="23" />
-                    <TextBlock x:Name="SetupIntroduction" Classes="muted workspace-help" />
+                    <!-- The welcome heading stays one step above the 16 dip dialog headings: Title (20), the nearest scale step to the former 23. -->
+                    <TextBlock x:Name="SetupHeading" Classes="page-title" FontSize="{StaticResource Workspace.Text.Title}" />
+                    <TextBlock x:Name="SetupIntroduction" Classes="workspace-help" />
                 </StackPanel>
             </Border>
             <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="20,0,20,8">
@@ -30,8 +31,8 @@
                 <Border Classes="workspace-error">
                     <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                         <StackPanel Spacing="6">
-                            <TextBlock x:Name="SetupError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                            <TextBlock x:Name="SetupCleanupWarning" Classes="error workspace-error" AutomationProperties.LiveSetting="Assertive"
+                            <TextBlock x:Name="SetupError" Classes="workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            <TextBlock x:Name="SetupCleanupWarning" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"
                                        IsVisible="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                         </StackPanel>
                     </ScrollViewer>
@@ -46,17 +47,17 @@
                             <Button x:Name="SetupBrowseButton" Grid.Column="1" Click="OnBrowseClick" />
                         </Grid>
                         <TextBlock x:Name="SetupNormalizedPath" Classes="workspace-help" />
-                        <TextBlock x:Name="SetupPathError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        <TextBlock x:Name="SetupPathError" Classes="workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         <TextBlock x:Name="SetupBandwidthLabel" Classes="workspace-field-label" />
                         <TextBox x:Name="SetupBandwidthInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupBandwidthLabel}" />
                         <TextBlock x:Name="SetupParallelLabel" Classes="workspace-field-label" />
                         <TextBox x:Name="SetupParallelInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupParallelLabel}" />
                         <TextBlock x:Name="SetupEffectiveParallelLimit" Classes="workspace-help" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="SetupParallelSafetyHint" Classes="muted workspace-help" />
-                        <TextBlock x:Name="SetupLimitsError" Classes="error workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                        <TextBlock x:Name="SetupReserveHint" Classes="muted workspace-help" />
-                        <TextBlock x:Name="SetupScopeHint" Classes="muted workspace-help" />
-                        <TextBlock x:Name="SetupProbePolicy" Classes="muted workspace-help" />
+                        <TextBlock x:Name="SetupParallelSafetyHint" Classes="workspace-help" />
+                        <TextBlock x:Name="SetupLimitsError" Classes="workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        <TextBlock x:Name="SetupReserveHint" Classes="workspace-help" />
+                        <TextBlock x:Name="SetupScopeHint" Classes="workspace-help" />
+                        <TextBlock x:Name="SetupProbePolicy" Classes="workspace-help" />
                         <Button x:Name="SetupCheckButton" Click="OnCheckClick" HorizontalAlignment="Left" />
                     </StackPanel>
                 </StackPanel>

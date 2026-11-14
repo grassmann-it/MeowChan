@@ -4,7 +4,7 @@ using MeowChan.Desktop.Commands;
 
 namespace MeowChan.DesktopTests;
 
-/// <summary>The footer, the Tools flyout, the ⋯ menu and the default digits all follow MainPageOrder.</summary>
+/// <summary>The footer, the More flyout, the ⋯ menu and the default digits all follow MainPageOrder.</summary>
 public sealed class MainPageOrderTests
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -15,11 +15,13 @@ public sealed class MainPageOrderTests
     private static string RepositoryRoot([CallerFilePath] string path = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));
 
+    private static string Stem(string tag) => char.ToUpperInvariant(tag[4]) + tag[5..];
+
     [Fact]
     public void TheNthFooterButtonIsTheNthMainPageAndHasDigitN()
     {
         XElement footer = Assert.Single(Markup().Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
-        string[] names = footer.Elements().Select(Name).OfType<string>().ToArray();
+        string[] names = footer.Elements().Select(Name).OfType<string>().Where(name => name.EndsWith("NavigationButton", StringComparison.Ordinal)).ToArray();
         string[] pages = names.TakeWhile(name => name != "ToolsNavigationButton").ToArray();
         Assert.Equal(OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "NavigationButton"), pages);
         Assert.Equal(new[] { "ToolsNavigationButton", "SettingsNavigationButton" }, names.Skip(pages.Length));
@@ -31,16 +33,52 @@ public sealed class MainPageOrderTests
     }
 
     [Fact]
-    public void TheToolsFlyoutAndTheWorkspaceMenuListThePagesInTheSameOrder()
+    public void TheMainPagesFormThreeGroupsInTheAgreedOrderAndTheFooterSetsThemApartWithSeparators()
+    {
+        Assert.Equal(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources",
+            "navigation.plugins", "navigation.diagnostics", "navigation.statistics" }, OrderedIds);
+        Assert.Equal(new[] { 3, 3, 2 }, MainPageOrder.Groups.Select(group => group.Count));
+        Assert.Equal(new[] { 6, 7 }, new[] { "navigation.plugins", "navigation.diagnostics" }.Select(id => MainPageOrder.Digit(id)!.Value));
+        XElement footer = Assert.Single(Markup().Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
+        string[] separators = { "FooterSeparatorWork", "FooterSeparatorSetUp", "FooterSeparatorObserve" };
+        var expected = new List<string>();
+        for (int group = 0; group < MainPageOrder.Groups.Count; group++)
+        {
+            expected.AddRange(MainPageOrder.Groups[group].Select(id => MainPageOrder.ControlStem(id) + "NavigationButton"));
+            expected.Add(separators[group]);
+        }
+        expected.AddRange(new[] { "ToolsNavigationButton", "SettingsNavigationButton" });
+        Assert.Equal(expected, footer.Elements().Select(Name).OfType<string>());
+        Assert.All(separators, name => Assert.Equal("Border", Assert.Single(footer.Elements(), e => Name(e) == name).Name.LocalName));
+    }
+
+    [Fact]
+    public void TheMoreFlyoutListsTheOverflowPagesInGroupsAndTheWorkspaceMenuAllPagesIncludingDownloads()
     {
         XDocument markup = Markup();
-        string[] expected = OrderedIds.Where(id => id != "navigation.downloads").Select(MainPageOrder.Tag).ToArray();
+        string[] flyoutPages = OrderedIds.Where(id => id != "navigation.downloads").Select(MainPageOrder.Tag).ToArray();
         XElement tools = Assert.Single(markup.Descendants(), e => Name(e) == "ToolsNavigationButton");
-        Assert.Equal(expected, tools.Descendants().Where(e => e.Name.LocalName == "MenuItem").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
+        Assert.Equal(flyoutPages, tools.Descendants().Where(e => e.Name.LocalName == "MenuItem").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
+        // Separators of the flyout stand exactly between the groups (Downloads is not in the flyout).
+        string[] flyoutShape = tools.Descendants().Where(e => e.Name.LocalName is "MenuItem" or "Separator")
+            .Select(e => e.Name.LocalName == "Separator" ? "|" : (string)e.Attribute("Tag")!).ToArray();
+        Assert.Equal(new[] { "nav.archive", "nav.media", "|", "nav.rules", "nav.sources", "nav.plugins", "|", "nav.diagnostics", "nav.statistics" }, flyoutShape);
+        Assert.Equal(new[] { "nav.group-separator.0", "nav.group-separator.1" },
+            tools.Descendants().Where(e => e.Name.LocalName == "Separator").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
+
         XElement menu = Assert.Single(markup.Descendants(), e => Name(e) == "WorkspaceMenuItem");
-        Assert.Equal(expected, menu.Elements().Select(e => (string?)e.Attribute("Tag")).Where(tag => tag != null && expected.Contains(tag)).OfType<string>());
-        Assert.Equal(expected.Select(tag => char.ToUpperInvariant(tag[4]) + tag[5..] + "MenuItem"),
-            menu.Elements().Select(Name).OfType<string>().Where(name => expected.Any(tag => name.StartsWith(char.ToUpperInvariant(tag[4]) + tag[5..], StringComparison.Ordinal))));
+        string[] allPages = OrderedIds.Select(MainPageOrder.Tag).ToArray();
+        Assert.Equal(allPages, menu.Elements().Select(e => (string?)e.Attribute("Tag")).Where(tag => tag != null && allPages.Contains(tag)).OfType<string>());
+        Assert.Equal(allPages.Select(tag => Stem(tag) + "MenuItem"),
+            menu.Elements().Select(Name).OfType<string>().Where(name => allPages.Any(tag => name == Stem(tag) + "MenuItem")));
+        // The pages come first, set apart from the tools by a separator and in the same three groups.
+        string[] menuShape = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?")
+            .TakeWhile(item => item != "ManualImportMenuItem").ToArray();
+        string[] pageShape = OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "MenuItem").ToArray();
+        Assert.Equal(new[] { pageShape[0], pageShape[1], pageShape[2], "|", pageShape[3], pageShape[4], pageShape[5], "|", pageShape[6], pageShape[7], "|" }, menuShape);
+        // Tools, then the application's own entries, then Exit.
+        string[] rest = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?").SkipWhile(item => item != "ManualImportMenuItem").ToArray();
+        Assert.Equal(new[] { "ManualImportMenuItem", "ReaderGroupsMenuItem", "|", "PauseMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "|", "ExitMenuItem" }, rest);
     }
 
     [Fact]

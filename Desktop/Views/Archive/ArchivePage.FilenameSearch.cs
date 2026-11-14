@@ -35,26 +35,22 @@ public partial class ArchivePage
         && !IsReaderDialogOpen && !_savedSearchDialogOpen && !_transferPreviewOpening && _transferPreviewDialog == null
         && !_exportRunning && !_exportLoading && !_exportPicking && !_exportPickerOpen && !_exportResolving;
 
+    // Page-level eligibility of the file name scope (both search fields share it); host smokes wait on it.
+    internal bool FilenameSearchEligibleForTests => CanOpenFilenameSearch;
+
     private void UpdateFilenameSearchActions()
     {
-        foreach (string name in new[] { "ArchiveFilenameSearchOpen", "ReaderFilenameSearchOpen" })
-        {
-            Button button = Control<Button>(name);
-            string label = FilenameSearchCatalog.T("filename.search.title");
-            button.Content = label;
-            AutomationProperties.SetName(button, label);
-            ToolTip.SetTip(button, FilenameSearchCatalog.T("filename.search.scope"));
-            button.IsEnabled = CanOpenFilenameSearch;
-        }
+        // AP2: the file name search has no own toolbar entry any more; the scope chip of the
+        // archive field and of the reader find bar opens it (UpdateUnifiedSearch owns their state).
+        UpdateUnifiedSearch();
         foreach (object? item in ArchiveResultActions.Items)
             if (item is Button { Name: "ArchivePostBookmarks" } manager)
                 MeowChan.Desktop.Commands.CommandBindings.Refresh(manager);
     }
 
-    private async void OnFilenameSearchClick(object? sender, RoutedEventArgs e) =>
-        await OpenFilenameSearchAsync(sender as Control);
-
-    internal Task OpenFilenameSearchAsync(Control? origin = null)
+    // query: the text of the scoped search field. A non-empty query is searched as soon as the dialog opens;
+    // null or empty opens the dialog idle, exactly like the former toolbar entry.
+    internal Task OpenFilenameSearchAsync(Control? origin = null, string? query = null)
     {
         if (!CanOpenFilenameSearch) return Task.CompletedTask;
         Control surface = _largeReader ? ArchiveReaderPane : this;
@@ -66,13 +62,15 @@ public partial class ArchivePage
         CancelPendingGalleryOpen();
         var operation = new FilenameSearchOwner(window, surface, _lifetime.Token);
         _filenameSearchOwner = operation; // Synchronous, including before any injected Show await.
-        CloseThreadFind();
+        // A text find in the open thread is closed as before; the reader bar in the File name scope stays
+        // open with its draft, so the search can be refined after a cancelled dialog (AP2).
+        if (ReaderScope == MeowChan.Desktop.Controls.SearchScope.Text) CloseThreadFind();
         ++_readerFocusRequest;
         ++_readerInteractionRevision;
         CancelReaderMediaActivation();
         CancelReferences();
         UpdateActions();
-        return FilenameSearchTask = RunFilenameSearchAsync(operation);
+        return FilenameSearchTask = RunFilenameSearchAsync(operation, query);
     }
 
     private bool FilenameSearchMayReturn(FilenameSearchOwner operation) =>
@@ -93,7 +91,7 @@ public partial class ArchivePage
         }
     }
 
-    private async Task RunFilenameSearchAsync(FilenameSearchOwner operation)
+    private async Task RunFilenameSearchAsync(FilenameSearchOwner operation, string? query)
     {
         Window window = operation.Window;
         Visual[] ancestors = operation.Surface.GetSelfAndVisualAncestors().ToArray();
@@ -110,7 +108,7 @@ public partial class ArchivePage
         try
         {
             if (!FilenameSearchMayReturn(operation)) return;
-            var dialog = new FilenameSearchDialog(_openReader!);
+            var dialog = new FilenameSearchDialog(_openReader!, query);
             operation.Dialog = dialog;
             ArchiveFilenameHit? selected;
             try

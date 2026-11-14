@@ -158,7 +158,7 @@ internal static class SourcesChecks
                     Require(page.FindControl<TextBlock>("SourceWatchSummary")!.Text!.Contains("1"), "Sources lost active watch counts.");
                     Require(page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureAvailable"),
                         "Capture support and initialized session availability were not shown.");
-                    RequireIconLabel(page.FindControl<Button>("SourceBackButton")!, Texts.T("nav.sources"));
+                    RequireIconLabel(page.FindControl<Button>("SourceBackButton")!, MeowChan.Desktop.Commands.CommandCatalog.Label("sources.back"));
                     RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!,
                         Texts.T("sources.website", "https://boards.4chan.org/"));
                     RequireIconLabel(page.FindControl<Button>("SourceRulesButton")!, Texts.T("sources.rules"));

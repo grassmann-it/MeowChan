@@ -31,6 +31,10 @@ public partial class MainWindow
             Register(_settingsEditor, () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
                 () => _settingsEditor.CanOpenSectionNavigation, _settingsEditor.OpenSectionNavigation,
                 () => _settingsEditor.SelectedSectionId, _settingsEditor.CanGoToSection, _settingsEditor.GoToSection);
+        if (_settingsEditor != null)
+            _shortcutRouter.Register(new CommandRegistration("input.focus-settings-search", _settingsEditor,
+                () => _selectedPage == WorkspacePage.Settings && !_largeReaderOpen && _gallery == null,
+                () => true, _settingsEditor.FocusSearch, Priority: 100, AllowInTextInput: true));
         if (_pluginsPage != null)
         {
             Register(_pluginsPage, () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,
@@ -59,6 +63,20 @@ public partial class MainWindow
                 () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen,
                 archive.ToggleFilterSurfaceByShortcut, Priority: 100, AllowInTextInput: true));
         }
+        // Following live and showing the new posts belong to the open thread, in the embedded and in the large reader.
+        if (_archivePage is { } live && live.FindControl<Control>("ArchiveReaderPane") is { } readerPane)
+        {
+            bool ReaderShown() => _gallery == null && !HasBlockingPageDecision()
+                && (_largeReaderOpen || _selectedPage == WorkspacePage.Archive);
+            _shortcutRouter.Register(new CommandRegistration("watch.follow-live", readerPane, ReaderShown,
+                () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
+                () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
+        }
+        // The saved-ratings manager is a dialog of the shell; it opens from the media page, the archive and the gallery (which routes it itself).
+        _shortcutRouter.Register(new CommandRegistration("media.rating.manage", this,
+            () => _gallery == null && _selectedPage is WorkspacePage.Media or WorkspacePage.Archive,
+            () => !_isClosing && !_ratingManagerOpen, () => _ = ManageMediaRatingsAsync(), Priority: 100));
         if (_mediaPage is { } media)
             _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,

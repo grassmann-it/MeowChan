@@ -44,8 +44,8 @@ public class SearchBox : TextBox
     private readonly Button _clear = new() { Name = "SearchBoxClear", Width = 22, Height = 22, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
         Background = Brushes.Transparent, BorderThickness = new Thickness(0), Focusable = true, IsTabStop = false, VerticalAlignment = VerticalAlignment.Center,
         HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center, IsVisible = false };
-    private readonly TextBlock _count = new() { Name = "SearchBoxCount", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
-        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
+    private readonly TextBlock _count = new TextBlock { Name = "SearchBoxCount", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0),
+        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.MetaText();
     private readonly StackPanel _tail = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private QueryDebounce? _debounce;
     private bool _silent, _geometryApplied;
@@ -72,7 +72,32 @@ public class SearchBox : TextBox
     public string? ResultText { get => GetValue(ResultTextProperty); set => SetValue(ResultTextProperty, value); }
 
     /// <summary>Whether the magnifier is shown (default).</summary>
-    public bool ShowSearchIcon { get => _icon.IsVisible; set { _icon.IsVisible = value; InnerLeftContent = value ? _icon : null; } }
+    public bool ShowSearchIcon { get => _icon.IsVisible; set { _icon.IsVisible = value; ApplyLeadingContent(); } }
+
+    private SearchScopeChip? _scopeChip;
+    /// <summary>
+    /// The scope chip shown inside the field in place of the magnifier (AP2/S5: one control, one height, one frame).
+    /// A chip can sit in one field at a time: the owner moves it when it swaps fields. Alt+Down or F4 in the field
+    /// opens the chip menu, so the chip itself needs no own Tab stop.
+    /// </summary>
+    public SearchScopeChip? ScopeChip
+    {
+        get => _scopeChip;
+        set
+        {
+            if (ReferenceEquals(_scopeChip, value)) return;
+            _scopeChip = value;
+            if (value != null && value.Owner is { } previous && !ReferenceEquals(previous, this)) previous.ScopeChip = null;
+            if (value != null) value.Owner = this;
+            ApplyLeadingContent();
+        }
+    }
+
+    private void ApplyLeadingContent()
+    {
+        object? leading = _scopeChip != null ? _scopeChip : _icon.IsVisible ? _icon : null;
+        if (!ReferenceEquals(InnerLeftContent, leading)) InnerLeftContent = leading;
+    }
 
     /// <summary>The text has changed and, after <see cref="Debounce"/>, is ready to be applied.</summary>
     public event EventHandler? QueryChanged;
@@ -120,6 +145,13 @@ public class SearchBox : TextBox
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
+        if (!e.Handled && _scopeChip is { IsEffectivelyEnabled: true } chip && (e.Key == Key.Down && e.KeyModifiers == KeyModifiers.Alt
+            || e.Key == Key.F4 && e.KeyModifiers == KeyModifiers.None))
+        {
+            e.Handled = true;
+            chip.ShowMenu();
+            return;
+        }
         if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
             if (HasText) { ClearAndFocus(); e.Handled = true; return; }

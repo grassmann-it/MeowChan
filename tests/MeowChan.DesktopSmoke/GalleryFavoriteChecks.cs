@@ -156,7 +156,7 @@ internal static class GalleryFavoriteChecks
             Require(badge.IsEffectivelyVisible && !badge.IsHitTestVisible && !badge.Focusable,
                 "Favorite badge is hidden or steals input.");
             string label = Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
-            Require(((TextBlock)badge.Child!).Text == (saved ? "★" : "☆") + (pending ? " …" : "")
+            Require(GalleryViewer.FavoriteBadgeState(badge) == (saved, pending)
                 && AutomationProperties.GetName(badge)!.StartsWith(label, StringComparison.Ordinal),
                 "Favorite badge misrepresents the saved state or pending write.");
         }

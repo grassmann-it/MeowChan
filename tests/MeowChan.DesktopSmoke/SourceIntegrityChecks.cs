@@ -141,8 +141,8 @@ internal static class SourceIntegrityChecks
             pending.SetResult(); pending = null;
             await Program.WaitUntilAsync(() => !sources.IsBusy);
             Require(first.GetView().IsGranted && second.GetView().IsGranted && permission.IsChecked == true
-                && !C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
-                && !C<Ursa.Controls.Banner>(sources, "SourcesActionErrorBanner").IsVisible,
+                && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
+                && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourcesActionErrorBanner").IsVisible,
                 "A late failure changed durable permission or moved an old source's error onto the new selection.");
             Observation(window, sources, "failure-after-selection-switch", new { action = invocations[^1], first = first.GetView(), second = second.GetView() });
             failSave = false;
@@ -205,7 +205,7 @@ internal static class SourceIntegrityChecks
                         checkbox = State(window, permission), offset = C<ScrollViewer>(sources, "SourcesScroll").Offset.ToString() });
                     failSave = false;
                     sources.SelectSource(OtherSource); sources.SelectSource(PluginUxFixture.SourceId);
-                    Require(!C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
+                    Require(!C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
                         "Switching sources retained an old source's permission error.");
                 }
 
@@ -226,11 +226,11 @@ internal static class SourceIntegrityChecks
                 Program.CaptureWindow(window, CaptureName("plugin-badge-" + cell));
                 Button manage = C<Button>(plugins, "PluginWatches");
                 await RevealAsync(window, manage);
-                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Manage in Sources link could not receive focus.");
+                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Show in Sources link could not receive focus.");
                 await Settle();
                 Require(manage.IsFocused && InViewport(window, manage)
                     && Avalonia.Automation.AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
-                    "The Manage in Sources link was not translated or keyboard reachable.");
+                    "The Show in Sources link was not translated or keyboard reachable.");
                 Program.CaptureWindow(window, CaptureName("plugin-link-" + cell));
                 await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, manage, manage);
                 navigatedSource = null;
@@ -261,10 +261,10 @@ internal static class SourceIntegrityChecks
         TextBlock error = C<TextBlock>(page, "SourceMediaIntegrityError");
         // Only observe native layout/viewport state. Product code owns any BringIntoView.
         await Program.WaitUntilAsync(() => error.IsEffectivelyVisible && InViewport(window, error));
-        Require(C<Ursa.Controls.Banner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
+        Require(C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
             && error.Text == Texts.T("sources.providerMismatchSaveFailed", PersistenceFailure)
             && C<CheckBox>(page, "SourceAllowProviderMismatch").IsChecked == expectedSaved
-            && !C<Ursa.Controls.Banner>(page, "SourcesActionErrorBanner").IsVisible
+            && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourcesActionErrorBanner").IsVisible
             && C<TextBlock>(page, "SourcesActionError").Text?.Contains(PersistenceFailure, StringComparison.Ordinal) != true,
             "The save failure is not local, translated, visible with actual saved state, or is duplicated under Watches.");
         AssertTextFits(error);

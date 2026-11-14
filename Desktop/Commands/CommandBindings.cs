@@ -199,9 +199,12 @@ public static class CommandBindings
         return string.IsNullOrWhiteSpace(unavailableReason) ? result : result + " · " + unavailableReason;
     }
 
-    public static Control Icon(string id, int size = 16, string? state = null)
+    public static Control Icon(string id, int size = 16, string? state = null) =>
+        IconFromKey(CommandCatalog.IconForState(id, state), size);
+
+    /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
+    internal static Control IconFromKey(string icon, int size = 16)
     {
-        string icon = CommandCatalog.IconForState(id, state);
         return new Border
         {
             Width = size,
@@ -215,7 +218,7 @@ public static class CommandBindings
         };
     }
 
-    private static Bitmap IconMask(string icon)
+    internal static Bitmap IconMask(string icon)
     {
         lock (IconMasks)
         {
@@ -227,9 +230,30 @@ public static class CommandBindings
         }
     }
 
-    private static Control ButtonIcon(string id, int size, TextBlock? label = null)
+    /// <summary>
+    /// Shows the catalog icon <paramref name="icon"/> before the text of a button whose content is a string, without replacing that
+    /// string: the content template draws the icon and the text, so code that sets or reads <c>Content</c> keeps working and every
+    /// action of a toolbar carries an icon (the Reader toolbar rule) whatever sets its label. A button that holds a control as
+    /// content (a button of <see cref="ApplyLabeled"/>) is not templated.
+    /// </summary>
+    internal static void ShowIconBeforeText(Button button, string icon, int size = 16)
     {
-        Border icon = (Border)Icon(id, size);
+        button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
+        {
+            TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };
+            return new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 5,
+                VerticalAlignment = VerticalAlignment.Center,
+                Children = { ButtonIcon(icon, size, text, byKey: true), text }
+            };
+        });
+    }
+
+    private static Control ButtonIcon(string id, int size, TextBlock? label = null, bool byKey = false)
+    {
+        Border icon = (Border)(byKey ? IconFromKey(id, size) : Icon(id, size));
         // Follow the rendered label, including Semi's TextBlock-specific disabled
         // opacity. Icon-only content inherits the presenter's state foreground.
         icon.Bind(Border.BackgroundProperty, label is null
@@ -299,7 +323,8 @@ public static class CommandBindings
         var controls = context.GetVisualDescendants().Prepend(context).OfType<Control>()
             .Where(c => c.IsEffectivelyVisible && Actions.TryGetValue(c, out var a) && !CommandRouter.HasExplicitRegistration(a.Id, context) && Matches(e, a.Id))
             .Where(c => c is Button or MenuItem or ComboBox or TabItem or Expander or Ursa.Controls.ClosableTag).ToArray();
-        if (controls.Length == 0) return false;
+        // R2 of the work views: a matching action the view or a narrow window moved off its bar keeps its shortcut.
+        if (controls.Length == 0) return MeowChan.Desktop.WorkViews.WorkViewShortcuts.RouteReduced(context, e);
         Control? focused = controls.FirstOrDefault(c => e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(c));
         // Do not invent a target when several per-post/per-media actions are materialized.
         if (focused == null && (controls.Length > 1 || controls[0] is Ursa.Controls.ClosableTag))
@@ -319,6 +344,12 @@ public static class CommandBindings
         if (matches.Length == 1 && matches[0].IsEnabled) InvokeExistingControl(matches[0]);
         return true;
     }
+    /// <summary>The catalog command a control presents (Apply/ApplyLabeled/BindExisting), if any.</summary>
+    internal static string? ActionId(Control control) => Actions.TryGetValue(control, out var action) ? action.Id : null;
+
+    /// <summary>Runs a control's existing executor exactly as a routed shortcut would.</summary>
+    internal static void InvokeAction(Control target) => InvokeExistingControl(target);
+
     private static void InvokeExistingControl(Control target)
     {
         switch (target)
@@ -393,7 +424,7 @@ public static class CommandBindings
         // macOS full screen (⌃⌘F) and help (⌘?) have no F-key: two or more modifiers, one of them Ctrl/⌘, cannot be typed text.
         bool chorded = primaryModifier && System.Numerics.BitOperations.PopCount(
             (uint)(e.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta | KeyModifiers.Alt | KeyModifiers.Shift))) >= 2;
-        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "input.focus-media-search" or "navigation.settings")
+        return (id is "input.focus-url" or "input.focus-search" or "input.focus-download-search" or "input.focus-media-search" or "input.focus-settings-search" or "input.focus-diagnostics-search" or "navigation.settings")
             && (primaryModifier || functionKey)
             || (id is "window.fullscreen" or "viewer.shortcut-help") && (functionKey || chorded);
     }

@@ -174,7 +174,7 @@ public partial class SourcesPage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", Texts.T("nav.sources"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", CommandCatalog.Label("sources.back"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceRulesButton")!, "rules.edit-scope", Texts.T("sources.rules"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDiagnosticsButton")!, "navigation.diagnostics", Texts.T("sources.diagnostics"));
         Button addToDownloads = this.FindControl<Button>("SourceAddToDownloadsButton")!;
@@ -303,7 +303,7 @@ public partial class SourcesPage : UserControl
         bool belongsToSelection = error != null && policy is { } selected
             && selected.Snapshot.PluginOwnerId == error.PluginOwnerId && selected.Snapshot.SourceId == error.SourceId;
         if (!belongsToSelection) _sourceMediaIntegritySaveError = null;
-        this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!.IsVisible = belongsToSelection;
+        this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourceMediaIntegrityErrorBanner")!.IsVisible = belongsToSelection;
         this.FindControl<TextBlock>("SourceMediaIntegrityError")!.Text = belongsToSelection
             ? Texts.T("sources.providerMismatchSaveFailed", error!.Message) : string.Empty;
     }
@@ -315,7 +315,7 @@ public partial class SourcesPage : UserControl
             if (_ended || !IsEffectivelyVisible || TopLevel.GetTopLevel(this) == null ||
                 !ReferenceEquals(_sourceMediaIntegritySaveError, expected) || Selected?.MediaIntegrityPolicy is not { } policy ||
                 policy.Snapshot.PluginOwnerId != expected.PluginOwnerId || policy.Snapshot.SourceId != expected.SourceId) return;
-            Ursa.Controls.Banner banner = this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!;
+            MeowChan.Desktop.Controls.WorkspaceBanner banner = this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourceMediaIntegrityErrorBanner")!;
             if (banner.IsEffectivelyVisible) banner.BringIntoView();
         }, DispatcherPriority.Loaded);
     }

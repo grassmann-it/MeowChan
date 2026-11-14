@@ -3,7 +3,7 @@
              xmlns:ursa="https://irihi.tech/ursa"
              xmlns:local="clr-namespace:MeowChan"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:localization="clr-namespace:MeowChan.Desktop.Localization"
              x:Class="MeowChan.SettingsEditor" x:DataType="local:SettingsEditor"
              SizeChanged="OnEditorSizeChanged">
@@ -21,6 +21,19 @@
             <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
             <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
             <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+        </Style>
+        <!-- The setting the search jumped to. -->
+        <Style Selector="Panel.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="Border.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="CheckBox.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        </Style>
+        <Style Selector="TextBlock.settings-search-hit">
+            <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         </Style>
         <!-- Keyboard focus enters the template's text box, so it needs the field semantics too. -->
         <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
@@ -57,14 +70,14 @@
             </ScrollViewer>
         <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" Grid.Column="1"
                       HorizontalScrollBarVisibility="Disabled" ScrollChanged="OnSettingsScrollChanged">
-            <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="24">
+            <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="16">
                 <StackPanel x:Name="SettingsInterfacePage" Spacing="0" IsEnabled="{Binding IsEditable}">
-                    <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,6" />
+                    <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,8" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
-                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
                                 <TextBlock x:Name="WorkspaceModeFieldLabel" Text="{Binding WorkspaceModeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding ModeHint}" Classes="muted workspace-help" />
+                                <TextBlock Text="{Binding ModeHint}" Classes="workspace-help" />
                             </StackPanel>
                             <ComboBox x:Name="WorkspaceModeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=WorkspaceModeFieldLabel}" AutomationProperties.Name="{Binding WorkspaceModeLabel}" AutomationProperties.HelpText="{Binding ModeHint}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding WorkspaceChoices}" SelectedItem="{Binding SelectedWorkspaceMode, Mode=TwoWay}">
@@ -92,9 +105,9 @@
                     </Border>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
-                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
                                 <TextBlock x:Name="AnimationsFieldLabel" Text="{Binding AnimationsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding AnimationsHint}" Classes="muted workspace-help" />
+                                <TextBlock Text="{Binding AnimationsHint}" Classes="workspace-help" />
                             </StackPanel>
                             <ComboBox x:Name="AnimationsInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=AnimationsFieldLabel}" AutomationProperties.Name="{Binding AnimationsLabel}" AutomationProperties.HelpText="{Binding AnimationsHint}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding AnimationsChoices}" SelectedItem="{Binding SelectedAnimations, Mode=TwoWay}">
@@ -102,14 +115,14 @@
                             </ComboBox>
                         </Grid>
                     </Border>
-                    <Border Padding="0,10">
+                    <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="DensityFieldLabel" Text="{Binding DensityLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <CheckBox x:Name="CompactDensityInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=DensityFieldLabel}" AutomationProperties.Name="{Binding DensityLabel}" Grid.Column="1" Content="{Binding CompactLabel}" IsChecked="{Binding CompactDensity, Mode=TwoWay}" />
                         </Grid>
                     </Border>
-                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}">
-                        <TextBlock Text="{Binding LanguagePacksHint}" Classes="muted workspace-help" Margin="0,6,0,0" />
+                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}" Margin="0,4,0,0">
+                        <TextBlock Text="{Binding LanguagePacksHint}" Classes="workspace-help" Margin="0,8,0,0" />
                     </Expander>
                 </StackPanel>
                 <StackPanel x:Name="SettingsReadingMediaPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
@@ -125,9 +138,9 @@
                     </Border>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
-                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
                                 <TextBlock x:Name="ReaderPostWidthFieldLabel" Text="{Binding ReaderPostWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding ReaderPostWidthHint}" Classes="muted workspace-help" />
+                                <TextBlock Text="{Binding ReaderPostWidthHint}" Classes="workspace-help" />
                             </StackPanel>
                             <ComboBox x:Name="ReaderPostWidthInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPostWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderPostWidthLabel}" AutomationProperties.HelpText="{Binding ReaderPostWidthHint}" Grid.Column="1" ItemsSource="{Binding ReaderPostWidthChoices}" SelectedItem="{Binding SelectedReaderPostWidth, Mode=TwoWay}" HorizontalAlignment="Stretch">
                                 <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -139,15 +152,15 @@
                             <TextBlock x:Name="ReaderThumbnailWidthFieldLabel" Text="{Binding ReaderThumbnailWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ReaderThumbnailWidthInput" Value="{Binding ReaderThumbnailWidth, Mode=TwoWay}" Minimum="{Binding ReaderThumbnailWidthMinimum}" Maximum="{Binding ReaderThumbnailWidthMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderThumbnailWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderThumbnailWidthLabel}" AutomationProperties.HelpText="{Binding ReaderThumbnailWidthHelp}" />
-                                <TextBlock x:Name="ReaderThumbnailWidthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ReaderThumbnailWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding ReaderThumbnailWidthHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ReaderThumbnailWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                         <StackPanel VerticalAlignment="Center" Spacing="3">
                             <TextBlock x:Name="ReaderDateStyleFieldLabel" Text="{Binding ReaderDateStyleLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding ReaderDateStyleHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReaderDateStyleHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <ComboBox x:Name="ReaderDateStyleInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderDateStyleChoices}" SelectedItem="{Binding SelectedReaderDateStyle, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderDateStyleFieldLabel}" AutomationProperties.Name="{Binding ReaderDateStyleLabel}" AutomationProperties.HelpText="{Binding ReaderDateStyleHint}">
                             <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
@@ -156,7 +169,7 @@
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                         <StackPanel VerticalAlignment="Center" Spacing="3">
                             <TextBlock x:Name="ReaderSpoilersFieldLabel" Text="{Binding ReaderSpoilersLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding ReaderSpoilersHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding ReaderSpoilersHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <ComboBox x:Name="ReaderSpoilersInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderSpoilersChoices}" SelectedItem="{Binding SelectedReaderSpoilers, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderSpoilersFieldLabel}" AutomationProperties.Name="{Binding ReaderSpoilersLabel}" AutomationProperties.HelpText="{Binding ReaderSpoilersHint}">
                             <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
@@ -169,75 +182,75 @@
                                     <TextBlock x:Name="ReaderFoldLinesFieldLabel" Text="{Binding ReaderFoldLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderFoldLinesInput" Value="{Binding ReaderFoldLines, Mode=TwoWay}" Minimum="{Binding ReaderFoldLinesMinimum}" Maximum="{Binding ReaderFoldLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderFoldLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderFoldLinesLabel}" AutomationProperties.HelpText="{Binding ReaderFoldLinesHelp}" />
-                                        <TextBlock x:Name="ReaderFoldLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderFoldLinesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderFoldLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderFoldLinesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderPreviewLinesFieldLabel" Text="{Binding ReaderPreviewLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderPreviewLinesInput" Value="{Binding ReaderPreviewLines, Mode=TwoWay}" Minimum="{Binding ReaderPreviewLinesMinimum}" Maximum="{Binding ReaderPreviewLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewLinesLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewLinesHelp}" />
-                                        <TextBlock x:Name="ReaderPreviewLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderPreviewLinesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderPreviewLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderPreviewLinesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderPreviewDelayMsFieldLabel" Text="{Binding ReaderPreviewDelayMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderPreviewDelayMsInput" Value="{Binding ReaderPreviewDelayMs, Mode=TwoWay}" Minimum="{Binding ReaderPreviewDelayMsMinimum}" Maximum="{Binding ReaderPreviewDelayMsMaximum}" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewDelayMsFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewDelayMsLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewDelayMsHelp}" />
-                                        <TextBlock x:Name="ReaderPreviewDelayMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderPreviewDelayMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderPreviewDelayMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderPreviewDelayMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderReplyStepFieldLabel" Text="{Binding ReaderReplyStepLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderReplyStepInput" Value="{Binding ReaderReplyStep, Mode=TwoWay}" Minimum="{Binding ReaderReplyStepMinimum}" Maximum="{Binding ReaderReplyStepMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderReplyStepFieldLabel}" AutomationProperties.Name="{Binding ReaderReplyStepLabel}" AutomationProperties.HelpText="{Binding ReaderReplyStepHelp}" />
-                                        <TextBlock x:Name="ReaderReplyStepInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderReplyStepInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderReplyStepHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderReplyStepHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderReplyLinesFieldLabel" Text="{Binding ReaderReplyLinesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderReplyLinesInput" Value="{Binding ReaderReplyLines, Mode=TwoWay}" Minimum="{Binding ReaderReplyLinesMinimum}" Maximum="{Binding ReaderReplyLinesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderReplyLinesFieldLabel}" AutomationProperties.Name="{Binding ReaderReplyLinesLabel}" AutomationProperties.HelpText="{Binding ReaderReplyLinesHelp}" />
-                                        <TextBlock x:Name="ReaderReplyLinesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderReplyLinesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderReplyLinesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderReplyLinesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderPageSizeFieldLabel" Text="{Binding ReaderPageSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderPageSizeInput" Value="{Binding ReaderPageSize, Mode=TwoWay}" Minimum="{Binding ReaderPageSizeMinimum}" Maximum="{Binding ReaderPageSizeMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPageSizeFieldLabel}" AutomationProperties.Name="{Binding ReaderPageSizeLabel}" AutomationProperties.HelpText="{Binding ReaderPageSizeHelp}" />
-                                        <TextBlock x:Name="ReaderPageSizeInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderPageSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                             <StackPanel Spacing="4">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                                     <TextBlock x:Name="ReaderThreadingDepthFieldLabel" Text="{Binding ReaderThreadingDepthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                                     <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                         <desktop:SettingsNumberInput x:Name="ReaderThreadingDepthInput" Value="{Binding ReaderThreadingDepth, Mode=TwoWay}" Minimum="{Binding ReaderThreadingDepthMinimum}" Maximum="{Binding ReaderThreadingDepthMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderThreadingDepthFieldLabel}" AutomationProperties.Name="{Binding ReaderThreadingDepthLabel}" AutomationProperties.HelpText="{Binding ReaderThreadingDepthHelp}" />
-                                        <TextBlock x:Name="ReaderThreadingDepthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                        <TextBlock x:Name="ReaderThreadingDepthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
                         </StackPanel>
                     </Expander>
-                    <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,14,0,0" />
-                    <TextBlock Text="{Binding GalleryPlaybackProfileHelp}" Classes="muted workspace-help" />
+                    <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />
+                    <TextBlock Text="{Binding GalleryPlaybackProfileHelp}" Classes="workspace-help" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="GalleryPlaybackModeFieldLabel" Text="{Binding GalleryPlaybackModeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <ComboBox x:Name="GalleryPlaybackModeInput" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
@@ -246,20 +259,20 @@
                             <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
                         </ComboBox>
                     </Grid>
-                    <TextBlock Text="{Binding GalleryPlaybackModeHelp}" Classes="muted workspace-help" />
+                    <TextBlock Text="{Binding GalleryPlaybackModeHelp}" Classes="workspace-help" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshow}">
                         <TextBlock x:Name="GallerySlideshowSecondsFieldLabel" Text="{Binding GallerySlideshowSecondsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                             <desktop:SettingsNumberInput x:Name="GallerySlideshowSecondsInput" Value="{Binding GallerySlideshowSeconds, Mode=TwoWay}" Minimum="1" Maximum="300" Increment="1"
                                 AutomationProperties.LabeledBy="{Binding ElementName=GallerySlideshowSecondsFieldLabel}" AutomationProperties.Name="{Binding GallerySlideshowSecondsLabel}" AutomationProperties.HelpText="{Binding GallerySlideshowSecondsHelp}" />
-                            <TextBlock Text="{Binding GallerySlideshowSecondsHelp}" Classes="muted workspace-help" />
-                            <TextBlock x:Name="GallerySlideshowSecondsInputError" IsVisible="False" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                            <TextBlock Text="{Binding GallerySlideshowSecondsHelp}" Classes="workspace-help" />
+                            <TextBlock x:Name="GallerySlideshowSecondsInputError" IsVisible="False" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                         </StackPanel>
                     </Grid>
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                         <StackPanel VerticalAlignment="Center" Spacing="3">
                             <TextBlock x:Name="GalleryFitUpscaleFieldLabel" Text="{Binding GalleryFitUpscaleLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding GalleryFitUpscaleHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding GalleryFitUpscaleHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                         <ComboBox x:Name="GalleryFitUpscaleInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding GalleryFitUpscaleChoices}" SelectedItem="{Binding SelectedGalleryFitUpscale, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFitUpscaleFieldLabel}" AutomationProperties.Name="{Binding GalleryFitUpscaleLabel}" AutomationProperties.HelpText="{Binding GalleryFitUpscaleHint}">
                             <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
@@ -270,10 +283,10 @@
                             <TextBlock x:Name="GalleryFitMaxUpscalePercentFieldLabel" Text="{Binding GalleryFitMaxUpscalePercentLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="GalleryFitMaxUpscalePercentInput" Value="{Binding GalleryFitMaxUpscalePercent, Mode=TwoWay}" Minimum="{Binding GalleryFitMaxUpscalePercentMinimum}" Maximum="{Binding GalleryFitMaxUpscalePercentMaximum}" Increment="25" IsEnabled="{Binding IsGalleryFitLimited}" AutomationProperties.LabeledBy="{Binding ElementName=GalleryFitMaxUpscalePercentFieldLabel}" AutomationProperties.Name="{Binding GalleryFitMaxUpscalePercentLabel}" AutomationProperties.HelpText="{Binding GalleryFitMaxUpscalePercentHelp}" />
-                                <TextBlock x:Name="GalleryFitMaxUpscalePercentInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="GalleryFitMaxUpscalePercentInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding GalleryFitMaxUpscalePercentHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding GalleryFitMaxUpscalePercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="8">
@@ -281,7 +294,7 @@
                         <!-- Compatibility binding only: overlay and auto-hide are one visible choice. -->
                         <CheckBox x:Name="GalleryAutoHideControlsInput" IsVisible="False" IsTabStop="False" IsChecked="{Binding GalleryAutoHideControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryAutoHideControlsLabel}" />
                         <CheckBox x:Name="GalleryOverlayPostContextInput" IsChecked="{Binding GalleryOverlayPostContext, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayPostContextLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayPostContextLabel}" TextWrapping="Wrap" /></CheckBox>
-                        <TextBlock Text="{Binding GalleryOverlayHelp}" Classes="muted workspace-help" />
+                        <TextBlock Text="{Binding GalleryOverlayHelp}" Classes="workspace-help" />
                     </StackPanel>
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
@@ -289,33 +302,36 @@
                         <TextBlock x:Name="VideoVolumeFieldLabel" Text="{Binding VideoVolumeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <desktop:AccessibleNumberInput x:Name="VideoVolumeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=VideoVolumeFieldLabel}" AutomationProperties.Name="{Binding VideoVolumeLabel}" AutomationProperties.HelpText="{Binding VolumeHelp}" Grid.Column="1" Value="{Binding VideoVolume, Mode=TwoWay}" Minimum="0" Maximum="100" Increment="1" />
                     </Grid>
-                    <CheckBox x:Name="RememberReadingPositionInput" Content="{Binding RememberReadingPositionLabel}" IsChecked="{Binding RememberReadingPosition, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReadingPositionHint}" />
-                    <TextBlock Text="{Binding ReadingPositionHint}" Classes="muted workspace-help" />
-                    <Button x:Name="ForgetReadingPositionButton" Content="{Binding ForgetReadingPositionLabel}" AutomationProperties.Name="{Binding ForgetReadingPositionLabel}" Click="OnForgetReadingPositionClick" IsEnabled="{Binding CanForgetReadingPosition}" HorizontalAlignment="Left" />
+                    <!-- The Forget action sits beside the setting it undoes instead of on a line of its own; it wraps below the box in a narrow window. -->
+                    <WrapPanel ItemSpacing="16" LineSpacing="8">
+                        <CheckBox x:Name="RememberReadingPositionInput" Content="{Binding RememberReadingPositionLabel}" IsChecked="{Binding RememberReadingPosition, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReadingPositionHint}" />
+                        <Button x:Name="ForgetReadingPositionButton" Content="{Binding ForgetReadingPositionLabel}" AutomationProperties.Name="{Binding ForgetReadingPositionLabel}" Click="OnForgetReadingPositionClick" IsEnabled="{Binding CanForgetReadingPosition}" VerticalAlignment="Center" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding ReadingPositionHint}" Classes="workspace-help" />
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
                 </StackPanel>
                 <StackPanel x:Name="SettingsDownloadsPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
-                    <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,10" />
+                    <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,8" />
                     <StackPanel Classes="workspace-field" Margin="0,0,0,12">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" Classes="workspace-field-label" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                             <TextBox x:Name="DownloadPathInput" AutomationProperties.LabeledBy="{Binding ElementName=DownloadPathFieldLabel}" AutomationProperties.Name="{Binding DownloadPathLabel}" AutomationProperties.HelpText="{Binding DownloadPathHelp}" Text="{Binding DownloadPath, Mode=TwoWay}" />
                             <Button x:Name="BrowseButton" Grid.Column="1" Click="OnBrowseButtonClick" />
+                            <Button x:Name="CheckDestinationButton" Grid.Column="2" Content="{Binding CheckDestinationLabel}" AutomationProperties.Name="{Binding CheckDestinationLabel}" Click="OnCheckDestinationClick" />
                         </Grid>
                         <TextBlock x:Name="NormalizedDestinationPreview" Text="{Binding NormalizedDestination}" Classes="workspace-help" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding DestinationScopeHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding DestinationPolicyHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
-                        <Button x:Name="CheckDestinationButton" Content="{Binding CheckDestinationLabel}" AutomationProperties.Name="{Binding CheckDestinationLabel}" Click="OnCheckDestinationClick" HorizontalAlignment="Left" />
+                        <TextBlock Text="{Binding DestinationScopeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding DestinationPolicyHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <TextBlock x:Name="DestinationCheckStatus" Text="{Binding DestinationStatusText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock Text="{Binding DestinationCleanupWarning}" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
-                        <TextBlock x:Name="DownloadPathInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        <TextBlock Text="{Binding DestinationCleanupWarning}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                        <TextBlock x:Name="DownloadPathInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                     </StackPanel>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="RecheckFieldLabel" Text="{Binding RecheckLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="RecheckTimerInput" AutomationProperties.LabeledBy="{Binding ElementName=RecheckFieldLabel}" AutomationProperties.Name="{Binding RecheckLabel}" AutomationProperties.HelpText="{Binding RecheckTimerHelp}" Value="{Binding RecheckTimer, Mode=TwoWay}" Minimum="10" Maximum="4294967" Increment="1" />
-                                <TextBlock x:Name="RecheckTimerInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="RecheckTimerInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -324,9 +340,9 @@
                             <TextBlock x:Name="BandwidthFieldLabel" Text="{Binding BandwidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="BandwidthInput" AutomationProperties.LabeledBy="{Binding ElementName=BandwidthFieldLabel}" AutomationProperties.Name="{Binding BandwidthLabel}" AutomationProperties.HelpText="{Binding BandwidthInputHelp}" Value="{Binding BandwidthLimiterMB, Mode=TwoWay}" Minimum="0" Maximum="100000" Increment="0.1" />
-                                <TextBlock x:Name="BandwidthInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="BandwidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding BandwidthHint}" Classes="muted" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding BandwidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                     <Border Padding="0,10">
@@ -334,9 +350,9 @@
                             <TextBlock x:Name="ParallelFieldLabel" Text="{Binding ParallelLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ParallelDownloadsInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelFieldLabel}" AutomationProperties.Name="{Binding ParallelLabel}" Value="{Binding MaxParallelDownloads, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsHelp}" />
-                                <TextBlock x:Name="ParallelDownloadsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ParallelDownloadsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelHint}" Classes="muted" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                     <Border Padding="0,10">
@@ -344,9 +360,9 @@
                             <TextBlock x:Name="ParallelSafetyFieldLabel" Text="{Binding ParallelSafetyLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ParallelDownloadsSafetyInput" AutomationProperties.LabeledBy="{Binding ElementName=ParallelSafetyFieldLabel}" AutomationProperties.Name="{Binding ParallelSafetyLabel}" Value="{Binding ParallelDownloadsSafetyLimit, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.HelpText="{Binding ParallelDownloadsSafetyHelp}" />
-                                <TextBlock x:Name="ParallelDownloadsSafetyInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ParallelDownloadsSafetyInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
-                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelSafetyHint}" Classes="muted" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="{Binding ParallelSafetyHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </Grid>
                     </Border>
                     <TextBlock x:Name="ParallelEffectiveLine" Margin="0,2,0,0" Text="{Binding ParallelEffectiveText}" FontWeight="SemiBold" TextWrapping="Wrap"
@@ -354,315 +370,315 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" />
-                    <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ReserveInput" Value="{Binding MinimumFreeSpaceGiB, Mode=TwoWay}" Minimum="0" Maximum="65536" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReserveFieldLabel}" AutomationProperties.Name="{Binding ReserveLabel}" AutomationProperties.HelpText="{Binding ReserveInputHelp}" />
-                                <TextBlock x:Name="ReserveInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ReserveInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ReserveHint}" Classes="muted workspace-help" />
+                    <TextBlock Text="{Binding ReserveHint}" Classes="workspace-help" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="BooruCatalogMiBFieldLabel" Text="{Binding BooruCatalogMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="BooruCatalogMiBInput" Value="{Binding BooruCatalogMiB, Mode=TwoWay}" Minimum="8" Maximum="128" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruCatalogMiBFieldLabel}" AutomationProperties.Name="{Binding BooruCatalogMiBLabel}" AutomationProperties.HelpText="{Binding BooruCatalogMiBHelp}" />
-                                <TextBlock x:Name="BooruCatalogMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="BooruCatalogMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding BooruCatalogMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding BooruCatalogMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PrivateTagLimitFieldLabel" Text="{Binding PrivateTagLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PrivateTagLimitInput" Value="{Binding PrivateTagLimit, Mode=TwoWay}" Minimum="256" Maximum="20000" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=PrivateTagLimitFieldLabel}" AutomationProperties.Name="{Binding PrivateTagLimitLabel}" AutomationProperties.HelpText="{Binding PrivateTagLimitHelp}" />
-                                <TextBlock x:Name="PrivateTagLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PrivateTagLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding PrivateTagLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PrivateTagLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PrivateTagFileMiBFieldLabel" Text="{Binding PrivateTagFileMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PrivateTagFileMiBInput" Value="{Binding PrivateTagFileMiB, Mode=TwoWay}" Minimum="8" Maximum="128" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=PrivateTagFileMiBFieldLabel}" AutomationProperties.Name="{Binding PrivateTagFileMiBLabel}" AutomationProperties.HelpText="{Binding PrivateTagFileMiBHelp}" />
-                                <TextBlock x:Name="PrivateTagFileMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PrivateTagFileMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding PrivateTagFileMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PrivateTagFileMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="MediaIndexCacheMiBFieldLabel" Text="{Binding MediaIndexCacheMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="MediaIndexCacheMiBInput" Value="{Binding MediaIndexCacheMiB, Mode=TwoWay}" Minimum="16" Maximum="1024" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=MediaIndexCacheMiBFieldLabel}" AutomationProperties.Name="{Binding MediaIndexCacheMiBLabel}" AutomationProperties.HelpText="{Binding MediaIndexCacheMiBHelp}" />
-                                <TextBlock x:Name="MediaIndexCacheMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="MediaIndexCacheMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding MediaIndexCacheMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MediaIndexCacheMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ClipboardUrlLimitFieldLabel" Text="{Binding ClipboardUrlLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ClipboardUrlLimitInput" Value="{Binding ClipboardUrlLimit, Mode=TwoWay}" Minimum="1" Maximum="500" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardUrlLimitFieldLabel}" AutomationProperties.Name="{Binding ClipboardUrlLimitLabel}" AutomationProperties.HelpText="{Binding ClipboardUrlLimitHelp}" />
-                                <TextBlock x:Name="ClipboardUrlLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ClipboardUrlLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ClipboardUrlLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ClipboardUrlLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ClipboardTextLimitKiBFieldLabel" Text="{Binding ClipboardTextLimitKiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ClipboardTextLimitKiBInput" Value="{Binding ClipboardTextLimitKiB, Mode=TwoWay}" Minimum="4" Maximum="4096" Increment="4" AutomationProperties.LabeledBy="{Binding ElementName=ClipboardTextLimitKiBFieldLabel}" AutomationProperties.Name="{Binding ClipboardTextLimitKiBLabel}" AutomationProperties.HelpText="{Binding ClipboardTextLimitKiBHelp}" />
-                                <TextBlock x:Name="ClipboardTextLimitKiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ClipboardTextLimitKiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ClipboardTextLimitKiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
-                    <TextBlock x:Name="LimitsListsHeading" Text="{Binding ListsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ClipboardTextLimitKiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsListsHeading" Text="{Binding ListsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="FavoriteEntryLimitFieldLabel" Text="{Binding FavoriteEntryLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="FavoriteEntryLimitInput" Value="{Binding FavoriteEntryLimit, Mode=TwoWay}" Minimum="10000" Maximum="500000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteEntryLimitFieldLabel}" AutomationProperties.Name="{Binding FavoriteEntryLimitLabel}" AutomationProperties.HelpText="{Binding FavoriteEntryLimitHelp}" />
-                                <TextBlock x:Name="FavoriteEntryLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="FavoriteEntryLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding FavoriteEntryLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding FavoriteEntryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="FavoriteFileLimitMiBFieldLabel" Text="{Binding FavoriteFileLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="FavoriteFileLimitMiBInput" Value="{Binding FavoriteFileLimitMiB, Mode=TwoWay}" Minimum="1" Maximum="128" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=FavoriteFileLimitMiBFieldLabel}" AutomationProperties.Name="{Binding FavoriteFileLimitMiBLabel}" AutomationProperties.HelpText="{Binding FavoriteFileLimitMiBHelp}" />
-                                <TextBlock x:Name="FavoriteFileLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="FavoriteFileLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding FavoriteFileLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding FavoriteFileLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PostBookmarkLimitFieldLabel" Text="{Binding PostBookmarkLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PostBookmarkLimitInput" Value="{Binding PostBookmarkLimit, Mode=TwoWay}" Minimum="1000" Maximum="100000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=PostBookmarkLimitFieldLabel}" AutomationProperties.Name="{Binding PostBookmarkLimitLabel}" AutomationProperties.HelpText="{Binding PostBookmarkLimitHelp}" />
-                                <TextBlock x:Name="PostBookmarkLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PostBookmarkLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding PostBookmarkLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PostBookmarkLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="SavedSearchLimitFieldLabel" Text="{Binding SavedSearchLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="SavedSearchLimitInput" Value="{Binding SavedSearchLimit, Mode=TwoWay}" Minimum="50" Maximum="5000" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=SavedSearchLimitFieldLabel}" AutomationProperties.Name="{Binding SavedSearchLimitLabel}" AutomationProperties.HelpText="{Binding SavedSearchLimitHelp}" />
-                                <TextBlock x:Name="SavedSearchLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="SavedSearchLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding SavedSearchLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SavedSearchLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReaderGroupLimitFieldLabel" Text="{Binding ReaderGroupLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ReaderGroupLimitInput" Value="{Binding ReaderGroupLimit, Mode=TwoWay}" Minimum="50" Maximum="5000" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=ReaderGroupLimitFieldLabel}" AutomationProperties.Name="{Binding ReaderGroupLimitLabel}" AutomationProperties.HelpText="{Binding ReaderGroupLimitHelp}" />
-                                <TextBlock x:Name="ReaderGroupLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ReaderGroupLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ReaderGroupLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ReaderGroupLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="SourcesWatchPreviewRowsFieldLabel" Text="{Binding SourcesWatchPreviewRowsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="SourcesWatchPreviewRowsInput" Value="{Binding SourcesWatchPreviewRows, Mode=TwoWay}" Minimum="3" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourcesWatchPreviewRowsFieldLabel}" AutomationProperties.Name="{Binding SourcesWatchPreviewRowsLabel}" AutomationProperties.HelpText="{Binding SourcesWatchPreviewRowsHelp}" />
-                                <TextBlock x:Name="SourcesWatchPreviewRowsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="SourcesWatchPreviewRowsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding SourcesWatchPreviewRowsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding SourcesWatchPreviewRowsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <StackPanel Spacing="4">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                             <TextBlock x:Name="PostFilterRuleLimitFieldLabel" Text="{Binding PostFilterRuleLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PostFilterRuleLimitInput" Value="{Binding PostFilterRuleLimit, Mode=TwoWay}" Minimum="{Binding PostFilterRuleLimitMinimum}" Maximum="{Binding PostFilterRuleLimitMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=PostFilterRuleLimitFieldLabel}" AutomationProperties.Name="{Binding PostFilterRuleLimitLabel}" AutomationProperties.HelpText="{Binding PostFilterRuleLimitHelp}" />
-                                <TextBlock x:Name="PostFilterRuleLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PostFilterRuleLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding PostFilterRuleLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding PostFilterRuleLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <StackPanel Spacing="4">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                             <TextBlock x:Name="HiddenPostLimitFieldLabel" Text="{Binding HiddenPostLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="HiddenPostLimitInput" Value="{Binding HiddenPostLimit, Mode=TwoWay}" Minimum="{Binding HiddenPostLimitMinimum}" Maximum="{Binding HiddenPostLimitMaximum}" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=HiddenPostLimitFieldLabel}" AutomationProperties.Name="{Binding HiddenPostLimitLabel}" AutomationProperties.HelpText="{Binding HiddenPostLimitHelp}" />
-                                <TextBlock x:Name="HiddenPostLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="HiddenPostLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding HiddenPostLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding HiddenPostLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ExportConfirmFilesInput" Value="{Binding ExportConfirmFiles, Mode=TwoWay}" Minimum="10" Maximum="100000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=ExportConfirmFilesFieldLabel}" AutomationProperties.Name="{Binding ExportConfirmFilesLabel}" AutomationProperties.HelpText="{Binding ExportConfirmFilesHelp}" />
-                                <TextBlock x:Name="ExportConfirmFilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ExportConfirmFilesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ExportConfirmFilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ExportConfirmFilesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ExportConfirmGiBFieldLabel" Text="{Binding ExportConfirmGiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ExportConfirmGiBInput" Value="{Binding ExportConfirmGiB, Mode=TwoWay}" Minimum="1" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ExportConfirmGiBFieldLabel}" AutomationProperties.Name="{Binding ExportConfirmGiBLabel}" AutomationProperties.HelpText="{Binding ExportConfirmGiBHelp}" />
-                                <TextBlock x:Name="ExportConfirmGiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ExportConfirmGiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ExportConfirmGiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ExportConfirmGiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PosterCacheLimitMiBFieldLabel" Text="{Binding PosterCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PosterCacheLimitMiBInput" Value="{Binding PosterCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="8192" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding PosterCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding PosterCacheLimitMiBHelp}" />
-                                <TextBlock x:Name="PosterCacheLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PosterCacheLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding PosterCacheLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PosterCacheLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="PosterCacheFileLimitFieldLabel" Text="{Binding PosterCacheFileLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="PosterCacheFileLimitInput" Value="{Binding PosterCacheFileLimit, Mode=TwoWay}" Minimum="32" Maximum="50000" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=PosterCacheFileLimitFieldLabel}" AutomationProperties.Name="{Binding PosterCacheFileLimitLabel}" AutomationProperties.HelpText="{Binding PosterCacheFileLimitHelp}" />
-                                <TextBlock x:Name="PosterCacheFileLimitInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="PosterCacheFileLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding PosterCacheFileLimitHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding PosterCacheFileLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="AudioProbeCacheLimitMiBFieldLabel" Text="{Binding AudioProbeCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="AudioProbeCacheLimitMiBInput" Value="{Binding AudioProbeCacheLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="128" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=AudioProbeCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding AudioProbeCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding AudioProbeCacheLimitMiBHelp}" />
-                                <TextBlock x:Name="AudioProbeCacheLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="AudioProbeCacheLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding AudioProbeCacheLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AudioProbeCacheLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="AudioProbeCacheEntriesFieldLabel" Text="{Binding AudioProbeCacheEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="AudioProbeCacheEntriesInput" Value="{Binding AudioProbeCacheEntries, Mode=TwoWay}" Minimum="50000" Maximum="1000000" Increment="50000" AutomationProperties.LabeledBy="{Binding ElementName=AudioProbeCacheEntriesFieldLabel}" AutomationProperties.Name="{Binding AudioProbeCacheEntriesLabel}" AutomationProperties.HelpText="{Binding AudioProbeCacheEntriesHelp}" />
-                                <TextBlock x:Name="AudioProbeCacheEntriesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="AudioProbeCacheEntriesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding AudioProbeCacheEntriesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding AudioProbeCacheEntriesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ThumbnailCacheTilesFieldLabel" Text="{Binding ThumbnailCacheTilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ThumbnailCacheTilesInput" Value="{Binding ThumbnailCacheTiles, Mode=TwoWay}" Minimum="32" Maximum="8192" Increment="32" AutomationProperties.LabeledBy="{Binding ElementName=ThumbnailCacheTilesFieldLabel}" AutomationProperties.Name="{Binding ThumbnailCacheTilesLabel}" AutomationProperties.HelpText="{Binding ThumbnailCacheTilesHelp}" />
-                                <TextBlock x:Name="ThumbnailCacheTilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ThumbnailCacheTilesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ThumbnailCacheTilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ThumbnailCacheTilesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="GalleryImageCacheMiBFieldLabel" Text="{Binding GalleryImageCacheMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="GalleryImageCacheMiBInput" Value="{Binding GalleryImageCacheMiB, Mode=TwoWay}" Minimum="0" Maximum="4096" Increment="64" AutomationProperties.LabeledBy="{Binding ElementName=GalleryImageCacheMiBFieldLabel}" AutomationProperties.Name="{Binding GalleryImageCacheMiBLabel}" AutomationProperties.HelpText="{Binding GalleryImageCacheMiBHelp}" />
-                                <TextBlock x:Name="GalleryImageCacheMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="GalleryImageCacheMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding GalleryImageCacheMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GalleryImageCacheMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="GalleryPreloadAheadFieldLabel" Text="{Binding GalleryPreloadAheadLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="GalleryPreloadAheadInput" Value="{Binding GalleryPreloadAhead, Mode=TwoWay}" Minimum="0" Maximum="20" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=GalleryPreloadAheadFieldLabel}" AutomationProperties.Name="{Binding GalleryPreloadAheadLabel}" AutomationProperties.HelpText="{Binding GalleryPreloadAheadHelp}" />
-                                <TextBlock x:Name="GalleryPreloadAheadInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="GalleryPreloadAheadInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding GalleryPreloadAheadHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GalleryPreloadAheadHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="GalleryPreloadBehindFieldLabel" Text="{Binding GalleryPreloadBehindLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="GalleryPreloadBehindInput" Value="{Binding GalleryPreloadBehind, Mode=TwoWay}" Minimum="0" Maximum="20" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=GalleryPreloadBehindFieldLabel}" AutomationProperties.Name="{Binding GalleryPreloadBehindLabel}" AutomationProperties.HelpText="{Binding GalleryPreloadBehindHelp}" />
-                                <TextBlock x:Name="GalleryPreloadBehindInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="GalleryPreloadBehindInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding GalleryPreloadBehindHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
-                    <TextBlock x:Name="LimitsImportHeading" Text="{Binding ImportGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,14,0,0" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding GalleryPreloadBehindHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsImportHeading" Text="{Binding ImportGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxFilesPerBatchFieldLabel" Text="{Binding ImportMaxFilesPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxFilesPerBatchInput" Value="{Binding ImportMaxFilesPerBatch, Mode=TwoWay}" Minimum="1" Maximum="20000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxFilesPerBatchFieldLabel}" AutomationProperties.Name="{Binding ImportMaxFilesPerBatchLabel}" AutomationProperties.HelpText="{Binding ImportMaxFilesPerBatchHelp}" />
-                                <TextBlock x:Name="ImportMaxFilesPerBatchInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxFilesPerBatchInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxFilesPerBatchHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxFilesPerBatchHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxBatchGiBFieldLabel" Text="{Binding ImportMaxBatchGiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxBatchGiBInput" Value="{Binding ImportMaxBatchGiB, Mode=TwoWay}" Minimum="1" Maximum="16384" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxBatchGiBFieldLabel}" AutomationProperties.Name="{Binding ImportMaxBatchGiBLabel}" AutomationProperties.HelpText="{Binding ImportMaxBatchGiBHelp}" />
-                                <TextBlock x:Name="ImportMaxBatchGiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxBatchGiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxBatchGiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxBatchGiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxFileMiBFieldLabel" Text="{Binding ImportMaxFileMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxFileMiBInput" Value="{Binding ImportMaxFileMiB, Mode=TwoWay}" Minimum="1" Maximum="1048576" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxFileMiBFieldLabel}" AutomationProperties.Name="{Binding ImportMaxFileMiBLabel}" AutomationProperties.HelpText="{Binding ImportMaxFileMiBHelp}" />
-                                <TextBlock x:Name="ImportMaxFileMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxFileMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxFileMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxFileMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxTotalFilesFieldLabel" Text="{Binding ImportMaxTotalFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxTotalFilesInput" Value="{Binding ImportMaxTotalFiles, Mode=TwoWay}" Minimum="1" Maximum="500000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxTotalFilesFieldLabel}" AutomationProperties.Name="{Binding ImportMaxTotalFilesLabel}" AutomationProperties.HelpText="{Binding ImportMaxTotalFilesHelp}" />
-                                <TextBlock x:Name="ImportMaxTotalFilesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxTotalFilesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxTotalFilesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxTotalFilesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportCatalogLimitMiBFieldLabel" Text="{Binding ImportCatalogLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportCatalogLimitMiBInput" Value="{Binding ImportCatalogLimitMiB, Mode=TwoWay}" Minimum="1" Maximum="128" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportCatalogLimitMiBFieldLabel}" AutomationProperties.Name="{Binding ImportCatalogLimitMiBLabel}" AutomationProperties.HelpText="{Binding ImportCatalogLimitMiBHelp}" />
-                                <TextBlock x:Name="ImportCatalogLimitMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportCatalogLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportCatalogLimitMiBHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportCatalogLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxTagsPerBatchFieldLabel" Text="{Binding ImportMaxTagsPerBatchLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxTagsPerBatchInput" Value="{Binding ImportMaxTagsPerBatch, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxTagsPerBatchFieldLabel}" AutomationProperties.Name="{Binding ImportMaxTagsPerBatchLabel}" AutomationProperties.HelpText="{Binding ImportMaxTagsPerBatchHelp}" />
-                                <TextBlock x:Name="ImportMaxTagsPerBatchInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxTagsPerBatchInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxTagsPerBatchHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxTagsPerBatchHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ImportMaxBatchesFieldLabel" Text="{Binding ImportMaxBatchesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ImportMaxBatchesInput" Value="{Binding ImportMaxBatches, Mode=TwoWay}" Minimum="1000" Maximum="1000000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=ImportMaxBatchesFieldLabel}" AutomationProperties.Name="{Binding ImportMaxBatchesLabel}" AutomationProperties.HelpText="{Binding ImportMaxBatchesHelp}" />
-                                <TextBlock x:Name="ImportMaxBatchesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ImportMaxBatchesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding ImportMaxBatchesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ImportMaxBatchesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="MediaIndexMaxEntriesFieldLabel" Text="{Binding MediaIndexMaxEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="MediaIndexMaxEntriesInput" Value="{Binding MediaIndexMaxEntries, Mode=TwoWay}" Minimum="100000" Maximum="5000000" Increment="10000" AutomationProperties.LabeledBy="{Binding ElementName=MediaIndexMaxEntriesFieldLabel}" AutomationProperties.Name="{Binding MediaIndexMaxEntriesLabel}" AutomationProperties.HelpText="{Binding MediaIndexMaxEntriesHelp}" />
-                                <TextBlock x:Name="MediaIndexMaxEntriesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="MediaIndexMaxEntriesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding MediaIndexMaxEntriesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MediaIndexMaxEntriesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="MediaIndexMaxThreadsFieldLabel" Text="{Binding MediaIndexMaxThreadsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="MediaIndexMaxThreadsInput" Value="{Binding MediaIndexMaxThreads, Mode=TwoWay}" Minimum="20000" Maximum="1000000" Increment="10000" AutomationProperties.LabeledBy="{Binding ElementName=MediaIndexMaxThreadsFieldLabel}" AutomationProperties.Name="{Binding MediaIndexMaxThreadsLabel}" AutomationProperties.HelpText="{Binding MediaIndexMaxThreadsHelp}" />
-                                <TextBlock x:Name="MediaIndexMaxThreadsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="MediaIndexMaxThreadsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                     </Grid>
-                    <TextBlock Text="{Binding MediaIndexMaxThreadsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MediaIndexMaxThreadsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <StackPanel Spacing="10" Margin="0,8,0,0">
-                            <TextBlock Text="{Binding BudgetRestartHint}" Classes="muted" TextWrapping="Wrap" />
+                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding BudgetRestartHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="ProductionWorkersFieldLabel" Text="{Binding ProductionWorkersLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="ProductionWorkersInput" Value="{Binding ProductionWorkers, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProductionWorkersFieldLabel}" AutomationProperties.Name="{Binding ProductionWorkersLabel}" AutomationProperties.HelpText="{Binding ProductionWorkersHelp}" />
-                                <TextBlock x:Name="ProductionWorkersInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="ProductionWorkersInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="WorkerIdleMinutesFieldLabel" Text="{Binding WorkerIdleMinutesLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="WorkerIdleMinutesInput" Value="{Binding WorkerIdleMinutes, Mode=TwoWay}" Minimum="1" Maximum="30" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=WorkerIdleMinutesFieldLabel}" AutomationProperties.Name="{Binding WorkerIdleMinutesLabel}" AutomationProperties.HelpText="{Binding WorkerIdleMinutesHelp}" />
-                                <TextBlock x:Name="WorkerIdleMinutesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="WorkerIdleMinutesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="SourceHeapMiBFieldLabel" Text="{Binding SourceHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="SourceHeapMiBInput" Value="{Binding SourceHeapMiB, Mode=TwoWay}" Minimum="128" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SourceHeapMiBFieldLabel}" AutomationProperties.Name="{Binding SourceHeapMiBLabel}" AutomationProperties.HelpText="{Binding SourceHeapMiBHelp}" />
-                                <TextBlock x:Name="SourceHeapMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="SourceHeapMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                             <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                                 <TextBlock x:Name="FilterHeapMiBFieldLabel" Text="{Binding FilterHeapMiBLabel}" VerticalAlignment="Center" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="FilterHeapMiBInput" Value="{Binding FilterHeapMiB, Mode=TwoWay}" Minimum="256" Maximum="2048" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FilterHeapMiBFieldLabel}" AutomationProperties.Name="{Binding FilterHeapMiBLabel}" AutomationProperties.HelpText="{Binding FilterHeapMiBHelp}" />
-                                <TextBlock x:Name="FilterHeapMiBInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="FilterHeapMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -676,7 +692,7 @@
                     <CheckBox x:Name="PrereleaseUpdatesInput" AutomationProperties.Name="{Binding IncludePrereleaseUpdatesLabel}" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding IncludePrereleaseUpdates, Mode=TwoWay}">
                         <TextBlock Text="{Binding IncludePrereleaseUpdatesLabel}" TextWrapping="Wrap" />
                     </CheckBox>
-                    <TextBlock x:Name="UpdatePrivacyText" Text="{Binding UpdatePrivacyHint}" Classes="muted workspace-help" />
+                    <TextBlock x:Name="UpdatePrivacyText" Text="{Binding UpdatePrivacyHint}" Classes="workspace-help" />
                     <TextBlock x:Name="UpdateDisabledText" Text="{Binding UpdateDisabledReason}" IsVisible="{Binding UpdatesDisabled}" TextWrapping="Wrap" />
                 </StackPanel>
                 <StackPanel x:Name="SettingsNotificationsSection" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
@@ -684,29 +700,29 @@
                     <CheckBox x:Name="InformationNotificationsInput" IsChecked="{Binding ShowInformationNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding InformationNotificationsLabel}"><TextBlock Text="{Binding InformationNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="WarningNotificationsInput" IsChecked="{Binding ShowWarningNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding WarningNotificationsLabel}"><TextBlock Text="{Binding WarningNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="ErrorNotificationsInput" IsChecked="{Binding ShowErrorNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding ErrorNotificationsLabel}"><TextBlock Text="{Binding ErrorNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
-                    <TextBlock Text="{Binding NotificationsHint}" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding NotificationsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                 </StackPanel>
-                <StackPanel x:Name="SettingsBehaviorPage" Spacing="10" IsEnabled="{Binding IsEditable}" IsVisible="False">
+                <StackPanel x:Name="SettingsBehaviorPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" />
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
                     <CheckBox x:Name="MonitorClipboardUrlsInput" IsChecked="{Binding MonitorClipboardUrls, Mode=TwoWay}" AutomationProperties.Name="{Binding MonitorClipboardLabel}" AutomationProperties.HelpText="{Binding MonitorClipboardHint}">
                         <TextBlock Text="{Binding MonitorClipboardLabel}" TextWrapping="Wrap" />
                     </CheckBox>
-                    <TextBlock Text="{Binding MonitorClipboardHint}" Classes="muted" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding MonitorClipboardHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox x:Name="RestoreSessionInput" Content="{Binding RestoreSessionLabel}" IsChecked="{Binding SaveUrlsOnExit, Mode=TwoWay}" />
                     <CheckBox x:Name="CloseToTrayInput" Content="{Binding CloseToTrayLabel}" IsChecked="{Binding CloseToTray, Mode=TwoWay}" />
                     <CheckBox x:Name="MinimizeToTrayInput" Content="{Binding MinimizeToTrayLabel}" IsChecked="{Binding MinimizeToTray, Mode=TwoWay}" />
-                    <StackPanel x:Name="SettingsStatisticsSection" Spacing="8" Margin="0,14,0,0">
+                    <StackPanel x:Name="SettingsStatisticsSection" Spacing="8" Margin="0,16,0,0">
                         <StackPanel.Styles>
                             <!-- An unavailable row stays readable but is visibly set apart; its tooltip names the switch it depends on. -->
-                            <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Opacity" Value="0.6" /></Style>
+                            <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
                         </StackPanel.Styles>
                         <TextBlock x:Name="SettingsStatisticsHeading" Text="{Binding StatisticsTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock Text="{Binding StatisticsIntro}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatisticsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
-                            <StackPanel VerticalAlignment="Center" Spacing="3">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
                                 <TextBlock x:Name="StatsHeaderGraphFieldLabel" Text="{Binding StatsHeaderGraphLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding StatsHeaderGraphHint}" Classes="muted workspace-help" />
+                                <TextBlock Text="{Binding StatsHeaderGraphHint}" Classes="workspace-help" />
                             </StackPanel>
                             <ComboBox x:Name="StatsHeaderGraphInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=StatsHeaderGraphFieldLabel}" AutomationProperties.Name="{Binding StatsHeaderGraphLabel}" AutomationProperties.HelpText="{Binding StatsHeaderGraphHint}" Grid.Column="1" HorizontalAlignment="Stretch"
                                       ItemsSource="{Binding StatsHeaderGraphChoices}" SelectedItem="{Binding SelectedStatsHeaderGraph, Mode=TwoWay}">
@@ -717,84 +733,86 @@
                             <TextBlock x:Name="StatsSampleIntervalMsFieldLabel" Text="{Binding StatsSampleIntervalMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsSampleIntervalMsInput" Value="{Binding StatsSampleIntervalMs, Mode=TwoWay}" Minimum="500" Maximum="10000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=StatsSampleIntervalMsFieldLabel}" AutomationProperties.Name="{Binding StatsSampleIntervalMsLabel}" AutomationProperties.HelpText="{Binding StatsSampleIntervalMsHelp}" />
-                                <TextBlock x:Name="StatsSampleIntervalMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsSampleIntervalMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsSampleIntervalMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsSampleIntervalMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="StatsHistorySamplesFieldLabel" Text="{Binding StatsHistorySamplesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsHistorySamplesInput" Value="{Binding StatsHistorySamples, Mode=TwoWay}" Minimum="30" Maximum="3600" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=StatsHistorySamplesFieldLabel}" AutomationProperties.Name="{Binding StatsHistorySamplesLabel}" AutomationProperties.HelpText="{Binding StatsHistorySamplesHelp}" />
-                                <TextBlock x:Name="StatsHistorySamplesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsHistorySamplesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsHistorySamplesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsHistorySamplesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <CheckBox x:Name="StatsTrayTooltipInput" IsChecked="{Binding StatsTrayTooltip, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsTrayTooltipLabel}" AutomationProperties.HelpText="{Binding StatsTrayTooltipHint}">
                             <TextBlock Text="{Binding StatsTrayTooltipLabel}" TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock Text="{Binding StatsTrayTooltipHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsTrayTooltipHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsBackgroundIntervalMsReason}" ToolTip.ShowOnDisabled="True">
                             <TextBlock x:Name="StatsBackgroundIntervalMsFieldLabel" Text="{Binding StatsBackgroundIntervalMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsBackgroundIntervalMsEnabled}" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsBackgroundIntervalMsInput" Value="{Binding StatsBackgroundIntervalMs, Mode=TwoWay}" Minimum="2000" Maximum="60000" Increment="1000" IsEnabled="{Binding StatsBackgroundIntervalMsEnabled}" ToolTip.Tip="{Binding StatsBackgroundIntervalMsReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsBackgroundIntervalMsFieldLabel}" AutomationProperties.Name="{Binding StatsBackgroundIntervalMsLabel}" AutomationProperties.HelpText="{Binding StatsBackgroundIntervalMsHelp}" />
-                                <TextBlock x:Name="StatsBackgroundIntervalMsInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsBackgroundIntervalMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsBackgroundIntervalMsHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsBackgroundIntervalMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <CheckBox x:Name="StatsTrayMenuInput" IsChecked="{Binding StatsTrayMenu, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsTrayMenuLabel}" AutomationProperties.HelpText="{Binding StatsTrayMenuHint}">
                             <TextBlock Text="{Binding StatsTrayMenuLabel}" TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock Text="{Binding StatsTrayMenuHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsTrayMenuHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <CheckBox x:Name="StatsPersistInput" IsChecked="{Binding StatsPersist, Mode=TwoWay}" AutomationProperties.Name="{Binding StatsPersistLabel}" AutomationProperties.HelpText="{Binding StatsPersistHint}">
                             <TextBlock Text="{Binding StatsPersistLabel}" TextWrapping="Wrap" />
                         </CheckBox>
-                        <TextBlock Text="{Binding StatsPersistHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsPersistHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsRetentionDaysReason}" ToolTip.ShowOnDisabled="True">
                             <TextBlock x:Name="StatsRetentionDaysFieldLabel" Text="{Binding StatsRetentionDaysLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsRetentionDaysEnabled}" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsRetentionDaysInput" Value="{Binding StatsRetentionDays, Mode=TwoWay}" Minimum="1" Maximum="365" Increment="1" IsEnabled="{Binding StatsRetentionDaysEnabled}" ToolTip.Tip="{Binding StatsRetentionDaysReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsRetentionDaysFieldLabel}" AutomationProperties.Name="{Binding StatsRetentionDaysLabel}" AutomationProperties.HelpText="{Binding StatsRetentionDaysHelp}" />
-                                <TextBlock x:Name="StatsRetentionDaysInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsRetentionDaysInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsRetentionDaysHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsRetentionDaysHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" ToolTip.Tip="{Binding StatsPersistIntervalMinutesReason}" ToolTip.ShowOnDisabled="True">
                             <TextBlock x:Name="StatsPersistIntervalMinutesFieldLabel" Text="{Binding StatsPersistIntervalMinutesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" IsEnabled="{Binding StatsPersistIntervalMinutesEnabled}" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsPersistIntervalMinutesInput" Value="{Binding StatsPersistIntervalMinutes, Mode=TwoWay}" Minimum="1" Maximum="60" Increment="1" IsEnabled="{Binding StatsPersistIntervalMinutesEnabled}" ToolTip.Tip="{Binding StatsPersistIntervalMinutesReason}" ToolTip.ShowOnDisabled="True" AutomationProperties.LabeledBy="{Binding ElementName=StatsPersistIntervalMinutesFieldLabel}" AutomationProperties.Name="{Binding StatsPersistIntervalMinutesLabel}" AutomationProperties.HelpText="{Binding StatsPersistIntervalMinutesHelp}" />
-                                <TextBlock x:Name="StatsPersistIntervalMinutesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsPersistIntervalMinutesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsPersistIntervalMinutesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsPersistIntervalMinutesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <TextBlock x:Name="StatsMaxSourcesFieldLabel" Text="{Binding StatsMaxSourcesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="StatsMaxSourcesInput" Value="{Binding StatsMaxSources, Mode=TwoWay}" Minimum="8" Maximum="256" Increment="8" AutomationProperties.LabeledBy="{Binding ElementName=StatsMaxSourcesFieldLabel}" AutomationProperties.Name="{Binding StatsMaxSourcesLabel}" AutomationProperties.HelpText="{Binding StatsMaxSourcesHelp}" />
-                                <TextBlock x:Name="StatsMaxSourcesInputError" Classes="error workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                <TextBlock x:Name="StatsMaxSourcesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="{Binding StatsMaxSourcesHint}" Classes="muted workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding StatsMaxSourcesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBlock Text="{Binding SupportedSources}" Classes="muted workspace-help" />
-                    <Button x:Name="AboutSettingsButton" Click="OnAboutButtonClick" HorizontalAlignment="Left" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock Text="{Binding SupportedSources}" Classes="workspace-help" VerticalAlignment="Center" />
+                        <Button x:Name="AboutSettingsButton" Grid.Column="1" Click="OnAboutButtonClick" />
+                    </Grid>
                 </StackPanel>
                 <commands:ShortcutEditor x:Name="ShortcutsEditor" IsVisible="False" IsEnabled="{Binding IsEditable}" />
-                <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
-                    <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" Classes="error workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasError}"><StackPanel Spacing="6">
+                    <TextBlock x:Name="SettingsError" Text="{Binding ErrorMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     <Expander x:Name="SettingsErrorDetails" Header="{Binding ErrorDetailsLabel}" IsVisible="{Binding HasErrorDetails}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <TextBox Text="{Binding ErrorDetails}" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="150" />
                     </Expander>
-                </StackPanel></ursa:Banner>
+                </StackPanel></controls:WorkspaceBanner>
             </StackPanel>
         </ScrollViewer>
         </Grid>
         <Border Grid.Row="2" Classes="workspace-dialog-footer">
-            <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6" HorizontalAlignment="Center" MaxWidth="1088">
+            <Grid x:Name="SettingsFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8" HorizontalAlignment="Center" MaxWidth="1088">
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Button x:Name="CancelDestinationCheckButton" Content="{Binding CancelDestinationCheckLabel}" Click="OnCancelDestinationCheckClick" IsVisible="{Binding IsCheckingDestination}" />
                     <ursa:LoadingIcon Width="16" Height="16" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                     <TextBlock Text="{Binding BusyStatusMessage}" Classes="muted" VerticalAlignment="Center" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 </StackPanel>
-                <StackPanel x:Name="SettingsFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right">
+                <StackPanel x:Name="SettingsFooterActions" Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="0,0,10,0" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right">
                     <Button x:Name="CancelSettingsButton" Click="OnCancelButtonClick" />
                     <Button x:Name="SaveSettingsButton" Classes="primary" Click="OnSaveButtonClick" />
                 </StackPanel>

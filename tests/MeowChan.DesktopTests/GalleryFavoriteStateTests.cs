@@ -301,10 +301,18 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.Equal(new Thickness(7, 3), badge.Padding);
         Assert.Equal(16, badge.ZIndex);
-        TextBlock glyph = Assert.IsType<TextBlock>(badge.Child);
-        Assert.Equal(16, glyph.FontSize);
+        StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
+        // A drawn star (not a font glyph) and a pending "…" that starts hidden.
+        Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
+        Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Star, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star));
+        Assert.False(star.IsHitTestVisible);
+        TextBlock pending = Assert.IsType<TextBlock>(glyph.Children[1]);
+        // The size is the Subtitle design token (16), bound dynamically, so it resolves only once the badge is in the tree.
+        Assert.NotNull(pending.GetBindingObservable(Avalonia.Controls.Documents.TextElement.FontSizeProperty));
+        Assert.False(pending.IsVisible);
+        Assert.Equal((false, false), GalleryViewer.FavoriteBadgeState(badge));
     }
 
     [Fact]
@@ -450,10 +458,12 @@ public sealed class GalleryFavoriteStateTests
         string state = Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
         foreach (Border badge in new[] { h.Managed, h.Native })
         {
-            TextBlock glyph = Assert.IsType<TextBlock>(badge.Child);
-            Assert.Equal((saved ? "★" : "☆") + (pending ? " …" : ""), glyph.Text);
+            StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
+            Assert.Equal((saved, pending), GalleryViewer.FavoriteBadgeState(badge));
+            Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
             Assert.Equal(saved ? Colors.Gold : Colors.White,
-                Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Foreground).Color);
+                Assert.IsAssignableFrom<ISolidColorBrush>(star.Stroke).Color);
+            Assert.Equal(saved, star.Fill is ISolidColorBrush { Color.A: > 0 });
             string? label = AutomationProperties.GetName(badge);
             Assert.False(string.IsNullOrWhiteSpace(label));
             Assert.Contains(state, label!);
@@ -480,6 +490,8 @@ public sealed class GalleryFavoriteStateTests
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
     });
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     private sealed class QueueOwnerContext : SynchronizationContext, IDisposable
     {

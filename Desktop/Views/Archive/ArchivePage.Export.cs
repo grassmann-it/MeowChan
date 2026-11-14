@@ -50,13 +50,18 @@ public partial class ArchivePage
         LastExportDirectoryPreference = directory;
     }
     internal Task OpenExportForThreadAsync(ResourceId id, Control? origin) => OpenExportCoreAsync(id, origin, null, null);
+    // switching: a scope change inside the open dialog (same origin and return); resolvedResults: the
+    // all-results entry hands over its resolved targets. Only a fresh entry starts a new session.
     private async Task OpenExportCoreAsync(ResourceId id, Control? origin, ResourceId[]? members, Action? onClosed,
-        bool allResults = false, bool resolvedResults = false)
+        bool allResults = false, bool resolvedResults = false, bool switching = false, bool offerResults = false,
+        ExportFormat format = ExportFormat.Html)
     {
         if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen
             || _urlTextExportBusy || IsArchiveCleanupOpen || _openReader == null) return;
         EnsureExportDialog();
-        if (ArchiveExportDialog.IsVisible && !resolvedResults) { Control<Button>("ArchiveExportClose").Focus(); return; }
+        if (ArchiveExportDialog.IsVisible && !resolvedResults && !switching) { Control<Button>("ArchiveExportClose").Focus(); return; }
+        if (!switching && !resolvedResults) BeginExportSession(members ?? new[] { id }, offerResults, format);
+        _exportPrimaryClose = false;
         int request = ++_exportRequest;
         _exportThread = id; _exportOrigin = origin; LastExport = null;
         _exportAllResults = allResults; _exportResolving = false;
@@ -75,7 +80,7 @@ public partial class ArchivePage
         ExportStatus(string.Empty);
         ExportError(string.Empty);
         ShowExportDialog();
-        UpdateExportMode(); Control<TextBox>("ArchiveExportDestination").Focus();
+        UpdateExportMode(); if (!switching) FocusExportEntry();
         try
         {
             string destination = await Task.Run(() =>
@@ -97,8 +102,8 @@ public partial class ArchivePage
             if (!_ended)
             {
                 UpdateExportActions();
-                if (ExportRequestIsCurrent(request) && ArchiveExportDialog.IsVisible)
-                    Control<TextBox>("ArchiveExportDestination").Focus();
+                if (ExportRequestIsCurrent(request) && ArchiveExportDialog.IsVisible && !switching)
+                    FocusExportEntry();
             }
         }
     }
@@ -192,6 +197,8 @@ public partial class ArchivePage
     private async void OnExportStart(object? sender, RoutedEventArgs e)
     {
         if (!_available || _ended || _lifetime.IsCancellationRequested || _exportRunning || _exportPicking || _exportLoading || _exportThread == null || _openReader == null) return;
+        if (_exportFormat == ExportFormat.LinkList) { await StartLinkListReviewAsync(); return; }
+        _exportPrimaryClose = false;
         if (IsCollectionExport) { await StartCollectionExportAsync(); return; }
         ResourceId id = _exportThread;
         int request = _exportRequest;
@@ -222,6 +229,7 @@ public partial class ArchivePage
             if (!ExportRequestIsCurrent(request) || !ReferenceEquals(_exportCancellation, cancellation) || cancellation.IsCancellationRequested) return;
             LastExport = result;
             ExportStatus(ArchiveExportStatusText.SingleResult(result));
+            MarkExportSucceeded();
             if (ExportHistory != null)
             {
                 try
@@ -294,6 +302,7 @@ public partial class ArchivePage
         Control<TextBlock>("ArchiveExportBackupHint").IsVisible = UpdatingExport;
         Control<Button>("ArchiveExportOpen").IsEnabled = ready && PublishedExportDirectory != null;
         Control<Expander>("ArchiveExportLegacySection").IsVisible = !IsCollectionExport;
+        ApplyExportFormat();
         LocalizeExport();
     }
     private void OnExportClose(object? sender, RoutedEventArgs e)
@@ -400,7 +409,11 @@ public partial class ArchivePage
     private void OnExportKeyDown(object? sender, KeyEventArgs e)
     { if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
       if (e.Key == Key.Escape) { e.Handled = true; OnExportClose(sender, e); }
-      // Enter in the destination box is the keyboard form of the primary "Export" button.
+      // Enter in the destination box is the keyboard form of the primary button: "Export", or
+      // "Close" right after a success until the destination is edited again.
+      else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }
+          && _exportCard != null && _exportPrimaryClose && !_exportRunning)
+      { e.Handled = true; OnExportClose(sender, e); }
       else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }
           && _exportCard != null && Control<Button>("ArchiveExportStart").IsEnabled)
       { e.Handled = true; OnExportStart(sender, e); }

@@ -1,9 +1,11 @@
+using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -15,6 +17,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
+using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -60,6 +63,8 @@ internal static class ComparisonCaptures
 
             await SetInspectorAsync(window, false);
             await CaptureAsync(window, rows, "smoke-comparison-simple-dark.png");
+            await CaptureHoveredProgressAsync(window, rows, "smoke-downloads-progress-hover-dark.png");
+            await CaptureStateFixtureAsync(window, "smoke-states-fixture-dark.png");
             await CheckButtonContrastAsync(window);
             if (visualReview) await CaptureKeyboardFocusAsync(window, "smoke-comparison-focus-dark.png");
             await CaptureContextMenuAsync(window, rows[0], "smoke-context-dark.png");
@@ -85,6 +90,8 @@ internal static class ComparisonCaptures
             if (visualReview) await CaptureSettingsAsync(window, "smoke-comparison-settings-dark.png");
             await SetThemeAsync(window, "Light");
             await CaptureAsync(window, rows, "smoke-comparison-simple-light.png");
+            await CaptureHoveredProgressAsync(window, rows, "smoke-downloads-progress-hover-light.png");
+            await CaptureStateFixtureAsync(window, "smoke-states-fixture-light.png");
             await CaptureContextMenuAsync(window, rows[0], "smoke-context-light.png");
             await CheckButtonContrastAsync(window);
             if (visualReview)
@@ -104,6 +111,132 @@ internal static class ComparisonCaptures
             if (synthetic != null) await synthetic.DisposeAsync();
         }
     }
+
+    /// <summary>
+    /// UX review 2026-11-13 (progress variant A): row 1 (selected, 96/148) stays selected while row 2 (72/86, partial progress) is hovered
+    /// by a real pointer move. The rendered bar must be 4 dip high, its fill the theme's Workspace.Progress and its empty part the
+    /// theme's Workspace.ProgressTrack; the fill reads on the hovered row at 4.5:1 or more and the track stays visible against it
+    /// (Light 2.4:1, Dark 1.3:1, the pinned minimums of PaletteContrastTests).
+    /// </summary>
+    private static async Task CaptureHoveredProgressAsync(MainWindow window, ThreadRow[] rows, string fileName)
+    {
+        DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
+        MouseDevice mouse = new();
+        DataGridRow row = grid.GetVisualDescendants().OfType<DataGridRow>()
+            .First(candidate => candidate.IsEffectivelyVisible && ReferenceEquals(candidate.DataContext, rows[1]));
+        Point center = row.TranslatePoint(new Point(row.Bounds.Width * 0.6, row.Bounds.Height / 2), window)!.Value;
+        try
+        {
+            Pointer(window, mouse, new Point(1, window.Bounds.Height - 2));
+            Pointer(window, mouse, center);
+            await Program.WaitUntilAsync(() => { window.UpdateLayout(); return row.IsPointerOver; });
+            await Task.Delay(160);
+            ProgressBar bar = row.GetVisualDescendants().OfType<ProgressBar>().Single();
+            if (Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_BEFORE_BASELINE") != "1" && Math.Abs(bar.Bounds.Height - 4) > 0.01) throw new InvalidOperationException("The Downloads progress bar is " + bar.Bounds.Height + " dip high, expected 4.");
+            Program.CaptureWindow(window, fileName);
+            using SKBitmap bitmap = SKBitmap.Decode(Path.Combine(AppContext.BaseDirectory, fileName));
+            double scale = window.RenderScaling;
+            Point origin = bar.TranslatePoint(default, window)!.Value;
+            double middle = origin.Y + bar.Bounds.Height / 2;
+            Color Sample(double x, double y)
+            {
+                SKColor pixel = bitmap.GetPixel((int)Math.Round(x * scale), (int)Math.Round(y * scale));
+                return Color.FromArgb(pixel.Alpha, pixel.Red, pixel.Green, pixel.Blue);
+            }
+            double completion = rows[1].Completion / 100d;
+            Color fill = Sample(origin.X + bar.Bounds.Width * Math.Min(completion, 0.9) / 2, middle);
+            Color track = Sample(origin.X + bar.Bounds.Width * (completion + 1) / 2, middle);
+            Color hovered = Sample(origin.X + 2, origin.Y + bar.Bounds.Height + 4);
+            bool dark = window.ActualThemeVariant == ThemeVariant.Dark;
+            Color expectedFill = SmokeThemeResources.Color(window, "Workspace.Progress"), expectedTrack = SmokeThemeResources.Color(window, "Workspace.ProgressTrack");
+            double fillOnRow = ContrastOf(fill, hovered), trackOnRow = ContrastOf(track, hovered), fillOnTrack = ContrastOf(fill, track);
+            Console.WriteLine("SMOKE downloads progress hover: " + JsonSerializer.Serialize(new
+            {
+                theme = window.ActualThemeVariant.ToString(), image = fileName, barDip = bar.Bounds.Height, completion = rows[1].Completion,
+                fill = fill.ToString(), track = track.ToString(), hoveredRow = hovered.ToString(), fillOnRow, trackOnRow, fillOnTrack, row.IsPointerOver
+            }));
+            // MEOWCHAN_SMOKE_BEFORE_BASELINE=1 only records the numbers (before/after evidence runs against the previous palette).
+            bool baseline = Environment.GetEnvironmentVariable("MEOWCHAN_SMOKE_BEFORE_BASELINE") == "1";
+            if (fill != expectedFill || track != expectedTrack)
+                throw new InvalidOperationException($"The hovered row's bar was drawn with fill {fill} and track {track}, expected {expectedFill} and {expectedTrack}.");
+            if (!baseline && (fillOnRow < 4.5 || fillOnTrack < (dark ? 3.5 : 3.4) || trackOnRow < (dark ? 1.3 : 2.4)))
+                throw new InvalidOperationException($"The hovered row's progress bar is not readable: fill on row {fillOnRow:0.00}, fill on track {fillOnTrack:0.00}, track on row {trackOnRow:0.00}.");
+        }
+        finally
+        {
+            Pointer(window, mouse, new Point(1, window.Bounds.Height - 2));
+            await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !row.IsPointerOver; });
+        }
+    }
+
+    /// <summary>
+    /// Evidence fixture for the Light-mode review: the status chips, disabled controls (button, field, check box, radio button, chip,
+    /// field label), radio buttons, an expander, a slider and a progress bar on one Panel, rendered under the real Semi templates.
+    /// A capture only; the colour values themselves are pinned by PaletteContrastTests.
+    /// </summary>
+    private static async Task CaptureStateFixtureAsync(MainWindow window, string fileName)
+    {
+        static Border Chip(string text, string state)
+        {
+            Border chip = new() { Child = new TextBlock { Text = text } };
+            chip.Classes.Add("workspace-status");
+            if (state.Length > 0) chip.Classes.Add("workspace-status-" + state);
+            return chip;
+        }
+        static T Disabled<T>(T control) where T : Control { control.IsEnabled = false; return control; }
+        TextBlock label = new() { Text = "Disabled field label", Classes = { "workspace-field-label" }, IsEnabled = false };
+        Button chipEnabled = new() { Content = "Chip enabled", Classes = { "chip" }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
+        Button chipDisabled = Disabled(new Button { Content = "Chip disabled", Classes = { "chip" }, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left });
+        StackPanel contents = new()
+        {
+            Spacing = 10, Margin = new Thickness(16),
+            Children =
+            {
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
+                    { Chip("Downloading", "active"), Chip("Cooldown", "warning"), Chip("Error", "error"), Chip("Saved", "success"), Chip("Plain", "") } },
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
+                    { new Button { Content = "Enabled" }, Disabled(new Button { Content = "Disabled" }), Disabled(new Button { Content = "Primary", Classes = { "primary" } }), chipEnabled, chipDisabled } },
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 16, Children =
+                    { new CheckBox { Content = "Checked", IsChecked = true }, Disabled(new CheckBox { Content = "Disabled check", IsChecked = true }),
+                      new RadioButton { Content = "Radio checked", GroupName = "fixtureA", IsChecked = true }, new RadioButton { Content = "Radio unchecked", GroupName = "fixtureA" },
+                      Disabled(new RadioButton { Content = "Radio disabled", GroupName = "fixtureB" }) } },
+                new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children =
+                    { new TextBox { Text = "Enabled field", Width = 200 }, Disabled(new TextBox { Text = "Disabled field", Width = 200 }), label } },
+                new Expander { Header = "Expander header", Content = new TextBlock { Text = "Expander content" }, IsExpanded = true },
+                new Slider { Minimum = 0, Maximum = 100, Value = 40, Width = 280, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left },
+                new ProgressBar { Minimum = 0, Maximum = 100, Value = 60, Height = 4, MinHeight = 0, MaxHeight = 4, Width = 280, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left }
+            }
+        };
+        Border fixture = new() { Child = contents, BorderThickness = new Thickness(1), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, ZIndex = 1000 };
+        fixture.Bind(Border.BackgroundProperty, fixture.GetResourceObservable("Workspace.Panel"));
+        fixture.Bind(Border.BorderBrushProperty, fixture.GetResourceObservable("Workspace.Border"));
+        Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+        Grid.SetRow(fixture, 1);
+        root.Children.Add(fixture);
+        try
+        {
+            await Program.WaitUntilAsync(() => fixture.IsEffectivelyVisible && fixture.Bounds.Width > 0);
+            await Task.Delay(220);
+            Program.CaptureWindow(window, fileName);
+        }
+        finally { root.Children.Remove(fixture); }
+    }
+
+    private static double ContrastOf(Color first, Color second)
+    {
+        static double Linear(byte channel) { double value = channel / 255d; return value <= .04045 ? value / 12.92 : Math.Pow((value + .055) / 1.055, 2.4); }
+        static double Luminance(Color color) => .2126 * Linear(color.R) + .7152 * Linear(color.G) + .0722 * Linear(color.B);
+        double a = Luminance(first), b = Luminance(second);
+        return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
+    }
+
+    private static void Pointer(Window window, MouseDevice mouse, Point point)
+        => AvaloniaLocator.Current.GetRequiredService<IInputManager>().ProcessInput(
+            new RawPointerEventArgs(mouse, (ulong)Environment.TickCount64,
+                typeof(TopLevel).GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window) as IInputRoot
+                    ?? throw new InvalidOperationException("No input root for the rendered window."),
+                RawPointerEventType.Move, point, RawInputModifiers.None));
 
     private static async Task CaptureEmptyAsync(MainWindow window, string fileName)
     {

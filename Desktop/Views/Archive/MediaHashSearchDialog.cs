@@ -263,9 +263,13 @@ internal sealed class MediaHashSearchDialog : Window
     private bool _closed;
     internal MediaHashSearchOperation Operation => _operation;
 
-    internal MediaHashSearchDialog(MediaAssetSnapshot snapshot, CancellationToken lifetime = default)
+    private readonly bool _searchOnOpen;
+    // initialHash: the draft of the scoped search field (AP2). A non-empty draft is searched once when the
+    // dialog opens, through the same validation as the Search button.
+    internal MediaHashSearchDialog(MediaAssetSnapshot snapshot, CancellationToken lifetime = default, string? initialHash = null)
     {
         _operation = new(snapshot, lifetime);
+        if (!string.IsNullOrEmpty(initialHash)) { _input.Text = initialHash; _searchOnOpen = true; }
         Name = "MediaHashSearchDialog";
         Width = 760; Height = 640; MinWidth = 360; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -312,7 +316,12 @@ internal sealed class MediaHashSearchDialog : Window
     internal static string RowLabel(MediaAssetReference asset) => MediaHashSearchCatalog.T("mediahash.row",
         DisplayToken(asset.AssetId), DisplayToken(asset.MediaIdentifier), DisplayToken(asset.Variant),
         MediaHashSearchCatalog.T(asset.IsCurrent ? "mediahash.yes" : "mediahash.no"));
-    private void OnOpened(object? sender, EventArgs e) { if (!_closed) { _chrome.Attach(this); _input.Focus(); } }
+    private void OnOpened(object? sender, EventArgs e)
+    {
+        if (_closed) return;
+        _chrome.Attach(this); _input.Focus();
+        if (_searchOnOpen && _search.IsEnabled) _ = _operation.SearchAsync(_input.Text);
+    }
     private void OnOperationChanged() => Dispatcher.UIThread.Post(Refresh);
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
     private void Refresh()

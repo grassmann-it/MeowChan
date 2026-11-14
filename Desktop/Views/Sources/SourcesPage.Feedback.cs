@@ -9,7 +9,7 @@ public partial class SourcesPage
     {
         if (_ended) return;
         this.FindControl<TextBlock>("SourcesActionError")!.Text = text;
-        this.FindControl<Ursa.Controls.Banner>("SourcesActionErrorBanner")!.IsVisible = !string.IsNullOrEmpty(text);
+        this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourcesActionErrorBanner")!.IsVisible = !string.IsNullOrEmpty(text);
     }
     private void RenderOperationFeedback()
     {

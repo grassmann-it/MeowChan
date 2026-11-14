@@ -318,7 +318,7 @@ internal static partial class SavedArchiveSearchChecks
         input.Text = value;
         log.Note("observed edit", prediction, new { control = input.Name, raw = input.Text });
     }
-    private static async Task ClickAsync(Control control, Evidence log, string prediction)
+    private static async Task ClickAsync(Control control, Evidence log, string prediction, bool activate = true)
     {
         if (!control.IsEffectivelyVisible)
         {
@@ -331,6 +331,7 @@ internal static partial class SavedArchiveSearchChecks
             }
         }
         Require(control.IsEffectivelyVisible && control.IsEnabled, "Cannot activate hidden/disabled " + control.Name);
+        if (!activate) return;
         log.Action("click", prediction, new { control = control.Name ?? control.GetType().Name });
         control.Focus(NavigationMethod.Tab);
         SmokeActionClick.Execute(control);
@@ -339,8 +340,16 @@ internal static partial class SavedArchiveSearchChecks
     }
     private static async Task<SavedArchiveSearchesDialog> OpenAsync(MainWindow owner, ArchivePage page, bool save, Evidence log)
     {
-        await ClickAsync(page.FindControl<Button>(save ? "ArchiveSaveSearch" : "ArchiveSavedSearches")!, log,
-            save ? "Save freezes applied A and focuses the name editor" : "Manager loads definitions without applying any selection");
+        // AP2: one split button; its main part opens the manager, its arrow menu holds "Save applied search…".
+        SplitButton split = page.FindControl<SplitButton>("ArchiveSavedSearches")!;
+        if (save)
+        {
+            await ClickAsync(split, log, "Reveal the saved-search split button", activate: false);
+            split.Flyout!.ShowAt(split);
+            await Program.WaitUntilAsync(() => page.SaveCurrentSearchMenuItem.IsEffectivelyVisible);
+            await ClickAsync(page.SaveCurrentSearchMenuItem, log, "Save freezes applied A and focuses the name editor");
+        }
+        else await ClickAsync(split, log, "Manager loads definitions without applying any selection");
         await Program.WaitUntilAsync(() => owner.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any(x => x.IsVisible));
         var dialog = owner.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Single(x => x.IsVisible);
         await Program.WaitUntilAsync(() => save ? Control<TextBox>(dialog, "SavedSearchName").IsVisible && Control<Button>(dialog, "SavedSearchConfirm").IsEnabled
@@ -394,7 +403,7 @@ internal static partial class SavedArchiveSearchChecks
     }
     private static async Task WaitClosedAsync(SavedArchiveSearchesDialog dialog, MainWindow owner, ArchivePage page) =>
         await Program.WaitUntilAsync(() => !dialog.IsVisible && !owner.OwnedWindows.Contains(dialog) && !page.IsBusy
-            && page.FindControl<Button>("ArchiveSavedSearches")!.IsEnabled);
+            && page.FindControl<SplitButton>("ArchiveSavedSearches")!.IsEnabled);
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 

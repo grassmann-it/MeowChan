@@ -310,10 +310,11 @@ public sealed class GalleryOverlayActivityTests
         // The complete custom template contains no theme presenter/border and no
         // state setters that could restore a hover or pressed box.
         Assert.Empty(indicator.Styles);
-        var glyph = Assert.Single(indicator.GetVisualChildren().OfType<TextBlock>());
+        // The chevron is a drawn icon (P6), not the font glyphs "‹" / "⌃".
+        var glyph = Assert.Single(indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>());
         Assert.Empty(glyph.GetVisualChildren());
-        Assert.Equal(post ? "‹" : "⌃", glyph.Text);
-        byte alpha = Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Foreground).Color.A;
+        Assert.Empty(indicator.GetVisualChildren().OfType<TextBlock>());
+        byte alpha = Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Stroke).Color.A;
         Assert.InRange(alpha, (byte)1, (byte)127);
         Assert.Equal(0, glyph.Opacity); // no initial/static hint
         Assert.True(indicator.IsHitTestVisible); // invisible artwork is not a lost touch target
@@ -342,7 +343,7 @@ public sealed class GalleryOverlayActivityTests
         Assert.Null(GetField(viewer, "_lastIndicatorMotion"));
         foreach (Button indicator in new[] { controls, post })
         {
-            Assert.Equal(0, Assert.Single(indicator.GetVisualChildren().OfType<TextBlock>()).Opacity);
+            Assert.Equal(0, Assert.Single(indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
             Assert.True(indicator.IsHitTestVisible);
             Assert.Equal(44, indicator.Width);
             Assert.Equal(44, indicator.Height);

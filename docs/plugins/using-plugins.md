@@ -7,7 +7,7 @@ are required for the corresponding plugin operations. See
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views).
+1. Open **Plugins** from the app menu or footer (under **More** in compact views).
    The supplied inventory contains **24 plugins**: **19 source-plugin entries**
    and **5 image filters**, with **21 editable example/filter source files**.
    This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
@@ -22,7 +22,7 @@ are required for the corresponding plugin operations. See
    Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
    for sources, image filters or all plugins. Sources → source details →
-   **Plugin settings and tests** is another route to that source's entry.
+   **Show plugin** is another route to that source's entry.
 2. Choose **Enable plugin** or **Disable plugin** to change availability now.
    These actions use the already selected valid build; manual enablement grants
    no provider-size/MD5 exception. The supplied experimental board/thread sources
@@ -65,6 +65,19 @@ Shift+F10), for its actions. The **Actions** buttons offer the same choices.
 details** take you to the relevant part of that plugin. Unavailable actions show
 their reason. Enable/disable does not save a settings draft; candidate selection
 and rollback remain choices for the next start.
+
+The list shows one card per plugin, active plugins first, then disabled ones, then those
+that are unavailable or not loaded; a plugin that needs attention carries a chip. A plugin
+that comes from several files still has one card ("Files: 2"); its detail lists the files
+under **Files (n)**, and choosing one shows that file's details, build and settings. The
+count in the header counts plugins, not files. Which file is used from the next start on is
+still chosen with **Use this version next start**.
+
+The plugin's overview shows three steps: **Installed** (the file is in the plugin
+folder), **Enabled** (the plugin is switched on) and **Active** (this build is in use;
+**Active after restart** while a new or changed build waits for the next start), with one
+sentence naming the next action. The steps only display the state; they add no action, so
+approvals, confirmations and the explicit build/SDK choices stay where they are.
 
 Expand **Developer details** for technical information, **Copy technical details**
 and source editing/testing tools. Ordinary plugin use does not require opening
@@ -151,11 +164,17 @@ Release readiness and broader source availability remain separate assessments.
 
 ## Install a source file
 
-1. Open **Plugins** from the application menu or footer (under **Tools** in compact views). The source detail
-   action **Plugin settings and tests** opens the same catalog for that source.
-2. Select **Open plugin folder**. The displayed directory is
-   `<active profile>/plugins`; it is independent of the media download directory.
-3. Place one complete `.cs` file directly in that directory. Include all needed
+1. Open **Plugins** from the application menu or footer (under **More** in compact views). The source detail
+   action **Show plugin** opens the same catalog for that source.
+2. Select **Add plugin…** and choose one `.cs` file. MeowChan copies it into
+   `<active profile>/plugins` after the same per-file checks the folder scan applies:
+   a single `.cs` source file that is a regular file (not a folder or link), not empty
+   and not larger than 4 MiB. It never overwrites an existing file of the same name and
+   runs nothing; the new entry is selected, and its steps say what comes next.
+   Alternatively select **Open plugin folder** and place the file there yourself (the
+   displayed directory is `<active profile>/plugins`, independent of the media download
+   directory): the result is identical, because **Add plugin…** is only a checked copy.
+3. The file must be one complete `.cs` file directly in that directory. Include all needed
    `using` directives and exactly one public, concrete plugin entry with a public
    parameterless constructor. A project file or a directory of partial sources is
    not the drop-in format.
@@ -322,7 +341,8 @@ catalog](../../Desktop/Localization/SourcesCatalog.cs).
 | Show developer details | Entwicklerdetails anzeigen |
 | Copy technical details | Technische Details kopieren |
 | Open plugin folder | Pluginordner öffnen |
-| Plugin settings and tests | Plugineinstellungen und Tests |
+| Show plugin | Plugin anzeigen |
+| Show in Sources | In Quellen anzeigen |
 | Source, editor and test | Source, Editor und Test |
 | Open in editor | Im Editor öffnen |
 | Build and test | Bauen und testen |

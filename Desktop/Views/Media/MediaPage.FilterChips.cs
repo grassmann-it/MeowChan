@@ -12,17 +12,18 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan;
 
 // C3: every active media filter is a removable chip in one row under the toolbar, visible while the filter surface is closed,
-// with "Reset all" beside it and the count on the toggle ("Filters (3)"). Same chip factory as the archive's applied filters
+// with "Reset all" directly behind the last chip and the count on the toggle ("Filters (3)"). Same chip factory as the archive's applied filters
 // (ArchivePage.CreateFilterTag); removing a chip resets exactly that field, and keyboard focus stays in the row.
 public sealed partial class MediaPage
 {
     private readonly Button _filterResetAll = new()
     {
-        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 0, Padding = new Thickness(6, 2),
-        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Top
+        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 24, Padding = new Thickness(6, 2),
+        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Top, VerticalContentAlignment = VerticalAlignment.Center
     };
     // A filter that matches nothing offers the way back in the empty grid as well.
     private readonly Button _emptyReset = new() { Name = "MediaEmptyReset", IsVisible = false };
+    private readonly Button _emptySearchInArchive = new() { Name = "MediaEmptySearchInArchive", IsVisible = false };
     private string[] _renderedChips = Array.Empty<string>();
 
     private sealed record FilterChip(string Key, string Label, Action Remove, bool Exclude = false);
@@ -31,7 +32,7 @@ public sealed partial class MediaPage
     internal int ActiveFilterCount { get; private set; }
     internal Button FilterResetAll => _filterResetAll;
 
-    /// <summary>The chip row (chips left, "Reset all" right) that replaces the bare chip panel in the header.</summary>
+    /// <summary>The chip row (chips, then "Reset all" behind the last one) that replaces the bare chip panel in the header.</summary>
     private Control BuildFilterChipRow()
     {
         _filterError.Classes.Add("workspace-error");
@@ -49,9 +50,26 @@ public sealed partial class MediaPage
             if (focused) FocusGrid();
         };
         _emptyActions.Children.Add(_emptyReset);
-        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        _emptySearchInArchive.Click += (_, _) =>
+        {
+            string name = _nameFilter.Text ?? string.Empty;
+            if (!_lifetime.IsCancellationRequested && name.Length > 0) SearchInArchiveRequested?.Invoke(name);
+        };
+        _emptyActions.Children.Add(_emptySearchInArchive);
+        // "Reset all" follows the last chip directly (M1): both columns are Auto, so the chips are held to the row width
+        // minus the link by hand; they wrap there, and the link stays on the first line at the chip height.
+        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
         row.Children.Add(_filterChips);
         row.Children.Add(_filterResetAll); Avalonia.Controls.Grid.SetColumn(_filterResetAll, 1);
+        _filterResetAll.HorizontalAlignment = HorizontalAlignment.Left;
+        void FitChips()
+        {
+            double width = row.Bounds.Width - row.ColumnSpacing - Math.Ceiling(_filterResetAll.DesiredSize.Width);
+            if (width < 120) width = 120;
+            if (double.IsInfinity(_filterChips.MaxWidth) || Math.Abs(_filterChips.MaxWidth - width) > 0.5) _filterChips.MaxWidth = width;
+        }
+        row.SizeChanged += (_, _) => FitChips();
+        _filterResetAll.SizeChanged += (_, _) => FitChips();
         return row;
     }
 

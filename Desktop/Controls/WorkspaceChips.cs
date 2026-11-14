@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -45,6 +46,21 @@ internal static class WorkspaceChips
 
     /// <summary>The provider tag categories with their own mark colour; anything else is shown as general.</summary>
     internal static readonly string[] Categories = { "artist", "copyright", "character", "meta", "general" };
+
+    /// <summary>
+    /// The content of a chip that removes itself when pressed: the name (a TextBlock, so underscores stay literal) and a small drawn
+    /// cross, not a "✕" in the text. The chip's tooltip and accessible name say what pressing it does.
+    /// </summary>
+    internal static StackPanel RemovableContent(string name)
+    {
+        TextBlock label = new() { Text = name, VerticalAlignment = VerticalAlignment.Center };
+        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
+            Children = { label, WorkspaceIcons.Create(WorkspaceIcons.CloseSmall) } };
+    }
+
+    /// <summary>The name a chip built by <see cref="RemovableContent"/> shows (without the cross), or null for other content.</summary>
+    internal static string? RemovableName(object? content) =>
+        (content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text;
 
     internal static T MarkOwn<T>(T control, bool compact = false) where T : Control => Add(control, Chip, Own, compact ? Compact : null);
     internal static T MarkOffered<T>(T control) where T : Control => Add(control, Chip, Available);
@@ -101,7 +117,6 @@ internal static class WorkspaceChips
     internal const string MarkMissing = "M6,1 A5,5 0 1 1 5.99,1 Z M2.5,2.5 L9.5,9.5";
     internal const string MarkUntagged = "M1,1 L6,1 L11,6 L6,11 L1,6 Z M3.6,3.6 L3.7,3.7 M1,11 L11,1";
     internal const string MarkWithdrawn = "M1,1 L11,11 M11,1 L1,11";
-    private const string StarGeometry = "M6,0.6 L7.6,4.2 L11.4,4.5 L8.5,7 L9.4,10.9 L6,8.8 L2.6,10.9 L3.5,7 L0.6,4.5 L4.4,4.2 Z";
 
     /// <summary>A compact badge for a fixed corner of a preview (type, provider). Static; its text is also in the tile's name.</summary>
     internal static Border CreateCornerBadge(string name, HorizontalAlignment horizontal, VerticalAlignment vertical)
@@ -144,18 +159,21 @@ internal static class WorkspaceChips
     }
 
     /// <summary>
-    /// The favourite star of a tile corner: a toggle with a drawn star (filled when set). Shown when set, or while the tile is
-    /// hovered or holds keyboard focus (WorkspaceStyles: opacity only, no extra layout). The caller names it and handles Click.
+    /// The favourite star of a tile corner: a toggle with the app's one favourite mark (<see cref="FavoriteStar"/>: ☆ outline, ★ filled
+    /// when set). Shown when set, or while the tile is hovered or holds keyboard focus (WorkspaceStyles: opacity only, no extra
+    /// layout). The caller names it and handles Click.
     /// </summary>
     internal static ToggleButton CreateFavoriteToggle(string name)
     {
-        Avalonia.Controls.Shapes.Path star = new() { Classes = { "tile-favorite-star" }, Stretch = Stretch.Uniform, IsHitTestVisible = false };
-        star.AttachedToVisualTree += (_, _) => star.Data ??= Geometry.Parse(StarGeometry);
-        return new ToggleButton
+        ToggleButton toggle = new()
         {
-            Name = name, Content = star, Classes = { FavoriteToggleClass }, IsVisible = false,
+            Name = name, Classes = { FavoriteToggleClass }, IsVisible = false,
             HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom
         };
+        void ShowMark() { if (FavoriteStar.MarkOf(toggle.Content) != (toggle.IsChecked == true)) toggle.Content = FavoriteStar.Create(toggle.IsChecked == true, 14); }
+        toggle.IsCheckedChanged += (_, _) => ShowMark();
+        ShowMark();
+        return toggle;
     }
 
     /// <summary>A chosen chip: tint plus a solid 2-px accent outline (A11Y M7). Add or remove it; nothing animates.</summary>

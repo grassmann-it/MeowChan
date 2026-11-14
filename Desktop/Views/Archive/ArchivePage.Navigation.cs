@@ -9,6 +9,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -90,7 +91,12 @@ public partial class ArchivePage
         }
         finally { _localizingSearchOptions = false; }
     }
-    private async void OnSearchClick(object? sender, RoutedEventArgs e) => await ApplySearchAsync();
+    private async void OnSearchClick(object? sender, RoutedEventArgs e)
+    {
+        // AP2: in the File name and SHA-256 scopes the one Search button opens that scope's results.
+        if (ArchiveScope != MeowChan.Desktop.Controls.SearchScope.Text) { RunArchiveScope(ArchiveScopedBox); return; }
+        await ApplySearchAsync();
+    }
     private async void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
@@ -143,6 +149,7 @@ public partial class ArchivePage
         _backlinkPost = null;
         ArchiveReferences.ItemsSource = null;
         ArchiveReferencesTitle.Text = string.Empty;
+        ShowReferencesTab(null);
         PreviousReferences.IsEnabled = false;
         NextReferences.IsEnabled = false;
     }
@@ -216,6 +223,25 @@ public partial class ArchivePage
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
+    // The large reader names where Close goes ("Back to Archive", "Back to Downloads"); without a known target it stays "Close".
+    // Presentation only: the command, Escape and the way back are those of reader.close.
+    private string? _readerCloseTargetKey;
+
+    internal string ReaderCloseLabel => _readerCloseTargetKey is { } key ? Texts.T(key) : CommandCatalog.Label("reader.close");
+
+    internal void SetReaderCloseTarget(string? textKey)
+    {
+        if (_readerCloseTargetKey == textKey) return;
+        _readerCloseTargetKey = textKey;
+        ApplyReaderCloseLabel();
+    }
+
+    private void ApplyReaderCloseLabel()
+    {
+        if (_readerCloseTargetKey is { } key) CommandBindings.ApplyLabeled(ArchiveCloseReader, "reader.close", Texts.T(key));
+        else CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
+    }
+
     internal bool CanGoHistoryBack => ArchiveHistoryBack.IsVisible && ArchiveHistoryBack.IsEnabled && !_busy && !_ended
         && !IsFilenameSearchOpen && _history.Last != null;
     internal void GoHistoryBackByShortcut() { if (CanGoHistoryBack) OnHistoryBack(null, new RoutedEventArgs()); }
@@ -231,6 +257,21 @@ public partial class ArchivePage
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
+    /// <summary>
+    /// The References tab exists only while captured replies are listed. A known count above zero shows it as "References (n)";
+    /// null hides it (or, with present, keeps it shown while the list loads); zero hides it.
+    /// </summary>
+    private void ShowReferencesTab(int? total, bool present = false)
+    {
+        _referencesCount = total;
+        bool show = present || total is > 0;
+        if (!show && ArchiveContentTabs.SelectedItem == ArchiveReferencesTab) ArchiveContentTabs.SelectedIndex = 0;
+        ArchiveReferencesTab.IsVisible = show;
+        ArchiveReferencesTab.Header = ReferencesTabHeader();
+    }
+    private int? _referencesCount;
+    private string ReferencesTabHeader() => _referencesCount is > 0 and var count
+        ? Texts.T("archive.referencesCount", count.ToString(Texts.Culture)) : Texts.T("archive.references");
     private async Task LoadBacklinksAsync()
     {
         if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
@@ -240,6 +281,7 @@ public partial class ArchivePage
         _referenceCancellation = loading;
         ClearOperationError("reference");
         ArchivePostId post = _backlinkPost;
+        ShowReferencesTab(null, present: true); // present while loading, so the selection below is a visible tab
         ArchiveContentTabs.SelectedIndex = 2;
         ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
@@ -253,6 +295,9 @@ public partial class ArchivePage
             ArchiveReferencesPage.Text = PageLabel(_referenceOffset, _referenceTotal);
             PreviousReferences.IsEnabled = _referenceOffset > 0;
             NextReferences.IsEnabled = _referenceOffset + PageSize < _referenceTotal;
+            // A post nobody replied to has nothing to list: the tab goes away and the reader shows the posts again.
+            ShowReferencesTab(_referenceTotal);
+            if (_referenceTotal == 0) ArchiveContentTabs.SelectedIndex = 0;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }

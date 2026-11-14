@@ -1,0 +1,184 @@
+# Design-system lint baseline (UX-DESIGNSYSTEM-2026-11-13, P9): today's accepted debt.
+# rule<TAB>file<TAB>count<TAB>snippet. Generated; do not edit by hand. The tests fail on anything not listed here
+# and on entries that no longer occur. Regenerate after burning violations down:
+#   MEOWCHAN_DESIGN_LINT_UPDATE=1 dotnet test tests/MeowChan.DesktopTests --filter FullyQualifiedName~DesignLint
+color-hex	Desktop/Views/Archive/ArchivePage.axaml	1	#A6000000
+control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button Height=44
+control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button MinHeight=44
+control-height-literal	Desktop/Shell/MainWindow.axaml	1	Button Height="34"
+control-height-literal	Desktop/Views/Admission/BoardAdmissionWindow.cs	1	Button MinHeight=32
+control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	1	Button style Height="32"
+control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	2	Button style MinHeight="24"
+control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	1	Button style MinHeight="32"
+control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	2	ToggleButton MinHeight="32"
+control-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	TextBox MinHeight="36"
+control-height-literal	Desktop/Views/Rules/RulesPage.axaml	2	Button MinHeight="24"
+control-height-literal	Desktop/Views/Rules/RulesPage.axaml	1	TagInput style MinHeight="32"
+control-height-literal	Desktop/Views/Settings/SettingsEditor.axaml	1	ToggleButton style MinHeight="34"
+font-size-literal	Desktop/Views/Archive/ArchivePage.axaml	1	FontSize="12"
+glyph-icon	Desktop/GalleryViewer.cs	1	"−(U+2212)"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous thread"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Previous"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Voriger Thread"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"←(U+2190) Zurü(U+00FC)ck"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"↑(U+2191) Previous post"
+glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"↑(U+2191) Voriger Post"
+glyph-icon	Desktop/MediaLibraryStateText.cs	1	"★(U+2605)"
+glyph-icon	Desktop/ThreadRow.cs	1	"↑(U+2191)"
+glyph-icon	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	"×(U+00D7)"
+glyph-icon	Desktop/Views/Statistics/StatisticsPage.axaml.cs	1	"−(U+2212)"
+page-inset	Desktop/Views/Media/MediaPage.cs	1	no reference to Workspace.Inset.Page
+page-inset	Desktop/Views/Rules/RulesPage.axaml	1	Grid no inset
+page-inset	Desktop/Views/Settings/SettingsEditor.axaml	1	Grid no inset
+row-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	RowHeight="44"
+row-height-literal	Desktop/Views/Statistics/StatisticsPage.axaml	1	RowHeight="34"
+spacing-off-grid	Desktop/ArchiveAttachmentView.cs	1	Margin=new Thickness(3, 0, 0, 0)
+spacing-off-grid	Desktop/ArchiveMediaTileView.cs	1	RowSpacing=5
+spacing-off-grid	Desktop/ArchiveMediaTileView.cs	1	Spacing=3
+spacing-off-grid	Desktop/Commands/CommandBindings.cs	2	Spacing=5
+spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	Padding=new Thickness(8, 6)
+spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	Spacing=6
+spacing-off-grid	Desktop/Controls/SearchScopeChip.cs	1	Padding=new Thickness(2, 0, 6, 0)
+spacing-off-grid	Desktop/Controls/TagToggleListBox.cs	1	Margin=new Thickness(0, 0, 6, 0)
+spacing-off-grid	Desktop/Controls/TagToggleListBox.cs	1	new Thickness(0, 6, 0, 0)
+spacing-off-grid	Desktop/Controls/WorkspaceChips.cs	1	Spacing=6
+spacing-off-grid	Desktop/GalleryVideoPlayer.cs	1	Padding=new Thickness(10)
+spacing-off-grid	Desktop/GalleryVideoPlayer.cs	2	Padding=new Thickness(7)
+spacing-off-grid	Desktop/GalleryViewer.Favorites.cs	1	Padding=new Thickness(7, 3)
+spacing-off-grid	Desktop/GalleryViewer.FileOnly.cs	1	Spacing=10
+spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	ColumnSpacing=10
+spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	2	Margin=new Thickness(10, 6, 10, 0)
+spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	Margin=new Thickness(6, 4)
+spacing-off-grid	Desktop/GalleryViewer.Playback.cs	1	Margin=new Thickness(6, 0)
+spacing-off-grid	Desktop/GalleryViewer.cs	1	Spacing=6
+spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	Margin=new Thickness(6, 6, 6, 4)
+spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	RowSpacing=3
+spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	Spacing=3
+spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	Spacing=6
+spacing-off-grid	Desktop/Plugins/PluginSettingsEditor.cs	1	Margin=new Thickness(0, 3, 0, 0)
+spacing-off-grid	Desktop/Plugins/PluginSettingsEditor.cs	1	Spacing=10
+spacing-off-grid	Desktop/Plugins/PluginSettingsEditor.cs	1	Spacing=6
+spacing-off-grid	Desktop/SectionNavigationControl.cs	1	Margin=new Thickness(0, 0, 8, 6)
+spacing-off-grid	Desktop/SectionNavigationControl.cs	1	Spacing=6
+spacing-off-grid	Desktop/Shell/MainWindow.ArchiveHint.cs	1	Padding=new Thickness(10, 6)
+spacing-off-grid	Desktop/Shell/MainWindow.DownloadsHeader.cs	1	Spacing=3
+spacing-off-grid	Desktop/Shell/MainWindow.Presentation.cs	1	Margin=new Thickness(0, compactIntake ? 4 : 6, 0, 0)
+spacing-off-grid	Desktop/Shell/MainWindow.Presentation.cs	1	new Thickness(20, 0)
+spacing-off-grid	Desktop/Shell/MainWindow.Presentation.cs	1	new Thickness(barebones ? 8 : WorkspacePageInset, 6)
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	ColumnSpacing="10"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	2	ColumnSpacing="6"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Margin="0,6,0,0"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Margin="16,10,10,8"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	2	Margin="20"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Margin="20,0"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Margin="8,2,8,6"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Padding="10,6"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Padding="12,5"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Padding="20,0"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	1	Padding="28,22"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	3	Spacing="5"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	6	Spacing="6"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml	3	Spacing="9"
+spacing-off-grid	Desktop/Shell/MainWindow.axaml.cs	1	Padding=new Thickness(10, 2)
+spacing-off-grid	Desktop/Views/About/AboutWindow.axaml	1	Spacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Choice.cs	1	LineSpacing=6
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	LineSpacing=6
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	Spacing=6
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.Favorites.cs	3	LineSpacing=6
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.Reader.cs	1	Margin=new Thickness(20)
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	ColumnSpacing="10"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	4	ColumnSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	9	ItemSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	9	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="-8,-8,-8,0"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,0,24,56"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,2,6,2"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,3"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="10,2,0,2"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="6,2"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="6,4"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="8,40,8,8"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10,6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10,8"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	RowSpacing="10"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	RowSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="10"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="3"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	Spacing="5"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	6	Spacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml.cs	1	Spacing=5
+spacing-off-grid	Desktop/Views/Archive/InterruptedTransfersDialog.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Archive/MediaHashSearchDialog.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Archive/PostFilterDialog.cs	3	Spacing=6
+spacing-off-grid	Desktop/Views/Booru/BooruWorkbenchWindow.cs	1	Margin=new Thickness(0, 3, 3, 0)
+spacing-off-grid	Desktop/Views/Booru/BooruWorkbenchWindow.cs	1	Margin=new Thickness(3, 0, 0, 3)
+spacing-off-grid	Desktop/Views/Booru/BooruWorkbenchWindow.cs	1	Margin=new Thickness(6)
+spacing-off-grid	Desktop/Views/Booru/BooruWorkbenchWindow.cs	1	RowSpacing=1
+spacing-off-grid	Desktop/Views/Collections/MediaTagDialog.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Collections/ReaderGroupsDialog.axaml	1	Margin="-16,0,-16,-16"
+spacing-off-grid	Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs	1	Margin=new Thickness(-16, 0, -16, -16)
+spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Margin="12,10,12,6"
+spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Spacing="6"
+spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	3	LineSpacing=6
+spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	Margin=new Thickness(0, 6, 0, 0)
+spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	Spacing=10
+spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Media/ManualImportDialog.cs	2	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Media/ManualImportDialog.cs	2	LineSpacing=6
+spacing-off-grid	Desktop/Views/Media/ManualImportDialog.cs	1	Spacing=10
+spacing-off-grid	Desktop/Views/Media/MediaPage.ExportAll.cs	1	LineSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaPage.FilterChips.cs	1	Padding=new Thickness(6, 2)
+spacing-off-grid	Desktop/Views/Media/MediaPage.FilterSurface.cs	1	Padding=new Thickness(10, 8)
+spacing-off-grid	Desktop/Views/Media/MediaPage.FilterSurface.cs	1	RowSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaPage.Filters.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaPage.Filters.cs	2	LineSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaPage.Selection.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaSelectionTagDialog.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaSelectionTagDialog.cs	1	LineSpacing=6
+spacing-off-grid	Desktop/Views/Media/MediaSelectionTagDialog.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.ChangeReview.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.Migration.cs	3	Spacing=6
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	ColumnSpacing="14"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	ItemSpacing="10"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	ItemSpacing="6"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	3	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Margin="0,0,14,0"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Padding="20"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="10"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	Spacing="6"
+spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Rules/RulesPage.Plugins.cs	1	LineSpacing=6
+spacing-off-grid	Desktop/Views/Rules/RulesPage.Plugins.cs	1	Spacing=6
+spacing-off-grid	Desktop/Views/Rules/RulesPage.Templates.cs	1	LineSpacing=6
+spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	1	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	2	Margin="0,6,0,0"
+spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Margin="20,4,20,16"
+spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Padding="20,0,20,8"
+spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Padding="20,16,20,8"
+spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	2	Spacing="10"
+spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	2	Spacing="6"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Margin="0,0,10,0"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Margin="20,0,20,16"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Margin="20,12,20,12"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	2	Padding="0,10"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Padding="10,7"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	3	Spacing="3"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Spacing="6"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	ColumnSpacing="14"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	LineSpacing="6"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	2	Spacing="10"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	Spacing="5"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	Spacing="6"
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml.cs	1	ItemSpacing=6
+spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml.cs	1	Padding=new Thickness(14)
+spacing-off-grid	Desktop/Views/Statistics/StatisticsPage.axaml	1	Spacing="3"
+spacing-off-grid	Desktop/Views/Statistics/StatisticsPage.axaml	1	Spacing="5"

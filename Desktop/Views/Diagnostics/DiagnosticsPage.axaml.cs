@@ -38,14 +38,6 @@ public partial class DiagnosticsPage : UserControl
     private ActionFeedback? _actionFeedback;
     internal Func<IReadOnlyList<MeowChan.Downloader.DownloadTargetWaitState>>? GetTargetWaitStates { get; set; }
     internal Func<Task>? CheckTargetsAsync { get; set; }
-    internal Func<Task>? ManageMediaRatingsAsync { get; set; }
-    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e)
-    {
-        if (_ended || !_available || ManageMediaRatingsAsync == null) return;
-        int generation = BeginDiagnosticAction();
-        try { await ManageMediaRatingsAsync(); }
-        catch (Exception error) { ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Global), error.Message); }
-    }
 
     public DiagnosticsPage()
     {
@@ -53,16 +45,6 @@ public partial class DiagnosticsPage : UserControl
         // A page that is shown before its first session refresh still carries its labels and headers.
         ApplyStaticLabels();
         RefreshSelection();
-        CommandRouter? ratings = null;
-        AttachedToVisualTree += (_, _) =>
-        {
-            ratings?.Dispose(); ratings = new(this);
-            ratings.Register(new("media.rating.manage", this, () => IsEffectivelyVisible,
-                () => !_ended && _available && ManageMediaRatingsAsync != null,
-                () => OnManageMediaRatingsClick(this, new RoutedEventArgs()), Priority: 100));
-        };
-        DetachedFromVisualTree += (_, _) => { ratings?.Dispose(); ratings = null; };
-        KeyDown += (_, e) => ratings?.Route(e);
     }
     internal DiagnosticsPage(Func<DiagnosticTarget, bool> openWatch, Func<string, Task> copy,
         Func<DiagnosticTarget, Task<CheckRequestStatus>>? retry = null, Func<DiagnosticTarget, bool>? canRetry = null) : this()
@@ -86,7 +68,6 @@ public partial class DiagnosticsPage : UserControl
         RefreshDiagnosticSources();
         ApplyDiagnosticFilters();
         ApplyStaticLabels();
-        this.FindControl<Button>("ManageMediaRatingsButton")!.IsEnabled = _available && ManageMediaRatingsAsync != null;
         RefreshSelection();
         RefreshFeedback();
     }
@@ -107,7 +88,6 @@ public partial class DiagnosticsPage : UserControl
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
-        CommandBindings.Apply(this.FindControl<Button>("ManageMediaRatingsButton")!, "media.rating.manage");
         RefreshDiagnosticFilterLabels();
     }
 
@@ -194,7 +174,6 @@ public partial class DiagnosticsPage : UserControl
         TextBlock text = this.FindControl<TextBlock>("DiagnosticsActionError")!;
         text.Text = !current ? string.Empty
             : _actionFeedback!.MessageKey is { } key ? Texts.T(key) : _actionFeedback.Message;
-        text.Classes.Set("error", !current || _actionFeedback!.Failed);
     }
     private async void OnCopyClick(object? sender, RoutedEventArgs e)
     {

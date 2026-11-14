@@ -84,17 +84,19 @@ internal static class DiagnosticsFeedbackChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             Require(string.IsNullOrEmpty(error.Text), "A delayed target-retry failure appeared on B.");
 
-            TaskCompletionSource ratings = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            bool ratingsFinished = false;
-            page.ManageMediaRatingsAsync = async () => { try { await ratings.Task; } finally { ratingsFinished = true; } };
-            page.Refresh(view, true);
-            Click(page, "ManageMediaRatingsButton");
+            // The ended-page guard once ran on the ratings manager; that dialog now opens from Media, Archive and the gallery,
+            // so the same late-failure check uses the page's own delayed target retry.
+            TaskCompletionSource endedTargets = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool endedTargetsFinished = false;
+            page.CheckTargetsAsync = async () => { try { await endedTargets.Task; } finally { endedTargetsFinished = true; } };
+            await SelectAsync(downloadTarget);
+            Click(page, "RetryDiagnosticButton");
             page.EndLifetime();
             string? ending = error.Text;
-            ratings.SetException(new IOException("Ended ratings owner"));
-            await Program.WaitUntilAsync(() => ratingsFinished);
+            endedTargets.SetException(new IOException("Ended retry owner"));
+            await Program.WaitUntilAsync(() => endedTargetsFinished);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-            Require(error.Text == ending, "An ended Diagnostics page accepted a late ratings failure.");
+            Require(error.Text == ending, "An ended Diagnostics page accepted a late retry failure.");
             int endedEntries = feedback.Entries.Sum(entry => entry.Count);
             feedback.Record(FeedbackCategory.Error, "fixture.after-end", "different-owner", "New owner event");
             Require(page.FindControl<DataGrid>("SessionFeedbackGrid")!.ItemsSource!.Cast<SessionFeedback>().Sum(entry => entry.Count) == endedEntries,
@@ -103,7 +105,7 @@ internal static class DiagnosticsFeedbackChecks
         finally { page.EndLifetime(); host.Content = previous; }
         await CheckFeedbackSelectionAndMenusAsync(window, view);
         await FeedbackChecks.CheckDismissalAsync(window);
-        Console.WriteLine("SMOKE diagnostics feedback transitions: redraw retention, foreign-selection isolation, captured copy identity, newer-action ownership, target-retry isolation and ended ratings/listener guards passed.");
+        Console.WriteLine("SMOKE diagnostics feedback transitions: redraw retention, foreign-selection isolation, captured copy identity, newer-action ownership, target-retry isolation and ended retry/listener guards passed.");
     }
     private static async Task CheckFeedbackSelectionAndMenusAsync(MainWindow window, DesktopSessionView view)
     {

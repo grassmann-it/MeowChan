@@ -48,6 +48,10 @@ internal static partial class SmokeScenarios
     private const string ExternalDriver = "needs its independent native driver and exchange directory";
     private const string Provenance = "provenance-bound evidence run: needs an executed source digest and a fresh output directory";
 
+    // The pages of the work-views smoke, in capture order (declared before All, which reads it); each has its own alternative run (work-views-<page>).
+    internal static readonly string[] WorkViewPages =
+        ["downloads", "archive", "reader", "gallery", "media", "rules", "sources", "plugins", "diagnostics", "statistics", "settings", "dialogs"];
+
     // Modes in their historical usage order; roots and branches in their former dispatch order.
     internal static readonly SmokeScenario[] All =
     [
@@ -114,12 +118,17 @@ internal static partial class SmokeScenarios
         Root("reader-find", "MEOWCHAN_READER_FIND_ONLY", "reader find: actual offline404 native controls, whole-thread hits and managed routed keys; no OS keyboard or Windows/macOS acceptance"),
         Root("filename-search", "MEOWCHAN_FILENAME_SEARCH_ONLY", "filename search standalone dialog: captured metadata paging, literal Unicode input and explicit selection; no product host navigation or current-byte/platform acceptance"),
         Root("media-hash-search", "MEOWCHAN_MEDIA_HASH_SEARCH_ONLY", "SHA-256 search standalone dialog: one captured inventory, exact reference selection and native controls; no global-library search, rehash or product host navigation acceptance"),
+        Root("unified-search", "MEOWCHAN_UNIFIED_SEARCH_ONLY", "unified search: archive list and reader search surfaces over a synthetic catalog in a private host window, Light and Dark captures; managed input only, no OS keyboard or Windows/macOS acceptance"),
         Root("filename-search-host", "MEOWCHAN_FILENAME_SEARCH_HOST_ONLY", "filename search host: actual native page/modal, exact offscreen post navigation and causal lifetime drains; managed input, no OS keyboard, detached-reader/fullscreen or Windows/macOS acceptance"),
         Root("urltext-export", "MEOWCHAN_URLTEXT_EXPORT_ONLY", "URLtext export: real dialog consent and create-only writer, synthetic summaries, injected chooser, ES/FR/RU; no OS picker or client interoperability acceptance"),
         Root("urltext-page-boundary", "MEOWCHAN_URLTEXT_PAGE_BOUNDARY_ONLY", "URLtext page boundary: real native owner/page with synthetic summaries and causal lifecycle/modal guards; no OS picker or client interoperability acceptance"),
         Root("gallery-volume-routed", "MEOWCHAN_GALLERY_VOLUME_ROUTED_ONLY", "gallery volume routed boundary: synthetic owner adapter, actual Avalonia Slider/TextBox events; no playback continuity or OS keyboard acceptance"),
         Root("first-run-reopen", "MEOWCHAN_FIRST_RUN_REOPEN_ONLY", "First-run Settings reopen: actual constructors/path controls, abandoned unsaved draft and fresh disk/runtime cap; two synthetic profiles, managed UI, no native Windows/macOS acceptance"),
         Root("dialog-frame", "MEOWCHAN_DIALOG_FRAME_ONLY", env => "dialog frame: fixed header/error strip/footer around a scrolling body per production dialog, group=" + (env("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all") + "; private fixtures, managed input, no Windows/macOS or screen-reader claim"),
+        // Evidence run, not a check: skipped by the default sweep unless an output directory is requested.
+        Root("dialog-gallery", "MEOWCHAN_DIALOG_GALLERY_ONLY", "dialog gallery: every dialog, modal, popup, menu, banner and toast over private fixtures in Light/Dark x EN/DE as PNGs plus index.html; closed with Cancel/Escape, no network, no confirmation; review evidence, not a rendering-fidelity or Windows/macOS claim")
+            with { NightlySkip = string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_GALLERY_OUTPUT"))
+                ? "screenshot evidence run: set MEOWCHAN_DIALOG_GALLERY_OUTPUT to a fresh directory to run it" : null },
         Root("html-export-action-layout", "MEOWCHAN_HTML_EXPORT_ACTION_LAYOUT_ONLY", "HTML export dialog action labels: actual single/collection controls, 640/480 DIP, ES/FR/RU; managed input, no Windows/macOS or language-quality acceptance"),
         Root("shortcut-issue-language", "MEOWCHAN_SHORTCUT_ISSUE_LANGUAGE_ONLY", "shortcut issue refresh: real Settings controls and retained validation in five languages; managed input, synthetic profile, no OS keyboard or language-quality acceptance"),
         Root("export-status-language", "MEOWCHAN_EXPORT_STATUS_LANGUAGE_ONLY", "export status refresh: actual single/collection export, backup, failure and cancellation in five languages; offline synthetic profile, managed input, no native Windows/macOS acceptance"),
@@ -190,8 +199,10 @@ internal static partial class SmokeScenarios
         Root("statistics", "MEOWCHAN_STATISTICS_ONLY", "statistics: header graph in every work view and the Header graph setting, the statistics page with synthetic counters, reset question, sampling claim and light/dark/German captures; no request leaves the process"),
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
         Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
+        Root("settings-search", "MEOWCHAN_SETTINGS_SEARCH_ONLY", "settings search: typo, abbreviation, synonym and English-name hits across groups with group names, arrow keys, Enter into a collapsed section, empty state, Escape clears then leaves, EN/DE light/dark captures"),
         Root("settings-statistics", "MEOWCHAN_SETTINGS_STATISTICS_ONLY", "settings statistics: nine rows with ranges, switch dependencies, refusal outside the ranges, save/reload/discard through the production path and hub options, EN/DE light/dark captures"),
         Root("settings-lifetime", "MEOWCHAN_SETTINGS_LIFETIME_ONLY"),
+        Root("rules-settings-captures", "MEOWCHAN_RULES_SETTINGS_CAPTURES_ONLY", "rules and settings pages: evidence-only captures of the Rules page and every Settings category in Light/Dark, EN/DE at 1440 and 900 dip; nothing is saved"),
         Root("path-input", "MEOWCHAN_PATH_INPUT_ONLY"),
         Root("numeric-focus", "MEOWCHAN_NUMERIC_FOCUS_ONLY"),
         Root("media-performance", "MEOWCHAN_MEDIA_PERFORMANCE_ONLY"),
@@ -212,6 +223,7 @@ internal static partial class SmokeScenarios
         Root("post-bookmark-comparison", "MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY"),
         Root("post-bookmarks", "MEOWCHAN_POST_BOOKMARKS_ONLY"),
         Root("command-contrast", "MEOWCHAN_COMMAND_CONTRAST_ONLY"),
+        Root("hover-contrast", "MEOWCHAN_HOVER_CONTRAST_ONLY", "hover contrast: footer navigation hover/selected, work-view selector and drop-down, Tools menu, columns context menu and a settings drop-down in Light and Dark; rendered text 4.5:1, state boundaries 3:1"),
         Root("action-dynamic", "MEOWCHAN_ACTION_DYNAMIC_ONLY"),
         Root("action-overflow", "MEOWCHAN_ACTION_OVERFLOW_ONLY") with { NightlySkip = Provenance },
         Root("download-search", "MEOWCHAN_DOWNLOAD_SEARCH_ONLY"),
@@ -224,8 +236,20 @@ internal static partial class SmokeScenarios
         Root("window-chrome", "MEOWCHAN_WINDOW_CHROME_ONLY", "app chrome: isolated native geometry and right-edge pixels, own captions of About, Settings, ratings manager, rating prompt (Dialog variant), modeless bookmarks and ownerless startup error with square-corner request and Escape/caption close, modal lifetime; platform/scales as recorded"),
         Root("logo-theme", "MEOWCHAN_LOGO_THEME_ONLY", "logo by theme: orange cat in Light, grey cat in Dark for the main window icon, About icon, a plain dialog and a standalone tray icon, live Light/Dark/System switches and new windows; the header shows one theme-appropriate cat and About keeps both cats side by side, unclipped at 640x480/760x500 and the About minimum; asserted assets and rendered colour, private Xvfb, no native tray host or Windows/macOS claim"),
         Root("shortcut-presentation", "MEOWCHAN_SHORTCUT_PRESENTATION_ONLY"),
-        Root("poweruser", "MEOWCHAN_POWERUSER_ONLY")
+        Root("poweruser", "MEOWCHAN_POWERUSER_ONLY"),
+        // Work views (AP5/WV0): page x view x theme x language x size captures, index.html matrix and the reduced-shortcut probe.
+        Root("work-views", "MEOWCHAN_WORK_VIEWS_ONLY", env => "work views: offline showcase fixture, "
+            + (WorkViewPageSelector(env) ?? "every page") + " in Barebones/Simple/Advanced, "
+            + (env("MEOWCHAN_WORK_VIEWS_MATRIX") ?? (WorkViewPageSelector(env) == null ? "full" : "reduced"))
+            + " theme/language/size matrix with index.html, reduced-toolbar shortcut probe; managed input only, no network"),
+        .. WorkViewPages.Select(page => Alternative("work-views-" + page, WorkViewSelector(page), "MEOWCHAN_WORK_VIEWS_ONLY"))
     ];
+
+
+    internal static string WorkViewSelector(string page) => "MEOWCHAN_WORK_VIEWS_" + page.ToUpperInvariant() + "_ONLY";
+
+    private static string? WorkViewPageSelector(Func<string, string?> env) =>
+        WorkViewPages.FirstOrDefault(page => env(WorkViewSelector(page)) == "1");
 
     // The standalone run of one entry: its command-line arguments and NAME=value environment
     // (selectors plus NightlyEnvironment), and the inherited NightlySkip reason if any.

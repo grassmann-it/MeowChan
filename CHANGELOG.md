@@ -154,7 +154,7 @@
   after a title-bar restore on Linux/X11.
 - Rework the default keyboard shortcuts. **Media** is **Ctrl/Cmd+3** in footer order, with
   **Rules 4**, **Sources 5**, **Diagnostics 6** and **Plugins 7**; footer, menus and the F1 help
-  list the pages in the same order. New defaults: **Ctrl+T** tags, **Ctrl+D** thread favorite,
+  list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
   **Ctrl+Shift+F** filters (also for board filters, which moved from Ctrl+Shift+R), **F3** and
   **Ctrl+G** for find next and **Shift+F3** and **Ctrl+Shift+G** for find previous in the large Reader,
   **S** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder
@@ -230,7 +230,7 @@
   explain themselves in plain words; the cleanup, board admission, filename search, import and
   reader group windows fit small screens; screen readers get names for the license list, the URL
   import report and the board preview. Reader cards with media are one block (their width follows the **Post width** setting),
-  and the navigation cross rests at 40 percent over the content. Danbooru results and watchers are
+  and the navigation cross floats over the content (see the Reader overlay entry below). Danbooru results and watchers are
   cards, dialog headings and counters use one type step and tabular figures, and popups share
   one shadow and corner radius.
 - Make external links in a reader post clickable: a link opens only after a confirmation shows its
@@ -250,13 +250,16 @@
   and the kept days, disk read and written, requests, errors) and a **Reset** that asks first.
   Network counts the response data MeowChan receives (upload shows only the number of requests);
   disk counts the media files MeowChan itself writes or reads back, not thumbnails, previews,
-  archive or index files. The header download graph is now a button with the network as a filled
-  area and the disk as a dashed line; a click opens the page, and the new setting **Header graph**
-  (Automatic, Network only, Network and disk) decides whether the disk line is drawn (Automatic:
-  network and disk in the Advanced view, network only otherwise). The tray tooltip shows the
-  current rates and the number of active downloads, the tray menu starts with two statistics lines
-  (a click opens the page), and nothing is measured while the window is hidden and nothing
-  downloads. A **Statistics** block on the Behavior page holds nine settings: update interval
+  archive or index files. The header download graph is now a button that opens the page. It shows
+  the network download (**Net ↓**) and the disk writing (**Disk**, what MeowChan writes, not what
+  it reads back) as two labelled rows, each with its own scale that steps by 1, 1.5, 2, 3 and so
+  on and a decaying maximum; the page shows network, disk write and disk read as three separate
+  graphs. The new setting **Header graph** (Automatic, Network only, Network and disk) decides
+  what the header shows (Automatic: both values in every work view and a graph for each only in
+  the Advanced view; Network only hides the disk value). The tray tooltip shows the current
+  rates and the number of active downloads, the tray menu starts with two statistics lines (a
+  click opens the page), the tray's disk rate counts writes only like the header, and nothing is
+  measured while the window is hidden and nothing downloads. A **Statistics** block on the Behavior page holds nine settings: update interval
   (default 1000 ms, 500 to 10000), graph length (120 readings, 30 to 3600), update interval in the
   tray (5000 ms, 2000 to 60000), tray tooltip and tray menu (on), keep statistics on this computer
   (on), days kept (30, 1 to 365), saving interval (5 minutes, 1 to 60) and most sources (64, 8 to
@@ -306,6 +309,70 @@
   zero-width characters) and hosts that cannot be written in ASCII stay plain text; a link that
   could not be started (no default browser) is reported in your language. Saving settings no
   longer cuts running transitions short when the theme did not change.
+- Add a **View** menu to the large Reader. **Hide media** and **Only posts with media** apply to
+  every thread for the session; a deliberate jump to a hidden post (a quote, find, a bookmark or
+  the reading position) shows it temporarily, and **Hide again** hides it once more. The reader now
+  cuts its pages from one projection of the thread, so Up and Down, paging, the reading mark and
+  the retained position follow the order that is shown. A reference to the opening post or to
+  another thread gets a "(OP)" or "(other thread)" marker behind it (with a screen reader name), and
+  the quoted post is outlined while the pointer rests on its reference.
+- Add **Post filters** (View, **Post filters…**): rules on post text, subject, file name or MD5 (hex
+  or base64) hide a matching post, shorten it to a placeholder or highlight it, optionally together
+  with its replies. **Hide post** and **Show post again** in the post menu (and as shortcuts) hide a
+  single post; reply cards and quote previews of a filtered post say so. Nothing is deleted, and
+  the HTML export always contains every saved post. Rules and hidden posts are kept in the new
+  profile file `post-filters.json` with one backup and an explicit recovery of a damaged file. The
+  lists hold 200 rules and 10000 hidden posts by default; there is no settings row for these two
+  limits in this line yet.
+- Keep decoded gallery images in a memory-bounded cache and decode the neighbours in the
+  background: after an image is shown, the next and the previous images (3 and 2 by default, 0 to
+  20) are decoded behind it and dropped as soon as you move on; videos and GIFs are skipped, and a
+  kept image is shown only while its file is unchanged since it was verified. New settings under
+  **Storage and limits**: **Gallery images kept in memory (MiB)** (default 256, 0 turns it off, up
+  to 4096) and the two preload counts. Archive tiles and reader attachments now share the Media
+  page's preview cache instead of decoding again each time they scroll back into view.
+- Verify the plugin toolchain at startup outside the build gate and in parallel with reading the
+  profile and scanning the plugin inventory, and re-check every verified file's identity right
+  before the toolchain is used.
+- Move the rarer gallery controls into a labelled "⋯" menu. Back and forward with position, close,
+  fit, 1:1, the post panel, favorite, the reader toggle and play or pause stay on the bar; zoom,
+  rating, tags, export original, slideshow settings, overlay options, full screen and shortcut help
+  move into the menu with the same commands, shortcuts and tooltips (it opens from the keyboard,
+  Escape returns focus). The primary buttons go icon-only below 1100 dip, and below 900 dip the
+  post panel floats over the picture so that at least 280 dip of the image stays visible. The
+  gallery file plate shows sizes in binary units with the exact byte count in brackets
+  ("63 KiB (64,624 bytes)").
+- Make secondary actions on cards quiet ghost buttons (Danbooru watcher and post cards, the
+  Downloads inspector's navigation actions, the reader capture toggle): the label alone at rest,
+  the 3:1 outline on hover, the accent when pressed. **Check now** and **Remove** keep their
+  outline.
+- Keep **Enter** as the media key on a post that has media; a reader jump now ends when you take
+  over and reports the position it reached. The seven new language packs went through a
+  terminology review (one term per concept in each language); they stay untested previews.
+- Redraw the **Plugins** page in the style of Sources: one card per plugin with chips only where a
+  described source deviates (the same wording rule and texts as Sources), the plugin count in the
+  header ("Plugins: n"), a 280 dip list that switches to one pane below 886 dip, and the plugin's
+  details in one card. The actions menus of the category and of the selected plugin are square
+  "⋯" buttons (tooltip **Actions**, same commands, keyboard access and focus order); generated
+  plugin setting fields have the workspace input height, and a setting's label, **Set value**
+  box and field sit 8 dip apart. A check box that sits directly in a horizontal row now centres on
+  the row's line, so the Diagnostics filter row and the Reader status line line up with their
+  32 dip controls.
+- Fit the Reader attachment to the drawn picture: it is as wide as the thumbnail (the file line
+  keeps a 140 dip minimum, wraps to two lines, then trims), and the click and focus frame, the
+  play button and the star sit on the picture. The 16:9 slot is reserved only until the thumbnail
+  has loaded. Archive and Media page tiles keep their uniform cell but letterbox the picture and
+  anchor the type badge, star, check mark and state mark to the picture's corners.
+- Make the Reader's navigation cross a pure overlay: it reserves no side lane, content uses the
+  full width, and its backdrop is not hit-tested (only the four buttons take clicks). It rests at
+  60 percent and fades out after 2 seconds without pointer movement; pointer movement over the
+  Reader, the pointer over or within 64 dip of it, keyboard focus and a navigation shortcut bring
+  it back (the fade is off under reduced motion). The extra margin after the last post is gone: it
+  made a jump to the last post of a page overshoot by thousands of dip.
+- Show the tagline "Open-source imageboard downloader — now with 100% more cats" in the title bar
+  again, in the muted italic style between the brand and the header graph, translated in all 12
+  languages. It disappears when its column is narrower than 200 dip and never pushes the graph or
+  the window controls.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild

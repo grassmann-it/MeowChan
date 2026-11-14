@@ -37,8 +37,10 @@ internal static class StatisticsChecks
             await HeaderAsync(window);
             await SettingAsync(window);
             await PageAsync(window, "dark");
+            await LayoutsAsync(window, "dark");
             await SetThemeAsync(window, "Light");
             await HeaderAndPageCapturesAsync(window, "light");
+            await LayoutsAsync(window, "light");
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
             await HeaderAndPageCapturesAsync(window, "light-de");
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
@@ -69,6 +71,7 @@ internal static class StatisticsChecks
             Interlocked.Add(ref first.NetDown, (long)((150_000 + wave * 1_650_000) * 0.2));
             Interlocked.Add(ref second.NetDown, (long)((30_000 + (1 - wave) * 300_000) * 0.2));
             Interlocked.Add(ref first.DiskWritten, (long)(wave * 700_000 * 0.2));
+            Interlocked.Add(ref first.NetUp, (long)((4_000 + wave * 36_000) * 0.2));
             if (tick % 9 == 0) Interlocked.Add(ref first.DiskRead, 220_000);
             Interlocked.Increment(ref first.Requests);
             if (tick % 3 == 0) Interlocked.Increment(ref second.Requests);
@@ -108,33 +111,41 @@ internal static class StatisticsChecks
     private static Button Speed(MainWindow window) => window.FindControl<Button>("TransferSpeed")!;
     private static IoGraph HeaderGraph(MainWindow window) => window.FindControl<IoGraph>("TransferSpeedGraph")!;
     private static IoGraph HeaderDiskGraph(MainWindow window) => window.FindControl<IoGraph>("TransferDiskGraph")!;
-    // The disk row (graph slot and labelled value) is hidden as one; its own visibility is what the work view and the setting decide.
-    private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskRow")!.IsVisible;
+    // The disk block (heading and values; its graph follows separately) is shown or hidden by the setting.
+    private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskText")!.IsVisible;
+    private static string TextOf(MainWindow window, string name) => window.FindControl<TextBlock>(name)!.Text ?? "";
 
     private static async Task RequireHeaderAsync(MainWindow window, bool disk, bool graph, string scenario)
     {
+        // The graphs need room: in the narrow Barebones window every layout falls back to the labelled values.
+        graph = graph && window.Bounds.Width >= IoStatsDisplay.HeaderGraphsMinimumWidth;
         await Program.WaitUntilAsync(() => DiskRowShown(window) == disk
             && AutomationProperties.GetName(Speed(window)) is { Length: > 0 } name && name.Contains("disk", StringComparison.OrdinalIgnoreCase) == disk,
             () => $"{scenario}: row {DiskRowShown(window)}, name '{AutomationProperties.GetName(Speed(window))}'");
         string text = AutomationProperties.GetName(Speed(window))!;
-        Require(Texts.T("stats.graph.name", "", "", 0).Length > 0 && ToolTip.GetTip(Speed(window)) as string == text,
-            scenario + ": the tooltip differs from the accessible name.");
-        Require(DiskRowShown(window) == disk && window.FindControl<Control>("TransferDiskLabel")!.IsVisible,
-            scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
-        // Both values carry a short label; the disk one is the written rate. The graph slot is blank when the row has no graph.
-        string netLabel = window.FindControl<TextBlock>("TransferSpeedLabel")!.Text ?? "", diskLabel = window.FindControl<TextBlock>("TransferDiskLabel")!.Text ?? "";
-        Require(netLabel.StartsWith(Texts.T("stats.header.net", "").Split('↓')[0], StringComparison.Ordinal) && netLabel.Contains('↓') && netLabel.EndsWith("/s", StringComparison.Ordinal),
-            scenario + ": the network value has no label: '" + netLabel + "'.");
+        Require(ToolTip.GetTip(Speed(window)) as string == text, scenario + ": the tooltip differs from the accessible name.");
+        Require(DiskRowShown(window) == disk, scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
+        // Both blocks carry a written heading and compact values: Network ↓ down ↑ up, Disk R read W write (English at this point).
+        string netTitle = TextOf(window, "TransferSpeedTitle"), netValues = TextOf(window, "TransferSpeedLabel");
+        string diskTitle = TextOf(window, "TransferDiskTitle"), diskValues = TextOf(window, "TransferDiskLabel");
+        Require(netTitle == Texts.T("stats.header.networkTitle") && netValues.StartsWith("↓ ", StringComparison.Ordinal) && netValues.Contains(" ↑ ") && netValues.EndsWith("/s", StringComparison.Ordinal),
+            scenario + ": the network block lacks its heading or its down/up values: '" + netTitle + "' '" + netValues + "'.");
+        Require(text.Contains("upload", StringComparison.OrdinalIgnoreCase), scenario + ": the sentence does not name the upload: '" + text + "'.");
         if (disk)
-            Require(diskLabel.StartsWith(Texts.T("stats.header.disk", "").Trim(), StringComparison.Ordinal) && diskLabel.EndsWith("/s", StringComparison.Ordinal) && (HeaderDiskGraph(window).Opacity == 1) == graph,
-                scenario + ": the disk value has no label or the wrong graph state: '" + diskLabel + "'.");
+        {
+            Require(diskTitle == Texts.T("stats.header.diskTitle") && diskValues.StartsWith("R ", StringComparison.Ordinal) && diskValues.Contains(" W ") && diskValues.EndsWith("/s", StringComparison.Ordinal),
+                scenario + ": the disk block lacks its heading or its read/write values: '" + diskTitle + "' '" + diskValues + "'.");
+            Require(HeaderDiskGraph(window).IsVisible == graph, scenario + ": the disk graph is " + (graph ? "missing" : "drawn") + ".");
+            Require(text.Contains("read", StringComparison.OrdinalIgnoreCase) && text.Contains("written", StringComparison.OrdinalIgnoreCase),
+                scenario + ": the sentence does not name disk read and written: '" + text + "'.");
+        }
         // Barebones fits the window to its minimum, below the widths where the graph (1000) and the button (760) appear.
-        if (window.Bounds.Width >= 1000)
+        if (window.Bounds.Width >= IoStatsDisplay.HeaderGraphsMinimumWidth)
         {
             Require(HeaderGraph(window).IsEffectivelyVisible && HeaderGraph(window).SampleCount >= 8 && HeaderGraph(window).Bounds.Width > 0,
                 scenario + ": the header graph shows no history.");
-            // The disk row is its own graph with its own scale, drawing the write series only.
-            Require(HeaderGraph(window).Source == IoGraphSource.NetDown && HeaderDiskGraph(window).Source == IoGraphSource.DiskWrite,
+            // Exactly two graph surfaces, each with both directions on its own scale: network down+up, disk write+read.
+            Require(HeaderGraph(window).Source == IoGraphSource.NetworkIo && HeaderDiskGraph(window).Source == IoGraphSource.DiskIo,
                 scenario + ": a header row draws the wrong series.");
             if (disk && graph)
                 Require(HeaderDiskGraph(window).IsEffectivelyVisible && HeaderDiskGraph(window).SampleCount >= 8 && HeaderDiskGraph(window).Bounds.Width > 0,
@@ -149,11 +160,11 @@ internal static class StatisticsChecks
     private static async Task HeaderAsync(MainWindow window)
     {
         // Automatic follows the work view and updates the moment it changes.
-        foreach ((string mode, bool disk) in new[] { ("Advanced", true), ("Simple", false), ("Barebones", false), ("Advanced", true) })
+        foreach (string mode in new[] { "Advanced", "Simple", "Barebones", "Advanced" })
         {
             await PresentationChecks.SwitchModeAsync(window, mode);
             if (mode != "Barebones") await EnsureWideAsync(window);
-            await RequireHeaderAsync(window, disk: true, graph: disk, "Auto/" + mode);
+            await RequireHeaderAsync(window, disk: true, graph: true, "Auto/" + mode);   // both graphs in every work view, where there is room
             // The tagline shows where the title bar has room and is gone where it has not (never a stub).
             Control tagline = window.FindControl<Control>("WorkspaceSubtitle")!;
             if (mode == "Barebones") Require(!tagline.IsVisible, "The tagline is still shown in the narrow Barebones title bar.");
@@ -173,10 +184,10 @@ internal static class StatisticsChecks
         await Program.WaitUntilAsync(() => settings.FindControl<Control>("SettingsBehaviorPage")!.IsVisible);
         ComboBox input = settings.FindControl<ComboBox>("StatsHeaderGraphInput")!;
         await Program.WaitUntilAsync(() => input.IsEffectivelyVisible && input.Bounds.Width > 0);
-        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "NetworkAndDisk"]),
-            "The header graph setting does not offer Auto, Network and NetworkAndDisk.");
+        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"]),
+            "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide and Text.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk values in every view, with a graph for each only in the Advanced view.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");
@@ -195,6 +206,81 @@ internal static class StatisticsChecks
             "The header graph setting was not persisted.");
         await SaveChoiceAsync(window, settings, "Auto");
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
+    }
+
+    // Every layout of the setting on the real header: structure by the layout rules, then a capture per theme variant. At the wide
+    // window all six values; then the narrower widths where side by side and text blocks must fall back.
+    private static async Task LayoutsAsync(MainWindow window, string variant)
+    {
+        window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible);
+        SettingsEditor settings = window.SettingsEditor;
+        await ShowBehaviorAsync(settings);
+        await EnsureWideAsync(window);
+        Require(window.Bounds.Width >= IoStatsDisplay.HeaderBlocksMinimumWidth, "The smoke window is too narrow for two header blocks: " + window.Bounds.Width);
+        double? controlsFromRight = null;
+        foreach (string value in new[] { "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Auto" })
+            await CheckLayoutAsync(window, settings, value, _wideWidth, variant, "", v => controlsFromRight = RequireSame(controlsFromRight, v, value));
+        // Narrower windows: side by side first loses its full-height graphs (rows), then the graphs (text rows); text blocks lose theirs.
+        foreach ((string value, double width, string tag) in new[] { ("SideBySide", 1280.0, "-w1280"), ("Text", 1000.0, "-w1000"), ("NetworkAndDisk", 1000.0, "-w1000"), ("SideBySide", 1150.0, "-w1150"), ("SideBySide", 900.0, "-w900"), ("Text", 900.0, "-w900"), ("NetworkAndDisk", 900.0, "-w900") })
+        {
+            window.Width = width;
+            await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1, () => $"width {window.Bounds.Width}, wanted {width}");
+            await CheckLayoutAsync(window, settings, value, width, variant, tag, v => controlsFromRight = RequireSame(controlsFromRight, v, value + tag));
+        }
+        await EnsureWideAsync(window);
+        await SaveChoiceAsync(window, settings, "Auto");
+        await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
+    }
+
+    // The distance of the window controls from the window's right edge: the same in every layout (they never move).
+    private static double RequireSame(double? known, double now, string scenario)
+    {
+        Require(known is null || Math.Abs(known.Value - now) <= 1, $"{scenario}: the window controls moved ({known:0.#} -> {now:0.#} from the right edge).");
+        return now;
+    }
+
+    private static async Task CheckLayoutAsync(MainWindow window, SettingsEditor settings, string value, double width, string variant, string tag, Action<double> controlsMoved)
+    {
+        Control Cell(string name) => window.FindControl<Control>(name)!;
+        await SaveChoiceAsync(window, settings, value);
+        IoStatsDisplay.HeaderLayout layout = IoStatsDisplay.ResolveHeaderLayout(value, window.Bounds.Width);
+        await Program.WaitUntilAsync(() => Cell("TransferSpeedText").IsVisible == layout.NetValue && Cell("TransferDiskText").IsVisible == layout.DiskValue
+            && Cell("TransferSpeedGraph").IsVisible == layout.NetGraph && Cell("TransferDiskGraph").IsVisible == layout.DiskGraph,
+            () => $"{value}{tag}: net text {Cell("TransferSpeedText").IsVisible}, disk text {Cell("TransferDiskText").IsVisible}, net graph {Cell("TransferSpeedGraph").IsVisible}, disk graph {Cell("TransferDiskGraph").IsVisible}");
+        await Settle(window);
+        Button speed = Speed(window);
+        Require(speed.IsEffectivelyVisible && Cell("TransferLayoutGrid").Bounds.Width > 0, value + tag + ": the header button has no size.");
+        // Whatever the layout: nothing reaches into the window controls, the whole button stays inside the title bar and the controls stay put.
+        Control controls = Cell("PauseButton");
+        Point origin = speed.TranslatePoint(new Point(0, 0), window) ?? default;
+        double controlsX = controls.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        Require(origin.X + speed.Bounds.Width <= controlsX + 1, $"{value}{tag}: the header button overlaps the window controls ({origin.X + speed.Bounds.Width} vs {controlsX}).");
+        controlsMoved(window.Bounds.Width - controlsX);
+        Control header = Cell("WorkspaceHeader");
+        Require(speed.Bounds.Height <= header.Bounds.Height + 0.5 && origin.Y >= -0.5, $"{value}{tag}: the header button is taller than the title bar ({speed.Bounds.Height} vs {header.Bounds.Height}).");
+        switch (layout.Arrangement)
+        {
+            case IoStatsDisplay.HeaderArrangement.GraphBlocks:
+                Require(Grid.GetColumn(Cell("TransferDiskGraph")) > Grid.GetColumn(Cell("TransferSpeedGraph")) && Grid.GetRowSpan(Cell("TransferSpeedGraph")) == 2 && Grid.GetRowSpan(Cell("TransferDiskGraph")) == 2,
+                    value + tag + ": the two blocks are not arranged side by side.");
+                Require(Cell("TransferSpeedGraph").Bounds.Height >= header.Bounds.Height * 0.6 && Cell("TransferDiskGraph").Bounds.Height == Cell("TransferSpeedGraph").Bounds.Height,
+                    $"{value}{tag}: the block graphs are not full height ({Cell("TransferSpeedGraph").Bounds.Height} of {header.Bounds.Height}).");
+                Require(Cell("TransferSpeedTitle").Bounds.Y < Cell("TransferSpeedLabel").Bounds.Y && Cell("TransferDiskTitle").Bounds.Y < Cell("TransferDiskLabel").Bounds.Y,
+                    value + tag + ": the label is not two lines (heading above values).");
+                break;
+            case IoStatsDisplay.HeaderArrangement.TextBlocks:
+                Require(!Cell("TransferSpeedGraph").IsVisible && !Cell("TransferDiskGraph").IsVisible && Cell("TransferSpeedTitle").Bounds.Y < Cell("TransferSpeedLabel").Bounds.Y,
+                    value + tag + ": the text blocks show a graph or no two-line label.");
+                break;
+            default:
+                if (layout.NetValue && layout.DiskValue)
+                    Require(Grid.GetRow(Cell("TransferDiskText")) == 1 && Grid.GetRow(Cell("TransferSpeedText")) == 0, value + tag + ": the rows are not stacked.");
+                Require(Math.Abs(Cell("TransferSpeedTitle").Bounds.Y - Cell("TransferSpeedLabel").Bounds.Y) < 2, value + tag + ": a row label is not one line.");
+                break;
+        }
+        Program.CaptureWindow(window, $"smoke-statistics-layout-{value.ToLowerInvariant()}{tag}-{variant}.png");
+        Console.WriteLine($"SMOKE statistics layout: {value}{tag}/{variant}; net {layout.NetValue}/{layout.NetGraph}, disk {layout.DiskValue}/{layout.DiskGraph}, {layout.Arrangement}; header {speed.Bounds.Width:0}x{speed.Bounds.Height:0}.");
     }
 
     private static async Task ShowBehaviorAsync(SettingsEditor settings)
@@ -224,9 +310,8 @@ internal static class StatisticsChecks
             && window.SessionHost.Config.StatsHeaderGraph == value && window.FindControl<Button>("AddUrlButton")!.IsEnabled,
             () => $"wanted {value}, file {Config.LoadConfig().StatsHeaderGraph}, session {window.SessionHost.Config.StatsHeaderGraph}, busy {settings.IsBusy}, error '{settings.ErrorMessage}'");
         // The header shows the new value without leaving Settings.
-        string mode = window.SessionHost.Config.WorkspaceMode;
-        bool disk = value != "Network";
-        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk, () => $"{value}/{mode}: disk row {DiskRowShown(window)}");
+        bool disk = IoStatsDisplay.ResolveHeaderLayout(value, window.Bounds.Width).DiskValue;
+        await Program.WaitUntilAsync(() => DiskRowShown(window) == disk, () => $"{value}: disk row {DiskRowShown(window)}");
         await ShowBehaviorAsync(settings);
     }
 

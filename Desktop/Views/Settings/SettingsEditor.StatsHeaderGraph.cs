@@ -8,7 +8,7 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan;
 
 /// <summary>
-/// The "Header graph" setting of the Statistics block: what the graph at the top shows (Auto, Network, NetworkAndDisk).
+/// The "Header graph" setting of the Statistics block: what the header shows and how it is laid out (Auto, Network, Disk, NetworkAndDisk, SideBySide, Text).
 /// Kept in its own file so the other statistics settings can be added beside it without touching this one.
 /// </summary>
 public partial class SettingsEditor
@@ -25,14 +25,17 @@ public partial class SettingsEditor
         set => SetField(ref _selectedStatsHeaderGraph, value, nameof(SelectedStatsHeaderGraph));
     }
 
-    /// <summary>Rebuilds the three choices in the current language and selects <paramref name="value"/>; also refreshes the block's labels.</summary>
+    /// <summary>Rebuilds the six choices in the current language and selects <paramref name="value"/>; also refreshes the block's labels.</summary>
     private void RefreshStatsHeaderGraphChoices(string value)
     {
         StatsHeaderGraphChoices = new SettingsChoice[]
         {
             new(IoStatsDisplay.HeaderGraphAuto, Texts.T("stats.headerGraph.auto")),
             new(IoStatsDisplay.HeaderGraphNetwork, Texts.T("stats.headerGraph.network")),
-            new(IoStatsDisplay.HeaderGraphNetworkAndDisk, Texts.T("stats.headerGraph.networkAndDisk"))
+            new(IoStatsDisplay.HeaderGraphDisk, Texts.T("stats.headerGraph.disk")),
+            new(IoStatsDisplay.HeaderGraphNetworkAndDisk, Texts.T("stats.headerGraph.networkAndDisk")),
+            new(IoStatsDisplay.HeaderGraphSideBySide, Texts.T("stats.headerGraph.sideBySide")),
+            new(IoStatsDisplay.HeaderGraphText, Texts.T("stats.headerGraph.text"))
         };
         foreach (string property in new[] { nameof(StatsHeaderGraphLabel), nameof(StatsHeaderGraphHint), nameof(StatsHeaderGraphChoices) })
             RaiseStatsHeaderGraphChanged(property);

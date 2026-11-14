@@ -43,6 +43,9 @@ public partial class ArchivePage
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
     {
         if (_ended || _busy || IsReaderDialogOpen || _thread == null) return;
+        // AP2: "Find in saved thread" and its reader.find shortcut always open the bar in the Text scope; the
+        // scope chip switches to File name or SHA-256 while it stays open.
+        ReaderFindScope.Scope = SearchScope.Text;
         ReaderFindBar.IsVisible = true;
         // Opening is explicit; asynchronous completion and hit navigation never take focus.
         ReaderFindQuery.Focus();
@@ -51,7 +54,7 @@ public partial class ArchivePage
 
     private void OnThreadFindQueryChanged(object? sender, TextChangedEventArgs e)
     {
-        if (this.FindControl<StackPanel>("ReaderFindBar")?.IsVisible == true)
+        if (this.FindControl<StackPanel>("ReaderFindBar")?.IsVisible == true && ReaderScope == SearchScope.Text)
             ThreadFindTask = SearchThreadFindAsync();
     }
 
@@ -62,12 +65,13 @@ public partial class ArchivePage
         _threadFindResult = null;
         _threadFindCursor = -1;
         _threadFindStatus = "readerFind.ready";
+        ReaderFindCarryOffer.Hide();
         ReaderFindBar.IsVisible = false;
         LocalizeThreadFind();
     }
 
     private bool AcceptThreadFind(long request, ReaderThreadFindIndex result) => !_ended
-        && request == _threadFindRequest && ReaderFindBar.IsVisible
+        && request == _threadFindRequest && ReaderFindBar.IsVisible && ReaderScope == SearchScope.Text
         && _thread != null && result.Matches(_thread.Summary.Id, _thread.Summary.Revision);
 
     // Validate the original input, not a prefix truncated by TextBox.MaxLength.
@@ -151,6 +155,18 @@ public partial class ArchivePage
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
         // The first Escape empties a typed query (SearchBox); only Escape in an empty query or on a button closes the bar.
         if (gesture == 2 && SearchBox.OwnsEscape(e.Source)) return;
+        // The scope chip keeps its own Enter (opens the scope menu).
+        if (gesture != 2 && e.Source is Avalonia.Visual chip && chip.GetSelfAndVisualAncestors().Contains(ReaderFindScope)) return;
+        if (gesture != 2 && ReaderScope != SearchScope.Text)
+        {
+            // File name and SHA-256: Enter in the field or on Search opens the result dialog; Enter on another
+            // button runs that button; Shift+Enter has no hit to go back to.
+            if (gesture != 1) return;
+            e.Handled = true;
+            if (FocusedFindButton(e.Source) is { Name: "ReaderFindClose" }) CloseThreadFind();
+            else RunReaderScope(ReaderScopedBox);
+            return;
+        }
         e.Handled = true;
         if (gesture == 2) CloseThreadFind();
         else if (gesture == 1 && FocusedFindButton(e.Source) is { } button)
@@ -199,11 +215,12 @@ public partial class ArchivePage
             excerpt.Inlines.Add(new Run { Text = Texts.T("readerFind.location", text.PostId,
                 field, hit.Offset + 1, hit.Length) + "\n" });
             excerpt.Inlines.Add(new Run { Text = snippet.Before });
-            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.Bold });
+            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.SemiBold });
             excerpt.Inlines.Add(new Run { Text = snippet.After });
             if (text.Field == ReaderFindField.Body && hit.Offset + hit.Length > 65536)
                 excerpt.Inlines.Add(new Run { Text = "\n" + Texts.T("readerFind.beyondDisplay") });
         }
+        UpdateUnifiedSearch(); // the File name and SHA-256 scopes replace status and actions
     }
 
     internal static (string Before, string Match, string After) ThreadFindSnippet(string text, int offset, int length)

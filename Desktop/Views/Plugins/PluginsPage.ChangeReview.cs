@@ -240,7 +240,7 @@ public partial class PluginsPage
         }
         content.Children.Add(new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.ackNeeded"), TextWrapping = TextWrapping.Wrap });
         content.Children.Add(changes);
-        TextBlock validation = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error", "workspace-error" } };
+        TextBlock validation = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-error" } };
         content.Children.Add(validation);
         Button save = new() { Content = new TextBlock { Text = PluginChangeReviewCatalog.T("plugins.changeReview.save"), TextWrapping = TextWrapping.Wrap },
             HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center };

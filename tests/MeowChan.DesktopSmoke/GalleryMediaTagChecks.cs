@@ -8,6 +8,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -48,7 +49,22 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => tags.IsEffectivelyEnabled);
             Require(Equals(GalleryViewer.LabelOf(tags), Texts.T("tags.media.button")), "Initial tags button label is wrong: " + GalleryViewer.LabelOf(tags));
 
-            tags.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // AP6: Ctrl+T belongs to the thread's tags (Archive, large reader); the gallery's media tags are Ctrl+Shift+T.
+            Require(CommandCatalog.ShortcutDisplay("media.tags.edit") == (OperatingSystem.IsMacOS() ? "⇧⌘T" : "Ctrl+Shift+T"),
+                "Media tags did not move to Ctrl+Shift+T: " + CommandCatalog.ShortcutDisplay("media.tags.edit"));
+            KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+            viewer.Focus();
+            KeyEventArgs oldKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.T, KeyModifiers = primary };
+            viewer.RaiseEvent(oldKey);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(window.GalleryMediaTagWindow == null && !oldKey.Handled, "Ctrl+T opened the media tags in the gallery; it is the thread-tags key.");
+            // The row opens the shell's dialog, so it is only checked for its presence and label here (the media-ratings smoke opens the dialog).
+            Require(viewer.ManageRatingsButton.Tag != null && viewer.ManageRatingsButton.IsEnabled
+                && ToolTip.GetTip(viewer.ManageRatingsButton)?.ToString()?.StartsWith(CommandCatalog.Label("media.rating.manage"), StringComparison.Ordinal) == true,
+                "The gallery menu does not offer the saved-ratings manager next to the rating.");
+            KeyEventArgs newKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.T, KeyModifiers = primary | KeyModifiers.Shift };
+            viewer.RaiseEvent(newKey);
+            Require(newKey.Handled, "Ctrl+Shift+T did not reach the gallery's media tags.");
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;
             Require(dialog.Session.Target == target, "Dialog is not bound to the shown media version.");

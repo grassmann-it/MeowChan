@@ -1,27 +1,30 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:desktop="clr-namespace:MeowChan.Desktop"
+             xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
              x:Class="MeowChan.DiagnosticsPage" SizeChanged="OnDiagnosticPageSizeChanged">
     <UserControl.Styles>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
     </UserControl.Styles>
-    <Grid Margin="12" RowDefinitions="*,Auto" RowSpacing="8">
+    <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="8">
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner.
              The explicit grid height preserves its own bounded, virtualized row viewport. -->
         <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Spacing="8">
-                <StackPanel x:Name="DiagnosticsPageHeader" Spacing="5">
-                    <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
-                    <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
-                </StackPanel>
-                <Border Classes="workspace-section" Padding="12,8">
-                    <TextBlock x:Name="DiagnosticsSummary" TextWrapping="Wrap" />
-                </Border>
-                <WrapPanel ItemSpacing="8" LineSpacing="6">
+                <!-- The session summary is the page's count, top right like the Sources count, not a card of its own. -->
+                <Grid x:Name="DiagnosticsPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <StackPanel Spacing="5">
+                        <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
+                        <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <TextBlock x:Name="DiagnosticsSummary" Grid.Column="1" Classes="muted" TextWrapping="Wrap" MaxWidth="360"
+                               TextAlignment="Right" VerticalAlignment="Top" />
+                </Grid>
+                <WrapPanel Classes="workspace-toolbar">
                     <ComboBox x:Name="DiagnosticSourceFilter" MinWidth="140" MaxWidth="230" SelectionChanged="OnDiagnosticFilterChanged" />
-                    <TextBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
+                    <controls:SearchBox x:Name="DiagnosticTextFilter" Width="210" TextChanged="OnDiagnosticFilterChanged" />
                     <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
                     <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False" MaxWidth="280"
                               IsCheckedChanged="OnDiagnosticFilterChanged">
@@ -29,7 +32,7 @@
                     </CheckBox>
                     <Button x:Name="DiagnosticClearFilters" Click="OnClearDiagnosticFilters" />
                 </WrapPanel>
-                <TextBlock x:Name="DiagnosticFilterSummary" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                <TextBlock x:Name="DiagnosticFilterSummary" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Tag="diagnostics.current" Classes="section-title localized" TextWrapping="Wrap" />
                 <Grid x:Name="DiagnosticSplit" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="12">
                     <Border x:Name="DiagnosticListPane" Classes="panel">
@@ -51,7 +54,7 @@
                     </Border>
                     <Border x:Name="DiagnosticDetailPane" Grid.Row="1" Classes="workspace-section">
                         <StackPanel Classes="workspace-section-header">
-                            <TextBlock x:Name="DiagnosticSelectionHint" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="DiagnosticSelectionHint" Classes="workspace-help" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
                             <TextBlock x:Name="DiagnosticSelectionTitle" Classes="section-title" TextWrapping="Wrap" IsVisible="False" />
                             <TextBlock x:Name="DiagnosticSelectionContext" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" />
                             <TextBox x:Name="DiagnosticDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="50" MaxHeight="110" />
@@ -81,9 +84,9 @@
         </ScrollViewer>
         <StackPanel Grid.Row="1" Spacing="8">
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
-                <TextBlock x:Name="DiagnosticsActionError" Classes="error workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
+                <TextBlock x:Name="DiagnosticsActionError" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
-            <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="muted localized"
+            <TextBlock x:Name="DiagnosticCopyPrivacy" Tag="diagnostics.copyPrivacy" Classes="workspace-help localized"
                        TextWrapping="Wrap" />
             <WrapPanel Classes="workspace-toolbar">
                 <Button x:Name="RetryDiagnosticButton" Tag="check.action" Classes="localized" Click="OnRetryClick" ToolTip.ShowOnDisabled="True" />
@@ -91,7 +94,6 @@
                 <Button x:Name="RetryDiagnosticFilteredButton" Click="OnRetryDiagnosticFiltered" />
                 <Button x:Name="CopyDiagnosticButton" Tag="diagnostics.copy" Classes="localized" Click="OnCopyClick" />
                 <Button x:Name="OpenDiagnosticWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" ToolTip.ShowOnDisabled="True" />
-                <Button x:Name="ManageMediaRatingsButton" Click="OnManageMediaRatingsClick" />
             </WrapPanel>
         </StackPanel>
     </Grid>

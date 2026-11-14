@@ -25,10 +25,13 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [InlineData("NetworkAndDisk", "NetworkAndDisk")]
     [InlineData("network", "Network")]
     [InlineData(" NETWORKANDDISK ", "NetworkAndDisk")]
+    [InlineData("disk", "Disk")]
+    [InlineData(" sidebyside", "SideBySide")]
+    [InlineData("TEXT", "Text")]
     [InlineData("Both", "Auto")]
     [InlineData("", "Auto")]
     [InlineData(null, "Auto")]
-    public void AnyTextIsNormalizedToOneOfTheThreeValues(string? input, string expected)
+    public void AnyTextIsNormalizedToOneOfTheSixValues(string? input, string expected)
     {
         Assert.Equal(expected, IoStatsDisplay.NormalizeHeaderGraph(input));
         Config config = new() { StatsHeaderGraph = input! };
@@ -36,22 +39,16 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Theory]
-    // Automatic follows the work view: the disk graph only in Advanced.
-    [InlineData("Auto", "Advanced", true)]
-    [InlineData("Auto", "Simple", false)]
-    [InlineData("Auto", "Barebones", false)]
-    // Explicit values ignore the work view.
-    [InlineData("Network", "Advanced", false)]
-    [InlineData("Network", "Simple", false)]
-    [InlineData("Network", "Barebones", false)]
-    [InlineData("NetworkAndDisk", "Advanced", true)]
-    [InlineData("NetworkAndDisk", "Simple", true)]
-    [InlineData("NetworkAndDisk", "Barebones", true)]
-    // Unknown text behaves like Auto.
-    [InlineData("nonsense", "Advanced", true)]
-    [InlineData("nonsense", "Simple", false)]
-    public void TheHeaderDrawsTheDiskGraphByTheSettingAndTheWorkView(string setting, string mode, bool disk) =>
-        Assert.Equal(disk, IoStatsDisplay.HeaderShowsDisk(setting, mode));
+    // Automatic draws both graphs whenever there is room, in every work view; explicit values are taken literally.
+    [InlineData("Auto", true)]
+    [InlineData("Network", false)]
+    [InlineData("NetworkAndDisk", true)]
+    [InlineData("Disk", true)]
+    [InlineData("SideBySide", true)]
+    [InlineData("Text", false)]
+    [InlineData("nonsense", true)]
+    public void TheHeaderDrawsTheDiskGraphBySettingAlone(string setting, bool disk) =>
+        Assert.Equal(disk, IoStatsDisplay.HeaderShowsDisk(setting));
 
     [Theory]
     [InlineData("Auto", true)]
@@ -62,24 +59,103 @@ public sealed class StatsHeaderGraphTests : IDisposable
     public void TheDiskValueShowsInEveryViewUnlessTheSettingIsNetwork(string setting, bool shown) =>
         Assert.Equal(shown, IoStatsDisplay.HeaderShowsDiskValue(setting));
 
+    // (setting, window width) -> net value, disk value, net graph, disk graph, arrangement
+    [Theory]
+    [InlineData("Auto", 1100.0, true, true, true, true, "Rows")]
+    [InlineData("Auto", 1000.0, true, true, true, true, "Rows")]
+    [InlineData("Auto", 900.0, true, true, false, false, "TextRows")]
+    [InlineData("Auto", 1400.0, true, true, true, true, "Rows")]
+    [InlineData("Network", 1100.0, true, false, true, false, "Rows")]
+    [InlineData("Network", 900.0, true, false, false, false, "TextRows")]
+    [InlineData("Disk", 1100.0, false, true, false, true, "Rows")]
+    [InlineData("Disk", 900.0, false, true, false, false, "TextRows")]
+    [InlineData("NetworkAndDisk", 1100.0, true, true, true, true, "Rows")]
+    [InlineData("NetworkAndDisk", 900.0, true, true, false, false, "TextRows")]
+    [InlineData("SideBySide", 1400.0, true, true, true, true, "GraphBlocks")]
+    [InlineData("SideBySide", 1280.0, true, true, true, true, "GraphBlocks")]
+    // Too narrow for two blocks: side by side falls back to stacked rows, then to labelled text rows.
+    [InlineData("SideBySide", 1279.0, true, true, true, true, "Rows")]
+    [InlineData("SideBySide", 1100.0, true, true, true, true, "Rows")]
+    [InlineData("SideBySide", 900.0, true, true, false, false, "TextRows")]
+    [InlineData("Text", 1400.0, true, true, false, false, "TextBlocks")]
+    [InlineData("Text", 1000.0, true, true, false, false, "TextBlocks")]
+    [InlineData("Text", 900.0, true, true, false, false, "TextRows")]
+    [InlineData("nonsense", 1100.0, true, true, true, true, "Rows")]
+    public void EachSettingResolvesToItsLayoutAtTheWindowWidth(string setting, double width, bool net, bool disk, bool netGraph, bool diskGraph, string arrangement)
+    {
+        IoStatsDisplay.HeaderLayout layout = IoStatsDisplay.ResolveHeaderLayout(setting, width);
+        Assert.Equal((net, disk, netGraph, diskGraph), (layout.NetValue, layout.DiskValue, layout.NetGraph, layout.DiskGraph));
+        Assert.Equal(arrangement, layout.Arrangement.ToString());
+        Assert.Equal(arrangement is "GraphBlocks" or "TextBlocks", layout.TwoLineLabels);
+    }
+
     [Fact]
-    public void TheLabelledHeaderValuesExistInAllTwelveLanguages()
+    public void NoSettingDrawsAGraphBelowTheGraphWidthAndOnlyBlocksNeedTheWiderLimit()
+    {
+        foreach (string setting in IoStatsDisplay.HeaderGraphChoices)
+        {
+            IoStatsDisplay.HeaderLayout narrow = IoStatsDisplay.ResolveHeaderLayout(setting, IoStatsDisplay.HeaderGraphsMinimumWidth - 1);
+            Assert.False(narrow.NetGraph || narrow.DiskGraph, setting);
+            Assert.True(narrow.NetValue || narrow.DiskValue, setting);
+            IoStatsDisplay.HeaderLayout wide = IoStatsDisplay.ResolveHeaderLayout(setting, IoStatsDisplay.HeaderBlocksMinimumWidth);
+            Assert.Equal(setting == "SideBySide", wide.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks);
+        }
+        Assert.True(IoStatsDisplay.HeaderGraphsMinimumWidth < IoStatsDisplay.HeaderBlocksMinimumWidth);
+    }
+
+    [Fact]
+    public void TheOriginalThreeValuesKeepTheirMeaningAndAutomaticNoLongerHidesTheDiskGraphInSimpleOrBarebones()
+    {
+        Assert.True(IoStatsDisplay.HeaderShowsDiskValue("Auto") && IoStatsDisplay.HeaderShowsDisk("Auto"));
+        Assert.False(IoStatsDisplay.HeaderShowsDiskValue("Network"));
+        Assert.True(IoStatsDisplay.HeaderShowsDiskValue("NetworkAndDisk") && IoStatsDisplay.HeaderShowsDisk("NetworkAndDisk"));
+        Assert.Equal(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"], IoStatsDisplay.HeaderGraphChoices);
+        // An unknown value from a newer release reads as Auto.
+        Assert.Equal("Auto", IoStatsDisplay.NormalizeHeaderGraph("Diagonal"));
+    }
+
+    private static IoRates SampleRates => new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3, NetUp: 0.5 * MiB);
+
+    [Fact]
+    public void TheSentenceNamesExactlyTheValuesTheHeaderShows()
+    {
+        IoActivity activity = new(3, 41, 0);
+        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, true, En));
+        Assert.Equal("Media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, false, true, En));
+        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, false, En));
+    }
+
+    [Fact]
+    public void TheLabelledHeaderTextsExistInAllTwelveLanguages()
     {
         foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
         {
             Texts.SetLanguage(language);
-            foreach (string key in new[] { "stats.header.net", "stats.header.disk" })
+            foreach (string key in new[] { "stats.header.networkTitle", "stats.header.diskTitle" })
             {
-                string text = Texts.T(key, "X");
+                string text = Texts.T(key);
                 Assert.NotEqual(key, text);
-                Assert.Contains("X", text);
+                Assert.False(string.IsNullOrWhiteSpace(text));
+            }
+            foreach (string key in new[] { "stats.header.netValues", "stats.header.diskValues" })
+            {
+                string text = Texts.T(key, "X", "Y");
+                Assert.NotEqual(key, text);
+                Assert.Contains("X", text); Assert.Contains("Y", text);
                 Assert.DoesNotContain("{", text);
             }
-            Assert.Contains("↓", Texts.T("stats.header.net", "X"));
+            Assert.Contains("↓", Texts.T("stats.header.netValues", "X", "Y"));
+            Assert.Contains("↑", Texts.T("stats.header.netValues", "X", "Y"));
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Net ↓ 2.0 KiB/s", Texts.T("stats.header.net", "2.0 KiB/s"));
-        Assert.Equal("Disk 37.8 MiB/s", Texts.T("stats.header.disk", "37.8 MiB/s"));
+        Assert.Equal("Network", Texts.T("stats.header.networkTitle"));
+        Assert.Equal("Disk", Texts.T("stats.header.diskTitle"));
+        Assert.Equal("Network ↓ 2.4 MiB/s ↑ 512 KiB/s", IoStatsDisplay.NetworkLine(SampleRates, En));
+        Assert.Equal("Disk R 410 KiB/s W 1.5 MiB/s", IoStatsDisplay.DiskLine(SampleRates, En));
+        Texts.SetLanguage("de");
+        Assert.Equal("Netzwerk", Texts.T("stats.header.networkTitle"));
+        Assert.Equal("Datenträger", Texts.T("stats.header.diskTitle"));
+        Assert.Equal("Datenträger L 410 KiB/s S 1,5 MiB/s", IoStatsDisplay.DiskLine(SampleRates, CultureInfo.GetCultureInfo("de")));
     }
 
     [Fact]
@@ -98,15 +174,14 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Fact]
-    public void SwitchingTheWorkViewUpdatesAutomaticImmediatelyAndLeavesExplicitValuesAlone()
+    public void TheWorkViewNeverChangesWhichGraphsTheHeaderDraws()
     {
         Config config = new();
-        bool[] auto = new[] { "Barebones", "Simple", "Advanced", "Simple" }.Select(mode => IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph, mode)).ToArray();
-        Assert.Equal(new[] { false, false, true, false }, auto);
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph));
         config.StatsHeaderGraph = "Network";
-        Assert.All(new[] { "Barebones", "Simple", "Advanced" }, mode => Assert.False(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph, mode)));
+        Assert.False(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph));
         config.StatsHeaderGraph = "NetworkAndDisk";
-        Assert.All(new[] { "Barebones", "Simple", "Advanced" }, mode => Assert.True(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph, mode)));
+        Assert.True(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph));
     }
 
     [Fact]
@@ -164,32 +239,31 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Fact]
-    public void TheAccessibleNameNamesOnlyWhatIsDrawn()
+    public void TheAccessibleNameNamesOnlyWhatIsShown()
     {
-        IoRates rates = new(NetDown: 2.4 * MiB, NetUp: 0, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
         IoActivity activity = new(3, 41, 0);
-        string both = IoStatsDisplay.GraphDescription(rates, activity, showDisk: true, En);
-        string network = IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, En);
-        Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.", both);
-        Assert.Equal("Network download 2.4 MiB/s, active downloads: 3. Opens the statistics.", network);
+        string network = IoStatsDisplay.GraphDescription(SampleRates, activity, true, false, En);
         Assert.DoesNotContain("disk", network, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("1.5", network);
         Texts.SetLanguage("de");
-        Assert.Equal("Netzwerk herunter 2,4 MiB/s, aktive Downloads: 3. Öffnet die Statistik.",
-            IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, CultureInfo.GetCultureInfo("de")));
+        Assert.Equal("Netzwerk (Anwendungsdaten) herunter 2,4 MiB/s, hoch 512 KiB/s; aktive Downloads: 3. Öffnet die Statistik.",
+            IoStatsDisplay.GraphDescription(SampleRates, activity, true, false, CultureInfo.GetCultureInfo("de")));
     }
 
     [Fact]
-    public void TheNetworkOnlyNameExistsInEveryLanguageWithItsTwoPlaceholders()
+    public void TheSentenceTextsExistInEveryLanguageWithTheirPlaceholders()
     {
-        foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
         {
             Texts.SetLanguage(language);
-            string text = Texts.T("stats.graph.nameNet", "A", "B");
-            Assert.DoesNotContain("stats.graph.nameNet", text);
-            Assert.Contains("A", text);
-            Assert.Contains("B", text);
-            Assert.DoesNotContain("{", text);
+            foreach ((string key, int count) in new[] { ("stats.graph.name", 5), ("stats.graph.nameNet", 3), ("stats.graph.nameDisk", 3) })
+            {
+                string[] arguments = ["A", "B", "C", "D", "E"];
+                string text = Texts.T(key, arguments.Cast<object>().ToArray());
+                Assert.NotEqual(key, text);
+                Assert.DoesNotContain("{", text);
+                foreach (string argument in arguments.Take(count)) Assert.Contains(argument, text);
+            }
         }
     }
 
@@ -199,7 +273,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
         string[] keys =
         [
             "stats.headerGraph.label", "stats.headerGraph.hint",
-            "stats.headerGraph.auto", "stats.headerGraph.network", "stats.headerGraph.networkAndDisk"
+            "stats.headerGraph.auto", "stats.headerGraph.network", "stats.headerGraph.networkAndDisk",
+            "stats.headerGraph.disk", "stats.headerGraph.sideBySide", "stats.headerGraph.text"
         ];
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
         {
@@ -212,9 +287,9 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Chooses what the header shows. Automatic: network and disk values in every view, with a graph for each only in the Advanced view.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.", Texts.T("stats.headerGraph.hint"));
         Texts.SetLanguage("de");
-        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz- und Datenträgerwerte in jeder Ansicht, ein Graph für jeden nur in der erweiterten Ansicht.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz und Datenträger mit je einem eigenen Graphen, in jeder Ansicht. Nebeneinander braucht ein breites Fenster; schmale Fenster lassen die Graphen weg und behalten die Werte.", Texts.T("stats.headerGraph.hint"));
         Assert.Equal("Graph in der Kopfleiste", Texts.T("stats.headerGraph.label"));
     }
 
@@ -222,7 +297,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     public void TheGraphTextsAndRetainedStatisticsLabelsResolveWithTheirPlaceholders()
     {
         string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
-        (string Key, int Placeholders)[] keys = [("stats.graph.name", 3), ("stats.graph.nameNet", 2), ("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0),
+        (string Key, int Placeholders)[] keys = [("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0),
             ("stats.peak", 1), ("stats.legend.net", 0), ("stats.legend.disk", 0)];
         foreach (string language in languages)
         {
@@ -237,6 +312,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
             // The merged statistics page still uses stats.peak and keeps the legend vocabulary.
             // A header layout change does not retire the page's localized labels.
+            foreach (string removed in new[] { "stats.header.net", "stats.header.disk", "stats.tray.rates" })
+                Assert.Equal(removed, Texts.T(removed));
         }
         Texts.SetLanguage("en");
         Assert.Equal("Scale up to 2 MiB/s", Texts.T("stats.scale", "2 MiB/s"));

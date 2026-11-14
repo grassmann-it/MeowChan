@@ -19,7 +19,7 @@ public sealed class FavoriteTintContrastTests
         XElement dictionary = Assert.Single(styles.Descendants(A + "ResourceDictionary")
             .Where(element => (string?)element.Attribute(X + "Key") == theme));
         double tint = Luminance(Brush(dictionary, "Workspace.Favorite"));
-        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised" })
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.ChipSurface" })
             Assert.True(Ratio(tint, Luminance(Brush(dictionary, surface))) >= 3.0, theme + " Workspace.Favorite on " + surface);
     }
 

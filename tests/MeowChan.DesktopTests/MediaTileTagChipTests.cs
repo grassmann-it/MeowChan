@@ -151,6 +151,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.True(star.IsVisible && star.Focusable);
         Assert.False(star.IsChecked);
         Assert.Contains("tile-favorite", star.Classes);
+        Assert.False(MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content));
         Assert.Equal(Texts.T("viewer.favorite.add"), AutomationProperties.GetName(star));
         RoutedEventArgs click = new(Button.ClickEvent);
         star.RaiseEvent(click);
@@ -163,6 +164,7 @@ public sealed class MediaTileTagChipTests : IDisposable
         Assert.Equal(Texts.T("media.tile.kind.video"), ((TextBlock)kind.Child!).Text);
         Assert.False(mark.IsVisible);
         Assert.True(star.IsChecked);
+        Assert.True(MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content));
         Assert.Equal(Texts.T("viewer.favorite.remove"), AutomationProperties.GetName(star));
 
         // A still image without a tag subject, favourites unavailable: no type badge, no mark, no star.

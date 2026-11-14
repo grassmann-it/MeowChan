@@ -143,10 +143,15 @@ public partial class RulesPage
             // Replacing focused controls here used to strand keyboard focus on a detached element.
             if (_templateList == null)
             {
-                _templateTitleView = TemplateText(string.Empty, true); panel.Children.Add(_templateTitleView);
-                _templateHintView = TemplateText(string.Empty); panel.Children.Add(_templateHintView);
-                WrapPanel top = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(top);
+                // The title and its hint sit left, the Reload action on the title row's right instead of a row of its own.
+                _templateTitleView = TemplateText(string.Empty, true);
+                _templateHintView = TemplateText(string.Empty); _templateHintView.Classes.Add("workspace-help");
+                StackPanel head = new() { Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+                head.Children.Add(_templateTitleView); head.Children.Add(_templateHintView);
+                Grid top = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; panel.Children.Add(top);
+                top.Children.Add(head);
                 _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
+                Grid.SetColumn(_templateReloadButton, 1); _templateReloadButton.VerticalAlignment = VerticalAlignment.Top;
                 _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Classes.Add("workspace-error"); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
                 _templateCatalogWarningView = TemplateText(string.Empty); _templateCatalogWarningView.Classes.Add("workspace-warning"); panel.Children.Add(_templateCatalogWarningView);
@@ -172,8 +177,8 @@ public partial class RulesPage
                     string command = "rules.template-" + id;
                     Button button = AddTemplateButton(_templateSelectionActions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
                     _templateActionButtons.Add(id, button);
-                    if (id == "preview") button.Classes.Add("primary");
-                    if (id == "delete") { button.Classes.Add("danger"); _templateDeleteConfirmation = new(button); }
+                    // Only the footer's Save rule is primary; Delete shows its red danger state only while it asks for confirmation.
+                    if (id == "delete") _templateDeleteConfirmation = new(button);
                 }
                 _templateUndoView = TemplateText(string.Empty); panel.Children.Add(_templateUndoView);
                 _templatePreviewHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templatePreviewHost);

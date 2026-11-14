@@ -20,8 +20,7 @@ public partial class MainWindow
     private IoStatsSubscription? _ioClaim;
     private CoalescedUiUpdate? _ioUpdate;
     private string? _graphDescription;
-    private bool _headerShowsDisk = true;      // the disk value (label and written rate) is shown
-    private bool _headerDiskGraph = true;       // ... and its row also draws a graph
+    private IoStatsDisplay.HeaderLayout _headerLayout = IoStatsDisplay.ResolveHeaderLayout(null);
 
     /// <summary>The claim this window currently holds on the statistics hub (None while nothing needs samples).</summary>
     internal IoStatsVisibility IoStatsClaim => _ioClaim?.Visibility ?? IoStatsVisibility.None;
@@ -52,20 +51,50 @@ public partial class MainWindow
         if (WorkspaceSubtitle.IsVisible != fits) WorkspaceSubtitle.IsVisible = fits;
     }
 
+    // Cell sizes in DIPs. Rows: a 128 wide half-height graph and a one-line label; blocks: a 120 wide graph as high as the title bar's
+    // content and a two-line label; the label widths are minimums so the right-aligned header does not jitter with the numbers.
+    private const double RowGraphWidth = 128, RowGraphHeight = 15, RowTextMinimum = 232, TextRowMinimum = 200;
+    private const double BlockGraphWidth = 120, BlockGraphHeight = 34, BlockTextMinimum = 176, BlockGap = 16, TextGap = 8;
+
     /// <summary>
-    /// Sets what the header graph draws from the setting and the work view: "Auto" draws network and disk writing in the Advanced
-    /// view and the network only in Simple and Barebones, so a view switch updates it at once. The name follows what is drawn.
+    /// Sets what the header shows and how from the "Header graph" setting and the window width
+    /// (<see cref="IoStatsDisplay.ResolveHeaderLayout"/>): which labelled values, which graphs, and the arrangement. A setting change
+    /// or a resize updates it at once; the accessible name follows the values shown. Nothing here can move the window controls:
+    /// the header sits in the shrinkable column, the controls in their own.
     /// </summary>
     private void ApplyHeaderGraphMode()
     {
-        bool value = IoStatsDisplay.HeaderShowsDiskValue(_config.StatsHeaderGraph);
-        bool graph = value && IoStatsDisplay.HeaderShowsDisk(_config.StatsHeaderGraph, _config.WorkspaceMode);
-        if (value == _headerShowsDisk && graph == _headerDiskGraph && TransferDiskRow.IsVisible == value) return;
-        (_headerShowsDisk, _headerDiskGraph) = (value, graph);
-        TransferDiskRow.IsVisible = value;
-        // Without a graph the slot stays (invisible), so the two value labels keep one column.
-        TransferDiskGraph.Opacity = graph ? 1 : 0;
-        _graphDescription = null; // the sentence names the disk only while it is drawn
+        IoStatsDisplay.HeaderLayout layout = IoStatsDisplay.ResolveHeaderLayout(_config.StatsHeaderGraph, Bounds.Width <= 0 ? double.PositiveInfinity : Bounds.Width);
+        if (layout == _headerLayout && TransferDiskText.IsVisible == layout.DiskValue && TransferSpeedText.IsVisible == layout.NetValue) return;
+        _headerLayout = layout;
+        bool blocks = layout.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks;
+        bool twoLine = layout.TwoLineLabels;
+        bool diskGraphShown = layout.DiskGraph;
+        TransferSpeedGraph.IsVisible = layout.NetGraph;
+        TransferDiskGraph.IsVisible = diskGraphShown;
+        TransferSpeedText.IsVisible = layout.NetValue;
+        TransferDiskText.IsVisible = layout.DiskValue;
+        double graphHeight = blocks ? BlockGraphHeight : RowGraphHeight;
+        TransferSpeedGraph.Width = TransferDiskGraph.Width = blocks ? BlockGraphWidth : RowGraphWidth;
+        TransferSpeedGraph.Height = TransferDiskGraph.Height = graphHeight;
+        foreach (StackPanel text in new[] { TransferSpeedText, TransferDiskText })
+        {
+            text.Orientation = twoLine ? Avalonia.Layout.Orientation.Vertical : Avalonia.Layout.Orientation.Horizontal;
+            text.Spacing = twoLine ? 0 : 6;
+            text.MinWidth = twoLine ? BlockTextMinimum : layout.NetGraph || diskGraphShown ? RowTextMinimum : TextRowMinimum;
+        }
+        // Rows: graph and label share a row. Blocks: graph and label each span both rows; the disk block follows the network block.
+        // Text blocks and text rows use the label cells only.
+        int span = twoLine ? 2 : 1;
+        Grid.SetRow(TransferSpeedGraph, 0); Grid.SetColumn(TransferSpeedGraph, 0); Grid.SetRowSpan(TransferSpeedGraph, span);
+        Grid.SetRow(TransferSpeedText, 0); Grid.SetColumn(TransferSpeedText, 1); Grid.SetRowSpan(TransferSpeedText, span);
+        Grid.SetRow(TransferDiskGraph, twoLine ? 0 : 1); Grid.SetColumn(TransferDiskGraph, twoLine ? 2 : 0); Grid.SetRowSpan(TransferDiskGraph, span);
+        Grid.SetRow(TransferDiskText, twoLine ? 0 : 1); Grid.SetColumn(TransferDiskText, twoLine ? 3 : 1); Grid.SetRowSpan(TransferDiskText, span);
+        double beside = layout.NetGraph || diskGraphShown ? TextGap : 0;
+        TransferSpeedText.Margin = new Thickness(twoLine ? (layout.NetGraph ? TextGap : 0) : beside, 0, 0, 0);
+        TransferDiskGraph.Margin = new Thickness(twoLine ? BlockGap : 0, 0, 0, 0);
+        TransferDiskText.Margin = new Thickness(twoLine ? (layout.DiskGraph ? TextGap : layout.NetValue ? BlockGap : 0) : beside, 0, 0, 0);
+        _graphDescription = null; // the sentence names only the values that are shown
         if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
 
@@ -109,14 +138,22 @@ public partial class MainWindow
         IoStatsHub? hub = _ioStats;
         if (_isClosing || hub == null || (!force && _ioClaim?.Visibility is null or IoStatsVisibility.None)) return;
         IoStatsSnapshot snapshot = hub.Snapshot();
-        // Each row has its own history and its own scale; the disk row is what MeowChan writes, never what it reads back.
-        if (TransferSpeedGraph.IsVisible) TransferSpeedGraph.SetSeries(snapshot.Series);
-        if (_headerDiskGraph && TransferDiskGraph.IsVisible) TransferDiskGraph.SetSeries(snapshot.Series);
-        TransferSpeedLabel.Text = Texts.T("stats.header.net", ByteUnits.Rate(snapshot.Rate.NetDown));
-        if (_headerShowsDisk) TransferDiskLabel.Text = Texts.T("stats.header.disk", ByteUnits.Rate(IoStatsDisplay.HeaderDiskRate(snapshot.Rate)));
+        // Two graph surfaces, each with its own history and scale: network down (solid) and up (dashed), disk write (solid) and read (dashed).
+        if (_headerLayout.NetGraph) TransferSpeedGraph.SetSeries(snapshot.Series);
+        if (_headerLayout.DiskGraph) TransferDiskGraph.SetSeries(snapshot.Series);
+        if (_headerLayout.NetValue)
+        {
+            TransferSpeedTitle.Text = IoStatsDisplay.NetworkTitle();
+            TransferSpeedLabel.Text = IoStatsDisplay.NetworkValues(snapshot.Rate);
+        }
+        if (_headerLayout.DiskValue)
+        {
+            TransferDiskTitle.Text = IoStatsDisplay.DiskTitle();
+            TransferDiskLabel.Text = IoStatsDisplay.DiskValues(snapshot.Rate);
+        }
         if (_selectedPage == WorkspacePage.Statistics) _statisticsPage?.Apply(snapshot);
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
-        string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerShowsDisk);
+        string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerLayout.NetValue, _headerLayout.DiskValue);
         if (!string.Equals(description, _graphDescription, StringComparison.Ordinal))
         {
             _graphDescription = description;

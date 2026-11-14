@@ -7,7 +7,6 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -35,28 +34,22 @@ public partial class ArchivePage
         AutomationProperties.SetHelpText(button, Texts.T("export.resultsScope"));
     }
 
-    private void OnResultsExportClick(object? sender, RoutedEventArgs e)
+    // The count-bearing button opens the shared Export dialog with "all matches" preselected. The dialog
+    // names the frozen target count in its header; the selection stays a separate, switchable scope.
+    private async void OnResultsExportClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button || !button.IsEnabled) return;
-        // The explicit menu names the search scope; selection-export keeps its
-        // own command and never inherits the complete result set.
-        MenuItem item = CommandBindings.CreateMenuItem("export.open-all-results-html-dialog",
-            async () => await OpenExportForAllResultsAsync(button));
-        string label = Texts.T("export.resultsAction", _listTotal);
-        item.Header = label;
-        AutomationProperties.SetName(item, label);
-        ToolTip.SetTip(item, Texts.T("export.resultsScope"));
-        AutomationProperties.SetHelpText(item, Texts.T("export.resultsScope"));
-        button.ContextMenu = new ContextMenu { Items = { item } };
-        button.ContextMenu.Open(button);
+        await OpenExportForAllResultsAsync(button);
     }
 
-    internal async Task OpenExportForAllResultsAsync(Control? origin)
+    internal async Task OpenExportForAllResultsAsync(Control? origin, bool switching = false)
     {
         if (_ended || IsFilenameSearchOpen || _urlTextExportBusy || !_available || _busy || _openReader == null || _appliedSearch == null) return;
         EnsureExportDialog();
-        if (ArchiveExportDialog.IsVisible)
+        if (ArchiveExportDialog.IsVisible && !switching)
         { Control<Button>("ArchiveExportClose").Focus(); return; }
+        if (!switching) BeginExportSession(FrozenArchiveSelection(), offerResults: true, ExportFormat.Html);
+        _exportPrimaryClose = false;
 
         // Freeze applied inputs before yielding. Work membership is evaluated now,
         // independently of the catalog read; this is not a session/catalog transaction.
@@ -80,7 +73,7 @@ public partial class ArchivePage
         ShowExportDialog();
         UpdateExportActions();
         UpdateActions();
-        Control<Button>("ArchiveExportClose").Focus();
+        if (!switching) Control<Button>("ArchiveExportClose").Focus();
         try
         {
             await using ArchiveReader reader = await _openReader(cancellation.Token);

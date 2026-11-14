@@ -209,3 +209,23 @@ human discovery proof. The technical copy button is checked only through the
 existing identity-verified fixture clipboard; without that fixture it is skipped
 before touching a native clipboard. Record actual image review as retain/adjust/change;
 technical assertions alone do not decide whether the hierarchy is understandable.
+
+## Dialog gallery (`dialog-gallery`)
+
+`MEOWCHAN_DIALOG_GALLERY_ONLY=1` is an evidence run, not a check. It opens every dialog, modal, secondary window, popup,
+context menu, toast, banner and shell overlay that has a private offline fixture and renders each one in Light/Dark and
+EN/DE (default size, plus the minimum size where the window has one) into one flat directory with `manifest.json` and an
+`index.html` grid (captions: surface, theme, language, size). The dialog frame groups (`DialogFrameChecks`) feed it through
+`DialogGallery.RecordFrame`; extra scenes are listed in `DialogGalleryChecks.Shell.cs`. A scene that fails is listed under
+"Not captured"; a frame-contract violation is listed under "Layout findings" while its image is still shown.
+
+The registry skips the entry unless `MEOWCHAN_DIALOG_GALLERY_OUTPUT` names the output directory:
+
+```bash
+MEOWCHAN_DIALOG_GALLERY_OUTPUT=/path/to/fresh/dir python3 scripts/run-desktop-smoke.py \
+  --assembly tests/MeowChan.DesktopSmoke/bin/Debug/net10.0/MeowChan.DesktopSmoke.dll --output <fresh dir> \
+  --registry --only dialog-gallery
+```
+
+`MEOWCHAN_DIALOG_GALLERY_SCENES=name1,name2` limits the run to named scenes. Never confirms anything: every surface is closed
+with Cancel, Close or Escape; no network and no real profile.

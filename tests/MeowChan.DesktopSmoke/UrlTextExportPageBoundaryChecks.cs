@@ -69,6 +69,12 @@ internal static class UrlTextExportPageBoundaryChecks
         ResourceId? readId = null;
         f.Read = (id, _) => { readId = id; entered.TrySetResult(); return summary.Task; };
         captured.Command!.Execute(null);
+        // AP7: the entry opens the one Export dialog with the link list preselected for the captured
+        // thread; its review action hands that frozen identity to the consent window.
+        await UntilAsync(() => f.Control<Border>("ArchiveExportDialog").IsVisible
+            && f.Page.CurrentExportFormat == ArchivePage.ExportFormat.LinkList && f.Control<Button>("ArchiveExportStart").IsEnabled);
+        f.Select(b);
+        Click(f.Control<Button>("ArchiveExportStart"));
         await entered.Task.WaitAsync(Deadline);
         Task opening = f.Page.UrlTextExportTask;
         f.Menu.Close();

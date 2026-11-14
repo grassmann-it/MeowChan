@@ -40,10 +40,10 @@ internal static class SourcesSnapshot
                 ThreadSnapshot state = thread.Snapshot;
                 List<string> observations = new List<string>();
                 if (RequestStatus.Format(state.RequestProgress) is string request) observations.Add(request);
-                if (state.LastCheckFailure is FailureInfo failure) observations.Add(FormatFailure(failure));
-                if (state.Content?.CaptureFailure is FailureInfo capture) observations.Add(FormatFailure(capture));
-                if (state.Content?.SelectionFailure is FailureInfo selection) observations.Add(FormatFailure(selection));
-                observations.AddRange(state.MediaFailures.Values.Select(FormatFailure));
+                if (state.LastCheckFailure is FailureInfo failure) observations.Add(DiagnosticFailurePresentation.Line(failure, DiagnosticOperation.Thread));
+                if (state.Content?.CaptureFailure is FailureInfo capture) observations.Add(DiagnosticFailurePresentation.Line(capture, DiagnosticOperation.Capture));
+                if (state.Content?.SelectionFailure is FailureInfo selection) observations.Add(DiagnosticFailurePresentation.Line(selection, DiagnosticOperation.Selection));
+                observations.AddRange(state.MediaFailures.Values.Select(media => DiagnosticFailurePresentation.Line(media, DiagnosticOperation.Media)));
                 if (state.SourceState != Interfaces.ThreadSourceState.Active) observations.Add(Texts.T(state.SourceState == Interfaces.ThreadSourceState.Archived ? "sources.archived" : "status.notFound"));
                 watches.Add(new SourceWatchRow(new DiagnosticTarget(DiagnosticTargetKind.Thread, thread.WatchId),
                     state.Url, Texts.T("sources.mediaCounts", state.Downloads.Queued, state.Downloads.Active),
@@ -53,8 +53,11 @@ internal static class SourcesSnapshot
             {
                 BoardSnapshot state = board.Snapshot;
                 string? observation = RequestStatus.Format(state.RequestProgress);
-                if (state.LastCheckFailure != null) observation = observation == null ? FormatFailure(state.LastCheckFailure)
-                    : observation + " · " + FormatFailure(state.LastCheckFailure);
+                if (state.LastCheckFailure is FailureInfo boardFailure)
+                {
+                    string line = DiagnosticFailurePresentation.Line(boardFailure, DiagnosticOperation.Board);
+                    observation = observation == null ? line : observation + " · " + line;
+                }
                 watches.Add(new SourceWatchRow(new DiagnosticTarget(DiagnosticTargetKind.Board, board.WatchId),
                     state.Url, Texts.T("sources.catalog"), observation ?? Texts.T("sources.noProblem")));
             }
@@ -80,8 +83,5 @@ internal static class SourcesSnapshot
         // Ambiguous ownership never chooses a consent target by list order.
         return active.Length == 1 ? active[0] : active.Length == 0 && matching.Length == 1 ? matching[0] : null;
     }
-
-    private static string FormatFailure(FailureInfo failure) => failure.HttpStatusCode is System.Net.HttpStatusCode code
-        ? "HTTP " + (int)code + " · " + failure.Message : failure.Message;
 
 }

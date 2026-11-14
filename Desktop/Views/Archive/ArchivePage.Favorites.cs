@@ -58,7 +58,7 @@ public partial class ArchivePage
             Texts.T("viewer.favorites.current"), Texts.T("viewer.favorites.selected"),
             Texts.T("viewer.favorites.filtered"), Texts.T("viewer.favorites.all")
         }, SelectedIndex = restore?.Scope ?? 3, MinWidth = 210 };
-        TextBox search = new() { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
+        TextBox search = new MeowChan.Desktop.Controls.SearchBox { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
         TextBlock summary = new() { Name = "FavoritesSummary", TextWrapping = TextWrapping.Wrap };
         TextBlock empty = new() { Name = "FavoritesEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
         Button clearSearch = new() { Name = "FavoritesClearSearch", Content = Texts.T("viewer.favorites.clearSearch"),
@@ -287,10 +287,17 @@ public partial class ArchivePage
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();
         Window dialog = new()
         {
-            Title = Texts.T("viewer.export.title"), Width = 600, Height = 300, MinWidth = 420, MinHeight = 280,
+            Title = Texts.T("export.dialog.title"), Width = 600, Height = 300, MinWidth = 420, MinHeight = 280,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
-        TextBlock scope = new() { Text = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount), TextWrapping = TextWrapping.Wrap };
+        // The same Export header as the thread dialog: files have one format, so both choices show as text.
+        ExportChoiceField format = new("OriginalExportFormat");
+        format.Set(Texts.T("export.format"), new[] { new ExportChoiceField.Option("originals", Texts.T("export.format.originals")) }, "originals", true);
+        ExportChoiceField scope = new("OriginalExportScope");
+        string scopeText = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
+        scope.Set(Texts.T("export.scope"), new[] { new ExportChoiceField.Option("files", scopeText) }, "files", true);
+        WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 6 };
+        choices.Children.Add(format); choices.Children.Add(scope);
         TextBox destination = new() { Name = "OriginalExportDestination", IsReadOnly = true, PlaceholderText = Texts.T("viewer.export.destination") };
         TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
         TextBlock error = new() { Name = "OriginalExportError", TextWrapping = TextWrapping.Wrap };
@@ -313,9 +320,8 @@ public partial class ArchivePage
         cancel.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
         actions.Children.Add(cancel); actions.Children.Add(openFolder); actions.Children.Add(start);
         TextBlock title = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap }; title.Classes.Add("page-title");
-        scope.Classes.Add("section-title");
         StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(title); header.Children.Add(scope);
+        header.Children.Add(title); header.Children.Add(choices);
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
         // Said before the export starts: own tags never travel with copied files (no silent drop, no implied round trip).
@@ -393,6 +399,10 @@ public partial class ArchivePage
                 FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token);
                 Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
                     result.Missing + missingCount, result.Failed, result.Cancelled));
+                // As in the thread dialog: after the copy Close is the primary action (Start stays spent).
+                start.Classes.Set("primary", false);
+                cancel.Classes.Set("subtle", false);
+                cancel.Classes.Set("primary", true);
             }
             catch (OperationCanceledException) when (run.IsCancellationRequested) { Notice(Texts.T("viewer.export.cancelled")); }
             catch (Exception ex) { Fail(ex.Message); }

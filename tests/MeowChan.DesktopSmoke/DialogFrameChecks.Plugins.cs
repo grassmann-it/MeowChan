@@ -24,7 +24,7 @@ internal static partial class DialogFrameChecks
         string language = Texts.Language;
         try
         {
-            foreach (string current in new[] { "en", "de" })
+            foreach (string current in DialogGallery.Active ? new[] { language } : new[] { "en", "de" })
             {
                 Texts.SetLanguage(current); await Settle();
                 await CheckBundledReviewFrameAsync(owner, current);
@@ -37,7 +37,7 @@ internal static partial class DialogFrameChecks
 
     private static async Task CheckBundledReviewFrameAsync(MainWindow owner, string language)
     {
-        PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "dialog-frame-plugins-" + language));
+        PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "dialog-frame-plugins-" + language + (DialogGallery.Active ? "-" + DialogGallery.Theme : "")));
         PreviewOnlyStore store = new(fixture.Store);
         var original = fixture.Services;
         PluginManagementServices services = new(store, original.Compiler, original.Inventory, original.PluginDirectory,

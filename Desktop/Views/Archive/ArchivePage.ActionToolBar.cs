@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using Ursa.Controls;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -60,20 +61,23 @@ public partial class ArchivePage
         ActionToolBar toolbar = ArchiveResultActions;
         foreach (object? item in toolbar.Items)
         {
+            if (item is SplitButton split)
+            {
+                // AP2: the saved-searches split button overflows like every other feature action (policy row archive.results.other).
+                WorkViewPresenter.ApplyToolBarItem(split, ArchiveWorkView, "archive.results.other");
+                if (split.Name == "ArchiveSavedSearches") ApplySavedSearchSplit();
+                continue;
+            }
             if (item is not Button button) continue;
             // All future feature actions participate, including saved searches and
             // reader groups. Never is reserved for the compact view selection.
-            bool viewChoice = button.Name is "ArchiveLayoutList" or "ArchiveLayoutTable";
-            ToolBar.SetOverflowMode(button, viewChoice ? OverflowMode.Never
-                : _archiveColumnMode == "Barebones" && button.Name != "ArchiveResultsGallery"
-                    ? OverflowMode.Always : OverflowMode.AsNeeded);
+            // The List/Table choice is Required (never moves); items without an id use archive.results.other.
+            WorkViewPresenter.ApplyToolBarItem(button, ArchiveWorkView, "archive.results.other");
             CommandBindings.Refresh(button);
             // Feature actions must refresh with the page even when they were
             // created before the current language or hosted outside MainWindow.
             string? featureId = button.Name switch
             {
-                "ArchiveSaveSearch" => "archive.saved-searches.save-current",
-                "ArchiveSavedSearches" => "archive.saved-searches.open-manager",
                 "ArchiveReaderGroups" => "reader-groups.open-manager",
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 _ => null

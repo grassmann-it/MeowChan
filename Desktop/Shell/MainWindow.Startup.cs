@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -50,7 +51,7 @@ public partial class MainWindow
         }, DispatcherPriority.Loaded);
     }
 
-    private Size WorkspaceMinimumSize => _config.WorkspaceMode == "Barebones"
+    private Size WorkspaceMinimumSize => WorkViewDensity.Compact(ConfiguredWorkView)
         ? new Size(640, 480) : new Size(760, 500);
 
     private Size FitWorkspaceMinimum(Screen screen) => WindowStartupGeometry.Fit(

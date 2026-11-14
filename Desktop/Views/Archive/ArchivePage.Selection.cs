@@ -240,7 +240,7 @@ public partial class ArchivePage
         { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
         if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
-        { e.Handled = true; ArchiveSearchText.Focus(); return; }
+        { e.Handled = true; FocusArchiveTextSearch(); return; }
         // The list owns these navigation gestures. The generic command guard
         // deliberately leaves navigation keys to native lists, so resolve here
         // after the list-source/editor shielding above.
@@ -286,7 +286,7 @@ public partial class ArchivePage
         if (MatchesArchiveCommand(e, "selection.copy-links"))
         { e.Handled = true; await CopyArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "export.open-html-dialog"))
-        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list); return; }
+        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list, offerResults: true); return; }
         if (MatchesArchiveCommand(e, "archive.delete-permanently"))
         {
             e.Handled = true;

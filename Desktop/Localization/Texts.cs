@@ -233,6 +233,39 @@ public static class Texts
     public static bool IsValidLanguageCode(string? code) => code != null && code.Length <= 35 &&
         Regex.IsMatch(code, "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$", RegexOptions.CultureInvariant);
 
+    // Text -> keys of the active language, built once per catalog for the settings search.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyDictionary<string, string>, Dictionary<string, List<string>>> ReverseIndexes = new();
+
+    /// <summary>
+    /// The English source texts behind a text shown in the active language (empty in English, or when the text is not a
+    /// catalog value such as a formatted one). The settings search uses them so English words find a setting in any language.
+    /// </summary>
+    internal static IReadOnlyList<string> EnglishEquivalents(string? shown)
+    {
+        if (string.IsNullOrEmpty(shown)) return Array.Empty<string>();
+        State state = Volatile.Read(ref _state);
+        if (string.Equals(state.Language, "en", StringComparison.OrdinalIgnoreCase)) return Array.Empty<string>();
+        IReadOnlyDictionary<string, string> current = state.Catalogs[state.Language].Strings;
+        IReadOnlyDictionary<string, string> english = state.Catalogs["en"].Strings;
+        Dictionary<string, List<string>> reverse;
+        lock (ReverseIndexes)
+        {
+            if (!ReverseIndexes.TryGetValue(current, out reverse!))
+            {
+                reverse = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                foreach (KeyValuePair<string, string> pair in current)
+                {
+                    if (!reverse.TryGetValue(pair.Value, out List<string>? keys)) reverse[pair.Value] = keys = new List<string>(1);
+                    keys.Add(pair.Key);
+                }
+                ReverseIndexes.Add(current, reverse);
+            }
+        }
+        if (!reverse.TryGetValue(shown, out List<string>? matching)) return Array.Empty<string>();
+        return matching.Select(key => english.GetValueOrDefault(key)).OfType<string>()
+            .Where(text => !string.Equals(text, shown, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
     /// <summary>Checks the complete built-in catalogs, including formatting contracts.</summary>
     public static IReadOnlyList<string> ValidateBuiltInCatalogs()
     {

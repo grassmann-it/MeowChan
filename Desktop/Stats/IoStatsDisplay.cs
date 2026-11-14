@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.Desktop.Stats;
 
@@ -27,51 +29,122 @@ internal static class IoStatsDisplay
     }
 
     /// <summary>
-    /// The disk rate of the header: only what MeowChan writes (what it archives). Reading back local files (gallery,
-    /// thumbnails, verification) would dwarf it; it stays on the statistics page.
+    /// The main (solid, filled) disk rate of the header: what MeowChan writes (what it archives). Reading back its own media files is
+    /// the dashed second line of the same disk graph and a value of its own in the header text.
     /// </summary>
     internal static double HeaderDiskRate(IoRates rate) => rate.DiskWrite;
 
-    /// <summary>The one sentence of the graph button, for the screen reader and the tooltip. Binary units, current language.</summary>
+    // --- the sentence of the graph button ----------------------------------------------------------------------------------
+
+    /// <summary>The one sentence of the graph button for both rows: network download and upload, disk written and read, active downloads.</summary>
     internal static string GraphDescription(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
-        Texts.T("stats.graph.name", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(HeaderDiskRate(rate), culture), activity.Active);
+        Texts.T("stats.graph.name", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(rate.NetUp, culture),
+            ByteUnits.Rate(rate.DiskWrite, culture), ByteUnits.Rate(rate.DiskRead, culture), activity.Active);
 
-    /// <summary>The values of <c>Config.StatsHeaderGraph</c>.</summary>
-    internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk";
+    /// <summary>The sentence for a header that shows the network values only (no disk value is named).</summary>
+    internal static string GraphDescriptionNetworkOnly(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
+        Texts.T("stats.graph.nameNet", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(rate.NetUp, culture), activity.Active);
 
-    /// <summary>Maps any text to one of the three values; anything unknown is <see cref="HeaderGraphAuto"/>.</summary>
+    /// <summary>The sentence for a header that shows the disk values only (no network value is named).</summary>
+    internal static string GraphDescriptionDiskOnly(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
+        Texts.T("stats.graph.nameDisk", ByteUnits.Rate(rate.DiskWrite, culture), ByteUnits.Rate(rate.DiskRead, culture), activity.Active);
+
+    /// <summary>The sentence of the header for the values it shows: both, network only or disk only.</summary>
+    internal static string GraphDescription(IoRates rate, IoActivity activity, bool showNet, bool showDisk, CultureInfo? culture = null) =>
+        showNet && showDisk ? GraphDescription(rate, activity, culture)
+        : showNet ? GraphDescriptionNetworkOnly(rate, activity, culture)
+        : GraphDescriptionDiskOnly(rate, activity, culture);
+
+    // --- the labelled values of the header and the tray ------------------------------------------------------------------
+
+    /// <summary>The heading of the network block: "Network".</summary>
+    internal static string NetworkTitle() => Texts.T("stats.header.networkTitle");
+
+    /// <summary>The heading of the disk block: "Disk".</summary>
+    internal static string DiskTitle() => Texts.T("stats.header.diskTitle");
+
+    /// <summary>The network values: download and upload, for example "↓ 2.0 MiB/s ↑ 12 KiB/s".</summary>
+    internal static string NetworkValues(IoRates rate, CultureInfo? culture = null) =>
+        Texts.T("stats.header.netValues", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(rate.NetUp, culture));
+
+    /// <summary>The disk values: read and write with their short letters, for example "R 1.1 MiB/s W 37.8 MiB/s".</summary>
+    internal static string DiskValues(IoRates rate, CultureInfo? culture = null) =>
+        Texts.T("stats.header.diskValues", ByteUnits.Rate(rate.DiskRead, culture), ByteUnits.Rate(rate.DiskWrite, culture));
+
+    /// <summary>Heading and values on one line ("Network ↓ 2.0 MiB/s ↑ 12 KiB/s"), as the tray and the one-line rows show them.</summary>
+    internal static string NetworkLine(IoRates rate, CultureInfo? culture = null) => NetworkTitle() + " " + NetworkValues(rate, culture);
+
+    /// <summary>Heading and values on one line ("Disk R 1.1 MiB/s W 37.8 MiB/s").</summary>
+    internal static string DiskLine(IoRates rate, CultureInfo? culture = null) => DiskTitle() + " " + DiskValues(rate, culture);
+
+    // --- the header setting and its layouts ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The values of <c>Config.StatsHeaderGraph</c>. Auto, Network and NetworkAndDisk are the original three and keep their
+    /// behaviour; Disk, SideBySide and Text are the layout choices added later (an older file never holds them).
+    /// </summary>
+    internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk",
+        HeaderGraphDisk = "Disk", HeaderGraphSideBySide = "SideBySide", HeaderGraphText = "Text";
+
+    private static readonly string[] HeaderGraphValues =
+        [HeaderGraphAuto, HeaderGraphNetwork, HeaderGraphDisk, HeaderGraphNetworkAndDisk, HeaderGraphSideBySide, HeaderGraphText];
+
+    /// <summary>All values in the order the settings row lists them.</summary>
+    internal static IReadOnlyList<string> HeaderGraphChoices => HeaderGraphValues;
+
+    /// <summary>Maps any text to one of the values; anything unknown is <see cref="HeaderGraphAuto"/>.</summary>
     internal static string NormalizeHeaderGraph(string? value)
     {
         string? text = value?.Trim();
-        return string.Equals(text, HeaderGraphNetwork, StringComparison.OrdinalIgnoreCase) ? HeaderGraphNetwork
-            : string.Equals(text, HeaderGraphNetworkAndDisk, StringComparison.OrdinalIgnoreCase) ? HeaderGraphNetworkAndDisk
-            : HeaderGraphAuto;
+        foreach (string known in HeaderGraphValues)
+            if (string.Equals(text, known, StringComparison.OrdinalIgnoreCase)) return known;
+        return HeaderGraphAuto;
+    }
+
+    /// <summary>The window widths (DIPs) at which the richer header forms fit without touching the window controls.</summary>
+    internal const double HeaderGraphsMinimumWidth = 1000, HeaderBlocksMinimumWidth = 1280;
+
+    /// <summary>
+    /// How the header is arranged. <see cref="Rows"/>: one row per value, a half-height graph and a one-line label each.
+    /// <see cref="GraphBlocks"/>: two blocks side by side, each a full-height graph and a two-line label (heading, values).
+    /// <see cref="TextBlocks"/>: the same two-line labels without graphs. <see cref="TextRows"/>: one-line labels, one under the
+    /// other, without graphs (the narrow form).
+    /// </summary>
+    internal enum HeaderArrangement { Rows, GraphBlocks, TextBlocks, TextRows }
+
+    /// <summary>What the header draws: which values (labelled rates) and which graphs, and how they are arranged.</summary>
+    internal readonly record struct HeaderLayout(bool NetValue, bool DiskValue, bool NetGraph, bool DiskGraph, HeaderArrangement Arrangement)
+    {
+        /// <summary>Whether the labels are two lines (heading above values).</summary>
+        internal bool TwoLineLabels => Arrangement is HeaderArrangement.GraphBlocks or HeaderArrangement.TextBlocks;
     }
 
     /// <summary>
-    /// Whether the header graph draws the disk row: always for "NetworkAndDisk", never for "Network", and for "Auto" only in
-    /// the Advanced work view (Simple and Barebones show the network only). The statistics page always shows all rows.
+    /// The layout for a setting and the window width (the work view does not matter). Below <see cref="HeaderGraphsMinimumWidth"/>
+    /// every graph is dropped and the labelled values stay as one-line rows; "SideBySide" needs <see cref="HeaderBlocksMinimumWidth"/>
+    /// and falls back to rows in between. Auto: both values and both graphs whenever there is room, in every work view.
+    /// Network / Disk: that block only. NetworkAndDisk: both rows with graphs. SideBySide: two graph blocks. Text: two text blocks.
     /// </summary>
-    internal static bool HeaderShowsDisk(string? setting, string? workspaceMode) => NormalizeHeaderGraph(setting) switch
+    internal static HeaderLayout ResolveHeaderLayout(string? setting, double width = double.PositiveInfinity)
     {
-        HeaderGraphNetworkAndDisk => true,
-        HeaderGraphNetwork => false,
-        _ => string.Equals(workspaceMode?.Trim(), "Advanced", StringComparison.OrdinalIgnoreCase)
-    };
+        bool graphs = width >= HeaderGraphsMinimumWidth, blocks = width >= HeaderBlocksMinimumWidth;
+        HeaderArrangement rows = graphs ? HeaderArrangement.Rows : HeaderArrangement.TextRows;
+        return NormalizeHeaderGraph(setting) switch
+        {
+            HeaderGraphNetwork => new(true, false, graphs, false, rows),
+            HeaderGraphDisk => new(false, true, false, graphs, rows),
+            HeaderGraphNetworkAndDisk => new(true, true, graphs, graphs, rows),
+            HeaderGraphSideBySide => blocks ? new(true, true, true, true, HeaderArrangement.GraphBlocks) : new(true, true, graphs, graphs, rows),
+            HeaderGraphText => new(true, true, false, false, graphs ? HeaderArrangement.TextBlocks : HeaderArrangement.TextRows),
+            _ => new(true, true, graphs, graphs, rows)
+        };
+    }
 
-    /// <summary>
-    /// Whether the header shows the disk value (the written rate with its label): in every work view unless the setting is
-    /// "Network". Whether the disk row also gets a graph is <see cref="HeaderShowsDisk"/>.
-    /// </summary>
-    internal static bool HeaderShowsDiskValue(string? setting) => NormalizeHeaderGraph(setting) != HeaderGraphNetwork;
+    /// <summary>Whether the header draws the disk graph for a setting in a window wide enough for graphs.</summary>
+    internal static bool HeaderShowsDisk(string? setting) => ResolveHeaderLayout(setting).DiskGraph;
 
-    /// <summary>The graph sentence for a header that draws the network row only (no disk value is named).</summary>
-    internal static string GraphDescriptionNetworkOnly(IoRates rate, IoActivity activity, CultureInfo? culture = null) =>
-        Texts.T("stats.graph.nameNet", ByteUnits.Rate(rate.NetDown, culture), activity.Active);
-
-    /// <summary>The graph sentence of the header for what it draws.</summary>
-    internal static string GraphDescription(IoRates rate, IoActivity activity, bool showDisk, CultureInfo? culture = null) =>
-        showDisk ? GraphDescription(rate, activity, culture) : GraphDescriptionNetworkOnly(rate, activity, culture);
+    /// <summary>Whether the header shows the labelled disk values: in every view unless the setting is "Network".</summary>
+    internal static bool HeaderShowsDiskValue(string? setting) => ResolveHeaderLayout(setting, 0).DiskValue;
 
     /// <summary>The seconds one history of <paramref name="samples"/> samples covers at the given sampling interval.</summary>
     internal static int HistorySeconds(int samples, int sampleIntervalMs) =>

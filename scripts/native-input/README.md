@@ -39,7 +39,7 @@ are explicit. Never reuse outputs or change assertions/timeouts for a green run.
 | Suite | Required checkpoints | Actual native assertions |
 | --- | --- | --- |
 | plugins | Overview category/refresh; plugin-local integer error; source-worker error | Unique native exposure, exact localized name, role, error/help, preserved raw text, required initial focus, focus movement through real XTest Tab, Orca name utterance |
-| sources | Strict per-source permission and Manage in Sources link in EN/DE | Initial native focus, named checkbox/button, focus movement, actual Orca output; policy state/mutation assertions remain with the existing SourceIntegrity fixture |
+| sources | Strict per-source permission and Show in Sources link in EN/DE | Initial native focus, named checkbox/button, focus movement, actual Orca output; policy state/mutation assertions remain with the existing SourceIntegrity fixture |
 | saved-searches | Archive query field; Save-name dialog; manager list/close | Query draft preserved, exact dialog names/roles/initial focus, actual focus/Tab and Orca utterance; saved-search fixture assertions remain unchanged |
 | shortcuts | Settings shortcut search/list; Record/cancel; text/normal command contexts in EN/DE | Native Enter/Space/Escape, exact selected-action return, native Tab/Shift+Tab, one suppressed/active real application shortcut; source-built Host state and draft assertions |
 

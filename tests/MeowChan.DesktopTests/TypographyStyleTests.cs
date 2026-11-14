@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
 namespace MeowChan.DesktopTests;
@@ -11,7 +12,7 @@ public sealed class TypographyStyleTests
     [Fact]
     public void DialogHeadingsAndCardTitlesUseTheSubtitleStep()
     {
-        XElement style = Style("Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title");
+        XElement style = Style("Border#DialogFrameHeader TextBlock.page-title, Border#DialogFrameHeader TextBlock.section-title, TextBlock.card-title, SelectableTextBlock.card-title");
         Assert.Equal("{StaticResource Workspace.Text.Subtitle}", Setting(style, "FontSize"));
         Assert.Equal("SemiBold", Setting(style, "FontWeight"));
         Assert.Contains("Name = HeaderName", File.ReadAllText(Root("Desktop/Controls/DialogFrame.cs")));
@@ -24,7 +25,9 @@ public sealed class TypographyStyleTests
         Assert.Equal("tnum", Setting(Style("TextBlock.tnum, SelectableTextBlock.tnum, DataGrid TextBlock"), "FontFeatures"));
         string main = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml"));
         Assert.Contains("x:Name=\"WorkspaceCounts\" Grid.Column=\"2\" Classes=\"muted tnum\"", main);
-        Assert.Contains("Classes=\"mono muted tnum\"", main);
+        // The header rate labels are Codex's directional graph labels: they carry tabular figures directly (FontFeatures), not the mono class.
+        foreach (string label in new[] { "TransferSpeedLabel", "TransferDiskLabel" })
+            Assert.Matches("x:Name=\"" + label + "\"[^>]*FontFeatures=\"tnum\"", main);
         string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
         foreach (string name in new[] { "ArchiveThreadPage", "ArchivePostPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
             Assert.Matches("x:Name=\"" + name + "\"[^>]*Classes=\"[^\"]*tnum", archive);
@@ -37,6 +40,39 @@ public sealed class TypographyStyleTests
         Assert.Contains("Classes = { \"card-title\" } });", booru);
         Assert.Contains("Classes = { \"mono\", \"card-title\" }", booru);
         Assert.DoesNotContain("FontSize = 14", booru);
+    }
+
+    [Fact]
+    public void FigureStylesLiveInTheStyleFileOnly()
+    {
+        XElement value = Style("TextBlock.stats-value");
+        Assert.Equal("{StaticResource Workspace.Text.Subtitle}", Setting(value, "FontSize"));
+        Assert.Equal("SemiBold", Setting(value, "FontWeight"));
+        Assert.Equal("tnum", Setting(value, "FontFeatures"));
+        Assert.Equal("tnum", Setting(Style("TextBlock.stats-num"), "FontFeatures"));
+        Assert.DoesNotContain("Selector=\"TextBlock.stats-", File.ReadAllText(Root("Desktop/Views/Statistics/StatisticsPage.axaml")));
+    }
+
+    // P5: sizes come from the type scale (tokens or the heading classes); the only literals left are the About brand
+    // mark (documented brand size) and the Reader's local post-number style (package P8). Bold is never used.
+    [Fact]
+    public void FontSizesComeFromTheScaleAndNothingIsBold()
+    {
+        Regex literal = new("FontSize\\s*=\\s*[0-9]|FontSize=\"[0-9]|Property=\"FontSize\" Value=\"[0-9]", RegexOptions.CultureInvariant);
+        string desktop = Root("Desktop");
+        var found = new List<string>();
+        foreach (string file in Directory.EnumerateFiles(desktop, "*.*", SearchOption.AllDirectories)
+                     .Where(path => path.EndsWith(".axaml", StringComparison.Ordinal) || path.EndsWith(".cs", StringComparison.Ordinal))
+                     .Where(path => !path.EndsWith("WorkspaceStyles.axaml", StringComparison.Ordinal)))
+        {
+            string relative = Path.GetRelativePath(desktop, file).Replace('\\', '/');
+            string text = File.ReadAllText(file);
+            foreach (Match match in literal.Matches(text)) found.Add(relative + ": " + match.Value);
+            Assert.DoesNotContain("FontWeight.Bold", text);
+            Assert.DoesNotContain("FontWeight=\"Bold\"", text);
+        }
+        string[] allowed = { "Views/About/AboutWindow.axaml: FontSize=\"2", "Views/Archive/ArchivePage.axaml: Property=\"FontSize\" Value=\"1" };
+        Assert.All(found, entry => Assert.Contains(allowed, prefix => entry.StartsWith(prefix, StringComparison.Ordinal)));
     }
 
     private static XElement Style(string selector) =>

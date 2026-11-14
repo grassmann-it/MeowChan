@@ -130,8 +130,14 @@ public partial class MainWindow
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
             if (action == "browser") { OpenTarget(row?.Url ?? ArchivePage.ArchiveUrlFor(id), ArchivePage.CaptureActionErrorReporter()); return; }
             if (action == "folder") { string? directory = row?.DownloadDirectory ?? ArchivePage.ArchiveDirectoryFor(id); if (directory != null) OpenDirectory(directory, ArchivePage.CaptureActionErrorReporter()); return; }
-            if (action == "rules" && NavigateWorkspace(WorkspacePage.Rules))
-                _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
+            if (action == "rules")
+            {
+                // From the large reader the page behind it is not reachable: leave it first, without going back to its origin.
+                if (!_restoreCompleted || WorkspaceCommandBusy) return;
+                if (_largeReaderOpen && _gallery == null) CloseLargeReader(restoreOrigin: false);
+                if (NavigateWorkspace(WorkspacePage.Rules))
+                    _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
+            }
         };
         ArchivePage.SelectionDetailsRequested = id =>
         {

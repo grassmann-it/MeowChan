@@ -124,8 +124,10 @@ internal static partial class PluginManagementChecks
             Require(Equals(page.FindControl<Badge>("PluginInventoryBadge")!.Header, catalog.Diagnostics.Count),
                 "The inventory badge does not show the actual inventory diagnostic count.");
             Require(transportHandler.Requests == 0, "Selecting/refreshing a plugin fetched a site.");
+            await PluginAddChecks.RunAsync(page, profile, plugins, Path.Combine(root, "added-scratch"), () => transportHandler.Requests);
             await File.AppendAllTextAsync(source, "\n// saved source revision two\n");
             page.Select(candidateId);
+            PluginAddChecks.RequireSteps(page, new[] { "✓", "✓", "✓" }, null, "registered, enabled and active plugin");
             await page.BuildAndTestAsync();
             PluginArtifact? testedArtifact = page.Selected?.Candidate?.Artifact;
             Require(testedArtifact != null && testedArtifact.ExecutionRevision != original.Artifact!.ExecutionRevision
@@ -135,6 +137,8 @@ internal static partial class PluginManagementChecks
             PluginProfileSnapshot tested = await profile.ReadAsync();
             Require(tested.Plugins.Single().Active!.ExecutionRevision == original.Artifact!.ExecutionRevision,
                 "Build and test replaced the active revision.");
+            PluginAddChecks.RequireSteps(page, new[] { "✓", "✓", "→" },
+                Texts.T("plugins.step.next.select", MeowChan.Desktop.Commands.CommandCatalog.Label("plugins.select-candidate")), "changed build after test");
             Require(production.Identity.InstanceId == productionIdentity && production.Snapshot.State != "stopped", "Test disposed the production worker.");
             Require(transportHandler.Requests == 0, "Build/describe/validation fetched a site without an explicit probe.");
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/42";

@@ -78,6 +78,7 @@ public partial class MainWindow : Window
             session?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             throw;
         }
+        InitializeGlyphIcons();
         _session = session ?? new DesktopSessionHost();
         _config = _session.Config;
         InitializeStartupWindowSize();
@@ -127,6 +128,7 @@ public partial class MainWindow : Window
             InitializeReaderGroups(); // URSA-12 shared initialization hunk.
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
+            RegisterManualImportCommand();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             // Section and rule-template registrations belong to pages built after the first frame
@@ -135,6 +137,7 @@ public partial class MainWindow : Window
             WireWorkspaceCommands();
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
+            InitializeArchiveBridgeHint();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
             try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
@@ -540,6 +543,7 @@ public partial class MainWindow : Window
     private async Task<bool> SubmitInputAsync(string? input)
     {
         if (!_restoreCompleted || _isClosing) return false;
+        NoteAdmissionStart();
         _admissionResults.Clear();
         bool allAccepted = true;
         try
@@ -586,6 +590,7 @@ public partial class MainWindow : Window
         int added = _admissionResults.Count(item => item.Status == AdmissionStatus.Added);
         int duplicate = _admissionResults.Count(item => item.Status == AdmissionStatus.AlreadyPresent);
         AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
+        OfferArchiveBridgeHint(added);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
         TextBox report = new TextBox
@@ -617,8 +622,8 @@ public partial class MainWindow : Window
             rows.Children.Add(new SelectableTextBlock
             {
                 Name = "AdmissionSourcesHelp", Text = repairSources,
-                TextWrapping = TextWrapping.Wrap, FontSize = 12
-            });
+                TextWrapping = TextWrapping.Wrap
+            }.MetaText());
         }
     }
 
@@ -629,9 +634,9 @@ public partial class MainWindow : Window
         string label = Texts.T("admission.showInList");
         Button link = new()
         {
-            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, MinHeight = 28,
+            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             Padding = new Thickness(10, 2), MaxWidth = 460,
-            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 12 }
+            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
         };
         link.Classes.Add("subtle");
         Avalonia.Automation.AutomationProperties.SetName(link, label + ": " + duplicate.Url);

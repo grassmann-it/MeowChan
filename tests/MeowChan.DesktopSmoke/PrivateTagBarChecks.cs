@@ -76,7 +76,8 @@ internal static class PrivateTagBarChecks
             Require(button.IsEffectivelyEnabled, "Disabled fixture action " + (button.Name ?? Label(button)));
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         }
-        internal static string Label(Control control) => control is Button { Content: TextBlock text } ? text.Text ?? ""
+        internal static string Label(Control control) => control is Button { Content: StackPanel removable } ? MeowChan.Desktop.Controls.WorkspaceChips.RemovableName(removable) ?? ""
+            : control is Button { Content: TextBlock text } ? text.Text ?? ""
             : control is Button button ? button.Content?.ToString() ?? "" : control is TextBlock block ? block.Text ?? "" : "";
         internal string[] Chips() => C<WrapPanel>("ReaderTagChips").Children.OfType<Button>().Select(Label).ToArray();
         internal Button[] Suggestions() => C<WrapPanel>("ReaderTagSuggestions").Children.OfType<Button>().ToArray();
@@ -168,7 +169,7 @@ internal static class PrivateTagBarChecks
 
         f.Click(f.Suggestions()[0]);
         await f.SettleAsync();
-        Require(f.Chips().SequenceEqual(new[] { "/rpt/  ✕" }) && Equals(open.Content, "Tags (1)"), "Suggestion click did not tag the thread.");
+        Require(f.Chips().SequenceEqual(new[] { "/rpt/" }) && Equals(open.Content, "Tags (1)"), "Suggestion click did not tag the thread.");
         Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /sdg/" }), "An accepted suggestion must disappear.");
         PrivateTagStoreSnapshot stored = f.Stored();
         Require(stored.TagsOf(Tagged).Single().Name.Display == "/rpt/" && stored.TagsOf(Plain).Count == 0, "Store does not match the bar.");
@@ -180,7 +181,7 @@ internal static class PrivateTagBarChecks
         input.RaiseEvent(enter);
         Require(enter.Handled, "Enter in the tag field was not handled by the bar.");
         await f.SettleAsync();
-        Require(f.Chips().SequenceEqual(new[] { "/rpt/  ✕", "my_tag  ✕" }), "Typed tag missing or underscore lost: " + string.Join("|", f.Chips()));
+        Require(f.Chips().SequenceEqual(new[] { "/rpt/", "my_tag" }), "Typed tag missing or underscore lost: " + string.Join("|", f.Chips()));
         Require(string.IsNullOrEmpty(input.Text) && input.IsKeyboardFocusWithin && Equals(open.Content, "Tags (2)"), "Add did not clear the field and keep focus.");
 
         Capture(f.Page, "bar");
@@ -203,7 +204,7 @@ internal static class PrivateTagBarChecks
         Button rpt = f.C<WrapPanel>("ReaderTagChips").Children.OfType<Button>().First();
         f.Click(rpt);
         await f.SettleAsync();
-        Require(f.Chips().SequenceEqual(new[] { "my_tag  ✕" }) && Equals(open.Content, "Tags (1)"), "Chip click did not remove the tag.");
+        Require(f.Chips().SequenceEqual(new[] { "my_tag" }) && Equals(open.Content, "Tags (1)"), "Chip click did not remove the tag.");
         Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /rpt/", "+ /sdg/" }), "Removed tag must be suggested again.");
         Require(f.Stored().Tags.Count == 2, "Removing an assignment must keep the tag itself.");
 
@@ -301,7 +302,7 @@ internal static class PrivateTagBarChecks
 
         // Tagged thread, not shown yet: it is loaded, its bar opens on its own tags and takes focus.
         await ChooseTagsAsync(await OpenMenuAsync(taggedRow), Tagged);
-        Require(f.Chips().SequenceEqual(new[] { "my_tag  ✕", "/sdg/  ✕" }), "The bar does not show the tags of the chosen thread: " + string.Join("|", f.Chips()));
+        Require(f.Chips().SequenceEqual(new[] { "my_tag", "/sdg/" }), "The bar does not show the tags of the chosen thread: " + string.Join("|", f.Chips()));
 
         // Another thread: the bar follows it and shows its own (empty) tags.
         f.Click("ReaderTagClose");
@@ -410,7 +411,7 @@ internal static class PrivateTagBarChecks
             Button open = f.C<Button>("ReaderTagsOpen");
             Require(Equals(open.Content, Texts.T("tags.openCount", 2)), "Tags did not survive a restart: " + open.Content);
             f.Click("ReaderTagsOpen");
-            Require(f.Chips().SequenceEqual(new[] { "my_tag  ✕", "/sdg/  ✕" }), "Restart lost or reordered tags.");
+            Require(f.Chips().SequenceEqual(new[] { "my_tag", "/sdg/" }), "Restart lost or reordered tags.");
             Capture(f.Page, "bar-de");
             Require(Equals(f.C<Button>("ReaderTagAdd").Content, "Tag hinzufügen") && f.C<IdentitySuggestionBox>("ReaderTagInput").PlaceholderText == "Tagname",
                 "German labels missing.");
@@ -702,9 +703,11 @@ internal static class PrivateTagBarChecks
         Require(TagCell(f, secondRow) == "navy" && secondRow.TagsText == "Tags: navy" && TagCell(f, firstRow) == "", "Table column did not follow the rename: " + TagCell(f, secondRow));
         Require(ReferenceEquals(f.C<DataGrid>("ArchiveThreadTable").ItemsSource, f.C<ListBox>("ArchiveThreads").ItemsSource)
             && f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Contains(secondRow), "Rename reloaded the list.");
-        // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory.
-        Button hash = f.C<Button>("ReaderHashSearchOpen");
-        Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("reader.hashSearch.open")), "Hash search entry is missing or disabled.");
+        // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory:
+        // AP2 makes it the SHA-256 scope of the reader find bar (empty draft opens the dialog idle).
+        Button hash = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.Sha256);
+        Require(hash.IsEffectivelyEnabled && Equals(hash.Content, Texts.T("archive.search"))
+            && f.C<TextBlock>("ReaderFindStatus").Text == Texts.T("search.scope.hash.hint"), "Hash search scope is missing or disabled.");
         f.Click(hash);
         await UntilAsync(() => page.MediaHashSearchWindow?.IsVisible == true);
         Require(!hash.IsEffectivelyEnabled && !f.C<Button>("ReaderTagManage").IsEffectivelyEnabled, "A second dialog could be opened over the hash search.");

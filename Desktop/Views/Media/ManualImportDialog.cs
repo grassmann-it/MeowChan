@@ -37,7 +37,7 @@ internal sealed class ManualImportDialog : Window
     private readonly ManualImportSession _session;
     private readonly Func<PrivateTagStoreSnapshot?> _tagSnapshot;
     private readonly WindowChromeBar _chrome = new() { Name = "ManualImportChrome" };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold, FontSize = 16 };
+    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, Classes = { "card-title" } };
     private readonly TextBlock _intro = new() { TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _target = new() { Name = "ManualImportTarget", TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _rootsLabel = new() { TextWrapping = TextWrapping.Wrap };
@@ -300,9 +300,8 @@ internal sealed class ManualImportDialog : Window
             string root = _session.Roots[index];
             Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
             TextBlock text = new() { Text = root, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
-            Button remove = new() { Content = "✕", IsEnabled = editable };
-            string hint = Texts.T("import.roots.remove", System.IO.Path.GetFileName(root));
-            AutomationProperties.SetName(remove, hint); ToolTip.SetTip(remove, hint);
+            Button remove = new() { IsEnabled = editable };
+            MeowChan.Desktop.Controls.WorkspaceIcons.MakeSquare(remove, MeowChan.Desktop.Controls.WorkspaceIcons.Close, Texts.T("import.roots.remove", System.IO.Path.GetFileName(root)), subtle: false);
             remove.Click += (_, _) => _session.RemoveRoot(at);
             row.Children.Add(text); row.Children.Add(remove); Grid.SetColumn(remove, 1);
             _roots.Children.Add(row);
@@ -318,7 +317,7 @@ internal sealed class ManualImportDialog : Window
         foreach (string tag in _session.Tags)
         {
             string name = tag;
-            Button chip = new() { Content = new TextBlock { Text = name + "  ✕" }, IsEnabled = editable };
+            Button chip = new() { Content = MeowChan.Desktop.Controls.WorkspaceChips.RemovableContent(name), IsEnabled = editable };
             string hint = Texts.T("import.tags.remove", name);
             AutomationProperties.SetName(chip, hint); ToolTip.SetTip(chip, hint);
             chip.Click += (_, _) => _session.RemoveTag(name);

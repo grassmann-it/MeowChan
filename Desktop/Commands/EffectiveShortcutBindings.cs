@@ -102,7 +102,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 2;
+    public const int DefaultsRevision = 4;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -110,9 +110,9 @@ public sealed class EffectiveShortcutBindings
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["video.volume-up"] = 1, ["video.volume-down"] = 1, ["favorites.add"] = 1, ["favorites.remove"] = 1,
-        ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2, ["navigation.diagnostics"] = 2,
-        ["navigation.plugins"] = 2, ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2,
-        ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2, ["media.tags.edit"] = 2,
+        ["navigation.media"] = 2, ["navigation.rules"] = 2, ["navigation.sources"] = 2,
+        ["navigation.statistics"] = 2, ["input.focus-media-search"] = 2, ["input.focus-settings-search"] = 2, ["input.focus-diagnostics-search"] = 2,
+        ["thread.favorite-toggle"] = 2, ["thread.tags"] = 2,
         ["archive.filters-toggle"] = 2, ["board.filters"] = 2, ["media.select-all"] = 2, ["menu.context-open"] = 2,
         // macOS standards of revision 2 (Defaults(command, MacOS)).
         ["window.fullscreen"] = 2, ["viewer.shortcut-help"] = 2, ["watch.remove"] = 2, ["archive.delete-permanently"] = 2,
@@ -126,6 +126,12 @@ public sealed class EffectiveShortcutBindings
         // One Back gesture and one page gesture for several commands that never apply at the same time.
         ["reader.history-back"] = 2, ["gallery.return"] = 2, ["pagination.previous"] = 2, ["pagination.next"] = 2,
         ["window.minimize"] = 2,
+        // New in revision 3: shortcuts for actions that had none (UX flows AP13).
+        ["navigation.continue-reading"] = 3, ["import.open"] = 3, ["reader.show-new-posts"] = 3,
+        ["watch.follow-live"] = 3, ["diagnostics.retry-selection"] = 3,
+        // New in revision 4: Primary+6 and Primary+7 swapped (Plugins is the 6th page, Diagnostics the 7th, MainPageOrder), and media tags moved from
+        // Primary+T to Primary+Shift+T (thread tags keep Primary+T). Both yield to a saved binding of another command, like every changed default.
+        ["navigation.plugins"] = 4, ["navigation.diagnostics"] = 4, ["media.tags.edit"] = 4,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -207,6 +213,9 @@ public sealed class EffectiveShortcutBindings
             "media.details" => Of("I", "Primary+I"),
             "reader.find-next" => Of("Primary+G", "F3"),
             "reader.find-previous" => Of("Primary+Shift+G", "Shift+F3"),
+            // Fn is never the only way on a Mac: the Diagnostics retry shares the gesture of "Retry missing media"
+            // (they never apply on the same page).
+            "diagnostics.retry-selection" => Of("Primary+Alt+Shift+R"),
             _ => null
         };
     }
@@ -346,7 +355,7 @@ public sealed class EffectiveShortcutBindings
         if (id == "reader-groups.open-manager") return new[] { "shell" };
         if (id == "archive.saved-searches.save-current") return new[] { "archive", "dialog:saved-searches" };
         if (id.StartsWith("rules.template-", StringComparison.Ordinal)) return new[] { "rules" };
-        if (id == "media.rating.manage") return new[] { "diagnostics" };
+        if (id == "media.rating.manage") return new[] { "media", "archive", "gallery" };
         if (id == "media.rating.remove-selected") return new[] { "dialog:media-ratings-manager" };
         if (id == "media.rating.cleanup-retry") return new[] { "dialog:archive-deletion" };
         if (id == "media.rating.edit") return new[] { "media", "reader", "gallery" };

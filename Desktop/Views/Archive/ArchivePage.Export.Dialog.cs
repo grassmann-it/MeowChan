@@ -89,6 +89,7 @@ public partial class ArchivePage
         CheckBox backup = ExportName(new CheckBox(), "ArchiveExportBackup"); content.Children.Add(backup);
         TextBox destination = ExportName(new TextBox { MaxLength = 32768, HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportDestination");
         Avalonia.Automation.AutomationProperties.SetLabeledBy(destination, targetLabel); content.Children.Add(destination);
+        destination.PropertyChanged += (_, change) => { if (change.Property == TextBox.TextProperty) OnExportDestinationEdited(destination); };
         Button browse = ExportName(new Button(), "ArchiveExportBrowse"); browse.Click += OnExportBrowse; content.Children.Add(browse);
         content.Children.Add(ExportName(new CheckBox { IsChecked = true }, "ArchiveExportMedia"));
         Grid statusLine = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
@@ -99,12 +100,12 @@ public partial class ArchivePage
         TextBlock error = ExportName(new TextBlock { TextWrapping = TextWrapping.Wrap }, "ArchiveExportError");
         error.Classes.Add("workspace-error");
         Avalonia.Automation.AutomationProperties.SetLiveSetting(error, Avalonia.Automation.AutomationLiveSetting.Assertive);
-        Ursa.Controls.Banner errorBanner = ExportName(new Ursa.Controls.Banner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
-            CanClose = false, IsVisible = false, HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Content = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
+        MeowChan.Desktop.Controls.WorkspaceBanner errorBanner = ExportName(new MeowChan.Desktop.Controls.WorkspaceBanner { Type = Avalonia.Controls.Notifications.NotificationType.Error,
+            IsVisible = false,
+            Child = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(title); header.Children.Add(compactScope); header.Children.Add(fixedScope);
+        header.Children.Add(title); header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
@@ -179,8 +180,9 @@ public partial class ArchivePage
         UpdateExportSummary();
         Control<TextBlock>("ArchiveExportTargetLabel").Text = Texts.T("export.target");
         Control<Expander>("ArchiveExportScopeDetails").Header = Texts.T("export.scopeDetails");
-        Control<TextBlock>("ArchiveExportTitle").Text = Texts.T(_exportAllResults ? "export.resultsTitle" : "archive.export");
-        Control<TextBlock>("ArchiveExportHint").Text = Texts.T(_exportAllResults ? "export.resultsHint" : IsCollectionExport ? "export.collectionHint" : "export.hint");
+        Control<TextBlock>("ArchiveExportTitle").Text = Texts.T("export.dialog.title");
+        Control<TextBlock>("ArchiveExportHint").Text = Texts.T(_exportFormat == ExportFormat.LinkList ? "export.link.hint"
+            : _exportAllResults ? "export.resultsHint" : IsCollectionExport ? "export.collectionHint" : "export.hint");
         Control<TextBlock>("ArchiveExportHistoryLabel").Text = Texts.T(IsCollectionExport ? "export.collectionKnown" : "export.known");
         Control<RadioButton>("ArchiveExportNew").Content = Texts.T("export.new");
         Control<RadioButton>("ArchiveExportUpdate").Content = Texts.T("export.update");
@@ -196,6 +198,6 @@ public partial class ArchivePage
         Control<Button>("ArchiveExportClose").Content = Texts.T(_exportRunning ? "archive.exportCancel" : "action.close");
         Control<Button>("ArchiveExportOpen").Content = Texts.T("action.openFolder");
         ToolTip.SetTip(Control<Button>("ArchiveExportOpen"), Texts.T("export.openHint")); ToolTip.SetShowOnDisabled(Control<Button>("ArchiveExportOpen"), true);
-        Control<Button>("ArchiveExportStart").Content = Texts.T("archive.exportStart");
+        Control<Button>("ArchiveExportStart").Content = Texts.T(_exportFormat == ExportFormat.LinkList ? "export.link.review" : "archive.exportStart");
     }
 }

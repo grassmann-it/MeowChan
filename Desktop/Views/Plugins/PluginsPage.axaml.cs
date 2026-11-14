@@ -181,6 +181,8 @@ public partial class PluginsPage : UserControl
                 CommandBindings.ApplyLabeled(button, key, Texts.T(key));
             else { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
+        Button add = C<Button>("PluginsAdd");
+        add.Content = Texts.T("plugins.add"); AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
         C<TextBlock>("PluginInventoryHeader").Text = Texts.T("plugins.inventoryProblems");
         AutomationProperties.SetName(C<SelectionList>("PluginCards"), Texts.T("nav.plugins"));
         C<Expander>("PluginInfoExpander").Header = Texts.T("plugins.information");
@@ -230,7 +232,8 @@ public partial class PluginsPage : UserControl
         SelectionList list = C<SelectionList>("PluginCards");
         Control? focusedItem = _cards.Values.FirstOrDefault(item => item.IsFocused);
         var listOffset = C<ScrollViewer>("PluginListScroll").Offset;
-        PluginCatalogEntry[] entries = _catalog?.Entries.Where(Included).ToArray() ?? Array.Empty<PluginCatalogEntry>();
+        // One card per plugin (its files are chosen in the detail), active plugins first.
+        PluginCatalogEntry[] entries = CardEntries();
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
         _projectingSelection = true;
         try
@@ -262,7 +265,8 @@ public partial class PluginsPage : UserControl
                     item.PointerReleased += (_, args) =>
                     {
                         if (args.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None)) return;
-                        Select(key); args.Handled = true;
+                        // The card stands for all files of its plugin: a click on the shown plugin keeps the file already shown.
+                        Select(_selectedKey != null && CardKey(_selectedKey) == key ? _selectedKey : key); args.Handled = true;
                     };
                     _cards.Add(key, item);
                 }
@@ -280,21 +284,21 @@ public partial class PluginsPage : UserControl
                 string type = PluginContentPresentation.DescribeType(presentation.DescriptionMetadata);
                 string status = PluginContentPresentation.DescribeStatus(presentation);
                 content.State.Text = type + " · " + status;
-                RenderListChips(content, presentation);
-                PluginCatalogEntry[] similar = entries.Where(other => string.Equals(other.Name, entry.Name, StringComparison.CurrentCultureIgnoreCase)).ToArray();
-                content.Identity.IsVisible = similar.Length > 1;
-                if (similar.Length > 1)
-                {
-                    string fileName = System.IO.Path.GetFileName(entry.LoaderPath) ?? entry.CandidateId ?? entry.Key;
-                    content.Identity.Text = Texts.T("plugins.candidatePosition", Array.FindIndex(similar, other => other.Key == entry.Key) + 1, similar.Length)
-                        + " · " + fileName + (presentation.CandidateVersion is { } version ? " · " + Texts.T("plugins.fileVersion", version) : string.Empty);
-                    ToolTip.SetTip(content.Identity, entry.LoaderPath ?? entry.CandidateId ?? entry.Key);
-                }
+                RenderListChips(content, presentation, GroupNeedsAttention(entry));
+                // Several files of one plugin share this card ("Files: 2"); another plugin of the same name is told apart by its ID.
+                int fileCount = GroupMembers(entry).Count(Included);
+                bool sameName = entries.Count(other => string.Equals(other.Name, entry.Name, StringComparison.CurrentCultureIgnoreCase)) > 1;
+                string identityText = string.Join(" · ", new[] { fileCount > 1 ? Texts.T("plugins.filesCount", fileCount) : null,
+                    sameName && presentation.PluginId != null ? Texts.T("plugins.pluginIdCompact", presentation.PluginId) : null }.Where(value => value != null));
+                content.Identity.IsVisible = identityText.Length > 0;
+                content.Identity.Text = identityText;
+                ToolTip.SetTip(content.Identity, null);
                 string fullState = type + (sourceClassifications.Length > 0 ? " · " + sourceClassifications : string.Empty) + " · " + status;
                 AutomationProperties.SetName(item, string.Join(". ", new[] { presentation.Name, content.Description.Text, content.Origin.Text, fullState,
                     content.Identity.IsVisible ? content.Identity.Text : null }.Where(value => !string.IsNullOrEmpty(value))));
             }
-            list.SelectedItem = _selectedKey != null && entries.Any(entry => entry.Key == _selectedKey) ? _cards.GetValueOrDefault(_selectedKey) : null;
+            string? shownCard = _selectedKey != null && Selected is { } selectedEntry && Included(selectedEntry) ? CardKey(_selectedKey) : null;
+            list.SelectedItem = shownCard != null && entries.Any(entry => entry.Key == shownCard) ? _cards.GetValueOrDefault(shownCard) : null;
         }
         finally { _projectingSelection = false; }
         if (focusedItem != null && list.Items.Contains(focusedItem) && !focusedItem.IsFocused) focusedItem.Focus();
@@ -304,7 +308,7 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
         { 1 => "plugins.emptySources", 2 => "plugins.emptyFilters", _ => "plugins.empty" });
         // The header count, as on the Sources page: every plugin of the profile, whatever the category shows.
-        C<TextBlock>("PluginsCount").Text = _catalog == null ? string.Empty : Texts.T("plugins.count", _catalog.Entries.Count);
+        C<TextBlock>("PluginsCount").Text = _catalog == null ? string.Empty : Texts.T("plugins.count", GroupCount);
         C<TextBlock>("PluginsCount").IsVisible = _catalog != null;
         int count = _catalog?.Diagnostics.Count ?? 0;
         C<Expander>("PluginInventoryProblems").IsVisible = count > 0;
@@ -319,18 +323,25 @@ public partial class PluginsPage : UserControl
     /// ("Maintenance unverified", "Experimental" in the warning tone), each once. The source status chip is left out: on the
     /// Sources page it means the source's own activation, which the plugin list does not show.
     /// </summary>
-    private static void RenderListChips(PluginListContent content, PluginEntryPresentation presentation)
+    private static void RenderListChips(PluginListContent content, PluginEntryPresentation presentation, bool needsAttention)
     {
         SourceBadge[] deviating = presentation.SourceClassifications
             .SelectMany(classification => SourceWording.Badges(classification, isActive: true, isBuiltIn: false))
             .Where(badge => badge.Deviates && badge.Kind != SourceBadgeKind.Status)
             .OrderBy(badge => badge.Kind)
             .DistinctBy(badge => badge.ChipText).ToArray();
-        string signature = string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
-        content.Chips.IsVisible = deviating.Length > 0;
+        string signature = (needsAttention ? "A|" : "") + Texts.Language + "|" + string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
+        content.Chips.IsVisible = deviating.Length > 0 || needsAttention;
         if (signature == content.ChipSignature) return;
         content.ChipSignature = signature;
         content.Chips.Children.Clear();
+        if (needsAttention)
+        {
+            // A plugin that needs attention is never hidden by the ordering: its card says so.
+            Border attention = Desktop.Controls.WorkspaceChips.CreateBadge("PluginListChip", Texts.T("plugins.problem"), compact: true);
+            attention.Classes.Add("chip-warning");
+            content.Chips.Children.Add(attention);
+        }
         foreach (SourceBadge badge in deviating)
         {
             Border chip = Desktop.Controls.WorkspaceChips.CreateBadge("PluginListChip", badge.ChipText, compact: true);
@@ -343,14 +354,18 @@ public partial class PluginsPage : UserControl
         if (_projectingSelection) return;
         if (C<SelectionList>("PluginCards").SelectedItem is SelectionListItem item &&
             _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, item)).Key is { } key)
+        {
+            // The card stands for all files of its plugin: choosing the card again keeps the file already shown.
+            if (_selectedKey != null && CardKey(_selectedKey) == key) return;
             SelectCore(key, openDetails: false);
+        }
     }
     private void OnPluginListKeyDown(object? sender, KeyEventArgs e)
     {
         if (TryHandlePluginActionKeyDown(e)) return;
         SelectionList list = C<SelectionList>("PluginCards");
         if (e.Key is Key.Enter or Key.Space)
-        { if (_selectedKey != null && list.SelectedItem != null && _cards.ContainsKey(_selectedKey)) { Select(_selectedKey); e.Handled = true; } return; }
+        { if (_selectedKey != null && list.SelectedItem != null && _cards.ContainsKey(CardKey(_selectedKey))) { Select(_selectedKey); e.Handled = true; } return; }
         if (e.Key is not (Key.Up or Key.Down or Key.Home or Key.End) || list.Items.Count == 0) return;
         int index = e.Key switch { Key.Home => 0, Key.End => list.Items.Count - 1,
             Key.Up => Math.Max(0, list.SelectedIndex - 1), _ => Math.Min(list.Items.Count - 1, list.SelectedIndex + 1) };
@@ -413,6 +428,8 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginCapabilities").Text = functions;
         C<TextBlock>("PluginCapabilities").IsVisible = functions.Length > 0;
         C<TextBlock>("PluginStatus").Text = PluginContentPresentation.DescribeStatus(presentation);
+        RenderLifecycle(entry, presentation);
+        RenderFileChoices(entry);
         // Problems belong beside the normal actions. Paths, fingerprints and full
         // compiler diagnostics remain available in the optional developer details.
         string attention = string.Join("\n", new[] { presentation.CandidateProblem, presentation.ActivationProblem,
@@ -539,7 +556,7 @@ public partial class PluginsPage : UserControl
         }
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
-    { _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(_selectedKey, out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
+    { _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(CardKey(_selectedKey), out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) { ClosePluginActionMenu(); CancelDiscardConfirmation(); _showDetails = false; RenderList(); } }
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
     private async void OnFolderClick(object? sender, RoutedEventArgs e)
@@ -601,7 +618,7 @@ public partial class PluginsPage : UserControl
         AutomationProperties.SetHelpText(summary, detail ?? string.Empty);
         summary.Focusable = !string.IsNullOrEmpty(text);
         AutomationProperties.SetName(summary, text);
-        C<Ursa.Controls.Banner>("PluginErrorBanner").IsVisible = !string.IsNullOrEmpty(text);
+        C<MeowChan.Desktop.Controls.WorkspaceBanner>("PluginErrorBanner").IsVisible = !string.IsNullOrEmpty(text);
     }
     private (long Generation, CancellationToken Token) BeginOperation()
     {

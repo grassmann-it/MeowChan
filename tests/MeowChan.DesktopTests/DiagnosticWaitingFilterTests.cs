@@ -124,7 +124,7 @@ public sealed class DiagnosticWaitingFilterTests
         Assert.Equal("Wrap", (string?)label.Attribute("TextWrapping"));
         XElement privacy = root.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "DiagnosticCopyPrivacy");
         Assert.Equal("diagnostics.copyPrivacy", (string?)privacy.Attribute("Tag"));
-        Assert.Equal("muted localized", (string?)privacy.Attribute("Classes"));
+        Assert.Equal("workspace-help localized", (string?)privacy.Attribute("Classes"));
         Assert.Equal("Wrap", (string?)privacy.Attribute("TextWrapping"));
         Assert.Null(privacy.Attribute("IsVisible"));
         Assert.Equal("1", (string?)privacy.Parent!.Attribute("Grid.Row")); // Always-visible action footer.

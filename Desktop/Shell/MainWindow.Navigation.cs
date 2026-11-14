@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -166,6 +167,11 @@ public partial class MainWindow
         _archivePage.OpenReaderRequested = OpenLargeReader;
         _archivePage.CloseReaderRequested = () => CloseLargeReader();
         _archivePage.GoToDownloadsRequested = GoToDownloads;
+        // AP2 search carry-over: Archive (or the reader) -> Media file name search.
+        _archivePage.SearchInMediaRequested = query =>
+        {
+            if (NavigateWorkspace(WorkspacePage.Media)) _mediaPage?.ReceiveCarriedSearch(query, Texts.T("nav.archive"));
+        };
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
         _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
@@ -212,7 +218,6 @@ public partial class MainWindow
                 _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
                     && _session.CanRetryMissingMedia(target.WatchId);
                 _diagnosticsPage.AttachFeedback(_feedback);
-                _diagnosticsPage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
                 DiagnosticsPageHost.Content = _diagnosticsPage;
                 return true;
             case 2:
@@ -313,6 +318,7 @@ public partial class MainWindow
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
         if (page != WorkspacePage.Statistics) _statisticsPage?.Deactivate();
+        if (page != WorkspacePage.Settings) _settingsEditor?.EndSearchVisit();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
         WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
@@ -334,6 +340,7 @@ public partial class MainWindow
         PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
         StatisticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Statistics);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
+        if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
@@ -364,7 +371,7 @@ public partial class MainWindow
         _measuringPageNavigation = true;
         try
         {
-            bool advanced = _config.WorkspaceMode == "Advanced";
+            WorkView view = ConfiguredWorkView;
             Button downloads = DownloadsNavigationButton;
             Button settings = SettingsNavigationButton;
             Button tools = ToolsNavigationButton;
@@ -383,9 +390,8 @@ public partial class MainWindow
                     item.Tag as string == destination.Tag && (ReferenceEquals(item, focusedBefore)
                         || item.IsKeyboardFocusWithin))).Select(destination => destination.Button).FirstOrDefault()
                 : null;
-            // Media sits with Archive: both are ordinary reading pages outside Barebones.
-            bool[] direct = destinations.Select(destination => destination.Page is WorkspacePage.Archive or WorkspacePage.Media
-                ? _config.WorkspaceMode != "Barebones" : advanced).ToArray();
+            // Media sits with Archive: both are ordinary reading pages outside Barebones (WorkViewPolicy.Shell).
+            bool[] direct = destinations.Select(destination => WorkViewPolicy.FooterDirect(destination.Id, view)).ToArray();
 
             // Measure the localized labels instead of guessing a breakpoint. Hidden
             // destinations move into Tools exactly once, including in compact Advanced.
@@ -416,16 +422,24 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
+            // Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings):
+            // the separator behind a group is shown while that group has a visible button, so no two separators meet and
+            // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
+            Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
+            int[] groups = destinations.Select(destination => MainPageOrder.Group(destination.Id)).ToArray();
+            bool GroupHasDirect(int group, bool[] visible) => group == 0 || destinations.Where((_, index) => groups[index] == group && visible[index]).Any();
+            double separatorWidth = separators[0].Width + separators[0].Margin.Left + separators[0].Margin.Right;
             double width = ClientSize.Width > 0 ? ClientSize.Width : Width;
             Grid layout = (Grid)panel.Parent!;
             double available = width - footer.Padding.Left - footer.Padding.Right - modes.Width - layout.ColumnSpacing;
             double RequiredWidth()
             {
                 bool overflow = direct.Any(visible => !visible);
-                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0);
+                int visibleSeparators = Enumerable.Range(0, separators.Length).Count(group => GroupHasDirect(group, direct));
+                int count = 2 + direct.Count(visible => visible) + (overflow ? 1 : 0) + visibleSeparators;
                 return downloadsWidth + settingsWidth
                     + destinationWidths.Where((_, index) => direct[index]).Sum()
-                    + (overflow ? toolsWidth : 0) + Math.Max(0, count - 1) * panel.Spacing;
+                    + (overflow ? toolsWidth : 0) + visibleSeparators * separatorWidth + Math.Max(0, count - 1) * panel.Spacing;
             }
             // Preserve Archive longest, then Media; remove the rarer destinations first.
             foreach (string id in MainPageOrder.OverflowOrder)
@@ -460,6 +474,16 @@ public partial class MainWindow
                 if (tools.Flyout is MenuFlyout menu)
                     foreach (MenuItem item in menu.Items.OfType<MenuItem>())
                         if (item.Tag as string == destination.Tag) item.IsVisible = !direct[index];
+            }
+            for (int group = 0; group < separators.Length; group++) separators[group].IsVisible = GroupHasDirect(group, direct);
+            if (tools.Flyout is MenuFlyout flyout)
+            {
+                // The flyout lists only the pages that left the footer; its separators follow the same rule.
+                bool GroupInFlyout(int group) => destinations.Where((_, index) => groups[index] == group && !direct[index]).Any();
+                foreach (Separator separator in flyout.Items.OfType<Separator>())
+                    if (separator.Tag is string tag && tag.StartsWith("nav.group-separator.", StringComparison.Ordinal)
+                        && int.TryParse(tag["nav.group-separator.".Length..], out int boundary))
+                        separator.IsVisible = GroupInFlyout(boundary) && Enumerable.Range(boundary + 1, separators.Length - boundary - 1).Any(GroupInFlyout);
             }
             if (!hasOverflow) tools.Flyout?.Hide();
             if (returnDestination is { IsVisible: true } target)

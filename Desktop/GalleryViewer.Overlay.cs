@@ -90,22 +90,24 @@ internal sealed partial class GalleryViewer
     {
         var indicator = new Button
         {
-            Name = post ? "GalleryPostEdgeIndicator" : "GalleryControlsEdgeIndicator", Content = post ? "‹" : "⌃",
+            Name = post ? "GalleryPostEdgeIndicator" : "GalleryControlsEdgeIndicator",
             Width = 44, Height = 44, MinWidth = 44, MinHeight = 44,
             HorizontalAlignment = post ? HorizontalAlignment.Right : HorizontalAlignment.Center,
             VerticalAlignment = post ? VerticalAlignment.Center : VerticalAlignment.Bottom,
             HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center,
             Margin = new Thickness(4), Padding = new Thickness(0),
             Background = Brushes.Transparent, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(0),
-            FontSize = 24, Focusable = true, FocusAdorner = null, IsVisible = false, ZIndex = 15,
+            Focusable = true, FocusAdorner = null, IsVisible = false, ZIndex = 15,
             // Own the complete template: theme hover/pressed presenters must never
             // introduce a filled rectangle or white border around these hints.
-            Template = new FuncControlTemplate<Button>((button, _) => new TextBlock
+            // The chevron is a drawn icon (P6), not the font's "‹" / "⌃"; the 44 dip button around it stays the target.
+            Template = new FuncControlTemplate<Button>((button, _) =>
             {
-                Text = button.Content?.ToString(), FontSize = 24,
-                Foreground = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150)),
-                HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-                IsHitTestVisible = false, Opacity = 0
+                Avalonia.Controls.Shapes.Path chevron = MeowChan.Desktop.Controls.WorkspaceIcons.Create(
+                    post ? MeowChan.Desktop.Controls.WorkspaceIcons.ChevronLeft : MeowChan.Desktop.Controls.WorkspaceIcons.ChevronUp, inheritForeground: false);
+                chevron.Stroke = new SolidColorBrush(Color.FromArgb(100, 150, 150, 150));
+                chevron.Opacity = 0;
+                return chevron;
             })
         };
         SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
@@ -218,7 +220,7 @@ internal sealed partial class GalleryViewer
         foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
         {
             indicator.ApplyTemplate();
-            if (indicator.GetVisualChildren().OfType<TextBlock>().FirstOrDefault() is TextBlock chevron)
+            if (indicator.GetVisualChildren().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
                 chevron.Opacity = GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin) ? 1 : 0;
         }
     }

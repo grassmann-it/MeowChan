@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -51,6 +52,7 @@ public partial class MainWindow
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
         InitializeDownloadsHeader();
+        InitializeWorkViews();
         SetupInspectorLocalActions();
         WorkspaceVersion.Text = "v" + (typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
@@ -96,11 +98,10 @@ public partial class MainWindow
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
-        bool showGraph = Bounds.Width >= 1000, showSpeed = Bounds.Width >= 760;
-        if (TransferSpeedGraph.IsVisible != showGraph || TransferSpeed.IsVisible != showSpeed)
+        bool showSpeed = Bounds.Width >= 760;
+        ApplyHeaderGraphMode(); // below 1000 DIPs every graph goes and the labelled values stay; two blocks need 1280
+        if (TransferSpeed.IsVisible != showSpeed)
         {
-            TransferSpeedGraph.IsVisible = showGraph;
-            TransferDiskGraph.IsVisible = showGraph;
             TransferSpeed.IsVisible = showSpeed;
             UpdateSpeedSamplingState();
             _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
@@ -144,10 +145,10 @@ public partial class MainWindow
         try
         {
             string mode = _config.WorkspaceMode;
-            bool barebones = mode == "Barebones";
-            bool advanced = mode == "Advanced";
+            WorkView view = WorkViewSetting.Parse(mode);
+            bool barebones = WorkViewDensity.Compact(view);
             bool modeChanged = _appliedWorkspaceMode != mode;
-            Classes.Set("workspace-advanced", advanced);
+            ApplyWorkViewClasses(view);
             ComboBox modeChoice = WorkspaceModeComboBox;
             modeChoice.SelectedItem = modeChoice.Items.OfType<ComboBoxItem>()
                 .First(item => string.Equals(item.Tag as string, mode, StringComparison.Ordinal));
@@ -171,7 +172,7 @@ public partial class MainWindow
                     _workspaceInspectorVisible = false;
                     _workspaceNarrowInspectorVisible = false;
                 }
-                else if (_appliedWorkspaceMode == "Barebones")
+                else if (_appliedWorkspaceMode != null && WorkViewDensity.Compact(WorkViewSetting.Parse(_appliedWorkspaceMode)))
                 {
                     SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, _normalWorkspaceWidth),
                         Math.Max(WorkspaceMinimumSize.Height, _normalWorkspaceHeight));
@@ -180,16 +181,17 @@ public partial class MainWindow
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;
                 }
                 _appliedWorkspaceMode = mode;
+                _workViews.Set(view);
                 ApplyArchiveModePreferences();
             }
 
-            WorkspaceHeading.IsVisible = !barebones;
+            WorkspaceHeading.IsVisible = WorkViewGate.Visible(WorkspaceHeading, view);
             UpdatePageNavigation();
             WorkspaceVersion.IsVisible = true;
             WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
             Grid body = WorkspaceBody;
-            body.Margin = barebones ? new Thickness(12) : new Thickness(20);
-            body.RowSpacing = barebones ? 8 : 10;
+            body.Margin = new Thickness(WorkspacePageInset);
+            body.RowSpacing = 8;
 
             DataGrid threads = ThreadsDataGrid;
             _applyingColumnProfile = true;
@@ -197,18 +199,10 @@ public partial class MainWindow
             {
             foreach (DataGridColumn column in threads.Columns)
             {
-                // Simple keeps task truth visible; Advanced adds independently sortable technical columns.
-                bool defaultVisible = column.SortMemberPath switch
-                {
-                    nameof(ThreadRow.SourceBoard) => !barebones,
-                    nameof(ThreadRow.MissingMedia) or nameof(ThreadRow.EarliestRetry) => false,
-                    nameof(ThreadRow.ThreadNumber) or nameof(ThreadRow.Status)
-                        or nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
-                    _ => true
-                };
+                // Simple keeps task truth visible; Advanced adds independently sortable technical columns (WorkViewPolicy.Downloads).
                 string key = "ThreadsDataGrid." + column.SortMemberPath;
-                column.IsVisible = IsAdvancedWorkColumn(column) ? advanced && (_config.ColumnVisibility.TryGetValue(key, out bool workVisible) && workVisible)
-                    : _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : defaultVisible;
+                column.IsVisible = WorkViewPolicy.ColumnVisible(WorkViewPolicy.DownloadColumnId("ThreadsDataGrid", column.SortMemberPath), view,
+                    _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : null);
             }
             foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
             {
@@ -222,7 +216,7 @@ public partial class MainWindow
                         if (_config.ColumnWidths.TryGetValue(key, out double width) && double.IsFinite(width) && width >= 32)
                             column.Width = new DataGridLength(width);
                         else if (column.SortMemberPath == nameof(ThreadRow.Completion) && gridName == "ThreadsDataGrid")
-                            column.Width = new DataGridLength(advanced ? 140 : 300);
+                            column.Width = new DataGridLength(WorkViewDensity.DownloadCompletionWidth(view));
                         else if (_defaultColumnWidths.TryGetValue(key, out DataGridLength defaultWidth))
                             column.Width = defaultWidth;
                     }
@@ -295,6 +289,7 @@ public partial class MainWindow
         ToolTip.SetTip(WorkspaceModeComboBox, Texts.T("shell.mode"));
         SetupInspectorLocalActions();
         RefreshAdmissionResults();
+        RefreshArchiveBridgeHint();
         UpdateThemeIcon();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
@@ -403,6 +398,7 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
+        if (_workspaceInitialized) RefreshDownloadsToolbarEmptiness(!string.IsNullOrWhiteSpace(DownloadSearchText));
     }
 
     private bool _statusColumnVisible;
@@ -495,7 +491,6 @@ public partial class MainWindow
         workContext.IsVisible = !string.IsNullOrWhiteSpace(context);
         SelectableTextBlock errors = InspectorError;
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
-        errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));
         InspectorErrorSection.IsVisible = !string.IsNullOrWhiteSpace(error);
         // A retry is the one useful action when the work needs it: it gets the primary look and a named next step.
         bool needsRetry = selected is ThreadRow { NeedsIntervention: true } && !_isClosing;
@@ -517,6 +512,9 @@ public partial class MainWindow
             && _session.CanRequestCheck(target);
     }
 
+    // Same value as the Workspace.Inset.Page token (12): every work view has the same page margin.
+    private const double WorkspacePageInset = 12;
+
     private void UpdateWorkspaceLayout()
     {
         if (!_workspaceInitialized || _updatingWorkspaceLayout) return;
@@ -529,7 +527,8 @@ public partial class MainWindow
             bool narrow = Bounds.Width > 0 && Bounds.Width < 1120;
             bool shortWindow = Bounds.Height > 0 && Bounds.Height < 760;
             bool compactIntake = Bounds.Height > 0 && Bounds.Height < 840;
-            bool barebones = _config.WorkspaceMode == "Barebones";
+            WorkView view = ConfiguredWorkView;
+            bool barebones = WorkViewDensity.Compact(view);
             bool reducedChrome = barebones || shortWindow;
             bool retainedErrorLayout = shortWindow && ShellActionErrorBanner.IsVisible;
             Grid feedbackLayout = ShellFeedbackLayout;
@@ -545,22 +544,22 @@ public partial class MainWindow
             feedbackLayout.ColumnSpacing = feedbackBeside ? 8 : 0;
             shellError.MaxHeight = retainedErrorLayout ? 32 : 64;
             ShellActionErrorBanner.Padding = retainedErrorLayout ? new Thickness(8, 4) : new Thickness(12);
-            WorkspaceHeading.IsVisible = !reducedChrome;
-            UrlInputHint.IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
+            WorkspaceHeading.IsVisible = !shortWindow && WorkViewGate.Visible(WorkspaceHeading, view);
+            UrlInputHint.IsVisible = !shortWindow && WorkViewGate.Visible(UrlInputHint, view);
             UpdatePageNavigation();
             // All pages and the mode selector remain reachable in compact windows.
             WorkspaceNavigationButtons.IsVisible = true;
             // Keep the shared footer's height and padding from XAML in every view.
             Grid body = WorkspaceBody;
-            body.RowSpacing = retainedErrorLayout ? 4 : reducedChrome ? 8 : 10;
-            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : 12, 6)
-                : barebones ? new Thickness(12) : shortWindow ? new Thickness(16, 12) : new Thickness(20);
+            body.RowSpacing = retainedErrorLayout ? 4 : 8;
+            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : WorkspacePageInset, 6)
+                : new Thickness(WorkspacePageInset);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
             UrlInput.MaxHeight = retainedErrorLayout ? 36 : compactIntake ? 40 : 72;
             WorkspaceIntakeCard.Padding = retainedErrorLayout ? new Thickness(4)
-                : compactIntake ? new Thickness(8) : new Thickness(12, 10);
-            WorkspaceIntakeStack.Spacing = retainedErrorLayout ? 3 : 7;
+                : compactIntake ? new Thickness(8) : new Thickness(12);
+            WorkspaceIntakeStack.Spacing = retainedErrorLayout ? 4 : 8;
             // Reserve tabs, the column header and one complete data row. Extra-long
             // repair/report content scrolls in intake instead of reducing the table to zero.
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;

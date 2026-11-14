@@ -5,19 +5,19 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-/// <summary>The statistics page is the new last main page: Primary+8, no existing digit moved, wired in the shell's markup.</summary>
+/// <summary>The statistics page is the last main page: Primary+8, wired in the shell's markup. The seven pages before it follow the footer groups (Plugins 6, Diagnostics 7).</summary>
 [Collection("Localization")]
 public sealed class StatisticsNavigationTests : IDisposable
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] Earlier =
-        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources", "navigation.diagnostics", "navigation.plugins"];
+        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources", "navigation.plugins", "navigation.diagnostics"];
 
     public StatisticsNavigationTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     [Fact]
-    public void StatisticsIsTheLastMainPageAndTheEarlierSevenKeepTheirPlaces()
+    public void StatisticsIsTheLastMainPageAndTheEarlierSevenFollowTheFooterGroups()
     {
         Assert.Equal([.. Earlier, "navigation.statistics"], MainPageOrder.CommandIds);
         for (int index = 0; index < Earlier.Length; index++) Assert.Equal(index + 1, MainPageOrder.Digit(Earlier[index]));
@@ -29,7 +29,7 @@ public sealed class StatisticsNavigationTests : IDisposable
     }
 
     [Fact]
-    public void StatisticsLeavesTheFooterForTheToolsMenuBeforeAnyOtherPage()
+    public void StatisticsLeavesTheFooterForTheMoreMenuBeforeAnyOtherPage()
     {
         Assert.Equal("navigation.statistics", MainPageOrder.OverflowOrder[0]);
         Assert.Equal(MainPageOrder.CommandIds.Where(id => id != "navigation.downloads").Order(), MainPageOrder.OverflowOrder.Order());
@@ -86,8 +86,8 @@ public sealed class StatisticsNavigationTests : IDisposable
         XDocument markup = XDocument.Load(Source("Desktop/Shell/MainWindow.axaml"));
         string? Name(XElement e) => (string?)e.Attribute(X + "Name");
         XElement footer = Assert.Single(markup.Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
-        string[] buttons = footer.Elements().Select(Name).OfType<string>().ToArray();
-        Assert.Equal("PluginsNavigationButton", buttons[^4]);
+        string[] buttons = footer.Elements().Select(Name).OfType<string>().Where(name => name.EndsWith("NavigationButton", StringComparison.Ordinal)).ToArray();
+        Assert.Equal("DiagnosticsNavigationButton", buttons[^4]);
         Assert.Equal("StatisticsNavigationButton", buttons[^3]);
         Assert.Equal(["ToolsNavigationButton", "SettingsNavigationButton"], buttons[^2..]);
         Assert.Contains(markup.Descendants(), e => Name(e) == "StatisticsPageHost");
@@ -109,11 +109,11 @@ public sealed class StatisticsNavigationTests : IDisposable
         Assert.Contains("TransferSpeedLabel", inner);
         Assert.Contains("TransferDiskLabel", inner);
         Assert.Contains("TransferDiskGraph", inner);
-        Assert.Contains("TransferDiskRow", inner);
-        // Each header row draws one series only: the network download and the disk writing, never the disk reading.
+        Assert.Contains("TransferLayoutGrid", inner);
+        // Exactly two header graph surfaces: network (download + upload) and disk (write + read), never a combined sum.
         XElement[] graphs = speed.Descendants().Where(e => e.Name.LocalName == "IoGraph").ToArray();
-        Assert.Equal(["DiskWrite", "NetDown"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
-        Assert.DoesNotContain("DiskRead", speed.ToString());
+        Assert.Equal(["DiskIo", "NetworkIo"], graphs.Select(e => (string?)e.Attribute("Source")).OrderBy(x => x).ToArray());
+        Assert.Equal(2, graphs.Length);
     }
 
     [Fact]

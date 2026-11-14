@@ -12,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -181,7 +182,7 @@ public partial class MainWindow
     {
         if (source is not Control control || !control.Focusable) return;
         // Focus inside the banner or a toast is the feedback surface itself, not a place to return to.
-        if (control.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.Banner or FeedbackToastContent or NotificationCard)) return;
+        if (control.GetSelfAndVisualAncestors().Any(v => v is MeowChan.Desktop.Controls.WorkspaceBanner or FeedbackToastContent or NotificationCard)) return;
         _feedbackReturnTarget = new WeakReference<Control>(control);
     }
 
@@ -281,12 +282,12 @@ internal sealed class FeedbackToastContent : Grid
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         DismissButton = new Button
         {
-            Name = "FeedbackToastDismissButton", Content = "×", FontSize = 20,
-            MinWidth = 32, MinHeight = 32, Padding = new Avalonia.Thickness(8, 2),
+            Name = "FeedbackToastDismissButton", Content = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close),
             Margin = new Avalonia.Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
             Command = new DelegateCommand(() => dismiss(this))
         };
         DismissButton.Classes.Add("subtle");
+        DismissButton.Classes.Add(MeowChan.Desktop.Controls.WorkspaceIcons.SquareClass);
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);
         Children.Add(DismissButton);

@@ -210,6 +210,7 @@ public partial class MainWindow
         BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
         BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
         BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
+        RefreshDownloadsToolbarEmptiness(active);
         TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));

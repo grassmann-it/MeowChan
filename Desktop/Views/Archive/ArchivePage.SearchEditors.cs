@@ -92,6 +92,7 @@ public partial class ArchivePage
     {
         ArchiveSearchError.Text = message;
         ArchiveSearchError.IsVisible = message.Length > 0;
+        SyncSearchPanelGaps();
     }
     private static Control ValidationFocusTarget(Control editor) => editor is ArchiveDateEditor
         ? editor.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(text => !text.IsReadOnly) ?? editor

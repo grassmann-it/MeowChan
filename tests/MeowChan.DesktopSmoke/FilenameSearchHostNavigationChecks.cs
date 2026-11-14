@@ -72,7 +72,9 @@ internal static class FilenameSearchHostNavigationChecks
                 && beforeRows.SequenceEqual(new[] { TargetPost }) && beforeSelected == TargetPost,
                 "Origin must select final-page collision post, distinct from firstpost fallback.");
             int beforeOpen = Volatile.Read(ref factories);
-            Click(page, "ReaderFilenameSearchOpen"); // actual product entry handler, not injected Show/Navigate
+            // Actual product entry (AP2): reader find bar, File name scope, Search; not injected Show/Navigate.
+            Button entry = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.FileName);
+            Click(page, entry.Name!);
             await UntilAsync(() => page.FilenameSearchWindow is { IsVisible: true });
             FilenameSearchDialog dialog = page.FilenameSearchWindow!;
             Require(ReferenceEquals(dialog.Owner, window), "Search dialog has wrong real owner.");

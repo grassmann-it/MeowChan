@@ -145,7 +145,7 @@ internal static class ShellProjectionReconciliationChecks
             Call(shell, "OnSessionChanged");
             await PostedAsync(DispatcherPriority.Background);
             Require(ReferenceEquals(Get<DesktopSessionProjection>(shell, "_applyingSessionProjection"), active)
-                && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+                && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
                 && shell.FindControl<TextBlock>("ShellActionError")!.Text == warning,
                 "A same-size warning/pause capture waited for the held row/search transaction.");
 
@@ -160,7 +160,7 @@ internal static class ShellProjectionReconciliationChecks
             Require(ReferenceEquals(Get<DesktopSessionProjection>(shell, "_pendingSessionProjection"), latest)
                 && ReferenceEquals(Get<DesktopSessionProjection>(shell, "_applyingSessionProjection"), active),
                 "The newest pending capture replaced/mixed the active source transaction.");
-            Require(shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+            Require(shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
                 && shell.FindControl<TextBlock>("ShellActionError")!.Text == warning,
                 "A warning waited for the held row/search transaction before becoming visible.");
             Require(pauseButton.IsEnabled && AutomationProperties.GetName(pauseButton) == Texts.T("action.resume")

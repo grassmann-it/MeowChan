@@ -40,6 +40,7 @@ public partial class ArchivePage
     {
         ReaderFollowLive.Content = CommandCatalog.Label("watch.follow-live");
         ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
+        ToolTip.SetTip(ReaderShowNewPosts, CommandBindings.Tooltip("reader.show-new-posts"));
         LocalizeReaderUnread();
         LocalizeReaderLink();
         UpdateReaderUpdateControls();
@@ -84,6 +85,7 @@ public partial class ArchivePage
         if (!MayFollow(summary)) { _followReader = false; follow.IsChecked = false; }
         // The tip names the one cause that is missing right now, and is shown on the disabled box too.
         string tip = Texts.T("reader.liveHint");
+        if (CommandCatalog.ShortcutDisplay("watch.follow-live") is { } followShortcut) tip += " · " + followShortcut;
         bool watched = summary != null && CanFollowLive?.Invoke(summary.Id) == true;
         if (FollowLiveReason(summary, watched) is { } reason) tip += Environment.NewLine + reason;
         ToolTip.SetTip(follow, tip);
@@ -183,6 +185,16 @@ public partial class ArchivePage
     }
 
     private async void OnShowReaderUpdates(object? sender, RoutedEventArgs e) => await ShowReaderUpdatesAsync();
+
+    // The two shortcuts act on the same controls as the live bar: when the box or the button is not usable, nothing happens.
+    internal bool CanToggleFollowLiveByShortcut => !_ended && !IsReaderDialogOpen && ReaderFollowLive.IsEffectivelyVisible
+        && ReaderFollowLive.IsEnabled;
+    internal void ToggleFollowLiveByShortcut()
+    {
+        if (CanToggleFollowLiveByShortcut) ReaderFollowLive.IsChecked = ReaderFollowLive.IsChecked != true;
+    }
+    internal bool CanShowNewPostsByShortcut => !_ended && !IsReaderDialogOpen && ReaderShowNewPosts.IsEffectivelyVisible
+        && ReaderShowNewPosts.IsEnabled;
 
     internal async Task ShowReaderUpdatesAsync(bool deliberate = true)
     {

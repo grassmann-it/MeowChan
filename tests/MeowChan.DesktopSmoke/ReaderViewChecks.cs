@@ -123,8 +123,13 @@ internal static class ReaderViewChecks
         Button open = page.FindControl<Button>("ReaderViewOpen")!;
         Require(open.Content as string == Texts.T("reader.view.menu"), "The View button has no label.");
         ContextMenu menu = page.BuildReaderViewMenu();
-        Require(menu.Items.OfType<MenuItem>().All(item => item.ToggleType == MenuItemToggleType.CheckBox && item.IsChecked != true),
+        MenuItem[] viewItems = menu.Items.OfType<MenuItem>().ToArray();
+        Require(viewItems.Where(item => item.ToggleType == MenuItemToggleType.CheckBox).All(item => item.IsChecked != true)
+            && viewItems.Count(item => item.ToggleType == MenuItemToggleType.CheckBox) == page.ReaderViewOptionIds.Count,
             "View options are not unchecked check items by default.");
+        // AP11: the last entry is the plain (non-toggle) way to this thread's rules, after a separator.
+        Require(viewItems.Last().ToggleType == MenuItemToggleType.None && viewItems.Last().Header as string == Texts.T("rules.thisThread")
+            && menu.Items.OfType<Separator>().Any(), "The View menu has no rules entry after its options.");
 
         // Hide media: the slot gives way to one line and no attachment view is shown.
         await ToggleAsync(fixture, "reader.view.hide-media");

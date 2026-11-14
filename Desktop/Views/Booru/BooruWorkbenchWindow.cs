@@ -800,7 +800,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     /// </summary>
     private static Control CreateDetails(BooruPostView post)
     {
-        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 10, RowSpacing = 1 };
+        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, RowSpacing = 1 };
         void Add(string termKey, string value)
         {
             int row = list.RowDefinitions.Count;
@@ -987,7 +987,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         // The query line names the card; the border itself carries no name, so the query is read once.
         Border card = new() { Name = "BooruWatcher:" + watcher.WatcherId };
         card.Classes.Add("workspace-card");
-        StackPanel panel = new() { Spacing = 6 };
+        StackPanel panel = new() { Spacing = 8 };
 
         Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         head.Children.Add(new SelectableTextBlock

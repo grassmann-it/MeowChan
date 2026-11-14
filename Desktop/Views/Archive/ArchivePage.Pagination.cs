@@ -129,7 +129,7 @@ public partial class ArchivePage
                     navigation.GetVisualDescendants().OfType<PaginationButton>().FirstOrDefault(button =>
                         button.Page == _listOffset / PageSize + 1 && !button.Classes.Contains(PaginationButton.PC_Left)
                         && !button.Classes.Contains(PaginationButton.PC_Right))?.Focus();
-                else ArchiveSearchText.Focus();
+                else ArchiveScopedBox.Focus();
             }, DispatcherPriority.Loaded);
             return success;
         }
@@ -140,6 +140,7 @@ public partial class ArchivePage
         ArchiveAppliedFilters.IsEnabled = ready;
         Button retry = ArchiveRetrySearch;
         retry.IsVisible = _retryList != null; retry.IsEnabled = ready && _retryList != null;
+        SyncSearchPanelGaps();
         Pagination pagination = ArchiveResultsPagination;
         _updatingPagination = true;
         try

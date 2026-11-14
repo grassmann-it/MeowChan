@@ -105,7 +105,7 @@ internal static class ArchiveExportChecks
                 Button openResult = fixture.FindControl<Button>("ArchiveExportOpen")!;
                 TextBlock resultStatus = fixture.FindControl<TextBlock>("ArchiveExportStatus")!;
                 TextBlock resultError = fixture.FindControl<TextBlock>("ArchiveExportError")!;
-                Ursa.Controls.Banner errorBanner = fixture.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner")!;
+                MeowChan.Desktop.Controls.WorkspaceBanner errorBanner = fixture.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner")!;
                 string? publishedStatus = resultStatus.Text;
                 string expectedPublishedStatus = Texts.T("archive.exportDone", result.PostCount, result.FileCount,
                     result.Omissions.Count, result.Warnings.Count) + "\n" + result.Directory;

@@ -83,7 +83,7 @@ internal static class PluginSettingsErrorMatrixChecks
                         throw;
                     }
                     TextBlock? ErrorLabel() => editor().GetVisualDescendants().OfType<TextBlock>()
-                        .FirstOrDefault(label => label.Classes.Contains("error") && label.Text == expectedError);
+                        .FirstOrDefault(label => label.Classes.Contains("workspace-error") && label.Text == expectedError);
                     void Capture(string result)
                     {
                         string name = stem + (result == "pass" ? "" : "-failure");

@@ -23,6 +23,7 @@ using MeowChan.Gallery;
 using MeowChan.Storage;
 using SkiaSharp;
 using MeowChan.Diagnostics;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -118,7 +119,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay();
+        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -654,7 +655,7 @@ public partial class ArchivePage : UserControl
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
         bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen; // list/search/paging/reading only
-        SearchArchiveButton.IsEnabled = readReady;
+        SearchArchiveButton.IsEnabled = ArchiveScope == MeowChan.Desktop.Controls.SearchScope.Text ? readReady : CanRunArchiveScope;
         UpdateSearchActions(readReady);
         RefreshArchiveSearchContext();
         ArchiveResetFilters.IsEnabled = readReady;
@@ -999,7 +1000,7 @@ public partial class ArchivePage : UserControl
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
         split.ColumnDefinitions[0].Width = new GridLength(beside
-            ? (_archiveLayout == "Table" ? Math.Max(_archiveColumnMode == "Advanced" ? 900 : 650, _archiveSplitWidth) : _archiveSplitWidth) : 0);
+            ? (_archiveLayout == "Table" ? Math.Max(WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView), _archiveSplitWidth) : _archiveSplitWidth) : 0);
         split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
         split.ColumnSpacing = beside ? 6 : 0;
         // The shared footer row aligns both pane edges only side by side. Stacked,
@@ -1059,6 +1060,19 @@ public partial class ArchivePage : UserControl
         }
         if (anchor != null) await RestoreReaderAnchorAsync(anchor, focusIntent: focusIntent);
     }
+    // The Reader toolbar rule (P6): every labelled action carries an icon before its text, none is text alone. The ones that set their
+    // text in code (tags, find, view, the two conditional returns) keep a string as content; the icon comes from
+    // their content template, so what sets or reads the label is unchanged. Close, gallery, read, full screen, history and export
+    // get theirs from CommandBindings in Localize.
+    private void InitializeReaderToolbarIcons()
+    {
+        CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderViewOpen, "eye");
+        CommandBindings.ShowIconBeforeText(ReaderUnreadReturn, CommandCatalog.Get("reader.history-back").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderSkipUnavailableGroupMember, CommandCatalog.Get("reader.skip-unavailable-group-member").Icon);
+    }
+
     private void Localize()
     {
         foreach (Control control in this.GetLogicalDescendants().Concat(ArchiveReaderPane.GetLogicalDescendants()).OfType<Control>().Distinct())
@@ -1069,6 +1083,7 @@ public partial class ArchivePage : UserControl
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeThreadFind();
+        LocalizeUnifiedSearch();
         LocalizeReaderView();
         LocalizePrivateTags();
         LocalizeExport();
@@ -1090,7 +1105,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(NextReferences, "pagination.next", iconOnly: true);
         CommandBindings.Apply(ArchiveHistoryBack, "reader.history-back", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReaderFullscreen, "window.fullscreen", iconWithLabel: true);
-        CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
+        ApplyReaderCloseLabel();
         CommandBindings.Apply(ArchiveOpenGallery, "gallery.open", iconWithLabel: true);
         CommandBindings.Apply(ArchiveReadPosts, "reader.expand", iconWithLabel: true);
         CommandBindings.Apply(ArchiveGalleryReturn, "gallery.return", iconWithLabel: true);
@@ -1102,7 +1117,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ReaderNextThread, "reader.next-thread", iconOnly: true);
         CommandBindings.Apply(ArchiveResultsGallery, "gallery.open-results", iconWithLabel: true);
         CommandBindings.Apply(ArchiveFavoritesOverview, "favorites.open", iconWithLabel: true);
-        ArchiveReferencesTab.Header = Texts.T("archive.references");
+        ArchiveReferencesTab.Header = ReferencesTabHeader();
         ArchivePostsTab.Header = Texts.T("archive.posts");
         ArchiveMediaTab.Header = Texts.T("archive.media");
         ArchiveMediaMode.Content = Texts.T(_mediaTiles ? "gallery.list" : "gallery.tiles");

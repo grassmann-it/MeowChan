@@ -363,6 +363,9 @@ internal static class ReaderNavigationOverlayChecks
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        // The References tab exists only while captured replies are listed; with none it is not there to be chosen.
+        Require(!page.FindControl<TabItem>("ArchiveReferencesTab")!.IsVisible || page.FindControl<ListBox>("ArchiveReferences")!.ItemCount > 0,
+            "The References tab is shown without any reference.");
         Control reservedContent = tabs.SelectedIndex == 1
             ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
         Rect pad = Bounds(navigation, window), content = Bounds(reservedContent, window);
@@ -462,7 +465,7 @@ internal static class ReaderNavigationOverlayChecks
     private static bool ClippedSizeAtLeast(double actual, double minimum) => actual >= minimum - GeometryEpsilonDip;
 
     // Overflow candidates by usefulness: the trailing ones move into More first.
-    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ReaderViewOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ReaderFilenameSearchOpen", "ReaderHashSearchOpen", "ExportArchiveButton"];
+    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ReaderViewOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ExportArchiveButton"]; // AP2: File name and SHA-256 are scopes of the find bar
 
     private static void CheckToolbarGeometry(MainWindow window, ArchivePage page, ActionToolBar toolbar)
     {

@@ -154,7 +154,7 @@ internal sealed class PluginSettingsEditor : StackPanel
             _definitions.Add(field.Key, field);
             content.Children.Add(editor);
             // Keep correction and its error adjacent even when the schema help exceeds the viewport.
-            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error", "workspace-error" } };
+            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-error" } };
             AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
             _errors.Add(field.Key, error); content.Children.Add(error);
             if (!string.IsNullOrEmpty(field.Help))

@@ -84,6 +84,7 @@ internal static partial class SmokeScenarios
         ["reader-find"] = new(SmokeStage.Ready, mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)),
         ["filename-search"] = new(SmokeStage.Ready, mainWindow => FilenameSearchChecks.RunAsync(mainWindow)),
         ["media-hash-search"] = new(SmokeStage.Ready, mainWindow => MediaHashSearchChecks.RunAsync(mainWindow)),
+        ["unified-search"] = new(SmokeStage.Ready, mainWindow => UnifiedSearchChecks.RunAsync(mainWindow)),
         ["filename-search-host"] = new(SmokeStage.Ready, async mainWindow =>
         {
             await FilenameSearchHostNavigationChecks.RunAsync(mainWindow);
@@ -94,6 +95,7 @@ internal static partial class SmokeScenarios
         ["gallery-volume-routed"] = new(SmokeStage.Ready, mainWindow => GalleryVolumeNativeEditingChecks.RunAsync(mainWindow)),
         ["first-run-reopen"] = new(SmokeStage.Ready, mainWindow => FirstRunSettingsReopenChecks.RunAsync(mainWindow)),
         ["dialog-frame"] = new(SmokeStage.Ready, mainWindow => DialogFrameChecks.RunAsync(mainWindow)),
+        ["dialog-gallery"] = new(SmokeStage.Ready, mainWindow => DialogGalleryChecks.RunAsync(mainWindow)),
         ["html-export-action-layout"] = new(SmokeStage.Ready, mainWindow => HtmlExportActionLayoutChecks.RunAsync(mainWindow)),
         ["shortcut-issue-language"] = new(SmokeStage.Ready, mainWindow => ShortcutIssueLanguageRefreshChecks.RunAsync(mainWindow)),
         ["export-status-language"] = new(SmokeStage.Ready, mainWindow => ArchiveExportStatusLanguageRefreshChecks.RunAsync(mainWindow)),
@@ -194,7 +196,9 @@ internal static partial class SmokeScenarios
         },
         ["picker-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPickerLifetimeChecks.RunAsync(mainWindow)),
         ["settings-category"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsCategoryChecks.RunAsync(mainWindow)),
+        ["settings-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsSearchChecks.RunAsync(mainWindow)),
         ["settings-statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsSettingsChecks.RunAsync(mainWindow)),
+        ["rules-settings-captures"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesSettingsCaptureChecks.RunAsync(mainWindow)),
         ["settings-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPageChecks.RunLateSaveFailureAsync(mainWindow)),
         ["path-input"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPathInputChecks.RunAsync(mainWindow)),
         ["numeric-focus"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
@@ -239,6 +243,7 @@ internal static partial class SmokeScenarios
         ["post-bookmark-comparison"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkComparisonChecks.RunAsync(mainWindow)),
         ["post-bookmarks"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkChecks.RunAsync(mainWindow)),
         ["command-contrast"] = new(SmokeStage.AfterCommandRefresh, mainWindow => CommandButtonContrastChecks.RunAsync(mainWindow)),
+        ["hover-contrast"] = new(SmokeStage.AfterCommandRefresh, mainWindow => HoverContrastChecks.RunAsync(mainWindow)),
         ["action-dynamic"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ActionToolBarDynamicChecks.RunAsync(mainWindow)),
         ["action-overflow"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ActionToolBarPresentationChecks.RunAsync(mainWindow)),
         ["download-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DownloadSearchChecks.RunAsync(mainWindow)),
@@ -284,7 +289,13 @@ internal static partial class SmokeScenarios
             await PowerUserCommandChecks.RunAsync(mainWindow);
             await ShortcutRebindingChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
-        })
+        }),
+        // Offline showcase archive (no providers); downloads rows are passive synthetic snapshots.
+        ["work-views"] = new(SmokeStage.AfterCommandRefresh, mainWindow => WorkViewCaptures.RunAsync(mainWindow))
+        {
+            App = AppBuilder.Configure<ShowcaseSmokeApp>,
+            Seed = ShowcaseData.SeedAsync
+        }
     };
 
     // Null when every Root/Branch entry has exactly one run and nothing else has one.

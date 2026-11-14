@@ -138,7 +138,7 @@ internal static class ShellPreferenceCoalescingChecks
             Set(shell, "_windowPreferencesReady", false); StopTimers(shell);
             await Task.WhenAll(failedWindow, failedGallery, failedReading).WaitAsync(Deadline);
             Require(host.PreferenceWriteCounts.Failed == 2
-                && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+                && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
                 && Get<SessionFeedbackStore>(shell, "_feedback").Entries.Any(entry => entry.Operation == "preferences.reading-position")
                 && Get<SessionFeedbackStore>(shell, "_feedback").Entries.Any(entry => entry.Operation is "preferences.window" or "preferences.gallery"),
                 "Automatic IO faults disappeared or their unsaved drafts were dropped.");

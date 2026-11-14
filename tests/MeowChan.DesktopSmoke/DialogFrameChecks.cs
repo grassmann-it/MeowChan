@@ -15,7 +15,7 @@ internal static partial class DialogFrameChecks
 {
     private static readonly List<object> Evidence = new();
 
-    private static readonly (string Name, Func<MainWindow, Task> Run)[] Groups =
+    internal static readonly (string Name, Func<MainWindow, Task> Run)[] Groups =
     [
         ("archive", RunArchiveAsync),
         ("transfer", RunTransferAsync),
@@ -40,6 +40,10 @@ internal static partial class DialogFrameChecks
         string selected = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_GROUP") ?? "all";
         string[] names = selected.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         Require(names.All(name => name == "all" || Groups.Any(group => group.Name == name)), "Unknown dialog frame group: " + selected);
+        // Optional evidence theme (Light or Dark) for before/after captures; unset keeps the profile theme.
+        string? theme = Environment.GetEnvironmentVariable("MEOWCHAN_DIALOG_FRAME_THEME");
+        if (theme is "Light" or "Dark")
+            Application.Current!.RequestedThemeVariant = theme == "Light" ? Avalonia.Styling.ThemeVariant.Light : Avalonia.Styling.ThemeVariant.Dark;
         foreach ((string name, Func<MainWindow, Task> run) in Groups)
         {
             if (!names.Contains("all") && !names.Contains(name)) continue;
@@ -70,6 +74,18 @@ internal static partial class DialogFrameChecks
     /// for in-page overlays, the card that hosts the frame.
     /// </summary>
     internal static async Task VerifyFrameAsync(Control root, string label, string? capture = null)
+    {
+        if (!DialogGallery.Active) { await VerifyFrameCoreAsync(root, label, capture); return; }
+        // Gallery runs record the surface even when its frame contract is violated, list the violation as a finding and go on.
+        try { await VerifyFrameCoreAsync(root, label, capture); }
+        catch (InvalidOperationException violation)
+        {
+            DialogGallery.RecordFrame(root, label, "LAYOUT FINDING: " + violation.Message);
+            DialogGallery.Finding(label, violation.Message);
+        }
+    }
+
+    private static async Task VerifyFrameCoreAsync(Control root, string label, string? capture)
     {
         await Settle();
         Control header = Part<Control>(root, DialogFrame.HeaderName, label);
@@ -107,6 +123,7 @@ internal static partial class DialogFrameChecks
             errorStrip = strip is { IsEffectivelyVisible: true } ? BoundsIn(strip, root).ToString() : null,
             root = root.Bounds.ToString(), scale = TopLevel.GetTopLevel(root)?.RenderScaling
         });
+        if (DialogGallery.Active) DialogGallery.RecordFrame(root, label);
         Console.WriteLine("SMOKE dialog frame PASS: " + label + (scrollable ? " (scrolled)" : ""));
     }
 

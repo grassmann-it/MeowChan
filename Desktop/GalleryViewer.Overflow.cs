@@ -33,13 +33,13 @@ internal sealed partial class GalleryViewer
     internal const double MinimumPictureWidth = 300;
 
     // A menu entry: the row content and the parts that change with language, shortcut and state.
-    private sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, TextBlock? check, bool keepOpen)
+    private sealed class OverflowItem(string id, Grid root, TextBlock label, TextBlock gesture, Control? check, bool keepOpen)
     {
         internal string Id { get; } = id;
         internal Grid Root { get; } = root;
         internal TextBlock Label { get; } = label;
         internal TextBlock Gesture { get; } = gesture;
-        internal TextBlock? Check { get; } = check;
+        internal Control? Check { get; } = check;
         internal bool KeepOpen { get; } = keepOpen;
         internal Func<string>? LabelSource { get; init; }
     }
@@ -134,11 +134,12 @@ internal sealed partial class GalleryViewer
         Panel? host = null) where T : Button
     {
         Control lead;
-        TextBlock? mark = null;
+        Control? mark = null;
         if (check)
         {
-            mark = new TextBlock { Text = "✓", HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center, Opacity = 0, IsHitTestVisible = false };
+            // A drawn check (P6: not the font's tick), shown while the toggle is on; it follows the row's foreground.
+            mark = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Check);
+            mark.Opacity = 0;
             lead = mark;
         }
         else
