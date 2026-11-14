@@ -19,7 +19,6 @@ from pathlib import Path
 import re
 import shutil
 import stat
-import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
@@ -50,7 +49,6 @@ DEFAULT_TIMEOUT_SECONDS = 1800
 MAX_TIMEOUT_SECONDS = 1800
 DEFAULT_LOCK_WAIT_SECONDS = 120
 MAX_LOCK_WAIT_SECONDS = 1800
-DEFAULT_HEAVY_LOCK = Path(os.environ.get("OCHAN_HEAVY_LOCK", "/tmp/meowchan-heavy.lock"))
 SCOPE = "synthetic plugin reauthorization process E2E; not DesktopSessionHost/AP04/upgrade/release"
 FORBIDDEN_PARTS = {".ochan", "authstore"}
 FORBIDDEN_DB_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
@@ -133,11 +131,17 @@ def sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def sha256_file(path: Path) -> str:
+def sha256_file(path: Path, deadline: Deadline) -> str:
     digest = hashlib.sha256()
+    deadline.remaining()
     with path.open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
+        while True:
+            deadline.remaining()
+            block = handle.read(1024 * 1024)
+            if not block:
+                break
             digest.update(block)
+    deadline.remaining()
     return digest.hexdigest()
 
 
@@ -186,14 +190,17 @@ def _directory(path: Path, label: str) -> None:
         raise ProbeError(f"{label} must be a real directory: {path}")
 
 
-def _walk_tree(root: Path, label: str):
+def _walk_tree(root: Path, label: str, deadline: Deadline):
+    deadline.remaining()
     root = _normalise_absolute(root, label)
     _directory(root, label)
     pending = [root]
     while pending:
+        deadline.remaining()
         directory = pending.pop()
         with os.scandir(directory) as entries:
-            for entry in sorted(entries, key=lambda item: item.name):
+            for entry in entries:
+                deadline.remaining()
                 path = Path(entry.path)
                 if _forbidden_path(path):
                     raise ProbeError(f"{label} contains a forbidden profile/database path: {path}")
@@ -208,15 +215,21 @@ def _walk_tree(root: Path, label: str):
                     raise ProbeError(f"{label} contains a special file: {path}")
 
 
-def inventory_tree(root: Path, label: str) -> dict:
+def inventory_tree(root: Path, label: str, deadline: Deadline) -> dict:
     root = _normalise_absolute(root, label)
     files = []
-    for path in _walk_tree(root, label):
+    for path in _walk_tree(root, label, deadline):
         relative = path.relative_to(root).as_posix()
-        files.append({"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path)})
+        files.append({"path": relative, "bytes": path.stat().st_size, "sha256": sha256_file(path, deadline)})
+    deadline.remaining()
     files.sort(key=lambda item: item["path"])
-    tree = "\n".join(f"{item['sha256']}  {item['path']}" for item in files).encode("utf-8")
-    return {"root": str(root), "files": files, "fileCount": len(files), "treeSha256": sha256_bytes(tree)}
+    digest = hashlib.sha256()
+    for index, item in enumerate(files):
+        deadline.remaining()
+        digest.update(("\n" if index else "").encode("utf-8"))
+        digest.update(f"{item['sha256']}  {item['path']}".encode("utf-8"))
+    deadline.remaining()
+    return {"root": str(root), "files": files, "fileCount": len(files), "treeSha256": digest.hexdigest()}
 
 
 def _required_file(path: Path, label: str) -> Path:
@@ -253,43 +266,53 @@ def _ensure_feed(path: Path, evidence: Path) -> Path:
     return feed
 
 
-def _run_git(arguments: list[str]) -> str:
+def _run_git(arguments: list[str], deadline: Deadline, log: Path) -> str:
     if not isinstance(arguments, list) or any(not isinstance(item, str) for item in arguments):
         raise TypeError("git arguments must be a list of strings")
-    result = subprocess.run(
-        ["git", *arguments], cwd=ROOT, check=False, shell=False,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-    )
-    if result.returncode:
-        raise ProbeError(f"Git metadata command failed: git {' '.join(arguments)}")
-    return result.stdout.strip()
+    return run_command(["git", *arguments], ROOT, dict(os.environ), log, deadline,
+                       "Git source metadata").strip()
 
 
-def verify_source_pin(source_commit: str) -> dict:
+def verify_source_pin(source_commit: str, deadline: Deadline, log_dir: Path) -> dict:
+    deadline.remaining()
     if not SOURCE_SHA_RE.fullmatch(source_commit):
         raise ProbeError("--source-commit must be a full lowercase 40-character SHA.")
-    top = Path(_run_git(["rev-parse", "--show-toplevel"])).resolve()
+    top = Path(_run_git(["rev-parse", "--show-toplevel"], deadline, log_dir / "root.log")).resolve()
     if top != ROOT.resolve():
         raise ProbeError(f"Git source root does not match this runner checkout: {top}")
-    head = _run_git(["rev-parse", "HEAD"])
+    head = _run_git(["rev-parse", "HEAD"], deadline, log_dir / "head.log")
     if head != source_commit:
         raise ProbeError(f"Source HEAD {head} is not the requested --source-commit {source_commit}.")
-    status = _run_git(["status", "--porcelain=v1", "--untracked-files=all"])
+    status = _run_git(["status", "--porcelain=v1", "--untracked-files=all"], deadline, log_dir / "status.log")
     if status:
         raise ProbeError("Source checkout is dirty; refusing an unpinned reauthorization gate.")
     return {"commit": source_commit, "headExact": True, "clean": True}
 
 
-def _copy_file(source: Path, destination: Path, label: str) -> None:
+def _copy_file(source: Path, destination: Path, label: str, deadline: Deadline) -> None:
+    deadline.remaining()
     _check_components(source, label)
     _regular(source, label)
     if destination.exists() or os.path.lexists(destination):
         raise ProbeError(f"Refusing to overwrite copied source path: {destination}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
+    # copy2's single fast-copy syscall can monopolise the entire budget on a
+    # large local input. Keep the same metadata, but check between 1 MiB chunks.
+    with source.open("rb") as reader, destination.open("xb") as writer:
+        while True:
+            deadline.remaining()
+            block = reader.read(1024 * 1024)
+            if not block:
+                break
+            deadline.remaining()
+            writer.write(block)
+    deadline.remaining()
+    shutil.copystat(source, destination)
+    deadline.remaining()
 
 
-def _copy_tree(source: Path, destination: Path, label: str) -> None:
+def _copy_tree(source: Path, destination: Path, label: str, deadline: Deadline) -> None:
+    deadline.remaining()
     source = _normalise_absolute(source, label)
     _directory(source, label)
     if destination.exists() or os.path.lexists(destination):
@@ -297,9 +320,11 @@ def _copy_tree(source: Path, destination: Path, label: str) -> None:
     destination.mkdir(parents=True)
     pending = [(source, destination)]
     while pending:
+        deadline.remaining()
         current_source, current_destination = pending.pop()
         with os.scandir(current_source) as entries:
-            for entry in sorted(entries, key=lambda item: item.name):
+            for entry in entries:
+                deadline.remaining()
                 if entry.name in {"bin", "obj"}:
                     continue
                 source_path = Path(entry.path)
@@ -311,20 +336,21 @@ def _copy_tree(source: Path, destination: Path, label: str) -> None:
                     destination_path.mkdir()
                     pending.append((source_path, destination_path))
                 elif stat.S_ISREG(info.st_mode):
-                    shutil.copy2(source_path, destination_path)
+                    _copy_file(source_path, destination_path, label, deadline)
                 else:
                     raise ProbeError(f"{label} contains a special file: {source_path}")
 
 
-def copy_source_stage(destination: Path) -> Path:
+def copy_source_stage(destination: Path, deadline: Deadline) -> Path:
+    deadline.remaining()
     destination = _normalise_absolute(destination, "source build stage")
     if destination.exists() or os.path.lexists(destination):
         raise ProbeError(f"Source build stage must be new: {destination}")
     destination.mkdir(parents=True)
     for relative in SOURCE_FILES:
-        _copy_file(ROOT / relative, destination / relative, f"source file {relative}")
+        _copy_file(ROOT / relative, destination / relative, f"source file {relative}", deadline)
     for relative in SOURCE_DIRECTORIES:
-        _copy_tree(ROOT / relative, destination / relative, f"source directory {relative}")
+        _copy_tree(ROOT / relative, destination / relative, f"source directory {relative}", deadline)
     return destination
 
 
@@ -424,7 +450,9 @@ def _bwrap_host() -> str:
 def run_command(arguments: list[str], cwd: Path, environment: dict[str, str], log: Path,
                 deadline: Deadline, label: str) -> str:
     try:
-        return run_bounded_command(arguments, cwd, environment, log, deadline.remaining(), label)
+        output = run_bounded_command(arguments, cwd, environment, log, deadline.remaining(), label)
+        deadline.remaining()
+        return output
     except CommandTimedOut as error:
         raise DeadlineExceeded(f"{label} exceeded the runner timeout budget.") from error
     except CommandFailed as error:
@@ -435,6 +463,7 @@ def run_command(arguments: list[str], cwd: Path, environment: dict[str, str], lo
 
 @contextmanager
 def acquire_lock(path: Path, deadline: Deadline, wait_seconds: float):
+    deadline.remaining()
     if not sys.platform.startswith("linux"):
         raise UnsupportedEnvironment("The bounded heavy lock requires Linux flock in this gate.")
     lock = _normalise_absolute(path, "--heavy-lock")
@@ -447,15 +476,17 @@ def acquire_lock(path: Path, deadline: Deadline, wait_seconds: float):
     with lock.open("a+") as handle:
         lock_deadline = min(deadline.ends, time.monotonic() + wait_seconds)
         while True:
+            deadline.remaining()
             try:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
-                if time.monotonic() >= lock_deadline:
+                remaining = lock_deadline - time.monotonic()
+                if remaining <= 0:
                     raise DeadlineExceeded("The heavy lock wait budget expired.")
-                deadline.remaining()
-                time.sleep(min(0.1, lock_deadline - time.monotonic()))
+                time.sleep(min(0.1, deadline.remaining(), remaining))
         try:
+            deadline.remaining()
             yield {"path": str(lock), "waitSeconds": time.monotonic() - started, "acquired": True}
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
@@ -496,7 +527,7 @@ def _build_paths(source_stage: Path) -> dict[str, Path]:
     }
 
 
-def _pin_artifacts(paths: dict[str, Path]) -> dict:
+def _pin_artifacts(paths: dict[str, Path], deadline: Deadline) -> dict:
     required = {
         "test": (f"{TEST_PROJECT_NAME}.dll", f"{TEST_PROJECT_NAME}.deps.json"),
         "worker": ("MeowChan.PluginWorker.dll", "MeowChan.PluginWorker.deps.json", "MeowChan.PluginWorker.runtimeconfig.json"),
@@ -505,16 +536,17 @@ def _pin_artifacts(paths: dict[str, Path]) -> dict:
     pins = {"directories": {}, "required": {}}
     for label, directory in paths.items():
         _directory(directory, f"fresh {label} build output")
-        pins["directories"][label] = inventory_tree(directory, f"fresh {label} build output")
+        pins["directories"][label] = inventory_tree(directory, f"fresh {label} build output", deadline)
         pins["required"][label] = {}
         for name in required[label]:
             path = _required_file(directory / name, f"fresh {label} artifact {name}")
-            pins["required"][label][name] = {"path": str(path), "sha256": sha256_file(path), "bytes": path.stat().st_size}
+            pins["required"][label][name] = {"path": str(path), "sha256": sha256_file(path, deadline), "bytes": path.stat().st_size}
     return pins
 
 
 def build_fresh(source_stage: Path, work: Path, feed: Path, dotnet: str, bwrap: str,
                 environment: dict[str, str], deadline: Deadline) -> dict:
+    deadline.remaining()
     project = source_stage / TEST_PROJECT_REL
     contract = _project_contract(source_stage)
     config = work / "NuGet.Config"
@@ -533,13 +565,14 @@ def build_fresh(source_stage: Path, work: Path, feed: Path, dotnet: str, bwrap: 
     build = _bwrap_command(build_inner, work, work.parent, feed, source_stage, environment, bwrap)
     run_command(build, source_stage, environment, work / "build.log", deadline, "plugin reauthorization fresh build")
     paths = _build_paths(source_stage)
-    pins = _pin_artifacts(paths)
+    pins = _pin_artifacts(paths, deadline)
     return {**contract, "sourceStage": str(source_stage), "outputPaths": {key: str(value) for key, value in paths.items()},
             "pins": pins, "restore": {"lockedMode": True, "providedLocalFeed": str(feed), "networkSources": []}}
 
 
 def run_filtered_test(source_stage: Path, work: Path, feed: Path, dotnet: str, bwrap: str,
                       environment: dict[str, str], deadline: Deadline) -> dict:
+    deadline.remaining()
     project = source_stage / TEST_PROJECT_REL
     results = work / "test-results"
     results.mkdir(parents=True, exist_ok=False)
@@ -558,29 +591,48 @@ def run_filtered_test(source_stage: Path, work: Path, feed: Path, dotnet: str, b
 
 def _counter(counters: ET.Element, name: str) -> int | None:
     value = counters.get(name)
-    return None if value is None else int(value)
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except ValueError as error:
+        raise ProbeError(f"TRX counter {name} is not an integer: {value}") from error
 
 
-def validate_trx(path: Path) -> dict:
+def validate_trx(path: Path, deadline: Deadline) -> dict:
+    deadline.remaining()
     path = _required_file(path, "reauthorization TRX")
     try:
         root = ET.parse(path).getroot()
     except ET.ParseError as error:
         raise ProbeError(f"Invalid reauthorization TRX: {path}") from error
-    counters = root.find(".//{*}Counters")
-    if counters is None:
-        raise ProbeError("TRX has no Counters element.")
+    deadline.remaining()
+    summaries = root.findall("./{*}ResultSummary")
+    if len(summaries) != 1 or summaries[0].get("outcome") != "Completed":
+        raise ProbeError("TRX must have exactly one Completed ResultSummary.")
+    summary = summaries[0]
+    if summary.find(".//{*}ErrorInfo") is not None or any(
+        info.get("outcome") not in {"Passed", "Completed"} for info in summary.findall(".//{*}RunInfo")
+    ):
+        raise ProbeError("TRX ResultSummary reports a run error.")
+    counter_elements = summary.findall("./{*}Counters")
+    if len(counter_elements) != 1:
+        raise ProbeError("TRX ResultSummary must have exactly one Counters element.")
+    counters = counter_elements[0]
     total, passed, failed = (_counter(counters, name) for name in ("total", "passed", "failed"))
     if (total, passed, failed) != (EXPECTED_MATRIX_CASES, EXPECTED_MATRIX_CASES, 0):
         raise ProbeError(f"TRX counters are not the complete {EXPECTED_MATRIX_CASES}-case matrix: {counters.attrib}")
-    for name in ("skipped", "notExecuted"):
+    for name in counters.attrib:
         value = _counter(counters, name)
-        if value is not None and value != 0:
-            raise ProbeError(f"TRX reports skipped/not-executed cases: {counters.attrib}")
+        expected = EXPECTED_MATRIX_CASES if name in {"total", "executed", "passed"} else 0
+        if value != expected:
+            raise ProbeError(f"TRX reports skipped/non-passed or inconsistent counters: {counters.attrib}")
 
     results = root.findall(".//{*}UnitTestResult")
     method_counts = {name: 0 for name in EXPECTED_METHODS}
+    seen = set()
     for result in results:
+        deadline.remaining()
         name = result.get("testName", "")
         if not name.startswith(TEST_CLASS + "."):
             raise ProbeError(f"TRX contains an unexpected test result: {name}")
@@ -589,16 +641,20 @@ def validate_trx(path: Path) -> dict:
         method = name[len(TEST_CLASS) + 1:].split("(", 1)[0].strip().split("[", 1)[0].strip()
         if method not in method_counts:
             raise ProbeError(f"TRX contains an unexpected reauthorization matrix method: {name}")
+        if name in seen:
+            raise ProbeError(f"TRX contains a duplicate matrix case: {name}")
+        seen.add(name)
         method_counts[method] += 1
     if len(results) != EXPECTED_MATRIX_CASES or method_counts != EXPECTED_METHODS:
         raise ProbeError(f"TRX matrix case set differs: results={len(results)}, methods={method_counts}")
-    return {"path": str(path), "sha256": sha256_file(path), "total": total, "passed": passed,
+    return {"path": str(path), "sha256": sha256_file(path, deadline), "total": total, "passed": passed,
             "failed": failed, "skipped": 0, "methods": method_counts}
 
 
-def _phase_jsons(root: Path) -> list[tuple[int, str, Path]]:
+def _phase_jsons(root: Path, deadline: Deadline) -> list[tuple[int, str, Path]]:
     found = []
     for path in root.iterdir():
+        deadline.remaining()
         if path.is_symlink() or not path.is_file():
             continue
         match = PHASE_FILE_RE.fullmatch(path.name)
@@ -613,12 +669,15 @@ def _int_field(value: object, name: str, *, positive: bool = False) -> int:
     return value
 
 
-def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str, worker_hash: str) -> dict:
+def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str, worker_hash: str,
+                              deadline: Deadline) -> dict:
+    deadline.remaining()
     parent = _normalise_absolute(parent, "process evidence")
     _directory(parent, "process evidence")
     roots = []
     with os.scandir(parent) as entries:
         for entry in entries:
+            deadline.remaining()
             path = Path(entry.path)
             if entry.name.startswith("reauth-process-"):
                 info = entry.stat(follow_symlinks=False)
@@ -632,7 +691,7 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
     process_count = 0
     worker_evidence_count = 0
     for root in sorted(roots, key=lambda path: path.name):
-        phases = _phase_jsons(root)
+        phases = _phase_jsons(root, deadline)
         sequence = tuple(phase for _, phase, _ in phases)
         if sequence not in EXPECTED_PHASE_SEQUENCES:
             raise ProbeError(f"Unexpected process phase sequence in {root}: {sequence}")
@@ -641,6 +700,7 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
         if [number for number, _, _ in phases] != expected_numbers:
             raise ProbeError(f"Process evidence sequence numbers are not contiguous in {root}.")
         for number, phase, json_path in phases:
+            deadline.remaining()
             prefix = f"{number:02d}-{phase}"
             pid_path = root / f"{prefix}.pid"
             stderr_path = root / f"{prefix}.stderr"
@@ -678,6 +738,7 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
             process_count += 1
         expected_json_names = {f"{number:02d}-{phase}.json" for number, phase, _ in phases}
         for path in root.iterdir():
+            deadline.remaining()
             if path.is_symlink():
                 raise ProbeError(f"Process evidence contains a symlink: {path}")
             if path.name.endswith((".pid", ".stderr", ".worker-pid")) and path.name not in {
@@ -686,7 +747,7 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
                 name.replace(".json", ".stderr") for name in expected_json_names
             } and path.name not in {phase + ".worker-pid" for _, phase, _ in phases}:
                 raise ProbeError(f"Unmatched per-process evidence file: {path}")
-        inventory_tree(root, f"persistent process evidence {root.name}")
+        inventory_tree(root, f"persistent process evidence {root.name}", deadline)
 
     if process_count != EXPECTED_PROCESS_INVOCATIONS:
         raise ProbeError(f"Expected {EXPECTED_PROCESS_INVOCATIONS} process invocations, found {process_count}.")
@@ -695,13 +756,13 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
             "phaseSequences": {" / ".join(key): value for key, value in sequence_counts.items()}}
 
 
-def _artifact_hashes_unchanged(before: dict, paths: dict[str, Path]) -> bool:
-    after = {label: inventory_tree(path, f"fresh {label} build output after test") for label, path in paths.items()}
+def _artifact_hashes_unchanged(before: dict, paths: dict[str, Path], deadline: Deadline) -> bool:
+    after = {label: inventory_tree(path, f"fresh {label} build output after test", deadline) for label, path in paths.items()}
     return all(after[label]["files"] == value["files"] for label, value in before["directories"].items())
 
 
-def execute(args, evidence: Path, feed: Path, source_before: dict, result: dict) -> dict:
-    deadline = Deadline(args.timeout_seconds)
+def execute(args, evidence: Path, feed: Path, source_before: dict, result: dict, deadline: Deadline) -> dict:
+    deadline.remaining()
     work = evidence / "work"
     work.mkdir()
     source_stage = work / "source"
@@ -712,21 +773,21 @@ def execute(args, evidence: Path, feed: Path, source_before: dict, result: dict)
     result.update({"sourceBefore": source_before, "tools": {"dotnet": dotnet, "bwrap": bwrap},
                    "network": {"mode": "Linux bwrap --unshare-net", "providerRequests": 0, "liveSources": []},
                    "build": {}, "test": {}, "processEvidence": {}, "artifactsUnchanged": False})
-    source_stage = copy_source_stage(source_stage)
+    source_stage = copy_source_stage(source_stage, deadline)
     build = build_fresh(source_stage, work, feed, dotnet, bwrap, environment, deadline)
     result["build"] = build
     paths = {label: Path(value) for label, value in build["outputPaths"].items()}
     artifact_before = {"directories": build["pins"]["directories"], "required": build["pins"]["required"]}
     result["artifacts"] = artifact_before
     test = run_filtered_test(source_stage, work, feed, dotnet, bwrap, environment, deadline)
-    result["test"] = {**test, "trxValidation": validate_trx(Path(test["trx"]))}
-    result["artifactsUnchanged"] = _artifact_hashes_unchanged(artifact_before, paths)
+    result["test"] = {**test, "trxValidation": validate_trx(Path(test["trx"]), deadline)}
+    result["artifactsUnchanged"] = _artifact_hashes_unchanged(artifact_before, paths, deadline)
     if not result["artifactsUnchanged"]:
         raise ProbeError("Fresh build artifacts changed during the filtered test.")
     probe_hash = artifact_before["required"]["probe"]["PluginReauthorizationProbe.dll"]["sha256"]
     worker_hash = artifact_before["required"]["worker"]["MeowChan.PluginWorker.dll"]["sha256"]
-    result["processEvidence"] = validate_process_evidence(process_evidence, args.source_commit, probe_hash, worker_hash)
-    after = verify_source_pin(args.source_commit)
+    result["processEvidence"] = validate_process_evidence(process_evidence, args.source_commit, probe_hash, worker_hash, deadline)
+    after = verify_source_pin(args.source_commit, deadline, evidence / "source-after")
     result["sourceAfter"] = after
     if after != source_before:
         raise ProbeError("Source pin changed during the reauthorization matrix.")
@@ -761,10 +822,10 @@ def _parser() -> argparse.ArgumentParser:
                         help="New external evidence directory.")
     parser.add_argument("--nuget-feed", type=Path, required=True,
                         help="Existing local NuGet feed; it is read-only and the only package source.")
-    parser.add_argument("--heavy-lock", type=Path, default=DEFAULT_HEAVY_LOCK,
-                        help="Shared heavy.lock path (defaults to OCHAN_HEAVY_LOCK or /tmp/meowchan-heavy.lock).")
+    parser.add_argument("--heavy-lock", type=Path, default=os.environ.get("OCHAN_HEAVY_LOCK"),
+                        help="Required shared heavy.lock path; alternatively set OCHAN_HEAVY_LOCK. No implicit lock.")
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS,
-                        help=f"Bounded restore/build/test budget, 1-{MAX_TIMEOUT_SECONDS} seconds.")
+                        help=f"Single preflight/inventory/lock/copy/restore/build/test/post-inventory budget, 1-{MAX_TIMEOUT_SECONDS} seconds.")
     parser.add_argument("--lock-wait-seconds", type=int, default=DEFAULT_LOCK_WAIT_SECONDS,
                         help=f"Bounded heavy.lock wait, 0-{MAX_LOCK_WAIT_SECONDS} seconds.")
     return parser
@@ -778,26 +839,31 @@ def main(argv: list[str] | None = None) -> int:
     if not 0 <= args.lock_wait_seconds <= MAX_LOCK_WAIT_SECONDS:
         parser.error(f"--lock-wait-seconds must be between 0 and {MAX_LOCK_WAIT_SECONDS}.")
 
+    if args.heavy_lock is None or not args.heavy_lock.is_absolute():
+        parser.error("An absolute shared --heavy-lock or OCHAN_HEAVY_LOCK is required (no implicit lock).")
+
+    deadline = Deadline(args.timeout_seconds)
     result = _initial_result(args.source_commit)
     evidence: Path | None = None
-    lock_info = None
     try:
+        deadline.remaining()
+        _check_components(args.heavy_lock, "--heavy-lock")
         evidence = _ensure_evidence(args.evidence_dir)
         result["evidenceDir"] = str(evidence)
         feed = _ensure_feed(args.nuget_feed, evidence)
-        result["nugetFeed"] = {"path": str(feed), "before": inventory_tree(feed, "provided local NuGet feed")}
-        source_before = verify_source_pin(args.source_commit)
+        result["nugetFeed"] = {"path": str(feed), "before": inventory_tree(feed, "provided local NuGet feed", deadline)}
+        source_before = verify_source_pin(args.source_commit, deadline, evidence / "source-before")
         result["sourceBefore"] = source_before
-        deadline = Deadline(args.timeout_seconds)
         with acquire_lock(args.heavy_lock, deadline, args.lock_wait_seconds) as lock_info:
             result["lock"] = lock_info
-            source_locked = verify_source_pin(args.source_commit)
+            source_locked = verify_source_pin(args.source_commit, deadline, evidence / "source-locked")
             if source_locked != source_before:
                 raise ProbeError("Source pin changed while waiting for heavy.lock.")
-            result = execute(args, evidence, feed, source_before, result)
-        result["nugetFeed"]["after"] = inventory_tree(feed, "provided local NuGet feed after run")
+            result = execute(args, evidence, feed, source_before, result, deadline)
+        result["nugetFeed"]["after"] = inventory_tree(feed, "provided local NuGet feed after run", deadline)
         if result["nugetFeed"]["before"]["files"] != result["nugetFeed"]["after"]["files"]:
             raise ProbeError("Provided local NuGet feed changed during the gate.")
+        deadline.remaining()
         result["passed"] = True
         result["exitCode"] = 0
         _atomic_json(evidence / "RESULT.json", result)
@@ -807,9 +873,15 @@ def main(argv: list[str] | None = None) -> int:
         result["error"] = {"type": type(error).__name__, "message": str(error)}
         result["exitCode"] = 2 if isinstance(error, UnsupportedEnvironment) else 1
         if evidence is not None:
+            if "nugetFeed" in result and "after" not in result["nugetFeed"]:
+                try:
+                    result["nugetFeed"]["after"] = inventory_tree(
+                        Path(result["nugetFeed"]["path"]), "provided local NuGet feed after failure", deadline)
+                except (OSError, ProbeError) as inventory_error:
+                    result["nugetFeed"]["afterError"] = f"{type(inventory_error).__name__}: {inventory_error}"
+            # Failure evidence must still be written when the work budget has
+            # expired. Never restart a deadline or an unbounded after-inventory.
             try:
-                if "nugetFeed" in result and "after" not in result["nugetFeed"]:
-                    result["nugetFeed"]["after"] = inventory_tree(Path(result["nugetFeed"]["path"]), "provided local NuGet feed after failure")
                 _atomic_json(evidence / "RESULT.json", result)
             except (OSError, ProbeError) as report_error:
                 result["reportWriteError"] = f"{type(report_error).__name__}: {report_error}"
