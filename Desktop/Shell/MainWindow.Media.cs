@@ -41,6 +41,7 @@ public partial class MainWindow
             EditTags = EditMediaLibraryTagsAsync,
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
+            TagPopoverOptions = TagPopoverDefaults,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,

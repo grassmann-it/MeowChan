@@ -227,16 +227,15 @@ public sealed partial class MediaPage
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
         QuickTagSession quick = new(QuickTagTarget.For(session));
         MediaLibraryTileRow? lead = SelectedRow;
-        TagContext context = QuickTagContextSource.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
+        TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
         _selectionBusy = true;
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         Control? origin = null;
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), new QuickTagPopoverOptions
+            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), (TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context)) with
             {
-                Suggestions = new QuickTagContextSource(context),
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
                 RestoreFocus = false

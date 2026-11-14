@@ -22,9 +22,11 @@ public partial class MainWindow
     internal QuickTagPopover? MediaPageTagPopover { get; private set; }
     internal QuickTagPopover? ArchiveTagPopover { get; private set; }
 
-    private QuickTagPopoverOptions PopoverOptions(TagContext context, Func<bool> isCurrent, bool restoreFocus, string name) => new()
+    /// <summary>The saved quick tag limits (TP5) and the panel's ranking adapter over <paramref name="context"/>, for every popover host.</summary>
+    internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent);
+
+    private QuickTagPopoverOptions PopoverOptions(TagContext context, Func<bool> isCurrent, bool restoreFocus, string name) => TagPopoverDefaults(context) with
     {
-        Suggestions = new QuickTagContextSource(context),
         ReadSourceTags = _session.ReadBooruCatalog,
         IsCurrent = isCurrent,
         RestoreFocus = restoreFocus,

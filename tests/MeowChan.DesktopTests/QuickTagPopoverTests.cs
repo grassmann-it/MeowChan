@@ -234,19 +234,29 @@ public sealed class QuickTagPopoverTests : IDisposable
     }
 
     [Fact]
-    public void TheWarmedEventOfAContextSourceRepaintsTheStripAndTheSourceIsReleasedWithThePopover()
+    public void TheRankingAdapterIsTheStripIsReleasedWithThePopoverAndTheShellBindsTheSavedLimits()
     {
         using Fixture fixture = new();
-        // A context source is recognised by type; its Warmed event is the only trigger of the repaint.
-        QuickTagContextSource source = new(null, new TagRecentList(), post: action => action());
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { Suggestions = source, RestoreFocus = false });
+        // The popover uses the gallery panel's adapter (TP2); it is warmed with the popover and disposed with it.
+        TagRecentList recent = new();
+        GalleryTagPanelSuggestions source = new();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+            new QuickTagPopoverOptions { Suggestions = source, Recent = recent, RestoreFocus = false });
         Assert.Same(source, popover.Surface!.Suggestions);
         popover.Close();
-        // Disposed with the popover: a warm-up that finishes afterwards cannot reach the closed surface.
+        // Disposed with the popover: a warm-up requested afterwards starts nothing and cannot reach the closed surface.
         bool raised = false;
-        source.Warmed += () => raised = true;
+        source.Ready += () => raised = true;
         PrivateTagStoreSnapshot snapshot = fixture.Store.ReadSnapshot();
-        source.Prewarm(snapshot);
+        source.Warm(snapshot);
+        source.NotifyReady();
         Assert.False(raised);
+        Assert.False(source.IsWarm(snapshot));
+        // The shell's options carry the saved limits and the same recent list.
+        Config config = new() { QuickTagSuggestionCount = 7, QuickTagUndoDepth = 12 };
+        QuickTagPopoverOptions bound = QuickTagSettings.PopoverOptions(config, TagContext.Empty, recent);
+        Assert.Equal((12, 7), (bound.Quick!.UndoDepth, bound.Quick.SuggestionCount));
+        Assert.Same(recent, bound.Recent);
+        Assert.Equal(7, Assert.IsType<GalleryTagPanelSuggestions>(bound.Suggestions).Options.SuggestionCount);
     }
 }

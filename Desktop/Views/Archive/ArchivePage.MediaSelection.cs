@@ -229,14 +229,14 @@ public partial class ArchivePage
         GalleryAssetKey leadKey = new(thread.Summary.Id, rows[0].Manifest.Directory, rows[0].Asset.AssetId);
         if ((entries.FirstOrDefault(entry => entry.Key == leadKey) ?? entries.FirstOrDefault()) is not { } lead) return;
         ResourceId threadId = thread.Summary.Id;
+        TagContext selectionContext = QuickTagPopoverContext.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null };
         _mediaSelectionBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), new QuickTagPopoverOptions
+            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), (TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext)) with
             {
-                Suggestions = new QuickTagContextSource(QuickTagContextSource.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null }),
                 ReadSourceTags = _sourceTagSuggestions.Read,
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
                 Name = "ArchiveSelectionTagPopover"

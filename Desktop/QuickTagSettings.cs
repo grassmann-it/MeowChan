@@ -1,4 +1,5 @@
 using System;
+using MeowChan.Desktop.Controls;
 using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
@@ -28,6 +29,22 @@ internal static class QuickTagSettings
         {
             UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount, MarkedMediaLimit = MarkedMediaLimit(config)
         }.Normalized();
+    }
+
+    /// <summary>
+    /// The limits and the suggestion strip of a quick tag popover (TP3): the surface options and the gallery panel's ranking adapter
+    /// over <paramref name="context"/>, fed by the session-wide <paramref name="recent"/> list. The host adds its guard and names.
+    /// </summary>
+    internal static QuickTagPopoverOptions PopoverOptions(Config config, TagContext context, TagRecentList recent)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(recent);
+        return new QuickTagPopoverOptions
+        {
+            Quick = SurfaceOptions(config),
+            Suggestions = new GalleryTagPanelSuggestions(ContextOptions(config)) { Context = context ?? TagContext.Empty, Recent = recent.Snapshot },
+            Recent = recent
+        };
     }
 
     /// <summary>A recently used list of the configured size (0 keeps nothing, which switches the source off).</summary>

@@ -146,6 +146,7 @@ public partial class MainWindow
         _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
         _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
         _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;
+        _archivePage.TagPopoverOptions = TagPopoverDefaults;
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;

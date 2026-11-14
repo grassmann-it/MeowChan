@@ -39,8 +39,10 @@ internal sealed record QuickTagPopoverOptions
 {
     /// <summary>Limits of the surface (undo depth, strip size); null uses the defaults.</summary>
     internal QuickTagOptions? Quick { get; init; }
-    /// <summary>The suggestion strip; a <see cref="QuickTagContextSource"/> is warmed, repainted when warm and disposed with the popover.</summary>
+    /// <summary>The suggestion strip; a <see cref="GalleryTagPanelSuggestions"/> is warmed, repainted when ready and disposed with the popover.</summary>
     internal IQuickTagSuggestionSource? Suggestions { get; init; }
+    /// <summary>The session-wide recently used tags; every assignment the popover accepts counts as a use (a removal or an undo does not).</summary>
+    internal TagRecentList? Recent { get; init; }
     /// <summary>The Danbooru catalog reader for the source tag group of the field.</summary>
     internal Func<BooruCatalogSnapshot?>? ReadSourceTags { get; init; }
     /// <summary>True while the target is still what is on screen; false closes the popover (<see cref="QuickTagPopoverCloseReason.Stale"/>).</summary>
@@ -51,6 +53,12 @@ internal sealed record QuickTagPopoverOptions
     internal bool RestoreFocus { get; init; } = true;
     /// <summary>Base name of the controls (<c>QuickTagPopoverInput</c>, …).</summary>
     internal string Name { get; init; } = "QuickTagPopover";
+
+    /// <summary>A host without the profile settings (tests, a page not bound by the shell): the built-in limits and the panel's ranking over <paramref name="context"/>.</summary>
+    internal static QuickTagPopoverOptions Defaults(TagContext context) => new()
+    {
+        Suggestions = new GalleryTagPanelSuggestions { Context = context ?? TagContext.Empty }
+    };
 }
 
 /// <summary>
@@ -140,15 +148,18 @@ internal sealed class QuickTagPopover
         if (options.Suggestions is { } source)
         {
             surface.Suggestions = source;
-            if (source is QuickTagContextSource context)
+            if (source is GalleryTagPanelSuggestions ranking)
             {
-                context.Attach(session);
-                Action refresh = surface.Refresh;
-                context.Warmed += refresh;
-                unsubscribe = () => { context.Warmed -= refresh; context.Dispose(); };
-                if (session.Snapshot is { } snapshot) context.Prewarm(snapshot);
+                // Ready comes from a worker: the strip is asked again on the UI thread, never after the popover closed.
+                bool closed = false;
+                Action ready = () => Dispatcher.UIThread.Post(() => { if (!closed) surface.Refresh(); }, DispatcherPriority.Background);
+                ranking.Ready += ready;
+                unsubscribe = () => { closed = true; ranking.Ready -= ready; ranking.Dispose(); };
+                if (session.Snapshot is { } snapshot) ranking.Warm(snapshot);
             }
         }
+        if (options.Recent is { } recent)
+            session.Applied += change => { if (change.Assigned) recent.Touch(change.Tag); };
         surface.AdvancedButton.IsVisible = options.AdvancedAvailable;
         QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe);
         surface.CloseRequested += () => popover.Close(QuickTagPopoverCloseReason.Closed);

@@ -111,6 +111,8 @@ public sealed partial class MediaPage : UserControl
     /// Null falls back to the tag dialog of <see cref="EditTagsForMenuAsync"/>.
     /// </summary>
     internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
+    /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
+    internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
     internal Func<Task>? ManageMediaRatingsAsync
     {
@@ -798,7 +800,7 @@ public sealed partial class MediaPage : UserControl
         }
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagContextSource.ContextOf(entry, _shown, row.Index), current);
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current);
             return;
         }
         if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, current);

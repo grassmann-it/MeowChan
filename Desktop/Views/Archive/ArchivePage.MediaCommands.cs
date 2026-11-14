@@ -31,6 +31,8 @@ public partial class ArchivePage
     /// <see cref="EditArchiveMediaTagsAsync"/> instead.
     /// </summary>
     internal Func<GalleryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
+    /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
+    internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Copies a saved file's path to the clipboard and says so; supplied by the shell.</summary>
     internal Func<string, Task>? CopyFilePathAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
@@ -249,7 +251,7 @@ public partial class ArchivePage
                         tagsBlocked ?? MediaMenuReasons.Unavailable, new QuickTagPopoverOptions { IsCurrent = PopoverCurrent });
                 }
                 else if (TagPopoverAsync != null)
-                    await TagPopoverAsync(tagEntry, origin, QuickTagContextSource.ContextOf(tagEntry, galleryEntries, thread.Summary.Title), PopoverCurrent);
+                    await TagPopoverAsync(tagEntry, origin, QuickTagPopoverContext.ContextOf(tagEntry, galleryEntries, thread.Summary.Title), PopoverCurrent);
                 else if (EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry);
             },
             [MediaMenuAction.Export] = async () =>
