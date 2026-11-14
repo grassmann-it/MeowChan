@@ -98,7 +98,7 @@ public partial class SettingsEditor
             slot.HadError = HasGroupError(slot);
         }
         // The search reads the page as it is laid out: a group that moved in or out of its expander changes what a hit opens.
-        if (structure) _searchIndexDirty = true;
+        if (structure) InvalidateSearchIndex();
         RefreshGroupHeaders();
     }
 
