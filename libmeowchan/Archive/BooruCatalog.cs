@@ -1224,6 +1224,10 @@ internal sealed class BooruCatalogStore
             // Check begun, but no page applied yet: nothing to continue below.
             if (watcher.CursorBeforePostId is not null || watcher.BudgetLimited)
                 throw Invalid("cursor or budget limit before any page was applied", name);
+            // BeginCheck captures the current high-water mark. Until the first page is applied neither
+            // value can change; accepting a lost or older fence would misclassify already observed posts.
+            if (watcher.CheckStartHighWaterMark != watcher.HighWaterMark)
+                throw Invalid("first-page check-start fence differs from the high-water mark", name);
         }
         else
         {
