@@ -62,6 +62,8 @@ namespace MeowChan
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
+        /// <summary>The profile folder these settings belong to; null for settings not bound to a profile.</summary>
+        [JsonIgnore] internal string? ProfileDirectory => _profileDirectory;
         [JsonIgnore] internal ProfileOrigin Origin { get; private set; }
         [JsonIgnore] internal bool AllowsOrdinaryWrites => Origin is ProfileOrigin.Unbound or ProfileOrigin.ConfirmedNew or ProfileOrigin.ExistingValid;
         internal void EnsureOrdinaryWritesAllowed()
@@ -249,6 +251,11 @@ namespace MeowChan
         internal const int TagQueueConfirmAboveDefault = 200;
         internal const int TagQueueConfirmAboveMinimum = 10;
         internal const int TagQueueConfirmAboveMaximum = 10_000;
+        /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
+        public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
+        internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
+        internal const int ProfileRegistryLimitMinimum = Persistence.ProfileRegistry.MinimumLimit;
+        internal const int ProfileRegistryLimitMaximum = Persistence.ProfileRegistry.LimitCeiling;
         /// <summary>Rows in a source's watch list on the Sources page before "Show all in Downloads" takes over. Every watch stays reachable under Downloads.</summary>
         public int SourcesWatchPreviewRows { get; set; } = SourcesWatchPreviewRowsDefault;
         internal const int SourcesWatchPreviewRowsDefault = 8;
@@ -889,7 +896,7 @@ namespace MeowChan
         /// <summary>Resolves the profile without creating files or directories.</summary>
         public static string GetConfigDirectory()
         {
-            string? overrideDirectory = ResolveProfileOverrides(
+            string? overrideDirectory = ResolveProfileOverrides(CommandLineProfile,
                 Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"),
                 Environment.GetEnvironmentVariable("OCHAN_PROFILE"));
             if (overrideDirectory != null)
@@ -903,6 +910,33 @@ namespace MeowChan
                 throw new InvalidOperationException("The user configuration directory could not be resolved.");
 
             return ResolveDefaultProfileDirectory(homePath);
+        }
+
+        private static string? s_commandLineProfile;
+
+        /// <summary>The profile folder given with <c>--profile</c> (absolute), set once by the app's entry point before any
+        /// profile is resolved; null when the start had no such argument. It wins over the default profile.</summary>
+        internal static string? CommandLineProfile
+        {
+            get => System.Threading.Volatile.Read(ref s_commandLineProfile);
+            set => System.Threading.Volatile.Write(ref s_commandLineProfile, value == null ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(value)));
+        }
+
+        /// <summary>
+        /// The profile chosen by <c>--profile</c> (<paramref name="argument"/>) or by the environment variables, or null for the
+        /// default profile. The argument and an environment variable may name the same folder; different folders are refused
+        /// like two different environment variables, so a start never silently opens another profile than one it was given.
+        /// </summary>
+        internal static string? ResolveProfileOverrides(string? argument, string? meowChanProfile, string? oChanProfile)
+        {
+            string? environment = ResolveProfileOverrides(meowChanProfile, oChanProfile);
+            string? selected = string.IsNullOrWhiteSpace(argument) ? null :
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(argument));
+            if (selected != null && environment != null && !string.Equals(selected, environment,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "--profile and MEOWCHAN_PROFILE (or OCHAN_PROFILE) select different profiles. Use only one, or name the same directory.");
+            return selected ?? environment;
         }
 
         internal static string? ResolveProfileOverrides(string? meowChanProfile, string? oChanProfile)
@@ -1110,6 +1144,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(TagQueueHistory), "TagQueueHistory is outside its supported range (" + TagQueueHistoryMinimum + " to " + TagQueueHistoryMaximum + ").");
             if (TagQueueConfirmAbove is < TagQueueConfirmAboveMinimum or > TagQueueConfirmAboveMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
+            if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
             if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SourcesWatchPreviewRows), "SourcesWatchPreviewRows is outside its supported range (" + SourcesWatchPreviewRowsMinimum + " to " + SourcesWatchPreviewRowsMaximum + ").");
             if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
@@ -1300,6 +1336,7 @@ namespace MeowChan
                 TagQueueFileLimitMiB = TagQueueFileLimitMiB,
                 TagQueueHistory = TagQueueHistory,
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
+                ProfileRegistryLimit = ProfileRegistryLimit,
                 SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
@@ -1496,6 +1533,7 @@ namespace MeowChan
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            ProfileRegistryLimit = source.ProfileRegistryLimit;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
@@ -1651,6 +1689,7 @@ namespace MeowChan
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            ProfileRegistryLimit = source.ProfileRegistryLimit;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;

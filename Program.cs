@@ -15,8 +15,16 @@ internal static class Program
     {
         try
         {
+            // --profile <folder> chooses the profile like MEOWCHAN_PROFILE (PR1); it is removed before the remaining
+            // arguments are read. Smokes keep their own contract (MEOWCHAN_PROFILE only).
+            args = ProfileCommandLine.Extract(args, out string? profile);
             StartupSmoke = ApphostStartupSmoke.Parse(args, Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"),
                 Environment.GetEnvironmentVariable("OCHAN_PROFILE"));
+            if (profile != null && StartupSmoke != null)
+                throw new ArgumentException("--profile cannot be combined with a startup smoke; smokes use MEOWCHAN_PROFILE.");
+            Config.CommandLineProfile = profile;
+            ProfileStartup.RecordsInProfileList = StartupSmoke == null && !ProfileStartup.SelectedByEnvironment(
+                Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"), Environment.GetEnvironmentVariable("OCHAN_PROFILE"), profile);
         }
         catch (Exception exception) when (exception is ArgumentException or System.IO.IOException or UnauthorizedAccessException)
         {
