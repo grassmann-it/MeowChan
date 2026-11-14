@@ -3890,7 +3890,6 @@
     "status.segments": "상태 섹션",
     "status.segment.diagnosticsCount": "진단 ({0})",
     "status.strip": "진행 중 {0} · 대기 중 {1} · 문제 {2}",
-    "status.strip.rates": "↓ {0} · 쓰기 {1}",
     "help.button.name": "도움말: {0}",
     "help.popover.more": "도움말에서 더 보기",
     "help.stats.title": "집계 대상",
@@ -3997,7 +3996,6 @@
     "stats.sources.title": "소스별",
     "stats.errors.open": "{0}의 오류를 진단에서 보기",
     "stats.errors.openAll": "모든 오류를 진단에서 보기",
-    "status.statisticsUnavailable": "세션이 복원되면 통계를 사용할 수 있습니다.",
     "command.reader.sidebar.toggle": "미디어 사이드바",
     "command.reader.sidebar.previous-media": "게시물의 이전 미디어",
     "command.reader.sidebar.next-media": "게시물의 다음 미디어",
@@ -4024,6 +4022,8 @@
     "settings.reader.mediaSidebarWidth": "미디어 사이드바 너비(px)",
     "settings.reader.mediaSidebarWidth.hint": "리더에서 구분선을 끌어도 바뀝니다.",
     "settings.reader.mediaSidebarMinimumWidth": "리더 너비가 이보다 좁으면 미디어 사이드바 숨기기(px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "리더가 좁으면 게시물만 표시하며, 다시 충분히 넓어지면 사이드바가 돌아옵니다."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "리더가 좁으면 게시물만 표시하며, 다시 충분히 넓어지면 사이드바가 돌아옵니다.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "세션이 복원되면 통계를 사용할 수 있습니다."
   }
 }

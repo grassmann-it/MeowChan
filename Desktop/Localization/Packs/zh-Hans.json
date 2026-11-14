@@ -3890,7 +3890,6 @@
     "status.segments": "状态分区",
     "status.segment.diagnosticsCount": "诊断（{0}）",
     "status.strip": "活动 {0} · 等待中 {1} · 问题 {2}",
-    "status.strip.rates": "↓ {0} · 写 {1}",
     "help.button.name": "帮助：{0}",
     "help.popover.more": "在帮助中了解更多",
     "help.stats.title": "统计范围",
@@ -3997,7 +3996,6 @@
     "stats.sources.title": "按来源",
     "stats.errors.open": "在“诊断”中查看 {0} 的错误",
     "stats.errors.openAll": "在“诊断”中查看所有错误",
-    "status.statisticsUnavailable": "会话恢复后即可使用统计。",
     "command.reader.sidebar.toggle": "媒体侧栏",
     "command.reader.sidebar.previous-media": "帖子的上一个媒体",
     "command.reader.sidebar.next-media": "帖子的下一个媒体",
@@ -4024,6 +4022,8 @@
     "settings.reader.mediaSidebarWidth": "媒体侧栏宽度（像素）",
     "settings.reader.mediaSidebarWidth.hint": "在阅读器中拖动分隔线也会改变它。",
     "settings.reader.mediaSidebarMinimumWidth": "阅读器宽度小于此值时隐藏媒体侧栏（像素）",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "阅读器较窄时只显示帖子；宽度再次足够时侧栏会恢复。"
+    "settings.reader.mediaSidebarMinimumWidth.hint": "阅读器较窄时只显示帖子；宽度再次足够时侧栏会恢复。",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "会话恢复后即可查看统计信息。"
   }
 }

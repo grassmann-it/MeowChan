@@ -3890,7 +3890,6 @@
     "status.segments": "状態のセクション",
     "status.segment.diagnosticsCount": "診断（{0}）",
     "status.strip": "実行中 {0} · 待機中 {1} · 問題 {2}",
-    "status.strip.rates": "↓ {0} · 書 {1}",
     "help.button.name": "ヘルプ: {0}",
     "help.popover.more": "ヘルプで詳しく見る",
     "help.stats.title": "集計の対象",
@@ -3997,7 +3996,6 @@
     "stats.sources.title": "ソース別",
     "stats.errors.open": "{0} のエラーを診断で表示",
     "stats.errors.openAll": "すべてのエラーを診断で表示",
-    "status.statisticsUnavailable": "セッションが復元されると、統計を利用できます。",
     "command.reader.sidebar.toggle": "メディアサイドバー",
     "command.reader.sidebar.previous-media": "投稿の前のメディア",
     "command.reader.sidebar.next-media": "投稿の次のメディア",
@@ -4024,6 +4022,8 @@
     "settings.reader.mediaSidebarWidth": "メディアサイドバーの幅（px）",
     "settings.reader.mediaSidebarWidth.hint": "リーダーで区切り線をドラッグしても変更できます。",
     "settings.reader.mediaSidebarMinimumWidth": "リーダーの幅がこの値未満ならメディアサイドバーを隠す（px）",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "リーダーが狭いときは投稿だけを表示し、十分な幅に戻るとサイドバーも戻ります。"
+    "settings.reader.mediaSidebarMinimumWidth.hint": "リーダーが狭いときは投稿だけを表示し、十分な幅に戻るとサイドバーも戻ります。",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "セッションが復元されると、統計を表示できます。"
   }
 }

@@ -3967,7 +3967,6 @@
     "status.segments": "Části stavu",
     "status.segment.diagnosticsCount": "Diagnostika ({0})",
     "status.strip": "Aktivní {0} · Čeká {1} · Problémy {2}",
-    "status.strip.rates": "↓ {0} · Z {1}",
     "help.button.name": "Nápověda: {0}",
     "help.popover.more": "Více v nápovědě",
     "help.stats.title": "Co se počítá",
@@ -4125,7 +4124,6 @@
     "stats.sources.title": "Podle zdroje",
     "stats.errors.open": "Zobrazit chyby zdroje {0} v diagnostice",
     "stats.errors.openAll": "Zobrazit všechny chyby v diagnostice",
-    "status.statisticsUnavailable": "Statistiky budou k dispozici, jakmile se obnoví relace.",
     "command.reader.sidebar.toggle": "Panel médií",
     "command.reader.sidebar.previous-media": "Předchozí médium příspěvku",
     "command.reader.sidebar.next-media": "Další médium příspěvku",
@@ -4152,6 +4150,8 @@
     "settings.reader.mediaSidebarWidth": "Šířka panelu médií (px)",
     "settings.reader.mediaSidebarWidth.hint": "Mění ji také tažení dělicí čáry ve čtečce.",
     "settings.reader.mediaSidebarMinimumWidth": "Skrýt panel médií pod touto šířkou čtečky (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Užší čtečka zobrazí jen příspěvky; panel se vrátí, jakmile bude opět dost široká."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Užší čtečka zobrazí jen příspěvky; panel se vrátí, jakmile bude opět dost široká.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Statistiky budou k dispozici, jakmile se obnoví relace."
   }
 }

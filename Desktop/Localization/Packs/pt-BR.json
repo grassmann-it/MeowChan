@@ -3934,7 +3934,6 @@
     "status.segments": "Seções de status",
     "status.segment.diagnosticsCount": "Diagnóstico ({0})",
     "status.strip": "Ativos {0} · Em espera {1} · Problemas {2}",
-    "status.strip.rates": "↓ {0} · G {1}",
     "help.button.name": "Ajuda: {0}",
     "help.popover.more": "Mais na ajuda",
     "help.stats.title": "O que é contado",
@@ -4088,7 +4087,6 @@
     "stats.sources.title": "Por fonte",
     "stats.errors.open": "Mostrar os erros de {0} em Diagnóstico",
     "stats.errors.openAll": "Mostrar todos os erros em Diagnóstico",
-    "status.statisticsUnavailable": "As estatísticas ficam disponíveis assim que a sessão for restaurada.",
     "command.reader.sidebar.toggle": "Barra lateral de mídia",
     "command.reader.sidebar.previous-media": "Mídia anterior da postagem",
     "command.reader.sidebar.next-media": "Próxima mídia da postagem",
@@ -4115,6 +4113,8 @@
     "settings.reader.mediaSidebarWidth": "Largura da barra lateral de mídia (px)",
     "settings.reader.mediaSidebarWidth.hint": "Arrastar o divisor no leitor também a altera.",
     "settings.reader.mediaSidebarMinimumWidth": "Ocultar a barra lateral de mídia abaixo desta largura do leitor (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Um leitor mais estreito mostra só as postagens; a barra volta assim que ele estiver largo o suficiente de novo."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Um leitor mais estreito mostra só as postagens; a barra volta assim que ele estiver largo o suficiente de novo.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "As estatísticas ficam disponíveis assim que a sessão for restaurada."
   }
 }

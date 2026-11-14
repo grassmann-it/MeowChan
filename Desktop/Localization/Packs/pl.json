@@ -3973,7 +3973,6 @@
     "status.segments": "Sekcje stanu",
     "status.segment.diagnosticsCount": "Diagnostyka ({0})",
     "status.strip": "Aktywne {0} · Oczekuje {1} · Problemy {2}",
-    "status.strip.rates": "↓ {0} · Z {1}",
     "help.button.name": "Pomoc: {0}",
     "help.popover.more": "Więcej w pomocy",
     "help.stats.title": "Co jest liczone",
@@ -4128,7 +4127,6 @@
     "stats.sources.title": "Według źródła",
     "stats.errors.open": "Pokaż błędy źródła {0} w diagnostyce",
     "stats.errors.openAll": "Pokaż wszystkie błędy w diagnostyce",
-    "status.statisticsUnavailable": "Statystyki będą dostępne po przywróceniu sesji.",
     "command.reader.sidebar.toggle": "Panel boczny mediów",
     "command.reader.sidebar.previous-media": "Poprzednie medium posta",
     "command.reader.sidebar.next-media": "Następne medium posta",
@@ -4155,6 +4153,8 @@
     "settings.reader.mediaSidebarWidth": "Szerokość panelu bocznego mediów (px)",
     "settings.reader.mediaSidebarWidth.hint": "Zmienia ją też przeciągnięcie linii podziału w czytniku.",
     "settings.reader.mediaSidebarMinimumWidth": "Ukryj panel boczny mediów poniżej tej szerokości czytnika (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Węższy czytnik pokazuje tylko posty; panel wraca, gdy czytnik znów jest wystarczająco szeroki."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Węższy czytnik pokazuje tylko posty; panel wraca, gdy czytnik znów jest wystarczająco szeroki.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Statystyki będą dostępne, gdy tylko sesja zostanie przywrócona."
   }
 }

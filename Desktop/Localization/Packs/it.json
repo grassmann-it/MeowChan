@@ -3934,7 +3934,6 @@
     "status.segments": "Sezioni dello stato",
     "status.segment.diagnosticsCount": "Diagnostica ({0})",
     "status.strip": "Attivi {0} · In attesa {1} · Problemi {2}",
-    "status.strip.rates": "↓ {0} · S {1}",
     "help.button.name": "Guida: {0}",
     "help.popover.more": "Altro nella guida",
     "help.stats.title": "Che cosa viene conteggiato",
@@ -4088,7 +4087,6 @@
     "stats.sources.title": "Per fonte",
     "stats.errors.open": "Mostra gli errori di {0} in Diagnostica",
     "stats.errors.openAll": "Mostra tutti gli errori in Diagnostica",
-    "status.statisticsUnavailable": "Le statistiche saranno disponibili non appena la sessione sarà stata ripristinata.",
     "command.reader.sidebar.toggle": "Barra laterale dei media",
     "command.reader.sidebar.previous-media": "Media precedente del post",
     "command.reader.sidebar.next-media": "Media successivo del post",
@@ -4115,6 +4113,8 @@
     "settings.reader.mediaSidebarWidth": "Larghezza della barra laterale dei media (px)",
     "settings.reader.mediaSidebarWidth.hint": "Cambia anche trascinando il divisore nel lettore.",
     "settings.reader.mediaSidebarMinimumWidth": "Nascondi la barra laterale dei media sotto questa larghezza del lettore (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lettore più stretto mostra solo i post; la barra torna appena è di nuovo abbastanza largo."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lettore più stretto mostra solo i post; la barra torna appena è di nuovo abbastanza largo.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Le statistiche saranno disponibili non appena la sessione sarà ripristinata."
   }
 }

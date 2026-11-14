@@ -22,6 +22,7 @@ public partial class StatusPage : UserControl
 {
     private StatusSegment _segment = StatusSegment.Statistics;
     private bool _selecting;
+    private bool _statisticsAvailable = true;
     private bool _ended;
     private (long Active, long Waiting, int Problems)? _counts;
     private IoRates? _rates;
@@ -30,7 +31,6 @@ public partial class StatusPage : UserControl
     private readonly TextBlock _diagnosticsLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _diagnosticsBadgeText = new() { Classes = { "chip-label" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _diagnosticsBadge;
-    private bool _statisticsAvailable = true;
 
     public StatusPage()
     {
@@ -84,8 +84,8 @@ public partial class StatusPage : UserControl
     /// the diagnostics can be chosen.</summary>
     internal void SetStatisticsAvailable(bool available)
     {
-        if (StatisticsSegmentTab.IsEnabled != available) StatisticsSegmentTab.IsEnabled = available;
         _statisticsAvailable = available;
+        if (StatisticsSegmentTab.IsEnabled != available) StatisticsSegmentTab.IsEnabled = available;
         ApplyStatisticsUnavailableReason();
     }
 
@@ -121,12 +121,12 @@ public partial class StatusPage : UserControl
         Texts.Changed -= OnLanguageChanged;
     }
 
-    /// <summary>The status line: "Active 3 · Waiting 41 · Problems 2", followed by "↓ 2.4 MiB/s · W 1.9 MiB/s" while rates are known.</summary>
+    /// <summary>The status line: "Active 3 · Waiting 41 · Problems 2", followed by "Down 2.4 MiB/s · Write 1.9 MiB/s" (the header's words) while rates are known.</summary>
     internal static string ComposeStrip(long active, long waiting, int problems, IoRates? rate)
     {
         string counts = Texts.T("status.strip", active, waiting, problems);
         return rate is { } value
-            ? counts + " · " + Texts.T("status.strip.rates", ByteUnits.Rate(value.NetDown), ByteUnits.Rate(value.DiskWrite))
+            ? counts + " · " + Texts.T("status.strip.rates", Texts.T("stats.header.down"), ByteUnits.Rate(value.NetDown), Texts.T("stats.header.write"), ByteUnits.Rate(value.DiskWrite))
             : counts;
     }
 

@@ -3947,7 +3947,6 @@
     "status.segments": "Разделы состояния",
     "status.segment.diagnosticsCount": "Диагностика ({0})",
     "status.strip": "Активно {0} · В очереди {1} · Проблемы {2}",
-    "status.strip.rates": "↓ {0} · З {1}",
     "help.button.name": "Справка: {0}",
     "help.popover.more": "Подробнее в справке",
     "help.stats.title": "Что учитывается",
@@ -4102,7 +4101,6 @@
     "stats.sources.title": "По источникам",
     "stats.errors.open": "Показать ошибки источника {0} в диагностике",
     "stats.errors.openAll": "Показать все ошибки в диагностике",
-    "status.statisticsUnavailable": "Статистика станет доступна, как только сессия будет восстановлена.",
     "command.reader.sidebar.toggle": "Боковая панель медиа",
     "command.reader.sidebar.previous-media": "Предыдущее медиа поста",
     "command.reader.sidebar.next-media": "Следующее медиа поста",
@@ -4129,6 +4127,8 @@
     "settings.reader.mediaSidebarWidth": "Ширина боковой панели медиа (пкс)",
     "settings.reader.mediaSidebarWidth.hint": "Её также меняет перетаскивание разделителя в читалке.",
     "settings.reader.mediaSidebarMinimumWidth": "Скрывать боковую панель медиа, если читалка уже этой ширины (пкс)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Более узкая читалка показывает только посты; панель вернётся, как только ширины снова будет достаточно."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Более узкая читалка показывает только посты; панель вернётся, как только ширины снова будет достаточно.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Статистика станет доступна, как только сеанс будет восстановлен."
   }
 }

@@ -3928,7 +3928,6 @@
     "status.segments": "Sections de l’état",
     "status.segment.diagnosticsCount": "Diagnostic ({0})",
     "status.strip": "Actifs {0} · En attente {1} · Problèmes {2}",
-    "status.strip.rates": "↓ {0} · É {1}",
     "help.button.name": "Aide : {0}",
     "help.popover.more": "Plus dans l’aide",
     "help.stats.title": "Ce qui est compté",
@@ -4082,7 +4081,6 @@
     "stats.sources.title": "Par source",
     "stats.errors.open": "Afficher les erreurs de {0} dans Diagnostic",
     "stats.errors.openAll": "Afficher toutes les erreurs dans Diagnostic",
-    "status.statisticsUnavailable": "Les statistiques seront disponibles dès que la session aura été restaurée.",
     "command.reader.sidebar.toggle": "Panneau des médias",
     "command.reader.sidebar.previous-media": "Média précédent du message",
     "command.reader.sidebar.next-media": "Média suivant du message",
@@ -4109,6 +4107,8 @@
     "settings.reader.mediaSidebarWidth": "Largeur du panneau des médias (px)",
     "settings.reader.mediaSidebarWidth.hint": "Faire glisser le séparateur dans le lecteur la modifie aussi.",
     "settings.reader.mediaSidebarMinimumWidth": "Masquer le panneau des médias sous cette largeur du lecteur (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lecteur plus étroit n’affiche que les messages ; le panneau revient dès qu’il est de nouveau assez large."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lecteur plus étroit n’affiche que les messages ; le panneau revient dès qu’il est de nouveau assez large.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Les statistiques seront disponibles dès que la session aura été restaurée."
   }
 }

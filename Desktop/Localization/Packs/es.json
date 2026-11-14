@@ -3928,7 +3928,6 @@
     "status.segments": "Secciones de estado",
     "status.segment.diagnosticsCount": "Diagnóstico ({0})",
     "status.strip": "Activas {0} · En espera {1} · Problemas {2}",
-    "status.strip.rates": "↓ {0} · E {1}",
     "help.button.name": "Ayuda: {0}",
     "help.popover.more": "Más en la ayuda",
     "help.stats.title": "Qué se cuenta",
@@ -4082,7 +4081,6 @@
     "stats.sources.title": "Por fuente",
     "stats.errors.open": "Mostrar los errores de {0} en Diagnóstico",
     "stats.errors.openAll": "Mostrar todos los errores en Diagnóstico",
-    "status.statisticsUnavailable": "Las estadísticas estarán disponibles en cuanto se restaure la sesión.",
     "command.reader.sidebar.toggle": "Barra lateral de medios",
     "command.reader.sidebar.previous-media": "Medio anterior de la publicación",
     "command.reader.sidebar.next-media": "Medio siguiente de la publicación",
@@ -4109,6 +4107,8 @@
     "settings.reader.mediaSidebarWidth": "Ancho de la barra lateral de medios (px)",
     "settings.reader.mediaSidebarWidth.hint": "También cambia al arrastrar el divisor en el lector.",
     "settings.reader.mediaSidebarMinimumWidth": "Ocultar la barra lateral de medios por debajo de este ancho del lector (px)",
-    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lector más estrecho muestra solo las publicaciones; la barra vuelve en cuanto vuelve a ser lo bastante ancho."
+    "settings.reader.mediaSidebarMinimumWidth.hint": "Un lector más estrecho muestra solo las publicaciones; la barra vuelve en cuanto vuelve a ser lo bastante ancho.",
+    "status.strip.rates": "{0} {1} · {2} {3}",
+    "status.statisticsUnavailable": "Las estadísticas estarán disponibles en cuanto se restaure la sesión."
   }
 }
