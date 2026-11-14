@@ -20,7 +20,6 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -28,6 +27,12 @@ import tempfile
 import time
 import xml.etree.ElementTree as ET
 
+
+# Also supports loading this script with importlib from the stdlib unit tests.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from legacy102_process import (  # noqa: E402
+    CommandFailed, CommandTimedOut, CommandUnavailable, run_bounded_command,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_LEGACY_TAG = "eec6c0169f8d52f7481ea0bf7febfd20981e97c3"
@@ -378,42 +383,16 @@ def _dotnet_executable() -> str:
     return executable
 
 
-def _kill_process(process: subprocess.Popen[str]) -> None:
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"], check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, shell=False)
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-
-
 def run_command(arguments: list[str], cwd: Path, environment: dict[str, str], log: Path,
                 deadline: Deadline, label: str) -> str:
-    if not isinstance(arguments, list) or any(not isinstance(item, str) for item in arguments):
-        raise TypeError("Child commands must be argument lists of strings.")
-    log.parent.mkdir(parents=True, exist_ok=True)
     try:
-        timeout = max(0.05, deadline.remaining())
-        process = subprocess.Popen(
-            arguments, cwd=cwd, env=environment, shell=False,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            start_new_session=os.name != "nt",
-        )
-        try:
-            output, _ = process.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired as error:
-            _kill_process(process)
-            output, _ = process.communicate()
-            log.write_text(output[-2 * 1024 * 1024:], encoding="utf-8")
-            raise DeadlineExceeded(f"{label} exceeded the total timeout budget.") from error
-    except OSError as error:
-        raise UnsupportedEnvironment(f"Could not start {label}: {error}") from error
-    log.write_text(output[-2 * 1024 * 1024:], encoding="utf-8")
-    if process.returncode:
-        raise ChildFailed(f"{label} failed with exit code {process.returncode}; see {log}")
-    return output
+        return run_bounded_command(arguments, cwd, environment, log, deadline.remaining(), label)
+    except CommandTimedOut as error:
+        raise DeadlineExceeded(f"{label} exceeded the total timeout budget.") from error
+    except CommandFailed as error:
+        raise ChildFailed(str(error)) from error
+    except CommandUnavailable as error:
+        raise UnsupportedEnvironment(str(error)) from error
 
 
 @contextmanager
@@ -660,10 +639,10 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
     result.update({
         "schema": "meowchan.legacy102.binary-probes.v1",
         "passed": False,
-        "scope": "offline 1.0.2 binary probes; not runtime PASS, not AP04, not release approval",
+        "scope": "offline SDK/Core 1.0.2 binary probes; not host/worker, AP04, or release approval",
         "ap04": "not_claimed",
         "release": "not_claimed",
-        "networkRequests": 0,
+        "networkPolicy": "local NuGet inputs only; OS network requests are not counted by this runner",
         "source": source_pin,
         "legacyProvenance": {
             "expectedReleaseTag": EXPECTED_LEGACY_TAG,
@@ -814,7 +793,7 @@ def main(argv: list[str] | None = None) -> int:
 
     result = {
         "schema": "meowchan.legacy102.binary-probes.v1", "passed": False,
-        "scope": "offline 1.0.2 binary probes; not runtime PASS, not AP04, not release approval",
+        "scope": "offline SDK/Core 1.0.2 binary probes; not host/worker, AP04, or release approval",
         "ap04": "not_claimed", "release": "not_claimed", "sourceCommitRequested": args.source_commit,
         "dependencies": {
             "required": [".NET 10 SDK/runtime", "four local net10.0 probe projects",

@@ -153,23 +153,29 @@ class Legacy102RunnerSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(RUNNER.ProbeError, "not an object"):
             RUNNER._probe_json("[]\n", "mock")
 
-    def test_child_command_is_argument_list_and_shell_is_disabled(self):
-        class Completed:
-            returncode = 0
-
-            def communicate(self, timeout):
-                self.timeout = timeout
-                return "{\"ok\":true}\n", None
-
-        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(RUNNER.subprocess, "Popen", return_value=Completed()) as popen:
-            output = RUNNER.run_command(["dotnet", "probe.dll", "--profile", "/private/profile"],
-                                        Path(temporary), {"HOME": str(Path(temporary) / "home")},
-                                        Path(temporary) / "run.log", RUNNER.Deadline(5), "mock")
+    def test_child_command_forwards_argument_list_and_remaining_budget_to_bounded_helper(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+             mock.patch.object(RUNNER, "run_bounded_command", return_value='{"ok":true}\n') as command:
+            root = Path(temporary)
+            argv = ["dotnet", "probe.dll", "--profile", "/private/profile"]
+            environment = {"HOME": str(root / "home")}
+            output = RUNNER.run_command(argv, root, environment, root / "run.log", RUNNER.Deadline(5), "mock")
             self.assertIn("ok", output)
-            call = popen.call_args
-            self.assertEqual(["dotnet", "probe.dll", "--profile", "/private/profile"], call.args[0])
-            self.assertFalse(call.kwargs["shell"])
-            self.assertNotIn(" ", call.args[0][0])
+            self.assertEqual(argv, command.call_args.args[0])
+            self.assertEqual(environment, command.call_args.args[2])
+            self.assertGreater(command.call_args.args[4], 0)
+            self.assertLessEqual(command.call_args.args[4], 5)
+
+    def test_bounded_child_failures_map_to_runner_errors(self):
+        for child_error, runner_error in (
+            (RUNNER.CommandFailed("probe", 7, Path("probe.log"), "tail"), RUNNER.ChildFailed),
+            (RUNNER.CommandTimedOut("probe", 1, Path("probe.log"), "tail"), RUNNER.DeadlineExceeded),
+            (RUNNER.CommandUnavailable("missing"), RUNNER.UnsupportedEnvironment),
+        ):
+            with self.subTest(error=type(child_error).__name__), \
+                 mock.patch.object(RUNNER, "run_bounded_command", side_effect=child_error):
+                with self.assertRaises(runner_error):
+                    RUNNER.run_command(["dotnet"], ROOT, {}, Path("unused.log"), RUNNER.Deadline(5), "mock")
 
     def test_sdk_probe_run_has_no_profile_flag_and_core_run_gets_fresh_profile(self):
         with tempfile.TemporaryDirectory() as temporary:

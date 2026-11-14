@@ -37,6 +37,19 @@ closure is the Core assembly plus the matching files named by its `.deps.json`:
 `Microsoft.Data.Sqlite.dll`, `Newtonsoft.Json.dll`, `NodaTime.dll`, `Serilog.dll`,
 `SQLitePCLRaw.core.dll`, `SQLitePCLRaw.batteries_v2.dll`,
 `SQLitePCLRaw.provider.e_sqlite3.dll`, and the platform-native `e_sqlite3` asset.
+For a plain local-reference probe, place the active platform-native library next
+to the executable in the supplied runtime input (for example `libe_sqlite3.so`
+for Linux x64). A local-reference `.deps.json` does not inherit the package's RID
+runtime-target graph. Keeping the library only under `runtimes/linux-x64/native/`
+is therefore insufficient for this probe's native loader. Preserve the original
+package-relative file and record the hash of the side-by-side copy; do not use a
+different system SQLite as a substitute. Windows/macOS need their matching native
+asset and separate native validation.
+
+The runner copies only each probe's own executable, deps/runtimeconfig and debug
+artifacts over that selected runtime closure. It never lets an old copy-local
+`libmeowchan.dll` from the legacy build overwrite the candidate runtime.
+
 The .NET 10 shared framework is supplied by the SDK/runtime and is not a probe
 input. The old and current release locks pin the managed package versions; the
 runner must provide the real files and must not fetch them from the network.
