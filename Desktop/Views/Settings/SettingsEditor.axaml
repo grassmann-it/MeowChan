@@ -339,6 +339,39 @@
                                 </Grid>
                                 <TextBlock Text="{Binding ReaderHoverEnlargeDelayMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderMediaSidebarInput" Content="{Binding ReaderMediaSidebarLabel}" IsChecked="{Binding ReaderMediaSidebar, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarHint}" />
+                                <TextBlock Text="{Binding ReaderMediaSidebarHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                <StackPanel VerticalAlignment="Center" Spacing="4">
+                                    <TextBlock x:Name="ReaderMediaSidebarSideFieldLabel" Text="{Binding ReaderMediaSidebarSideLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding ReaderMediaSidebarSideHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <ComboBox x:Name="ReaderMediaSidebarSideInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderMediaSidebarSideChoices}" SelectedItem="{Binding SelectedReaderMediaSidebarSide, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarSideFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarSideLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarSideHint}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </Grid>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderMediaSidebarWidthFieldLabel" Text="{Binding ReaderMediaSidebarWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderMediaSidebarWidthInput" Value="{Binding ReaderMediaSidebarWidth, Mode=TwoWay}" Minimum="{Binding ReaderMediaSidebarWidthMinimum}" Maximum="{Binding ReaderMediaSidebarWidthMaximum}" Increment="40" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarWidthLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarWidthHelp}" />
+                                        <TextBlock x:Name="ReaderMediaSidebarWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderMediaSidebarWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderMediaSidebarMinimumWidthFieldLabel" Text="{Binding ReaderMediaSidebarMinimumWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderMediaSidebarMinimumWidthInput" Value="{Binding ReaderMediaSidebarMinimumWidth, Mode=TwoWay}" Minimum="{Binding ReaderMediaSidebarMinimumWidthMinimum}" Maximum="{Binding ReaderMediaSidebarMinimumWidthMaximum}" Increment="80" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaSidebarMinimumWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaSidebarMinimumWidthLabel}" AutomationProperties.HelpText="{Binding ReaderMediaSidebarMinimumWidthHelp}" />
+                                        <TextBlock x:Name="ReaderMediaSidebarMinimumWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderMediaSidebarMinimumWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />

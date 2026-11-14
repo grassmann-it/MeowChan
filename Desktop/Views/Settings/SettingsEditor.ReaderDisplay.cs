@@ -29,6 +29,10 @@ public partial class SettingsEditor
     public int ReaderThreadingDepthMinimum => Config.ReaderThreadingDepthMinimum;
     public int ReaderThreadingDepthMaximum => Config.ReaderThreadingDepthMaximum;
     public int ReadingHistoryLimitMinimum => Config.ReadingHistoryLimitMinimum;
+    public int ReaderMediaSidebarWidthMinimum => Config.ReaderMediaSidebarWidthMinimum;
+    public int ReaderMediaSidebarWidthMaximum => Config.ReaderMediaSidebarWidthMaximum;
+    public int ReaderMediaSidebarMinimumWidthMinimum => Config.ReaderMediaSidebarMinimumWidthMinimum;
+    public int ReaderMediaSidebarMinimumWidthMaximum => Config.ReaderMediaSidebarMinimumWidthMaximum;
     public int ReadingHistoryLimitMaximum => Config.ReadingHistoryLimitMaximum;
     public int ReaderTextlessMediaWidthMinimum => Config.ReaderTextlessMediaWidthMinimum;
     public int ReaderTextlessMediaWidthMaximum => Config.ReaderTextlessMediaWidthMaximum;
@@ -138,6 +142,42 @@ public partial class SettingsEditor
     public bool ReaderHoverEnlarge { get => _readerHoverEnlarge; set => SetField(ref _readerHoverEnlarge, value, nameof(ReaderHoverEnlarge)); }
     public string ReaderHoverEnlargeLabel => Texts.T("settings.reader.hoverEnlarge");
     public string ReaderHoverEnlargeHint => Texts.T("settings.reader.hoverEnlarge.hint");
+    // The media sidebar of the large reader (R8): switch (also in the reader's View menu), side, width (also dragged) and the reader width below which it hides.
+    private bool _readerMediaSidebar;
+    public bool ReaderMediaSidebar { get => _readerMediaSidebar; set => SetField(ref _readerMediaSidebar, value, nameof(ReaderMediaSidebar)); }
+    public string ReaderMediaSidebarLabel => Texts.T("settings.reader.mediaSidebar");
+    public string ReaderMediaSidebarHint => Texts.T("settings.reader.mediaSidebar.hint");
+    private SettingsChoice? _selectedReaderMediaSidebarSide;
+    public SettingsChoice? SelectedReaderMediaSidebarSide
+    {
+        get => _selectedReaderMediaSidebarSide;
+        set => SetField(ref _selectedReaderMediaSidebarSide, value, nameof(SelectedReaderMediaSidebarSide));
+    }
+    public IReadOnlyList<SettingsChoice> ReaderMediaSidebarSideChoices { get; private set; } = Array.Empty<SettingsChoice>();
+    public string ReaderMediaSidebarSideLabel => Texts.T("settings.reader.mediaSidebarSide");
+    public string ReaderMediaSidebarSideHint => Texts.T("settings.reader.mediaSidebarSide.hint");
+    private decimal? _readerMediaSidebarWidth;
+    public decimal? ReaderMediaSidebarWidth { get => _readerMediaSidebarWidth; set => SetField(ref _readerMediaSidebarWidth, value, nameof(ReaderMediaSidebarWidth)); }
+    public string ReaderMediaSidebarWidthLabel => Texts.T("settings.reader.mediaSidebarWidth");
+    public string ReaderMediaSidebarWidthHint => Texts.T("settings.reader.mediaSidebarWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
+    public string ReaderMediaSidebarWidthHelp => FieldHelp(nameof(ReaderMediaSidebarWidthInput), ReaderMediaSidebarWidthHint);
+    private decimal? _readerMediaSidebarMinimumWidth;
+    public decimal? ReaderMediaSidebarMinimumWidth { get => _readerMediaSidebarMinimumWidth; set => SetField(ref _readerMediaSidebarMinimumWidth, value, nameof(ReaderMediaSidebarMinimumWidth)); }
+    public string ReaderMediaSidebarMinimumWidthLabel => Texts.T("settings.reader.mediaSidebarMinimumWidth");
+    public string ReaderMediaSidebarMinimumWidthHint => Texts.T("settings.reader.mediaSidebarMinimumWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
+    public string ReaderMediaSidebarMinimumWidthHelp => FieldHelp(nameof(ReaderMediaSidebarMinimumWidthInput), ReaderMediaSidebarMinimumWidthHint);
+
+    private void RefreshMediaSidebarSideChoices(string side)
+    {
+        ReaderMediaSidebarSideChoices = new SettingsChoice[]
+        {
+            new(Config.ReaderMediaSidebarSideLeft, Texts.T("settings.reader.mediaSidebarSide.left")),
+            new(Config.ReaderMediaSidebarSideRight, Texts.T("settings.reader.mediaSidebarSide.right"))
+        };
+        Raise(new[] { nameof(ReaderMediaSidebarSideChoices) });
+        SelectedReaderMediaSidebarSide = ReaderMediaSidebarSideChoices.FirstOrDefault(item => item.Value == side) ?? ReaderMediaSidebarSideChoices[0];
+    }
+
     private SettingsChoice? _selectedReaderDateStyle;
     public SettingsChoice? SelectedReaderDateStyle
     {
@@ -198,6 +238,7 @@ public partial class SettingsEditor
         string spoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         string upscale = SelectedGalleryFitUpscale?.Value ?? (_config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshReaderChoices(date, spoilers, upscale);
+        RefreshMediaSidebarSideChoices(SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide);
     }
 
     private void LoadReaderDraft(Config config)
@@ -237,7 +278,13 @@ public partial class SettingsEditor
         ReaderTextlessLargeImages = config.ReaderTextlessLargeImages;
         ReaderFocusedMediaEnlarge = config.ReaderFocusedMediaEnlarge;
         ReaderHoverEnlarge = config.ReaderHoverEnlarge;
+        ReaderMediaSidebar = config.ReaderMediaSidebar;
+        ReaderMediaSidebarWidth = config.ReaderMediaSidebarWidth;
+        ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
+        ReaderMediaSidebarMinimumWidth = config.ReaderMediaSidebarMinimumWidth;
+        ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
+        RefreshMediaSidebarSideChoices(config.ReaderMediaSidebarSide);
     }
 
     /// <summary>
@@ -250,6 +297,13 @@ public partial class SettingsEditor
         ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
         ReaderFocusedMediaEnlarge = _config.ReaderFocusedMediaEnlarge;
         ReaderHoverEnlarge = _config.ReaderHoverEnlarge;
+        // The media sidebar's switch (View menu) and its dragged width (splitter in the reader).
+        ReaderMediaSidebar = _config.ReaderMediaSidebar;
+        if (ReaderMediaSidebarWidth != _config.ReaderMediaSidebarWidth)
+        {
+            ReaderMediaSidebarWidth = _config.ReaderMediaSidebarWidth;
+            ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
+        }
     }
 
     private void ApplyReaderDraft(Config candidate)
@@ -273,6 +327,10 @@ public partial class SettingsEditor
         candidate.ReaderTextlessLargeImages = ReaderTextlessLargeImages;
         candidate.ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge;
         candidate.ReaderHoverEnlarge = ReaderHoverEnlarge;
+        candidate.ReaderMediaSidebar = ReaderMediaSidebar;
+        candidate.ReaderMediaSidebarSide = SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide;
+        candidate.ReaderMediaSidebarWidth = GetInteger(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
+        candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
         candidate.ReaderDateStyle = SelectedReaderDateStyle?.Value ?? _config.ReaderDateStyle;
         candidate.ReaderSpoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         candidate.GalleryFitUpscaleLimited = IsGalleryFitLimited;
@@ -310,6 +368,8 @@ public partial class SettingsEditor
         yield return (ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, string.Empty, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum, true);
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
         yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
+        yield return (ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, string.Empty, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, true);
+        yield return (ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, string.Empty, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, true);
     }
 
     /// <summary>
@@ -376,6 +436,10 @@ public partial class SettingsEditor
         nameof(ReaderTextlessLargeImagesLabel), nameof(ReaderTextlessLargeImagesHint),
         nameof(ReaderFocusedMediaEnlargeLabel), nameof(ReaderFocusedMediaEnlargeHint),
         nameof(ReaderHoverEnlargeLabel), nameof(ReaderHoverEnlargeHint),
+        nameof(ReaderMediaSidebarLabel), nameof(ReaderMediaSidebarHint),
+        nameof(ReaderMediaSidebarSideLabel), nameof(ReaderMediaSidebarSideHint),
+        nameof(ReaderMediaSidebarWidthLabel), nameof(ReaderMediaSidebarWidthHint), nameof(ReaderMediaSidebarWidthHelp),
+        nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderDateStyleLabel), nameof(ReaderDateStyleHint),
         nameof(ReaderSpoilersLabel), nameof(ReaderSpoilersHint),
         nameof(GalleryFitUpscaleLabel), nameof(GalleryFitUpscaleHint),
@@ -398,5 +462,7 @@ public partial class SettingsEditor
         nameof(ReaderFocusedMediaScalePercentHelp),
         nameof(ReaderHoverEnlargeSizeHelp),
         nameof(ReaderHoverEnlargeDelayMsHelp),
+        nameof(ReaderMediaSidebarWidthHelp),
+        nameof(ReaderMediaSidebarMinimumWidthHelp),
     });
 }

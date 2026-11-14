@@ -450,6 +450,25 @@ namespace MeowChan
         public bool ReaderTextlessLargeImages { get; set; } = true;
         public bool ReaderHoverEnlarge { get; set; } = false;
         public bool ReaderFocusedMediaEnlarge { get; set; } = false;
+        // The media sidebar of the large reader (R8): off unless chosen (View menu or Settings), on the left unless set to the right.
+        public bool ReaderMediaSidebar { get; set; } = false;
+        private string _readerMediaSidebarSide = ReaderMediaSidebarSideLeft;
+        internal const string ReaderMediaSidebarSideLeft = "Left", ReaderMediaSidebarSideRight = "Right";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderMediaSidebarSide
+        {
+            get => _readerMediaSidebarSide;
+            set => _readerMediaSidebarSide = string.Equals(value?.Trim(), ReaderMediaSidebarSideRight, StringComparison.OrdinalIgnoreCase)
+                ? ReaderMediaSidebarSideRight : ReaderMediaSidebarSideLeft;
+        }
+        public int ReaderMediaSidebarWidth { get; set; } = ReaderMediaSidebarWidthDefault;
+        internal const int ReaderMediaSidebarWidthDefault = ReaderDisplayPreferences.MediaSidebarWidthDefault;
+        internal const int ReaderMediaSidebarWidthMinimum = ReaderDisplayPreferences.MediaSidebarWidthMinimum;
+        internal const int ReaderMediaSidebarWidthMaximum = ReaderDisplayPreferences.MediaSidebarWidthMaximum;
+        public int ReaderMediaSidebarMinimumWidth { get; set; } = ReaderMediaSidebarMinimumWidthDefault;
+        internal const int ReaderMediaSidebarMinimumWidthDefault = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
+        internal const int ReaderMediaSidebarMinimumWidthMinimum = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum;
+        internal const int ReaderMediaSidebarMinimumWidthMaximum = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -651,6 +670,8 @@ namespace MeowChan
             ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
             ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
             ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
+            ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
+            ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
@@ -1224,6 +1245,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeDelayMs), "ReaderHoverEnlargeDelayMs is outside its supported range.");
             if (ReaderFocusedMediaScalePercent is < ReaderFocusedMediaScalePercentMinimum or > ReaderFocusedMediaScalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderFocusedMediaScalePercent), "ReaderFocusedMediaScalePercent is outside its supported range.");
+            if (ReaderMediaSidebarWidth is < ReaderMediaSidebarWidthMinimum or > ReaderMediaSidebarWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarWidth), "ReaderMediaSidebarWidth is outside its supported range.");
+            if (ReaderMediaSidebarMinimumWidth is < ReaderMediaSidebarMinimumWidthMinimum or > ReaderMediaSidebarMinimumWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarMinimumWidth), "ReaderMediaSidebarMinimumWidth is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (PostFilterRuleLimit is < PostFilterRuleLimitMinimum or > PostFilterRuleLimitMaximum)
@@ -1402,6 +1427,10 @@ namespace MeowChan
                 ReaderTextlessLargeImages = ReaderTextlessLargeImages,
                 ReaderHoverEnlarge = ReaderHoverEnlarge,
                 ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
+                ReaderMediaSidebar = ReaderMediaSidebar,
+                ReaderMediaSidebarSide = ReaderMediaSidebarSide,
+                ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
+                ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
@@ -1600,6 +1629,10 @@ namespace MeowChan
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
+            ReaderMediaSidebar = source.ReaderMediaSidebar;
+            ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
+            ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
@@ -1757,6 +1790,10 @@ namespace MeowChan
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
             ReaderHoverEnlarge = source.ReaderHoverEnlarge;
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
+            ReaderMediaSidebar = source.ReaderMediaSidebar;
+            ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
+            ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;

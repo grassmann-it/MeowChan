@@ -25,6 +25,14 @@ internal sealed class ReaderDisplayPreferences
     internal const int HoverEnlargeDelayDefault = 350;
     internal const int HoverEnlargeDelayMinimum = 100;
     internal const int HoverEnlargeDelayMaximum = 2000;
+    // The media sidebar of the large reader (R8): its width (also dragged with the splitter) and the reader width below which it
+    // gives way to the posts. In device-independent pixels.
+    internal const int MediaSidebarWidthDefault = 480;
+    internal const int MediaSidebarWidthMinimum = 240;
+    internal const int MediaSidebarWidthMaximum = 1200;
+    internal const int MediaSidebarReaderWidthDefault = 1280;
+    internal const int MediaSidebarReaderWidthMinimum = 800;
+    internal const int MediaSidebarReaderWidthMaximum = 3840;
     // The reading history (R5): places of the last threads read, one per thread.
     internal const int ReadingHistoryLimitDefault = 10;
     internal const int ReadingHistoryLimitMinimum = 5;
@@ -119,16 +127,33 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         false, ReaderDisplayPreferences.FocusedMediaScaleDefault, false, ReaderDisplayPreferences.HoverEnlargeSizeDefault,
         ReaderDisplayPreferences.HoverEnlargeDelayDefault);
 
+    /// <summary>The media sidebar of the large reader (R8) presents the focused post's media in its own column; off by default.</summary>
+    internal bool Sidebar { get; init; }
+    /// <summary>The sidebar sits right of the posts instead of left.</summary>
+    internal bool SidebarRight { get; init; }
+    internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
+    /// <summary>Below this reader width the sidebar gives way to the posts (it stays chosen and returns when the reader is wider).</summary>
+    internal int SidebarMinimumReaderWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
+
     internal static ReaderMediaPreferences From(Config config) => new(config.ReaderTextlessLargeImages, config.ReaderTextlessMediaWidth,
         config.ReaderFocusedMediaEnlarge, config.ReaderFocusedMediaScalePercent, config.ReaderHoverEnlarge, config.ReaderHoverEnlargeSize,
-        config.ReaderHoverEnlargeDelayMs);
+        config.ReaderHoverEnlargeDelayMs)
+    {
+        Sidebar = config.ReaderMediaSidebar,
+        SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
+        SidebarWidth = config.ReaderMediaSidebarWidth,
+        SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth
+    };
 
     internal ReaderMediaPreferences Clamped() => this with
     {
         TextlessWidth = Math.Clamp(TextlessWidth, ReaderDisplayPreferences.TextlessMediaWidthMinimum, ReaderDisplayPreferences.TextlessMediaWidthMaximum),
         FocusedScalePercent = Math.Clamp(FocusedScalePercent, ReaderDisplayPreferences.FocusedMediaScaleMinimum, ReaderDisplayPreferences.FocusedMediaScaleMaximum),
         HoverSize = Math.Clamp(HoverSize, ReaderDisplayPreferences.HoverEnlargeSizeMinimum, ReaderDisplayPreferences.HoverEnlargeSizeMaximum),
-        HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum)
+        HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum),
+        SidebarWidth = Math.Clamp(SidebarWidth, ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum),
+        SidebarMinimumReaderWidth = Math.Clamp(SidebarMinimumReaderWidth, ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,
+            ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum)
     };
 
     /// <summary>What changes the posts' own images (and so rebuilds them): the focus and hover options act live.</summary>
