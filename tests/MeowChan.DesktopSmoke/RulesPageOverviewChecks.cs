@@ -17,13 +17,16 @@ internal static partial class RulesPageChecks
         await FlushAsync();
         Control overview = page.FindControl<Control>("RulesOverviewPanel")!;
         Control wizard = page.FindControl<Control>("RuleWizardPanel")!;
-        Button create = page.FindControl<Button>("CreateRuleButton")!;
+        // One primary "Create rule" at a time: the empty state's while it shows, otherwise the header's.
+        Button create = page.OverviewCreateButton;
         await WaitLayoutAsync(window, () => overview.IsEffectivelyVisible && create.IsEffectivelyVisible);
         Require(page.IsOverviewVisible && !wizard.IsEffectivelyVisible && !page.FindControl<Control>("RulesFooterActions")!.IsEffectivelyVisible
             && page.FindControl<Control>("RulesOverviewDefaults")!.IsEffectivelyVisible,
             "The Rules page did not open on its overview with the built-in defaults and without editor actions.");
         Require(page.CurrentOverview.IsEmpty == page.FindControl<Control>("RulesOverviewEmpty")!.IsVisible,
             "The overview's empty state disagrees with its saved rules and drafts.");
+        RequireOneCreatePrimary(page);
+        if (page.CurrentOverview.IsEmpty) RequireEmptyStatePlacement(window, page);
         Program.CaptureWindow(window, "smoke-rules-overview.png");
 
         Click(create);
@@ -73,6 +76,29 @@ internal static partial class RulesPageChecks
             "The overview did not confirm the saved rule in its polite live status: " + page.StatusMessage);
         Require(page.CurrentOverview.Groups.SelectMany(group => group.Rows).Any(row => row.Scope == scope && row.Saved),
             "The saved rule has no row on the overview.");
+    }
+
+    private static void RequireOneCreatePrimary(RulesPage page)
+    {
+        Button header = page.FindControl<Button>("CreateRuleButton")!, first = page.FindControl<Button>("CreateFirstRuleButton")!;
+        Require(header.IsEffectivelyVisible != first.IsEffectivelyVisible && first.IsEffectivelyVisible == page.CurrentOverview.IsEmpty,
+            $"Rules overview shows {(header.IsEffectivelyVisible ? 1 : 0) + (first.IsEffectivelyVisible ? 1 : 0)} primary Create rule buttons; expected exactly one "
+            + "(the empty state's while it shows, else the header's).");
+    }
+
+    /// <summary>The empty state sits in the free height at about a third (top-aligned only when nothing is free), the idle footer is gone.</summary>
+    private static void RequireEmptyStatePlacement(Window window, RulesPage page)
+    {
+        // The overview grid has the viewport's height; its middle row (empty state plus defaults) starts at a third of the free height.
+        Control scroll = page.FindControl<Control>("RulesScroll")!, stack = page.FindControl<Control>("RulesOverviewStack")!;
+        double top = stack.TranslatePoint(new Point(0, 0), window)!.Value.Y - scroll.TranslatePoint(new Point(0, 0), window)!.Value.Y;
+        double free = Math.Max(0, scroll.Bounds.Height - stack.Bounds.Height);
+        Console.WriteLine($"SMOKE rules empty placement: viewport {scroll.Bounds.Height:0.#}, block {stack.Bounds.Height:0.#} at {top:0.#}, free {free:0.#}.");
+        Require(Math.Abs(top - free / 3) <= 4,
+            $"The Rules empty state is not placed at a third of the free height: top {top:0.#}, free {free:0.#}.");
+        Require(!page.FindControl<Control>("RulesFooterBar")!.IsVisible
+            || page.StatusMessage != Texts.Count("rules.changedScopes", page.CurrentOverview.SavedCount),
+            "The idle Rules overview still shows its footer bar with the saved-rules line.");
     }
 
     private static void RequireTemplatedLabel(Button button, string expected) =>
