@@ -524,6 +524,85 @@
                             <TextBlock Text="{Binding ReadingHistoryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
+                    <TextBlock x:Name="SettingsTaggingHeading" Text="{Binding TaggingGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagStampSizeFieldLabel" Text="{Binding TagStampSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagStampSizeInput" Value="{Binding TagStampSize, Mode=TwoWay}" Minimum="{Binding TagStampSizeMinimum}" Maximum="{Binding TagStampSizeMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=TagStampSizeFieldLabel}" AutomationProperties.Name="{Binding TagStampSizeLabel}" AutomationProperties.HelpText="{Binding TagStampSizeHelp}" />
+                                <TextBlock x:Name="TagStampSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagStampSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueWalkWindowFieldLabel" Text="{Binding TagQueueWalkWindowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueWalkWindowInput" Value="{Binding TagQueueWalkWindow, Mode=TwoWay}" Minimum="{Binding TagQueueWalkWindowMinimum}" Maximum="{Binding TagQueueWalkWindowMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueWalkWindowFieldLabel}" AutomationProperties.Name="{Binding TagQueueWalkWindowLabel}" AutomationProperties.HelpText="{Binding TagQueueWalkWindowHelp}" />
+                                <TextBlock x:Name="TagQueueWalkWindowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueWalkWindowHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCardCountFieldLabel" Text="{Binding TaggingCardCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TaggingCardCountInput" Value="{Binding TaggingCardCount, Mode=TwoWay}" Minimum="{Binding TaggingCardCountMinimum}" Maximum="{Binding TaggingCardCountMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=TaggingCardCountFieldLabel}" AutomationProperties.Name="{Binding TaggingCardCountLabel}" AutomationProperties.HelpText="{Binding TaggingCardCountHelp}" />
+                                <TextBlock x:Name="TaggingCardCountInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TaggingCardCountHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <CheckBox x:Name="TaggingCardsDefaultInput" Content="{Binding TaggingCardsDefaultLabel}" IsChecked="{Binding TaggingCardsDefault, Mode=TwoWay}" AutomationProperties.HelpText="{Binding TaggingCardsDefaultHint}" />
+                        <TextBlock Text="{Binding TaggingCardsDefaultHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel x:Name="TaggingCardsPanel" Spacing="8" Margin="0,8,0,0">
+                        <TextBlock x:Name="TaggingCardsHeading" Text="{Binding TaggingCardsHeadingLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding TaggingCardSlotsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCard1FieldLabel" Text="{Binding TaggingCard1Label}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ComboBox x:Name="TaggingCard1Input" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      ItemsSource="{Binding TaggingCardChoices}" SelectedItem="{Binding SelectedTaggingCard1, Mode=TwoWay}"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=TaggingCard1FieldLabel}" AutomationProperties.Name="{Binding TaggingCard1Label}" AutomationProperties.HelpText="{Binding TaggingCardSlotsHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCard2FieldLabel" Text="{Binding TaggingCard2Label}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ComboBox x:Name="TaggingCard2Input" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      ItemsSource="{Binding TaggingCardChoices}" SelectedItem="{Binding SelectedTaggingCard2, Mode=TwoWay}"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=TaggingCard2FieldLabel}" AutomationProperties.Name="{Binding TaggingCard2Label}" AutomationProperties.HelpText="{Binding TaggingCardSlotsHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCard3FieldLabel" Text="{Binding TaggingCard3Label}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ComboBox x:Name="TaggingCard3Input" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      ItemsSource="{Binding TaggingCardChoices}" SelectedItem="{Binding SelectedTaggingCard3, Mode=TwoWay}"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=TaggingCard3FieldLabel}" AutomationProperties.Name="{Binding TaggingCard3Label}" AutomationProperties.HelpText="{Binding TaggingCardSlotsHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCard4FieldLabel" Text="{Binding TaggingCard4Label}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ComboBox x:Name="TaggingCard4Input" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      ItemsSource="{Binding TaggingCardChoices}" SelectedItem="{Binding SelectedTaggingCard4, Mode=TwoWay}"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=TaggingCard4FieldLabel}" AutomationProperties.Name="{Binding TaggingCard4Label}" AutomationProperties.HelpText="{Binding TaggingCardSlotsHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TaggingCard5FieldLabel" Text="{Binding TaggingCard5Label}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ComboBox x:Name="TaggingCard5Input" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                      ItemsSource="{Binding TaggingCardChoices}" SelectedItem="{Binding SelectedTaggingCard5, Mode=TwoWay}"
+                                      AutomationProperties.LabeledBy="{Binding ElementName=TaggingCard5FieldLabel}" AutomationProperties.Name="{Binding TaggingCard5Label}" AutomationProperties.HelpText="{Binding TaggingCardSlotsHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
                         </StackPanel>
                     </Expander>
                 </StackPanel>

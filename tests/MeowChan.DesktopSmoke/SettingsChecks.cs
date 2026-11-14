@@ -30,6 +30,7 @@ internal static class SettingsChecks
             await CheckGalleryVolumeMergeAsync(owner, Path.Combine(profile, "gallery-volume"));
             CheckGalleryPairMigration(Path.Combine(profile, "gallery-pair-migration"));
             await CheckGalleryPlaybackDraftAsync(owner, Path.Combine(profile, "gallery-playback"));
+            await CheckTaggingSettingsDraftAsync(owner, Path.Combine(profile, "tagging"));
             await CheckSavedStatusRetiredAsync(owner, Path.Combine(profile, "saved-status"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
@@ -115,6 +116,59 @@ internal static class SettingsChecks
         }
         finally { if (window.IsVisible) window.Close(); await dialog; }
         Console.WriteLine("SMOKE gallery settings: duration validation, single paired overlay/auto-hide, legacy migration, profile commit, concurrent volume and discard passed.");
+    }
+
+    // PT7: the Tagging group of the Reading and media page: defaults, the card slots swap instead of repeating, a bad number is refused
+    // with its own error line, and a save writes the numbers, the card choice and the start choice (and only the start choice when changed).
+    private static async Task CheckTaggingSettingsDraftAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        Require(config.TagStampSize == 9 && config.TagQueueWalkWindow == 200 && config.TaggingCardCount == 5 && !config.TaggingCardsDefault,
+            "A fresh profile lost a tagging default.");
+        config.SaveConfig(profile);
+        int commits = 0;
+        SettingsWindow window = new(config, candidate =>
+        {
+            config.CopySettingsFieldsFrom(candidate);
+            config.SaveConfig(profile);
+            commits++;
+            return Task.CompletedTask;
+        });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            SettingsEditor editor = window.Editor;
+            await SettingsSectionChecks.OpenAsync(editor, "settings.reading-media");
+            Require(editor.FindControl<Control>("SettingsTaggingHeading") != null && editor.TaggingCardChoices.Count == 10,
+                "The Tagging group or its card choices are missing.");
+            Require(string.Join(",", new[] { editor.SelectedTaggingCard1, editor.SelectedTaggingCard2, editor.SelectedTaggingCard3,
+                editor.SelectedTaggingCard4, editor.SelectedTaggingCard5 }.Select(choice => choice?.Value)) == "back,skip,favorite,stamp,done",
+                "The card slots do not show the default cards.");
+            // Card 3 takes "back" (card 1's decision): the two swap and no decision is ever twice.
+            editor.SelectedTaggingCard3 = editor.TaggingCardChoices.Single(choice => choice.Value == "back");
+            Require(editor.SelectedTaggingCard1?.Value == "favorite" && editor.SelectedTaggingCard3?.Value == "back",
+                "Choosing a decision another card has did not swap the two cards.");
+            editor.TagStampSize = 12;
+            editor.TagQueueWalkWindow = 50;
+            editor.TaggingCardCount = 3;
+            editor.TaggingCardsDefault = true;
+            NumericUpDown stamp = editor.FindControl<NumericUpDown>("TagStampSizeInput")!;
+            stamp.Text = "not a number";
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => editor.FindControl<TextBlock>("TagStampSizeInputError")!.IsEffectivelyVisible);
+            Require(commits == 0 && window.IsVisible, "An invalid stamp size was saved or discarded.");
+            stamp.Text = "12";
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => !window.IsVisible);
+            await dialog;
+            Config loaded = Config.LoadConfig(profile);
+            Require(commits == 1 && loaded.TagStampSize == 12 && loaded.TagQueueWalkWindow == 50 && loaded.TaggingCardCount == 3
+                && loaded.TaggingCardsDefault && string.Join(",", loaded.TaggingCards) == "favorite,skip,back,stamp,done",
+                "The tagging settings commit lost a chosen field.");
+        }
+        finally { if (window.IsVisible) window.Close(); await dialog; }
+        Console.WriteLine("SMOKE tagging settings: defaults, swapping card slots, own error line, commit of stamp size, walk window, card count, card choice and start choice passed.");
     }
 
     private static void CheckGalleryPairMigration(string profile)

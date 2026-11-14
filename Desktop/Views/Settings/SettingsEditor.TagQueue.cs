@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -51,6 +52,7 @@ public partial class SettingsEditor
         ResetNumber(TagQueueHistoryInput, TagQueueHistory.Value);
         TagQueueConfirmAbove = config.TagQueueConfirmAbove;
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
+        LoadTaggingDraft(config);
     }
 
     private void ApplyTagQueueDraft(Config candidate)
@@ -59,6 +61,7 @@ public partial class SettingsEditor
         candidate.TagQueueFileLimitMiB = GetInteger(TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum);
         candidate.TagQueueHistory = GetInteger(TagQueueHistory, TagQueueHistoryLabel, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum);
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
+        ApplyTaggingDraft(candidate);
     }
 
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> TagQueueNumericFields()
@@ -67,10 +70,11 @@ public partial class SettingsEditor
         yield return (TagQueueFileLimitMiBInput, TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, string.Empty, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum, true);
         yield return (TagQueueHistoryInput, TagQueueHistory, TagQueueHistoryLabel, string.Empty, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum, true);
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
+        foreach (var field in TaggingNumericFields()) yield return field;
     }
 
-    private void RaiseTagQueueTextsChanged() => Raise(TagQueueTextProperties);
-    private void NotifyTagQueueHelpChanged() => Raise(TagQueueHelpProperties);
+    private void RaiseTagQueueTextsChanged() => Raise(TagQueueTextProperties.Concat(TaggingTextProperties));
+    private void NotifyTagQueueHelpChanged() => Raise(TagQueueHelpProperties.Concat(TaggingHelpProperties));
 
     private static readonly string[] TagQueueTextProperties =
     {

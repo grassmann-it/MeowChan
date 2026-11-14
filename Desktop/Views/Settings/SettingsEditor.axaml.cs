@@ -1212,6 +1212,7 @@ namespace MeowChan
             RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
             RefreshHeaderTaglineChoices(headerTagline ?? _config.HeaderTagline, headerTaglineFixed ?? _config.HeaderTaglineFixedId);
             RefreshReaderChoiceLabels();
+            RefreshTaggingChoiceLabels();
         }
 
         private void OnCancelButtonClick(object? sender, RoutedEventArgs e)
@@ -1647,7 +1648,8 @@ namespace MeowChan
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
                     nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
-                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide);
+                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide)
+                    or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;

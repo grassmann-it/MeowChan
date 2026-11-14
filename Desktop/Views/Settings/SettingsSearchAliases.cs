@@ -65,6 +65,10 @@ internal static class SettingsSearchAliases
         ["HeaderTaglineFixedId"] = "tagline slogan quip fortune motto fixed spruch fest",
         ["StatsHeaderGraph"] = "statistics graph network disk traffic statistik diagramm netz platte",
         ["StatsPersist"] = "statistics history save verlauf speichern statistik",
+        ["TagStampSize"] = "stamp stempel quick tagging shortcut schnell taggen kürzel tags set",
+        ["TagQueueWalkWindow"] = "walk window batch round queue durchgang runde fenster warteschlange tagging-warteschlange",
+        ["TaggingCardCount"] = "cards tinder karten kartenmodus card mode",
+        ["TaggingCardsDefault"] = "cards tinder karten kartenmodus card mode start default beginnen standard",
     };
 
     public static IReadOnlyList<string> For(string? key, string categoryId)
@@ -87,6 +91,8 @@ internal static class SettingsSearchAliases
             if (key.StartsWith("Import", StringComparison.Ordinal)) result.Add("import einlesen");
             if (key.StartsWith("Export", StringComparison.Ordinal)) result.Add("export ausgabe");
             if (key.Contains("Tag", StringComparison.Ordinal)) result.Add("tags labels schlagwörter");
+            if (key.StartsWith("TagQueue", StringComparison.Ordinal)) result.Add("tagging queue warteschlange vormerken tagging-warteschlange");
+            if (key.StartsWith("TaggingCard", StringComparison.Ordinal)) result.Add("cards tinder decision entscheidung karten kartenmodus card mode");
             if (key.Contains("Favorite", StringComparison.Ordinal)) result.Add("favorites favoriten");
             if (key.Contains("Bookmark", StringComparison.Ordinal)) result.Add("bookmarks lesezeichen");
             if (key.StartsWith("Stats", StringComparison.Ordinal)) result.Add("statistics graph statistik diagramm");
