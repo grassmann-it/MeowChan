@@ -11,10 +11,5 @@ public partial class SourcesPage
         this.FindControl<TextBlock>("SourcesActionError")!.Text = text;
         this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourcesActionErrorBanner")!.IsVisible = !string.IsNullOrEmpty(text);
     }
-    private void RenderOperationFeedback()
-    {
-        Ursa.Controls.LoadingIcon loading = this.FindControl<Ursa.Controls.LoadingIcon>("SourcesOperationLoading")!;
-        loading.IsLoading = loading.IsVisible = _busy;
-        this.FindControl<TextBlock>("SourcesOperationStatus")!.Text = _busy ? Texts.T("feedback.working") : string.Empty;
-    }
+    private void RenderOperationFeedback() => SourcePluginManagement.SetSourceOperationBusy(_busy);
 }

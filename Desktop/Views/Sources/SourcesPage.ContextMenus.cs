@@ -29,16 +29,16 @@ public partial class SourcesPage
         grid.AddHandler(ContextRequestedEvent, OnWatchContextRequested, RoutingStrategies.Tunnel);
     }
 
-    private void AttachSourceContextMenu(Button button, string sourceId)
+    private void AttachSourceContextMenu(SelectionListItem button, string sourceId)
     {
         button.ContextMenu = new ContextMenu();
         button.ContextMenu.Opening += (_, args) =>
         {
             ContextMenu menu = button.ContextMenu!;
             menu.Items.Clear();
-            SourceRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
+            SourceListRow? source = _rows.FirstOrDefault(row => row.Id == sourceId);
             if (source == null || _ended) { args.Cancel = true; return; }
-            bool Ready() => !_ended && _available && !_busy;
+            bool Ready() => !_ended && _available && !IsBusy;
             string reason = UnavailableReason();
             void Add(string id, Action action, bool available = true)
             {
@@ -54,6 +54,11 @@ public partial class SourcesPage
             Add("location.open-source", () => _ = OpenFrozenSourceAsync(source.Address));
             Add("rules.edit-scope", () => _editRules?.Invoke(source.Id), _editRules != null);
             Add("navigation.diagnostics", () => _openDiagnostics?.Invoke(), _openDiagnostics != null);
+            if (source.Plugin is { } plugin)
+            {
+                if (!IsBusy) { SetSelectedSource(sourceId); RenderDetails(); }
+                SourcePluginManagement.AppendSourcePluginActions(menu, plugin.Key, button);
+            }
         };
     }
 
@@ -86,7 +91,7 @@ public partial class SourcesPage
         ContextMenu menu = grid.ContextMenu!;
         menu.Items.Clear();
         if (grid.SelectedItem is not SourceWatchRow frozen || _ended) { menu.Close(); return; }
-        bool Ready() => !_ended && _available && !_busy && _openWatch != null;
+        bool Ready() => !_ended && _available && !IsBusy && _openWatch != null;
         string reason = UnavailableReason();
         menu.Items.Add(CommandBindings.CreateMenuItem("watch.show-in-downloads", () =>
         {

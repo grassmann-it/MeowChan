@@ -28,7 +28,7 @@ public partial class SourcesPage
     private void RefreshWorkViewPresentation()
     {
         Button[] moved = MovableActions();
-        foreach (Button button in moved) WorkViewGate.Apply(button, _workView);
+        foreach (Button button in moved) WorkViewGate.Apply(button, _workView, button != SourcePluginButton || Selected?.Plugin != null);
         WorkViewMoreSurface.Configure(SourcesMoreButton, WorkViewMoreSurface.ForButtons(moved, _workView).Count());
     }
 

@@ -11,7 +11,9 @@
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
         <WrapPanel x:Name="PluginsHeaderActions" Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="8">
-          <TextBlock x:Name="PluginsCount" Classes="muted" VerticalAlignment="Center" />
+          <TextBlock x:Name="SourcesShowLabel" Classes="workspace-field-label" VerticalAlignment="Center" />
+          <ComboBox x:Name="PluginCategory" MinWidth="160" SelectionChanged="OnCategoryChanged" />
+          <TextBlock x:Name="PluginsCount" AutomationProperties.LiveSetting="Polite" Classes="muted" VerticalAlignment="Center" />
           <Button x:Name="PluginsAdd" wv:WorkViewElement.Id="plugins.header.add" Click="OnAddClick" />
           <Button x:Name="PluginsRefresh" wv:WorkViewElement.Id="plugins.header.refresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
@@ -39,11 +41,6 @@
       <!-- The empty hint sits in the top stack: a hidden row of its own would still add the grid's row spacing twice. -->
       <Grid x:Name="PluginListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <StackPanel Spacing="8">
-          <!-- The selected plugin's menu sits beside the category as a square "⋯" of the input height, not as a lone row. -->
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-            <ComboBox x:Name="PluginCategory" HorizontalAlignment="Stretch" SelectionChanged="OnCategoryChanged" />
-            <Button x:Name="PluginListActions" Grid.Column="1" Classes="icon-square" Click="OnPluginListActionsClick" />
-          </Grid>
           <TextBlock x:Name="PluginsEmpty" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
         <ScrollViewer x:Name="PluginListScroll" Grid.Row="1">
@@ -51,21 +48,13 @@
             <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.Card}" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
           </plugins:PluginSelectionList>
         </ScrollViewer>
-        <Expander x:Name="PluginDirectoryExpander" wv:WorkViewElement.Id="plugins.directory" Grid.Row="2" HorizontalAlignment="Stretch">
-          <StackPanel Spacing="8" Margin="0,4,0,0">
-            <TextBlock x:Name="PluginDirectory" TextWrapping="Wrap" Classes="workspace-help" />
-            <TextBlock x:Name="PluginLocalStatusHint" TextWrapping="Wrap" Classes="workspace-help" />
-          </StackPanel>
-        </Expander>
       </Grid>
-      <Border x:Name="PluginNoSelection" Grid.Column="1" Classes="workspace-section" IsVisible="False">
-        <TextBlock x:Name="PluginChooseHint" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" />
-      </Border>
+      <ContentControl x:Name="SourceContentHost" Grid.ColumnSpan="2" />
       <!-- One detail card, as on the Sources page: Back, heading and facts, actions, settings, the draft footer and the disclosures. -->
       <ScrollViewer x:Name="PluginDetailsPane" Grid.Column="1" IsVisible="False">
         <Border x:Name="PluginDetailCard" Classes="workspace-section">
         <StackPanel x:Name="PluginDetailContent" Spacing="12">
-          <Button x:Name="PluginBack" HorizontalAlignment="Left" Click="OnBackClick" />
+          <Button x:Name="PluginBack" HorizontalAlignment="Right" Click="OnBackClick" />
           <Border x:Name="PluginPurposeCard">
             <StackPanel Classes="workspace-section-header">
               <WrapPanel ItemSpacing="10" LineSpacing="4">
@@ -106,7 +95,6 @@
               <SelectableTextBlock x:Name="PluginActionHint" TextWrapping="Wrap" Focusable="True" Classes="workspace-help" IsVisible="False" />
             </StackPanel>
           </Border>
-          <desktop:SectionNavigationControl x:Name="PluginSections" />
           <StackPanel x:Name="PluginSettings" Spacing="12" />
           <!-- The draft footer is a part of the card, set off by a rule, not a card in the card. -->
           <Border x:Name="PluginDraftFooter" wv:WorkViewElement.Id="plugins.detail.draft-footer" Classes="workspace-card-footer">

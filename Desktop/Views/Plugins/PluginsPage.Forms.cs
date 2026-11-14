@@ -43,7 +43,7 @@ public partial class PluginsPage
             acknowledge.Click += (_, _) =>
             {
                 if (_ended || _busy || Selected?.Key != entry.Key || !ReferenceEquals(CurrentDraft, draft)) return;
-                draft.AcknowledgeMigration(); BuildSettings(entry); UpdateDraftState(); RefreshPluginSections();
+                draft.AcknowledgeMigration(); BuildSettings(entry); UpdateDraftState();
                 Control target = _settingsGroups.Values.FirstOrDefault() as Control ?? C<StackPanel>("PluginSettings");
                 target.Focusable = true; target.BringIntoView(); target.Focus();
             };

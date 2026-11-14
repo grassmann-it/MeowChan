@@ -91,7 +91,6 @@ public partial class PluginsPage : UserControl
     public PluginsPage()
     {
         InitializeComponent();
-        InitializePluginSections();
         InitializePluginDetails();
         InitializePluginActions();
         KeyDown += (_, args) =>
@@ -99,6 +98,7 @@ public partial class PluginsPage : UserControl
             if (args.Handled || args.Key != Key.Escape) return;
             if (PluginActionMenu?.IsOpen == true) { ClosePluginActionMenu(restoreFocus: true); args.Handled = true; return; }
             if (_busy) { OnCancelClick(this, new RoutedEventArgs()); args.Handled = true; }
+            else if (ShowingSourcePluginDetails) { ReturnToSourceOverview(); args.Handled = true; }
             else if (_narrow && _showDetails) { OnBackClick(this, new RoutedEventArgs()); args.Handled = true; }
         };
         C<SelectionList>("PluginCards").AddHandler(KeyDownEvent, OnPluginListKeyDown, RoutingStrategies.Tunnel);
@@ -111,7 +111,7 @@ public partial class PluginsPage : UserControl
         _statusTimer.Tick += OnStatusTick;
         Localize();
     }
-    internal void Attach(PluginManagementServices services) { _services = services; C<TextBlock>("PluginDirectory").Text = services.PluginDirectory; }
+    internal void Attach(PluginManagementServices services) { _services = services; ToolTip.SetTip(C<Button>("PluginsFolder"), services.PluginDirectory); }
     internal async Task ActivateAsync(string? sourceId = null)
     {
         if (_ended) return;
@@ -121,9 +121,9 @@ public partial class PluginsPage : UserControl
         if (_ended) return;
         if (sourceId != null)
         {
-            C<ComboBox>("PluginCategory").SelectedIndex = 1;
+            SetFilter(SourcesPluginsFilter.Sources);
             PluginCatalogEntry? entry = _catalog?.Entries.FirstOrDefault(entry => entry.Description?.Sources.Any(source => source.SourceId == sourceId) == true);
-            if (entry != null) Select(entry.Key);
+            if (entry != null) { Select(entry.Key); FocusPluginHeading(); }
         }
         else C<ComboBox>("PluginCategory").Focus();
     }
@@ -160,9 +160,8 @@ public partial class PluginsPage : UserControl
     {
         foreach ((string name, string key) in new[]
         {
-            ("PluginsTitle","nav.plugins"),("PluginsSubtitle","plugins.subtitle"),("PluginsEmpty","plugins.empty"),
+            ("PluginsTitle","nav.sources"),("PluginsSubtitle","sources.subtitle"),("PluginsEmpty","plugins.empty"),
             ("PluginTestHint","plugins.testHint"),("PluginEditorHint","plugins.editorHint"),
-            ("PluginLocalStatusHint","plugins.localStatusHint"),("PluginChooseHint","plugins.choosePlugin"),
             ("PluginSourceToolsHeading","plugins.sourceTools")
         }) C<TextBlock>(name).Text = name == "PluginEditorHint" ? Texts.T(key, string.Empty) : Texts.T(key);
         foreach ((string name, string key) in new[]
@@ -182,12 +181,12 @@ public partial class PluginsPage : UserControl
             else { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
         Button add = C<Button>("PluginsAdd");
-        add.Content = Texts.T("plugins.add"); AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
+        add.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("plus"), new TextBlock { Text = Texts.T("plugins.add") } } }; AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
+        C<Button>("PluginsReviewRepairs").Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("check"), new TextBlock { Text = Texts.T("plugins.repair.review") } } };
         C<TextBlock>("PluginInventoryHeader").Text = Texts.T("plugins.inventoryProblems");
         AutomationProperties.SetName(C<SelectionList>("PluginCards"), Texts.T("nav.plugins"));
         C<Expander>("PluginInfoExpander").Header = Texts.T("plugins.information");
         C<Expander>("PluginGrantExpander").Header = Texts.T("plugins.grants");
-        C<Expander>("PluginDirectoryExpander").Header = Texts.T("plugins.directoryDetails");
         C<Expander>("PluginDeveloperExpander").Header = Texts.T("plugins.developerDetails");
         C<Expander>("PluginEditorExpander").Header = Texts.T("plugins.editorConfiguration");
         C<TextBox>("PluginProbeUrl").PlaceholderText = Texts.T("plugins.probeUrl");
@@ -198,9 +197,11 @@ public partial class PluginsPage : UserControl
         if (Selected is { } localizedEntry) { RebuildLocalizedSettings(localizedEntry); RenderInformation(localizedEntry); RenderGrants(localizedEntry); }
         _refreshing = true;
         int selected = C<ComboBox>("PluginCategory").SelectedIndex;
-        C<ComboBox>("PluginCategory").ItemsSource = new[] { Texts.T("plugins.all"), Texts.T("plugins.sources"), Texts.T("plugins.filters") };
-        C<ComboBox>("PluginCategory").SelectedIndex = selected < 0 ? 0 : selected;
-        AutomationProperties.SetName(C<ComboBox>("PluginCategory"), Texts.T("plugins.category"));
+        C<ComboBox>("PluginCategory").ItemsSource = new[] { Texts.T("plugins.sources"), Texts.T("plugins.filters"), Texts.T("plugins.all") };
+        C<ComboBox>("PluginCategory").SelectedIndex = selected < 0 ? 2 : selected;
+        AutomationProperties.SetName(C<ComboBox>("PluginCategory"), Texts.T("sources.show"));
+        C<TextBlock>("SourcesShowLabel").Text = Texts.T("sources.show");
+        if (_services != null) ToolTip.SetTip(C<Button>("PluginsFolder"), CommandBindings.Tooltip("plugins.folder") + "\n" + _services.PluginDirectory);
         _refreshing = false;
     }
     internal async Task RefreshAsync()
@@ -212,6 +213,7 @@ public partial class PluginsPage : UserControl
             PluginCatalogSnapshot catalog = await _services.ReadCatalogAsync(_lifetime.Token);
             if (_ended || refreshGeneration != _refreshGeneration) return;
             _catalog = catalog;
+            CatalogChanged?.Invoke(this, EventArgs.Empty);
             if (_selectedKey != null && !catalog.Entries.Any(entry => entry.Key == _selectedKey))
             {
                 CancelOperation(); Error(null); SetTestStatus(null);
@@ -226,7 +228,7 @@ public partial class PluginsPage : UserControl
         catch (OperationCanceledException) when (_ended) { }
         catch (Exception exception) { if (!_ended && refreshGeneration == _refreshGeneration) ErrorFailure("plugins.error.refresh", exception); }
     }
-    private bool Included(PluginCatalogEntry entry) => C<ComboBox>("PluginCategory").SelectedIndex switch { 1 => entry.IsSource, 2 => entry.IsFilter, _ => true };
+    private bool Included(PluginCatalogEntry entry) => SourcesPluginsFilterPolicy.Includes(entry, Filter);
     private void RenderList()
     {
         SelectionList list = C<SelectionList>("PluginCards");
@@ -235,6 +237,14 @@ public partial class PluginsPage : UserControl
         // One card per plugin (its files are chosen in the detail), active plugins first.
         PluginCatalogEntry[] entries = CardEntries();
         var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
+        if (SourceContent == null || Filter != SourcesPluginsFilter.Sources)
+        {
+            if (Selected == null || !Included(Selected))
+            {
+                string? first = entries.FirstOrDefault()?.Key;
+                if (_selectedKey != first) { CancelDiscardConfirmation(); CancelOperation(); _selectedKey = first; _renderedKey = null; }
+            }
+        }
         _projectingSelection = true;
         try
         {
@@ -306,10 +316,12 @@ public partial class PluginsPage : UserControl
         if (Selected == null || !Included(Selected)) _showDetails = false;
         C<TextBlock>("PluginsEmpty").IsVisible = _catalog != null && entries.Length == 0;
         C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
-        { 1 => "plugins.emptySources", 2 => "plugins.emptyFilters", _ => "plugins.empty" });
+        { 0 => "plugins.emptySources", 1 => "plugins.emptyFilters", _ => "plugins.empty" });
         // The header count, as on the Sources page: every plugin of the profile, whatever the category shows.
         C<TextBlock>("PluginsCount").Text = _catalog == null ? string.Empty : Texts.T("plugins.count", GroupCount);
         C<TextBlock>("PluginsCount").IsVisible = _catalog != null;
+        if (SourceContent != null && Filter == SourcesPluginsFilter.Sources)
+        { C<TextBlock>("PluginsCount").Text = _sourceCountText; C<TextBlock>("PluginsCount").IsVisible = true; }
         int count = _catalog?.Diagnostics.Count ?? 0;
         C<Expander>("PluginInventoryProblems").IsVisible = count > 0;
         C<Badge>("PluginInventoryBadge").Header = count;
@@ -386,7 +398,8 @@ public partial class PluginsPage : UserControl
     {
         PluginCatalogEntry? entry = Selected;
         ApplyPaneVisibility();
-        if (entry == null) return;
+        C<ComboBox>("PluginCategory").IsEnabled = !_busy && !IsDiscardConfirmationOpen;
+        if (entry == null) { UpdateTestButtons(); RefreshPluginActions(); PresentationChanged?.Invoke(this, EventArgs.Empty); return; }
         PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry,
             _services?.GetProductionWorkerSnapshots?.Invoke(), CurrentDraft, _catalog?.Profile.Revision);
         C<TextBlock>("PluginHeading").Text = presentation.Name;
@@ -453,7 +466,9 @@ public partial class PluginsPage : UserControl
         if (entry.Description != null && CurrentDraft == null) { BuildSettings(entry); RenderInformation(entry); }
         PluginGrantSnapshot[] currentGrants = _catalog!.Profile.Grants.Where(grant => grant.PluginId == entry.PluginId).ToArray();
         if (_renderedGrantsKey != entry.Key || !_displayedGrants.SequenceEqual(currentGrants)) RenderGrants(entry);
-        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshWorkViewPresentation(); RefreshPluginSections(); RefreshPluginActions();
+        UpdateDraftState(); UpdateTestButtons(); UpdateGrantActions(); RefreshWorkViewPresentation(); RefreshPluginActions();
+        C<ComboBox>("PluginCategory").IsEnabled = !_busy && !IsDiscardConfirmationOpen;
+        PresentationChanged?.Invoke(this, EventArgs.Empty);
     }
     private void UpdateDraftState()
     {
@@ -510,8 +525,18 @@ public partial class PluginsPage : UserControl
         bool hasSelection = Selected != null && Included(Selected);
         C<Grid>("PluginListPane").IsVisible = !_narrow || !_showDetails || !hasSelection;
         C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && (!_narrow || _showDetails);
-        C<Button>("PluginBack").IsVisible = _narrow;
-        C<Border>("PluginNoSelection").IsVisible = !_narrow && !hasSelection && _catalog?.Entries.Count > 0;
+        bool sources = SourceContent != null && Filter == SourcesPluginsFilter.Sources;
+        C<ContentControl>("SourceContentHost").IsVisible = sources && !ShowingSourcePluginDetails;
+        if (sources)
+        {
+            C<Grid>("PluginListPane").IsVisible = false;
+            C<ScrollViewer>("PluginDetailsPane").IsVisible = hasSelection && ShowingSourcePluginDetails;
+        }
+        Grid.SetColumn(C<ScrollViewer>("PluginDetailsPane"), sources ? 0 : 1);
+        Grid.SetColumnSpan(C<ScrollViewer>("PluginDetailsPane"), sources ? 2 : 1);
+        C<Button>("PluginBack").IsVisible = _narrow || ShowingSourcePluginDetails;
+        if (ShowingSourcePluginDetails) CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "sources.back", Texts.T("sources.backToSource"));
+        else CommandBindings.ApplyLabeled(C<Button>("PluginBack"), "plugins.back", Texts.T("plugins.back"));
     }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
@@ -537,7 +562,7 @@ public partial class PluginsPage : UserControl
         headerActions.Margin = stackedHeader ? new Thickness(0, 8, 0, 0) : default;
         C<Grid>("PluginsPageHeader").ColumnSpacing = stackedHeader ? 0 : 12;
         C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 280);
-        C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 14;
+        C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 16;
         Grid.SetColumn(C<Grid>("PluginListPane"), _narrow ? 1 : 0); ApplyPaneVisibility();
         // Widening hides Back itself. Repair only a focus owned by one of our
         // panes, and only if its current control became unavailable.
@@ -556,8 +581,14 @@ public partial class PluginsPage : UserControl
         }
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
-    { _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(CardKey(_selectedKey), out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
-    private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) { ClosePluginActionMenu(); CancelDiscardConfirmation(); _showDetails = false; RenderList(); } }
+    { if (ShowingSourcePluginDetails) { ReturnToSourceOverview(); return; } _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(CardKey(_selectedKey), out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
+    private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_refreshing) return;
+        ClosePluginActionMenu(); CancelDiscardConfirmation(); _showDetails = false;
+        RenderList(); RenderDetails();
+        if (Filter == SourcesPluginsFilter.Sources) SourceOverviewRequested?.Invoke(this, EventArgs.Empty);
+    }
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await RefreshAsync();
     private async void OnFolderClick(object? sender, RoutedEventArgs e)
     { try { if (_services != null) await ExternalLauncher.OpenAsync(_services.PluginDirectory); } catch (Exception error) { if (!_ended) ErrorFailure("plugins.error.folder", error); } }
@@ -646,5 +677,5 @@ public partial class PluginsPage : UserControl
     }
     internal void Deactivate() { CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _statusTimer.Stop(); ++_refreshGeneration; CancelOperation(); if (!_ended) RenderDetails(); }
     internal void EndLifetime()
-    { if (_ended) return; CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; _pluginSectionNavigation?.Dispose(); IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
+    { if (_ended) return; CloseBundledRepairPreview(); ClosePluginActionMenu(); CancelDiscardConfirmation(); _ended = true; IsEnabled = false; _statusTimer.Stop(); _statusTimer.Tick -= OnStatusTick; Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); CancelOperation(); _lifetime.Dispose(); }
 }

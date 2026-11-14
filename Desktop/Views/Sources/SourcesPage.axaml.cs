@@ -14,6 +14,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using Ursa.Controls;
 
 namespace MeowChan;
 
@@ -24,8 +25,8 @@ public partial class SourcesPage : UserControl
     private readonly Action? _openDiagnostics;
     private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
-    private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
-    private sealed record SourceCard(Button Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation)
+    private IReadOnlyList<SourceListRow> _rows = Array.Empty<SourceListRow>();
+    private sealed record SourceCard(SelectionListItem Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation)
     {
         internal string ChipSignature { get; set; } = string.Empty;
     }
@@ -38,17 +39,16 @@ public partial class SourcesPage : UserControl
     private bool _ended;
     private bool _showDetails;
     private bool _narrow;
-    internal Action<string>? OpenPluginSettings { get; set; }
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
     /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
     internal Func<int>? GetWatchPreviewRows { get; set; }
-    internal bool IsBusy => _busy;
+    internal bool IsBusy => _busy || SourcePluginManagement.IsBusy;
     internal event EventHandler? BusyChanged;
 
     public SourcesPage()
     {
-        InitializeComponent(); InitializeContextMenus();
+        InitializeComponent(); InitializeContextMenus(); InitializeMergedSources();
     }
 
     /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
@@ -67,68 +67,89 @@ public partial class SourcesPage : UserControl
     {
         if (_ended) return;
         _available = available;
-        _rows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
+        _registeredRows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
+        RefreshSourceRows();
+    }
+
+    private void RefreshSourceRows()
+    {
+        if (_ended) return;
+        _rows = SourceListRows.Merge(_registeredRows, SourcePluginManagement.CatalogEntries);
         if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
-        this.FindControl<TextBlock>("SourceCount")!.Text = Texts.T("sources.count", _rows.Count);
+        SourcePluginManagement.SetSourceCount(_rows.Count, _rows.Count(row => row.IsActive));
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
-        StackPanel cards = this.FindControl<StackPanel>("SourceCards")!;
-        foreach (string removed in _sourceCards.Keys.Where(id => !_rows.Any(row => row.Id == id)).ToArray())
+        SelectionList cards = this.FindControl<SelectionList>("SourceCards")!;
+        _projectingSources = true;
+        try
         {
-            cards.Children.Remove(_sourceCards[removed].Control);
-            _sourceCards.Remove(removed);
-        }
-        foreach (SourceRow row in _rows)
-        {
-            if (!_sourceCards.TryGetValue(row.Id, out SourceCard? card))
+            foreach (string removed in _sourceCards.Keys.Where(id => !_rows.Any(row => row.Id == id)).ToArray())
             {
-                TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
-                TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
-                TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
-                WrapPanel chips = new WrapPanel { ItemSpacing = 6, LineSpacing = 4, IsVisible = false };
-                StackPanel labels = new StackPanel { Spacing = 4 };
-                labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation);
-                Button select = new Button { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                    HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(14) };
-                select.Classes.Add("source-card");
-                string sourceId = row.Id;
-                select.Click += (_, _) =>
-                {
-                    if (_selectedId != sourceId) SetActionError(string.Empty);
-                    SetSelectedSource(sourceId);
-                    _showDetails = true;
-                    RenderDetails();
-                    if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
-                };
-                select.Content = labels;
-                AttachSourceContextMenu(select, sourceId);
-                card = new SourceCard(select, name, chips, address, observation);
-                _sourceCards.Add(row.Id, card); cards.Children.Add(select);
+                cards.Items.Remove(_sourceCards[removed].Control);
+                _sourceCards.Remove(removed);
             }
-            card.Name.Text = row.Name;
-            RenderChips(card, row);
-            card.Address.Text = row.Address;
-            card.Observation.Text = row.Summary;
-            card.Control.IsEnabled = !_busy;
+            foreach (SourceListRow row in _rows)
+            {
+                if (!_sourceCards.TryGetValue(row.Id, out SourceCard? card))
+                {
+                    TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
+                    TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
+                    TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
+                    WrapPanel chips = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, IsVisible = false };
+                    StackPanel labels = new StackPanel { Spacing = 4 };
+                    labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation);
+                    SelectionListItem select = new PluginSelectionItem { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(12) };
+                    select.Classes.Add("workspace-list-card");
+                    string sourceId = row.Id;
+                    select.PointerReleased += (_, args) =>
+                    {
+                        if (args.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None)) return;
+                        if (_selectedId != sourceId) SetActionError(string.Empty);
+                        SetSelectedSource(sourceId);
+                        _showDetails = true;
+                        RenderDetails();
+                        FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
+                    };
+                    select.Content = labels;
+                    AttachSourceContextMenu(select, sourceId);
+                    card = new SourceCard(select, name, chips, address, observation);
+                    _sourceCards.Add(row.Id, card); cards.Items.Add(select);
+                }
+                card.Name.Text = row.Name;
+                RenderChips(card, row);
+                card.Address.Text = row.Address;
+                card.Observation.Text = row.Summary;
+                card.Control.IsEnabled = !IsBusy;
+                AutomationProperties.SetName(card.Control, row.Name + ". " + SourceWording.DescribeMeta(row.Badges) + ". " + row.Summary);
+            }
+            // Active first, then maturity/name; a change of maturity or name moves the card, it never rebuilds it.
+            for (int index = 0; index < _rows.Count; index++)
+            {
+                SelectionListItem control = _sourceCards[_rows[index].Id].Control;
+                int current = cards.Items.IndexOf(control);
+                if (current != index) { cards.Items.Remove(control); cards.Items.Insert(index, control); }
+            }
+            cards.SelectedItem = _selectedId != null ? _sourceCards.GetValueOrDefault(_selectedId)?.Control : null;
         }
-        // The list is sorted by maturity; a change of maturity or name moves the card, it never rebuilds it.
-        for (int index = 0; index < _rows.Count; index++)
-        {
-            Button control = _sourceCards[_rows[index].Id].Control;
-            int current = cards.Children.IndexOf(control);
-            if (current != index) cards.Children.Move(current, index);
-        }
+        finally { _projectingSources = false; }
         RenderDetails();
     }
 
     /// <summary>A chip only where the source deviates from the norm; a source that is fine shows no chip at all.</summary>
-    private static void RenderChips(SourceCard card, SourceRow row)
+    private void RenderChips(SourceCard card, SourceListRow row)
     {
         SourceBadge[] deviating = row.Badges.Where(badge => badge.Deviates).ToArray();
-        string signature = string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
-        card.Chips.IsVisible = deviating.Length > 0;
+        bool problem = row.Plugin is { } plugin && SourcePluginManagement.SourcePluginNeedsAttention(plugin);
+        string signature = (problem ? "problem|" : string.Empty) + string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
+        card.Chips.IsVisible = deviating.Length > 0 || problem;
         if (signature == card.ChipSignature) return;
         card.ChipSignature = signature;
         card.Chips.Children.Clear();
+        if (problem)
+        {
+            Border attention = Desktop.Controls.WorkspaceChips.CreateBadge("SourcePluginProblem", Texts.T("plugins.problem"), compact: true);
+            attention.Classes.Add("chip-warning"); card.Chips.Children.Add(attention);
+        }
         foreach (SourceBadge badge in deviating)
         {
             Border chip = Desktop.Controls.WorkspaceChips.CreateBadge("SourceChip", badge.ChipText, compact: true);
@@ -141,18 +162,20 @@ public partial class SourcesPage : UserControl
     {
         if (_selectedId == sourceId) return;
         _selectedId = sourceId;
+        if (!_projectingSources && sourceId != null && _sourceCards.TryGetValue(sourceId, out var card))
+            this.FindControl<SelectionList>("SourceCards")!.SelectedItem = card.Control;
     }
 
-    private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
+    private SourceListRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
     private void RenderDetails()
     {
         RenderOperationFeedback();
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
         {
             source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
-            source.Value.Control.IsEnabled = !_busy;
+            source.Value.Control.IsEnabled = !IsBusy;
         }
-        SourceRow? row = Selected;
+        SourceListRow? row = Selected;
         Border details = this.FindControl<Border>("SourceDetailsPanel")!;
         StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
         Button back = this.FindControl<Button>("SourceBackButton")!;
@@ -184,14 +207,13 @@ public partial class SourcesPage : UserControl
             + (CommandCatalog.ShortcutDisplay("input.focus-url") is string shortcut ? " (" + shortcut + ")" : string.Empty));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         if (row == null) return;
-        this.FindControl<Button>("SourcePluginButton")!.Content = Texts.T("plugins.manageSource");
-        this.FindControl<Button>("SourcePluginButton")!.IsEnabled = OpenPluginSettings != null;
+        RenderSourcePluginBlock();
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         RenderSourceMediaIntegrity(row);
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
         CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website", row.Address));
-        website.IsEnabled = !_busy;
+        website.IsEnabled = !IsBusy;
         this.FindControl<TextBlock>("SourceHosts")!.Text = Texts.T("sources.hosts", row.Descriptor.SupportedHosts.Count > 0
             ? string.Join(", ", row.Descriptor.SupportedHosts) : Texts.T("sources.unspecified"));
         this.FindControl<TextBlock>("SourceVersion")!.Text = Texts.T("sources.version", row.Descriptor.AdapterVersion ?? Texts.T("sources.unspecified"));
@@ -230,14 +252,14 @@ public partial class SourcesPage : UserControl
         Button allWatches = this.FindControl<Button>("SourceAllWatchesButton")!;
         allWatches.IsVisible = row.Watches.Count > shownWatches.Count;
         allWatches.Content = Texts.T("sources.showAll", row.Watches.Count);
-        allWatches.IsEnabled = _available && !_busy && _openDownloads != null;
+        allWatches.IsEnabled = _available && !IsBusy && _openDownloads != null;
         foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
-            this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
+            this.FindControl<Button>(name)!.IsEnabled = _available && !IsBusy;
         RefreshWatchSelection();
         RefreshWorkViewPresentation();
     }
 
-    private void RenderSourceMediaIntegrity(SourceRow row)
+    private void RenderSourceMediaIntegrity(SourceListRow row)
     {
         SourceMediaIntegrityPolicyView? policy = row.MediaIntegrityPolicy;
         TextBlock classificationText = this.FindControl<TextBlock>("SourceExperimental")!;
@@ -261,7 +283,7 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = Texts.T("sources.allowProviderMismatch");
         CheckBox permission = this.FindControl<CheckBox>("SourceAllowProviderMismatch")!;
         permission.IsChecked = policy.IsGranted;
-        permission.IsEnabled = _available && !_busy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
+        permission.IsEnabled = _available && !IsBusy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
         this.FindControl<TextBlock>("SourceMediaIntegrityScope")!.Text = Texts.T("sources.providerMismatchScope", row.Name);
         this.FindControl<TextBlock>("SourceMediaIntegrityStatus")!.Text = Texts.T(!policy.IsActive
             ? "sources.providerMismatchInactive" : policy.IsGranted ? "sources.providerMismatchAllowed" : "sources.providerMismatchStrict");
@@ -269,7 +291,7 @@ public partial class SourcesPage : UserControl
 
     private async void OnSourceMediaPermissionClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || !_available || _busy || SetSourceMediaIntegrityPermission is not { } save ||
+        if (_ended || !_available || IsBusy || SetSourceMediaIntegrityPermission is not { } save ||
             Selected?.MediaIntegrityPolicy is not { } policy) return;
         // Capture the authority, revision and intent before any await or selection refresh.
         string ownerId = policy.Snapshot.PluginOwnerId;
@@ -334,7 +356,7 @@ public partial class SourcesPage : UserControl
     private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
     private void OnWatchSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWatchSelection();
     private void RefreshWatchSelection() =>
-        this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !_busy && SelectedWatch != null;
+        this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !IsBusy && SelectedWatch != null;
     // Double click and Enter on a selected row are the same action as the button below the list.
     private void OnWatchDoubleTapped(object? sender, TappedEventArgs e) { if (SelectedWatch != null) OnOpenWatchClick(sender, e); }
     private void OnWatchKeyDown(object? sender, KeyEventArgs e)
@@ -343,17 +365,26 @@ public partial class SourcesPage : UserControl
         e.Handled = true;
         OnOpenWatchClick(sender, e);
     }
-    private void OnAllWatchesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
-    private void OnPluginClick(object? sender, RoutedEventArgs e) { if (Selected is SourceRow row) OpenPluginSettings?.Invoke(row.Id); }
+    private void OnAllWatchesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDownloads?.Invoke(); }
+    private void OnPluginClick(object? sender, RoutedEventArgs e)
+    {
+        if (!IsBusy && Selected?.Plugin is { } plugin)
+        {
+            string key = SourcePluginManagement.Selected is { } selected && selected.PluginId == plugin.PluginId ? selected.Key : plugin.Key;
+            SourcePluginManagement.SelectSourcePlugin(key, details: true);
+        }
+    }
     internal void SelectSource(string sourceId)
     {
-        if (!_rows.Any(row => row.Id == sourceId)) return;
+        if (IsBusy || SourcePluginManagement.IsDiscardConfirmationOpen || !_rows.Any(row => row.Id == sourceId)) return;
+        SourcePluginManagement.SetFilter(SourcesPluginsFilter.Sources);
         SetSelectedSource(sourceId);
+        if (_sourceCards.TryGetValue(sourceId, out var card)) this.FindControl<SelectionList>("SourceCards")!.SelectedItem = card.Control;
         _showDetails = true;
         RenderDetails();
-        if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
+        FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
     }
-    private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
+    private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         // The detail grid needs 520 DIP after list, gutters and panel padding.
@@ -363,7 +394,7 @@ public partial class SourcesPage : UserControl
         Grid split = this.FindControl<Grid>("SourcesSplit")!;
         // Preserve the track collection while SizeChanged runs inside layout.
         split.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 280);
-        split.ColumnSpacing = narrow ? 0 : 14;
+        split.ColumnSpacing = narrow ? 0 : 16;
         Grid.SetColumn(this.FindControl<StackPanel>("SourcesListPane")!, narrow ? 1 : 0);
         RenderDetails();
     }
@@ -375,20 +406,20 @@ public partial class SourcesPage : UserControl
     }
     private async void OnWebsiteClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || _busy || Selected is not SourceRow row) return;
+        if (_ended || IsBusy || Selected is not SourceListRow row) return;
         try { await ExternalLauncher.OpenAsync(row.Address); }
         catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
-    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDiagnostics?.Invoke(); }
+    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDiagnostics?.Invoke(); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
-        if (!_available || _busy || SelectedWatch == null) return;
+        if (!_available || IsBusy || SelectedWatch == null) return;
         if (_openWatch?.Invoke(SelectedWatch.Target) != true)
             SetActionError(Texts.T("diagnostics.removed"));
     }
-    private void OnAddToDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _addToDownloads?.Invoke(); }
+    private void OnAddToDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _addToDownloads?.Invoke(); }
     internal void EndLifetime()
     {
-        _ended = true; _available = false; BusyChanged = null;
+        _ended = true; _available = false; BusyChanged = null; SourcePluginManagement.EndLifetime();
     }
 }

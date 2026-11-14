@@ -11,7 +11,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     private static readonly string[] Pages = MainPageOrder.CommandIds.ToArray();
     // Pages whose digit changed with the footer-order renumbering (Downloads and Archive kept theirs).
     public static IEnumerable<object[]> RenumberedPages() =>
-        new[] { "navigation.media", "navigation.rules", "navigation.sources", "navigation.status", "navigation.plugins" }.Select(id => new object[] { id });
+        new[] { "navigation.media", "navigation.rules", "navigation.sources", "navigation.status" }.Select(id => new object[] { id });
     public static IEnumerable<object[]> RenumberedPagesAndOwners() =>
         from page in RenumberedPages() from owner in new[] { "navigation.archive", "thread.read", "gallery.fit", "input.focus-search" }
         select new object[] { page[0], owner };
@@ -37,9 +37,9 @@ public sealed class NavigationMediaShortcutTests : IDisposable
             Assert.DoesNotContain(bindings.For(command.Id), gesture => EffectiveShortcutBindings.Equivalent(media, gesture, platform));
         // The n-th main page from the left is Primary+n.
         for (int index = 0; index < Pages.Length; index++)
-            Assert.Equal((index + 1).ToString(), bindings.Display(Pages[index])![^1..]);
+            Assert.Equal(MainPageOrder.Digit(Pages[index])!.Value.ToString(), bindings.Display(Pages[index])![^1..]);
         Assert.Equal("5", bindings.Display("navigation.sources")![^1..]);
-        Assert.Equal("6", bindings.Display("navigation.plugins")![^1..]);
+        Assert.Null(bindings.Display("navigation.plugins"));
         Assert.Equal("7", bindings.Display("navigation.status")![^1..]);
     }
 

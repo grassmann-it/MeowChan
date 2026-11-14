@@ -783,8 +783,10 @@ public partial class MainWindow
             if (_archivePage?.IsReaderDialogOpen == true) return;
             if (_selectedPage == WorkspacePage.Rules && _rulesPage?.TryDismissRuleDecision() == true)
             { e.Handled = true; return; }
-            if (_selectedPage == WorkspacePage.Plugins && _pluginsPage?.IsDiscardConfirmationOpen == true)
+            if (_selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true)
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
+            { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
@@ -826,6 +828,15 @@ public partial class MainWindow
                 if (_gallery != null) CloseGallery(restoreOrigin: false);
                 if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
                 e.Handled = page == WorkspacePage.Status ? ShowStatus() : NavigateWorkspace(page);
+                return;
+            }
+            // Compatibility route: saved plugin shortcuts open the merged page's All plugins mode, not a hidden footer button.
+            if (CommandBindings.Matches(e, "navigation.plugins"))
+            {
+                if (_gallery != null) CloseGallery(restoreOrigin: false);
+                if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+                e.Handled = NavigateWorkspace(WorkspacePage.Sources);
+                if (e.Handled) _ = _sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins);
                 return;
             }
             // The old Diagnostics and Statistics commands: no default gesture, a saved binding opens their segment.

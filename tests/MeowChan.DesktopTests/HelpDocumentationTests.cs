@@ -172,7 +172,6 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Media, "WV5 Media"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
             (WorkViewPage.Sources, "Sources"),
-            (WorkViewPage.Plugins, "Plugins"),
             (WorkViewPage.Diagnostics, "WV7 Diagnostics and Statistics"),
             (WorkViewPage.Statistics, "WV7 Diagnostics and Statistics"),
             (WorkViewPage.Settings, "WV8 Settings"),

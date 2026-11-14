@@ -39,7 +39,6 @@ public sealed class PageGridStyleTests
     }
 
     [Theory]
-    [InlineData("Desktop/Views/Sources/SourcesPage.axaml")]
     [InlineData("Desktop/Views/Statistics/StatisticsPage.axaml")]
     [InlineData("Desktop/Views/Diagnostics/DiagnosticsPage.axaml")]
     [InlineData("Desktop/Views/Archive/ArchivePage.axaml")]
@@ -58,7 +57,6 @@ public sealed class PageGridStyleTests
     [Theory]
     [InlineData("Desktop/Views/Sources/SourcesPage.axaml", "SourcesSplit", "ColumnSpacing")]
     [InlineData("Desktop/Views/Sources/SourcesPage.axaml", "SourcesListPane", "Spacing")]
-    [InlineData("Desktop/Views/Sources/SourcesPage.axaml", "SourceCards", "Spacing")]
     [InlineData("Desktop/Views/Plugins/PluginsPage.axaml", "PluginSplit", "ColumnSpacing")]
     public void ListAndDetailColumnsAndListCardsUseTheCardGap(string file, string name, string attribute)
     {

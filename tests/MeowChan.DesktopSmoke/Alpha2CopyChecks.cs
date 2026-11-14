@@ -79,8 +79,7 @@ internal static class Alpha2CopyChecks
             () => navigationCalls++, () => submitCalls++, () => navigationCalls++)
         {
             GetSourceMediaIntegrityPolicies = Policies,
-            SetSourceMediaIntegrityPermission = SaveAsync,
-            OpenPluginSettings = _ => navigationCalls++
+            SetSourceMediaIntegrityPermission = SaveAsync
         };
         MediaRuleSet ruleSet = new("alpha2-copy", Array.Empty<MediaRule>());
         RulesPage rules = new(() => ruleSet, (_, _) =>

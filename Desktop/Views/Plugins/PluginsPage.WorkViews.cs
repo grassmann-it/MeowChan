@@ -31,7 +31,6 @@ public partial class PluginsPage
         }
         RefreshWorkViewPresentation(changed);
         RefreshPluginActions();
-        RefreshPluginSections();
     }
 
     private Button[] HeaderMovableActions() => [C<Button>("PluginsAdd"), C<Button>("PluginsFolder")];
@@ -43,7 +42,6 @@ public partial class PluginsPage
         Button[] header = HeaderMovableActions();
         foreach (Button button in header) WorkViewGate.Apply(button, view);
         WorkViewMoreSurface.Configure(C<Button>("PluginsMoreButton"), WorkViewMoreSurface.ForButtons(header, view).Count());
-        WorkViewPresenter.ApplyExpander(C<Expander>("PluginDirectoryExpander"), view, viewChanged);
         // The developer area: a build error, candidate diagnostics, a probe result or any problem of the plugin keeps it on the page (R6).
         WorkViewGate.Apply(C<Expander>("PluginDeveloperExpander"), view, nonDefaultState: _developerRevealed || DeveloperAreaNeedsAttention());
     }

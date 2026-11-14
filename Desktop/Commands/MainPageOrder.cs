@@ -5,19 +5,18 @@ using System.Linq;
 namespace MeowChan.Desktop.Commands;
 
 /// <summary>Single source for the order of the main workspace pages. The footer, the More flyout, the
-/// ⋯ menu, the F1 help and the default digit shortcuts all follow it: the n-th page from the left is
-/// Primary+n. Settings is not a numbered page (Primary+,); About has no shortcut. Status holds two segments (Statistics,
+/// ⋯ menu, the F1 help and the default digit shortcuts all follow it: digits come from the slots below (the removed Plugins slot stays unassigned). Settings is not a numbered page (Primary+,); About has no shortcut. Status holds two segments (Statistics,
 /// Diagnostics); their own commands (<see cref="StatusSegmentCommandIds"/>) open a segment and have no digit.
 /// The pages come in three groups (work, set up, observe) that the footer, the More flyout and the ⋯ menu
 /// set apart with separators. Moving a page here must go with the same move in MainWindow.axaml; a test couples the two.</summary>
 public static class MainPageOrder
 {
     private const string Prefix = "navigation.";
-    /// <summary>Downloads, Archive, Media | Rules, Sources, Plugins | Status.</summary>
+    /// <summary>Downloads, Archive, Media | Rules, Sources & Plugins | Status.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> Groups { get; } = Array.AsReadOnly(new IReadOnlyList<string>[]
     {
         Array.AsReadOnly(new[] { "navigation.downloads", "navigation.archive", "navigation.media" }),
-        Array.AsReadOnly(new[] { "navigation.rules", "navigation.sources", "navigation.plugins" }),
+        Array.AsReadOnly(new[] { "navigation.rules", "navigation.sources" }),
         Array.AsReadOnly(new[] { "navigation.status" }),
     });
     public static IReadOnlyList<string> CommandIds { get; } = Array.AsReadOnly(Groups.SelectMany(group => group).ToArray());
@@ -25,8 +24,12 @@ public static class MainPageOrder
     public static int Group(string commandId) => Groups.Select((group, index) => (group, index))
         .First(entry => entry.group.Contains(commandId, StringComparer.Ordinal)).index;
     public static bool Contains(string commandId) => CommandIds.Contains(commandId, StringComparer.Ordinal);
-    /// <summary>1-based position, which is also the default digit shortcut; null for other commands.</summary>
-    public static int? Digit(string commandId) => Contains(commandId) ? Array.IndexOf(CommandIds.ToArray(), commandId) + 1 : null;
+    // Keep the confirmed SM1/SM2 Status shortcut at Primary+7. The removed Plugins destination leaves slot 6 unassigned;
+    // it is not another page (in particular no premature Booru page). All digit consumers read this one table.
+    private static readonly string?[] DigitSlots = ["navigation.downloads", "navigation.archive", "navigation.media",
+        "navigation.rules", "navigation.sources", null, "navigation.status"];
+    /// <summary>The default digit slot; null for compatibility routes, segments and unnumbered commands.</summary>
+    public static int? Digit(string commandId) => Contains(commandId) ? Array.IndexOf(DigitSlots, commandId) + 1 : null;
     /// <summary>The default shortcut text written into the command catalog.</summary>
     public static string DefaultShortcut(string commandId) =>
         Digit(commandId) is int digit ? "Primary+" + digit : throw new ArgumentException("Not a main page: " + commandId, nameof(commandId));
@@ -38,7 +41,7 @@ public static class MainPageOrder
     /// <summary>Pages that leave the footer for the More flyout first when the window is narrow.</summary>
     public static IReadOnlyList<string> OverflowOrder { get; } = Array.AsReadOnly(new[]
     {
-        "navigation.status", "navigation.sources", "navigation.plugins", "navigation.rules",
+        "navigation.status", "navigation.sources", "navigation.rules",
         "navigation.media", "navigation.archive",
     });
     /// <summary>The commands that open one segment of the Status page. They are no main pages of their own and carry no

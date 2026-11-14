@@ -43,7 +43,7 @@ public partial class PluginsPage
         list.AddHandler(ContextRequestedEvent, OnPluginActionContextRequested, RoutingStrategies.Tunnel);
         // Both menu buttons are the "⋯" overflow of the shell header: the catalog's more-horizontal icon, the label
         // "Actions" as tooltip and (with the plugin's name) as accessible name. The menus and their commands are unchanged.
-        foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
+        foreach (string name in new[] { "PluginMoreActions" })
             CommandBindings.Apply(C<Button>(name), "plugins.actions", iconOnly: true);
     }
 
@@ -109,7 +109,7 @@ public partial class PluginsPage
 
         UpdateAddAction();
         PluginActionTarget? target = CaptureSelectedPluginActionTarget();
-        foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
+        foreach (string name in new[] { "PluginMoreActions" })
         {
             if (this.FindControl<Button>(name) is not { } button) continue;
             AutomationProperties.SetName(button, target == null ? Texts.T("plugins.actions") : Texts.T("plugins.actionsFor", Selected!.Name));
@@ -218,7 +218,6 @@ public partial class PluginsPage
 
     private void RevealPluginActionSection(PluginActionTarget target, Control section)
     {
-        _pluginSectionNavigation?.CancelPendingNavigation();
         if (section is Expander expander) expander.IsExpanded = true;
         foreach (Expander parent in section.GetVisualAncestors().OfType<Expander>()) parent.IsExpanded = true;
         Dispatcher.UIThread.Post(() =>
@@ -230,9 +229,6 @@ public partial class PluginsPage
 
     private void OnPluginMoreActionsClick(object? sender, RoutedEventArgs e)
     { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginMoreActions"), details: true); }
-    private void OnPluginListActionsClick(object? sender, RoutedEventArgs e)
-    { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginListActions")); }
-
     private Control PluginActionOrigin(string key) => _cards.TryGetValue(CardKey(key), out var card) && card.IsEffectivelyVisible
         ? card : this.FindControl<Button>("PluginMoreActions") ?? (Control)C<ComboBox>("PluginCategory");
 
