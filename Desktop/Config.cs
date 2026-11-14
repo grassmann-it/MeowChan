@@ -639,6 +639,7 @@ namespace MeowChan
         {
             get => _mediaLayout;
             set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
+        }
         // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
         private string _taggingPageView = nameof(TaggingViewMode.List);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
