@@ -144,11 +144,18 @@ internal static class VideoPosterCache
                     byte[] png;
                     try
                     {
-                        Stream ownedVideo = video;
-                        video = null; // Decoder owns the verified handle through native release, including failures.
+                        // Transfer the handle only after the decoder has accepted the call and returned its task.
+                        // A decoder can throw synchronously before it owns the stream; that path remains ours to dispose.
+                        Func<Stream, CancellationToken, Task<byte[]>> decoder =
+                            testSeam?.Decoder ?? VideoPosterDecoder.DecodeAsync;
+                        Task<byte[]> decoding;
                         using (PerformanceDiagnostics.Measure("gallery.poster.decode", request, asset: asset.AssetId))
-                            png = await (testSeam?.Decoder ?? VideoPosterDecoder.DecodeAsync)(ownedVideo, bounded.Token)
-                                .ConfigureAwait(false);
+                        {
+                            decoding = decoder(video!, bounded.Token);
+                            if (decoding == null) throw new InvalidOperationException("The local video decoder returned no task.");
+                            video = null;
+                            png = await decoding.ConfigureAwait(false);
+                        }
                     }
                     finally { if (video != null) await video.DisposeAsync().ConfigureAwait(false); }
                     if (!Valid(png)) throw new InvalidDataException("The video poster exceeds its safe limits.");
@@ -171,7 +178,7 @@ internal static class VideoPosterCache
                 }
                 finally { Gate.Release(); }
             }
-            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
                 PerformanceDiagnostics.Record("gallery.poster", "canceled", request, asset: asset.AssetId);
                 throw;

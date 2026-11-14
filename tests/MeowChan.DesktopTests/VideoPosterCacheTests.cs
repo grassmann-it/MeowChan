@@ -173,6 +173,110 @@ public sealed class VideoPosterCacheTests
     }
 
     [Fact]
+    public async Task SynchronousDecoderThrowDisposesTheVerifiedStreamAndReleasesTheNativeGate()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        Stream? observed = null;
+        TaskCompletionSource<Task> waitStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoPosterCacheTestSeam seam = new()
+        {
+            NativeGateWaitStarted = wait => waitStarted.TrySetResult(wait),
+            Decoder = (verified, _) =>
+            {
+                observed = verified;
+                throw new InvalidOperationException("synchronous decoder failure");
+            }
+        };
+
+        SemaphoreSlim gate = VideoPosterCache.NativeDecodeGate;
+        await gate.WaitAsync();
+        bool released = false;
+        try
+        {
+            Task<byte[]?> request = VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+                testSeam: seam);
+            await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            gate.Release(); released = true;
+            Assert.Null(await request.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.NotNull(observed);
+            Assert.Throws<ObjectDisposedException>(() => observed!.ReadByte());
+
+            bool reacquired = await gate.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.True(reacquired);
+            if (reacquired) gate.Release();
+        }
+        finally { if (!released) gate.Release(); }
+    }
+
+    [Fact]
+    public async Task DecoderCancellationDoesNotCreateANegativeCacheEntry()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        using CancellationTokenSource decoderCanceled = new();
+        decoderCanceled.Cancel();
+        VideoPosterCacheTestSeam canceledDecoder = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                return Task.FromCanceled<byte[]>(decoderCanceled.Token);
+            }
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => VideoPosterCache.GetPngAsync(
+            manifest, asset, cache, CancellationToken.None, testSeam: canceledDecoder));
+
+        byte[] png = Png(80, 60);
+        VideoPosterCacheTestSeam retryDecoder = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                return Task.FromResult(png);
+            }
+        };
+        Assert.Equal(png, await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+            testSeam: retryDecoder));
+    }
+
+    [Fact]
+    public async Task CancellationAfterDecodeDoesNotCreateANegativeCacheEntry()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        byte[] png = Png(80, 60);
+        using CancellationTokenSource canceled = new();
+        VideoPosterCacheTestSeam cancelAfterDecode = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                canceled.Cancel();
+                return Task.FromResult(png);
+            }
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => VideoPosterCache.GetPngAsync(
+            manifest, asset, cache, canceled.Token, testSeam: cancelAfterDecode));
+
+        VideoPosterCacheTestSeam retryDecoder = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                return Task.FromResult(png);
+            }
+        };
+        Assert.Equal(png, await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+            testSeam: retryDecoder));
+    }
+
+    [Fact]
     public async Task CancellationDoesNotPoisonPersistentCacheOrAdmitDecoderWork()
     {
         using TempDirectory temp = new();
