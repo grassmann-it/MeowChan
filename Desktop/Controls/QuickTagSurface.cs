@@ -708,8 +708,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     /// Enter (or Ctrl+Enter with <paramref name="thenNext"/>) in the field: adds the typed name. While another write runs the
     /// draft stays and the Enter is taken once, right after that write, if the field still holds the same text. After the
     /// write only the text that was written is cleared: what the user typed meanwhile for the next tag stays in the field.
+    /// False when the draft stays in the field (a write is running or the name was refused).
     /// </summary>
-    internal async Task AddTypedAsync(bool thenNext = false)
+    internal async Task<bool> AddTypedAsync(bool thenNext = false)
     {
         string name = _input.Text ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(name))
@@ -717,25 +718,32 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             if (!_session.Ready)
             {
                 if (_session.Snapshot != null) _deferredAdd = (name, thenNext);
-                return;
+                return false;
             }
             await Guard(() => _session.AddAsync(name), "tags.quick.add");
-            if (_disposed || _session.Status.IsError) return;
+            if (_disposed || _session.Status.IsError) return false;
             if (string.Equals(_input.Text, name, StringComparison.Ordinal)) _input.Text = string.Empty;
         }
         if (thenNext) NavigationRequested?.Invoke(QuickTagNavigation.Next);
+        return true;
     }
 
     // An Enter that came while a write was running; taken once that write is done (see AddTypedAsync).
     private (string Name, bool ThenNext)? _deferredAdd;
 
-    private Task ReplayDeferredAddAsync()
+    private async Task ReplayDeferredAddAsync()
     {
-        if (_deferredAdd is not { } deferred || _disposed || !_session.Ready) return Task.CompletedTask;
+        if (_deferredAdd is not { } deferred || _disposed || !_session.Ready) return;
         _deferredAdd = null;
         // The user went on editing after that Enter: the draft is theirs again, nothing is written for them.
-        return string.Equals(_input.Text, deferred.Name, StringComparison.Ordinal) ? AddTypedAsync(deferred.ThenNext) : Task.CompletedTask;
+        if (string.Equals(_input.Text, deferred.Name, StringComparison.Ordinal)) await AddTypedAsync(deferred.ThenNext);
     }
+
+    /// <summary>
+    /// Takes over the typed name like Enter, without moving on (the tagging mode's Ctrl+Enter then finishes the medium itself). False when
+    /// the draft stays in the field: a write is running or the name was refused.
+    /// </summary>
+    internal Task<bool> CommitTypedAsync() => AddTypedAsync();
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
     {
