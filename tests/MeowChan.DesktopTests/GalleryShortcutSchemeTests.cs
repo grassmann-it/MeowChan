@@ -119,8 +119,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
                 shifted.Add(gesture.Key, command.Id);
         Assert.Equal(new Dictionary<string, string>
         {
-            ["H"] = "gallery.tools-toggle", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle", ["O"] = "gallery.overlay-toggle",
-            ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["T"] = "gallery.mode-toggle"
+            // GL3's layout rows are registered in wave 6, so Shift+I (info line) and Shift+N (hints) are live defaults.
+            ["H"] = "gallery.tools-toggle", ["I"] = "gallery.layout.info", ["K"] = "tags.queue.cards", ["L"] = "gallery.filmstrip-toggle",
+            ["N"] = "gallery.layout.hints", ["O"] = "gallery.overlay-toggle", ["P"] = "gallery.context-toggle", ["R"] = "gallery.rotate", ["T"] = "gallery.mode-toggle"
         }.OrderBy(pair => pair.Key), shifted.OrderBy(pair => pair.Key));
     }
 
@@ -196,8 +197,9 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
             Assert.Equal(new[] { Identity(ShortcutGesture.Parse(gesture)) }, EffectiveShortcutBindings.Defaults(layout, platform).Select(Identity).ToArray());
             Assert.True(GalleryShortcutScheme.IsShiftLetter(ShortcutGesture.Parse(gesture)));
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
-            // The letters the rows take are free in the gallery today.
-            Assert.DoesNotContain(InGallery(), command => EffectiveShortcutBindings.Defaults(command, platform)
+            // The letters the rows take are free in the gallery for every other command (GL3 registers the row commands themselves).
+            Assert.True(CommandCatalog.All.Any(command => command.Id == id), id + " is registered (GL3)");
+            Assert.DoesNotContain(InGallery(), command => command.Id != id && EffectiveShortcutBindings.Defaults(command, platform)
                 .Any(other => EffectiveShortcutBindings.Equivalent(other, ShortcutGesture.Parse(gesture), platform)));
         }
         // The tools row, the filmstrip positions, the reset and the menu itself stay without a key of their own.

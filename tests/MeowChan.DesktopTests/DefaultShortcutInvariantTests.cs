@@ -32,7 +32,9 @@ public sealed class DefaultShortcutInvariantTests
         // G1: Shift+T switches the gallery between View and Tag (gallery context only).
         "gallery.mode-toggle",
         // Revision 13: Shift+H hides the tools, Shift+O switches the controls overlay (Shift+P shows the post, Shift+L the filmstrip).
-        "gallery.tools-toggle", "gallery.overlay-toggle"
+        "gallery.tools-toggle", "gallery.overlay-toggle",
+        // Revision 13 with GL3's layout rows registered: Shift+I shows or hides the info line, Shift+N the hint row.
+        "gallery.layout.info", "gallery.layout.hints"
     };
 
     [Theory, MemberData(nameof(Platforms))]

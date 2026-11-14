@@ -321,17 +321,22 @@ public sealed class GalleryLayoutMenuTests : IDisposable
         {
             CommandDefinition command = CommandCatalog.Get(id);
             Assert.Equal(CommandScope.Gallery, command.Scope);
-            Assert.Null(command.Shortcut); // plan §2.4: unbound, rebindable; no default can take a key from anyone
+            Assert.Null(command.Shortcut); // plan §2.4: no catalog key; the gallery key scheme (revision 13) gives info and hints a yielding default
             Assert.Contains("gallery-keyboard", command.Contexts);
-            Assert.Empty(command.DefaultGestures);
+            if (id is "gallery.layout.info" or "gallery.layout.hints")
+                Assert.Equal(GalleryShortcutScheme.LayoutDefaults[id], Assert.Single(command.DefaultGestures).Display(ShortcutPlatform.Linux));
+            else
+                Assert.Empty(command.DefaultGestures);
             Assert.False(string.IsNullOrWhiteSpace(CommandCatalog.Label(id)));
         }
-        // The rows' ids are the command ids (the filmstrip's switch is the filmstrip command).
-        foreach (string id in GalleryLayoutMenu.RowIds.Where(id => id != GalleryLayoutMenu.FilmstripId))
+        // The rows' ids are the command ids; the filmstrip's switch shows the filmstrip command and the tools row the hide-tools switch (Shift+H).
+        foreach (string id in GalleryLayoutMenu.RowIds.Where(id => id != GalleryLayoutMenu.FilmstripId && id != GalleryLayoutMenu.ToolsId))
             Assert.Equal(id, GalleryLayoutMenu.CommandOf(id));
         Assert.Equal("gallery.filmstrip-toggle", GalleryLayoutMenu.CommandOf(GalleryLayoutMenu.FilmstripId));
-        // No default revision bump: nothing new is bound by default.
-        Assert.DoesNotContain(EffectiveShortcutBindings.YieldingDefaultCommandIds, id => id.StartsWith("gallery.layout", StringComparison.Ordinal));
+        Assert.Equal("gallery.tools-toggle", GalleryLayoutMenu.CommandOf(GalleryLayoutMenu.ToolsId));
+        // Only the two scheme defaults (revision 13) yield; the other layout commands stay unbound.
+        Assert.Equal(new[] { "gallery.layout.hints", "gallery.layout.info" },
+            EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => id.StartsWith("gallery.layout", StringComparison.Ordinal)).Order(StringComparer.Ordinal));
     }
 
     [Fact]
