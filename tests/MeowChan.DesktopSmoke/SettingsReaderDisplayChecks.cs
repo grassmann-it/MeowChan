@@ -159,7 +159,7 @@ internal static class SettingsReaderDisplayChecks
     internal static async Task SeedReaderAsync(string profile)
     {
         using ProfileLease lease = ProfileLease.Acquire(profile);
-        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
+        await using MeowChan.Archive.ArchiveCatalog catalog = await MeowChan.Archive.ArchiveCatalog.OpenAsync(profile, lease);
         foreach (ResourceId id in new[] { ReaderFixture, OtherFixture })
         {
             int first = int.Parse(id.Thread!, CultureInfo.InvariantCulture);
