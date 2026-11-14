@@ -155,6 +155,45 @@ internal static partial class MediaPageChecks
         while (page.FilterChips.Children.Count > 1) Remove(page.FilterChips.Children.Count - 1).Execute(null);
         Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1 && kind.SelectedIndex == 0
             && C<ComboBox>(page, "MediaSourceFilter").SelectedIndex == 0, state + ": removing the added chips must restore the tag filter alone.");
+
+        // M3: Enter in the search field turns the recognized "field:value" tokens into chips and keeps the rest in the field. A token that
+        // is not understood stays as text with a hint that says why (a polite live region); plain text is left alone. "Copy filters as
+        // text" writes the whole filter back as a query, from the row's menu and from every chip's menu.
+        string typed = "type:video source:media-fixture bogus:x";
+        name.Text = typed;
+        name.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        await UntilAsync(() => page.ActiveFilterCount == 4 && page.QueryNote != null); // tag, type, source and the name chip of what stayed
+        string video = Texts.T("media.filter.kind.video");
+        Require(name.Text == "bogus:x" && Labels().Contains(Texts.T("media.filter.kindChip", video))
+            && Labels().Contains(Texts.T("archive.sourceChip", "media-fixture")) && Labels().Contains(Texts.T("media.filter.nameChip", "bogus:x")),
+            state + ": Enter must turn the type and source tokens into chips and leave the unknown token in the field: " + name.Text + " / " + string.Join(" | ", Labels()));
+        Require(page.QueryNote == Texts.T("media.query.converted", Texts.T("media.filter.kindChip", video) + ", " + Texts.T("archive.sourceChip", "media-fixture"))
+            && page.QueryProblem == Texts.T("media.query.kept", Texts.T("media.query.kept.item", "bogus:x", Texts.T("media.query.reason.unknownField"))),
+            state + ": the hint must name what was added and what stayed text: " + page.QueryNote + " / " + page.QueryProblem);
+        TextBlock hintNote = C<TextBlock>(page, "MediaQueryNote"), hintProblem = C<TextBlock>(page, "MediaQueryProblem");
+        Require(hintNote.IsEffectivelyVisible && hintProblem.IsEffectivelyVisible && hintProblem.Classes.Contains("workspace-error")
+            && Avalonia.Automation.AutomationProperties.GetLiveSetting(hintNote) == Avalonia.Automation.AutomationLiveSetting.Polite
+            && Avalonia.Automation.AutomationProperties.GetLiveSetting(hintProblem) == Avalonia.Automation.AutomationLiveSetting.Polite, state + ": the hint must be visible and polite.");
+        window.UpdateLayout();
+        Program.CaptureWindow(window, $"smoke-media-query-hint-{code}-{theme.ToString().ToLowerInvariant()}.png");
+        string? copied = null;
+        page.CopyTextForTests = text => { copied = text; return Task.CompletedTask; };
+        string expectedText = "tag:surface type:video source:media-fixture name:\"bogus:x\"";
+        Require(page.FiltersAsText() == expectedText, state + ": the filter as text was " + page.FiltersAsText());
+        Ursa.Controls.ClosableTag firstChip = (Ursa.Controls.ClosableTag)page.FilterChips.Children[0];
+        Require(firstChip.ContextMenu!.ItemsSource is System.Collections.IEnumerable entries && entries.OfType<MenuItem>().Any(item => item.Name == WorkspaceChips.CopyTextItemName)
+            && (page.FilterChips.Parent as Control)?.ContextMenu != null, state + ": the chip and the row must offer Copy filters as text.");
+        await page.CopyFiltersAsTextAsync();
+        Require(copied == expectedText && page.QueryNote == Texts.T("media.query.copied") && page.QueryProblem == null, state + ": copying must write the query and say so: " + copied);
+        // Plain text is not a query: Enter changes nothing and clears the hint.
+        name.Text = "plain";
+        await UntilAsync(() => page.QueryNote == null);
+        name.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Require(name.Text == "plain" && page.QueryNote == null && page.QueryProblem == null && page.ActiveFilterCount == 4, state + ": plain text must stay a name filter.");
+        name.Text = string.Empty;
+        while (page.FilterChips.Children.Count > 1) Remove(page.FilterChips.Children.Count - 1).Execute(null);
+        await UntilAsync(() => page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1);
+        Require(name.Text == string.Empty && page.QueryNote == null, state + ": removing the converted chips must restore the tag filter alone.");
     }
 
     private static async Task FilterSurfaceStateAsync(Window window, MediaPage page, ThemeVariant theme, string code, double width, double height)
