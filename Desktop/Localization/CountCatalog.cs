@@ -83,6 +83,7 @@ internal static class CountCatalog
         ("work.interventionCount.one", "{0} needs a retry ({1})", "{0} braucht einen neuen Versuch ({1})"),
         ("booru.ui.status.results.one", "{0} result on page {1} for “{2}”", "{0} Treffer auf Seite {1} für „{2}“"),
         ("booru.ui.post.favorites.one", "{0} favorite at Danbooru", "{0} Favorit bei Danbooru"),
-        ("settings.parallelEffective.one", "Effective: {0} simultaneous media transfer (the smaller of the two values)", "Wirksam: {0} gleichzeitiger Mediendateitransfer (der kleinere der beiden Werte)")
+        ("settings.parallelEffective.one", "Effective: {0} simultaneous media transfer (the smaller of the two values)", "Wirksam: {0} gleichzeitiger Mediendateitransfer (der kleinere der beiden Werte)"),
+        ("stats.col.retained.one", "Network, {0} day", "Netz, {0} Tag")
     };
 }
