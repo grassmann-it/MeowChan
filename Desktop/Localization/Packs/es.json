@@ -3971,8 +3971,6 @@
     "budgets.quickTagSourceTagsHint": "Cuántas de las etiquetas que una fuente como Danbooru indica para un archivo multimedia se ofrecen como nuevas etiquetas propias. 0 las desactiva. Predeterminado: {0}, permitido: de {1} a {2}.",
     "budgets.quickTagMarked": "Medios marcados para etiquetar",
     "budgets.quickTagMarkedHint": "Cuántos medios se pueden marcar en la galería y etiquetar en un solo paso. El archivo de etiquetas mantiene su propio límite fijo de asignaciones. Predeterminado: {0}, permitido: de {1} a {2}.",
-    "budgets.quickTagStamp": "Etiquetas del sello",
-    "budgets.quickTagStampHint": "Cuántas etiquetas propias contiene el sello; al aplicarlo, todas se asignan a la vez al medio mostrado. Un valor menor quita las últimas etiquetas del sello; las etiquetas en sí se conservan. Predeterminado: {0}, permitido: de {1} a {2}.",
     "tags.quick.gallery.position": "Archivo multimedia {0} de {1}",
     "tags.quick.gallery.positionMore": "Archivo multimedia {0} de al menos {1}",
     "tags.quick.marked": "Marcados: {0}",

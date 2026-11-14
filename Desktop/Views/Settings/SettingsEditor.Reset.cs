@@ -325,7 +325,6 @@ public partial class SettingsEditor
         ResetNumber(QuickTagFilenameTokensInput, defaults.QuickTagFilenameTokens);
         ResetNumber(QuickTagSourceTagsPerMediumInput, defaults.QuickTagSourceTagsPerMedium);
         ResetNumber(QuickTagMarkedMediaLimitInput, defaults.QuickTagMarkedMediaLimit);
-        ResetNumber(QuickTagStampSizeInput, defaults.QuickTagStampSize);
     }
 
     private void ResetUpdatesDraft()

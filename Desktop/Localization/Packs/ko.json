@@ -3930,8 +3930,6 @@
     "budgets.quickTagSourceTagsHint": "Danbooru 같은 소스가 미디어에 대해 나열한 태그 중 새 내 태그로 제안할 개수입니다. 0이면 이 제안을 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "budgets.quickTagMarked": "태그 지정용으로 표시해 둘 미디어 수",
     "budgets.quickTagMarkedHint": "갤러리에서 표시해 두고 한 번에 태그를 지정할 수 있는 미디어의 개수입니다. 태그 파일의 할당 수에는 별도의 고정 한도가 그대로 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
-    "budgets.quickTagStamp": "스탬프의 태그 수",
-    "budgets.quickTagStampHint": "스탬프에 담을 수 있는 내 태그의 개수입니다. 스탬프를 적용하면 표시 중인 미디어에 모든 태그가 한 번에 지정됩니다. 값을 줄이면 스탬프의 마지막 태그가 빠지며, 태그 자체는 그대로 남습니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "tags.quick.gallery.position": "미디어 {0}/{1}",
     "tags.quick.gallery.positionMore": "미디어 {0}/최소 {1}",
     "tags.quick.marked": "표시됨: {0}",

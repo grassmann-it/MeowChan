@@ -3974,8 +3974,6 @@
     "budgets.quickTagSourceTagsHint": "Quanti dei tag elencati da una fonte come Danbooru per un file multimediale vengono proposti come nuovi tag personali. 0 disattiva questi suggerimenti. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "budgets.quickTagMarked": "Media contrassegnati per i tag",
     "budgets.quickTagMarkedHint": "Quanti media possono essere contrassegnati nella galleria per assegnare loro tag in un solo passaggio. Il file dei tag mantiene il proprio limite fisso di assegnazioni. Valore predefinito: {0}, consentiti: da {1} a {2}.",
-    "budgets.quickTagStamp": "Tag nel timbro",
-    "budgets.quickTagStampHint": "Quanti tag propri contiene il timbro; applicando il timbro vengono assegnati tutti insieme al media mostrato. Un valore più basso toglie gli ultimi tag del timbro, i tag stessi restano. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "tags.quick.gallery.position": "Media {0} di {1}",
     "tags.quick.gallery.positionMore": "Media {0} di almeno {1}",
     "tags.quick.marked": "Contrassegnati: {0}",

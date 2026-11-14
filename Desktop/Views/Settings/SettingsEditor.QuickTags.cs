@@ -20,7 +20,6 @@ public partial class SettingsEditor
     private decimal? _quickTagFilenameTokens = Config.QuickTagFilenameTokensDefault;
     private decimal? _quickTagSourceTagsPerMedium = Config.QuickTagSourceTagsPerMediumDefault;
     private decimal? _quickTagMarkedMediaLimit = Config.QuickTagMarkedMediaLimitDefault;
-    private decimal? _quickTagStampSize = Config.QuickTagStampSizeDefault;
 
     public string QuickTagGroupLabel => Texts.T(QuickTagSettingsCatalog.GroupKey);
 
@@ -52,10 +51,6 @@ public partial class SettingsEditor
     public string QuickTagMarkedMediaLimitLabel => Texts.T("budgets.quickTagMarked");
     public string QuickTagMarkedMediaLimitHint => Texts.T("budgets.quickTagMarkedHint", Config.QuickTagMarkedMediaLimitDefault, Config.QuickTagMarkedMediaLimitMinimum, Config.QuickTagMarkedMediaLimitMaximum);
     public string QuickTagMarkedMediaLimitHelp => FieldHelp(nameof(QuickTagMarkedMediaLimitInput), Texts.T("settings.unitCount") + ". " + QuickTagMarkedMediaLimitHint);
-    public decimal? QuickTagStampSize { get => _quickTagStampSize; set => SetField(ref _quickTagStampSize, value, nameof(QuickTagStampSize)); }
-    public string QuickTagStampSizeLabel => Texts.T("budgets.quickTagStamp");
-    public string QuickTagStampSizeHint => Texts.T("budgets.quickTagStampHint", Config.QuickTagStampSizeDefault, Config.QuickTagStampSizeMinimum, Config.QuickTagStampSizeMaximum);
-    public string QuickTagStampSizeHelp => FieldHelp(nameof(QuickTagStampSizeInput), Texts.T("settings.unitCount") + ". " + QuickTagStampSizeHint);
 
     private static readonly string[] QuickTagHelpProperties =
     {
@@ -65,8 +60,7 @@ public partial class SettingsEditor
         nameof(QuickTagNeighbourScanHelp),
         nameof(QuickTagFilenameTokensHelp),
         nameof(QuickTagSourceTagsPerMediumHelp),
-        nameof(QuickTagMarkedMediaLimitHelp),
-        nameof(QuickTagStampSizeHelp)
+        nameof(QuickTagMarkedMediaLimitHelp)
     };
 
     private static readonly string[] QuickTagTextProperties =
@@ -78,8 +72,7 @@ public partial class SettingsEditor
         nameof(QuickTagNeighbourScanLabel), nameof(QuickTagNeighbourScanHint),
         nameof(QuickTagFilenameTokensLabel), nameof(QuickTagFilenameTokensHint),
         nameof(QuickTagSourceTagsPerMediumLabel), nameof(QuickTagSourceTagsPerMediumHint),
-        nameof(QuickTagMarkedMediaLimitLabel), nameof(QuickTagMarkedMediaLimitHint),
-        nameof(QuickTagStampSizeLabel), nameof(QuickTagStampSizeHint)
+        nameof(QuickTagMarkedMediaLimitLabel), nameof(QuickTagMarkedMediaLimitHint)
     };
 
     /// <summary>A language change refreshes text only; it is not a change of any value.</summary>
@@ -97,7 +90,6 @@ public partial class SettingsEditor
         QuickTagFilenameTokens = config.QuickTagFilenameTokens;
         QuickTagSourceTagsPerMedium = config.QuickTagSourceTagsPerMedium;
         QuickTagMarkedMediaLimit = config.QuickTagMarkedMediaLimit;
-        QuickTagStampSize = config.QuickTagStampSize;
         ResetNumber(QuickTagSuggestionCountInput, config.QuickTagSuggestionCount);
         ResetNumber(QuickTagRecentCountInput, config.QuickTagRecentCount);
         ResetNumber(QuickTagUndoDepthInput, config.QuickTagUndoDepth);
@@ -105,7 +97,6 @@ public partial class SettingsEditor
         ResetNumber(QuickTagFilenameTokensInput, config.QuickTagFilenameTokens);
         ResetNumber(QuickTagSourceTagsPerMediumInput, config.QuickTagSourceTagsPerMedium);
         ResetNumber(QuickTagMarkedMediaLimitInput, config.QuickTagMarkedMediaLimit);
-        ResetNumber(QuickTagStampSizeInput, config.QuickTagStampSize);
     }
 
     /// <summary>Writes the draft into <paramref name="candidate"/>; a value outside its range names the setting and the range.</summary>
@@ -118,7 +109,6 @@ public partial class SettingsEditor
         candidate.QuickTagFilenameTokens = GetInteger(QuickTagFilenameTokens, QuickTagFilenameTokensLabel, Config.QuickTagFilenameTokensMinimum, Config.QuickTagFilenameTokensMaximum);
         candidate.QuickTagSourceTagsPerMedium = GetInteger(QuickTagSourceTagsPerMedium, QuickTagSourceTagsPerMediumLabel, Config.QuickTagSourceTagsPerMediumMinimum, Config.QuickTagSourceTagsPerMediumMaximum);
         candidate.QuickTagMarkedMediaLimit = GetInteger(QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitLabel, Config.QuickTagMarkedMediaLimitMinimum, Config.QuickTagMarkedMediaLimitMaximum);
-        candidate.QuickTagStampSize = GetInteger(QuickTagStampSize, QuickTagStampSizeLabel, Config.QuickTagStampSizeMinimum, Config.QuickTagStampSizeMaximum);
     }
 
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> QuickTagNumericFields()
@@ -137,7 +127,5 @@ public partial class SettingsEditor
             Config.QuickTagSourceTagsPerMediumMinimum, Config.QuickTagSourceTagsPerMediumMaximum, true);
         yield return (QuickTagMarkedMediaLimitInput, QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitLabel, Texts.T("settings.unitCount"),
             Config.QuickTagMarkedMediaLimitMinimum, Config.QuickTagMarkedMediaLimitMaximum, true);
-        yield return (QuickTagStampSizeInput, QuickTagStampSize, QuickTagStampSizeLabel, Texts.T("settings.unitCount"),
-            Config.QuickTagStampSizeMinimum, Config.QuickTagStampSizeMaximum, true);
     }
 }

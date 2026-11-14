@@ -3529,8 +3529,6 @@
     "budgets.quickTagSourceTagsHint": "Ile tagów podanych dla danego pliku multimedialnego przez źródło, takie jak Danbooru, jest proponowanych jako nowe własne tagi. 0 wyłącza te propozycje. Domyślnie: {0}, dozwolone: od {1} do {2}.",
     "budgets.quickTagMarked": "Media zaznaczone do tagowania",
     "budgets.quickTagMarkedHint": "Ile mediów można zaznaczyć w galerii i otagować w jednym kroku. Plik tagów zachowuje własny stały limit przypisań. Domyślnie: {0}, dozwolone: od {1} do {2}.",
-    "budgets.quickTagStamp": "Tagi w stemplu",
-    "budgets.quickTagStampHint": "Ile własnych tagów zawiera stempel; zastosowanie stempla nadaje je wszystkie naraz wyświetlanemu medium. Mniejsza wartość usuwa ostatnie tagi ze stempla, same tagi pozostają. Domyślnie: {0}, dozwolone: od {1} do {2}.",
     "budgets.group.lists": "Ulubione, oceny, zakładki, grupy i obserwacje źródeł",
     "budgets.group.previews": "Podglądy i eksport",
     "budgets.group.import": "Import",

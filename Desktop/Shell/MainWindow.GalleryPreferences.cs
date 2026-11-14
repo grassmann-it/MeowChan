@@ -30,7 +30,7 @@ public partial class MainWindow
     {
         // A saved zero must discard recent tags immediately, even when the tag panel is closed.
         if (_quickTagRecent is { } recent) QuickTagSettings.ApplyRecentLimit(recent, _config);
-        // A lowered stamp size drops the last stamp tags (Changed saves the shorter stamp); a raised one only allows more.
+        // PT7's stamp size: a lowered value drops the last stamp tags (Changed saves the shorter stamp); a raised one only allows more.
         if (_quickTagStamp is { } stamp) stamp.Capacity = QuickTagSettings.SurfaceOptions(_config).StampSize;
         ConfigureGalleryScrubPreview();
         _gallery?.Configure(_desiredGalleryContext ?? _config.GalleryContextOpen, _config.ShowShortcutHelp,

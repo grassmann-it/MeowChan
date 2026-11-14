@@ -17,7 +17,7 @@ internal static class TaggingSettings
     internal static QuickTagOptions StampOptions(Config config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return new QuickTagOptions { StampSize = config.TagStampSize }.Normalized();
+        return QuickTagSettings.SurfaceOptions(config); // one place turns the settings into options (stamp size included)
     }
 
     /// <summary>How many open queue entries one walk opens at once.</summary>

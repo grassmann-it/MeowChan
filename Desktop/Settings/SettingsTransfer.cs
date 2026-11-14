@@ -201,7 +201,6 @@ public static class SettingsTransfer
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent,
             TaggingCardCount = source.TaggingCardCount,
             TaggingCardsDefault = source.TaggingCardsDefault,
-            QuickTagStampSize = source.QuickTagStampSize,
             ReaderDateStyle = source.ReaderDateStyle,
             ReaderSpoilers = source.ReaderSpoilers,
             MediaSort = source.MediaSort,

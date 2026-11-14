@@ -21,14 +21,14 @@ internal static class QuickTagSettings
             config.QuickTagFilenameTokens, config.QuickTagSourceTagsPerMedium, config.SlashTagSuggestionCount);
     }
 
-    /// <summary>The surface limits: suggestion chips shown, undo steps, media the gallery can mark and the stamp size (pass to <see cref="Controls.QuickTagSurface"/>).</summary>
+    /// <summary>The surface limits: suggestion chips shown, undo steps and media the gallery can mark (pass to <see cref="Controls.QuickTagSurface"/>).</summary>
     internal static QuickTagOptions SurfaceOptions(Config config)
     {
         ArgumentNullException.ThrowIfNull(config);
         return new QuickTagOptions
         {
             UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount, MarkedMediaLimit = MarkedMediaLimit(config),
-            StampSize = config.QuickTagStampSize
+            StampSize = config.TagStampSize // PT7's stamp size setting (Settings › Tagging)
         }.Normalized();
     }
 

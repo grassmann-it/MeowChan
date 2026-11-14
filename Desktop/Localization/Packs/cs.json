@@ -3524,8 +3524,6 @@
     "budgets.quickTagSourceTagsHint": "Kolik štítků, které zdroj jako Danbooru uvádí u média, se nabídne jako nové vlastní štítky. 0 jejich nabízení vypne. Výchozí: {0}, povoleno: {1} až {2}.",
     "budgets.quickTagMarked": "Média označená ke štítkování",
     "budgets.quickTagMarkedHint": "Kolik médií lze označit v galerii a opatřit štítky v jednom kroku. Soubor štítků má nadále vlastní pevný limit přiřazení. Výchozí: {0}, povoleno: {1} až {2}.",
-    "budgets.quickTagStamp": "Štítky v razítku",
-    "budgets.quickTagStampHint": "Kolik vlastních štítků razítko obsahuje; použitím razítka se všechny najednou přiřadí zobrazenému médiu. Nižší hodnota odebere poslední štítky z razítka, samotné štítky zůstanou. Výchozí: {0}, povoleno: {1} až {2}.",
     "budgets.group.lists": "Oblíbené, hodnocení, záložky, skupiny a sledování zdrojů",
     "budgets.group.previews": "Náhledy a export",
     "budgets.group.import": "Import",

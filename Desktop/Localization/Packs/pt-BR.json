@@ -3974,8 +3974,6 @@
     "budgets.quickTagSourceTagsHint": "Quantas das tags que uma fonte como o Danbooru lista para um arquivo de mídia são oferecidas como novas tags próprias. 0 desativa essas sugestões. Padrão: {0}, permitido: {1} a {2}.",
     "budgets.quickTagMarked": "Mídias marcadas para adicionar tags",
     "budgets.quickTagMarkedHint": "Quantas mídias podem ser marcadas na galeria para receber tags em uma única etapa. O arquivo de tags mantém seu próprio limite fixo de atribuições. Padrão: {0}, permitido: {1} a {2}.",
-    "budgets.quickTagStamp": "Tags no carimbo",
-    "budgets.quickTagStampHint": "Quantas tags próprias o carimbo contém; ao aplicar o carimbo, todas são atribuídas de uma vez à mídia exibida. Um valor menor remove as últimas tags do carimbo; as tags em si continuam existindo. Padrão: {0}, permitido: {1} a {2}.",
     "tags.quick.gallery.position": "Mídia {0} de {1}",
     "tags.quick.gallery.positionMore": "Mídia {0} de pelo menos {1}",
     "tags.quick.marked": "Marcados: {0}",

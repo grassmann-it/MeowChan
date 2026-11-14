@@ -17,7 +17,7 @@ namespace MeowChan;
 // The stamp set editor of the tagging page (PT2 step 3, PT5's stamp). wave3: it edits the window's one stamp (Stamp, saved in
 // Config.TagStamp by the window), the same the gallery panel and the popovers show; the stamp field of tag-queue.json stays in the
 // format but unused. A name that no tag carries yet is kept and is simply not offered by a tag surface until such a tag exists.
-// The size limit is the stamp size setting (QuickTagStampSize).
+// The size limit is the stamp size setting (TagStampSize, PT7).
 public sealed partial class TaggingPage
 {
     private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 8 };

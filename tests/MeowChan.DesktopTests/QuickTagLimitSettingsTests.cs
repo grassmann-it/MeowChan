@@ -9,7 +9,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// The eight quick tagging limits (the stamp size of PT5 joined in wave3) (PLAN-SCHNELL-TAGGEN §3.7) are validated settings: each has its default, minimum and maximum
+/// The seven quick tagging limits (PLAN-SCHNELL-TAGGEN §3.7) are validated settings: each has its default, minimum and maximum
 /// (the constants of the quick tag types, the marking limit is the plan's own), survives Clone, both copies and save/reload,
 /// is reduced on load instead of refusing the file, has a labelled row with a hint on the "Storage and limits" page, and reaches the
 /// option objects of the quick tag types through <see cref="QuickTagSettings"/>.
@@ -27,7 +27,6 @@ public sealed class QuickTagLimitSettingsTests
         (nameof(Config.QuickTagFilenameTokens), 8, 0, 32, "quickTagFilename"),
         (nameof(Config.QuickTagSourceTagsPerMedium), 24, 0, 200, "quickTagSourceTags"),
         (nameof(Config.QuickTagMarkedMediaLimit), 500, 10, 5000, "quickTagMarked"),
-        (nameof(Config.QuickTagStampSize), 9, 1, 18, "quickTagStamp"),
     };
 
     private static int Get(Config config, string property) => (int)typeof(Config).GetProperty(property)!.GetValue(config)!;
@@ -66,8 +65,6 @@ public sealed class QuickTagLimitSettingsTests
             (Config.QuickTagFilenameTokensDefault, Config.QuickTagFilenameTokensMinimum, Config.QuickTagFilenameTokensMaximum));
         Assert.Equal((TagContextOptions.DefaultSourceTagsPerMedium, TagContextOptions.MinimumSourceTagsPerMedium, TagContextOptions.MaximumSourceTagsPerMedium),
             (Config.QuickTagSourceTagsPerMediumDefault, Config.QuickTagSourceTagsPerMediumMinimum, Config.QuickTagSourceTagsPerMediumMaximum));
-        Assert.Equal((QuickTagOptions.DefaultStampSize, QuickTagOptions.MinimumStampSize, QuickTagOptions.MaximumStampSize),
-            (Config.QuickTagStampSizeDefault, Config.QuickTagStampSizeMinimum, Config.QuickTagStampSizeMaximum));
         // Marking stays below what the tag store accepts as assignments, so a full marking can always be written.
         Assert.True(Config.QuickTagMarkedMediaLimitMaximum <= PrivateTagStore.MaximumMediaAssignments);
         defaults.Validate();
@@ -154,7 +151,7 @@ public sealed class QuickTagLimitSettingsTests
         Config config = new()
         {
             QuickTagSuggestionCount = 12, QuickTagRecentCount = 7, QuickTagUndoDepth = 33, QuickTagNeighbourScan = 4500,
-            QuickTagFilenameTokens = 3, QuickTagSourceTagsPerMedium = 0, QuickTagMarkedMediaLimit = 1234, QuickTagStampSize = 5
+            QuickTagFilenameTokens = 3, QuickTagSourceTagsPerMedium = 0, QuickTagMarkedMediaLimit = 1234, TagStampSize = 5
         };
         TagContextOptions context = QuickTagSettings.ContextOptions(config);
         Assert.Equal((12, 7, 4500, 3, 0), (context.SuggestionCount, context.RecentCount, context.NeighbourScan, context.FilenameTokens, context.SourceTagsPerMedium));
@@ -170,12 +167,12 @@ public sealed class QuickTagLimitSettingsTests
         Config wild = new()
         {
             QuickTagSuggestionCount = 1000, QuickTagRecentCount = -5, QuickTagUndoDepth = 0, QuickTagNeighbourScan = 5,
-            QuickTagFilenameTokens = 99, QuickTagSourceTagsPerMedium = 1_000_000, QuickTagMarkedMediaLimit = int.MaxValue, QuickTagStampSize = 99
+            QuickTagFilenameTokens = 99, QuickTagSourceTagsPerMedium = 1_000_000, QuickTagMarkedMediaLimit = int.MaxValue
         };
         TagContextOptions clamped = QuickTagSettings.ContextOptions(wild);
         Assert.Equal((18, 0, 100, 32, 200), (clamped.SuggestionCount, clamped.RecentCount, clamped.NeighbourScan, clamped.FilenameTokens, clamped.SourceTagsPerMedium));
         QuickTagOptions surfaceClamped = QuickTagSettings.SurfaceOptions(wild);
-        Assert.Equal((1, 18, 5000, 18), (surfaceClamped.UndoDepth, surfaceClamped.SuggestionCount, surfaceClamped.MarkedMediaLimit, surfaceClamped.StampSize));
+        Assert.Equal((1, 18, 5000), (surfaceClamped.UndoDepth, surfaceClamped.SuggestionCount, surfaceClamped.MarkedMediaLimit));
         Assert.Equal(5000, QuickTagSettings.MarkedMediaLimit(wild));
         wild.QuickTagMarkedMediaLimit = int.MinValue;
         Assert.Equal(10, QuickTagSettings.MarkedMediaLimit(wild));

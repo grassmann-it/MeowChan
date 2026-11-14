@@ -3465,8 +3465,6 @@
     "budgets.quickTagSourceTagsHint": "每个媒体最多提供多少个 Danbooru 等来源列出的标签，供你添加为新的“我的标签”。0 表示关闭此功能。默认值：{0}，允许范围：{1} 到 {2}。",
     "budgets.quickTagMarked": "标记以编辑标签的媒体数量",
     "budgets.quickTagMarkedHint": "可在图库中标记并一次完成标签编辑的媒体数量。标签文件仍保留其自身固定的标签分配数量上限。默认值：{0}，允许范围：{1} 到 {2}。",
-    "budgets.quickTagStamp": "印章中的标签数",
-    "budgets.quickTagStampHint": "印章可包含的自有标签数量；应用印章会一次性将这些标签全部添加到当前显示的媒体。较小的值会移除印章末尾的标签，标签本身仍会保留。默认值：{0}，允许范围：{1} 到 {2}。",
     "budgets.group.lists": "收藏、评分、书签、组和来源关注",
     "budgets.group.previews": "预览和导出",
     "budgets.group.import": "导入",
