@@ -531,17 +531,8 @@
                     <SolidColorBrush x:Key="CheckBoxCardCheckedPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxCardCheckedDisabledBorderBrush">#A89F92</SolidColorBrush>
                     <!-- Radio button: same scheme as the check box. -->
-                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBackground">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconDefaultBorderBrush">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBackground">#9A4B0B</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBackground">#662F05</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBackground">#A89F92</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBorderBrush">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonUncheckIconDefaultBorderBrush">#726858</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonUncheckIconPointeroverBorderBrush">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonUncheckIconPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCheckGlyphFill">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonButtonCheckedForeground">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonButtonCheckedBackground">#E7D4BE</SolidColorBrush>
@@ -550,10 +541,6 @@
                     <SolidColorBrush x:Key="RadioButtonCardCheckPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCardCheckPressedBorderBrush">#662F05</SolidColorBrush>
                     <!-- Slider and progress: the fill and the thumb edge are the accent; the disabled thumb edge is the disabled outline tone. -->
-                    <SolidColorBrush x:Key="SliderTrackForeground">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="SliderThumbBorderBrush">#803B06</SolidColorBrush>
-                    <SolidColorBrush x:Key="SliderThumbPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
-                    <SolidColorBrush x:Key="SliderThumbPressedBorderBrush">#662F05</SolidColorBrush>
                     <SolidColorBrush x:Key="SliderThumbDisabledBorderBrush">#A89F92</SolidColorBrush>
                     <SolidColorBrush x:Key="ProgressBarIndicatorBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ProgressBarPrimaryForeground">#803B06</SolidColorBrush>
