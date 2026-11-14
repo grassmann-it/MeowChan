@@ -1310,7 +1310,9 @@ namespace MeowChan
                     SelectCategory("settings.shortcuts");
                 if (!ShortcutsEditor.ValidateDraft()) return;
                 Config candidate = _config.Clone();
-                ShortcutBindingsCommit.ApplyTo(candidate, ShortcutsEditor.Draft);
+                // What this save persists; edits made to the shared draft (here or in the shortcuts window) while it runs stay pending.
+                ShortcutBindingsSection savedShortcuts = ShortcutsEditor.Draft;
+                ShortcutBindingsCommit.ApplyTo(candidate, savedShortcuts);
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
                 candidate.MaxParallelDownloads = GetInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum);
@@ -1434,8 +1436,8 @@ namespace MeowChan
                 _initialWorkspaceMode = _config.WorkspaceMode;
                 if (!_isClosed)
                 {
-                    CancelChangesAfterSave();
-                    SetStatusMessage("settings.saved");
+                    CancelChangesAfterSave(savedShortcuts);
+                    SetStatusMessage(ShortcutsEditor.IsDirty ? "settings.unsaved" : "settings.saved");
                     IsBusy = false;
                     Saved?.Invoke(this, EventArgs.Empty);
                 }
@@ -1452,9 +1454,9 @@ namespace MeowChan
             }
         }
 
-        private void CancelChangesAfterSave()
+        private void CancelChangesAfterSave(ShortcutBindingsSection savedShortcuts)
         {
-            ShortcutsEditor.Load(_config.ShortcutBindings);
+            ShortcutsEditor.CommitSaved(savedShortcuts);
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
@@ -225,7 +226,7 @@ public partial class ArchivePage
         ApplyArchiveColumns();
         if (saveVisibility != null)
             try { await saveVisibility(next); }
-            catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
+            catch (Exception exception) { if (!_ended) Message(UserFacingError.Report(exception, "Saving the archive column layout"), true); }
     }
 
     private async Task ResetArchiveColumnsAsync(DataGrid grid)
@@ -255,7 +256,7 @@ public partial class ArchivePage
             Task orderSave = saveOrder?.Invoke(order) ?? Task.CompletedTask;
             await Task.WhenAll(visibilitySave, widthSave, orderSave);
         }
-        catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended) Message(UserFacingError.Report(exception, "Saving the archive column layout"), true); }
     }
 
     private async void OnArchiveColumnsReleased(object? sender, PointerReleasedEventArgs e)
@@ -321,6 +322,6 @@ public partial class ArchivePage
             }
             if (repin) ApplyArchiveColumns();
         }
-        catch (Exception exception) { if (!_ended) Message(exception.Message, true); }
+        catch (Exception exception) { if (!_ended) Message(UserFacingError.Report(exception, "Saving the archive column layout"), true); }
     }
 }

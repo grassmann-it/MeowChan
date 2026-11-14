@@ -117,7 +117,7 @@ public sealed class ShortcutsWindowTests : IDisposable
         session.Clear("navigation.archive");
         editor.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.True(session.IsDirty);
-        Assert.Equal(Texts.T("shortcuts.window.saveFailed", "busy"), editor.StatusText.Text);
+        Assert.Equal(Texts.T("shortcuts.window.saveFailed", Texts.T("error.cause.other")), editor.StatusText.Text);
         Assert.False(editor.IsSaving);
     }
 
@@ -174,7 +174,8 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Contains("ShortcutsWindow.IsPassive(window)", fullscreen);
         Assert.Contains("case \"viewer.shortcut-help\": ShowShellHelp(); return;", Source("Desktop/Shell/MainWindow.MacMenu.cs"));
         string settings = Source("Desktop/Views/Settings/SettingsEditor.axaml.cs");
-        Assert.Contains("ShortcutBindingsCommit.ApplyTo(candidate, ShortcutsEditor.Draft);", settings);
+        Assert.Contains("ShortcutBindingsCommit.ApplyTo(candidate, savedShortcuts);", settings);
+        Assert.Contains("ShortcutsEditor.CommitSaved(savedShortcuts);", settings);
         Assert.Contains("await ShortcutBindingsCommit.PersistAsync(candidate, _applySettings);", settings);
         Assert.Contains("await ShortcutBindingsCommit.CommitAsync(_config, draft, _applySettings);", settings);
         Assert.Contains("ShortcutsEditor.Host = this;", settings);

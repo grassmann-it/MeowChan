@@ -304,6 +304,10 @@ internal static class BuiltInCatalog
         ("settings.languagePacks", "Additional JSON language packs can be placed in the profile's LanguagePacks folder. Missing translations use English.", "Zusätzliche JSON-Sprachpakete können im Ordner LanguagePacks des Profils abgelegt werden. Fehlende Übersetzungen erscheinen auf Englisch."),
         ("notification.error", "Error", "Fehler"),
         ("error.detail", "Details: {0}", "Details: {0}"),
+        // The cause of a failure in a window text (UserFacingError): never the exception's own, English and path-bearing message.
+        ("error.cause.access", "Access to the file was denied.", "Der Zugriff auf die Datei wurde verweigert."),
+        ("error.cause.io", "The file could not be read or written.", "Die Datei konnte nicht gelesen oder geschrieben werden."),
+        ("error.cause.other", "An unexpected error occurred. Details are in the log file.", "Ein unerwarteter Fehler ist aufgetreten. Details stehen in der Logdatei."),
         ("error.unexpected", "An unexpected error occurred: {0} MeowChan keeps running, but the last action may be incomplete. Details are in the log file.", "Ein unerwarteter Fehler ist aufgetreten: {0} MeowChan läuft weiter, aber die letzte Aktion ist möglicherweise unvollständig. Details stehen in der Logdatei."),
         ("notification.settings", "Settings", "Einstellungen"),
         ("settings.load.recovered", "Your settings could not be read from {0}, so the last good copy ({1}) is in use. The original files were kept.", "Deine Einstellungen konnten nicht aus {0} gelesen werden, daher wird die letzte gute Kopie ({1}) verwendet. Die Originaldateien bleiben erhalten."),

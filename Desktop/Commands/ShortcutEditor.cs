@@ -98,6 +98,13 @@ public sealed class ShortcutEditor : UserControl
         Session.Load(section);
     }
 
+    /// <summary>A save of <paramref name="saved"/> finished: edits made to the draft meanwhile (here or in the window) stay pending.</summary>
+    public void CommitSaved(ShortcutBindingsSection saved)
+    {
+        _validationFocusRequest++;
+        Session.CommitSaved(saved);
+    }
+
     private void OnSessionChanged(object? sender, ShortcutDraftChange change)
     {
         Refresh();

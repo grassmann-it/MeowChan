@@ -188,7 +188,7 @@ public sealed class ShortcutBindingsEditor : UserControl
             _capture.Gesture = null;
             SetPendingText(null);
         }
-        else SetStatus(null);
+        else if (change == ShortcutDraftChange.Edited) SetStatus(null);
         RefreshList();
     }
 
@@ -865,7 +865,7 @@ public sealed class ShortcutBindingsEditor : UserControl
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or System.IO.IOException or UnauthorizedAccessException)
         {
-            string detail = exception.Message;
+            string detail = UserFacingError.Report(exception, "Saving the shortcuts");
             SetStatus(() => Texts.T("shortcuts.window.saveFailed", detail));
         }
         finally
@@ -874,8 +874,10 @@ public sealed class ShortcutBindingsEditor : UserControl
         }
         if (saved)
         {
-            if (ReferenceEquals(_session.Draft, draft)) _session.MarkCommitted(); else _session.Load(draft);
-            SetStatus(() => Texts.T("shortcuts.window.saved"));
+            // What was saved becomes the baseline; an edit made on the other surface (the Settings card) while the save ran stays
+            // in the draft, stays unsaved and says so, instead of being replaced by the saved state.
+            _session.CommitSaved(draft);
+            SetStatus(() => Texts.T(_session.IsDirty ? "shortcuts.window.savedPending" : "shortcuts.window.saved"));
         }
         RefreshList();
         _closeDecision?.Invoke(saved);
