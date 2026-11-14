@@ -82,8 +82,10 @@ public sealed class ActionToolBar : ToolBar
 
     static ActionToolBar()
     {
-        // Items keep the toolbar as their logical parent wherever their panel is.
-        foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty })
+        // Items keep the toolbar as their logical parent wherever their panel is. The overflow mode counts too: a work-view switch
+        // that only turns an item from Always into AsNeeded (Simple → Advanced: full screen) must re-run the bar's measure, else the
+        // item stays under More at an unchanged width.
+        foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty, ToolBar.OverflowModeProperty })
             property.Changed.AddClassHandler<Control>((item, _) =>
             {
                 if (item.Parent is not ActionToolBar toolbar) return;

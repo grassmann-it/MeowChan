@@ -73,4 +73,18 @@ public sealed class ActionOverflowLayoutTests
         Assert.Equal(new[] { false, false, false }, ActionOverflowLayout.Resolve(
             [60, 500, 60], [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded], [true, false, true], 160, 30, [5, 1, 5]));
     }
+    [Fact]
+    public void AnOverflowModeChangeOfAnItemRemeasuresTheBarPanel()
+    {
+        // A work-view switch that only turns full screen from Always (Simple) into AsNeeded (Advanced) at the same width must lay the
+        // bar out again; the toolbar's own invalidation does not reach a panel whose constraint is unchanged.
+        string source = File.ReadAllText(Path.Combine(Root(), "Desktop/ActionToolBar.cs"));
+        int start = source.IndexOf("static ActionToolBar()", StringComparison.Ordinal);
+        string constructor = source[start..source.IndexOf("PrioritizedOverflowProperty.Changed", start, StringComparison.Ordinal)];
+        Assert.Contains("ToolBar.OverflowModeProperty", constructor);
+        Assert.Contains("toolbar.DirectHost?.InvalidateMeasure();", constructor);
+    }
+
+    private static string Root([System.Runtime.CompilerServices.CallerFilePath] string path = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));
 }
