@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <RestoreProjectStyle>None</RestoreProjectStyle>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <AssemblyName>LegacySdk102Plugin</AssemblyName>
+    <RootNamespace>MeowChan.PluginSdk.Legacy102Probe</RootNamespace>
+    <Version>1.0.2</Version>
+    <AssemblyVersion>1.0.2.0</AssemblyVersion>
+    <FileVersion>1.0.2.0</FileVersion>
+    <InformationalVersion>1.0.2</InformationalVersion>
+  </PropertyGroup>
+
+  <Target Name="RequireReleasedSdkAssembly" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(SdkAssemblyPath)' == ''"
+           Text="SdkAssemblyPath must point to the released 1.0.2 MeowChan.PluginSdk.dll." />
+    <Error Condition="'$(SdkAssemblyPath)' != '' and !Exists('$(SdkAssemblyPath)')"
+           Text="SdkAssemblyPath does not exist: $(SdkAssemblyPath)." />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="MeowChan.PluginSdk">
+      <HintPath>$(SdkAssemblyPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
