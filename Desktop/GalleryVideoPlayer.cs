@@ -364,12 +364,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 Playback? playback = _playback;
                 return playback != null && IsCurrent(playback.Generation) && playback.Player.TakeSnapshot(0, path, 0, 0) && File.Exists(path);
             }
-            catch (Exception) { return false; }
+            catch (Exception error) when (error is not OutOfMemoryException) { Serilog.Log.Warning(error, "The native video snapshot failed."); return false; }
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
         if (saved || !UsesSoftwareVideo || _softwareVideo.Source is not Avalonia.Media.Imaging.Bitmap shown) return saved;
-        try { shown.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default); return File.Exists(path); }
-        catch (Exception) { return false; }
+        // Copied here, encoded and written on a worker: a large frame never stalls the UI thread (logged on failure).
+        return await GalleryFramePng.SaveAsync(shown, path).ConfigureAwait(true);
     }
 
     private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, SoftwareVideoSurface? Surface, CancellationToken Token);
