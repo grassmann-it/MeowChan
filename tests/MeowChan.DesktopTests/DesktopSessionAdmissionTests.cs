@@ -328,6 +328,32 @@ public sealed class DesktopSessionAdmissionTests
         Assert.Equal(tag with { Filmstrip = false }, result.Tag);
     }
 
+    [Fact]
+    public async Task FrozenSettingsKeepTheTagListWidthBaselineSoOnlyAChangedBoxMovesTheWidth()
+    {
+        // M1 through admission: the draft is frozen with Clone(), which must keep the page's baseline of the box; a stale draft never rolls a dragged width back.
+        static int WidthOf(Config config) => MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+        using TempDirectory directory = new();
+        await using DesktopSessionHost host = CreateHost(directory.Path);
+        await host.StartAsync().WaitAsync(Deadline);
+        Config changed = host.Config.Clone();
+        changed.MediaLayout = (MediaPageLayout.Parse(changed.MediaLayout, changed.MediaBooruMode) with { TagListWidth = 300 }).Format();
+        await host.ApplySettingsAsync(changed).WaitAsync(Deadline);
+        Assert.Equal(300, WidthOf(host.Config));
+        Assert.Equal(300, WidthOf(Config.LoadConfig(directory.Path)));
+
+        // The draft is loaded with 300 and the box stays untouched; the handle drags the list to 200 while the settings are open.
+        Config untouched = host.Config.Clone();
+        untouched.RecheckTimer = 90;
+        await host.SaveViewPreferencesAsync(config => config.MediaLayout = (MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode) with { TagListWidth = 200 }).Format()).WaitAsync(Deadline);
+        Task apply = host.ApplySettingsAsync(untouched);
+        untouched.SettingsBaselineMediaTagListWidth = 0; // accepted drafts are frozen with their baseline
+        await apply.WaitAsync(Deadline);
+        Assert.Equal(200, WidthOf(host.Config));
+        Assert.Equal(90, host.Config.RecheckTimer);
+        Assert.Equal(200, WidthOf(Config.LoadConfig(directory.Path)));
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

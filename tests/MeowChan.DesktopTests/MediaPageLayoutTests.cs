@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -508,6 +509,94 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Contains("x:Name=\"MediaTagListWidthInput\"", axaml);
         Assert.True(axaml.IndexOf("MediaTagListTopInput", StringComparison.Ordinal) < axaml.IndexOf("MediaTagListWidthInput", StringComparison.Ordinal));
         Assert.Equal((256, 180, 480), (Config.MediaTagListWidthDefault, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum));
+    }
+
+    // ---- M1: the width of the settings page reaches the saved layout without a stale draft rolling a dragged width back ----
+
+    private static Config LiveWithWidth(int width, MediaTagListSide side = MediaTagListSide.Left) =>
+        new() { MediaLayout = (MediaPageLayout.Standard with { TagListWidth = width, TagListSide = side }).Format() };
+
+    private static int WidthOf(Config config) => MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+
+    private static Config DraftWithBox(Config live, int box)
+    {
+        Config draft = live.Clone(); // a fresh draft captures the loaded width as its baseline
+        draft.MediaLayout = (MediaPageLayout.Parse(draft.MediaLayout, draft.MediaBooruMode) with { TagListWidth = box }).Format();
+        return draft;
+    }
+
+    [Fact]
+    public void SavingAChangedTagListWidthBoxTakesOnlyTheWidthOverAndKeepsTheRestOfTheLiveLayout()
+    {
+        Config live = LiveWithWidth(256);
+        Config draft = DraftWithBox(live, 300);
+        Assert.Equal(256, draft.SettingsBaselineMediaTagListWidth);
+        // The person switched the side from the media page while the settings were open: the stale draft must not bring the old side back.
+        live.MediaLayout = (MediaPageLayout.Parse(live.MediaLayout, false) with { TagListSide = MediaTagListSide.Right }).Format();
+        live.CopySettingsFieldsFrom(draft);
+        MediaPageLayout saved = MediaPageLayout.Parse(live.MediaLayout, live.MediaBooruMode);
+        Assert.Equal(300, saved.TagListWidth);
+        Assert.Equal(MediaTagListSide.Right, saved.TagListSide);
+    }
+
+    [Fact]
+    public void SavingWithTheTagListWidthBoxUntouchedKeepsTheWidthTheHandleSetWhileTheSettingsWereOpen()
+    {
+        Config live = LiveWithWidth(256);
+        Config draft = live.Clone(); // loaded with 256, the box is never touched
+        draft.RecheckTimer = 120;
+        // The drag on the media page committed 340 in the meantime.
+        live.MediaLayout = (MediaPageLayout.Parse(live.MediaLayout, false) with { TagListWidth = 340 }).Format();
+        live.CopySettingsFieldsFrom(draft);
+        Assert.Equal(340, WidthOf(live));
+        Assert.Equal(120, live.RecheckTimer);
+    }
+
+    [Fact]
+    public void ABoxChangedBackToTheLiveWidthAndADraftWithoutABaselineLeaveTheLayoutAlone()
+    {
+        Config live = LiveWithWidth(300);
+        Config bare = live.Clone();
+        bare.SettingsBaselineMediaTagListWidth = null; // built by hand: compared with the live value
+        bare.MediaLayout = (MediaPageLayout.Parse(bare.MediaLayout, false) with { TagListWidth = 300 }).Format();
+        live.CopySettingsFieldsFrom(bare);
+        Assert.Equal(300, WidthOf(live));
+        bare.MediaLayout = (MediaPageLayout.Parse(bare.MediaLayout, false) with { TagListWidth = 210 }).Format();
+        live.CopySettingsFieldsFrom(bare);
+        Assert.Equal(210, WidthOf(live));
+    }
+
+    [Fact]
+    public void TheTagListWidthBaselineIsDraftStateAndNeverSaved()
+    {
+        Config draft = LiveWithWidth(333).Clone();
+        Assert.Equal(333, draft.SettingsBaselineMediaTagListWidth);
+        Assert.DoesNotContain(nameof(Config.SettingsBaselineMediaTagListWidth), JsonSerializer.Serialize(draft, ConfigJsonContext.Default.Config));
+    }
+
+    [Fact]
+    public void ASavedTagListWidthSurvivesSavingAndLoadingTheSettings()
+    {
+        using TempDirectory directory = new();
+        Config live = LiveWithWidth(256);
+        live.CopySettingsFieldsFrom(DraftWithBox(live, 417));
+        live.SaveConfig(directory.Path);
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal(ProfileOrigin.ExistingValid, loaded.Origin);
+        Assert.Equal(417, WidthOf(loaded));
+    }
+
+    [Fact]
+    public void TheEditorKeepsTheLoadedWidthAsBaselineAndTheShellShowsAChangedWidthLive()
+    {
+        string editor = Read("Desktop/Views/Settings/SettingsEditor.TagQueue.cs"), media = Read("Desktop/Shell/MainWindow.Media.cs"),
+            shell = Read("Desktop/Shell/MainWindow.axaml.cs"), page = Read("Desktop/Views/Media/MediaPage.Layout.cs");
+        Assert.Contains("_initialMediaTagListWidth = MediaPageLayout.Parse(config.MediaLayout", editor);
+        Assert.Contains("candidate.SettingsBaselineMediaTagListWidth = _initialMediaTagListWidth;", editor);
+        Assert.Contains("frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;", Read("Desktop/DesktopSessionHost.cs"));
+        Assert.Contains("ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);", shell);
+        Assert.Contains("if (width != widthBefore) _mediaPage?.ApplySavedTagListWidth(width);", media);
+        Assert.Contains("ApplyLayout(_layout with { TagListWidth = width }, save: false);", page);
     }
 
     // ---- The texts ----

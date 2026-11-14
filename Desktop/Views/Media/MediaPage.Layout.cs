@@ -188,6 +188,9 @@ public sealed partial class MediaPage
         if (save) SaveLayout();
     }
 
+    /// <summary>The tag list width that the settings page saved (M1): shown now, nothing saved again. The rest of the layout stays as the page has it.</summary>
+    internal void ApplySavedTagListWidth(int width) => ApplyLayout(_layout with { TagListWidth = width }, save: false);
+
     private void SaveLayout()
     {
         if (SaveLayoutAsync is not { } saveLayout || _lifetime.IsCancellationRequested) return;

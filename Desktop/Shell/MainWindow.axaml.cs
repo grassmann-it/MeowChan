@@ -1252,8 +1252,10 @@ public partial class MainWindow : Window
         try
         {
             await FlushGalleryPreferencesAsync();
+            int mediaTagListWidthBefore = ConfiguredMediaTagListWidth();
             await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
+            ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);
             ForgetDesiredGalleryLayout(); // N3: the applied settings hold the layout now (a failed earlier write must not mask a reset)
             InvalidateReadingResumeState();
             ApplyAppearance();

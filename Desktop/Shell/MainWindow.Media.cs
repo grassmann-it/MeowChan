@@ -26,6 +26,16 @@ public partial class MainWindow
     private MediaPage? _mediaPage;
     internal MediaPage? MediaPageForTests => _mediaPage;
 
+    private int ConfiguredMediaTagListWidth() => MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode).TagListWidth;
+
+    // M1: the settings page saved another tag list width; the page shows it now (nothing is saved again). A save that left the width alone changes nothing:
+    // the page keeps the width the person dragged it to.
+    private void ApplyMediaTagListWidthAfterSettings(int widthBefore)
+    {
+        int width = ConfiguredMediaTagListWidth();
+        if (width != widthBefore) _mediaPage?.ApplySavedTagListWidth(width);
+    }
+
     private void InitializeMediaPage()
     {
         if (_mediaPage != null)

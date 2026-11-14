@@ -937,6 +937,12 @@ namespace MeowChan
         /// </summary>
         [JsonIgnore]
         internal bool? SettingsBaselineGalleryFilmstrip { get; set; }
+        /// <summary>
+        /// Draft only: the settings page's tag list width as it was loaded (start, discard, after a save). The width is part of the media layout, which the
+        /// media page changes directly (the drag handle), so a draft takes over only a width the person changed in the box, never the rest of its layout (M1).
+        /// </summary>
+        [JsonIgnore]
+        internal int? SettingsBaselineMediaTagListWidth { get; set; }
 
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveMediaTiles { get => ActiveProfile.ArchiveMediaTiles; set => ActiveProfile.ArchiveMediaTiles = value; }
@@ -1800,6 +1806,7 @@ namespace MeowChan
                 SettingsBaselineWorkspaceMode = WorkspaceMode,
                 SettingsBaselineVideoVolume = VideoVolume,
                 SettingsBaselineGalleryFilmstrip = GalleryFilmstrip,
+                SettingsBaselineMediaTagListWidth = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode).TagListWidth,
                 // A fresh draft captures the current normalized state. Session admission
                 // restores the editor's original baseline after freezing via Clone().
                 SettingsBaselineGalleryPlayback = GalleryPlaybackPreferences.FromConfig(this),
@@ -2150,6 +2157,12 @@ namespace MeowChan
             GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
+            // M1: only the tag list width of the draft's media layout, and only when the box was changed against its baseline. The media page changes the
+            // rest of the layout (and the width, by its handle) directly; copying the layout as a whole would roll a dragged width back to a stale draft (H1).
+            int draftTagListWidth = Desktop.MediaPageLayout.Parse(source.MediaLayout, source.MediaBooruMode).TagListWidth;
+            Desktop.MediaPageLayout liveLayout = Desktop.MediaPageLayout.Parse(MediaLayout, MediaBooruMode);
+            if (draftTagListWidth != (source.SettingsBaselineMediaTagListWidth ?? liveLayout.TagListWidth) && draftTagListWidth != liveLayout.TagListWidth)
+                MediaLayout = (liveLayout with { TagListWidth = draftTagListWidth }).Format();
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
             MediaBadgeHideBelow = source.MediaBadgeHideBelow;
             MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner;
