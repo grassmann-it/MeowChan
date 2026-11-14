@@ -179,7 +179,7 @@ public sealed class ChipStyleTests
         Assert.Contains("Classes = { WorkspaceChips.Item }", details);
         Assert.Contains("WorkspaceChips.CreateBadge(name, text)", details);
         Assert.DoesNotContain("CornerRadius(10)", details);
-        string card = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchWindow.cs"));
+        string card = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
         Assert.Contains("WorkspaceChips.CreateSourceTag(name, category, compact: true)", card);
     }
 
