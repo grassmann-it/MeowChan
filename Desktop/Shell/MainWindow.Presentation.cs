@@ -196,7 +196,7 @@ public partial class MainWindow
             WorkspaceHeading.IsVisible = WorkViewGate.Visible(WorkspaceHeading, view);
             UpdatePageNavigation();
             WorkspaceVersion.IsVisible = true;
-            WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
+            WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(16, 0);
             Grid body = WorkspaceBody;
             body.Margin = new Thickness(WorkspacePageInset);
             body.RowSpacing = 8;
@@ -569,7 +569,7 @@ public partial class MainWindow
             // Keep the shared footer's height and padding from XAML in every view.
             Grid body = WorkspaceBody;
             body.RowSpacing = retainedErrorLayout ? 4 : 8;
-            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : WorkspacePageInset, 6)
+            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : WorkspacePageInset, 8)
                 : new Thickness(WorkspacePageInset);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
@@ -601,7 +601,7 @@ public partial class MainWindow
                 admissionResults.Resources.Remove("ExpanderHeaderMargin");
                 admissionResults.Resources.Remove("ExpanderContentPadding");
             }
-            AdmissionResultRows.Margin = new Thickness(0, compactIntake ? 4 : 6, 0, 0);
+            AdmissionResultRows.Margin = new Thickness(0, compactIntake ? 4 : 8, 0, 0);
             AdmissionResultsScroll.MaxHeight = compactIntake ? 32 : 140;
             if (!_workspaceNarrowLayout && content.ColumnDefinitions[2].ActualWidth > 0)
                 _workspaceInspectorWidth = Math.Clamp(content.ColumnDefinitions[2].ActualWidth, 260, 520);

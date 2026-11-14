@@ -19,8 +19,8 @@
         <Border x:Name="WorkspaceTitleBarFrame" Classes="shell-bar" BorderThickness="0,0,0,1">
             <Grid x:Name="WorkspaceTitleBar" ColumnDefinitions="*,Auto" Background="Transparent"
                   WindowDecorationProperties.ElementRole="User" PointerPressed="OnTitleBarPointerPressed">
-                <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="20,0" ColumnSpacing="12">
-                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                <Grid x:Name="WorkspaceHeader" ColumnDefinitions="Auto,*,Auto,Auto" Margin="16,0" ColumnSpacing="{StaticResource Workspace.Space.12}">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <Button x:Name="BrandAboutButton" Classes="subtle" Padding="2,0" MinWidth="34" Height="34"
                                 Background="Transparent" BorderThickness="0" Click="OnBrandAboutClick">
                             <!-- The header shows exactly one theme-appropriate cat. The button's own name ("About")
@@ -37,17 +37,17 @@
                         <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
                                    HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
                     </Panel>
-                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
                              statistics page. The inner parts are not exposed separately. -->
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
                             <!-- Two compact direction/rate matrices. Words are the default; icons are opt-in. First = solid series (Down / Read),
                                  second = dashed (Up / Write). The button alone exposes the full accessible description. -->
-                            <Grid x:Name="TransferLayoutGrid" ColumnDefinitions="Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="2"
+                            <Grid x:Name="TransferLayoutGrid" ColumnDefinitions="Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="{StaticResource Workspace.Space.2}"
                                   Grid.IsSharedSizeScope="True" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetworkIo" Width="128" MinWidth="120" Height="14" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw"
                                                   Stroke="{DynamicResource Workspace.Accent}" SecondaryStroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
-                                <Grid x:Name="TransferSpeedText" Grid.Column="1" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="2" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Grid x:Name="TransferSpeedText" Grid.Column="1" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="{StaticResource Workspace.Space.2}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderIoLabel" />
                                         <ColumnDefinition Width="Auto" MinWidth="56" SharedSizeGroup="HeaderIoRate" />
@@ -67,7 +67,7 @@
                                 </Grid>
                                 <controls:IoGraph x:Name="TransferDiskGraph" Grid.Row="1" Source="DiskIo" Width="128" MinWidth="120" Height="14" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw"
                                                   Stroke="{DynamicResource Workspace.Stats.Disk}" SecondaryStroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
-                                <Grid x:Name="TransferDiskText" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto" ColumnSpacing="4" RowSpacing="2" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Grid x:Name="TransferDiskText" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="{StaticResource Workspace.Space.2}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderIoLabel" />
                                         <ColumnDefinition Width="Auto" MinWidth="56" SharedSizeGroup="HeaderIoRate" />
@@ -144,7 +144,7 @@
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
         <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" ShowSeverityIcon="True" IsVisible="False" Margin="12,8,12,0">
             <Grid ColumnDefinitions="*,Auto">
-                <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
+                <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.4}">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
                     <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left" />
                 </Grid>
@@ -163,7 +163,7 @@
         <StackPanel Grid.Row="1">
         <!-- One-time notice for profiles that existed before the work views reduced every page (plan AP5 question 3). -->
         <Border x:Name="WorkViewNoticePanel" IsVisible="False" Classes="workspace-section" Margin="12,8,12,0" Padding="12,8">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                 <TextBlock x:Name="WorkViewNoticeText" TextWrapping="Wrap" VerticalAlignment="Center" />
                 <Button x:Name="WorkViewNoticeAdvanced" Grid.Column="1" Click="OnWorkViewNoticeAdvanced" />
                 <Button x:Name="WorkViewNoticeDismiss" Grid.Column="2" Classes="primary" Click="OnWorkViewNoticeDismiss" />
@@ -171,7 +171,7 @@
         </Border>
         <Border x:Name="ClipboardSuggestionPanel" IsVisible="False" Classes="workspace-section" Margin="12,8,12,0" Padding="12,8"
                 KeyDown="OnClipboardSuggestionKeyDown">
-            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+            <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.4}">
                 <TextBlock x:Name="ClipboardSuggestionTitle" TextWrapping="Wrap" VerticalAlignment="Center" />
                 <Button x:Name="ClipboardSuggestionAccept" Grid.Column="1" Classes="primary" Click="OnClipboardSuggestionAccept" />
                 <Button x:Name="ClipboardSuggestionDismiss" Grid.Column="2" Click="OnClipboardSuggestionDismiss" />
@@ -181,21 +181,21 @@
             </Grid>
         </Border>
         </StackPanel>
-        <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
+        <Grid Grid.Row="2" x:Name="WorkspaceBody" RowDefinitions="Auto,Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="{StaticResource Workspace.Space.8}">
             <Grid x:Name="WorkspaceHeading" wv:WorkViewElement.Id="downloads.header.heading">
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
             </Grid>
             <ScrollViewer x:Name="WorkspaceIntakeScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
             <Border x:Name="WorkspaceIntakeCard" Classes="workspace-section" Padding="12">
-                <StackPanel x:Name="WorkspaceIntakeStack" Spacing="8">
+                <StackPanel x:Name="WorkspaceIntakeStack" Spacing="{StaticResource Workspace.Space.8}">
                     <!-- Display-only last session: rows below come from a disposable cache, not from the session. -->
-                    <Border x:Name="StartupPreviewPanel" Classes="workspace-section" Padding="10,6" IsVisible="False">
-                        <StackPanel Spacing="2">
+                    <Border x:Name="StartupPreviewPanel" Classes="workspace-section" Padding="12,8" IsVisible="False">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.2}">
                             <TextBlock x:Name="StartupPreviewTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="StartupPreviewDetails" Classes="workspace-meta" TextWrapping="Wrap" />
                         </StackPanel>
                     </Border>
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                         <TextBox x:Name="UrlInput" PlaceholderText="Paste thread or board URLs" AcceptsReturn="True" TextWrapping="NoWrap"
                                  MinHeight="{StaticResource Workspace.Size.InputProminent}" MaxHeight="72" VerticalContentAlignment="Center" />
                         <Button x:Name="AddUrlButton" Grid.Column="1" Classes="primary localized" Tag="action.add" Content="Add"
@@ -208,13 +208,13 @@
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" wv:WorkViewElement.Id="downloads.results.panel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
                             <Expander.Header>
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                     <TextBlock x:Name="AdmissionResultsTitle" Text="URL results" VerticalAlignment="Center" />
                                     <controls:HelpButton x:Name="AdmissionResultsHelpButton" Grid.Column="1" HelpKey="help.admissionResults" />
                                 </Grid>
                             </Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
-                                <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />
+                                <StackPanel x:Name="AdmissionResultRows" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
                             </ScrollViewer>
                         </Expander>
                     </Border>
@@ -244,7 +244,7 @@
                             <DataGridTemplateColumn Header="Source / board" Width="130" SortMemberPath="SourceBoard">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" VerticalAlignment="Center">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding HostName}" VerticalAlignment="Center" />
                                             <TextBlock Grid.Column="1" Text="{Binding BoardLabel}" VerticalAlignment="Center" Classes="mono" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding BoardName}" />
                                         </Grid>
@@ -267,9 +267,9 @@
                             <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
                                             <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Title}" />
-                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                                                 <!-- A drawn up arrow (P6), not the "↑" glyph; the border carries the tooltip. A Border and a Path have no automation peer, so the
                                                      accessible name is a visually hidden text that stays in the content view of the row. -->
                                                 <Border Background="Transparent" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center" ToolTip.Tip="{Binding PriorityDescription}" AutomationProperties.Name="{Binding PriorityDescription}">
@@ -299,9 +299,9 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <StackPanel VerticalAlignment="Center" Spacing="0" ToolTip.Tip="{Binding CompactDetails}" AutomationProperties.Name="{Binding CompactDetails}">
-                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                                 <TextBlock Text="{Binding CompactStatus}" IsVisible="{Binding ShowCompactStatus}" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Meta}" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
-                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
+                                                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
                                                     <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" FontWeight="SemiBold" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="{StaticResource Workspace.Text.Meta}" />
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
@@ -394,8 +394,8 @@
                             <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
                         <!-- The search row's way out stands alone at its right edge (HeaderBar end slot, Tom's rule 14.11.). -->
-                        <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,6" IsVisible="False">
-                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                        <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,8" IsVisible="False">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                                 <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
                                 <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
@@ -408,15 +408,15 @@
                               ResizeDirection="Columns" Background="Transparent" />
                 <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="workspace-section-flush" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
-                        <controls:HeaderBar Margin="16,10,10,8">
+                        <controls:HeaderBar Margin="16,8,8,8">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
                             <Button x:Name="InspectorCloseButton" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" Click="OnDetailsToggleClick" />
                         </controls:HeaderBar>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-                            <StackPanel Margin="16,2,16,16" Spacing="12">
+                            <StackPanel Margin="16,2,16,16" Spacing="{StaticResource Workspace.Space.12}">
                                 <TextBlock x:Name="InspectorEmptyState" Tag="detail.empty" Classes="localized muted" TextWrapping="Wrap" />
                                 <StackPanel x:Name="InspectorSelection" Classes="workspace-section-body" IsVisible="False">
-                                    <StackPanel Spacing="5">
+                                    <StackPanel Spacing="{StaticResource Workspace.Space.4}">
                                         <TextBlock x:Name="InspectorKind" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" />
                                         <SelectableTextBlock x:Name="InspectorTitle" Classes="card-title" TextWrapping="Wrap" />
                                         <SelectableTextBlock x:Name="InspectorSource" Classes="muted" TextWrapping="Wrap" />
@@ -425,7 +425,7 @@
                                         <TextBlock Tag="detail.status" Classes="localized workspace-meta" />
                                         <SelectableTextBlock x:Name="InspectorStatus" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <StackPanel x:Name="InspectorErrorSection" wv:WorkViewElement.Id="downloads.inspector.error" Spacing="8">
+                                    <StackPanel x:Name="InspectorErrorSection" wv:WorkViewElement.Id="downloads.inspector.error" Spacing="{StaticResource Workspace.Space.8}">
                                         <TextBlock Tag="detail.error" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}" />
                                         <SelectableTextBlock x:Name="InspectorError" Classes="workspace-error" TextWrapping="Wrap" />
                                     </StackPanel>
@@ -435,7 +435,7 @@
                                         <Button x:Name="InspectorCheckButton" wv:WorkViewElement.Id="downloads.inspector.check" Tag="check.action" Classes="localized subtle" Content="Check now / retry missing" Click="OnCheckSelectionClick" />
                                         <Button x:Name="InspectorMediaRetryButton" wv:WorkViewElement.Id="downloads.inspector.retry-media" Tag="work.retry" Classes="localized subtle" Content="Retry missing media" Click="OnRetryMissingMediaClick" />
                                     </WrapPanel>
-                                    <StackPanel Spacing="8">
+                                    <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                                         <WrapPanel x:Name="InspectorLocalActions" wv:WorkViewElement.Id="downloads.inspector.local-actions" Classes="workspace-toolbar" Orientation="Horizontal" IsVisible="False">
                                             <Button x:Name="InspectorReadPosts" Classes="ghost" Click="OnInspectorReadPosts" />
                                             <Button x:Name="InspectorGallery" Classes="ghost" Click="OnInspectorGallery" />
@@ -455,12 +455,12 @@
                                     </StackPanel>
                                     <Expander x:Name="InspectorSourceDetails" wv:WorkViewElement.Id="downloads.inspector.source-details">
                                         <Expander.Header><TextBlock Tag="detail.source" Classes="localized" /></Expander.Header>
-                                        <StackPanel Spacing="12">
-                                            <StackPanel Spacing="4">
+                                        <StackPanel Spacing="{StaticResource Workspace.Space.12}">
+                                            <StackPanel Spacing="{StaticResource Workspace.Space.4}">
                                                 <TextBlock Tag="detail.url" Classes="localized workspace-meta" />
                                                 <SelectableTextBlock x:Name="InspectorUrl" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
-                                            <StackPanel Spacing="4">
+                                            <StackPanel Spacing="{StaticResource Workspace.Space.4}">
                                                 <TextBlock Tag="detail.directory" Classes="localized workspace-meta" />
                                                 <SelectableTextBlock x:Name="InspectorDirectory" TextWrapping="Wrap" FontSize="{StaticResource Workspace.Text.Meta}" />
                                             </StackPanel>
@@ -469,7 +469,7 @@
                                     </Expander>
 
                                     <Border BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
-                                        <StackPanel Spacing="8">
+                                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                                             <Button x:Name="InspectorRemoveButton" wv:WorkViewElement.Id="downloads.inspector.remove" Tag="action.remove" Classes="localized subtle danger" Content="Remove" Click="OnInspectorRemoveClick" />
                                             <TextBlock x:Name="InspectorRemoveHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                         </StackPanel>
@@ -491,8 +491,8 @@
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
-        <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
+        <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
                 <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->
                 <TextBlock x:Name="WorkspaceStoreWarning" Grid.Column="1" IsVisible="False" MaxWidth="560" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis"
@@ -500,11 +500,11 @@
                 <TextBlock x:Name="WorkspaceCounts" Grid.Column="2" Classes="muted tnum" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
             </Grid>
         </Border>
-        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
-            <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
+        <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,4">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
+            <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
                 <Button x:Name="DownloadsNavigationButton" Classes="nav selected" Click="OnDownloadsNavigationClick">
-                    <StackPanel Orientation="Horizontal" Spacing="9">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                         <Path Data="M 9,1 L 9,12 M 5,8 L 9,12 L 13,8 M 2,13 L 2,17 L 16,17 L 16,13" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
                         <TextBlock Tag="nav.downloads" Classes="localized" Text="Downloads" />
                     </StackPanel>
@@ -520,7 +520,7 @@
                 <Border x:Name="FooterSeparatorSetUp" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <!-- Status opens the segment used last (Statistics | Diagnostics); the icon is the former Diagnostics one. -->
                 <Button x:Name="StatusNavigationButton" Classes="nav" Click="OnStatusNavigationClick">
-                    <StackPanel Orientation="Horizontal" Spacing="9">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                         <Path Data="M 1,10 L 4,10 L 7,3 L 10,16 L 13,10 L 17,10" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
                         <TextBlock Tag="nav.status" Classes="localized" Text="Status" />
                     </StackPanel>
@@ -541,7 +541,7 @@
                     </Button.Flyout>
                 </Button>
                 <Button x:Name="SettingsNavigationButton" Classes="nav" Click="OnSettingsNavigationClick">
-                    <StackPanel Orientation="Horizontal" Spacing="9">
+                    <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                         <Path Data="M 2,4 L 16,4 M 2,9 L 16,9 M 2,14 L 16,14 M 5,2 L 5,6 M 11,7 L 11,11 M 7,12 L 7,16" Width="17" Height="17" StrokeThickness="1.5" Stretch="Uniform" />
                         <TextBlock Tag="nav.settings" Classes="localized" Text="Settings" />
                     </StackPanel>
@@ -566,8 +566,8 @@
         <Grid x:Name="DropOverlay" Grid.RowSpan="4" ZIndex="150" IsVisible="False" IsHitTestVisible="False">
             <Border Background="{DynamicResource Workspace.Background}" Opacity="0.82" />
             <Border x:Name="DropOverlayCard" Classes="workspace-overlay" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}"
-                    Padding="28,22" Margin="20" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel Spacing="6">
+                    Padding="24,24" Margin="16" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                     <TextBlock x:Name="DropOverlayTitle" Classes="section-title" TextWrapping="Wrap" TextAlignment="Center"
                                AutomationProperties.LiveSetting="Polite" />
                     <TextBlock x:Name="DropOverlayDetail" Classes="muted" TextWrapping="Wrap" TextAlignment="Center" />
@@ -575,7 +575,7 @@
             </Border>
         </Grid>
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
-                Classes="workspace-overlay" Margin="20" MaxWidth="620"
+                Classes="workspace-overlay" Margin="16" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
             <!-- Modal header bar: the title and, alone at the top right, the close cross (HeaderBar end slot). The footer held
                  only this Close, so it is gone; Escape still dismisses the help (OnShellKeyDown). -->

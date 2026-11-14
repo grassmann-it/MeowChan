@@ -54,7 +54,7 @@ public partial class MainWindow
             string title = Texts.T("mode." + mode);
             if (open)
             {
-                item.Content = new StackPanel { Spacing = 3, MaxWidth = 320, Children =
+                item.Content = new StackPanel { Spacing = 4, MaxWidth = 320, Children =
                 {
                     new TextBlock { Text = title },
                     new TextBlock { Text = Texts.T("workview.description." + mode), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.MetaText(),
