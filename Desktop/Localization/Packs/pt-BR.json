@@ -4611,6 +4611,8 @@
     "media.tags.hint": "Enter ou clique: só mídias com a tag · Shift+Enter ou Alt+clique: ocultá-las · Delete: tirar a tag do filtro · tecla Menu: mais",
     "settings.limits.mediaTagListTop": "Lista de tags: tags mostradas por grupo",
     "settings.limits.mediaTagListTop.hint": "A lista de tags ao lado das mídias mostra esta quantidade de tags por grupo, as mais frequentes primeiro; “Mostrar todas” lista o restante.",
+    "settings.limits.mediaTagListWidth": "Lista de tags: largura (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Largura da lista de tags ao lado das mídias. Também pode ser alterada arrastando a borda dela.",
     "media.tile.ownTags.one": "{0} tag própria",
     "media.tags.itemName.one": "{0}, {1} mídia",
     "viewer.playback.menu": "Configurações da apresentação",

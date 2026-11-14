@@ -4625,6 +4625,8 @@
     "media.tags.hint": "Enter или щелчок: только медиа с тегом · Shift+Enter или Alt+щелчок: скрыть их · Delete: убрать тег из фильтра · клавиша меню: ещё",
     "settings.limits.mediaTagListTop": "Список тегов: тегов в группе",
     "settings.limits.mediaTagListTop.hint": "Список тегов рядом с медиа показывает столько тегов в группе, сначала самые частые; «Показать все» выводит остальные.",
+    "settings.limits.mediaTagListWidth": "Список тегов: ширина (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Ширина списка тегов рядом с медиа. Её можно менять и перетаскиванием края списка.",
     "media.tile.ownTags.one": "Своих тегов: {0}",
     "media.tile.ownTags.few": "Своих тегов: {0}",
     "media.tags.itemName.one": "{0}, медиа: {1}",

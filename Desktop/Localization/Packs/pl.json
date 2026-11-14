@@ -4651,6 +4651,8 @@
     "media.tags.hint": "Enter lub klik: tylko media z tagiem · Shift+Enter lub Alt+klik: ukryj je · Delete: usuń tag z filtra · klawisz Menu: więcej",
     "settings.limits.mediaTagListTop": "Lista tagów: tagi wyświetlane w grupie",
     "settings.limits.mediaTagListTop.hint": "Lista tagów obok mediów pokazuje tyle tagów na grupę, najczęstsze najpierw; „Pokaż wszystkie” wyświetla resztę.",
+    "settings.limits.mediaTagListWidth": "Lista tagów: szerokość (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Szerokość listy tagów obok mediów. Można ją zmienić także przeciągając jej krawędź.",
     "media.tile.ownTags.one": "Własny tag: {0}",
     "media.tile.ownTags.few": "Własne tagi: {0}",
     "media.tags.itemName.one": "{0}, mediów: {1}",

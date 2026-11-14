@@ -471,11 +471,23 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal(WorkViewPage.Media, WorkViewPolicy.Get("media.toolbar.layout").Page);
     }
 
+    [Fact]
+    public void TheSettingsEditorOffersTheTagListWidthAsALimitNextToTheTagCount()
+    {
+        string editor = Read("Desktop/Views/Settings/SettingsEditor.TagQueue.cs"), axaml = Read("Desktop/Views/Settings/SettingsEditor.axaml");
+        Assert.Contains("Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum", editor);
+        Assert.Contains("with { TagListWidth = tagListWidth }", editor);
+        Assert.Contains("MediaTagListWidthInput, MediaTagListWidth,", editor); // part of the numeric validation list
+        Assert.Contains("x:Name=\"MediaTagListWidthInput\"", axaml);
+        Assert.True(axaml.IndexOf("MediaTagListTopInput", StringComparison.Ordinal) < axaml.IndexOf("MediaTagListWidthInput", StringComparison.Ordinal));
+        Assert.Equal((256, 180, 480), (Config.MediaTagListWidthDefault, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum));
+    }
+
     // ---- The texts ----
 
     private static readonly string[] Keys =
     [
-        "media.tagList", "media.tagList.tip", "settings.limits.mediaTagListTop", "media.layout.name", "media.layout.tip", "media.layout.menuName",
+        "media.tagList", "media.tagList.tip", "settings.limits.mediaTagListTop", "settings.limits.mediaTagListWidth", "settings.limits.mediaTagListWidth.hint", "media.layout.name", "media.layout.tip", "media.layout.menuName",
         "media.layout.side.left", "media.layout.side.right", "media.layout.chips", "media.layout.status", "media.layout.subtitle",
         "media.layout.caption.name", "media.layout.caption.tags", "media.layout.caption.queue", "media.layout.caption.source",
         "media.layout.size.small", "media.layout.size.medium", "media.layout.size.large",

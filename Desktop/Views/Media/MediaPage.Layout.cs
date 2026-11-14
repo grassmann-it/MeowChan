@@ -32,7 +32,7 @@ public sealed partial class MediaPage
 
     private readonly Button _layoutButton = new() { Name = "MediaLayout", Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight } };
     private readonly TextBlock _layoutLabel = new() { Name = "MediaLayoutLabel", VerticalAlignment = VerticalAlignment.Center };
-    private readonly GridSplitter _tagHandle = new() { Name = "MediaTagListHandle", ResizeDirection = GridResizeDirection.Columns, IsVisible = false };
+    private readonly GridSplitter _tagHandle = new() { Name = "MediaTagListHandle", IsVisible = false };
     private MediaPageLayout _layout = MediaPageLayout.Standard;
     private MediaPageLayoutPlan? _plan;
     private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
@@ -102,6 +102,8 @@ public sealed partial class MediaPage
         row.Children.Add(tagList); row.Children.Add(_tagHandle); row.Children.Add(surface);
         _bodyRow = row;
         _bodySurface = surface;
+        // The direction sets the resize cursor, which needs the platform: it is set once the handle is shown.
+        _tagHandle.AttachedToVisualTree += (_, _) => _tagHandle.ResizeDirection = GridResizeDirection.Columns;
         _tagHandle.DragCompleted += (_, _) => CommitTagListWidth();
         _tagHandle.KeyUp += (_, _) => CommitTagListWidth();
         row.SizeChanged += (_, e) => { if (e.WidthChanged && _plan is { TagList: true } plan) LayoutTagList(plan); };

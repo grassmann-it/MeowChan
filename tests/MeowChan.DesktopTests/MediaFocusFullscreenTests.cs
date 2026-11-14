@@ -138,7 +138,8 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     public void TheFocusModeAlsoHidesTheTitleAndSubtitleKeepsTheCountsInTheFocusRowAndTellsTheShell()
     {
         string focus = Source(Focus);
-        Assert.Contains("_title.IsVisible = _subtitle.IsVisible = !on;", focus);
+        Assert.Contains("_title.IsVisible = !on;", focus); // the subtitle follows the layout plan (MP5), which hides it in focus mode
+        Assert.Contains("ApplyLayoutPlan();", focus);
         Assert.Contains("new Control[] { _topRows!, _bottomRows!, _title, _subtitle }", focus);
         // The counts line is the focus row's text and, whole, its tooltip.
         Assert.Contains("ToolTip.SetTip(_focusText, string.IsNullOrWhiteSpace(_status.Text) ? null : _status.Text);", focus);

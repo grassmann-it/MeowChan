@@ -4605,6 +4605,8 @@
     "media.tags.hint": "Intro o clic: solo medios con la etiqueta · Mayús+Intro o Alt+clic: ocultarlos · Supr: quitar la etiqueta del filtro · tecla Menú: más",
     "settings.limits.mediaTagListTop": "Lista de etiquetas: etiquetas mostradas por grupo",
     "settings.limits.mediaTagListTop.hint": "La lista de etiquetas junto a los medios muestra esta cantidad de etiquetas por grupo, las más frecuentes primero; «Mostrar todas» lista el resto.",
+    "settings.limits.mediaTagListWidth": "Lista de etiquetas: ancho (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Ancho de la lista de etiquetas junto a los medios. También se cambia arrastrando su borde.",
     "media.tile.ownTags.one": "{0} etiqueta propia",
     "media.tags.itemName.one": "{0}, {1} medio",
     "viewer.playback.menu": "Ajustes de la presentación",

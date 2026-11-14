@@ -4606,6 +4606,8 @@
     "media.layout.preset.booru": "Booru ビュー",
     "media.layout.preset.grid": "グリッドのみ",
     "media.layout.reset": "レイアウトをリセット",
-    "media.layout.resize": "ドラッグしてタグ一覧の幅を変更します。この端にフォーカスがあるときは矢印キーでも変更できます"
+    "media.layout.resize": "ドラッグしてタグ一覧の幅を変更します。この端にフォーカスがあるときは矢印キーでも変更できます",
+    "settings.limits.mediaTagListWidth": "タグ一覧：幅（dip）",
+    "settings.limits.mediaTagListWidth.hint": "メディアの横のタグ一覧の幅です。端をドラッグしても変更できます。"
   }
 }

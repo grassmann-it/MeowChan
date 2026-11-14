@@ -4648,6 +4648,8 @@
     "media.tags.hint": "Enter nebo kliknutí: jen média se štítkem · Shift+Enter nebo Alt+kliknutí: skrýt je · Delete: odebrat štítek z filtru · klávesa Menu: další",
     "settings.limits.mediaTagListTop": "Seznam štítků: zobrazené štítky v jedné skupině",
     "settings.limits.mediaTagListTop.hint": "Seznam štítků vedle médií ukáže na skupinu tolik štítků, nejčastější první; „Zobrazit vše“ vypíše zbytek.",
+    "settings.limits.mediaTagListWidth": "Seznam štítků: šířka (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Šířka seznamu štítků vedle médií. Dá se změnit i tažením jeho okraje.",
     "media.tile.ownTags.one": "Vlastní štítek: {0}",
     "media.tile.ownTags.few": "Vlastní štítky: {0}",
     "media.tags.itemName.one": "{0}, médií: {1}",

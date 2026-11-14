@@ -4611,6 +4611,8 @@
     "media.tags.hint": "Invio o clic: solo i media con il tag · Maiusc+Invio o Alt+clic: nascondili · Canc: togli il tag dal filtro · tasto Menu: altro",
     "settings.limits.mediaTagListTop": "Elenco tag: tag mostrati per gruppo",
     "settings.limits.mediaTagListTop.hint": "L’elenco dei tag accanto ai media mostra questo numero di tag per gruppo, i più frequenti per primi; «Mostra tutti» elenca il resto.",
+    "settings.limits.mediaTagListWidth": "Elenco dei tag: larghezza (dip)",
+    "settings.limits.mediaTagListWidth.hint": "Larghezza dell’elenco dei tag accanto ai media. Si cambia anche trascinandone il bordo.",
     "media.tile.ownTags.one": "{0} tag personale",
     "media.tags.itemName.one": "{0}, {1} media",
     "viewer.playback.menu": "Impostazioni della presentazione",

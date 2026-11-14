@@ -225,6 +225,8 @@ internal static class MediaLibraryCatalog
         ("media.tags.state.excluded", "excluded", "ausgeschlossen"),
         ("media.tags.hint", "Enter or click: only media with the tag · Shift+Enter or Alt+click: hide them · Delete: take the tag out of the filter · Menu key: more", "Enter oder Klick: nur Medien mit dem Tag · Umschalt+Enter oder Alt+Klick: ausblenden · Entf: Tag aus dem Filter nehmen · Menütaste: mehr"),
         ("settings.limits.mediaTagListTop", "Tag list: tags shown per group", "Tag-Liste: angezeigte Tags je Gruppe"),
-        ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest.")
+        ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest."),
+        ("settings.limits.mediaTagListWidth", "Tag list: width (dip)", "Tag-Liste: Breite (dip)"),
+        ("settings.limits.mediaTagListWidth.hint", "Width of the tag list beside the media. You can also change it by dragging the list's edge.", "Breite der Tag-Liste neben den Medien. Du kannst sie auch ändern, indem du den Rand der Liste ziehst.")
     };
 }
