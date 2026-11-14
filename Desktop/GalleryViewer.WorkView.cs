@@ -135,9 +135,9 @@ internal sealed partial class GalleryViewer
     {
         _workViewTools.IsVisible = false;
         _toolSlots.Add(new("gallery.toolbar.rating", _ratingButton, _overflowPanel, _manageRatingsButton, null,
-            button => AddOverflowItem(button, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit")), iconOnly: false));
+            button => AddOverflowItem(button, "media.rating.edit", label: () => CommandCatalog.Label("media.rating.edit")), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal, null,
-            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: false));
+            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: true));
         _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null, iconOnly: false));
         _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _slideshowHome, _secondsCaption, _modeCaption, null, iconOnly: false));
         _toolSlots.Add(new("gallery.toolbar.help", _helpButton, _overflowPanel, null, null,
@@ -201,6 +201,7 @@ internal sealed partial class GalleryViewer
         {
             button.Tag = null;
             button.Classes.Set("command-icon", false);
+            button.Classes.Set("icon-only", false);
             slot.AddRow!(button); // appends to the flyout (and to _overflowButtons)
             slot.MenuHost.Children.Remove(button);
         }
@@ -226,7 +227,11 @@ internal sealed partial class GalleryViewer
             bool iconOnly = _compactToolbar || slot.IconOnly;
             CommandBindings.Apply(button, id, iconOnly: iconOnly, iconWithLabel: !iconOnly);
             button.Tag = ToolbarTool;
+            // GL5d (S1): the tools of the bar are squares of the input height with a tooltip; the rating button is the exception, it shows
+            // its value ("☆ 4") and so is as wide as that needs.
+            button.Classes.Set("icon-only", slot.Id != "gallery.toolbar.rating" && (iconOnly));
         }
+        PresentRatingButton();
         UpdateTagsButton();
         UpdateHelpButtonTooltip(); // the help button's tooltip names the favourite and post keys as well
     }

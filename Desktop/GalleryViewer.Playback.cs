@@ -112,7 +112,7 @@ internal sealed partial class GalleryViewer
     // separate explicit request to play its selected videos, even when normal autoplay is off.
     private bool EffectiveVideoAutoplay => GalleryPlaybackPolicy.ShouldPlaySelection(_videoAutoplay, _slideshow.IsRunning, _selectionVideoPaused);
 
-    private void InitializePlaybackControls(WrapPanel toolbar, StackPanel focusTools)
+    private void InitializePlaybackControls(Panel toolbar, StackPanel focusTools)
     {
         _slideshow = new GallerySlideshowController(RequestSlideshowNext, requestReplay: RequestSlideshowReplay);
         _slideshow.StateChanged += ApplyEffectiveVideoLoop; // Running or not decides who repeats a video.

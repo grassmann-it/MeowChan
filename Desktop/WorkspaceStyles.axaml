@@ -990,7 +990,7 @@
          dock's own padding is the only inset); the overlay footer and the Windows fallback keep the padding above. -->
     <Style Selector="Border.workspace-media-transport.in-dock"><Setter Property="Padding" Value="0,4" /></Style>
     <!-- S2: an icon-only toolbar button: a square of the input height with the catalog icon centred (IconButtons.Apply). -->
-    <Style Selector="Button.icon-only">
+    <Style Selector="Button.icon-only, ToggleButton.icon-only">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Left" />

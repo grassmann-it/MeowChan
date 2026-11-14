@@ -215,8 +215,11 @@ internal sealed partial class GalleryViewer
         if (_modeTools == null) return;
         bool tag = IsTagMode;
         string view = Texts.T("gallery.mode.view"), tagLabel = Texts.T("gallery.mode.tag");
-        _modeView.Content = view;
-        _modeTag.Content = tagLabel;
+        // GL5d (S2 stage 2): words from CompactToolbarWidth on (the plan's ModeIcons says the same), icons (eye | tag) below it; the words stay the name.
+        bool icons = _compactToolbar;
+        _modeView.Content = icons ? CommandBindings.NamedIcon("eye", 16) : view;
+        _modeTag.Content = icons ? CommandBindings.NamedIcon("tag", 16) : tagLabel;
+        foreach (ToggleButton button in new[] { _modeView, _modeTag }) { button.MinWidth = icons ? 32 : 0; if (icons) button.Padding = new Thickness(8, 0); else button.ClearValue(TemplatedControl.PaddingProperty); }
         _modeView.IsChecked = !tag;
         _modeTag.IsChecked = tag;
         foreach ((ToggleButton button, string label) in new[] { (_modeView, view), (_modeTag, tagLabel) })
@@ -289,6 +292,8 @@ internal sealed partial class GalleryViewer
         Show(_modeTools, plan.ModeSwitch);
         Show(_navigationTools, plan.Nav);
         Show(_zoomTools, plan.Zoom);
+        Show(_actual, plan.ActualSize); // S2 stage 4: 1:1 leaves the bar below the tiny width ...
+        _actualRow.IsVisible = plan.Zoom && !plan.ActualSize; // ... and is a row of "More" then (the key 1 stays)
         Show(_contextToggle, plan.PanelToggle);
         Show(_favorite, plan.Favorite);
         Show(_mediaTools, plan.PanelToggle || plan.Favorite);

@@ -231,10 +231,10 @@ internal sealed partial class GalleryViewer
             _slideshowToggle.Tag = null;
             StyleAsOverflowRow(_slideshowToggle, false);
             _slideshowToggle.Content = name;
-            // G2: one split control (the toggle and its menu button), after the tools toggle as the toggle always sat in the group that
-            // survives collapsed tools.
+            // G2: one split control (the toggle and its menu button) in the group that survives collapsed tools (GL5d: the tools toggle
+            // moved to the right side of the bar, so the split control heads its group).
             _slideshowSplit.Children.Insert(0, _slideshowToggle);
-            _focusTools.Children.Insert(Math.Min(1, _focusTools.Children.Count), _slideshowSplit);
+            _focusTools.Children.Insert(0, _slideshowSplit);
         }
         else
         {
@@ -296,6 +296,7 @@ internal sealed partial class GalleryViewer
         PresentToolbarControls(); // Icon or labelled presentation of the primary controls; no other text changes.
         PresentLayoutButton();
         PresentSlideshowIcon();
+        PresentModeSwitch();
     }
 
     private bool ContextOverPicture => PostOverlayEffective || Bounds.Width < CompactPostWidth;
