@@ -56,6 +56,7 @@ public static class SettingsTransfer
         // These are persisted view/notice state rather than user settings.
         nameof(Config.GalleryContextOpen),
         nameof(Config.ArchiveBridgeHintSeen),
+        nameof(Config.StatusPageSegment),
     ];
 
     private static JsonObject SerializeSnapshot(Config snapshot)

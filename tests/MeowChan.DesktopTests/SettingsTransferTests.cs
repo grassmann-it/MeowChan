@@ -16,6 +16,7 @@ public sealed class SettingsTransferTests
         nameof(Config.WorkViewNoticePending), nameof(Config.SourceMediaIntegrityPermissions), nameof(Config.DownloadsPaused),
         nameof(Config.LastExportDirectory), nameof(Config.GalleryFrameDirectory), nameof(Config.GalleryContextOpen),
         nameof(Config.ArchiveBridgeHintSeen),
+        nameof(Config.StatusPageSegment),
     ];
 
     [Fact]
@@ -42,6 +43,7 @@ public sealed class SettingsTransferTests
             GalleryFrameDirectory = "/tmp/frames",
             GalleryContextOpen = true,
             ArchiveBridgeHintSeen = true,
+            StatusPageSegment = Config.StatusPageSegmentDiagnostics,
         };
 
         JsonObject export = SettingsTransfer.Export(source, " 1.1.0+build.42 ");
