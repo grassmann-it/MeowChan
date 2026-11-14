@@ -18,6 +18,7 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderPageSize), 50, 20, 200 };
         yield return new object[] { nameof(Config.ReaderThreadingDepth), 6, 1, 16 };
         yield return new object[] { nameof(Config.GalleryFitMaxUpscalePercent), 200, 100, 1600 };
+        yield return new object[] { nameof(Config.GalleryMaxZoomPercent), 1600, 200, 6400 };
         yield return new object[] { nameof(Config.PostFilterRuleLimit), 200, 20, 2000 };
         yield return new object[] { nameof(Config.HiddenPostLimit), 10000, 1000, 100000 };
         yield return new object[] { nameof(Config.ReadingHistoryLimit), 10, 5, 25 };

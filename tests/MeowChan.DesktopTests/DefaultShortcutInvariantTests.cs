@@ -22,7 +22,9 @@ public sealed class DefaultShortcutInvariantTests
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
         "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
         // PT4: K switches the card mode of the tagging mode, 1 to 5 choose its cards (only inside the mode; the cards stay clickable).
-        "tags.queue.cards", "tags.queue.card-1", "tags.queue.card-2", "tags.queue.card-3", "tags.queue.card-4", "tags.queue.card-5"
+        "tags.queue.cards", "tags.queue.card-1", "tags.queue.card-2", "tags.queue.card-3", "tags.queue.card-4", "tags.queue.card-5",
+        // Gallery picture and video: Shift+R turns the shown medium by 90°.
+        "gallery.rotate"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -86,7 +88,7 @@ public sealed class DefaultShortcutInvariantTests
             "media.export-original", "media.show-in-folder", "reader.history-back", "gallery.return", "pagination.previous", "pagination.next",
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",
             "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot",
-            "video.ab-loop", "video.frame-step" })
+            "video.ab-loop", "video.frame-step", "gallery.rotate" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 }

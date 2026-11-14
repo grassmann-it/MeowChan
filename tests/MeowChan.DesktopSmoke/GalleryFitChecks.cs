@@ -238,6 +238,26 @@ internal static class GalleryFitChecks
                 Require(image.Source == null, "Canceled session published a noncancelable decode result.");
             }
 
+            // Plan V4: a rotation is a view transform. The picture turns, Fit follows the swapped shape, nothing is decoded again
+            // for it, a new medium is upright, and the live region says it.
+            await ResetAsync(large);
+            double uprightZoom = viewer.CaptureState().PhysicalZoom;
+            int beforeRotate = probe.Calls.Count;
+            Click(viewer, "GalleryRotate"); await SettledAsync();
+            Require(viewer.Rotation == 90 && viewer.CaptureState().Rotation == 90 && !viewer.CaptureState().ManualZoom,
+                "Rotating a fitted image did not turn it and keep Fit.");
+            Require(viewer.CaptureState().PhysicalZoom < uprightZoom, "A turned 3:2 picture did not fit its swapped shape.");
+            Require(image.RenderTransform is Avalonia.Media.TransformGroup group && group.Children.OfType<Avalonia.Media.RotateTransform>().Single().Angle == 90,
+                "The image's render transform did not carry the rotation.");
+            Require(probe.Calls.Skip(beforeRotate).All(call => call.Request is GalleryDecodeRequest.Fit), "Rotating requested Original.");
+            await Program.WaitUntilAsync(() => viewer.ViewAnnouncementText.Contains("90"));
+            for (int turn = 0; turn < 3; turn++) viewer.RotateView();
+            await SettledAsync();
+            Require(viewer.Rotation == 0 && Math.Abs(viewer.CaptureState().PhysicalZoom - uprightZoom) < 1e-9, "Four turns did not return to the upright Fit.");
+            viewer.RotateView(); await SettledAsync();
+            await viewer.ShowAsync(small, CancellationToken.None); await SettledAsync();
+            Require(viewer.Rotation == 0, "A new medium did not start upright.");
+
             List<long> resident = new(); List<double> latencies = new();
             int perfStart = probe.Calls.Count;
             for (int cycle = 0; cycle < 6; cycle++)
