@@ -148,6 +148,40 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Assert.Equal("55", history[1].LastReadPostId);
     }
 
+    // ---- size: 500 places are small and quick ----
+
+    [Fact]
+    public async Task FiveHundredPlacesStayFarBelowTheFileCeilingAndLoadQuickly()
+    {
+        Assert.Equal((50, 10, 500), (Config.ReadingHistoryLimitDefault, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum));
+        Assert.Equal(10, Config.ReadingHistoryMenuEntriesDefault);
+        LocalReadingHistory history = LocalReadingHistory.Empty;
+        for (int thread = 1; thread <= 500; thread++)
+            history = LocalReadingHistory.Add(history, Place(thread, (thread * 1000).ToString(), "A typical thread title with some words " + thread), T0.AddSeconds(thread), 500);
+        byte[] bytes = history.Serialize();
+        Assert.Equal(500, history.Entries.Length);
+        Assert.InRange(bytes.Length, 1, 256 * 1024);                  // a usual entry is about 0.3 KiB: 500 are about 150 KiB
+        Assert.True(bytes.Length < LocalReadingHistory.MaximumFileBytes / 4);
+
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        for (int round = 0; round < 20; round++) Assert.Equal(500, LocalReadingHistory.ParseTolerant(bytes, out _).Entries.Length);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5), "20 loads of 500 places took " + watch.Elapsed);
+
+        // Through the host: one more write on top of 500 places, then a read.
+        using TempDirectory directory = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false, ReadingHistoryLimit = 500 }.SaveConfig(directory.Path);
+        File.WriteAllBytes(Path.Combine(directory.Path, "reading-history.json"), bytes);
+        await using DesktopSessionHost host = Host(directory.Path);
+        await host.StartAsync();
+        watch.Restart();
+        await host.RememberReadingPositionAsync(Place(501, "1"), host.ReadingPositionGeneration);
+        IReadOnlyList<LocalReadingHistoryEntry> read = await host.ReadReadingHistoryAsync();
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "write and read of 500 places took " + watch.Elapsed);
+        Assert.Equal(500, read.Count);
+        Assert.Equal("501", read[0].Position.Thread);
+        Assert.Equal("2", read[^1].Position.Thread); // thread 1 fell off
+    }
+
     // ---- jump: the saved post, the next one when it is missing ----
 
     private static readonly string[] Posts = { "100", "105", "110", "120" };
@@ -201,7 +235,7 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
     {
         List<LocalReadingPosition> opened = new();
         int all = 0;
-        ContextMenuModel model = ReadingHistoryMenu.Compose(Entries(25), 10, 25, T0, true, opened.Add, () => all++).ToModel();
+        ContextMenuModel model = ReadingHistoryMenu.Compose(Entries(25), 10, 50, T0, true, opened.Add, () => all++).ToModel();
 
         ContextMenuEntry[] places = model.Sections[0].ToArray();
         Assert.Equal(10, places.Length);
@@ -227,13 +261,14 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
     [InlineData(10, 25, 10)]
     [InlineData(3, 25, 3)]
     [InlineData(25, 25, 25)]
-    [InlineData(25, 8, 8)]    // never more than the history keeps
+    [InlineData(25, 12, 12)]  // never more than the history keeps
+    [InlineData(25, 1, 10)]   // a history below its minimum counts as the minimum
     [InlineData(1, 25, 3)]    // below the minimum
-    [InlineData(500, 500, 25)] // above both maxima
+    [InlineData(500, 5000, 25)] // above both maxima
     public void TheNumberOfListedThreadsIsTheSettingClampedAndCappedByTheHistorySize(int menuEntries, int historyLimit, int expected)
     {
         Assert.Equal(expected, ReadingHistoryMenu.Shown(menuEntries, historyLimit));
-        int listed = ReadingHistoryMenu.Compose(Entries(40), menuEntries, historyLimit, T0, true, _ => { }, () => { }).ToModel().Sections[0].Count;
+        int listed = ReadingHistoryMenu.Compose(Entries(60), menuEntries, historyLimit, T0, true, _ => { }, () => { }).ToModel().Sections[0].Count;
         Assert.Equal(expected, listed);
     }
 

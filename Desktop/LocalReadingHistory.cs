@@ -28,8 +28,11 @@ internal sealed record LocalReadingHistoryEntry(LocalReadingPosition Position, D
 /// </summary>
 internal sealed record LocalReadingHistory(LocalReadingHistoryEntry[] Entries)
 {
-    /// <summary>The fixed file ceiling (documented, not a setting): the entry limit is the user-facing bound.</summary>
-    internal const int MaximumFileBytes = 64 * 1024;
+    /// <summary>
+    /// The fixed file ceiling (documented, not a setting): the entry limit is the user-facing bound. 1 MiB holds the maximum of 500
+    /// entries even with long, non-ASCII titles (about 1.2 KiB each); a usual entry is about 0.3 KiB, so 500 of them are about 150 KiB.
+    /// </summary>
+    internal const int MaximumFileBytes = 1024 * 1024;
 
     internal static LocalReadingHistory Empty { get; } = new(Array.Empty<LocalReadingHistoryEntry>());
 

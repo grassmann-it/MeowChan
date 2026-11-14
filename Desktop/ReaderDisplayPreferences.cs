@@ -42,9 +42,10 @@ internal sealed class ReaderDisplayPreferences
     internal const int MediaGridTextLimitMinimum = 0;
     internal const int MediaGridTextLimitMaximum = 2000;
     // The reading history (R5): places of the last threads read, one per thread.
-    internal const int ReadingHistoryLimitDefault = 10;
-    internal const int ReadingHistoryLimitMinimum = 5;
-    internal const int ReadingHistoryLimitMaximum = 25;
+    // RH1: 50 threads by default (10 to 500), so "Show full history…" holds more than the ten of the menu.
+    internal const int ReadingHistoryLimitDefault = 50;
+    internal const int ReadingHistoryLimitMinimum = 10;
+    internal const int ReadingHistoryLimitMaximum = 500;
     // RH1: how many of those threads the "Continue reading" menu lists (the history window shows all of them).
     internal const int ReadingHistoryMenuEntriesDefault = 10;
     internal const int ReadingHistoryMenuEntriesMinimum = 3;

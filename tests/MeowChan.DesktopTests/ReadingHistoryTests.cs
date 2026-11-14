@@ -36,29 +36,30 @@ public sealed class ReadingHistoryTests
     }
 
     [Theory]
+    [InlineData(50, 50)]
     [InlineData(10, 10)]
-    [InlineData(5, 5)]
-    [InlineData(25, 25)]
-    [InlineData(1, 5)]       // below the minimum: the minimum
-    [InlineData(1000, 25)]   // above the maximum: the maximum
+    [InlineData(250, 250)]
+    [InlineData(500, 500)]
+    [InlineData(1, 10)]        // below the minimum: the minimum
+    [InlineData(100000, 500)]  // above the maximum: the maximum
     public void TheLimitKeepsTheNewestAndTheOldestFallOff(int limit, int expected)
     {
         LocalReadingHistory history = LocalReadingHistory.Empty;
-        for (int thread = 1; thread <= 40; thread++) history = LocalReadingHistory.Add(history, Place(thread), T0.AddMinutes(thread), limit);
+        for (int thread = 1; thread <= 600; thread++) history = LocalReadingHistory.Add(history, Place(thread), T0.AddMinutes(thread), limit);
 
         Assert.Equal(expected, history.Entries.Length);
-        Assert.Equal("40", history.Entries[0].Position.Thread);
-        Assert.Equal((41 - expected).ToString(), history.Entries[^1].Position.Thread);
+        Assert.Equal("600", history.Entries[0].Position.Thread);
+        Assert.Equal((601 - expected).ToString(), history.Entries[^1].Position.Thread);
     }
 
     [Fact]
     public void ALoweredLimitCutsWhatTheMenuShowsAtOnce()
     {
         LocalReadingHistory history = LocalReadingHistory.Empty;
-        for (int thread = 1; thread <= 12; thread++) history = LocalReadingHistory.Add(history, Place(thread), T0.AddMinutes(thread), 25);
-        Assert.Equal(12, history.Newest(25).Count);
-        Assert.Equal(5, history.Newest(5).Count);
-        Assert.Equal("12", history.Newest(5)[0].Position.Thread);
+        for (int thread = 1; thread <= 40; thread++) history = LocalReadingHistory.Add(history, Place(thread), T0.AddMinutes(thread), 100);
+        Assert.Equal(40, history.Newest(100).Count);
+        Assert.Equal(10, history.Newest(10).Count);
+        Assert.Equal("40", history.Newest(10)[0].Position.Thread);
     }
 
     [Fact]
@@ -66,13 +67,14 @@ public sealed class ReadingHistoryTests
     {
         string wide = new('x', 500);
         LocalReadingHistory history = LocalReadingHistory.Empty;
-        for (int thread = 1; thread <= 30; thread++)
+        for (int thread = 1; thread <= 400; thread++)
             history = LocalReadingHistory.Add(history,
-                new LocalReadingPosition(wide, wide, thread + wide[..400], wide, 1, wide, new string('t', LocalReadingPosition.TitleMaximumLength)), T0.AddMinutes(thread), 25);
+                new LocalReadingPosition(wide, wide, thread + wide[..400], wide, 1, wide, new string('t', LocalReadingPosition.TitleMaximumLength)), T0.AddMinutes(thread), 500);
 
+        // About 3 KiB per entry: 400 of them pass the 1 MiB ceiling, so the oldest fall off to what fits.
         Assert.True(history.Serialize().Length <= LocalReadingHistory.MaximumFileBytes);
-        Assert.InRange(history.Entries.Length, 1, 25);
-        Assert.StartsWith("30", history.Entries[0].Position.Thread);
+        Assert.InRange(history.Entries.Length, 250, 399);
+        Assert.StartsWith("400", history.Entries[0].Position.Thread);
         Assert.NotNull(LocalReadingHistory.Parse(history.Serialize()));
     }
 
@@ -107,22 +109,22 @@ public sealed class ReadingHistoryTests
     public async Task HostKeepsOnePlacePerThreadNewestFirstUpToTheLimitAndNeverStoresPostText()
     {
         using TempDirectory directory = new();
-        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false, ReadingHistoryLimit = 5 }.SaveConfig(directory.Path);
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false, ReadingHistoryLimit = 10 }.SaveConfig(directory.Path);
         await using (DesktopSessionHost host = Host(directory.Path))
         {
             await host.StartAsync();
-            for (int thread = 1; thread <= 7; thread++)
+            for (int thread = 1; thread <= 13; thread++)
                 await host.RememberReadingPositionAsync(Place(thread, (thread * 10).ToString()), host.ReadingPositionGeneration);
             await host.RememberReadingPositionAsync(Place(4, "49"), host.ReadingPositionGeneration);
             IReadOnlyList<LocalReadingHistoryEntry> history = await host.ReadReadingHistoryAsync();
-            Assert.Equal(new[] { "4", "7", "6", "5", "3" }, history.Select(entry => entry.Position.Thread));
+            Assert.Equal(new[] { "4", "13", "12", "11", "10", "9", "8", "7", "6", "5" }, history.Select(entry => entry.Position.Thread));
             Assert.Equal("49", history[0].Position.PostId);
             Assert.Equal("Thread 4", history[0].Position.Title);
         }
         // The list survives an owner restart, beside the single position.
         await using DesktopSessionHost restarted = Host(directory.Path);
         await restarted.StartAsync();
-        Assert.Equal(5, (await restarted.ReadReadingHistoryAsync()).Count);
+        Assert.Equal(10, (await restarted.ReadReadingHistoryAsync()).Count);
         Assert.Equal("49", (await restarted.ReadReadingPositionAsync())!.PostId);
         Assert.True(new FileInfo(Path.Combine(directory.Path, "reading-history.json")).Length <= LocalReadingHistory.MaximumFileBytes);
         Assert.Single(Directory.GetFiles(directory.Path, "reading-history*"));
@@ -132,14 +134,14 @@ public sealed class ReadingHistoryTests
     public async Task ALowerLimitInTheSettingsShowsFewerEntriesWithoutRewritingTheFile()
     {
         using TempDirectory directory = new();
-        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false, ReadingHistoryLimit = 25 }.SaveConfig(directory.Path);
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false, ReadingHistoryLimit = 100 }.SaveConfig(directory.Path);
         await using DesktopSessionHost host = Host(directory.Path);
         await host.StartAsync();
-        for (int thread = 1; thread <= 9; thread++) await host.RememberReadingPositionAsync(Place(thread), host.ReadingPositionGeneration);
-        Assert.Equal(9, (await host.ReadReadingHistoryAsync()).Count);
-        Config lowered = host.Config.Clone(); lowered.ReadingHistoryLimit = 5;
+        for (int thread = 1; thread <= 25; thread++) await host.RememberReadingPositionAsync(Place(thread), host.ReadingPositionGeneration);
+        Assert.Equal(25, (await host.ReadReadingHistoryAsync()).Count);
+        Config lowered = host.Config.Clone(); lowered.ReadingHistoryLimit = 10;
         await host.ApplySettingsAsync(lowered);
-        Assert.Equal(5, (await host.ReadReadingHistoryAsync()).Count);
+        Assert.Equal(10, (await host.ReadReadingHistoryAsync()).Count);
     }
 
     [Fact]
