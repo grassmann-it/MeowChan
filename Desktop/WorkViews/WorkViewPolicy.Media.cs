@@ -23,6 +23,11 @@ public static partial class WorkViewPolicy
         new("media.toolbar.focus", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.focus-mode", OverflowOrder: 5),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
+        // MP4: the Booru mode (tag list beside the grid) is a switch of the header from Simple on; Barebones keeps it under More as a checked entry.
+        new("media.toolbar.booru-mode", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 3),
+        // MP3: the two ways from the media page to tagging, side by side under More in every view.
+        new("media.toolbar.queue-walk", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 32),
+        new("media.toolbar.tagging-page", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 34),
         // The existing Booru workbench is optional; when available its launcher is appended to this same More surface.
         new("media.toolbar.booru", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 30),
         // Since S3 the header holds search, filter toggle, order and refresh; exporting every match is under More in every view
@@ -59,7 +64,8 @@ public static partial class WorkViewPolicy
         Same("media.selection.clear", WorkViewPage.Media, WorkViewKind.Action, Required),
         Same("media.selection.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         new("media.selection.tag", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
-        new("media.selection.queue", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 15),
+        // MP2: queueing comes before tagging together, in the bar (direct from Simple on, like tagging) and under its More.
+        new("media.selection.queue", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 5),
         new("media.selection.export", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),
     ];
 }

@@ -62,6 +62,25 @@ internal static class TagQueueActions
         return AddAsync(host, items, skipped, token);
     }
 
+    /// <summary>
+    /// MP2: like <see cref="AddAsync(DesktopSessionHost, IEnumerable{MediaLibraryEntry}, CancellationToken)"/>, and how many entries were really
+    /// added (0 when nothing was new, nothing could be queued or the write failed), so the surface can offer "Go through now".
+    /// </summary>
+    internal static async Task<(string Message, int Added)> AddCountedAsync(DesktopSessionHost host, IEnumerable<MediaLibraryEntry> entries, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(host);
+        (IReadOnlyList<TagQueueItem> items, int skipped) = ItemsOf(entries, DateTimeOffset.UtcNow);
+        if (items.Count == 0) return (Describe(null, skipped), 0);
+        try
+        {
+            TagQueueAddResult result = await host.EnqueueTagQueueAsync(items, token).ConfigureAwait(true);
+            return (Describe(result, skipped), result.Added);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        { return (DescribeFailure(error), 0); }
+    }
+
     /// <summary>Writes the entries and returns the sentence for the surface's status line. A failure is a sentence too, never an exception.</summary>
     internal static async Task<string> AddAsync(DesktopSessionHost host, IReadOnlyList<TagQueueItem> items, int skipped, CancellationToken token = default)
     {

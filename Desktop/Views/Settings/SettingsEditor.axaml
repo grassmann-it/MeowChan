@@ -941,6 +941,16 @@
                         </Grid>
                         <TextBlock Text="{Binding TagQueueConfirmAboveHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
+                    <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <TextBlock x:Name="MediaTagListTopFieldLabel" Text="{Binding MediaTagListTopLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="MediaTagListTopInput" Value="{Binding MediaTagListTop, Mode=TwoWay}" Minimum="{Binding MediaTagListTopMinimum}" Maximum="{Binding MediaTagListTopMaximum}" Increment="5" AutomationProperties.LabeledBy="{Binding ElementName=MediaTagListTopFieldLabel}" AutomationProperties.Name="{Binding MediaTagListTopLabel}" AutomationProperties.HelpText="{Binding MediaTagListTopHelp}" />
+                                <TextBlock x:Name="MediaTagListTopInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding MediaTagListTopHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                         <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

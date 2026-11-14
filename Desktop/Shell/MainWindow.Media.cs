@@ -58,8 +58,15 @@ public partial class MainWindow
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
-            AddToTagQueue = entries => TagQueueActions.AddAsync(_session, entries),
+            AddToTagQueue = AddMediaToTagQueueAsync,
             TagQueueConfirmAboveSource = () => _session.Config.TagQueueConfirmAbove,
+            // MP1/MP3: the queue as the tiles, the status line and the queue term see it, and the two ways to tagging under More.
+            ReadTagQueue = _session.GetTagQueue,
+            LoadTagQueue = () => _session.LoadTagQueueAsync(),
+            OpenTagQueueWalk = OpenTagQueueGalleryAsync,
+            OpenTaggingPage = ShowTaggingPage,
+            // MP4: the top-N of the Booru mode's tag groups (Settings, Storage and limits).
+            TagListTopSource = () => _session.Config.MediaTagListTop,
             GoToDownloadsRequested = GoToDownloads,
             // AP2 search carry-over: Media file name search -> the archive field's File name scope.
             SearchInArchiveRequested = query =>
@@ -76,6 +83,12 @@ public partial class MainWindow
         _mediaPage.SaveSortAsync = (sort, direction) => sort == MediaLibrarySort.Random
             ? Task.CompletedTask // nothing to save: the settings keep the last non-random choice
             : _session.SaveViewPreferencesAsync(config => MediaSortPreference.Remember(config, sort, direction));
+        // MP4: the Booru mode and the order of its tag list are view preferences of the profile.
+        _mediaPage.RestoreBooruMode(_session.Config.MediaBooruMode,
+            Enum.TryParse(_session.Config.MediaTagListSort, out MediaTagListSort tagListSort) ? tagListSort : MediaTagListSort.Count);
+        _mediaPage.SaveBooruModeAsync = (on, sort) => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = on; config.MediaTagListSort = sort.ToString(); });
+        _session.StateChanged += OnMediaTagQueueChanged;
+        Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;
         _mediaPage.InitializeSharedMediaMenus();
         _mediaPage.FocusModeChanged += on => { _mediaFocusActive = on; UpdateMediaFocusChrome(); };
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
@@ -83,6 +96,22 @@ public partial class MainWindow
         _workViews.Changed += (_, view) => _mediaPage?.ApplyWorkView(view, viewChanged: true);
         MediaPageHost.Content = _mediaPage;
         AttachBooruOverflow(_mediaPage);
+    }
+
+    // MP1: the session changed (any command); the page reads the queue's published view and refreshes its marks only when it changed.
+    private void OnMediaTagQueueChanged() => Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!_isClosing) _mediaPage?.RefreshTagQueue(); });
+
+    /// <summary>
+    /// MP2: "Add to tagging queue" of the media page. The sentence goes to the page's status line as before; when something was really
+    /// added a toast offers to go through the queue right away (the walk in the gallery's tagging mode).
+    /// </summary>
+    private async Task<string> AddMediaToTagQueueAsync(IReadOnlyList<MediaLibraryEntry> entries)
+    {
+        (string message, int added) = await TagQueueActions.AddCountedAsync(_session, entries);
+        if (added > 0 && !_isClosing)
+            ShowActionNotification(Texts.T("queue.title"), message, NotificationType.Information,
+                new[] { new FeedbackToastAction(Texts.T("media.queue.walkNow"), OpenTagQueueGalleryAsync) }, operation: "media.queue.add");
+        return message;
     }
 
     // Passive in-memory views only; an unavailable store stays null so a filter needing it is refused.

@@ -65,7 +65,9 @@ public sealed partial class MediaPage
         tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more })
+        // MP4: the Booru mode switch sits before the focus mode; MP3: the queue walk and the Tagging page are entries under More only.
+        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _focus, _exportAll, _manageRatings, _booruOpen,
+            _queueWalk, _taggingPageOpen, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).

@@ -185,7 +185,7 @@ public sealed partial class MediaPage : UserControl
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
-            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null });
+            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_goDownloads);
@@ -196,7 +196,8 @@ public sealed partial class MediaPage : UserControl
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "workspace-section-flush" } };
-        layout.Children.Add(surface); Avalonia.Controls.Grid.SetRow(surface, 1);
+        Control bodyRow = WrapWithTagSidebar(surface); // MP4: the tag list of the Booru mode left of the grid (MediaPage.BooruMode.cs)
+        layout.Children.Add(bodyRow); Avalonia.Controls.Grid.SetRow(bodyRow, 1);
         Content = layout;
 
         _sort.SelectionChanged += (_, _) => OnSortChanged();
@@ -232,6 +233,7 @@ public sealed partial class MediaPage : UserControl
         RefreshUserData();
         UpdateSearchTip();
         WarmBooruCatalog();
+        RefreshTagQueue(load: true);
         if (_building != null) return BuildTask;
         return BuildTask = BuildAsync(force: false);
     }
@@ -350,7 +352,14 @@ public sealed partial class MediaPage : UserControl
     private sealed record PresentInputs(IReadOnlyList<MediaLibraryEntry> All, PresentIndexHolder? Holder, MediaLibraryFilter? Filter,
         bool InvalidFilter, MediaLibrarySort Sort, MediaLibrarySortDirection Direction, bool IncludeMissing, int Seed, MediaLibraryUserData UserData,
         MediaLibraryUserOrder? UserOrder, MediaAudioMap Audio,
-        MediaLibraryUntagged? Untagged, IReadOnlyList<MediaLibraryTile> OldTiles, int[] SelectedPositions, long SelectionStamp);
+        MediaLibraryUntagged? Untagged, IReadOnlyList<MediaLibraryTile> OldTiles, int[] SelectedPositions, long SelectionStamp)
+    {
+        // MP1/MP4: the page-side terms (tagging queue, source tags), the queue keys taken now and the reader of the source tags (it reads
+        // the Booru catalog, so a presentation with source tags always runs off the UI thread).
+        internal MediaPageTermFilter? PageTerms { get; init; }
+        internal IReadOnlySet<TagQueueKey>? Queue { get; init; }
+        internal Func<MediaSourceTagIndex?>? SourceTags { get; init; }
+    }
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
@@ -361,7 +370,8 @@ public sealed partial class MediaPage : UserControl
         _presenting?.Cancel();
         _presenting = null;
         PresentInputs inputs = CapturePresentInputs();
-        if (inputs.All.Count < BackgroundPresentEntries)
+        // Source tags read the Booru catalog: its first read (tens of MiB) never happens on the UI thread (see WarmBooruCatalog).
+        if (inputs.All.Count < BackgroundPresentEntries && !(inputs.PageTerms?.NeedsSourceTags == true && ReadBooruCatalog != null && !_booruCatalogWarm))
         {
             _presentPending = false;
             PresentTask = Task.CompletedTask;
@@ -413,9 +423,21 @@ public sealed partial class MediaPage : UserControl
         try { filter = CurrentFilter(); }
         catch (ArgumentException) { invalid = true; }
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
+        MediaPageTermFilter? pageTerms = MediaPageTermFilter.From(_terms);
+        Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
+        MediaSourceTagIndexCache sourceTagCache = _sourceTagCache;
         return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
             Sort, SortDirection, HasField(MediaFilterField.Missing), _seed, _userData, snapshot == null ? null : _userOrder,
-            _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
+            _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp)
+        {
+            PageTerms = pageTerms,
+            Queue = pageTerms?.NeedsQueue == true ? _queueKeys : null,
+            SourceTags = pageTerms?.NeedsSourceTags != true ? null : () =>
+            {
+                try { return readBooru == null ? null : sourceTagCache.For(readBooru()); }
+                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { return null; }
+            }
+        };
     }
 
     // Filter, group and order (the index), and make the rows. Touches no control and no page state, so it may run on any thread.
@@ -439,9 +461,11 @@ public sealed partial class MediaPage : UserControl
             try
             {
                 MediaLibraryFilter filter = input.Filter!;
-                filterActive = !filter.IsEmpty;
+                filterActive = !filter.IsEmpty || input.PageTerms != null;
                 MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(all, filter, input.UserData, input.Audio);
                 passing = result.Passing;
+                // MP1/MP4: the tagging queue and the source tags narrow what the core filter let through.
+                if (input.PageTerms is { } pageTerms) passing = pageTerms.Apply(passing, input.Queue, input.SourceTags?.Invoke());
                 audioUnknown = result.UnknownSoundVideos;
                 if (!filter.WithoutMediaTags)
                 {
@@ -458,6 +482,12 @@ public sealed partial class MediaPage : UserControl
                     MediaLibraryFilterError.FavoritesUnavailable => "media.filter.error.favorites",
                     _ => "media.filter.error.ratings"
                 };
+                passing = Array.Empty<MediaLibraryEntry>();
+            }
+            catch (MediaPageTermException exception)
+            {
+                errorKey = exception.TextKey;
+                filterActive = true;
                 passing = Array.Empty<MediaLibraryEntry>();
             }
             catch (ArgumentException)
@@ -540,6 +570,7 @@ public sealed partial class MediaPage : UserControl
         RefreshWorkView(); // the shuffle button follows the random order (state) and the view (placement)
         UpdateSortDirection();
         UpdateStatus();
+        RefreshTagSidebar(); // MP4: the tag list counts the tiles now shown
     }
 
     private void UpdateStatus()
@@ -584,6 +615,7 @@ public sealed partial class MediaPage : UserControl
             : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
         if (_snapshot != null && _providerEntries is > 0 and int provider)
             parts.Add(Texts.Count("booru.media.statusCount", provider));
+        if (_snapshot != null && _queueOpen > 0) parts.Add(Texts.T("media.status.queue", _queueOpen.ToString("N0", Texts.Culture))); // MP3
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
         if (_failed) parts.Add(Texts.T("media.failed"));
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
@@ -1074,6 +1106,8 @@ public sealed partial class MediaPage : UserControl
         _missing.Content = Texts.T("media.showMissing");
         WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
         LocalizeFocus();
+        LocalizeBooruMode();
+        LocalizeQueueTools();
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;
@@ -1092,6 +1126,7 @@ public sealed partial class MediaPage : UserControl
         _lifetime.Cancel();
         _nameFilter.CancelPendingQuery();
         _building?.Cancel();
+        EndBooruModeLifetime();
         Texts.Changed -= OnLanguageChanged;
         _occurrences?.Close();
         _selectionTag?.CloseForLifetime();

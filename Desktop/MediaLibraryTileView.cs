@@ -105,6 +105,11 @@ internal sealed class MediaLibraryTileView : UserControl
     // own state the row already holds: no extra reads.
     private readonly Border _kindBadge = WorkspaceChips.CreateCornerBadge("MediaTileKind", HorizontalAlignment.Right, VerticalAlignment.Top);
     private readonly Border _stateMark = WorkspaceChips.CreateCornerMark("MediaTileStateMark", HorizontalAlignment.Left, VerticalAlignment.Bottom);
+    // MP1: beside the state mark, bottom left: "in the tagging queue" (a drawn queue mark) and the number of own tags (a tag mark and the
+    // number). Both have their meaning as tooltip and are part of the tile's name; the queue mark is refreshed alone when the queue changes.
+    private readonly Border _queueMark = WorkspaceChips.CreateCornerMark("MediaTileQueueMark", HorizontalAlignment.Left, VerticalAlignment.Bottom);
+    private readonly TextBlock _tagCountText = new() { Name = "MediaTileTagCountText", VerticalAlignment = VerticalAlignment.Center, Classes = { WorkspaceChips.Label, "tnum" } };
+    private readonly Border _tagCountBadge;
     private readonly ToggleButton _favoriteToggle = WorkspaceChips.CreateFavoriteToggle("MediaTileFavoriteToggle");
     // Downloaded provider media carry a small source badge next to the preview, so they are told apart without opening anything.
     private readonly Border _providerBadge = CreateProviderBadge();
@@ -147,6 +152,12 @@ internal sealed class MediaLibraryTileView : UserControl
     internal Func<MediaLibraryEntry, Task>? FavoriteToggle { get; set; }
     /// <summary>Set by the page: whether the favourite action is wired at all (a harness page without the shell has none).</summary>
     internal Func<bool>? CanToggleFavorite { get; set; }
+    /// <summary>Set by the page: whether the shown occurrence is in the tagging queue (MP1). Null: no queue mark.</summary>
+    internal Func<MediaLibraryEntry, bool>? InTagQueue { get; set; }
+    /// <summary>The queue mark (smokes).</summary>
+    internal Border QueueMark => _queueMark;
+    /// <summary>The own-tag count badge (smokes).</summary>
+    internal Border TagCountBadge => _tagCountBadge;
 
     /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite/tag row plus margins. The page's panel uses it as cell height.</summary>
     internal const double TileHeight = 226;
@@ -159,7 +170,9 @@ internal sealed class MediaLibraryTileView : UserControl
         LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174;
         StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kindBadge, _selectedMark } };
-        _stateMark.Margin = new Thickness(2, 0, 0, 2);
+        _tagCountBadge = CreateTagCountBadge(_tagCountText);
+        StackPanel bottomLeft = new() { Name = "MediaTileBottomLeft", Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(2, 0, 0, 2), Children = { _stateMark, _queueMark, _tagCountBadge } };
         _favoriteToggle.Margin = new Thickness(0, 0, 2, 2);
         _favoriteToggle.Click += async (_, e) =>
         {
@@ -171,7 +184,7 @@ internal sealed class MediaLibraryTileView : UserControl
             finally { if (ReferenceEquals(DataContext, row)) _favoriteToggle.IsEnabled = true; }
         };
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(topRight);
-        preview.Children.Add(_stateMark); preview.Children.Add(_favoriteToggle);
+        preview.Children.Add(bottomLeft); preview.Children.Add(_favoriteToggle);
         Grid grid = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
@@ -256,9 +269,54 @@ internal sealed class MediaLibraryTileView : UserControl
         _placeholder.Text = row?.Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing") : string.Empty;
         string kind = PresentCorners(row);
         string untagged = row?.IsUntagged == true ? Texts.T("media.tile.untaggedMark") : string.Empty;
-        string description = row == null ? string.Empty : string.Join(Environment.NewLine, new[] { row.Name, row.IsProviderMedium ? Texts.T("booru.media.badge") : string.Empty, kind, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription, untagged }.Where(part => part.Length > 0));
+        string tagCount = PresentTagCount(row);
+        _description = row == null ? Array.Empty<string>() : new[] { row.Name, row.IsProviderMedium ? Texts.T("booru.media.badge") : string.Empty, kind, row.ThreadLabel, row.Duplicates, row.FavoriteLabel, row.Detail, row.StateDescription, untagged, tagCount };
+        RefreshQueueBadge();
+    }
+
+    private string[] _description = Array.Empty<string>();
+
+    /// <summary>
+    /// MP1: shows or hides the queue mark for the occurrence and puts it into the tile's name. Cheap (one set lookup): the page calls it on
+    /// the realized tiles when the queue changed, without rebuilding them.
+    /// </summary>
+    internal void RefreshQueueBadge()
+    {
+        MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
+        bool queued = row != null && InTagQueue?.Invoke(row.Entry) == true;
+        WorkspaceChips.SetCornerMark(_queueMark, queued ? QueueMarkGeometry : null, Texts.T("media.tile.queued"));
+        string description = string.Join(Environment.NewLine, _description.Append(queued ? Texts.T("media.tile.queued") : string.Empty).Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
+    }
+
+    /// <summary>The queue mark: three lines of a list with an arrow into it (drawn on the 12 dip mark grid).</summary>
+    internal const string QueueMarkGeometry = "M1,2 L8,2 M1,6 L8,6 M1,10 L5,10 M10,6 L10,11 M8,9 L10,11 L12,9";
+
+    /// <summary>The tag mark of the own-tag count: the tag of the "no media tags yet" mark without its stroke.</summary>
+    internal const string TagMarkGeometry = "M1,1 L6,1 L11,6 L6,11 L1,6 Z M3.6,3.6 L3.7,3.7";
+
+    // "■ n": the number of own tags the occurrence carries (media and thread tags, as its chips); hidden when it carries none or they are unknown.
+    private string PresentTagCount(MediaLibraryTileRow? row)
+    {
+        int count = row?.TagChips.Count ?? 0;
+        _tagCountBadge.IsVisible = count > 0;
+        _tagCountText.Text = count > 0 ? count.ToString("N0", Texts.Culture) : null;
+        string name = count > 0 ? Texts.Count("media.tile.ownTags", count, count.ToString("N0", Texts.Culture)) : string.Empty;
+        ToolTip.SetTip(_tagCountBadge, count > 0 ? name : null);
+        return name;
+    }
+
+    private static Border CreateTagCountBadge(TextBlock number)
+    {
+        Avalonia.Controls.Shapes.Path glyph = new() { Classes = { "tile-mark-glyph" }, Stretch = Stretch.Uniform, Width = 10, Height = 10, IsHitTestVisible = false,
+            VerticalAlignment = VerticalAlignment.Center };
+        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Geometry.Parse(TagMarkGeometry);
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 2, Children = { glyph, number } };
+        Border badge = new() { Name = "MediaTileTagCount", Child = content, Classes = { WorkspaceChips.Chip, WorkspaceChips.Badge, WorkspaceChips.Compact, WorkspaceChips.Corner },
+            IsVisible = false, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Bottom };
+        AutomationProperties.SetAccessibilityView(badge, AccessibilityView.Raw);
+        return badge;
     }
 
     /// <summary>Fills the fixed preview corners; returns the type label (also part of the tile's name), or empty for images.</summary>

@@ -17,6 +17,8 @@ public partial class SettingsEditor
     public int TagQueueHistoryMaximum => Config.TagQueueHistoryMaximum;
     public int TagQueueConfirmAboveMinimum => Config.TagQueueConfirmAboveMinimum;
     public int TagQueueConfirmAboveMaximum => Config.TagQueueConfirmAboveMaximum;
+    public int MediaTagListTopMinimum => Config.MediaTagListTopMinimum;
+    public int MediaTagListTopMaximum => Config.MediaTagListTopMaximum;
 
     private decimal? _tagQueueLimit;
     public decimal? TagQueueLimit { get => _tagQueueLimit; set => SetField(ref _tagQueueLimit, value, nameof(TagQueueLimit)); }
@@ -42,6 +44,13 @@ public partial class SettingsEditor
     public string TagQueueConfirmAboveHint => Texts.T("settings.limits.tagQueueConfirm.hint") + " " + Texts.T("settings.reader.range", Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
     public string TagQueueConfirmAboveHelp => FieldHelp(nameof(TagQueueConfirmAboveInput), TagQueueConfirmAboveHint);
 
+    // MP4: the top-N of each group of the media page's Booru-mode tag list.
+    private decimal? _mediaTagListTop;
+    public decimal? MediaTagListTop { get => _mediaTagListTop; set => SetField(ref _mediaTagListTop, value, nameof(MediaTagListTop)); }
+    public string MediaTagListTopLabel => Texts.T("settings.limits.mediaTagListTop");
+    public string MediaTagListTopHint => Texts.T("settings.limits.mediaTagListTop.hint") + " " + Texts.T("settings.reader.range", Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
+    public string MediaTagListTopHelp => FieldHelp(nameof(MediaTagListTopInput), MediaTagListTopHint);
+
     private void LoadTagQueueDraft(Config config)
     {
         TagQueueLimit = config.TagQueueLimit;
@@ -52,6 +61,8 @@ public partial class SettingsEditor
         ResetNumber(TagQueueHistoryInput, TagQueueHistory.Value);
         TagQueueConfirmAbove = config.TagQueueConfirmAbove;
         ResetNumber(TagQueueConfirmAboveInput, TagQueueConfirmAbove.Value);
+        MediaTagListTop = config.MediaTagListTop;
+        ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
         LoadTaggingDraft(config);
     }
 
@@ -61,6 +72,7 @@ public partial class SettingsEditor
         candidate.TagQueueFileLimitMiB = GetInteger(TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum);
         candidate.TagQueueHistory = GetInteger(TagQueueHistory, TagQueueHistoryLabel, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum);
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
+        candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         ApplyTaggingDraft(candidate);
     }
 
@@ -70,6 +82,7 @@ public partial class SettingsEditor
         yield return (TagQueueFileLimitMiBInput, TagQueueFileLimitMiB, TagQueueFileLimitMiBLabel, string.Empty, Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum, true);
         yield return (TagQueueHistoryInput, TagQueueHistory, TagQueueHistoryLabel, string.Empty, Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum, true);
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
+        yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         foreach (var field in TaggingNumericFields()) yield return field;
     }
 
@@ -82,9 +95,10 @@ public partial class SettingsEditor
         nameof(TagQueueFileLimitMiBLabel), nameof(TagQueueFileLimitMiBHint), nameof(TagQueueFileLimitMiBHelp),
         nameof(TagQueueHistoryLabel), nameof(TagQueueHistoryHint), nameof(TagQueueHistoryHelp),
         nameof(TagQueueConfirmAboveLabel), nameof(TagQueueConfirmAboveHint), nameof(TagQueueConfirmAboveHelp),
+        nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
     };
     private static readonly string[] TagQueueHelpProperties =
     {
-        nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp), nameof(TagQueueConfirmAboveHelp),
+        nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp), nameof(TagQueueConfirmAboveHelp), nameof(MediaTagListTopHelp),
     };
 }

@@ -433,6 +433,14 @@ public sealed partial class MediaPage
     {
         if (term.Field == MediaFilterField.Tag) return ToggleTagFilter(Guid.Parse(term.Value));
         IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.Toggled(_terms.ToArray(), term);
+        // MP4: a source tag that switches lists counts against the tags-per-list limit of its new list.
+        if (term.Field == MediaFilterField.SourceTag && _terms.FirstOrDefault(other => MediaFilterTermSet.Identity(other) == MediaFilterTermSet.Identity(term)) is { } held
+            && SourceTagRefusal(held.Toggled()) is { } limit)
+        {
+            _filterError.Text = limit;
+            _filterError.IsVisible = true;
+            return limit;
+        }
         if (!IsValidFilter(next))
         {
             string refusal = Texts.T("media.filter.add.refused");
@@ -516,6 +524,7 @@ public sealed partial class MediaPage
         Offer(MediaFilterTerm.Flag(MediaFilterField.Favorite), Texts.T("media.filter.favorites"));
         Offer(MediaFilterTerm.Flag(MediaFilterField.Untagged), Texts.T("media.filter.withoutTags"));
         Offer(MediaFilterTerm.Flag(MediaFilterField.Missing), Texts.T("media.showMissing"));
+        if (ReadTagQueue != null) Offer(MediaFilterTerm.InQueue(), Texts.T("media.filter.queueChip")); // MP1
         return choices;
     }
 

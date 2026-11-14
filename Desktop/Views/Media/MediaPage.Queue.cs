@@ -8,6 +8,8 @@ using Avalonia.Layout;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Tags;
+using System.IO;
 
 namespace MeowChan;
 
@@ -38,6 +40,94 @@ public sealed partial class MediaPage
     }
     internal bool QueueAsking => _queueAsk.IsVisible;
     internal Button SelectionQueueButton => _selQueue;
+
+    // ---- MP1/MP3: what the queue holds, on the tiles, in the status line, as a filter term, and the two ways to it under More ----
+
+    /// <summary>The last committed tagging queue (the host's passive view; null before it was loaded). Throws InvalidDataException while unreadable.</summary>
+    internal Func<TagQueueSnapshot?>? ReadTagQueue { get; set; }
+    /// <summary>Loads the queue file once when nothing was loaded yet (the host's command; the page asks when it is shown).</summary>
+    internal Func<Task>? LoadTagQueue { get; set; }
+    /// <summary>"Walk through tagging queue" under More (the shell's walk; null hides the entry).</summary>
+    internal Func<Task>? OpenTagQueueWalk { get; set; }
+    /// <summary>"Open the Tagging page" under More (the shell's navigation; null hides the entry).</summary>
+    internal Func<bool>? OpenTaggingPage { get; set; }
+    private readonly Button _queueWalk = new() { Name = "MediaQueueWalk", IsVisible = false };
+    private readonly Button _taggingPageOpen = new() { Name = "MediaTaggingPageOpen", IsVisible = false };
+    private TagQueueSnapshot? _queueSnapshot;
+    // The keys of the queue (every state) for the badges and the queue term; null while the queue is unreadable.
+    private IReadOnlySet<TagQueueKey>? _queueKeys = new HashSet<TagQueueKey>();
+    private int _queueOpen;
+    private bool _queueLoadRequested;
+
+    /// <summary>How many queue entries are open (the status line counts them).</summary>
+    internal int QueueOpenCount => _queueOpen;
+    /// <summary>How many tiles had their badges refreshed by the last queue change (tests: only realized tiles are touched).</summary>
+    internal int QueueBadgeRefreshes { get; private set; }
+
+    /// <summary>Whether the occurrence is in the tagging queue (any state). False while the queue is unknown or unreadable.</summary>
+    internal bool IsInTagQueue(MediaLibraryEntry entry) => _queueKeys is { Count: > 0 } keys && TagQueueKeys.Of(entry) is { } key && keys.Contains(key);
+
+    /// <summary>
+    /// Reads the host's queue again (the shell calls it when the session changed; the page when it is shown). Nothing happens while it is
+    /// the same snapshot. A change refreshes the badges of the tiles that are realized now (never the whole grid) and the status line;
+    /// only a filter with the queue term presents again, since its results changed.
+    /// </summary>
+    internal void RefreshTagQueue(bool load = false)
+    {
+        if (ReadTagQueue is not { } read || _lifetime.IsCancellationRequested) return;
+        TagQueueSnapshot? snapshot;
+        bool unreadable = false;
+        try { snapshot = read(); }
+        catch (Exception error) when (error is InvalidDataException or IOException or ObjectDisposedException) { snapshot = null; unreadable = true; }
+        if (snapshot == null && !unreadable && load && !_queueLoadRequested && LoadTagQueue is { } loader)
+        {
+            _queueLoadRequested = true;
+            _ = LoadQueueQuietlyAsync(loader);
+        }
+        if (!unreadable && ReferenceEquals(snapshot, _queueSnapshot) && _queueKeys != null) return;
+        _queueSnapshot = snapshot;
+        _queueKeys = unreadable ? null : snapshot == null ? new HashSet<TagQueueKey>() : TagQueueKeys.Set(snapshot);
+        _queueOpen = snapshot?.Open ?? 0;
+        RefreshQueueBadges();
+        if (HasField(MediaFilterField.Queue) && _snapshot != null) Present();
+        else UpdateStatusText();
+    }
+
+    private async Task LoadQueueQuietlyAsync(Func<Task> loader)
+    {
+        try { await loader(); }
+        catch (Exception error) when (error is not OutOfMemoryException) { } // An unreadable or busy queue is shown as such by the next read.
+        if (!_lifetime.IsCancellationRequested) RefreshTagQueue();
+    }
+
+    // Only the realized containers (the tiles on screen and a few around them): a queue change never walks the grid's rows.
+    private void RefreshQueueBadges()
+    {
+        int touched = 0;
+        foreach (Control container in _grid.GetRealizedContainers())
+            if (container is ContentControl { Presenter.Child: MediaLibraryTileView tile }) { tile.RefreshQueueBadge(); touched++; }
+        QueueBadgeRefreshes = touched;
+    }
+
+    private void LocalizeQueueTools()
+    {
+        string walk = Texts.T("command.media.queue.open"), page = Texts.T("media.toolbar.taggingPage");
+        _queueWalk.Content = walk;
+        Avalonia.Automation.AutomationProperties.SetName(_queueWalk, walk);
+        _taggingPageOpen.Content = page;
+        Avalonia.Automation.AutomationProperties.SetName(_taggingPageOpen, page);
+    }
+
+    private void WireQueueTools()
+    {
+        _queueWalk.Click += async (_, _) =>
+        {
+            if (_lifetime.IsCancellationRequested || OpenTagQueueWalk is not { } walk) return;
+            try { await walk(); }
+            catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.queue.walk")) { /* Logged and shown. */ }
+        };
+        _taggingPageOpen.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) OpenTaggingPage?.Invoke(); };
+    }
 
     private Control BuildQueueAsk()
     {

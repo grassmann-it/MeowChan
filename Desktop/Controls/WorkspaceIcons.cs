@@ -36,6 +36,8 @@ internal static class WorkspaceIcons
     internal const string Refresh = "refresh";
     internal const string Shuffle = "shuffle";
     internal const string Maximize = "maximize";
+    // MP4: the Booru mode of the media page (a list of tags in a column beside a grid).
+    internal const string TagList = "tag-list";
     // The four message severities of a banner: four different shapes, so the severity is not carried by colour alone.
     internal const string SeverityError = "severity-error";
     internal const string SeverityWarning = "severity-warning";
@@ -72,6 +74,8 @@ internal static class WorkspaceIcons
         [Shuffle] = new("M2,4.5 L4.5,4.5 C7,4.5 8,11.5 10.5,11.5 L13.5,11.5 M11.5,9.5 L13.5,11.5 L11.5,13.5 M2,11.5 L4.5,11.5 C5.4,11.5 6.1,11.1 6.7,10.4 M9.3,5.6 C9.9,4.9 10.5,4.5 11.5,4.5 L13.5,4.5 M11.5,2.5 L13.5,4.5 L11.5,6.5"),
         // Two corner arrows pointing apart along the diagonal.
         [Maximize] = new("M9.5,2.5 L13.5,2.5 L13.5,6.5 M13.5,2.5 L8.8,7.2 M6.5,13.5 L2.5,13.5 L2.5,9.5 M2.5,13.5 L7.2,8.8"),
+        // A frame split into a narrow left column with three list lines and a wide right part (the grid).
+        [TagList] = new("M2,2.5 L14,2.5 L14,13.5 L2,13.5 Z M7,2.5 L7,13.5 M3.8,5.5 L5.2,5.5 M3.8,8 L5.2,8 M3.8,10.5 L5.2,10.5"),
         // Circle with a cross (error), triangle with a stroke and a dot (warning), circle with an "i" (information), circle with a tick (success).
         [SeverityError] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M5.9,5.9 L10.1,10.1 M10.1,5.9 L5.9,10.1"),
         [SeverityWarning] = new("M8,2 L14.6,13.6 L1.4,13.6 Z M8,6.4 L8,9.4 M8,11.5 L8.1,11.5"),

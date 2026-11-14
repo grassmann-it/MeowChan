@@ -162,6 +162,12 @@ public sealed partial class MediaPage
             case MediaFilterField.Missing:
                 // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
                 return (Texts.T("media.filter.missingChip"), null);
+            case MediaFilterField.Queue:
+                // MP1: in the tagging queue, or (excluded) not in it; the switch names the queue.
+                return (Texts.T(term.Exclude ? "media.filter.queueExcludeChip" : "media.filter.queueChip"), Texts.T("media.filter.queueChip"));
+            case MediaFilterField.SourceTag:
+                // MP4: a tag of the provider (Danbooru), as the tag list of the Booru mode adds it.
+                return (Texts.T(term.Exclude ? "media.filter.sourceTagExcludeChip" : "media.filter.sourceTagChip", term.Value), term.Value);
             default:
                 return null;
         }
@@ -190,7 +196,7 @@ public sealed partial class MediaPage
             MediaFilterTerm? term = chip.Term;
             ClosableTag tag = WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable, term?.Exclude == true,
                 () => RemoveFilterChip(position, chip.Remove), chip.Negatable ? () => ToggleFilterChip(term!) : null, chip.ValueName,
-                menu: MediaFilterChipMenu.Options(term, _terms.ToArray(), term?.Field == MediaFilterField.Tag ? chip.ValueName : null, ChipActions));
+                menu: MediaFilterChipMenu.Options(term, _terms.ToArray(), term?.Field is MediaFilterField.Tag or MediaFilterField.SourceTag ? chip.ValueName : null, ChipActions));
             if (term != null) tag.Tag = MediaFilterTermSet.IdentityKey(term);
             _filterChips.Children.Add(tag);
         }

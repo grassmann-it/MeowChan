@@ -77,6 +77,7 @@ internal static class SettingsSearchAliases
         ["TagStampSize"] = "stamp stempel quick tagging shortcut schnell taggen kürzel tags set",
         ["TagQueueWalkWindow"] = "walk window batch round queue durchgang runde fenster warteschlange tagging-warteschlange",
         ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
+        ["MediaTagListTop"] = "booru mode tag list sidebar tag counts top show all booru-modus tag-liste seitenleiste anzahl alle anzeigen",
         ["TaggingCardCount"] = "cards tinder karten kartenmodus card mode",
         ["TaggingCardsDefault"] = "cards tinder karten kartenmodus card mode start default beginnen standard",
     };

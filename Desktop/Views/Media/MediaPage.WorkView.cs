@@ -63,6 +63,10 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
         WorkViewElement.SetId(_booruOpen, "media.toolbar.booru");
         _booruOpen.Click += (_, _) => InvokeBooruOverflow();
+        WorkViewElement.SetId(_booruMode, "media.toolbar.booru-mode"); // MP4
+        WorkViewElement.SetId(_queueWalk, "media.toolbar.queue-walk"); // MP3
+        WorkViewElement.SetId(_taggingPageOpen, "media.toolbar.tagging-page");
+        WireQueueTools();
         WorkViewElement.SetId(_kindFilter, "media.filter.kind");
         WorkViewElement.SetId(_favoritesOnly, "media.filter.favorites");
         WorkViewElement.SetId(_sourceFilter, "media.filter.source");
@@ -144,6 +148,9 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_exportAll, view);
         WorkViewGate.Apply(_manageRatings, view);
         WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
+        WorkViewGate.Apply(_booruMode, view);
+        WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
+        WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
         ApplyToolbarLevel(); // what the page width moves under More as well (MediaPage.Toolbar.cs)
         UpdateMore(_more, HeaderOverflow());
         // Filter fields.
@@ -166,7 +173,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen);
+    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 
@@ -202,7 +209,8 @@ public sealed partial class MediaPage
                 IsEnabled = control.IsEnabled,
                 Command = new DelegateCommand(() => CommandBindings.InvokeAction(control), () => control.IsEnabled)
             };
-            if (control is CheckBox check)
+            // A check box and a switch (the Booru mode, MP4) keep their state as a checked entry.
+            if (control is ToggleButton check)
             {
                 item.ToggleType = MenuItemToggleType.CheckBox;
                 item.IsChecked = check.IsChecked == true;

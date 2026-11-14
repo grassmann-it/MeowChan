@@ -116,6 +116,7 @@ public sealed partial class MediaPage
                 ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
         catch (ArgumentException) { return MediaFilterQueryProblem.TooManyTags; }
+        if (SourceTagRefusal(term, terms) != null) return MediaFilterQueryProblem.TooManyTags; // MP4: the same tags-per-list limit
         return IsValidFilter(next) ? null : MediaFilterQueryProblem.Refused;
     }
 
