@@ -68,7 +68,7 @@ internal sealed class FolderSourcesPanel : UserControl
         _pause.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
-        WrapPanel toolbar = new() { ItemSpacing = 8, LineSpacing = 6, Children = { _add, _pause } };
+        WrapPanel toolbar = new() { ItemSpacing = 8, LineSpacing = 8, Children = { _add, _pause } };
         toolbar.Classes.Add("workspace-toolbar");
         Border section = new()
         {
@@ -179,7 +179,7 @@ internal sealed class FolderSourcesPanel : UserControl
         StackPanel row = new()
         {
             Name = "FolderSourceRow_" + id, Spacing = 4,
-            Children = { name, path, counts, scan, new WrapPanel { ItemSpacing = 8, LineSpacing = 6, Children = { rescan, rename, remove } } }
+            Children = { name, path, counts, scan, new WrapPanel { ItemSpacing = 8, LineSpacing = 8, Children = { rescan, rename, remove } } }
         };
         if (_confirmRemove == root.Id)
         {
@@ -189,7 +189,7 @@ internal sealed class FolderSourcesPanel : UserControl
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
             no.Click += (_, _) => { _confirmRemove = null; Render(); };
-            row.Children.Add(new StackPanel { Spacing = 6, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { yes, no } } } });
+            row.Children.Add(new StackPanel { Spacing = 8, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { yes, no } } } });
             Dispatcher.UIThread.Post(() => no.Focus());
         }
         Border card = new() { Child = row, Padding = new Thickness(12), CornerRadius = new CornerRadius(5) };

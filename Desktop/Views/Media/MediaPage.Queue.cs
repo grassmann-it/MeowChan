@@ -21,7 +21,7 @@ public sealed partial class MediaPage
     private readonly TextBlock _queueAskText = new() { Name = "MediaQueueConfirmText", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _queueAskYes = new() { Name = "MediaQueueConfirmYes" };
     private readonly Button _queueAskNo = new() { Name = "MediaQueueConfirmNo" };
-    private readonly WrapPanel _queueAsk = new() { Name = "MediaQueueConfirm", ItemSpacing = 8, LineSpacing = 6, IsVisible = false };
+    private readonly WrapPanel _queueAsk = new() { Name = "MediaQueueConfirm", ItemSpacing = 8, LineSpacing = 8, IsVisible = false };
     private IReadOnlyList<MediaLibraryEntry>? _queuePending;
 
     /// <summary>Adds the media index entries to the tagging queue and returns the sentence for the status line; null disables every queue action.</summary>

@@ -20,7 +20,7 @@ namespace MeowChan;
 // The size limit is the stamp size setting (QuickTagStampSize).
 public sealed partial class TaggingPage
 {
-    private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 6 };
+    private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 8 };
     private readonly TextBlock _stampHeading = new() { Classes = { "section-title" } };
     private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips", ItemSpacing = 8, LineSpacing = 8 };
     private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };

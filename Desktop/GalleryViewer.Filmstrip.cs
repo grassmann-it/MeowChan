@@ -157,10 +157,10 @@ internal sealed partial class GalleryViewer
         _filmstripStyleKnown = true; _filmstripOverlayStyled = overlay;
         if (overlay)
         {
-            // The overlay tone of the theme (as the other floating bars) at 85 % so the picture shows faintly through.
-            Color tone = this.TryFindResource("Workspace.Overlay", ActualThemeVariant, out object? resource) && resource is ISolidColorBrush brush
-                ? brush.Color : ActualThemeVariant == ThemeVariant.Light ? Color.FromRgb(239, 236, 230) : Color.FromRgb(27, 30, 34);
-            _filmstrip.SetBackground(new SolidColorBrush(Color.FromArgb(217, tone.R, tone.G, tone.B)));
+            // The overlay tone of the theme (as the other floating bars) at 85 % so the picture shows faintly through; no colour of its own.
+            if (this.TryFindResource("Workspace.Overlay", ActualThemeVariant, out object? resource) && resource is ISolidColorBrush brush)
+                _filmstrip.SetBackground(new SolidColorBrush(brush.Color, 0.85));
+            else _filmstrip[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
         }
         else _filmstrip[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
     }

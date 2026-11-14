@@ -15,10 +15,11 @@ internal sealed class TaggingQueueRowView : Grid
 {
     /// <summary>The shared column widths of the header and the rows.</summary>
     internal const string Columns = "56,72,*,220,112";
-    internal const double RowHeight = 32;
+    internal const double RowHeight = WorkspaceMetrics.CompactRowHeight;
 
     private readonly TextBlock _number = Cell(TextAlignment.Right);
-    private readonly TextBlock _next = new() { Text = "▸", Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center };
+    // The next entry of the walk: a catalog chevron (no glyph), created when the row is shown (the icon needs the asset loader).
+    private readonly ContentControl _next = new() { Margin = new Thickness(0, 0, 4, 0), VerticalAlignment = VerticalAlignment.Center, Focusable = false };
     private readonly TextBlock _kind = Cell(TextAlignment.Left, muted: true);
     private readonly TextBlock _name = Cell(TextAlignment.Left);
     private readonly TextBlock _source = Cell(TextAlignment.Left, muted: true);
@@ -63,6 +64,7 @@ internal sealed class TaggingQueueRowView : Grid
         _number.Text = row?.NumberText;
         _number.FontWeight = row?.Next == true ? FontWeight.Bold : FontWeight.Normal;
         _next.IsVisible = row?.Next == true;
+        if (_next.IsVisible && _next.Content == null) _next.Content = MeowChan.Desktop.Commands.CommandBindings.IconFromKey("chevron-right", 12);
         _kind.Text = row?.KindText;
         _name.Text = row?.Name;
         _source.Text = row?.SourceText;

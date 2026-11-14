@@ -39,7 +39,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         Spacing = 4;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
-        _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { FavoriteStar.Create(false, 16), _favoriteLabel } };
+        _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { FavoriteStar.Create(false, 16), _favoriteLabel } };
         _favorite.Content = _favoriteContent;
         WrapPanel line = new() { ItemSpacing = 12, LineSpacing = 4, Name = name + "Line" };
         line.Children.Add(_favorite);

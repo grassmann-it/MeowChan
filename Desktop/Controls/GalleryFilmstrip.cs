@@ -40,7 +40,7 @@ internal sealed class GalleryFilmstrip : Border
     private readonly FilmstripPanel _strip = new() { Name = "GalleryFilmstripTiles", Background = Brushes.Transparent, ClipToBounds = true };
     private readonly Button _back = new() { Name = "GalleryFilmstripBack" };
     private readonly Button _forward = new() { Name = "GalleryFilmstripForward" };
-    private readonly TextBlock _position = new() { Name = "GalleryFilmstripPosition", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(10, 0, 8, 0) };
+    private readonly TextBlock _position = new() { Name = "GalleryFilmstripPosition", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
     private readonly Dictionary<int, FilmstripTile> _live = new();
     private readonly Stack<FilmstripTile> _pool = new();
     private readonly ThumbnailDecodeGate _gate = new(2);
@@ -459,10 +459,10 @@ internal sealed class GalleryFilmstrip : Border
     {
         private readonly Border _inner = new() { CornerRadius = new CornerRadius(3), ClipToBounds = true, BorderThickness = new Thickness(1) };
         private readonly Image _image = new() { Stretch = Stretch.UniformToFill, IsHitTestVisible = false };
-        private readonly TextBlock _extension = new() { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false, FontSize = 11, TextTrimming = TextTrimming.CharacterEllipsis };
+        private readonly TextBlock _extension = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText();
         private readonly Border _play = new() { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(3), IsHitTestVisible = false, IsVisible = false };
+            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(4), IsHitTestVisible = false, IsVisible = false };
         private readonly Avalonia.Controls.Shapes.Path _playGlyph = new() { Width = 12, Height = 12, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
         private readonly Border _gif = WorkspaceChips.CreateCornerBadge("GalleryFilmstripGif", HorizontalAlignment.Left, VerticalAlignment.Bottom);
