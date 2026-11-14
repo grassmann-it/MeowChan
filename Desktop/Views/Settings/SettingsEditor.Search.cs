@@ -309,7 +309,7 @@ public partial class SettingsEditor
         {
             if (range.Start < at || range.Start + range.Length > text.Length) continue;
             if (range.Start > at) inlines.Add(new Run(text[at..range.Start]));
-            var run = new Run(text.Substring(range.Start, range.Length)) { FontWeight = FontWeight.Bold };
+            var run = new Run(text.Substring(range.Start, range.Length)) { FontWeight = FontWeight.SemiBold };
             if (accent != null) run.Foreground = accent;
             inlines.Add(run);
             at = range.Start + range.Length;
