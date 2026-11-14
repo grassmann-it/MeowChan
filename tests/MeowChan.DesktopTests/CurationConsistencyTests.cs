@@ -6,6 +6,9 @@ using MeowChan.Desktop.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>AP6: one favourite mark everywhere, and the saved-ratings manager lives with the media instead of Diagnostics.</summary>
+// Non-parallel: the star test binds Stroke/Fill to the inherited foreground, and Avalonia posts a bound value to Dispatcher.UIThread when
+// another xunit worker owns that slot, so the test runs on an owned UI dispatcher (OwnedUiDispatcher, process-wide slot).
+[Collection("Localization")]
 public sealed class CurationConsistencyTests
 {
     [Fact]
@@ -36,13 +39,16 @@ public sealed class CurationConsistencyTests
     {
         string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../..", "Desktop/GalleryViewer.cs")));
         Assert.Contains("FavoriteStar.Create(_favoriteSelected, size, tinted: false)", source);
-        Border marked = FavoriteStar.Create(true, 16, tinted: false);
-        Assert.True(FavoriteStar.MarkOf(marked));
-        var star = Assert.IsType<Avalonia.Controls.Shapes.Path>(marked.Child);
-        var foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.White);
-        _ = new ContentControl { Foreground = foreground, Content = marked }; // the star inherits the host's foreground
-        Assert.Same(foreground, star.Stroke);
-        Assert.Same(foreground, star.Fill);
+        OwnedUiDispatcher.Run(() =>
+        {
+            Border marked = FavoriteStar.Create(true, 16, tinted: false);
+            Assert.True(FavoriteStar.MarkOf(marked));
+            var star = Assert.IsType<Avalonia.Controls.Shapes.Path>(marked.Child);
+            var foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.White);
+            _ = new ContentControl { Foreground = foreground, Content = marked }; // the star inherits the host's foreground
+            Assert.Same(foreground, star.Stroke);
+            Assert.Same(foreground, star.Fill);
+        });
     }
 
     private static string SourcePath([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
