@@ -115,6 +115,7 @@ public sealed partial class MediaPage
     private Control BuildFilterRow()
     {
         Control row = BuildFilterFields(); // the grid of the fields (MediaPage.FilterGrid.cs)
+        InstallFilterHandoffInterruption();
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
         _tagAdd.Snapshot = () => _userData.TagSnapshot;
         _tagAdd.Used = UsedTags;
@@ -173,10 +174,28 @@ public sealed partial class MediaPage
     {
         if (_localizing) return;
         NoteBooruHandoffInteraction();
+        PresentEditedFilters();
+    }
+
+    // The Booru reset is an expected programmatic edit, not user takeover. It shares the same rendering
+    // transaction, without advancing the interaction revision captured before the handoff.
+    private void PresentEditedFilters()
+    {
         // This pass reads the name as typed; a debounced run for the same text would only repeat it.
         _nameFilter.CancelPendingQuery();
         RenderFilterChips();
         Present();
+    }
+
+    private void InstallFilterHandoffInterruption()
+    {
+        // TextChanged is deferred until rendering: IME/accessibility/paste must revoke the handoff now,
+        // even while QueryChanged is debounced. Programmatic term/control synchronization is _localizing.
+        _nameFilter.TextChanging += (_, _) => NoteBooruHandoffInteraction();
+        // Click can be delivered by accessibility/commands without a page pointer/key event. These
+        // actions change the ordering, not the filter terms, so they do not go through FilterEdited.
+        _sortDirection.Click += (_, _) => NoteBooruHandoffInteraction();
+        _shuffle.Click += (_, _) => NoteBooruHandoffInteraction();
     }
 
     // Coming back from the gallery (favorite, rating or tag changed there) re-reads the own data.

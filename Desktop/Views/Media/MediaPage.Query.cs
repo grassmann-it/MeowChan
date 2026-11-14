@@ -26,6 +26,7 @@ public sealed partial class MediaPage
     private readonly StackPanel _queryHint = new() { Name = "MediaQueryHint", Spacing = 2, IsVisible = false };
     private readonly MenuItem _copyFiltersItem = new() { Name = "MediaFilterCopyText" };
     private IReadOnlyDictionary<string, MediaFilterField>? _queryAliases;
+    private long _queryHintRevision;
 
     /// <summary>The note below the chips after a conversion or a copy (null when none), for tests and smokes.</summary>
     internal string? QueryNote => _queryNote.IsVisible ? _queryNote.Text : null;
@@ -54,7 +55,11 @@ public sealed partial class MediaPage
         _queryHint.IsVisible = _queryNote.IsVisible || _queryProblem.IsVisible;
     }
 
-    private void ClearQueryHint() { if (_queryHint.IsVisible) ShowQueryHint(null, null); }
+    private void ClearQueryHint()
+    {
+        ++_queryHintRevision; // A pending clipboard result belongs to the old query/context, even when no hint is visible.
+        if (_queryHint.IsVisible) ShowQueryHint(null, null);
+    }
 
     /// <summary>
     /// Enter in the search field: reads its text as a query, adds the understood terms to the filter and keeps the rest (and every
@@ -159,6 +164,9 @@ public sealed partial class MediaPage
     {
         string text = FiltersAsText();
         if (text.Length == 0 || _lifetime.IsCancellationRequested) return;
+        long revision = _queryHintRevision;
+        Func<bool> interaction = CaptureBooruHandoffInteraction();
+        bool Current() => interaction() && revision == _queryHintRevision;
         try
         {
             if (CopyTextForTests is { } seam) await seam(text);
@@ -167,10 +175,10 @@ public sealed partial class MediaPage
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            if (!_lifetime.IsCancellationRequested) ShowQueryHint(null, Texts.T("media.query.copyFailed"));
+            if (Current()) ShowQueryHint(null, Texts.T("media.query.copyFailed"));
             return;
         }
-        if (_lifetime.IsCancellationRequested) return;
+        if (!Current()) return;
         ShowQueryHint(text.Length > MediaLibraryFilter.MaximumNameLength
             ? Texts.T("media.query.copiedLong", MediaLibraryFilter.MaximumNameLength) : Texts.T("media.query.copied"), null);
     }

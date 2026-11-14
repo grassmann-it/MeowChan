@@ -46,7 +46,7 @@ public sealed partial class MediaPage
         object run = new();
         _returnRun = run; // Supersedes any earlier return/focus; own input cancels this run too.
         RenderTagOptions();
-        FilterEdited();
+        PresentEditedFilters();
         Func<bool> context = CaptureNavigationContext(run, awaitingPresent: true);
         bool Current() => context() && IsEffectivelyVisible && (stillRequested?.Invoke() ?? true);
         await PresentTask.ConfigureAwait(true);
@@ -63,28 +63,17 @@ public sealed partial class MediaPage
         _localizing = true;
         try
         {
-            RenderSourceOptions();
-            bool known = (_sourceFilter.ItemsSource as System.Collections.IEnumerable)?.Cast<Choice>()
-                .Any(choice => choice.Value == BooruMediaIdentity.Source) == true;
-            if (!known) return false;
-            // M2 (wave3 glue): the term set is the one truth of the filter; the navigation replaces it with source + exact thread
-            // and shows that in the section's fields (the same values SyncFilterControls would show, without the type summary).
-            _sourceFilter.SelectedItem = (_sourceFilter.ItemsSource as System.Collections.IEnumerable)!.Cast<Choice>()
-                .First(choice => choice.Value == BooruMediaIdentity.Source);
-            RenderBoardOptions();
-            _boardFilter.SelectedIndex = 0;
-            _nameFilter.SetTextSilently(string.Empty);
-            _kindFilter.SelectedIndex = 0;
-            _soundFilter.SelectedIndex = 0;
-            _favoritesOnly.IsChecked = false;
-            _withoutMediaTags.IsChecked = false;
-            _missing.IsChecked = false;
-            _minRating.SelectedIndex = 0;
-            _tagMode.SelectedIndex = 0;
+            if (_snapshot?.Entries.Any(entry => entry.Thread.Source == BooruMediaIdentity.Source) != true) return false;
+            // Replace the single source of truth first. Rendering any options against the old terms can
+            // leave the source set to Danbooru but its board list/summary still tied to the previous source.
             _terms.Clear();
             _terms.Add(MediaFilterTerm.InThread(thread));
             _terms.Add(MediaFilterTerm.Source(BooruMediaIdentity.Source));
             _threadTitle = Texts.T("booru.media.tile.post", postId);
+            _nameFilter.SetTextSilently(string.Empty);
+            _tagMode.SelectedIndex = 0;
+            ClearQueryHint();
+            SyncFilterControls();
             return true;
         }
         finally { _localizing = localizing; }

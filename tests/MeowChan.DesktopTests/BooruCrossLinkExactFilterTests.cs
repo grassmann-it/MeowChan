@@ -78,6 +78,60 @@ public sealed class BooruCrossLinkExactFilterTests
     });
 
     [Fact]
+    public void ResetRebuildsBoardOptionsFromNewTermsAndClearsExcludedSourcesWithoutUserTakeover() => OnDispatcher(() =>
+    {
+        using var model = new FilterModel(Entry("123", Md5Name), Entry("1234", "123.jpg"));
+        model.IncompatibleFilters();
+        Call(model.Page, "SyncFilterControls");
+        model.Get<TextBlock>("_queryNote").Text = "old conversion";
+        model.Get<TextBlock>("_queryNote").IsVisible = true;
+        model.Get<TextBlock>("_queryProblem").Text = "old rejected token";
+        model.Get<TextBlock>("_queryProblem").IsVisible = true;
+        model.Get<StackPanel>("_queryHint").IsVisible = true;
+        // Exercise the new synchronous hooks too. The legacy deferred Return.cs hook is outside
+        // this component fixture; it remains a separately reported integration requirement.
+        Call(model.Page, "InstallFilterHandoffInterruption");
+        Func<bool> request = model.Page.CaptureBooruHandoffInteraction();
+        Assert.True(model.Apply("123"));
+        Assert.True(request());
+        Assert.Null(model.Page.QueryNote);
+        Assert.Null(model.Page.QueryProblem);
+        Assert.Equal(new[] { MediaFilterTerm.InThread(BooruMediaIdentity.Thread("123")), MediaFilterTerm.Source(BooruMediaIdentity.Source) },
+            model.Get<List<MediaFilterTerm>>("_terms"));
+        Assert.Empty(model.Page.CurrentFilter().ExcludeSources);
+        Assert.Empty(model.Page.CurrentFilter().ExcludeBoards);
+        object[] boards = ((IEnumerable)model.Get<ComboBox>("_boardFilter").ItemsSource!).Cast<object>().ToArray();
+        Assert.Contains(boards, board => (string?)board.GetType().GetProperty("Board")!.GetValue(board) == BooruMediaIdentity.Board);
+        Assert.All(boards, board => Assert.True(board.GetType().GetProperty("Source")!.GetValue(board) is not string source
+            || source == BooruMediaIdentity.Source));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PendingQueryCopyCannotAnnounceSuccessOrFailureAfterBooruReset(bool fail) => OnDispatcher(() =>
+    {
+        using var model = new FilterModel(Entry("123", Md5Name));
+        Assert.True(model.Apply("123"));
+        var clipboard = new TaskCompletionSource<bool>();
+        model.Page.CopyTextForTests = _ => clipboard.Task;
+        SynchronizationContext? previous = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null); // Complete on this owned thread, no window/dispatcher pump.
+        try
+        {
+            Task copy = model.Page.CopyFiltersAsTextAsync();
+            Assert.False(copy.IsCompleted);
+            Assert.True(model.Apply("123"));
+            if (fail) clipboard.SetException(new InvalidOperationException("synthetic clipboard failure"));
+            else clipboard.SetResult(true);
+            copy.GetAwaiter().GetResult();
+            Assert.Null(model.Page.QueryNote);
+            Assert.Null(model.Page.QueryProblem);
+        }
+        finally { SynchronizationContext.SetSynchronizationContext(previous); }
+    });
+
+    [Fact]
     public void ExactOriginalIdentityDoesNotLinkByFilenameOrEqualBytes()
     {
         MediaLibraryEntry exact = Entry("123", Md5Name);
@@ -232,6 +286,12 @@ public sealed class BooruCrossLinkExactFilterTests
             Set(Page, "_lifetime", _lifetime);
             Set(Page, "_snapshot", new MediaLibrarySnapshot(entries, [], [], true));
             Set(Page, "_nameFilter", new SearchBox());
+            Set(Page, "_userData", MediaLibraryUserData.Unavailable);
+            Set(Page, "_queryNote", new TextBlock { IsVisible = false });
+            Set(Page, "_queryProblem", new TextBlock { IsVisible = false });
+            Set(Page, "_queryHint", new StackPanel { IsVisible = false });
+            Set(Page, "_sortDirection", new Button());
+            Set(Page, "_shuffle", new Button());
             foreach (string field in new[] { "_kindFilter", "_soundFilter", "_sourceFilter", "_boardFilter", "_minRating" })
                 Set(Page, field, new ComboBox());
             Set(Page, "_tagMode", new TwoWayToggle()); // M5: the all | any switch
@@ -256,7 +316,9 @@ public sealed class BooruCrossLinkExactFilterTests
                 MediaFilterTerm.Type(MediaLibraryKindFilter.Video), MediaFilterTerm.Sound(MediaLibrarySoundFilter.WithSound), MediaFilterTerm.Rating(5),
                 MediaFilterTerm.Flag(MediaFilterField.Favorite), MediaFilterTerm.Flag(MediaFilterField.Untagged), MediaFilterTerm.Flag(MediaFilterField.Missing),
                 MediaFilterTerm.Tag(Guid.NewGuid()), MediaFilterTerm.Tag(Guid.NewGuid(), exclude: true),
-                MediaFilterTerm.InThread(new ResourceId("old", "board", "456"))
+                MediaFilterTerm.InThread(new ResourceId("old", "board", "456")),
+                MediaFilterTerm.Source("old"), MediaFilterTerm.Source(BooruMediaIdentity.Source, exclude: true),
+                MediaFilterTerm.Board("old", "board"), MediaFilterTerm.Board(BooruMediaIdentity.Source, BooruMediaIdentity.Board, exclude: true)
             });
         }
         internal bool Apply(string post) => (bool)Call(Page, "ApplyBooruNavigationFilters", BooruMediaIdentity.Thread(post), post)!;
