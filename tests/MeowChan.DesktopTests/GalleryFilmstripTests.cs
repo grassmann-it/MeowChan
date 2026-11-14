@@ -444,6 +444,65 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Contains("72", Texts.T("settings.galleryFilmstripHeightHint", 72, 48, 160));
     }
 
+    // ---- MB1b: the tiles' badges come from the shared badge component ----
+
+    [Fact]
+    public void ATileCarriesOnlyTheBadgesOfItsKindAndTheLengthWhenKnown()
+    {
+        Assert.Equal(default, GalleryFilmstrip.BadgeStateOf("a.png"));
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Gif), GalleryFilmstrip.BadgeStateOf("a.GIF", TimeSpan.FromSeconds(9))); // a GIF has no length chip
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), GalleryFilmstrip.BadgeStateOf("clip.mp4"));
+        Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video, Duration: TimeSpan.FromSeconds(42)), GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(42)));
+    }
+
+    [Fact]
+    public void ADenseTileDrawsTheSmallPlayMarkAndTheLengthChipAndOnlyThat()
+    {
+        var picture = new Avalonia.Size(Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightDefault);
+        MediaBadgePlan plan = MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(42)), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default);
+        Assert.Equal(MediaBadgeMode.Full, plan.Mode);
+        Assert.Equal([MediaBadgeId.PlayMark, MediaBadgeId.Video], plan.Badges.Select(placed => placed.Badge.Id).OrderBy(id => id).ToArray());
+        PlacedBadge mark = plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark);
+        PlacedBadge chip = plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Video);
+        Assert.Equal(VideoPlayMark.Diameter(picture, VideoPlayMark.DenseRatio), mark.Bounds.Width, 6);
+        Assert.True(mark.Bounds.Width < VideoPlayMark.Diameter(picture, VideoPlayMark.Ratio), "the dense mark is smaller than the normal one");
+        Assert.Equal("0:42", chip.Badge.Label);
+        Assert.Null(chip.Badge.Icon);                       // the mark says "video"; the chip only adds the length
+        Assert.False(chip.Bounds.Intersects(mark.Bounds), "the chip stays out of the play mark");
+        Assert.True(chip.Bounds.Left < picture.Width / 2 && chip.Bounds.Top > picture.Height / 2, "bottom left");
+
+        MediaBadgePlan gif = MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("a.gif"), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default);
+        Assert.Equal("GIF", Assert.Single(gif.Badges).Badge.Label);
+        Assert.Empty(MediaBadgeLayout.Plan(GalleryFilmstrip.BadgeStateOf("a.png"), picture, MediaBadgeOptions.Filmstrip, MediaBadgeLimits.Default).Badges);
+    }
+
+    [Fact]
+    public void TheBadgeSentenceReplacesTheKindWordInTheTileName()
+    {
+        Assert.Equal("3 of 40, a.png, image", GalleryFilmstrip.TileName(3, 40, "a.png", GalleryFilmstrip.BadgeStateOf("a.png")));
+        Assert.Equal("3 of 40, clip.mp4, Video", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4")));
+        Assert.Equal("3 of 40, clip.mp4, Video 1:05", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(65))));
+        Assert.Equal("3 of 40, a.gif, Animated image", GalleryFilmstrip.TileName(3, 40, "a.gif", GalleryFilmstrip.BadgeStateOf("a.gif")));
+        Texts.SetLanguage("de");
+        Assert.Equal("3 von 40, clip.mp4, Video 1:05", GalleryFilmstrip.TileName(3, 40, "clip.mp4", GalleryFilmstrip.BadgeStateOf("clip.mp4", TimeSpan.FromSeconds(65))));
+    }
+
+    [Fact]
+    public void TheTileUsesTheBadgeViewWithoutOwnBadgeCodeOrExtraFocusStops()
+    {
+        string source = Source("Desktop/Controls/GalleryFilmstrip.cs");
+        Assert.Contains("MediaBadgeView _badges = new()", source);
+        Assert.Contains("MediaBadgeOptions.Filmstrip", source);
+        Assert.Contains("MediaBadgeText.Describe(badges, MediaBadgeOptions.Filmstrip)", source); // the sentence goes into the tile's AutomationName
+        foreach (string gone in new[] { "CreateCornerBadge", "_playGlyph", "Geometry.Parse", "GalleryFilmstripGif", "_gif" })
+            Assert.DoesNotContain(gone, source);
+        // The badge view takes no hit, no focus and sits outside the accessibility tree; the only focus stop stays the strip itself.
+        var view = new MediaBadgeView();
+        Assert.False(view.IsHitTestVisible);
+        Assert.False(view.Focusable);
+        Assert.Equal(Avalonia.Automation.AccessibilityView.Raw, Avalonia.Automation.AutomationProperties.GetAccessibilityView(view));
+    }
+
     // ---- GL1: the place of the band (bottom of the dock by default, top selectable) ----
 
     private const double TopRow = 56; // GalleryViewer.TopRowClearance: the row of the way back and the star

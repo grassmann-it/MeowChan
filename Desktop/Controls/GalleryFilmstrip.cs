@@ -62,6 +62,8 @@ internal sealed class GalleryFilmstrip : Border
     private Point _pressPoint;
     private double _pressOffset;
     private int _pressedTile = -1;
+    // MB1b: the length of a video when the viewer learned it (the strip never reads a file); drawn as the badge's duration chip.
+    private readonly Dictionary<int, TimeSpan> _durations = new();
     private bool _keyboardFocus;
     private bool _atBottom = true; // GL1: the band's place; only its accessible description depends on it (the viewer sets margins and parent)
 
@@ -172,9 +174,21 @@ internal sealed class GalleryFilmstrip : Border
         _entries = entries;
         _count = entries == null ? 0 : Math.Clamp(count, 0, entries.Count);
         _hasMore = hasMore && entries != null;
-        if (!same) { ClearTiles(); _thumbnails.Reset(); _current = -1; _offset = 0; }
+        if (!same) { ClearTiles(); _thumbnails.Reset(); _durations.Clear(); _current = -1; _offset = 0; }
         RefreshTexts();
         ScrollTo(_offset);
+    }
+
+    /// <summary>
+    /// Tells the strip how long the video at <paramref name="index"/> is (null forgets it); its tile then shows the length as a chip and says it in
+    /// its name. Only a video carries one; nothing is read from the file.
+    /// </summary>
+    internal void SetDuration(int index, TimeSpan? duration)
+    {
+        if (index < 0 || index >= _count) return;
+        if (duration is { } length && length >= TimeSpan.Zero) { if (_durations.TryGetValue(index, out TimeSpan known) && known == length) return; _durations[index] = length; }
+        else if (!_durations.Remove(index)) return;
+        if (_live.TryGetValue(index, out FilmstripTile? tile)) BindTile(tile, index);
     }
 
     /// <summary>Marks the shown medium and scrolls it into view (centred, or just into view when the strip itself asked for it).</summary>
@@ -421,7 +435,8 @@ internal sealed class GalleryFilmstrip : Border
         }
         GalleryEntry entry = _entries[index];
         string name = FileName(entry);
-        tile.Bind(index, KindOf(name), name, Texts.T("gallery.filmstrip.tile", index + 1, _count, name, KindText(KindOf(name))), index + 1, Slots,
+        MediaBadgeState badges = BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null);
+        tile.Bind(index, name, TileName(index + 1, _count, name, badges), badges, new Size(_tile, _tile), index + 1, Slots,
             _thumbnails.TryGet(index), index == _current);
     }
 
@@ -492,6 +507,24 @@ internal sealed class GalleryFilmstrip : Border
         return string.Equals(System.IO.Path.GetExtension(fileName), ".gif", StringComparison.OrdinalIgnoreCase) ? FilmstripTileKind.Gif : FilmstripTileKind.Image;
     }
 
+    /// <summary>The badges of a tile (MB1b): the kind from the file name and the length when known; a filmstrip tile has no other badge.</summary>
+    internal static MediaBadgeState BadgeStateOf(string fileName, TimeSpan? duration = null) => KindOf(fileName) switch
+    {
+        FilmstripTileKind.Video => new MediaBadgeState(Kind: MediaBadgeKind.Video, Duration: duration),
+        FilmstripTileKind.Gif => new MediaBadgeState(Kind: MediaBadgeKind.Gif),
+        _ => default
+    };
+
+    /// <summary>
+    /// The name of a tile: position, file name and what the badges say (video with its length, animated image); a plain image has no badge and
+    /// keeps the word "image". The badge sentence replaces the kind word, so nothing is said twice.
+    /// </summary>
+    internal static string TileName(int position, int count, string fileName, in MediaBadgeState badges)
+    {
+        string said = MediaBadgeText.Describe(badges, MediaBadgeOptions.Filmstrip);
+        return Texts.T("gallery.filmstrip.tile", position, count, fileName, said.Length > 0 ? said : KindText(KindOf(fileName)));
+    }
+
     internal static string KindText(FilmstripTileKind kind) => kind switch
     {
         FilmstripTileKind.Video => Texts.T("gallery.filmstrip.kind.video"),
@@ -537,11 +570,9 @@ internal sealed class GalleryFilmstrip : Border
         private readonly Image _image = new() { Stretch = Stretch.UniformToFill, IsHitTestVisible = false };
         private readonly TextBlock _extension = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText();
-        private readonly Border _play = new() { Width = 18, Height = 18, CornerRadius = new CornerRadius(9), HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(4), IsHitTestVisible = false, IsVisible = false };
-        private readonly Avalonia.Controls.Shapes.Path _playGlyph = new() { Width = 12, Height = 12, Stretch = Stretch.Uniform, HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false };
-        private readonly Border _gif = WorkspaceChips.CreateCornerBadge("GalleryFilmstripGif", HorizontalAlignment.Left, VerticalAlignment.Bottom);
+        // MB1b: the play mark (dense, 32 percent of the tile), the length and the GIF chip come from the shared badge view; it is drawn
+        // over the whole tile, takes no hit and no focus and is not in the accessibility tree (the tile's name carries the words).
+        private readonly MediaBadgeView _badges = new() { Name = "GalleryFilmstripBadges", Options = MediaBadgeOptions.Filmstrip };
         private readonly Avalonia.Controls.Shapes.Path _moreGlyph;
         private bool _current, _hover, _more;
 
@@ -556,18 +587,13 @@ internal sealed class GalleryFilmstrip : Border
             _frame.Child = _frameInner;
             _inner[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Raised");
             _extension[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
-            _play[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
-            _playGlyph[!Shape.FillProperty] = new DynamicResourceExtension("Workspace.Text");
-            _playGlyph.AttachedToVisualTree += (_, _) => _playGlyph.Data ??= Geometry.Parse("M2,1 L11,6 L2,11 Z");
             _moreGlyph = WorkspaceIcons.Create(WorkspaceIcons.More);
             _moreGlyph.IsVisible = false;
-            _play.Child = _playGlyph;
             Grid content = new();
             content.Children.Add(_extension);
             content.Children.Add(_image);
             content.Children.Add(_moreGlyph);
-            content.Children.Add(_play);
-            content.Children.Add(_gif);
+            content.Children.Add(_badges);
             content.Children.Add(_frame);
             _inner.Child = content;
             Child = _inner;
@@ -575,15 +601,17 @@ internal sealed class GalleryFilmstrip : Border
             ApplyBorders();
         }
 
-        internal void Bind(int index, FilmstripTileKind kind, string fileName, string name, int position, int size, Bitmap? picture, bool current)
+        internal void Bind(int index, string fileName, string name, in MediaBadgeState badges, Size tile, int position, int size, Bitmap? picture, bool current)
         {
             Index = index; _more = false;
             _moreGlyph.IsVisible = false;
             _extension.Text = System.IO.Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant();
             _extension.IsVisible = true;
-            _play.IsVisible = kind == FilmstripTileKind.Video;
-            _gif.IsVisible = kind == FilmstripTileKind.Gif;
-            if (_gif.IsVisible) ((TextBlock)_gif.Child!).Text = KindText(FilmstripTileKind.Gif);
+            // The dense play mark sits in the middle: a placeholder's format text moves up out of its way.
+            bool video = badges.Kind == MediaBadgeKind.Video;
+            _extension.VerticalAlignment = video ? VerticalAlignment.Top : VerticalAlignment.Center;
+            _extension.Margin = video ? new Thickness(4, 4, 4, 0) : default;
+            _badges.Apply(badges, tile);
             ToolTip.SetTip(this, fileName);
             AutomationProperties.SetName(this, name);
             AutomationProperties.SetPositionInSet(this, position);
@@ -597,7 +625,7 @@ internal sealed class GalleryFilmstrip : Border
         {
             _more = true; _current = false;
             _image.Source = null;
-            _extension.IsVisible = false; _play.IsVisible = false; _gif.IsVisible = false;
+            _extension.IsVisible = false; _badges.Clear();
             _moreGlyph.IsVisible = true;
             ToolTip.SetTip(this, name);
             AutomationProperties.SetName(this, name);
@@ -610,6 +638,7 @@ internal sealed class GalleryFilmstrip : Border
         {
             // Never hold a preview the window may have given back.
             _image.Source = null;
+            _badges.Clear();
             _current = _hover = false;
             ApplyBorders();
         }
