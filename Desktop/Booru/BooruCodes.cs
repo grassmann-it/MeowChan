@@ -40,6 +40,9 @@ namespace MeowChan.Desktop.Booru
         internal const string SearchResultUnknown = "search_result_unknown";
         internal const string AdmissionFailed = "admission_failed";
         internal const string ProviderCooldown = "provider_cooldown";
+        internal const string ProviderCooldownUnavailable = "provider_cooldown_unavailable";
+        internal const string TransportResetFailed = "transport_reset_failed";
+        internal const string TransportResetUnavailable = "transport_reset_unavailable";
         internal const string WatcherError = "watcher_error";
         internal const string CheckFaulted = "check_faulted";
         internal const string CheckAlreadyRunning = "check_already_running";
@@ -77,7 +80,8 @@ namespace MeowChan.Desktop.Booru
             CatalogUnreadable, WatcherRecordInvalid, PersistFailed, SchedulerStopped, SessionPaused, ProfileSuspended, SchedulerNotStarted, InvalidQuery,
             WatcherExists, WatcherNotFound, WatcherRemoved, Rejected, Superseded, Cancelled, ContinuationBlocked,
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
-            SearchResultUnknown, AdmissionFailed, ProviderCooldown, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
+            SearchResultUnknown, AdmissionFailed, ProviderCooldown, ProviderCooldownUnavailable, TransportResetFailed,
+            TransportResetUnavailable, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
             MissingReason, MissingError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost,
@@ -137,6 +141,12 @@ namespace MeowChan.Desktop.Localization
             (P + "search_result_unknown", "The search returned an answer MeowChan does not understand. The check was stopped.", "Die Suche lieferte eine Antwort, die MeowChan nicht versteht. Die Prüfung wurde abgebrochen."),
             (P + "admission_failed", "New posts could not be added to the download queue. Resume the watcher to try again.", "Neue Posts konnten nicht in die Downloadwarteschlange übernommen werden. Setze die Suchbeobachtung fort, um es erneut zu versuchen."),
             (P + "provider_cooldown", "Danbooru asked MeowChan to wait; no request is sent until the pause ends.", "Danbooru hat MeowChan um Wartezeit gebeten; bis zum Ende der Pause wird nichts angefragt."),
+            (P + "provider_cooldown_unavailable", "MeowChan could not verify the provider cooldown. Watcher scheduling is paused for safety; no new request is sent while the cooldown is unknown.",
+                "MeowChan konnte die Anbieterpause nicht prüfen. Die Planung der Suchbeobachtungen ist vorsichtshalber angehalten; solange die Pause unbekannt ist, wird keine neue Anfrage gesendet."),
+            (P + "transport_reset_failed", "The provider cooldown reset failed. The existing pause remains active; MeowChan did not confirm recovery.",
+                "Das Zurücksetzen der Anbieterpause ist fehlgeschlagen. Die bestehende Pause bleibt aktiv; MeowChan hat keine Wiederherstellung bestätigt."),
+            (P + "transport_reset_unavailable", "This session cannot reset the provider cooldown. The existing pause remains active; MeowChan did not confirm recovery.",
+                "In dieser Sitzung kann die Anbieterpause nicht zurückgesetzt werden. Die bestehende Pause bleibt aktiv; MeowChan hat keine Wiederherstellung bestätigt."),
             (P + "watcher_error", "The watcher stopped after an error. Resume it to check again.", "Die Suchbeobachtung wurde nach einem Fehler angehalten. Setze sie fort, um wieder zu prüfen."),
             (P + "check_faulted", "The watcher check failed unexpectedly. Resume it to try again.", "Die Prüfung der Suchbeobachtung ist unerwartet fehlgeschlagen. Setze sie fort, um es erneut zu versuchen."),
             (P + "missing_reason", "The provider pause came without a reason. The check was stopped.", "Die Anbieterpause kam ohne Grund. Die Prüfung wurde abgebrochen."),
