@@ -535,7 +535,8 @@ public sealed class GalleryTagPanelTests : IDisposable
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
         int hooks = viewer.Split('\n').Count(line => line.Contains("TagPanel") || line.Contains("ToggleContext") || line.Contains("tagOnly") || line.Contains("PostContextVisible"));
         Assert.InRange(hooks, 1, 14);
-        Assert.Contains("_contextPanel.Child = surface;", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));
+        // V2: the surface is the Tags segment of the side panel host in that slot.
+        Assert.Contains("_sidePanel.TagContent = surface;", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));
         Assert.Contains("NavigationEnabled = true", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));
         // Untouched by this package.
         foreach (string untouched in new[] { "Desktop/GalleryImageCache.cs", "Desktop/GalleryDecodeQueue.cs", "Desktop/GalleryFrameFile.cs" })

@@ -68,6 +68,15 @@ internal static class GalleryMediaTagChecks
             // TP2: the gallery opens the tag panel next to the picture; the full dialog is behind "Advanced...".
             Require(viewer.IsTagPanelOpen && viewer.TagSurface != null && window.GalleryMediaTagWindow == null,
                 "Ctrl+Shift+T did not open the tag panel instead of the dialog.");
+            // V2: the tag panel is the Tags segment of the side panel host (one × in its head); the Post segment takes the host over
+            // and the Tags segment brings the panel back for the same medium.
+            Require(viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags && viewer.SidePanel.TagsButton.IsChecked == true
+                && !viewer.TagSurface!.CloseButton.IsVisible, "The tag panel is not the Tags segment of the side panel.");
+            viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
+            Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
+            viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
             viewer.TagSurface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
