@@ -36,11 +36,13 @@ import time
 import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(ROOT / 'scripts'))
 import ap04_candidate as candidate_lib  # noqa: E402
 import check_writes  # noqa: E402
-
-ROOT = HERE.parents[2]
+import legacy102_process as process_runner  # noqa: E402
+from legacy102_process import CommandFailed, CommandTimedOut, CommandUnavailable  # noqa: E402
 RELEASE_REVISION = 'eec6c0169f8d52f7481ea0bf7febfd20981e97c3'
 EXPECTED_VERSION = '1.1.0'
 ALLOWED_OUT = Path('/home/tomka/.cache/claude-ssd-tmp/ap4')
@@ -150,32 +152,77 @@ def require(value, message):
         raise StepFailed(message)
 
 
-def run(ctx, name, argv, env=None, cwd=None, timeout=1500, check=True):
-    """Runs one command with its log below logs/. The exact command is the first log line.
+def _finalize_run_log(log, argv, outcome):
+    """Keep the command header, bounded helper tail, and a deterministic outcome line.
 
-    A command wrapped by Context.heavy may first wait up to --lock-wait for heavy.lock: that wait is added to
-    `timeout` (the budget of the command itself), and a lock that was not acquired fails as such, also with
-    check=False, instead of as a command timeout or exit code."""
+    ``run_bounded_command`` has already limited the captured output in its
+    file. Reading that file here is bounded too, and avoids expanding arbitrary child bytes
+    through a Unicode re-encode while restoring AP04's historical log shape.
+    """
+    try:
+        captured = log.read_bytes() if log.exists() else b''
+        with log.open('wb') as stream:
+            stream.write(('COMMAND ' + shlex.join(map(str, argv)) + '\n').encode('utf-8'))
+            stream.write(captured)
+            stream.write(('\n' + outcome.rstrip('\n') + '\n').encode('utf-8'))
+        return log.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        raise
+
+
+def _best_effort_log(log, argv, outcome):
+    try:
+        _finalize_run_log(log, argv, outcome)
+    except BaseException:
+        # Preserve KeyboardInterrupt/BaseException and the helper's cleanup
+        # result even if the diagnostic log itself cannot be finalized.
+        pass
+
+
+def run(ctx, name, argv, env=None, cwd=None, timeout=1500, check=True):
+    """Run one owned process group with a separate heavy.lock allowance.
+
+    ``flock --wait`` is part of the owned process group.  Its lock wait is
+    added to the command budget so exit 75 remains a distinct lock-busy result,
+    while the helper kills flock and all descendants on command timeout or any
+    exceptional interruption.  Output/logs retain only the helper's bounded
+    tail; required first-line scanners fail closed if that tail no longer
+    contains their sentinel.
+    """
     ctx.logs.mkdir(parents=True, exist_ok=True)
     log = ctx.logs / f'{name}.log'
-    locked = bool(argv) and str(argv[0]) == 'flock'
+    arguments = list(map(str, argv))
+    locked = bool(arguments) and arguments[0] == 'flock'
     budget = timeout + (ctx.lock_wait if locked else 0)
-    with log.open('w', encoding='utf-8') as stream:
-        stream.write('COMMAND ' + shlex.join(map(str, argv)) + '\n')
-        stream.flush()
-        try:
-            done = subprocess.run(list(map(str, argv)), cwd=cwd or ctx.root, env=env or ctx.env(), stdout=stream,
-                                  stderr=subprocess.STDOUT, timeout=budget)
-        except subprocess.TimeoutExpired:
-            raise StepFailed(f'{name}: timeout after {budget}s (see {log})') from None
-        stream.write(f'\nEXIT {done.returncode}\n')
-    text = log.read_text(encoding='utf-8', errors='replace')
-    if locked and done.returncode == LOCK_BUSY:
-        raise StepFailed(f'{name}: {LOCK.name} not acquired within {ctx.lock_wait}s (another build holds it); '
-                         f'nothing ran, retry with a new --out (see {log})')
-    if check and done.returncode != 0:
-        raise StepFailed(f'{name}: exit {done.returncode} (see {log})')
-    return text
+    environment = env or ctx.env()
+    working_directory = Path(cwd or ctx.root)
+    try:
+        process_runner.run_bounded_command(
+            arguments,
+            working_directory,
+            environment,
+            log,
+            budget,
+            name,
+        )
+    except CommandTimedOut:
+        _finalize_run_log(log, arguments, f'TIMEOUT after {budget}s')
+        raise StepFailed(f'{name}: timeout after {budget}s (see {log})') from None
+    except CommandFailed as error:
+        text = _finalize_run_log(log, arguments, f'EXIT {error.returncode}')
+        if locked and error.returncode == LOCK_BUSY:
+            raise StepFailed(f'{name}: {LOCK.name} not acquired within {ctx.lock_wait}s (another build holds it); '
+                             f'nothing ran, retry with a new --out (see {log})')
+        if check:
+            raise StepFailed(f'{name}: exit {error.returncode} (see {log})')
+        return text
+    except CommandUnavailable as error:
+        _finalize_run_log(log, arguments, f'START-FAILED {error}')
+        raise OSError(f'{name}: {error}') from error
+    except BaseException as error:
+        _best_effort_log(log, arguments, f'ABORTED {type(error).__name__}')
+        raise
+    return _finalize_run_log(log, arguments, 'EXIT 0')
 
 
 def first_line(text, prefix):

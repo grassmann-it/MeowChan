@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import unittest.mock
 
@@ -476,6 +477,80 @@ class RunnerTests(unittest.TestCase):
         test = (ROOT / 'tests/MeowChan.DesktopTests/Released102RestPackageUpgradeTests.cs').read_text(encoding='utf-8')
         self.assertIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', test)
         self.assertIn('"-Urn"', test)
+
+
+class ProcessRunCleanupTests(unittest.TestCase):
+    @staticmethod
+    def context(temp):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, Path(temp) / 'out', True, 1
+        ctx = run.Context(Args())
+        ctx.logs.mkdir(parents=True)
+        return ctx
+
+    @staticmethod
+    def command_environment():
+        return {
+            'PATH': os.environ.get('PATH', ''),
+            'PYTHONIOENCODING': 'utf-8',
+            'PYTHONUNBUFFERED': '1',
+        }
+
+    @staticmethod
+    def owned_tree(marker):
+        descendant = (
+            "import pathlib, sys, time; time.sleep(0.35); "
+            "pathlib.Path(sys.argv[1]).write_text('survived', encoding='utf-8')"
+        )
+        parent = (
+            "import subprocess, sys, time; "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]]); "
+            "time.sleep(0.9)"
+        )
+        return [sys.executable, '-c', parent, descendant, str(marker)]
+
+    @unittest.skipUnless(os.name == 'posix', 'requires POSIX owned process groups')
+    def test_outer_timeout_kills_owned_descendant(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ctx = self.context(temp)
+            marker = root / 'timeout-descendant-survived'
+            with self.assertRaisesRegex(run.StepFailed, r'timeout after 0\.1s'):
+                run.run(ctx, 'timeout', self.owned_tree(marker), env=self.command_environment(), timeout=0.1)
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
+            log = (ctx.logs / 'timeout.log').read_text(encoding='utf-8')
+            self.assertIn('TIMEOUT after 0.1s', log)
+
+    @unittest.skipUnless(os.name == 'posix', 'requires POSIX owned process groups')
+    def test_outer_keyboard_interrupt_reaps_owned_descendant(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            ctx = self.context(temp)
+            marker = root / 'interrupt-descendant-survived'
+            with unittest.mock.patch.object(
+                run.process_runner.selectors.DefaultSelector,
+                'select',
+                side_effect=KeyboardInterrupt,
+            ):
+                with self.assertRaises(KeyboardInterrupt):
+                    run.run(ctx, 'interrupt', self.owned_tree(marker), env=self.command_environment(), timeout=2.0)
+            time.sleep(0.7)
+            self.assertFalse(marker.exists())
+            log = (ctx.logs / 'interrupt.log').read_text(encoding='utf-8')
+            self.assertIn('ABORTED KeyboardInterrupt', log)
+
+    def test_run_retains_bounded_tail_in_filelog_and_return_text(self):
+        with tempfile.TemporaryDirectory() as temp:
+            ctx = self.context(temp)
+            command = [sys.executable, '-c',
+                       "import sys; sys.stdout.write('x' * (2 * 1024 * 1024 + 123)); "
+                       "sys.stdout.write('FINAL-TAIL'); sys.stdout.flush()"]
+            text = run.run(ctx, 'large-output', command, env=self.command_environment(), timeout=2)
+            log = (ctx.logs / 'large-output.log').read_bytes()
+            self.assertLessEqual(len(log), run.process_runner.MAX_TAIL_BYTES + 256)
+            self.assertIn('FINAL-TAIL', text)
+            self.assertIn('EXIT 0', text)
 
 
 class CycleEvidenceGateTests(unittest.TestCase):
