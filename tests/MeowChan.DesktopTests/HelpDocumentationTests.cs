@@ -959,9 +959,14 @@ public sealed class HelpDocumentationTests
     [Fact]
     public void NumberedFooterNavigationMatchesTheCommandOrderLabelsAndDefaultShortcuts()
     {
-        string section = Plain(Section(Read(Help), "Selection and shortcuts"));
-        string[] rows = Section(Read(Help), "Selection and shortcuts").Split('\n')
-            .Where(line => line.StartsWith("| Ctrl+", StringComparison.Ordinal)).ToArray();
+        string rawSection = Section(Read(Help), "Selection and shortcuts");
+        string section = Plain(rawSection);
+        // The same section also has Ctrl+C, Ctrl+A, etc. in a different action table.
+        // Select the page table, then validate every row; do not silently filter malformed page keys.
+        Match pageTable = Capture(rawSection,
+            @"(?m)^\| Shortcut \| Page \|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
+        string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.TrimEnd('\r')).ToArray();
         string[] ids = MainPageOrder.CommandIds.ToArray();
         Assert.Equal(ids.Length, rows.Length);
         for (int i = 0; i < ids.Length; i++)
@@ -1304,7 +1309,7 @@ public sealed class HelpDocumentationTests
         string section = Section(Read(Help), "Storage and limits");
         Assert.Equal(2, Regex.Matches(section, @"\]\(user-guide/settings-export-and-limits\.md\)").Count);
         string text = Plain(section);
-        AssertNumber(text, @"fixed (?<value>\d+) MiB ceiling", PlainUrlText.MaxBytes / (1024 * 1024));
+        AssertNumber(text, @"The URL text format still has a fixed (?<value>\d+) MiB ceiling", PlainUrlText.MaxBytes / (1024 * 1024));
         AssertNumber(text, @"ceiling, (?<value>\d+) lines", PlainUrlText.MaxLines);
         AssertNumber(text, @"and (?<value>\d+) UTF-16 code units per line", PlainUrlText.MaxLineCharacters);
         AssertNumber(text, @"URL-Textformat bleibt auf (?<value>\d+) MiB", PlainUrlText.MaxBytes / (1024 * 1024));
