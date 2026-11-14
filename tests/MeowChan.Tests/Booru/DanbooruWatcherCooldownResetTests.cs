@@ -67,6 +67,7 @@ public sealed class DanbooruWatcherCooldownResetTests
         scheduler.Load();
         string watcherId = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+        Assert.Equal("100", Assert.Single(profile.Catalog.Read().Watchers).HighWaterMark);
 
         TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         search.Hold = async (_, _, cancellationToken) =>
