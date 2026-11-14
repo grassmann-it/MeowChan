@@ -74,6 +74,9 @@ def worktree_state(root):
 def require_frozen(root, expected_sha):
     """The only gate for evidence: the worktree is exactly `expected_sha` and has no change at all."""
     require(SHA1.fullmatch(expected_sha or ''), 'the candidate SHA must be a full lowercase 40-hex commit id')
+    top = Path(git(root, 'rev-parse', '--show-toplevel').strip()).resolve()
+    require(top == Path(root).resolve(),
+            f'the candidate root {root} is not the top level of its Git worktree ({top}): a subdirectory or an unpacked tree is not a candidate')
     state = worktree_state(root)
     require(state['commit'] == expected_sha, f"worktree HEAD {state['commit']} is not the candidate {expected_sha}")
     if state['dirty']:

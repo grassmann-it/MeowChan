@@ -78,6 +78,7 @@ class FrozenProvenanceTests(unittest.TestCase):
     def preflight(self, ctx):
         # Real preflight guards and Git plumbing; only host capability/capacity checks are substituted.
         with mock.patch.object(runner, 'ALLOWED_OUT', self.base), \
+                mock.patch.object(runner, 'ROOT', self.root), \
                 mock.patch.object(runner, 'FEED', self.base), \
                 mock.patch.object(runner.shutil, 'which', return_value='/synthetic/tool'), \
                 mock.patch.object(runner.shutil, 'disk_usage', return_value=SimpleNamespace(free=runner.MIN_FREE_BYTES)):
@@ -96,6 +97,91 @@ class FrozenProvenanceTests(unittest.TestCase):
         with mock.patch.object(runner, 'RELEASE_REVISION', self.sha):
             self.assertIn('clean=yes fresh=yes', self.preflight(self.context()))
         self.assertTrue((self.out / 'evidence/status-before.txt').is_file())
+
+    def test_preflight_refuses_a_root_other_than_the_checkout_of_the_runner(self):
+        # The helpers imported by the runner must be the candidate's own files: another --root would
+        # stamp the candidate SHA onto a run judged by code of a different checkout.
+        ctx = self.context()
+        with mock.patch.object(runner, 'RELEASE_REVISION', self.sha), \
+                mock.patch.object(runner, 'ALLOWED_OUT', self.base), \
+                mock.patch.object(runner, 'FEED', self.base), \
+                mock.patch.object(runner.shutil, 'which', return_value='/synthetic/tool'), \
+                mock.patch.object(runner.shutil, 'disk_usage', return_value=SimpleNamespace(free=runner.MIN_FREE_BYTES)):
+            with self.assertRaisesRegex(runner.StepFailed, 'not the checkout of this runner'):
+                runner.step_preflight(ctx)
+        self.assertFalse(self.out.exists())
+
+    def test_candidate_root_must_be_the_git_toplevel_not_a_subdirectory(self):
+        sub = self.root / 'nested'
+        sub.mkdir()
+        (sub / 'Directory.Build.props').write_text('<Project><Version>1.1.0</Version></Project>')
+        # Untracked file makes the tree dirty as well; the toplevel rule must name the real cause first.
+        with self.assertRaisesRegex(ValueError, 'not the top level of its Git worktree'):
+            candidate.require_frozen(sub, self.sha)
+        (sub / 'Directory.Build.props').unlink()
+        sub.rmdir()
+        self.assertEqual(self.sha, candidate.require_frozen(self.root, self.sha)['commit'])
+
+    def release_context(self, artifact, sums):
+        args = SimpleNamespace(release_artifact=artifact, release_sums=sums, linux_package_dir=self.packages,
+                               sha256sums=self.sums, rid='linux-x64')
+        ctx = self.context()
+        ctx.args = args
+        ctx.candidate = self.identity()
+        ctx.evidence = self.base / 'evidence'
+        ctx.evidence.mkdir(exist_ok=True)
+        return ctx
+
+    def release_inputs(self, name='04-MeowChan-1.0.2-linux-x64.AppImage', data=b'published 1.0.2 asset'):
+        directory = self.base / 'published'
+        directory.mkdir(exist_ok=True)
+        (directory / name).write_bytes(data)
+        sums = directory / 'SHA256SUMS'
+        sums.write_text(f'{digest(data)}  {name}\n')
+        return directory / name, sums
+
+    def test_release_artifact_control_is_checksum_only_and_records_not_executed(self):
+        artifact, sums = self.release_inputs()
+        ctx = self.release_context(artifact, sums)
+        self.assertIn('not executed', runner.step_release_artifact(ctx))
+        record = json.loads((ctx.evidence / 'release-artifact.json').read_text())
+        self.assertEqual((artifact.name, digest(artifact.read_bytes()), False),
+                         (record['file'], record['sha256'], record['executed']))
+
+    def test_release_artifact_cannot_be_a_candidate_package_or_foreign_name(self):
+        copy_name = 'MeowChan-1.0.2-linux-x64.AppImage'
+        # A 1.1.0 package renamed to look like 1.0.2 (content equals a candidate asset).
+        renamed, sums = self.release_inputs(copy_name, (self.packages / 'MeowChan-1.1.0-linux-x64.AppImage').read_bytes())
+        with self.assertRaisesRegex(runner.StepFailed, 'is a 1.1.0 candidate package'):
+            runner.step_release_artifact(self.release_context(renamed, sums))
+        # The 1.1.0 package itself, with the 1.1.0 SHA256SUMS.
+        with self.assertRaisesRegex(runner.StepFailed, 'not a 1.0.2 release asset name'):
+            runner.step_release_artifact(self.release_context(self.packages / 'MeowChan-1.1.0-linux-x64.AppImage', self.sums))
+        # A genuine-looking name but the candidate's checksum file.
+        artifact, _ = self.release_inputs()
+        with self.assertRaisesRegex(runner.StepFailed, 'SHA256SUMS of the 1.1.0 candidate'):
+            runner.step_release_artifact(self.release_context(artifact, self.sums))
+        # A 1.1.0 file name never becomes evidence by listing it in a sums file.
+        other, other_sums = self.release_inputs('MeowChan-1.1.0-linux-x64.AppImage', b'x')
+        with self.assertRaisesRegex(runner.StepFailed, 'not a 1.0.2 release asset name'):
+            runner.step_release_artifact(self.release_context(other, other_sums))
+
+    def test_release_artifact_rejects_symlinked_inputs_and_mismatched_checksum(self):
+        artifact, sums = self.release_inputs()
+        link = self.base / 'link.AppImage'
+        link.symlink_to(artifact)
+        with self.assertRaisesRegex(ValueError, 'symlink'):
+            runner.step_release_artifact(self.release_context(link, sums))
+        artifact.write_bytes(b'tampered')
+        with self.assertRaisesRegex(runner.StepFailed, 'does not match its published checksum'):
+            runner.step_release_artifact(self.release_context(artifact, sums))
+
+    def test_release_artifact_options_must_come_as_a_pair(self):
+        for extra in (('--release-artifact', '/x/MeowChan-1.0.2-linux-x64.AppImage'), ('--release-sums', '/x/SHA256SUMS')):
+            with self.assertRaises(SystemExit) as raised, contextlib.redirect_stderr(io.StringIO()):
+                runner.main(['--candidate-sha', self.sha, '--out', str(self.out), '--allow-no-package', *extra])
+            self.assertEqual(2, raised.exception.code)
+        self.assertFalse(self.out.exists())
 
     def test_preflight_refuses_missing_local_102_object_without_fetch_or_output(self):
         # This tiny repository deliberately has no released source object, even though the

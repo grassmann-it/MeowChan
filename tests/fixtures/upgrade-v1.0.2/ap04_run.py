@@ -27,6 +27,7 @@ import datetime
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import shutil
 import subprocess
@@ -200,6 +201,20 @@ def guard_out(out):
     require(len(str(resolved)) <= 64, 'use a short --out path (sockets and package paths): ' + str(resolved))
 
 
+def require_runner_in_candidate(root):
+    """The code that judges the run (this runner, ap04_candidate, check_writes) must be the candidate's own files.
+
+    `--root` may only name the worktree this script lives in: with another root the report would carry the
+    candidate SHA while the helpers imported here come from a different (possibly dirty or older) checkout."""
+    runner_root = Path(ROOT).resolve()
+    require(Path(root).resolve() == runner_root,
+            f'--root {root} is not the checkout of this runner ({runner_root}): run ap04_run.py from the detached candidate worktree itself')
+
+
+# 1.0.2 release assets are named MeowChan-1.0.2-<platform>... (the published AppImage carries a numeric prefix).
+RELEASE_ASSET_NAME = re.compile(r'(?:[0-9]+-)?MeowChan-1\.0\.2-[A-Za-z0-9._-]+')
+
+
 # ---- steps -------------------------------------------------------------------------------------------------
 
 def step_preflight(ctx):
@@ -215,6 +230,7 @@ def step_preflight(ctx):
     require(candidate_lib.product_version(ctx.root) == EXPECTED_VERSION, f'product version is not {EXPECTED_VERSION}')
     state = candidate_lib.require_frozen(ctx.root, ctx.sha)
     candidate_lib.require_fresh_outputs(ctx.root)
+    require_runner_in_candidate(ctx.root)
     require(state['branch'] is None, 'the candidate must be a fresh detached worktree (use git worktree add --detach)')
     commit = subprocess.run(['git', 'cat-file', '-e', RELEASE_REVISION + '^{commit}'], cwd=ctx.root).returncode == 0
     require(commit, 'pinned 1.0.2 commit is not available as a local Git object (no fetch is attempted)')
@@ -245,14 +261,31 @@ def step_candidate(ctx):
 def step_release_artifact(ctx):
     if not ctx.args.release_artifact:
         return 'real-artifact=not supplied (release code is the pinned Git object eec6c016, built locally)'
-    artifact, sums = Path(ctx.args.release_artifact), Path(ctx.args.release_sums or '')
-    require(artifact.is_file() and not artifact.is_symlink() and sums.is_file() and not sums.is_symlink(),
-            '--release-artifact and --release-sums must be ordinary files')
+    require(ctx.args.release_sums, '--release-artifact needs --release-sums (the published 1.0.2 SHA256SUMS)')
+    # Same fail-closed rule as the package root: no symlink component, single-link regular files only.
+    artifact = candidate_lib.ordinary_path(ctx.args.release_artifact, '--release-artifact')
+    sums = candidate_lib.ordinary_path(ctx.args.release_sums, '--release-sums')
+    require(RELEASE_ASSET_NAME.fullmatch(artifact.name),
+            f'{artifact.name} is not a 1.0.2 release asset name (MeowChan-1.0.2-...): a 1.1.0 or foreign file is not 1.0.2 evidence')
+    for path in (artifact, sums):
+        require(ctx.root != path and ctx.root not in path.parents, f'{path} lies inside the candidate source root: source and artifact roots must stay apart')
+    package = (ctx.candidate or {}).get('package')
+    if package:
+        package_dir = Path(package['directory'])
+        require(package_dir not in artifact.parents and package_dir not in sums.parents,
+                f'{artifact.name}: the 1.0.2 inputs must not come from the 1.1.0 package root {package_dir}')
+        require(not (package.get('sha256sums') and os.path.samefile(sums, package['sha256sums'])),
+                '--release-sums is the SHA256SUMS of the 1.1.0 candidate, not of the published 1.0.2 release')
+        require(artifact.name not in {a['file'] for a in package['artifacts']}
+                and candidate_lib.digest_file(artifact) not in {a['sha256'] for a in package['artifacts']},
+                f'{artifact.name} is a 1.1.0 candidate package, not a published 1.0.2 asset')
     listed = candidate_lib.parse_sha256sums(sums).get(artifact.name)
     actual = candidate_lib.digest_file(artifact)
     require(listed is not None, f'{artifact.name} is not listed in {sums.name}')
     require(listed == actual, f'{artifact.name} does not match its published checksum')
-    (ctx.evidence / 'release-artifact.json').write_text(json.dumps({'file': artifact.name, 'sha256': actual}, indent=2) + '\n', encoding='utf-8')
+    (ctx.evidence / 'release-artifact.json').write_text(json.dumps({'file': artifact.name, 'sha256': actual,
+                                                                    'sha256sums_sha256': candidate_lib.digest_file(sums),
+                                                                    'executed': False}, indent=2) + '\n', encoding='utf-8')
     return f'real-artifact={artifact.name} sha256={actual[:16]} matches SHA256SUMS (not executed: release code is the pinned source build)'
 
 
@@ -521,6 +554,8 @@ def main(argv=None):
         parser.error('--lock-wait must be at least 1 second')
     if args.allow_no_package and (args.linux_package_dir or args.sha256sums):
         parser.error('--allow-no-package contradicts --linux-package-dir/--sha256sums')
+    if bool(args.release_artifact) != bool(args.release_sums):
+        parser.error('--release-artifact and --release-sums belong together: the published 1.0.2 asset and its SHA256SUMS')
     if bool(args.linux_package_dir) != bool(args.sha256sums):
         parser.error('--linux-package-dir and --sha256sums belong together: the package manifest and SHA256SUMS of one stable-candidate run')
     if not args.dry_run and not args.linux_package_dir and not args.allow_no_package:
