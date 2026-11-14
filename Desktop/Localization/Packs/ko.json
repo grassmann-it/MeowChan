@@ -3739,6 +3739,13 @@
     "status.segments": "상태 섹션",
     "status.segment.diagnosticsCount": "진단 ({0})",
     "status.strip": "진행 중 {0} · 대기 중 {1} · 문제 {2}",
-    "status.strip.rates": "↓ {0} · 쓰기 {1}"
+    "status.strip.rates": "↓ {0} · 쓰기 {1}",
+    "help.button.name": "도움말: {0}",
+    "help.popover.more": "도움말에서 더 보기",
+    "help.stats.title": "집계 대상",
+    "help.stats.p1": "네트워크는 MeowChan이 받은 응답 데이터를 헤더와 암호화 부분을 제외하고 집계합니다.",
+    "help.stats.p2": "업로드는 MeowChan 애플리케이션이 쓰기를 마친 뒤 연결에 기록한 요청 페이로드를 헤더와 암호화 부분을 제외하고 집계하며, 요청 횟수도 함께 표시합니다.",
+    "help.stats.p3": "디스크는 MeowChan이 직접 쓰거나 다시 읽은 미디어 파일만 집계하며, 썸네일, 미리보기, 아카이브, 인덱스 파일은 포함하지 않습니다.",
+    "help.stats.p4": "일별 합계는 이 컴퓨터에 보관됩니다."
   }
 }

@@ -3820,6 +3820,13 @@
     "status.segments": "Sekcje stanu",
     "status.segment.diagnosticsCount": "Diagnostyka ({0})",
     "status.strip": "Aktywne {0} · Oczekuje {1} · Problemy {2}",
-    "status.strip.rates": "↓ {0} · Z {1}"
+    "status.strip.rates": "↓ {0} · Z {1}",
+    "help.button.name": "Pomoc: {0}",
+    "help.popover.more": "Więcej w pomocy",
+    "help.stats.title": "Co jest liczone",
+    "help.stats.p1": "Sieć liczy dane odpowiedzi, które odbiera MeowChan, bez nagłówków i szyfrowania.",
+    "help.stats.p2": "Wysyłanie liczy dane użyteczne żądań, które aplikacja MeowChan zapisuje do połączenia po zakończeniu zapisu, bez nagłówków i szyfrowania; dodatkowo pokazywana jest liczba żądań.",
+    "help.stats.p3": "Dysk liczy wyłącznie pliki multimedialne, które MeowChan sam zapisuje lub odczytuje z powrotem, bez miniatur, podglądów, plików archiwum i indeksu.",
+    "help.stats.p4": "Sumy dzienne zostają na tym komputerze."
   }
 }

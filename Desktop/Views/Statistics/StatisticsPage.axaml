@@ -119,13 +119,7 @@
                 <StackPanel Spacing="8" SizeChanged="OnSourcesSizeChanged">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock x:Name="SourcesTitle" Classes="section-title" />
-                        <Button x:Name="StatisticsHelpButton" Grid.Column="1" Content="?" Classes="subtle">
-                            <Button.Flyout>
-                                <Flyout>
-                                    <TextBlock x:Name="StatisticsFootnote" MaxWidth="360" TextWrapping="Wrap" />
-                                </Flyout>
-                            </Button.Flyout>
-                        </Button>
+                        <controls:HelpButton x:Name="StatisticsHelpButton" Grid.Column="1" HelpKey="help.stats" />
                     </Grid>
                     <TextBlock x:Name="SourcesEmpty" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
                     <DataGrid x:Name="StatisticsGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"

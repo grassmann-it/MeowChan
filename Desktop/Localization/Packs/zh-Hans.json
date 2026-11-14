@@ -3739,6 +3739,13 @@
     "status.segments": "状态分区",
     "status.segment.diagnosticsCount": "诊断（{0}）",
     "status.strip": "活动 {0} · 等待中 {1} · 问题 {2}",
-    "status.strip.rates": "↓ {0} · 写 {1}"
+    "status.strip.rates": "↓ {0} · 写 {1}",
+    "help.button.name": "帮助：{0}",
+    "help.popover.more": "在帮助中了解更多",
+    "help.stats.title": "统计范围",
+    "help.stats.p1": "“网络”统计的是 MeowChan 接收到的响应数据，不含报头和加密开销。",
+    "help.stats.p2": "上传统计 MeowChan 应用在写入完成后写入连接的请求负载，不含报头和加密开销；同时显示请求次数。",
+    "help.stats.p3": "“磁盘”只统计 MeowChan 自己写入或回读的媒体文件，不含缩略图、预览、归档或索引文件。",
+    "help.stats.p4": "每日合计保存在这台电脑上。"
   }
 }

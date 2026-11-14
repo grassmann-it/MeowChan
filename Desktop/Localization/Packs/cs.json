@@ -3814,6 +3814,13 @@
     "status.segments": "Části stavu",
     "status.segment.diagnosticsCount": "Diagnostika ({0})",
     "status.strip": "Aktivní {0} · Čeká {1} · Problémy {2}",
-    "status.strip.rates": "↓ {0} · Z {1}"
+    "status.strip.rates": "↓ {0} · Z {1}",
+    "help.button.name": "Nápověda: {0}",
+    "help.popover.more": "Více v nápovědě",
+    "help.stats.title": "Co se počítá",
+    "help.stats.p1": "Síť počítá data odpovědí, která MeowChan přijímá, bez hlaviček a šifrování.",
+    "help.stats.p2": "Odesílání počítá užitečná data požadavků, která aplikace MeowChan zapíše do spojení po dokončení zápisu, bez hlaviček a šifrování; navíc se zobrazuje počet požadavků.",
+    "help.stats.p3": "Disk počítá pouze mediální soubory, které MeowChan sám zapisuje nebo zpětně čte, ne miniatury, náhledy, soubory archivu ani indexu.",
+    "help.stats.p4": "Denní součty zůstávají v tomto počítači."
   }
 }

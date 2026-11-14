@@ -3776,6 +3776,13 @@
     "status.segments": "Sections de l’état",
     "status.segment.diagnosticsCount": "Diagnostic ({0})",
     "status.strip": "Actifs {0} · En attente {1} · Problèmes {2}",
-    "status.strip.rates": "↓ {0} · É {1}"
+    "status.strip.rates": "↓ {0} · É {1}",
+    "help.button.name": "Aide : {0}",
+    "help.popover.more": "Plus dans l’aide",
+    "help.stats.title": "Ce qui est compté",
+    "help.stats.p1": "Le réseau compte les données des réponses reçues par MeowChan, sans en-têtes ni chiffrement.",
+    "help.stats.p2": "L’envoi compte les données utiles des requêtes que l’application MeowChan écrit sur la connexion une fois l’écriture terminée, sans en-têtes ni chiffrement ; le nombre de requêtes est affiché en plus.",
+    "help.stats.p3": "Le disque ne compte que les fichiers multimédias que MeowChan écrit ou relit lui-même, pas les miniatures, les aperçus ni les fichiers d’archive ou d’index.",
+    "help.stats.p4": "Les totaux quotidiens restent sur cet ordinateur."
   }
 }

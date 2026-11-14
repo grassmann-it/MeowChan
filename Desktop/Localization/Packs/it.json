@@ -3782,6 +3782,13 @@
     "status.segments": "Sezioni dello stato",
     "status.segment.diagnosticsCount": "Diagnostica ({0})",
     "status.strip": "Attivi {0} · In attesa {1} · Problemi {2}",
-    "status.strip.rates": "↓ {0} · S {1}"
+    "status.strip.rates": "↓ {0} · S {1}",
+    "help.button.name": "Guida: {0}",
+    "help.popover.more": "Altro nella guida",
+    "help.stats.title": "Che cosa viene conteggiato",
+    "help.stats.p1": "Rete conta i dati di risposta che MeowChan riceve, senza intestazioni né cifratura.",
+    "help.stats.p2": "L’upload conta il payload delle richieste che l’applicazione MeowChan scrive sulla connessione a scrittura completata, senza intestazioni né cifratura; viene mostrato anche il numero di richieste.",
+    "help.stats.p3": "Disco conta soltanto i file multimediali che MeowChan stesso scrive o rilegge, non miniature, anteprime, file dell’archivio o dell’indice.",
+    "help.stats.p4": "I totali giornalieri restano su questo computer."
   }
 }

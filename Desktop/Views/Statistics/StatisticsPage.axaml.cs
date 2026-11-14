@@ -101,14 +101,13 @@ public partial class StatisticsPage : UserControl
         DiskReadTitle.Text = Texts.T("stats.metric.diskRead");
         SourcesTitle.Text = Texts.T("nav.sources");
         SourcesEmpty.Text = Texts.T("stats.sources.empty");
-        StatisticsFootnote.Text = Texts.T("stats.footnote");
+        StatisticsHelpButton.HelpTextOverride = Texts.T("stats.footnote");
         ResetStatisticsButton.Content = Texts.T("stats.reset");
         StatisticsActions.RefreshOverflowLabel();
         ResetQuestion.Text = Texts.T("stats.reset.question");
         ConfirmResetButton.Content = Texts.T("stats.reset.confirm");
         CancelResetButton.Content = Texts.T("stats.reset.cancel");
         AutomationProperties.SetName(StatisticsGrid, Texts.T("nav.sources"));
-        AutomationProperties.SetName(StatisticsHelpButton, Texts.T("action.details"));
         CompactSourceHeader.Text = Texts.T("stats.col.source");
         CompactRateHeader.Text = Texts.T("stats.col.rate");
         CompactSessionHeader.Text = Texts.T("stats.col.session");

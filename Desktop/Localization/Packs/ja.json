@@ -3739,6 +3739,13 @@
     "status.segments": "状態のセクション",
     "status.segment.diagnosticsCount": "診断（{0}）",
     "status.strip": "実行中 {0} · 待機中 {1} · 問題 {2}",
-    "status.strip.rates": "↓ {0} · 書 {1}"
+    "status.strip.rates": "↓ {0} · 書 {1}",
+    "help.button.name": "ヘルプ: {0}",
+    "help.popover.more": "ヘルプで詳しく見る",
+    "help.stats.title": "集計の対象",
+    "help.stats.p1": "ネットワークは、MeowChanが受信した応答データを数え、ヘッダーや暗号化の分は含みません。",
+    "help.stats.p2": "アップロードは、MeowChanアプリケーションが書き込みを完了した時点で接続へ書き込んだリクエストのペイロードを数え、ヘッダーや暗号化の分は含みません。リクエスト数も併せて表示します。",
+    "help.stats.p3": "ディスクは、MeowChan自身が書き込んだ、または読み戻したメディアファイルだけを数え、サムネイル、プレビュー、アーカイブ、インデックスのファイルは含みません。",
+    "help.stats.p4": "日ごとの合計はこのコンピューターに保存されます。"
   }
 }

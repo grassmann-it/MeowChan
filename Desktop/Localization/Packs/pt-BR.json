@@ -3782,6 +3782,13 @@
     "status.segments": "Seções de status",
     "status.segment.diagnosticsCount": "Diagnóstico ({0})",
     "status.strip": "Ativos {0} · Em espera {1} · Problemas {2}",
-    "status.strip.rates": "↓ {0} · G {1}"
+    "status.strip.rates": "↓ {0} · G {1}",
+    "help.button.name": "Ajuda: {0}",
+    "help.popover.more": "Mais na ajuda",
+    "help.stats.title": "O que é contado",
+    "help.stats.p1": "Rede conta os dados de resposta que o MeowChan recebe, sem cabeçalhos nem criptografia.",
+    "help.stats.p2": "O envio conta a carga útil das requisições que o aplicativo MeowChan grava na conexão depois que a gravação termina, sem cabeçalhos nem criptografia; o número de requisições também é mostrado.",
+    "help.stats.p3": "Disco conta apenas os arquivos de mídia que o próprio MeowChan grava ou relê, não miniaturas, prévias, arquivos do arquivo nem de índice.",
+    "help.stats.p4": "Os totais diários ficam neste computador."
   }
 }

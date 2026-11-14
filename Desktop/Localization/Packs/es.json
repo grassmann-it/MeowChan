@@ -3776,6 +3776,13 @@
     "status.segments": "Secciones de estado",
     "status.segment.diagnosticsCount": "Diagnóstico ({0})",
     "status.strip": "Activas {0} · En espera {1} · Problemas {2}",
-    "status.strip.rates": "↓ {0} · E {1}"
+    "status.strip.rates": "↓ {0} · E {1}",
+    "help.button.name": "Ayuda: {0}",
+    "help.popover.more": "Más en la ayuda",
+    "help.stats.title": "Qué se cuenta",
+    "help.stats.p1": "La red cuenta los datos de las respuestas que recibe MeowChan, sin cabeceras ni cifrado.",
+    "help.stats.p2": "La subida cuenta la carga útil de las solicitudes que la aplicación MeowChan escribe en la conexión cuando la escritura se completa, sin cabeceras ni cifrado; además se muestra el número de solicitudes.",
+    "help.stats.p3": "El disco cuenta solo los archivos multimedia que MeowChan escribe o relee por sí mismo, no las miniaturas, vistas previas ni los archivos de archivo o de índice.",
+    "help.stats.p4": "Los totales diarios se quedan en este equipo."
   }
 }
