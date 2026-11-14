@@ -38,15 +38,17 @@ public sealed class WorkViewSettingsTests
     private static readonly string[] GroupsBuiltInCode = ["settings.group.shortcuts"];
 
     [Fact]
-    public void GroupsAreCollapsedInBarebonesAndSimpleAndDirectInAdvanced()
+    public void GroupsAreCollapsedInBarebonesAndDirectInAdvancedAndFourStayDirectInSimple()
     {
+        // Plan §1.13: Simple keeps animations/density, check interval/parallel safety, reading and media and behaviour direct.
+        string[] directInSimple = ["settings.group.interface-more", "settings.group.downloads-more", "settings.group.reading-media", "settings.group.behavior"];
         Assert.NotEmpty(GroupRows());
         foreach (string id in GroupRows())
         {
             WorkViewEntry row = WorkViewPolicy.Get(id);
             Assert.Equal(WorkViewKind.Section, row.Kind);
             Assert.Equal(Presence.Collapsed, row.Barebones);
-            Assert.Equal(Presence.Collapsed, row.Simple);
+            Assert.Equal(directInSimple.Contains(id) ? Presence.Direct : Presence.Collapsed, row.Simple);
             Assert.Equal(Presence.Direct, row.Advanced);
             Assert.False(row.Safety);
         }
@@ -133,7 +135,7 @@ public sealed class WorkViewSettingsTests
         foreach (string id in GroupRows())
         {
             Assert.False(SettingsGroupRules.IsFlat(id, WorkView.Barebones));
-            Assert.False(SettingsGroupRules.IsFlat(id, WorkView.Simple));
+            Assert.Equal(WorkViewPolicy.Get(id).Simple == Presence.Direct, SettingsGroupRules.IsFlat(id, WorkView.Simple));
             Assert.True(SettingsGroupRules.IsFlat(id, WorkView.Advanced));
         }
     }
@@ -172,9 +174,14 @@ public sealed class WorkViewSettingsTests
             WorkViewElement.SetId(group, id);
             foreach (WorkView view in new[] { WorkView.Barebones, WorkView.Simple })
             {
+                // A group the view shows directly opens on entering it; only a collapsed one closes.
+                bool collapsed = WorkViewPolicy.Resolve(id, view) == Presence.Collapsed;
                 group.IsExpanded = true;
                 WorkViewPresenter.ApplyExpander(group, view, viewChanged: true);
-                Assert.False(group.IsExpanded, id + " in " + view);
+                Assert.Equal(!collapsed, group.IsExpanded);
+                group.IsExpanded = false;
+                WorkViewPresenter.ApplyExpander(group, view, viewChanged: true);
+                Assert.Equal(!collapsed, group.IsExpanded);
                 WorkViewPresenter.ApplyExpander(group, view, viewChanged: true, nonDefaultState: true);
                 Assert.True(group.IsExpanded, id + " with a change or an error in " + view);
                 group.IsExpanded = false;
