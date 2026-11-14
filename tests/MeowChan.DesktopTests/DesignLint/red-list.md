@@ -42,11 +42,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/GalleryViewer.Overlay.cs` (2)
 
-- `control-height-literal`: L104 `Button Height=44`, L104 `Button MinHeight=44`
+- `control-height-literal`: L131 `Button Height=44`, L131 `Button MinHeight=44`
 
 ### `Desktop/GalleryViewer.cs` (1)
 
-- `glyph-icon`: L362 `"−(U+2212)"`
+- `glyph-icon`: L364 `"−(U+2212)"`
 
 ### `Desktop/Localization/ArchiveCatalog.cs` (6)
 
