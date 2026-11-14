@@ -40,7 +40,7 @@ internal static class ShortcutsWindowCatalog
         ("shortcuts.window.saved", "Shortcuts saved.", "Tastenkürzel gespeichert."),
         ("shortcuts.window.savedPending", "Shortcuts saved. Changes made while saving are still unsaved.", "Tastenkürzel gespeichert. Änderungen, die während des Speicherns erfolgten, sind noch nicht gespeichert."),
         ("shortcuts.window.saveFailed", "The shortcuts could not be saved: {0}", "Die Tastenkürzel konnten nicht gespeichert werden: {0}"),
-        ("shortcuts.window.recording", "Recording: press the new shortcut. Escape cancels.", "Aufnahme läuft: Drücke das neue Kürzel. Escape bricht ab."),
+        ("shortcuts.window.recording", "Recording: press the new shortcut. Esc cancels.", "Aufnahme läuft: Drücke das neue Kürzel. Esc bricht ab."),
         ("shortcuts.window.keysHelp", "Enter records a shortcut, Delete clears it, F1 closes the window.", "Enter nimmt ein Kürzel auf, Entf entfernt es, F1 schließt das Fenster."),
         ("shortcuts.window.closePrompt.title", "Unsaved shortcuts", "Ungespeicherte Tastenkürzel"),
         ("shortcuts.window.closePrompt.text", "Save the changed shortcuts before closing the window?", "Geänderte Tastenkürzel vor dem Schließen des Fensters speichern?"),
