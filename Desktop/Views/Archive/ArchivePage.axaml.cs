@@ -742,20 +742,21 @@ public partial class ArchivePage : UserControl
                     video ? $"@poster{bounds.MaximumWidth}x{bounds.MaximumHeight}"
                         : bounds is { MaximumWidth: 240, MaximumHeight: 180 } ? string.Empty
                         : $"@reader{bounds.MaximumWidth}x{bounds.MaximumHeight}");
-                return await MediaTileThumbnails.KeepAsync(key, () => Task.Run(async () =>
+                return await Task.Run(async () =>
                 {
                     await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
                     try
                     {
                         loading.Token.ThrowIfCancellationRequested(); // Coverage can change while queued for a slot.
                         if (video)
-                            return await VideoPosterCache.LoadAsync(match.Manifest, match.Asset,
+                            return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
                                 Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                                bounds.MaximumWidth, bounds.MaximumHeight, loading.Token).ConfigureAwait(false);
-                        return await DecodeThumbnailAsync(match, loading.Token, bounds.MaximumWidth, bounds.MaximumHeight).ConfigureAwait(false);
+                                bounds.MaximumWidth, bounds.MaximumHeight, key, loading.Token).ConfigureAwait(false);
+                        return await MediaTileThumbnails.KeepAsync(key, () => DecodeThumbnailAsync(match, loading.Token,
+                            bounds.MaximumWidth, bounds.MaximumHeight, MediaTileThumbnails.Verified)).ConfigureAwait(false);
                     }
                     finally { _thumbnailGate.Release(); }
-                }, loading.Token)).ConfigureAwait(false);
+                }, loading.Token).ConfigureAwait(false);
             },
             OpenPreview = async () =>
             {
@@ -800,18 +801,15 @@ public partial class ArchivePage : UserControl
             manifests.Add(await MediaAssetReader.OpenAsync(directory, loading.Token));
         ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifests, summary.Id, postId, attachment);
         setBinding(resolved?.Binding);
-        if (resolved == null || SavedMediaTypes.Classify(resolved.Asset.OriginalFileName ?? resolved.Asset.Path) != SavedMediaKind.Image)
-            return null;
-        return await MediaTileThumbnails.KeepAsync(MediaTileThumbnails.ByteKey(resolved.Asset, "@160x120"), async () =>
+        if (resolved == null) return null;
+        await _thumbnailGate.WaitAsync(loading.Token);
+        try
         {
-            await _thumbnailGate.WaitAsync(loading.Token);
-            try
-            {
-                loading.Token.ThrowIfCancellationRequested();
-                return await DecodeThumbnailAsync(new(resolved.Snapshot, resolved.Asset), loading.Token, 160, 120);
-            }
-            finally { _thumbnailGate.Release(); }
-        });
+            loading.Token.ThrowIfCancellationRequested();
+            return await ArchiveListThumbnails.LoadAsync(new(resolved.Snapshot, resolved.Asset),
+                Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"), loading.Token);
+        }
+        finally { _thumbnailGate.Release(); }
     }, cancellationToken);
 
     internal static ArchiveAssetRow? FindMatchingAsset(ResourceId resource, string postId,

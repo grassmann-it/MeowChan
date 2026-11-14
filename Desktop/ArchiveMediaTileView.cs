@@ -67,7 +67,8 @@ public sealed class ArchiveMediaTileView : UserControl
         UsesVideoPoster(row) ? "archive.tileVideoPosterUnavailable" : "archive.tilePreviewUnavailable";
     internal static Task<Bitmap?> DecodeAsync(ArchiveAssetRow row, CancellationToken token, string posterCacheDirectory) =>
         UsesVideoPoster(row)
-            ? VideoPosterCache.LoadAsync(row.Manifest, row.Asset, posterCacheDirectory, PosterWidth, PosterHeight, token)
+            ? MediaTileThumbnails.LoadPosterAsync(row.Manifest, row.Asset, posterCacheDirectory, PosterWidth, PosterHeight,
+                MediaTileThumbnails.PosterKey(row.Asset, PosterWidth, PosterHeight), token)
             : ArchivePage.DecodeThumbnailAsync(row, token);
 
     public ArchiveMediaTileView()
@@ -153,9 +154,9 @@ public sealed class ArchiveMediaTileView : UserControl
         if (DataContext is not ArchiveAssetRow row || _loading != null || _bitmap != null || !IsEffectivelyVisible) return;
         int request = _request;
         Func<ArchiveAssetRow, CancellationToken, Task<Bitmap?>> decode = ThumbnailDecoder;
-        // A preview that was decoded before (here, on the Media page or in the reader) is kept by its bytes and shown at once when
-        // the tile scrolls back into view. Only the built-in decoder takes part, so a replaced decoder is never mixed with it.
-        string? key = ReferenceEquals(decode, DefaultThumbnailDecoder) ? MediaTileThumbnails.ByteKey(row.Asset) : null;
+        // Images retain the immediate cache path. Videos obtain their lease inside DecodeAsync only after checking the original;
+        // they must not bypass that check here or be added/leased a second time below. Replaced decoders never share the cache.
+        string? key = ReferenceEquals(decode, DefaultThumbnailDecoder) && !UsesVideoPoster(row) ? MediaTileThumbnails.ByteKey(row.Asset) : null;
         if (key != null && MediaTileThumbnails.Cache.TryAcquire(key) is { } kept)
         {
             _bitmap = kept;

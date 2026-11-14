@@ -594,9 +594,8 @@ public sealed partial class MediaPage : UserControl
     internal string PosterCacheDirectory { get; set; } = System.IO.Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1");
 
     // A decoded preview is kept by its bytes (the tile view gets a lease and gives it back), so scrolling back does not decode it again.
-    private async Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
-        await MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token).ConfigureAwait(false) is { } bitmap
-            ? MediaTileThumbnails.Remember(tile, bitmap) : null;
+    private Task<Bitmap?> LoadThumbnailAsync(MediaLibraryTile tile, CancellationToken token) =>
+        MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token);
 
     private Task<MediaAssetSnapshot> OpenManifestAsync(string directory, CancellationToken token) => _manifests.OpenAsync(directory, token);
 

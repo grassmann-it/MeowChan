@@ -41,6 +41,50 @@ public sealed class MediaTileThumbnailsTests
     }
 
     [Fact]
+    public async Task GroupedVideoSkipsAnUnreadableRepresentativeManifestWithoutLosingTheOtherOccurrence()
+    {
+        using TempDirectory temp = new();
+        string cache = PosterFor(temp.Path);
+        MediaLibraryEntry first = await VideoEntryAsync(temp.Path, "a"), second = await VideoEntryAsync(temp.Path, "b");
+        Task<MediaAssetSnapshot> Open(string directory, CancellationToken token) => directory == first.Directory
+            ? throw new IOException("Synthetic missing directory.") : Opener(directory, token);
+        var poster = await MediaTileThumbnails.PosterPngAsync(Group(first, second), Open, cache, CancellationToken.None);
+        Assert.NotNull(poster); Assert.Equal(second.AssetId, poster.Value.AssetId);
+    }
+
+    [Fact]
+    public async Task AStaleIndexLengthCannotAuthorizeThePosterOfDifferentBytes()
+    {
+        using TempDirectory temp = new();
+        string cache = PosterFor(temp.Path);
+        MediaLibraryEntry entry = await VideoEntryAsync(temp.Path, "a");
+        Assert.NotNull(await MediaTileThumbnails.PosterPngAsync(Group(entry), Opener, cache, CancellationToken.None));
+        Assert.Null(await MediaTileThumbnails.PosterPngAsync(Group(entry with { Length = entry.Length + 1 }), Opener, cache, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GroupedPosterChecksEveryOccurrenceEvenWhenTheDecodedPreviewIsWarm()
+    {
+        using TempDirectory temp = new();
+        string directory = PosterFor(temp.Path);
+        MediaLibraryEntry first = await VideoEntryAsync(temp.Path, "a"), second = await VideoEntryAsync(temp.Path, "b");
+        MediaLibraryTile group = Group(first, second);
+        MediaThumbnailCache<Preview> cache = new(1);
+        int decodes = 0;
+        Task<Preview?> Load() => MediaTileThumbnails.KeepVerifiedPosterAsync(cache, "same-bytes", async token =>
+            (await MediaTileThumbnails.PosterPngAsync(group, Opener, directory, token))?.Png,
+            (_, _) => { decodes++; return Task.FromResult<Preview?>(new()); }, CancellationToken.None);
+        Preview initial = Assert.IsType<Preview>(await Load()); cache.Release(initial);
+        File.Delete(Path.Combine(first.Directory!, "clip.webm"));
+        Assert.Same(initial, await Load()); cache.Release(initial); // the second original still verifies
+        File.Delete(Path.Combine(second.Directory!, "clip.webm"));
+        Assert.Null(await Load());
+        Assert.Equal(1, decodes);
+        Preview next = cache.Add("another", new());
+        Assert.True(initial.Disposed); cache.Release(next); // no double lease in the warm/failed paths
+    }
+
+    [Fact]
     public async Task OnlySavedOccurrencesAreCandidatesAndTheListIsBounded()
     {
         using TempDirectory temp = new();

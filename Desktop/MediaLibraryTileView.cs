@@ -121,7 +121,7 @@ internal sealed class MediaLibraryTileView : UserControl
 
     /// <summary>Set by the page: loads a verified thumbnail (image, or the local video poster) for a tile, or null when none can be shown.</summary>
     internal Func<MediaLibraryTile, CancellationToken, Task<Bitmap?>>? ThumbnailLoader { get; set; }
-    /// <summary>Set by the page: a kept preview of the tile's bytes leased to this tile, or null. A hit shows at once, without the load queue.</summary>
+    /// <summary>Set by the page: a kept image preview leased to this tile, or null. Videos always use the verified asynchronous loader.</summary>
     internal Func<MediaLibraryTile, Bitmap?>? ThumbnailCached { get; set; }
     /// <summary>Set by the page: takes back a bitmap that came from the page's cache instead of disposing it (other tiles may show it).</summary>
     internal Action<Bitmap>? ThumbnailRelease { get; set; }
