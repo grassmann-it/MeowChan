@@ -143,8 +143,8 @@ public partial class ArchivePage
         CancelInlineReplies();
         ClosePreview();
         _mediaMenuPresenter.Invalidate();
-        CloseThreadFind();
         _ = ReleaseInlineVideos();
+        CloseThreadFind();
         _thread = null;
         _selectedThread = null;
         _assets = Array.Empty<ArchiveAssetRow>();
