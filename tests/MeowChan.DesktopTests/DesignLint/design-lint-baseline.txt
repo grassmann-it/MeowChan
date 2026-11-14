@@ -23,7 +23,6 @@ glyph-icon	Desktop/ThreadRow.cs	1	"↑(U+2191)"
 glyph-icon	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	"×(U+00D7)"
 glyph-icon	Desktop/Views/Statistics/StatisticsPage.axaml.cs	1	"−(U+2212)"
 page-inset	Desktop/Views/Media/MediaPage.cs	1	no reference to Workspace.Inset.Page
-page-inset	Desktop/Views/Rules/RulesPage.axaml	1	Grid no inset
 page-inset	Desktop/Views/Settings/SettingsEditor.axaml	1	Grid no inset
 row-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	RowHeight="44"
 row-height-literal	Desktop/Views/Statistics/StatisticsPage.axaml	1	RowHeight="34"
@@ -81,14 +80,13 @@ spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	LineSpacin
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.Export.Dialog.cs	2	Spacing=6
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.Favorites.cs	3	LineSpacing=6
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	ColumnSpacing="10"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	4	ColumnSpacing="6"
+spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	3	ColumnSpacing="6"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	5	ItemSpacing="6"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	5	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="-8,-8,-8,0"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Margin="0,0,24,56"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Padding="10"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	RowSpacing="10"
-spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Archive/ArchivePage.axaml	2	Spacing="6"
 spacing-off-grid	Desktop/Views/Archive/InterruptedTransfersDialog.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Archive/MediaHashSearchDialog.cs	1	Spacing=6
@@ -102,7 +100,6 @@ spacing-off-grid	Desktop/Views/Collections/ReaderGroupsDialog.axaml	1	Margin="-1
 spacing-off-grid	Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs	1	Margin=new Thickness(-16, 0, -16, -16)
 spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Margin="12,10,12,6"
-spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	Spacing="6"
 spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/Views/Media/BooruMediaDetailsDialog.cs	3	LineSpacing=6
@@ -123,13 +120,10 @@ spacing-off-grid	Desktop/Views/Media/MediaSelectionTagDialog.cs	1	LineSpacing=6
 spacing-off-grid	Desktop/Views/Media/MediaSelectionTagDialog.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.ChangeReview.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.Migration.cs	3	Spacing=6
-spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	ColumnSpacing="14"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	ItemSpacing="10"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	ItemSpacing="6"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	3	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Margin="0,0,14,0"
-spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="10"
-spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	Spacing="6"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/Views/Rules/RulesPage.Plugins.cs	1	LineSpacing=6
@@ -148,14 +142,9 @@ spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Margin="20,12,20,
 spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	2	Padding="0,10"
 spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Padding="10,7"
 spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	3	Spacing="3"
-spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Settings/SettingsEditor.axaml	1	Spacing="6"
-spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	ColumnSpacing="14"
 spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	LineSpacing="6"
-spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	2	Spacing="10"
-spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml	1	Spacing="6"
 spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/Views/Sources/SourcesPage.axaml.cs	1	Padding=new Thickness(14)
 spacing-off-grid	Desktop/Views/Statistics/StatisticsPage.axaml	1	Spacing="3"
-spacing-off-grid	Desktop/Views/Statistics/StatisticsPage.axaml	1	Spacing="5"
