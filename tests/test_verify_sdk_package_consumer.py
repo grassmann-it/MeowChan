@@ -8,7 +8,8 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
-import subprocess
+import shutil
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -147,27 +148,70 @@ class SdkPackageConsumerSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(RUNNER.GateError, "full lowercase"):
                 RUNNER.verify_source_pin(source, SOURCE_COMMIT.upper())
 
-    def test_run_command_reports_nonzero_exit_without_shell(self):
-        class Completed:
-            pid = 123
-            returncode = 7
-
-            def communicate(self, timeout):
-                self.timeout = timeout
-                return "not JSON\n", None
-
+    def test_run_command_translates_nonzero_shared_helper_error_and_keeps_metadata(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            log = root / "restore.log"
             commands: list[dict] = []
-            with mock.patch.object(RUNNER.subprocess, "Popen", return_value=Completed()) as popen:
+            error = RUNNER.ProcessCommandFailed("restore", 7, log, "not JSON\n")
+            with mock.patch.object(RUNNER, "run_bounded_command", side_effect=error) as helper:
                 with self.assertRaisesRegex(RUNNER.CommandFailed, "exit code 7"):
                     RUNNER.run_command(
                         ["dotnet", "restore", "consumer.csproj"], root, {"HOME": str(root / "home")},
-                        root / "restore.log", RUNNER.Deadline(5), "restore", commands,
+                        log, RUNNER.Deadline(5), "restore", commands,
                     )
-            self.assertFalse(popen.call_args.kwargs["shell"])
-            self.assertEqual("not JSON\n", (root / "restore.log").read_text(encoding="utf-8"))
+            self.assertEqual(1, helper.call_count)
+            self.assertGreater(helper.call_args.args[4], 0)
             self.assertEqual(7, commands[0]["exitCode"])
+            self.assertTrue(commands[0]["boundedLog"])
+            self.assertEqual(RUNNER.MAX_TAIL_BYTES, commands[0]["maxLogBytes"])
+
+    def test_run_command_nonzero_python_child_keeps_bounded_tail_and_exit_code(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log = root / "nonzero.log"
+            commands: list[dict] = []
+            code = "import sys; print('not JSON'); sys.exit(7)"
+            with self.assertRaisesRegex(RUNNER.CommandFailed, "exit code 7"):
+                RUNNER.run_command(
+                    [sys.executable, "-c", code], root, {"HOME": str(root / "home")},
+                    log, RUNNER.Deadline(10), "python-nonzero", commands,
+                )
+            self.assertIn("not JSON", log.read_text(encoding="utf-8"))
+            self.assertEqual(7, commands[0]["exitCode"])
+            self.assertTrue(commands[0]["boundedLog"])
+
+    def test_run_command_translates_timeout_and_interrupt_after_helper_cleanup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for side_effect, expected in (
+                (RUNNER.ProcessCommandTimedOut("restore", 1, root / "timeout.log", "tail"), RUNNER.DeadlineExceeded),
+                (KeyboardInterrupt(), RUNNER.DeadlineExceeded),
+            ):
+                commands: list[dict] = []
+                with mock.patch.object(RUNNER, "run_bounded_command", side_effect=side_effect):
+                    with self.assertRaises(expected):
+                        RUNNER.run_command(
+                            ["python-child"], root, {"HOME": str(root / "home")},
+                            root / "command.log", RUNNER.Deadline(5), "restore", commands,
+                        )
+                self.assertIsNone(commands[0]["exitCode"])
+                self.assertTrue(commands[0]["timedOut"])
+
+    def test_shared_helper_keeps_noisy_python_child_log_bounded(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            log = root / "noisy.log"
+            commands: list[dict] = []
+            code = "import sys; sys.stdout.write('x' * %d)" % (RUNNER.MAX_TAIL_BYTES + 4096)
+            RUNNER.run_command(
+                [sys.executable, "-c", code], root, {"HOME": str(root / "home")},
+                log, RUNNER.Deadline(10), "python-noisy", commands,
+            )
+            self.assertLessEqual(log.stat().st_size, RUNNER.MAX_TAIL_BYTES)
+            self.assertEqual(0, commands[0]["exitCode"])
+            self.assertTrue(commands[0]["boundedLog"])
+
 
     def test_load_assets_rejects_non_json(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -175,6 +219,26 @@ class SdkPackageConsumerSafetyTests(unittest.TestCase):
             assets.write_text("restore failed: not JSON\n", encoding="utf-8")
             with self.assertRaisesRegex(RUNNER.GateError, "valid JSON"):
                 RUNNER._load_assets(assets)
+
+    def test_assets_and_consumer_assembly_evidence_survive_disposable_tree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            disposable = root / "disposable"
+            assets = disposable / "consumer" / "obj" / "project.assets.json"
+            assembly = disposable / "consumer" / "bin" / "Release" / "net10.0" / "MeowChan.PluginSdk.Consumer.dll"
+            assets.parent.mkdir(parents=True)
+            assembly.parent.mkdir(parents=True)
+            assets.write_bytes(b"{\"package\":\"candidate\"}\n")
+            assembly.write_bytes(b"consumer assembly bytes")
+            assets_evidence = RUNNER.persist_file_evidence(assets, root / "evidence" / "assets" / assets.name, "project.assets.json")
+            assembly_evidence = RUNNER.persist_file_evidence(
+                assembly, root / "evidence" / "consumer-evidence" / assembly.name, "executed consumer assembly",
+            )
+            shutil.rmtree(disposable)
+            self.assertEqual(assets_evidence["sha256"], RUNNER.sha256_file(Path(assets_evidence["evidencePath"])))
+            self.assertEqual(assembly_evidence["sha256"], RUNNER.sha256_file(Path(assembly_evidence["evidencePath"])))
+            self.assertTrue(Path(assets_evidence["evidencePath"]).is_file())
+            self.assertTrue(Path(assembly_evidence["evidencePath"]).is_file())
 
     def test_atomic_report_and_stage_schema(self):
         with tempfile.TemporaryDirectory() as temporary:

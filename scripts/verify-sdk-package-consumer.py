@@ -17,7 +17,6 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -31,6 +30,18 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_ROOT = ROOT / "samples" / "MeowChan.PluginSdk.Consumer"
 SAMPLE_PROJECT = SAMPLE_ROOT / "MeowChan.PluginSdk.Consumer.csproj"
+# Keep process supervision in the shared helper.  Adding its directory rather
+# than duplicating its implementation also works when this file is imported by
+# the lightweight tests through importlib.
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from legacy102_process import (  # noqa: E402
+    CommandFailed as ProcessCommandFailed,
+    CommandTimedOut as ProcessCommandTimedOut,
+    CommandUnavailable as ProcessCommandUnavailable,
+    MAX_TAIL_BYTES,
+    run_bounded_command,
+)
 PACKAGE_ID = "MeowChan.PluginSdk"
 PACKAGE_ASSEMBLY = "lib/net10.0/MeowChan.PluginSdk.dll"
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -435,6 +446,33 @@ def write_nuget_config(path: Path, feed: Path) -> None:
     ET.ElementTree(config).write(path, encoding="utf-8", xml_declaration=True)
 
 
+def persist_file_evidence(source: Path, destination: Path, label: str) -> dict[str, Any]:
+    """Copy one verified artifact out of the disposable execution tree."""
+    source = _normalise_absolute(source, label)
+    destination = _normalise_absolute(destination, f"{label} evidence")
+    _assert_regular(source, label)
+    if destination.exists() or os.path.lexists(destination):
+        raise GateError(f"Refusing to overwrite existing {label} evidence: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, destination)
+    _assert_regular(destination, f"{label} evidence")
+    source_hash = sha256_file(source)
+    evidence_hash = sha256_file(destination)
+    if source_hash != evidence_hash:
+        raise GateError(f"Copied {label} evidence differs from the executed artifact.")
+    return {
+        "sourcePath": str(source),
+        "evidencePath": str(destination),
+        "bytes": destination.stat().st_size,
+        "sha256": evidence_hash,
+    }
+
+
+def consumer_assembly_path(project: Path) -> Path:
+    project = _normalise_absolute(project, "consumer project")
+    return project.parent / "bin" / "Release" / "net10.0" / f"{project.stem}.dll"
+
+
 def _path_within(path: Path, root: Path, label: str) -> Path:
     try:
         resolved = path.resolve(strict=True)
@@ -531,56 +569,52 @@ def validate_assets(assets: dict[str, Any], cache: Path, candidate: dict[str, An
     return {"package": resolved[0], "targetLibraries": sorted(set(target_libraries))}
 
 
-def _kill_process_tree(process: subprocess.Popen[Any]) -> None:
-    if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-            check=False, shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
-    else:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+def _record_command(
+    commands: list[dict[str, Any]], arguments: list[str], cwd: Path, log_path: Path,
+    label: str, started: float, exit_code: int | None, *, timed_out: bool = False,
+) -> None:
+    commands.append({
+        "label": label,
+        "argv": arguments,
+        "cwd": str(cwd),
+        "exitCode": exit_code,
+        "timedOut": timed_out,
+        "durationSeconds": round(time.monotonic() - started, 3),
+        "log": str(log_path),
+        "boundedLog": True,
+        "maxLogBytes": MAX_TAIL_BYTES,
+    })
 
 
 def run_command(
     arguments: list[str], cwd: Path, environment: dict[str, str], log_path: Path,
     deadline: Deadline, label: str, commands: list[dict[str, Any]],
 ) -> str:
-    """Run one bounded child command without a shell and retain its output."""
+    """Run one command through the shared bounded process helper."""
     if not arguments or any(not isinstance(item, str) for item in arguments):
         raise TypeError("child command must be a non-empty string argument list")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
     started = time.monotonic()
-    process = subprocess.Popen(
-        arguments, cwd=cwd, env=environment, shell=False,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        start_new_session=os.name != "nt",
-    )
-    output = ""
     try:
-        output, _ = process.communicate(timeout=deadline.remaining())
-    except (subprocess.TimeoutExpired, KeyboardInterrupt) as error:
-        _kill_process_tree(process)
-        output, _ = process.communicate()
-        log_path.write_text(output, encoding="utf-8")
-        raise DeadlineExceeded(f"{label} exceeded the remaining timeout budget.") from error
-    finally:
-        if process.returncode is not None:
-            log_path.write_text(output, encoding="utf-8")
-    command_record = {
-        "label": label,
-        "argv": arguments,
-        "cwd": str(cwd),
-        "exitCode": process.returncode,
-        "durationSeconds": round(time.monotonic() - started, 3),
-        "log": str(log_path),
-    }
-    commands.append(command_record)
-    if process.returncode:
-        raise CommandFailed(f"{label} failed with exit code {process.returncode}; see {log_path}.")
-    return output
+        output = run_bounded_command(
+            arguments, cwd, environment, log_path, deadline.remaining(), label,
+        )
+    except ProcessCommandTimedOut as error:
+        _record_command(commands, arguments, cwd, log_path, label, started, None, timed_out=True)
+        raise DeadlineExceeded(str(error)) from error
+    except ProcessCommandFailed as error:
+        _record_command(commands, arguments, cwd, log_path, label, started, error.returncode)
+        raise CommandFailed(str(error)) from error
+    except ProcessCommandUnavailable as error:
+        _record_command(commands, arguments, cwd, log_path, label, started, None)
+        raise GateError(str(error)) from error
+    except KeyboardInterrupt as error:
+        # The shared helper has already performed its bounded process-group
+        # cleanup before propagating the interrupt.
+        _record_command(commands, arguments, cwd, log_path, label, started, None, timed_out=True)
+        raise DeadlineExceeded(f"{label} was interrupted before completion.") from error
+    else:
+        _record_command(commands, arguments, cwd, log_path, label, started, 0)
+        return output
 
 
 @contextmanager
@@ -795,15 +829,20 @@ def run_gate(
                     report["assets"] = validate_assets(assets, Path(environment["NUGET_PACKAGES"]), candidate)
                     report["assets"]["path"] = str(assets_path)
                     report["assets"]["sha256"] = sha256_file(assets_path)
-                    assets_evidence = output_path / "project.assets.json"
-                    shutil.copyfile(assets_path, assets_evidence)
-                    report["assets"]["evidencePath"] = str(assets_evidence)
+                    report["assets"]["evidence"] = persist_file_evidence(
+                        assets_path, output_path / "assets" / "project.assets.json", "project.assets.json",
+                    )
                 with report_stage(report, "build"):
                     run_command(build_arguments, workspace, environment, logs / "build.log", deadline, "build", report["commands"])
                 with report_stage(report, "consumer"):
                     run_command(run_arguments, workspace, environment, logs / "consumer.log", deadline, "consumer", report["commands"])
 
             with report_stage(report, "hashes"):
+                consumer_assembly = consumer_assembly_path(isolated_project)
+                report["consumer"]["assembly"] = persist_file_evidence(
+                    consumer_assembly, output_path / "consumer-evidence" / consumer_assembly.name,
+                    "executed consumer assembly",
+                )
                 consumer_after = inventory_tree(copied_sample, "isolated SDK consumer", skip_generated=True)
                 if consumer_after["treeSha256"] != report["isolation"]["consumerInputBefore"]["treeSha256"]:
                     raise GateError("Consumer source inputs changed during restore/build/run.")
