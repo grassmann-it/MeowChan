@@ -143,28 +143,44 @@ public sealed class ReaderWorkViewTests
     // The width race in Advanced with the bar's visual order and the policy priorities: whenever the room ends before the tail,
     // export stays and full screen, View, history and capture go first. The pixel check at 1520 and 1280 is in the work-views
     // reader smoke; these widths are the English labels measured roughly (icon 16 + gap 5 + text + padding + 8 margin).
-    [Theory]
-    [InlineData(1520 - 48)]
-    [InlineData(1280 - 48)]
-    [InlineData(1040)]
-    public void ExportStaysOnTheAdvancedBarWhileTheRarelyUsedActionsOverflow(double available)
+    // The way out (close, "Back to …") left the bar for the header row's end slot (Tom's rule 14.11.), so it no longer races.
+    private static readonly (string Name, string Id, double Width)[] AdvancedBar =
+    [
+        ("ArchiveCurrentThreadFavorite", "reader.toolbar.thread-favorite", 46),
+        ("ReaderTagsOpen", "reader.toolbar.tags", 92), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
+        ("ReaderFindOpen", "reader.toolbar.find", 150), ("ReaderViewOpen", "reader.toolbar.view", 92),
+        ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ArchiveReaderFullscreen", "reader.toolbar.fullscreen", 128),
+        ("ArchiveHistoryBack", "reader.toolbar.history-back", 170), ("ExportArchiveButton", "reader.toolbar.export", 172),
+        ("CapturePostsButton", "reader.toolbar.capture", 176)
+    ];
+
+    private static string[] MovedAt(double available)
     {
-        (string Name, string Id, double Width)[] bar =
-        [
-            ("ArchiveCloseReader", "reader.toolbar.close", 150), ("ArchiveCurrentThreadFavorite", "reader.toolbar.thread-favorite", 46),
-            ("ReaderTagsOpen", "reader.toolbar.tags", 92), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
-            ("ReaderFindOpen", "reader.toolbar.find", 150), ("ReaderViewOpen", "reader.toolbar.view", 92),
-            ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ArchiveReaderFullscreen", "reader.toolbar.fullscreen", 128),
-            ("ArchiveHistoryBack", "reader.toolbar.history-back", 170), ("ExportArchiveButton", "reader.toolbar.export", 172),
-            ("CapturePostsButton", "reader.toolbar.capture", 176)
-        ];
+        var bar = AdvancedBar;
         bool[] overflow = ActionOverflowLayout.Resolve(bar.Select(item => item.Width).ToArray(),
             bar.Select(item => WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve(item.Id, WorkView.Advanced))).ToArray(),
             bar.Select(_ => true).ToArray(), available, 40, bar.Select(item => WorkViewPolicy.Get(item.Id).OverflowOrder).ToArray());
-        string[] moved = bar.Where((_, index) => overflow[index]).Select(item => item.Name).ToArray();
+        return bar.Where((_, index) => overflow[index]).Select(item => item.Name).ToArray();
+    }
+
+    [Theory]
+    [InlineData(1280 - 48)]
+    [InlineData(1040)]
+    [InlineData(900)]
+    public void ExportStaysOnTheAdvancedBarWhileTheRarelyUsedActionsOverflow(double available)
+    {
+        string[] moved = MovedAt(available);
         Assert.DoesNotContain("ExportArchiveButton", moved);
         Assert.NotEmpty(moved); // the room really ends before the tail
         Assert.All(moved, name => Assert.Contains(name, new[] { "ArchiveReaderFullscreen", "ReaderViewOpen", "ArchiveHistoryBack", "CapturePostsButton" }));
+    }
+
+    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar.
+    [Fact]
+    public void TheWideAdvancedBarKeepsEveryToolOnceTheWayOutLeftIt()
+    {
+        Assert.Empty(MovedAt(1520 - 48));
+        Assert.DoesNotContain(AdvancedBar, item => item.Name is "ArchiveCloseReader" or "ArchiveGalleryReturn" or "ArchiveMediaReturn" or "ArchiveBackButton");
     }
 
     [Fact]

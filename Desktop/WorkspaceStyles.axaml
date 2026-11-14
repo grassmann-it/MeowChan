@@ -1257,6 +1257,10 @@
     <!-- icon-square (P6): the one icon-only button. Input height in both directions, the icon centred, no text; every use gives it a
          tooltip and an accessible name. Menus ("more"; Plugins list and detail), close buttons in a surface, the remove
          cross of a row and a refresh beside a field use it. -->
+    <!-- HeaderBar (Controls/HeaderBar.cs): the way out of a row sits at its top right edge, also when the start content wraps. -->
+    <Style Selector="controls|HeaderBar > Button">
+        <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
     <Style Selector="Button.icon-square">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />

@@ -1072,6 +1072,7 @@ public partial class ArchivePage : UserControl
             if (control is Button button) button.Content = Texts.T(key);
         }
         LocalizeThreadFind();
+        MeowChan.Desktop.Controls.HeaderBar.MakeClose(ClosePreviewButton, Texts.T("action.close"), CommandBindings.Tooltip("preview.close"));
         LocalizeUnifiedSearch();
         LocalizeReaderView();
         LocalizePrivateTags();
