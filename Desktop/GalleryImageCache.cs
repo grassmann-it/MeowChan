@@ -21,10 +21,13 @@ namespace MeowChan.Desktop;
 /// </summary>
 internal sealed class GalleryImageCache<T> where T : class, IDisposable
 {
-    private sealed class Slot(string key, T bitmap, GalleryImageInfo info, PixelSize size, Func<bool>? stillValid)
+    private sealed class Slot(string key, T bitmap, GalleryImageInfo info, PixelSize size, Func<bool>? stillValid,
+        GalleryImageCache.FileValidity? source)
     {
         /// <summary>Checked at every use: false when the file the image was decoded from has changed since, which drops the image.</summary>
         internal Func<bool>? StillValid { get; } = stillValid;
+        /// <summary>The occurrence the image was decoded from, when known; lets a request that just proved this very occurrence skip a second stat.</summary>
+        internal GalleryImageCache.FileValidity? Source { get; } = source;
         internal string Key { get; } = key;
         internal T Bitmap { get; } = bitmap;
         internal GalleryImageInfo Info { get; } = info;
@@ -40,6 +43,11 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
     // The decoder verifies a file once; later cache validation compares its regular-file identity
     // and uses this memory instead of hashing an unchanged original on every scroll.
     internal VerifiedFileMemo VerifiedFiles { get; } = new();
+    /// <summary>
+    /// Reads the regular-file identity of an original (<see cref="RegularProfileFile.TryGetIdentity"/>). It is a blocking file-system
+    /// call, so <c>GalleryImageCache.DecodeThrough</c> only calls it on the thread pool; tests observe the calling thread here.
+    /// </summary>
+    internal Func<string, RegularProfileFileIdentity?> IdentityOf { get; init; } = RegularProfileFile.TryGetIdentity;
     private readonly Dictionary<string, Slot> _byKey = new(StringComparer.Ordinal);
     private readonly Dictionary<T, Slot> _byBitmap = new(ReferenceEqualityComparer.Instance);
     private readonly LinkedList<Slot> _recent = new(); // front: most recently used
@@ -89,7 +97,22 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
     internal bool TryAcquire(string key, GalleryDecodeRequest.Fit fit, out T bitmap, out GalleryImageInfo info,
         Func<bool>? currentValid = null)
     {
-        if (FindValid(key, fit, currentValid) is { } slot)
+        return TryLease(FindValid(key, fit, currentValid, null), out bitmap, out info);
+    }
+
+    /// <summary>
+    /// Like the <c>TryAcquire</c> above for a request whose
+    /// own occurrence was confirmed current just now: <paramref name="proven"/> was captured, or re-checked after its proof, immediately
+    /// before, so it is not read again. The kept image's own source occurrence is still checked, unless it is that same occurrence
+    /// (same path and identity) and therefore covered by the same fresh check.
+    /// </summary>
+    internal bool TryAcquire(string key, GalleryDecodeRequest.Fit fit, out T bitmap, out GalleryImageInfo info,
+        GalleryImageCache.FileValidity proven) =>
+        TryLease(FindValid(key, fit, null, proven), out bitmap, out info);
+
+    private bool TryLease(Slot? found, out T bitmap, out GalleryImageInfo info)
+    {
+        if (found is { } slot)
             lock (_gate)
                 if (!slot.Evicted)
                 {
@@ -108,7 +131,7 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
     /// </summary>
     internal long Touch(string key, GalleryDecodeRequest.Fit fit, Func<bool>? currentValid = null)
     {
-        if (FindValid(key, fit, currentValid) is not { } slot) return -1;
+        if (FindValid(key, fit, currentValid, null) is not { } slot) return -1;
         lock (_gate)
         {
             if (slot.Evicted) return -1;
@@ -126,8 +149,9 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
     // The kept image of these bytes that covers the target and whose source file is unchanged. The source file of the requested
     // entry is checked separately: a bytes-key may be shared by another folder, but an unverified requested original is never a hit.
     // Both file checks run outside the lock. A failed currentValid check does not evict the slot because it may remain valid for its
-    // own source occurrence and can be reused after that occurrence is proven.
-    private Slot? FindValid(string key, GalleryDecodeRequest.Fit fit, Func<bool>? currentValid)
+    // own source occurrence and can be reused after that occurrence is proven. A freshly proven requested occurrence is not read
+    // again, and stands in for the slot's own check when it is the slot's source occurrence.
+    private Slot? FindValid(string key, GalleryDecodeRequest.Fit fit, Func<bool>? currentValid, GalleryImageCache.FileValidity? proven)
     {
         Slot? slot;
         lock (_gate)
@@ -135,8 +159,12 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
             if (!_byKey.TryGetValue(key, out slot) || !Covers(slot, fit)) return null;
         }
         bool valid;
-        try { valid = slot.StillValid?.Invoke() ?? true; }
-        catch (Exception) { valid = false; }
+        if (proven != null && slot.Source is { } source && source.IsSameOccurrence(proven)) valid = true;
+        else
+        {
+            try { valid = slot.StillValid?.Invoke() ?? true; }
+            catch (Exception) { valid = false; }
+        }
         if (!valid)
         {
             T? dead = null;
@@ -159,7 +187,17 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
     /// <paramref name="stillValid"/> (optional) is asked at every later use; when it says false the image is dropped, so a file that
     /// changed after it was verified and decoded is never shown from here. The result is the bitmap to show.
     /// </summary>
-    internal T Add(string key, T bitmap, GalleryImageInfo info, Func<bool>? stillValid = null)
+    internal T Add(string key, T bitmap, GalleryImageInfo info, Func<bool>? stillValid = null) =>
+        AddCore(key, bitmap, info, stillValid, null);
+
+    /// <summary>
+    /// The <c>Add</c> above for an image decoded from <paramref name="source"/>: the image is kept
+    /// only while that exact occurrence is current, and a later request that proves the same occurrence needs no second stat.
+    /// </summary>
+    internal T Add(string key, T bitmap, GalleryImageInfo info, GalleryImageCache.FileValidity source) =>
+        AddCore(key, bitmap, info, source.IsCurrent, source);
+
+    private T AddCore(string key, T bitmap, GalleryImageInfo info, Func<bool>? stillValid, GalleryImageCache.FileValidity? source)
     {
         PixelSize size = _sizeOf(bitmap);
         List<T> dropped = new();
@@ -184,7 +222,7 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
             else if (GalleryImageCache.BytesOf(size) <= _budget)
             {
                 if (existing != null && Evict(existing) is { } replaced) dropped.Add(replaced);
-                Slot slot = new(key, bitmap, info, size, stillValid) { Leases = 1 };
+                Slot slot = new(key, bitmap, info, size, stillValid, source) { Leases = 1 };
                 slot.Node = _recent.AddFirst(slot);
                 _byKey[key] = slot;
                 _byBitmap[bitmap] = slot;
@@ -280,15 +318,21 @@ internal static class GalleryImageCache
     /// <summary>
     /// The identity captured before a decode. A regular file identity includes the object identity and status-change metadata,
     /// not only length and write time, so same-length rewrites and rename-over replacements cannot retain a warm image.
+    /// Reading the identity is a blocking file-system call (a sleeping disk or a network share can stall it); the gallery cache
+    /// path calls it only on the thread pool.
     /// </summary>
     internal sealed class FileValidity
     {
-        internal FileValidity(string path, long length, string sha256, RegularProfileFileIdentity identity)
+        private readonly Func<string, RegularProfileFileIdentity?> _identityOf;
+
+        internal FileValidity(string path, long length, string sha256, RegularProfileFileIdentity identity,
+            Func<string, RegularProfileFileIdentity?>? identityOf = null)
         {
             Path = path;
             Length = length;
             Sha256 = sha256;
             Identity = identity;
+            _identityOf = identityOf ?? RegularProfileFile.TryGetIdentity;
         }
 
         internal string Path { get; }
@@ -296,11 +340,12 @@ internal static class GalleryImageCache
         internal string Sha256 { get; }
         internal RegularProfileFileIdentity Identity { get; }
 
+        /// <summary>Reads the file's identity again: true only while it is still exactly the captured regular file.</summary>
         internal bool IsCurrent()
         {
             try
             {
-                RegularProfileFileIdentity? current = RegularProfileFile.TryGetIdentity(Path);
+                RegularProfileFileIdentity? current = _identityOf(Path);
                 if (current is not { } value || value.Size != Length) return false;
                 return value == Identity;
             }
@@ -308,17 +353,26 @@ internal static class GalleryImageCache
         }
 
         internal bool IsVerified(VerifiedFileMemo memo) =>
-            IsCurrent() && memo.IsVerified(Path, Identity, Sha256);
+            IsCurrent() && IsRemembered(memo);
+
+        /// <summary>Whether this session fully verified exactly the captured identity; reads no file.</summary>
+        internal bool IsRemembered(VerifiedFileMemo memo) => memo.IsVerified(Path, Identity, Sha256);
+
+        /// <summary>The same path with the same regular-file identity; reads no file.</summary>
+        internal bool IsSameOccurrence(FileValidity other) =>
+            string.Equals(Path, other.Path, StringComparison.Ordinal) && Length == other.Length && Identity == other.Identity;
     }
 
-    internal static FileValidity? Capture(GalleryEntry entry)
+    internal static FileValidity? Capture(GalleryEntry entry) => Capture(entry, RegularProfileFile.TryGetIdentity);
+
+    private static FileValidity? Capture(GalleryEntry entry, Func<string, RegularProfileFileIdentity?> identityOf)
     {
         try
         {
             string path = entry.Asset.Path;
-            RegularProfileFileIdentity? identity = RegularProfileFile.TryGetIdentity(path);
+            RegularProfileFileIdentity? identity = identityOf(path);
             if (identity is not { } value || value.Size != entry.Asset.Length) return null;
-            return new FileValidity(path, entry.Asset.Length, entry.Asset.Sha256, value);
+            return new FileValidity(path, entry.Asset.Length, entry.Asset.Sha256, value, identityOf);
         }
         catch (Exception) { return null; }
     }
@@ -343,15 +397,17 @@ internal static class GalleryImageCache
     }
 
     /// <summary>
-    /// Checks an entry before a warm hit. An occurrence not remembered in this cache is fully verified once through the existing
-    /// manifest reader; unchanged remembered occurrences use only <see cref="RegularProfileFile.TryGetIdentity"/>. The stream is
-    /// deliberately not used for decoding: it is only the proof that permits sharing a bitmap made for identical bytes.
+    /// Checks an entry before a warm hit. <paramref name="validity"/> must have been captured immediately before (<c>Capture</c>):
+    /// an unchanged remembered occurrence is matched against that fresh identity without reading the file again. An occurrence not
+    /// remembered in this cache is fully verified once through the existing manifest reader and its identity is read once more
+    /// afterwards. The stream is deliberately not used for decoding: it is only the proof that permits sharing a bitmap made for
+    /// identical bytes. Every step may block on the file system; call it off the UI thread.
     /// </summary>
     internal static async Task<bool> VerifyForCacheAsync<T>(GalleryImageCache<T> cache, GalleryEntry entry, FileValidity validity,
         CancellationToken cancellationToken) where T : class, IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (validity.IsVerified(cache.VerifiedFiles)) return true;
+        if (validity.IsRemembered(cache.VerifiedFiles)) return true;
         try
         {
             await using Stream verified = await entry.Manifest.OpenSessionVerifiedReadAsync(
@@ -371,31 +427,58 @@ internal static class GalleryImageCache
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry, GalleryDecodeRequest request,
         CancellationToken cancellationToken) => DecodeThrough(Shared, GalleryImageDecoder.DecodeAsync, entry, request, cancellationToken);
 
+    /// <summary>
+    /// Shows a display-size request from <paramref name="cache"/> when the requested occurrence is proven, otherwise decodes it and
+    /// keeps the result. Callers start here on the UI thread (the viewer's decode queue), so everything that reads an original's
+    /// identity, verifies it or re-checks it after the decode runs on the thread pool: an image that is already in memory never waits
+    /// on a stalled disk or network share on the UI thread. A request cancelled before the result is handed out gets no bitmap and
+    /// holds no lease; an original that changed or disappeared is never answered from the cache.
+    /// </summary>
     internal static Task<(T Bitmap, GalleryImageInfo Info)> DecodeThrough<T>(GalleryImageCache<T> cache,
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(T Bitmap, GalleryImageInfo Info)>> decode,
         GalleryEntry entry, GalleryDecodeRequest request, CancellationToken cancellationToken) where T : class, IDisposable
     {
         if (request is not GalleryDecodeRequest.Fit fit || KeyOf(entry) is not { } key) return decode(entry, request, cancellationToken);
-        return DecodeOrHitAsync();
+        Func<string, RegularProfileFileIdentity?> identityOf = cache.IdentityOf;
+        // Task.Run (not Task.Yield, which resumes on the caller's context) moves the first stat off the caller's thread. No token
+        // is passed: a cancelled request surfaces as the OperationCanceledException thrown inside, like every other cancellation.
+        return Task.Run(() => DecodeOrHitAsync(), CancellationToken.None);
 
         async Task<(T Bitmap, GalleryImageInfo Info)> DecodeOrHitAsync()
         {
-            // A cold key must go directly to the decoder. For a warm bytes-key, prove this particular occurrence before sharing
-            // the bitmap; the slot's own validity check below independently protects its original occurrence.
-            if (cache.HasCandidate(key, fit)
-                && Capture(entry) is { } current
-                && await VerifyForCacheAsync(cache, entry, current, cancellationToken).ConfigureAwait(false))
+            cancellationToken.ThrowIfCancellationRequested();
+            FileValidity? validity;
+            // A cold key goes directly to the decoder. For a warm bytes-key, prove this particular occurrence before sharing the
+            // bitmap; the slot's own validity check independently protects its original occurrence. The capture is fresh when it
+            // reaches TryAcquire (directly, or re-read after a full verification), so the requested file is read once per hit.
+            if (cache.HasCandidate(key, fit))
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (cache.TryAcquire(key, fit, out T? hit, out GalleryImageInfo? info, current.IsCurrent)) return (hit, info);
+                validity = Capture(entry, identityOf);
+                if (validity != null && await VerifyForCacheAsync(cache, entry, validity, cancellationToken).ConfigureAwait(false))
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (cache.TryAcquire(key, fit, out T? hit, out GalleryImageInfo? info, validity))
+                    {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            cache.Release(hit); // cancelled while the slot was checked: hand out nothing, keep no lease
+                            cancellationToken.ThrowIfCancellationRequested();
+                        }
+                        return (hit, info);
+                    }
+                }
+                // A failed warm attempt still captured before the decoder opens the original; reuse it rather than read again.
             }
-            return await DecodeAndKeepAsync().ConfigureAwait(false);
+            else validity = Capture(entry, identityOf); // capture before the decoder opens the original
+            (T bitmap, GalleryImageInfo decodedInfo) = await decode(entry, request, cancellationToken).ConfigureAwait(false);
+            // A decoder may complete on a thread with a UI context, where this continuation then runs inline: re-check there no file.
+            return SynchronizationContext.Current is null
+                ? Keep(bitmap, decodedInfo, validity)
+                : await Task.Run(() => Keep(bitmap, decodedInfo, validity), CancellationToken.None).ConfigureAwait(false);
         }
 
-        async Task<(T Bitmap, GalleryImageInfo Info)> DecodeAndKeepAsync()
+        (T Bitmap, GalleryImageInfo Info) Keep(T bitmap, GalleryImageInfo decodedInfo, FileValidity? validity)
         {
-            FileValidity? validity = Capture(entry); // capture before the decoder opens the original
-            (T bitmap, GalleryImageInfo decodedInfo) = await decode(entry, request, cancellationToken).ConfigureAwait(false);
             try { cancellationToken.ThrowIfCancellationRequested(); }
             catch
             {
@@ -404,8 +487,15 @@ internal static class GalleryImageCache
             }
             // A decode may have raced a replace. Do not memoize or keep a bitmap whose source identity no longer matches.
             if (validity == null || !validity.IsCurrent()) return (bitmap, decodedInfo);
-            RememberVerified(cache, validity);
-            return (cache.Add(key, bitmap, decodedInfo, validity.IsCurrent), decodedInfo);
+            // Just confirmed current: the decoder's proof belongs to exactly this occurrence (as RememberVerified, without a second stat).
+            cache.VerifiedFiles.Remember(validity.Path, validity.Identity, validity.Sha256);
+            T shown = cache.Add(key, bitmap, decodedInfo, validity);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                cache.Release(shown); // stays kept for the next request if the set holds it; disposed otherwise
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            return (shown, decodedInfo);
         }
     }
 }
