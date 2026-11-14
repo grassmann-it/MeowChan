@@ -215,7 +215,7 @@ public partial class MainWindow
         _gallery.AssociationRequested += entry =>
         {
             int position = _galleryEntries.FindIndex(item => item.EntryKey == entry.EntryKey);
-            if (position >= 0) _galleryIndex = position;
+            if (position >= 0) { _galleryIndex = position; RefreshGalleryMediaTags(); }
         };
         ContentControl host = GalleryHost;
         host.Content = _gallery;

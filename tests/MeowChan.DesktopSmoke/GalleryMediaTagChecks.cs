@@ -65,6 +65,11 @@ internal static class GalleryMediaTagChecks
             KeyEventArgs newKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.T, KeyModifiers = primary | KeyModifiers.Shift };
             viewer.RaiseEvent(newKey);
             Require(newKey.Handled, "Ctrl+Shift+T did not reach the gallery's media tags.");
+            // TP2: the gallery opens the tag panel next to the picture; the full dialog is behind "Advanced...".
+            Require(viewer.IsTagPanelOpen && viewer.TagSurface != null && window.GalleryMediaTagWindow == null,
+                "Ctrl+Shift+T did not open the tag panel instead of the dialog.");
+            await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            viewer.TagSurface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;
             Require(dialog.Session.Target == target, "Dialog is not bound to the shown media version.");

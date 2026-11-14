@@ -3677,6 +3677,16 @@
     "budgets.quickTagSourceTags": "Tags de origem por arquivo de mídia",
     "budgets.quickTagSourceTagsHint": "Quantas das tags que uma fonte como o Danbooru lista para um arquivo de mídia são oferecidas como novas tags próprias. 0 desativa essas sugestões. Padrão: {0}, permitido: {1} a {2}.",
     "budgets.quickTagMarked": "Mídias marcadas para adicionar tags",
-    "budgets.quickTagMarkedHint": "Quantas mídias podem ser marcadas na galeria para receber tags em uma única etapa. O arquivo de tags mantém seu próprio limite fixo de atribuições. Padrão: {0}, permitido: {1} a {2}."
+    "budgets.quickTagMarkedHint": "Quantas mídias podem ser marcadas na galeria para receber tags em uma única etapa. O arquivo de tags mantém seu próprio limite fixo de atribuições. Padrão: {0}, permitido: {1} a {2}.",
+    "tags.quick.gallery.position": "Mídia {0} de {1}",
+    "tags.quick.gallery.positionMore": "Mídia {0} de pelo menos {1}",
+    "tags.quick.status.undoneAddOn": "Desfeito em {1}: “{0}” removida de novo.",
+    "tags.quick.status.undoneRemoveOn": "Desfeito em {1}: “{0}” atribuída de novo.",
+    "tags.quick.thread.heading": "Tags do tópico ({0})",
+    "tags.quick.thread.empty": "Este tópico ainda não tem tags. As tags do tópico marcam o tópico, não seus arquivos de mídia.",
+    "tags.quick.thread.hint": "As tags do tópico marcam o tópico, não seus arquivos de mídia. Clique em uma tag para removê-la.",
+    "tags.quick.thread.remove": "Remover a tag de tópico {0}",
+    "tags.quick.thread.field": "Adicionar uma tag de tópico",
+    "tags.quick.thread.chips": "Tags do tópico"
   }
 }

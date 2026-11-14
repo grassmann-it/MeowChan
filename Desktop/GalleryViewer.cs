@@ -335,7 +335,7 @@ internal sealed partial class GalleryViewer : UserControl
         _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
         _fit = Command(zoom, "GalleryFit", Texts.T("gallery.fit"), Fit);
         _actual = Command(zoom, "GalleryActual", "1:1", ActualPixels);
-        _contextToggle = (ToggleButton)Command(media, "GalleryToggleContext", Texts.T("gallery.context"), () => SetContextOpen(!_contextOpen));
+        _contextToggle = (ToggleButton)Command(media, "GalleryToggleContext", Texts.T("gallery.context"), ToggleContext);
         _favorite = (ToggleButton)Command(media, "GalleryFavorite", Texts.T("viewer.favorite.add"), ToggleFavorite);
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
         _readPosts.IsVisible = false;
@@ -825,6 +825,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (!hover && !open && notify) _suppressPostHoverUntilExit = true;
         if (_contextOpen == open) return;
         _contextOpen = open;
+        bool tagOnly = !open && ReleaseTagPanel(); // the slot closed under the tag panel: it goes, the post panel's preference stays
         // Deliberate reading stops automatic progression until explicit restart;
         // opening a panel is never permission to pause the native video itself.
         if (open) PauseSlideshow(pauseVideo: false);
@@ -834,7 +835,7 @@ internal sealed partial class GalleryViewer : UserControl
         UpdateContextButton();
         RefreshPlaybackControls();
         if (!open && (!hover || hadFocus)) FocusGallerySurface();
-        if (notify && !hover) ContextOpenChanged?.Invoke(open);
+        if (notify && !hover && !tagOnly) ContextOpenChanged?.Invoke(open);
     }
 
     private void ToggleFavorite()
@@ -858,9 +859,10 @@ internal sealed partial class GalleryViewer : UserControl
 
     private void UpdateContextButton()
     {
-        string label = Texts.T(_contextOpen ? "viewer.context.hide" : "viewer.context.show")
+        bool postOpen = PostContextVisible; // the tag panel in the slot does not make the post panel's toggle "open"
+        string label = Texts.T(postOpen ? "viewer.context.hide" : "viewer.context.show")
             + (CommandCatalog.ShortcutDisplay("gallery.context-toggle") is string gesture ? " · " + gesture : "");
-        _contextToggle.IsChecked = _contextOpen;
+        _contextToggle.IsChecked = postOpen;
         AutomationProperties.SetName(_contextToggle, label);
         ToolTip.SetTip(_contextToggle, label);
     }
@@ -1197,13 +1199,13 @@ internal sealed partial class GalleryViewer : UserControl
         _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
         if (_entry == null) { _context.Children.Clear(); _contextDirty = false; return; }
-        if (!_contextOpen) { _contextDirty = true; return; }
+        if (!PostContextVisible) { _contextDirty = true; return; }
         BuildContext();
     }
 
     private void EnsureContextCurrent()
     {
-        if (_contextDirty && _contextOpen) BuildContext();
+        if (_contextDirty && PostContextVisible) BuildContext();
     }
 
     private void BuildContext()
@@ -1335,6 +1337,7 @@ internal sealed partial class GalleryViewer : UserControl
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
+        if (_tagPanelOpen && RouteTagPanelKey(e)) return;
         // This is part of the existing gallery handler, not a second router. Only
         // actual owned transport sliders may opt into these four effective commands.
         if (_entry?.Kind == SavedMediaKind.Video && _video?.IsTransportInput(e.Source) == true)
@@ -1353,7 +1356,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (CommandBindings.Matches(e, "favorites.remove")) { RequestFavorite(false); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "favorites.toggle")) { RouteFavoriteToggleKey(e); return; }
         if (CommandBindings.Matches(e, "gallery.tools-toggle")) { SetMediaFocus(!_mediaFocus); e.Handled = true; return; }
-        if (CommandBindings.Matches(e, "gallery.context-toggle")) { SetContextOpen(!_contextOpen); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.context-toggle")) { ToggleContext(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.fit")) { Fit(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "gallery.actual-size")) { ActualPixels(); e.Handled = true; return; }
         // Matches already protects Button Space/Enter. A custom non-activation
@@ -1632,7 +1635,7 @@ internal sealed partial class GalleryViewer : UserControl
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
-        _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
+        ReleaseTagPanel(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
         // Native stop/disposal has completed. Release the overlay as a subtree;
         // never restore its help/context/chrome/transport to the attached main root.

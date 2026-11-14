@@ -3634,6 +3634,16 @@
     "budgets.quickTagSourceTags": "미디어당 소스 태그 수",
     "budgets.quickTagSourceTagsHint": "Danbooru 같은 소스가 미디어에 대해 나열한 태그 중 새 내 태그로 제안할 개수입니다. 0이면 이 제안을 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "budgets.quickTagMarked": "태그 지정용으로 표시해 둘 미디어 수",
-    "budgets.quickTagMarkedHint": "갤러리에서 표시해 두고 한 번에 태그를 지정할 수 있는 미디어의 개수입니다. 태그 파일의 할당 수에는 별도의 고정 한도가 그대로 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}."
+    "budgets.quickTagMarkedHint": "갤러리에서 표시해 두고 한 번에 태그를 지정할 수 있는 미디어의 개수입니다. 태그 파일의 할당 수에는 별도의 고정 한도가 그대로 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "tags.quick.gallery.position": "미디어 {0}/{1}",
+    "tags.quick.gallery.positionMore": "미디어 {0}/최소 {1}",
+    "tags.quick.status.undoneAddOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 제거했습니다.",
+    "tags.quick.status.undoneRemoveOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 지정했습니다.",
+    "tags.quick.thread.heading": "스레드 태그({0})",
+    "tags.quick.thread.empty": "이 스레드에는 아직 태그가 없습니다. 스레드 태그는 스레드 자체에 지정되며 미디어 파일에는 지정되지 않습니다.",
+    "tags.quick.thread.hint": "스레드 태그는 스레드 자체에 지정되며 미디어 파일에는 지정되지 않습니다. 태그를 클릭하면 제거됩니다.",
+    "tags.quick.thread.remove": "스레드 태그 {0} 제거",
+    "tags.quick.thread.field": "스레드 태그 추가",
+    "tags.quick.thread.chips": "스레드 태그"
   }
 }

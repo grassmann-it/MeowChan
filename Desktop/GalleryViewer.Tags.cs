@@ -8,7 +8,7 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 // Own tags of the shown media version. The viewer only shows state and raises a request for the
-// exact entry; the owner resolves the target, opens the dialog and reports the result back.
+// exact entry; the owner opens the tag panel (GalleryViewer.TagPanel.cs) for it and reports the result back.
 internal sealed partial class GalleryViewer
 {
     private Button _tagsButton = null!;
@@ -28,6 +28,7 @@ internal sealed partial class GalleryViewer
 
     private void RequestTags()
     {
+        if (_tagPanelOpen) { CloseTagPanel(); return; } // the same command that opened the panel closes it
         if (_entry is { } entry && _tagNames != null && CanRequestFavorite)
         {
             PauseSlideshow();

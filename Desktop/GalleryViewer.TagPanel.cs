@@ -1,0 +1,244 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Threading;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+
+namespace MeowChan.Desktop;
+
+// The quick tag panel (PLAN-SCHNELL-TAGGEN §1.1, decision E1): a side panel that takes the slot of the post panel. It is the same
+// bordered slot (_contextPanel), so its placement (docked from 900 dip, over the picture below), the auto-hide hold of the controls
+// while it is open, the work-view policy row "gallery.post-panel" and the focus handling are shared and not copied; only the child
+// of the slot changes. Post panel and tag panel exclude each other (P switches to the post panel, Ctrl+Shift+T to the tags).
+// The viewer shows state and raises requests; everything that touches the tag store lives in the owner (IGalleryTagPanelOwner).
+internal sealed partial class GalleryViewer
+{
+    private const string TagPanelName = "GalleryTagPanel";
+    private GalleryTagPanelController? _tagController;
+    private QuickTagSurface? _tagSurface;
+    private GalleryThreadTagSection? _threadSection;
+    private StackPanel? _tagExtra;
+    private TextBlock? _tagReason;
+    private IGalleryTagPanelOwner? _tagOwner;
+    private Control? _postContent;
+    private bool _tagPanelOpen;
+
+    /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
+    internal bool IsTagPanelOpen => _tagPanelOpen;
+    internal QuickTagSurface? TagSurface => _tagSurface;
+    internal GalleryTagPanelController? TagPanelController => _tagController;
+
+    // While the tag panel holds the slot the post context is neither built nor current.
+    private bool PostContextVisible => _contextOpen && !_tagPanelOpen;
+
+    /// <summary>
+    /// Opens the tag panel for the medium shown now (or focuses its field when it is open): it takes the slot of the post panel, follows
+    /// the gallery from medium to medium and stays open. No-op without a medium.
+    /// </summary>
+    internal void ShowTagPanel(IGalleryTagPanelOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (_terminalRetirement || _entry is not { } entry) return;
+        _tagOwner = owner;
+        if (_tagPanelOpen)
+        {
+            _tagSurface?.FocusField();
+            return;
+        }
+        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry);
+        QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, ReadSourceTags = owner.ReadSourceTags };
+        surface.Suggestions = controller.Suggestions;
+        surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
+        surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+        AnnounceCounter(surface);
+        _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
+        _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
+        _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
+        _tagExtra.Children.Add(_tagReason);
+        _tagExtra.Children.Add(_threadSection);
+        surface.ExtraContent = _tagExtra;
+        surface.CloseRequested += CloseTagPanel;
+        surface.AdvancedRequested += OnTagAdvancedRequested;
+        surface.NavigationRequested += OnTagNavigationRequested;
+        surface.ThreadSectionRequested += OnTagThreadSectionRequested;
+        controller.Suggestions.Ready += OnTagSuggestionsReady;
+        _tagController = controller;
+        _tagSurface = surface;
+        ShowUnavailableReason(controller.UnavailableReason);
+        surface.LoadSourceTags();
+        _postContent ??= _contextPanel.Child;
+        _tagPanelOpen = true;
+        _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
+        _contextPanel.Child = surface;
+        if (_contextOpen)
+        {
+            LayoutContext();
+            UpdateContextButton();
+            RefreshPlaybackControls();
+        }
+        else SetContextOpen(true, notify: false);
+    }
+
+    /// <summary>Closes the tag panel and gives the focus back to the picture.</summary>
+    internal void CloseTagPanel()
+    {
+        if (_tagPanelOpen) SetContextOpen(false, notify: false);
+    }
+
+    // Called when the slot closes or the viewer stops: gives the slot back to the post panel and ends every background step.
+    // True when a tag panel was released, so closing it does not rewrite the post panel's "open" preference.
+    private bool ReleaseTagPanel()
+    {
+        if (!_tagPanelOpen) return false;
+        _tagPanelOpen = false;
+        QuickTagSurface? surface = _tagSurface;
+        GalleryTagPanelController? controller = _tagController;
+        _tagSurface = null; _tagController = null; _tagOwner = null;
+        if (surface != null)
+        {
+            surface.CloseRequested -= CloseTagPanel;
+            surface.AdvancedRequested -= OnTagAdvancedRequested;
+            surface.NavigationRequested -= OnTagNavigationRequested;
+            surface.ThreadSectionRequested -= OnTagThreadSectionRequested;
+        }
+        if (controller != null) controller.Suggestions.Ready -= OnTagSuggestionsReady;
+        if (_contextPanel.Child == surface) _contextPanel.Child = _postContent;
+        _threadSection?.Dispose();
+        surface?.Dispose();
+        controller?.Dispose();
+        _threadSection = null; _tagExtra = null; _tagReason = null;
+        // The post context was not kept current meanwhile.
+        _contextDirty = true;
+        return true;
+    }
+
+    // P: while the tag panel holds the slot the post panel takes it over (and is remembered as open); otherwise the plain toggle.
+    private void ToggleContext()
+    {
+        if (!_tagPanelOpen) { SetContextOpen(!_contextOpen); return; }
+        ReleaseTagPanel();
+        EnsureContextCurrent();
+        LayoutContext();
+        UpdateContextButton();
+        RefreshPlaybackControls();
+        ContextOpenChanged?.Invoke(true);
+        FocusGallerySurface();
+    }
+
+    /// <summary>
+    /// The owner calls this after every medium change (and association switch): the open panel moves to the shown medium with a fresh
+    /// target frozen to exactly that entry, its file name and "Medium 4 of 27"; the undo stack and the field's text stay.
+    /// </summary>
+    internal void RetargetTagPanel(GalleryEntry entry)
+    {
+        if (!_tagPanelOpen || _tagController is not { } controller || _tagSurface is not { } surface || _tagOwner is not { } owner) return;
+        bool sameMedium = controller.Entry.EntryKey == entry.EntryKey;
+        if (sameMedium)
+        {
+            // Only the position may have changed (more threads resolved).
+            surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+            return;
+        }
+        bool hadFocus = surface.IsKeyboardFocusWithin;
+        GalleryTagPanelFrame frame = controller.Frame(entry);
+        surface.Retarget(frame.Target, frame.Label);
+        surface.CounterText = frame.Counter;
+        ShowUnavailableReason(frame.UnavailableReason);
+        if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
+        // The field stays focused while paging: a focus lost with the replaced chips returns to it.
+        if (hadFocus && !surface.IsKeyboardFocusWithin) surface.FocusField();
+    }
+
+    /// <summary>Reloads the open panel from the store (after the full dialog changed tags of the same medium).</summary>
+    internal void ReloadTagPanel()
+    {
+        if (!_tagPanelOpen || _tagSurface is not { } surface) return;
+        surface.Session.Target.Reload();
+        surface.Refresh();
+        if (_threadSection is { Model: { } model } section) { model.Reload(); section.Refresh(); }
+    }
+
+    private void ShowUnavailableReason(string? reason)
+    {
+        if (_tagReason == null) return;
+        _tagReason.Text = reason ?? string.Empty;
+        _tagReason.IsVisible = !string.IsNullOrEmpty(reason);
+    }
+
+    private void OnTagAdvancedRequested() => _tagController?.OpenAdvanced();
+
+    private void OnTagNavigationRequested(QuickTagNavigation navigation)
+    {
+        // Marking for a batch (Shift+Page Down/Up) is the batch package's; until it is wired it moves nothing.
+        int delta = GalleryTagPanelCommands.Delta(navigation);
+        if (delta != 0) Move(delta);
+    }
+
+    // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
+    private void OnTagThreadSectionRequested()
+    {
+        if (_threadSection is not { } section || _tagSurface is not { } surface || _tagController is not { } controller) return;
+        if (section.IsVisible && section.IsKeyboardFocusWithin)
+        {
+            section.IsVisible = false;
+            surface.FocusField();
+            return;
+        }
+        if (!section.IsVisible)
+        {
+            section.Model = controller.UnavailableReason == null ? controller.OpenThreadTags() : null;
+            section.IsVisible = true;
+        }
+        section.BringIntoView();
+        section.FocusInput();
+    }
+
+    // The strip is asked again once a warm-up or the neighbour mapping finished (worker thread).
+    private void OnTagSuggestionsReady()
+    {
+        QuickTagSurface? surface = _tagSurface;
+        if (surface == null) return;
+        Dispatcher.UIThread.Post(() => { if (ReferenceEquals(surface, _tagSurface)) surface.Refresh(); });
+    }
+
+    // "Medium 4 of 27" is announced politely when it changes.
+    private static void AnnounceCounter(QuickTagSurface surface)
+    {
+        foreach (Border counter in surface.Header.Children.OfType<Border>().Where(item => item.Name == TagPanelName + "Counter"))
+        {
+            AutomationProperties.SetLiveSetting(counter, AutomationLiveSetting.Polite);
+            if (counter.Child is TextBlock label) AutomationProperties.SetLiveSetting(label, AutomationLiveSetting.Polite);
+        }
+    }
+
+    /// <summary>
+    /// Routes the keys of the tag panel's commands (rebindable) while it is open, wherever the focus is. A key in a text field stays
+    /// with the field (CommandBindings.Matches leaves it), so the surface's own routing handles those. Returns true when handled.
+    /// </summary>
+    private bool RouteTagPanelKey(KeyEventArgs e)
+    {
+        if (!_tagPanelOpen || _tagSurface is not { } surface || e.Handled) return false;
+        // Escape closes an open suggestion list of the thread field before it closes the panel.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _threadSection is { Input: { IsDropDownOpen: true } input } && input.IsKeyboardFocusWithin)
+        {
+            input.Dismiss();
+            e.Handled = true;
+            return true;
+        }
+        // The command that opened the panel closes it again, also from inside the field.
+        if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
+        foreach (string id in GalleryTagPanelCommands.Handled)
+        {
+            if (!CommandBindings.Matches(e, id) || GalleryTagPanelCommands.RouteOf(id) is not { } route) continue;
+            if (surface.Execute(route)) e.Handled = true;
+            return e.Handled;
+        }
+        return false;
+    }
+}

@@ -3671,6 +3671,16 @@
     "budgets.quickTagSourceTags": "Etiquetas de origen por archivo multimedia",
     "budgets.quickTagSourceTagsHint": "Cuántas de las etiquetas que una fuente como Danbooru indica para un archivo multimedia se ofrecen como nuevas etiquetas propias. 0 las desactiva. Predeterminado: {0}, permitido: de {1} a {2}.",
     "budgets.quickTagMarked": "Medios marcados para etiquetar",
-    "budgets.quickTagMarkedHint": "Cuántos medios se pueden marcar en la galería y etiquetar en un solo paso. El archivo de etiquetas mantiene su propio límite fijo de asignaciones. Predeterminado: {0}, permitido: de {1} a {2}."
+    "budgets.quickTagMarkedHint": "Cuántos medios se pueden marcar en la galería y etiquetar en un solo paso. El archivo de etiquetas mantiene su propio límite fijo de asignaciones. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "tags.quick.gallery.position": "Archivo multimedia {0} de {1}",
+    "tags.quick.gallery.positionMore": "Archivo multimedia {0} de al menos {1}",
+    "tags.quick.status.undoneAddOn": "Deshecho en {1}: «{0}» se quitó de nuevo.",
+    "tags.quick.status.undoneRemoveOn": "Deshecho en {1}: «{0}» se asignó de nuevo.",
+    "tags.quick.thread.heading": "Etiquetas del hilo ({0})",
+    "tags.quick.thread.empty": "Este hilo aún no tiene etiquetas. Las etiquetas del hilo marcan el hilo, no sus archivos multimedia.",
+    "tags.quick.thread.hint": "Las etiquetas del hilo marcan el hilo, no sus archivos multimedia. Un clic en una etiqueta la quita.",
+    "tags.quick.thread.remove": "Quitar la etiqueta de hilo {0}",
+    "tags.quick.thread.field": "Añadir una etiqueta de hilo",
+    "tags.quick.thread.chips": "Etiquetas del hilo"
   }
 }

@@ -3671,6 +3671,16 @@
     "budgets.quickTagSourceTags": "Étiquettes source par média",
     "budgets.quickTagSourceTagsHint": "Le nombre d’étiquettes qu’une source telle que Danbooru fournit pour un média et qui sont proposées comme nouvelles étiquettes personnelles. 0 les désactive. Par défaut : {0}, autorisé : de {1} à {2}.",
     "budgets.quickTagMarked": "Médias marqués pour l’étiquetage",
-    "budgets.quickTagMarkedHint": "Le nombre de médias qui peuvent être marqués dans la galerie et étiquetés en une seule étape. Le fichier d’étiquettes conserve sa propre limite fixe d’attributions. Par défaut : {0}, autorisé : de {1} à {2}."
+    "budgets.quickTagMarkedHint": "Le nombre de médias qui peuvent être marqués dans la galerie et étiquetés en une seule étape. Le fichier d’étiquettes conserve sa propre limite fixe d’attributions. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "tags.quick.gallery.position": "Média {0} sur {1}",
+    "tags.quick.gallery.positionMore": "Média {0} sur au moins {1}",
+    "tags.quick.status.undoneAddOn": "Annulé sur {1} : « {0} » de nouveau retirée.",
+    "tags.quick.status.undoneRemoveOn": "Annulé sur {1} : « {0} » de nouveau attribuée.",
+    "tags.quick.thread.heading": "Étiquettes du fil ({0})",
+    "tags.quick.thread.empty": "Ce fil n’a pas encore d’étiquettes. Les étiquettes du fil marquent le fil, pas ses fichiers multimédias.",
+    "tags.quick.thread.hint": "Les étiquettes du fil marquent le fil, pas ses fichiers multimédias. Un clic sur une étiquette la retire.",
+    "tags.quick.thread.remove": "Retirer l’étiquette de fil {0}",
+    "tags.quick.thread.field": "Ajouter une étiquette de fil",
+    "tags.quick.thread.chips": "Étiquettes du fil"
   }
 }

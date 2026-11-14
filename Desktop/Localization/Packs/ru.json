@@ -3689,6 +3689,16 @@
     "tags.quick.reason.sameFileIn": "тот же файл в {0}",
     "tags.quick.reason.fileName": "из имени файла",
     "tags.quick.reason.title": "из заголовка треда",
-    "tags.quick.reason.sourceTag": "исходный тег"
+    "tags.quick.reason.sourceTag": "исходный тег",
+    "tags.quick.gallery.position": "Медиа {0} из {1}",
+    "tags.quick.gallery.positionMore": "Медиа {0} из не менее чем {1}",
+    "tags.quick.status.undoneAddOn": "Отменено для «{1}»: тег «{0}» снова снят.",
+    "tags.quick.status.undoneRemoveOn": "Отменено для «{1}»: тег «{0}» снова назначен.",
+    "tags.quick.thread.heading": "Теги треда ({0})",
+    "tags.quick.thread.empty": "У этого треда пока нет тегов. Теги треда относятся к самому треду, а не к его медиафайлам.",
+    "tags.quick.thread.hint": "Теги треда относятся к самому треду, а не к его медиафайлам. Щелчок по тегу снимает его.",
+    "tags.quick.thread.remove": "Снять тег треда {0}",
+    "tags.quick.thread.field": "Добавить тег треда",
+    "tags.quick.thread.chips": "Теги треда"
   }
 }

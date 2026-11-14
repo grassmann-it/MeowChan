@@ -44,7 +44,7 @@ public partial class MainWindow
         _gallery.CopyPathRequested += entry => _ = RunGalleryActionAsync(() => CopyMediaPathAsync(entry), entry.Key.ToString());
         _gallery.OpenExternalRequested += entry => _ = RunGalleryActionAsync(() => OpenMediaFileExternallyAsync(entry), entry.Key.ToString());
         _gallery.DetailsRequested += entry => _ = RunGalleryActionAsync(() => ShowGalleryDetailsAsync(entry), entry.Key.ToString());
-        _gallery.TagsRequested += entry => _ = RunGalleryActionAsync(() => EditGalleryMediaTagsAsync(entry), entry.Key.ToString());
+        _gallery.TagsRequested += entry => _ = RunGalleryActionAsync(() => { OpenGalleryTagPanel(); return Task.CompletedTask; }, entry.Key.ToString());
         // The gallery menu's provider post actions and its summary of unavailable actions, like the media page's.
         _gallery.ProviderPostUrl = GalleryProviderPostUrl;
         _gallery.ProviderPostOpenRequested += entry => _ = RunGalleryActionAsync(() => OpenGalleryProviderPostAsync(entry), entry.Key.ToString());

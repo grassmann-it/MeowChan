@@ -3715,6 +3715,16 @@
     "tags.quick.reason.sameFileIn": "ten sam plik w {0}",
     "tags.quick.reason.fileName": "z nazwy pliku",
     "tags.quick.reason.title": "z tytułu wątku",
-    "tags.quick.reason.sourceTag": "tag źródłowy"
+    "tags.quick.reason.sourceTag": "tag źródłowy",
+    "tags.quick.gallery.position": "Medium {0} z {1}",
+    "tags.quick.gallery.positionMore": "Medium {0} z co najmniej {1}",
+    "tags.quick.status.undoneAddOn": "Cofnięto dla {1}: „{0}” ponownie usunięto.",
+    "tags.quick.status.undoneRemoveOn": "Cofnięto dla {1}: „{0}” ponownie przypisano.",
+    "tags.quick.thread.heading": "Tagi wątku ({0})",
+    "tags.quick.thread.empty": "Ten wątek nie ma jeszcze tagów. Tagi wątku oznaczają wątek, a nie jego pliki multimedialne.",
+    "tags.quick.thread.hint": "Tagi wątku oznaczają wątek, a nie jego pliki multimedialne. Kliknięcie tagu usuwa go.",
+    "tags.quick.thread.remove": "Usuń tag wątku {0}",
+    "tags.quick.thread.field": "Dodaj tag wątku",
+    "tags.quick.thread.chips": "Tagi wątku"
   }
 }

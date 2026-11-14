@@ -153,7 +153,7 @@ internal enum QuickTagStatusKind { None, Added, Removed, UndoneAdd, UndoneRemove
 /// <summary>
 /// The status line: the last change (polite), its undo, or a refused write (assertive, kept until the next successful change).
 /// </summary>
-internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "", int Files = 0, string? MessageKey = null)
+internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "", int Files = 0, string? MessageKey = null, string? Medium = null)
 {
     internal static readonly QuickTagStatus None = new(QuickTagStatusKind.None);
     internal bool IsError => Kind is QuickTagStatusKind.Error or QuickTagStatusKind.Unavailable;
@@ -162,8 +162,9 @@ internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "",
     {
         QuickTagStatusKind.Added => Files > 1 ? Texts.Count("tags.dialog.addedMany", Files, Name, Files) : Texts.T("tags.dialog.added", Name),
         QuickTagStatusKind.Removed => Files > 1 ? Texts.Count("tags.dialog.removedMany", Files, Name, Files) : Texts.T("tags.dialog.removed", Name),
-        QuickTagStatusKind.UndoneAdd => Texts.T("tags.quick.status.undoneAdd", Name),
-        QuickTagStatusKind.UndoneRemove => Texts.T("tags.quick.status.undoneRemove", Name),
+        // An undo that reached a step of another medium (the gallery panel moved on) names that medium.
+        QuickTagStatusKind.UndoneAdd => Medium == null ? Texts.T("tags.quick.status.undoneAdd", Name) : Texts.T("tags.quick.status.undoneAddOn", Name, Medium),
+        QuickTagStatusKind.UndoneRemove => Medium == null ? Texts.T("tags.quick.status.undoneRemove", Name) : Texts.T("tags.quick.status.undoneRemoveOn", Name, Medium),
         QuickTagStatusKind.Error => Texts.T(MessageKey ?? "tags.error.other"),
         QuickTagStatusKind.Unavailable => Texts.T("tags.unavailable"),
         _ => string.Empty
@@ -183,6 +184,8 @@ internal sealed record QuickTagAssignment(PrivateTagDefinition Tag, TagToggleSta
 internal sealed class QuickTagSession : IDisposable
 {
     private readonly List<TagDialogChange> _undo = new();
+    // Where each step was made (the target and the host's name for it), so an undo can say when it reaches another medium.
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, StepOrigin> _origins = new();
     private IQuickTagTarget _target;
     private bool _running;
     private bool _disposed;
@@ -195,6 +198,9 @@ internal sealed class QuickTagSession : IDisposable
     }
 
     internal IQuickTagTarget Target => _target;
+    /// <summary>The host's name for the medium of the target (the gallery panel: the file name); set before <see cref="Retarget"/>.
+    /// Steps remember it, and an undo of a step made on another target names that medium in the status. Null: never named.</summary>
+    internal string? Label { get; set; }
     internal int UndoDepth { get; }
     /// <summary>The undoable steps, oldest first; the last one is undone next.</summary>
     internal IReadOnlyList<TagDialogChange> UndoSteps => _undo;
@@ -279,6 +285,8 @@ internal sealed class QuickTagSession : IDisposable
         if (!CanUndo) return;
         TagDialogChange change = _undo[^1];
         IQuickTagTarget target = _target;
+        string? medium = _origins.TryGetValue(change, out StepOrigin? origin) && !ReferenceEquals(origin.Target, target)
+            && !string.IsNullOrWhiteSpace(origin.Label) ? origin.Label : null;
         _running = true;
         Updated?.Invoke();
         try { await target.RevertAsync(change, token); }
@@ -291,7 +299,7 @@ internal sealed class QuickTagSession : IDisposable
         else
         {
             _undo.Remove(change);
-            _status = new QuickTagStatus(change.Assigned ? QuickTagStatusKind.UndoneAdd : QuickTagStatusKind.UndoneRemove, change.Name, change.Subjects.Count);
+            _status = new QuickTagStatus(change.Assigned ? QuickTagStatusKind.UndoneAdd : QuickTagStatusKind.UndoneRemove, change.Name, change.Subjects.Count, Medium: medium);
         }
         Updated?.Invoke();
     }
@@ -300,6 +308,7 @@ internal sealed class QuickTagSession : IDisposable
     {
         if (!Ready) return;
         IQuickTagTarget target = _target;
+        string? label = Label;
         TagDialogChange? before = target.LastChange;
         _running = true;
         Updated?.Invoke();
@@ -310,6 +319,7 @@ internal sealed class QuickTagSession : IDisposable
         else if (target.LastChange is { } change && !ReferenceEquals(change, before))
         {
             Push(change);
+            _origins.AddOrUpdate(change, new StepOrigin(target, label));
             applied = change;
             _status = new QuickTagStatus(change.Assigned ? QuickTagStatusKind.Added : QuickTagStatusKind.Removed, change.Name, change.Subjects.Count);
         }
@@ -326,6 +336,8 @@ internal sealed class QuickTagSession : IDisposable
     }
 
     private void OnTargetUpdated() { if (!_disposed) Updated?.Invoke(); }
+
+    private sealed record StepOrigin(IQuickTagTarget Target, string? Label);
 
     public void Dispose()
     {

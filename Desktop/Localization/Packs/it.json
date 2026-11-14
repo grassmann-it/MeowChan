@@ -3677,6 +3677,16 @@
     "budgets.quickTagSourceTags": "Tag della fonte per file multimediale",
     "budgets.quickTagSourceTagsHint": "Quanti dei tag elencati da una fonte come Danbooru per un file multimediale vengono proposti come nuovi tag personali. 0 disattiva questi suggerimenti. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "budgets.quickTagMarked": "Media contrassegnati per i tag",
-    "budgets.quickTagMarkedHint": "Quanti media possono essere contrassegnati nella galleria per assegnare loro tag in un solo passaggio. Il file dei tag mantiene il proprio limite fisso di assegnazioni. Valore predefinito: {0}, consentiti: da {1} a {2}."
+    "budgets.quickTagMarkedHint": "Quanti media possono essere contrassegnati nella galleria per assegnare loro tag in un solo passaggio. Il file dei tag mantiene il proprio limite fisso di assegnazioni. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "tags.quick.gallery.position": "Media {0} di {1}",
+    "tags.quick.gallery.positionMore": "Media {0} di almeno {1}",
+    "tags.quick.status.undoneAddOn": "Annullato su {1}: «{0}» rimosso di nuovo.",
+    "tags.quick.status.undoneRemoveOn": "Annullato su {1}: «{0}» assegnato di nuovo.",
+    "tags.quick.thread.heading": "Tag del thread ({0})",
+    "tags.quick.thread.empty": "Questo thread non ha ancora tag. I tag del thread contrassegnano il thread, non i suoi file multimediali.",
+    "tags.quick.thread.hint": "I tag del thread contrassegnano il thread, non i suoi file multimediali. Un clic su un tag lo rimuove.",
+    "tags.quick.thread.remove": "Rimuovi il tag del thread {0}",
+    "tags.quick.thread.field": "Aggiungi un tag del thread",
+    "tags.quick.thread.chips": "Tag del thread"
   }
 }

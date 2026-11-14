@@ -33,7 +33,10 @@ public static class QuickTagCommands
 
     /// <summary>Ids whose handler is wired. The package that wires one (TP2 panel, TP3 popover) adds it here: the command then
     /// counts as implemented, its default gesture becomes active and the gallery help lists it.</summary>
-    private static readonly string[] Wired = Array.Empty<string>();
+    // TP2 wired the gallery panel: paging, commit-and-next, the thread section, undo and the nine toggles (GalleryTagPanelCommands.Handled).
+    // Still unwired: the batch marking (mark-next, mark-previous) of the marking package, and the popover of TP3 for the other contexts.
+    private static readonly string[] Wired = new[] { Next, Previous, CommitNext, ThreadSection, Undo }
+        .Concat(Enumerable.Range(1, SuggestionCount).Select(Suggestion)).ToArray();
 
     /// <summary>Registered commands whose handler is not wired yet.</summary>
     public static IReadOnlySet<string> AwaitingHandler { get; } = new HashSet<string>(All.Except(Wired), StringComparer.Ordinal);
