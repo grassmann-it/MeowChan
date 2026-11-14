@@ -1,7 +1,9 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
@@ -79,6 +81,8 @@ public sealed class BooruSortLocalizationLifetimeTests
         object? previousDispatcher = primary.GetValue(null);
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
+        using IDisposable scope = AvaloniaLocator.EnterScope();
+        AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
         try
         {
             primary.SetValue(null, owner);
