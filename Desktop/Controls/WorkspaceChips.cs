@@ -1,13 +1,16 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.VisualTree;
 using Avalonia.Media;
 using MeowChan.Desktop.Localization;
+using Ursa.Controls;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -213,6 +216,121 @@ internal static class WorkspaceChips
         public void OnNext(bool value) => ShowSelection(check, value);
         public void OnError(Exception error) { }
         public void OnCompleted() { }
+    }
+
+    // ---- M2 filter term chips ----------------------------------------------------------------------------------------
+
+    /// <summary>The name of the include/exclude switch inside a negatable term chip (tests and smokes find it by this name).</summary>
+    internal const string TermToggleName = "MediaFilterTagToggle";
+
+    private sealed class ChipCommand(Action action) : System.Windows.Input.ICommand
+    {
+        public event EventHandler? CanExecuteChanged { add { } remove { } }
+        public bool CanExecute(object? parameter) => true;
+        public void Execute(object? parameter) => action();
+    }
+
+    /// <summary>
+    /// M2: the one chip of an applied or drafted filter value, on the media page and in the archive. A chip is <c>chip chip-filter</c>,
+    /// an exclusion additionally <c>chip-exclude</c> (its label says "Without …"); the chip's own close mark removes it.
+    /// <para>A <paramref name="negatable"/> chip (tag, type, source, board) also carries a 20×20 switch in front of the label, and a click
+    /// on its body does the same (E4): both call <paramref name="toggle"/>. Enter or Space on the chip switches as well, Delete or
+    /// Backspace removes. <paramref name="valueName"/> is what the switch names ("Switch to exclude: surface").</para>
+    /// <para>Every other chip only removes: Enter, Space, Delete or Backspace remove it, as before.</para>
+    /// <para><paramref name="menu"/> adds the chip's context menu: Include · Exclude (negatable chips), Remove and, when the page offers
+    /// one, Edit… (<paramref name="edit"/>: opens the filter picker on the chip's field).</para>
+    /// The content is a TextBlock (plain chip) or a StackPanel of the switch and the TextBlock; <see cref="TermChipLabel"/> reads both.
+    /// </summary>
+    internal static ClosableTag CreateTermChip(string label, bool negatable, bool exclude, Action remove, Action? toggle = null,
+        string? valueName = null, bool menu = false, Action? edit = null)
+    {
+        ArgumentNullException.ThrowIfNull(remove);
+        if (negatable) ArgumentNullException.ThrowIfNull(toggle);
+        TextBlock text = new() { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis };
+        ClosableTag tag = new() { Content = text, Command = new ChipCommand(remove), Focusable = true };
+        MarkFilter(tag, exclude);
+        MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
+        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit);
+        if (!negatable)
+        {
+            string accessible = Texts.T("archive.removeFilter", label);
+            ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
+            tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space or Key.Delete or Key.Back) { e.Handled = true; remove(); } };
+            return tag;
+        }
+        string name = Texts.T(exclude ? "tags.filter.toInclude" : "tags.filter.toExclude", valueName ?? label);
+        Avalonia.Controls.Shapes.Path glyph = new()
+        {
+            Width = 12, Height = 12, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round,
+            VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
+        };
+        string geometry = exclude ? MarkMissing : "M6,2 L6,10 M2,6 L10,6";
+        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Geometry.Parse(geometry);
+        Button button = new()
+        {
+            Name = TermToggleName, Content = glyph, Width = 20, Height = 20, MinWidth = 0, MinHeight = 0, Padding = new Thickness(0),
+            Background = Brushes.Transparent, BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center, HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
+        glyph.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, button.GetObservable(TemplatedControl.ForegroundProperty));
+        button.Click += (_, e) => { e.Handled = true; toggle!(); };
+        ToolTip.SetTip(button, name); AutomationProperties.SetName(button, name);
+        tag.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { button, text } };
+        // The chip names its value and state (the label says "Without …"); what a click and the keys do is its help and tooltip.
+        string help = Texts.T("media.filter.chip.help");
+        ToolTip.SetTip(tag, help);
+        AutomationProperties.SetName(tag, label);
+        AutomationProperties.SetHelpText(tag, help);
+        tag.KeyDown += (_, e) =>
+        {
+            if (e.Key is Key.Enter or Key.Space) { e.Handled = true; toggle!(); }
+            else if (e.Key is Key.Delete or Key.Back) { e.Handled = true; remove(); }
+        };
+        // E4: a click on the body switches; a press on the switch or on the close mark is theirs (both are buttons inside the chip).
+        tag.AddHandler(InputElement.TappedEvent, (_, e) =>
+        {
+            if (!TapSwitches(e.Source as Visual, tag)) return;
+            e.Handled = true;
+            toggle!();
+        }, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
+        return tag;
+    }
+
+    /// <summary>Whether a tap that started on <paramref name="source"/> is a click on the chip's body: not on a button inside it (the switch, the close mark).</summary>
+    internal static bool TapSwitches(Visual? source, Visual chip) =>
+        source == null || !source.GetSelfAndVisualAncestors().TakeWhile(visual => !ReferenceEquals(visual, chip)).OfType<Button>().Any();
+
+    /// <summary>The text of a term chip (plain or with its switch), or empty.</summary>
+    internal static string TermChipLabel(ClosableTag tag) =>
+        (tag.Content as TextBlock ?? (tag.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault())?.Text ?? string.Empty;
+
+    /// <summary>The include/exclude switch of a negatable term chip, or null for a plain chip.</summary>
+    internal static Button? TermChipToggle(ClosableTag tag) => (tag.Content as StackPanel)?.Children.OfType<Button>().FirstOrDefault();
+
+    // The entries are a fixed array (ItemsSource), not the menu's own Items list: a list would observe its changes on the UI thread only.
+    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit)
+    {
+        List<Control> items = new();
+        MenuItem Item(string name, string header, Action action) => new() { Name = name, Header = header, Command = new ChipCommand(action) };
+        if (negatable)
+        {
+            // The current state is checked; choosing it again changes nothing.
+            items.Add(new MenuItem
+            {
+                Name = "FilterChipInclude", Header = Texts.T("tags.filter.include"), ToggleType = MenuItemToggleType.Radio, IsChecked = !exclude,
+                Command = new ChipCommand(() => { if (exclude) toggle!(); })
+            });
+            items.Add(new MenuItem
+            {
+                Name = "FilterChipExclude", Header = Texts.T("tags.filter.exclude"), ToggleType = MenuItemToggleType.Radio, IsChecked = exclude,
+                Command = new ChipCommand(() => { if (!exclude) toggle!(); })
+            });
+            items.Add(new Separator());
+        }
+        items.Add(Item("FilterChipRemove", Texts.T("media.filter.chip.remove"), remove));
+        if (edit != null) items.Add(Item("FilterChipEdit", Texts.T("media.filter.chip.edit"), edit));
+        return new ContextMenu { ItemsSource = items.ToArray() };
     }
 
     private static T Add<T>(T control, params string?[] classes) where T : Control

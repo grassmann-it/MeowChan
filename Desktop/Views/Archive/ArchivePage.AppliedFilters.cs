@@ -19,59 +19,20 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private sealed class FilterTagCommand(Action action) : ICommand
-    {
-        public event EventHandler? CanExecuteChanged { add { } remove { } }
-        public bool CanExecute(object? parameter) => true;
-        public void Execute(object? parameter) => action();
-    }
     /// <summary>A removable filter value; C1 styles it as <c>chip chip-filter</c>, an exclusion additionally as <c>chip-exclude</c>.</summary>
-    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false)
-    {
-        string accessible = Texts.T("archive.removeFilter", label);
-        ClosableTag tag = new()
-        {
-            Content = new TextBlock { Text = label, MaxWidth = 320, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
-            Command = new FilterTagCommand(remove), Focusable = true
-        };
-        WorkspaceChips.MarkFilter(tag, exclude);
-        ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
-        MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
-        return tag;
-    }
+    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false) =>
+        WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove);
     /// <summary>The text of a filter chip, whether it is a plain chip or a tag chip with its include/exclude toggle.</summary>
-    internal static string FilterTagLabel(ClosableTag tag) =>
-        (tag.Content as TextBlock ?? (tag.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault())?.Text ?? string.Empty;
+    internal static string FilterTagLabel(ClosableTag tag) => WorkspaceChips.TermChipLabel(tag);
 
     /// <summary>
     /// A tag chip with its state (S1/M2): the chip says "Tag: x" (included) or "Without tag: x" (excluded, <c>chip-exclude</c>), a small
-    /// toggle button in front of the text switches between the two, and the chip's own close mark removes the tag. The toggle is
-    /// the explicit route; switching by a click on the chip body is a follow-up the owner has not decided.
+    /// toggle button in front of the text and a click on the chip body (E4) switch between the two, and the chip's own close mark
+    /// removes the tag. The one chip model of the media page (<see cref="WorkspaceChips.CreateTermChip"/>), with its context menu.
     /// </summary>
     internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle)
     {
-        ClosableTag tag = CreateFilterTag(label, remove, exclude);
-        TextBlock text = (TextBlock)tag.Content!;
-        string name = Texts.T(exclude ? "tags.filter.toInclude" : "tags.filter.toExclude", tagName);
-        Avalonia.Controls.Shapes.Path glyph = new()
-        {
-            Width = 12, Height = 12, Stretch = Avalonia.Media.Stretch.None, StrokeThickness = 1.5, StrokeLineCap = Avalonia.Media.PenLineCap.Round,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false
-        };
-        string geometry = exclude ? WorkspaceChips.MarkMissing : "M6,2 L6,10 M2,6 L10,6";
-        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Avalonia.Media.Geometry.Parse(geometry);
-        Button button = new()
-        {
-            Name = "MediaFilterTagToggle", Content = glyph, Width = 20, Height = 20, MinWidth = 0, MinHeight = 0, Padding = new Avalonia.Thickness(0),
-            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = new Avalonia.Thickness(0),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        glyph.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, Avalonia.AvaloniaObjectExtensions.GetObservable(button, TemplatedControl.ForegroundProperty));
-        button.Click += (_, e) => { e.Handled = true; toggle(); };
-        ToolTip.SetTip(button, name); AutomationProperties.SetName(button, name);
-        tag.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, Children = { button, text } };
+        ClosableTag tag = WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true);
         tag.Tag = id;
         return tag;
     }
