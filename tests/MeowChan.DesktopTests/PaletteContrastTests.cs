@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using MeowChan.Desktop.Theming;
 
 namespace MeowChan.DesktopTests;
 
@@ -294,16 +295,13 @@ public sealed class PaletteContrastTests
 
     private static double Composite(string foregroundHex, string surfaceKey, double opacity, string underKey)
     {
-        string surface = Color("Light", surfaceKey), under = Color("Light", underKey);
-        string chip = Blend(surface, under, opacity), label = Blend(foregroundHex, under, opacity);
-        return Contrast(label, chip);
+        return ContrastRules.CompositeContrast(foregroundHex, Color("Light", surfaceKey), opacity, Color("Light", underKey));
     }
 
     private static double CompositeOver(string fillKey, string underKey, double opacity) =>
         Contrast(Blend(Color("Light", fillKey), Color("Light", underKey), opacity), Color("Light", underKey));
 
-    private static string Blend(string top, string under, double alpha) => "#" + string.Concat(Enumerable.Range(0, 3).Select(index =>
-        ((int)Math.Round(Channel(top, index) * alpha + Channel(under, index) * (1 - alpha))).ToString("X2", CultureInfo.InvariantCulture)));
+    private static string Blend(string top, string under, double alpha) => ContrastRules.Blend(top, under, alpha);
 
     [Fact]
     public void LightScrollbarThumbsReadOnTheSurfacesTheyScrollOver()
@@ -343,6 +341,10 @@ public sealed class PaletteContrastTests
         // Blend in sRGB space like the compositor does, then measure the result against the card.
         string dimmed = "#" + string.Concat(Enumerable.Range(1, 3).Select(index =>
             ((int)Math.Round(Channel(under, index - 1) * (1 - alpha) + Channel(scrim, index) * alpha)).ToString("X2", CultureInfo.InvariantCulture)));
+        Assert.Equal(dimmed, ContrastRules.CompositeOver(scrim, under));
+        ContrastRule rule = Assert.Single(ContrastRules.For(Base(theme)), rule => rule.Backdrop == "Workspace.Background");
+        Assert.Equal(minimum, rule.Minimum);
+        Assert.Empty(ContrastRules.Check(Palette(theme), new[] { rule }));
         double ratio = Contrast(Color(theme, "Workspace.Panel"), dimmed);
         Assert.True(ratio >= minimum, $"{theme}: dialog card on the dimmed background is {ratio:0.00}:1, needs {minimum:0.0}:1");
     }
@@ -548,42 +550,29 @@ public sealed class PaletteContrastTests
 
     private static void AssertContrast(string theme, string foreground, string background, double minimum)
     {
+        // Every original assertion is retained as a contract pin. It must also exist, with the exact same
+        // minimum and state keys, in the reusable product data and pass through the product checker.
+        ContrastRule rule = Assert.Single(ContrastRules.For(Base(theme)), rule => rule.Foreground == foreground &&
+            rule.Background == background && rule.Minimum == minimum && rule.Backdrop == null);
+        Assert.Empty(ContrastRules.Check(Palette(theme), new[] { rule }));
         double ratio = Contrast(Color(theme, foreground), Color(theme, background));
         Assert.True(ratio >= minimum, $"{theme}: {foreground} on {background} is {ratio:0.00}:1, needs {minimum:0.0}:1");
     }
 
-    private static double Contrast(string first, string second)
-    {
-        double a = Luminance(first), b = Luminance(second);
-        return (Math.Max(a, b) + 0.05) / (Math.Min(a, b) + 0.05);
-    }
+    private static double Contrast(string first, string second) => ContrastRules.Contrast(first, second);
 
-    private static double[] Linear(string hex) => Enumerable.Range(0, 3).Select(index =>
-    {
-        double value = int.Parse(hex.AsSpan(1 + index * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture) / 255d;
-        return value <= 0.04045 ? value / 12.92 : Math.Pow((value + 0.055) / 1.055, 2.4);
-    }).ToArray();
+    private static double DeltaE(string first, string second) => ContrastRules.DeltaE(first, second);
 
-    private static double Luminance(string hex)
-    {
-        double[] c = Linear(hex);
-        return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-    }
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void ResolvedPalettePassesAllProductContrastRules(string theme) =>
+        Assert.Empty(ContrastRules.Check(Palette(theme)));
 
-    private static double[] Lab(string hex)
-    {
-        double[] c = Linear(hex);
-        double x = (0.4124 * c[0] + 0.3576 * c[1] + 0.1805 * c[2]) / 0.95047;
-        double y = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
-        double z = (0.0193 * c[0] + 0.1192 * c[1] + 0.9505 * c[2]) / 1.08883;
-        static double F(double t) => t > 0.008856 ? Math.Cbrt(t) : 7.787 * t + 16d / 116;
-        return new[] { 116 * F(y) - 16, 500 * (F(x) - F(y)), 200 * (F(y) - F(z)) };
-    }
+    private static ContrastTheme Base(string theme) => Enum.Parse<ContrastTheme>(theme);
 
-    private static double DeltaE(string first, string second)
+    private static ContrastPalette Palette(string theme)
     {
-        double[] a = Lab(first), b = Lab(second);
-        return Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]) + (a[2] - b[2]) * (a[2] - b[2]));
+        XElement dictionary = Assert.Single(Styles().Descendants(A + "ResourceDictionary"), element => (string?)element.Attribute(X + "Key") == theme);
+        return new(Base(theme), dictionary.Elements().ToDictionary(element => (string)element.Attribute(X + "Key")!, element => element.Value.Trim(), StringComparer.Ordinal));
     }
 
     private static string Color(string theme, string key) =>
