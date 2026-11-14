@@ -16,7 +16,7 @@ internal enum DiagnosticOperation { Thread, Board, Media, Capture, Selection, St
 /// </summary>
 internal static class DiagnosticFailurePresentation
 {
-    internal static string WatchUrl(string url) => Texts.T("diagnostics.observed.watchUrl") + ": " + url;
+    internal static string WatchUrl(string url) => Redact(Texts.T("diagnostics.observed.watchUrl") + ": " + url);
 
     internal static string Operation(DiagnosticOperation operation) =>
         Texts.T("diagnostics.observed.operation") + ": " + Texts.T(operation switch
@@ -59,7 +59,7 @@ internal static class DiagnosticFailurePresentation
 
     /// <summary>Headline and message on one line: the form used where space is short (Sources detail, media list).</summary>
     internal static string Line(FailureInfo failure, DiagnosticOperation operation) =>
-        Headline(failure, operation) + " · " + failure.Message;
+        Redact(Headline(failure, operation) + " · " + failure.Message);
 
     /// <summary>
     /// Downloads inspector form: the headline, the same observed-result sentences Diagnostics shows, then the
@@ -70,7 +70,7 @@ internal static class DiagnosticFailurePresentation
         List<string> lines = new() { Headline(failure, operation) };
         lines.AddRange(Facts(failure, operation).Select(fact => fact.Long));
         lines.Add(failure.Message);
-        return string.Join(Environment.NewLine, lines);
+        return Redact(string.Join(Environment.NewLine, lines));
     }
 
     internal static string Format(FailureInfo failure, DiagnosticOperation operation,
@@ -102,19 +102,19 @@ internal static class DiagnosticFailurePresentation
                 || failure.HttpStatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.NotFound
                 ? Next("diagnostics.observed.checkSourceRetry", retry)
             : Next("diagnostics.observed.retry", retry));
-        return string.Join(Environment.NewLine, lines);
+        return Redact(string.Join(Environment.NewLine, lines));
     }
 
     internal static string FormatRequest(DiagnosticOperation operation, RequestPolicyProgress progress, string status) =>
-        string.Join(Environment.NewLine, Operation(operation), Texts.T("diagnostics.observed.evidence") + ":",
+        Redact(string.Join(Environment.NewLine, Operation(operation), Texts.T("diagnostics.observed.evidence") + ":",
             status, Texts.T("diagnostics.attempt", progress.Attempt),
-            Next(IsWaiting(progress) ? "diagnostics.observed.wait" : "diagnostics.observed.checkSource"));
+            Next(IsWaiting(progress) ? "diagnostics.observed.wait" : "diagnostics.observed.checkSource")));
 
     internal static string FormatStorage(string path, string reason, DateTimeOffset nextCheckAt) =>
-        string.Join(Environment.NewLine, Operation(DiagnosticOperation.Storage), path,
+        Redact(string.Join(Environment.NewLine, Operation(DiagnosticOperation.Storage), path,
             Texts.T("diagnostics.observed.evidence") + ":", reason,
             Texts.T("targets.nextCheck", nextCheckAt.ToLocalTime()),
-            Next("diagnostics.observed.checkStorage", RetryButton(DiagnosticOperation.Storage)));
+            Next("diagnostics.observed.checkStorage", RetryButton(DiagnosticOperation.Storage))));
 
     internal static string FormatWork(ThreadWorkSnapshot work, string existingDetails)
     {
@@ -156,8 +156,10 @@ internal static class DiagnosticFailurePresentation
             lines.Add(Operation(DiagnosticOperation.Capture));
             lines.Add(Next("diagnostics.observed.retry", RetryButton(DiagnosticOperation.Capture)));
         }
-        return string.Join(Environment.NewLine, lines);
+        return Redact(string.Join(Environment.NewLine, lines));
     }
+
+    private static string Redact(string text) => DesktopLog.RedactText(text);
 
     private static string FormatTime(DateTimeOffset value) => value.ToLocalTime().ToString("g", Texts.Culture);
 

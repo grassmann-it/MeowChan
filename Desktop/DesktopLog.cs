@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Text;
 using MeowChan.Booru;
 using Serilog;
 using Serilog.Events;
@@ -23,12 +23,112 @@ internal static class DesktopLog
 
     // Render first: exceptions, nested properties and literal message text can all echo an input URL.
     // This is output redaction only; never use it to change a request, watch identity or provider query.
-    // Queries pasted into Add may contain unencoded spaces. Conservatively include the rest of
-    // that line, not just a whitespace-delimited URL token (which could leave the secret behind).
-    private static readonly Regex HttpUrl = new(@"https?://[^\r\n]+",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-    internal static string RedactText(string text) =>
-        HttpUrl.Replace(text, match => DanbooruAddress.RedactForLog(match.Value));
+    // A linear scan is deliberate: log text is untrusted and a backtracking regex here would make
+    // an error path an avoidable CPU sink. A relevant URL consumes its line remainder because Add
+    // queries may contain unencoded spaces; unrelated URL prefixes remain visible.
+    internal static string RedactText(string text)
+    {
+        if (text.Length == 0) return text;
+
+        StringBuilder? redacted = null;
+        int copyFrom = 0;
+        int searchFrom = 0;
+        while (true)
+        {
+            int start = FindHttpStart(text, searchFrom);
+            if (start < 0) break;
+            int tokenEnd = FindHttpTokenEnd(text, start);
+            if (tokenEnd <= start)
+            {
+                searchFrom = start + 1;
+                continue;
+            }
+
+            if (!IsDanbooruUrl(text, start, tokenEnd))
+            {
+                searchFrom = tokenEnd;
+                continue;
+            }
+
+            int lineEnd = FindLineEnd(text, start);
+            redacted ??= new StringBuilder(text.Length);
+            redacted.Append(text, copyFrom, start - copyFrom);
+            redacted.Append(DanbooruAddress.RedactForLog(text.Substring(start, tokenEnd - start)));
+            copyFrom = lineEnd;
+            searchFrom = lineEnd;
+        }
+
+        return redacted == null ? text : redacted.Append(text, copyFrom, text.Length - copyFrom).ToString();
+    }
+
+    private static int FindHttpStart(string text, int start)
+    {
+        if (start >= text.Length) return -1;
+        int http = text.IndexOf("http://", start, StringComparison.OrdinalIgnoreCase);
+        int https = text.IndexOf("https://", start, StringComparison.OrdinalIgnoreCase);
+        return http < 0 ? https : https < 0 ? http : Math.Min(http, https);
+    }
+
+    private static int FindHttpTokenEnd(string text, int start)
+    {
+        int end = start;
+        while (end < text.Length && !char.IsWhiteSpace(text[end]))
+        {
+            if (end > start && IsHttpStartAt(text, end)) return end;
+            end++;
+        }
+        return end;
+    }
+
+    private static bool IsHttpStartAt(string text, int index) =>
+        text.AsSpan(index).StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+        || text.AsSpan(index).StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    private static int FindLineEnd(string text, int start)
+    {
+        int end = start;
+        while (end < text.Length && text[end] is not ('\r' or '\n')) end++;
+        return end;
+    }
+
+    private static bool IsDanbooruUrl(string text, int start, int tokenEnd)
+    {
+        int schemeLength = text.AsSpan(start).StartsWith("https://", StringComparison.OrdinalIgnoreCase) ? 8 : 7;
+        int authorityStart = start + schemeLength;
+        int authorityEnd = authorityStart;
+        while (authorityEnd < tokenEnd && text[authorityEnd] is not ('/' or '?' or '#')) authorityEnd++;
+        while (authorityEnd > authorityStart && IsAuthorityPunctuation(text[authorityEnd - 1])) authorityEnd--;
+        if (authorityEnd <= authorityStart) return false;
+
+        // Strip userinfo and an optional port without parsing the query/path. This keeps a very
+        // long pasted credential bounded to one linear pass and does not mistake a host mention
+        // in a foreign URL's path or userinfo for the destination host.
+        int hostStart = authorityStart;
+        for (int index = authorityEnd - 1; index >= authorityStart; index--)
+        {
+            if (text[index] == '@')
+            {
+                hostStart = index + 1;
+                break;
+            }
+        }
+        int hostEnd = authorityEnd;
+        int port = -1;
+        for (int index = hostEnd - 1; index > hostStart; index--)
+        {
+            if (text[index] == ':')
+            {
+                port = index;
+                break;
+            }
+        }
+        if (port > hostStart) hostEnd = port;
+        ReadOnlySpan<char> host = text.AsSpan(hostStart, hostEnd - hostStart);
+        return host.Equals(DanbooruPostReference.MetadataHost, StringComparison.OrdinalIgnoreCase)
+            || host.Equals(DanbooruPostReference.SafebooruHost, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAuthorityPunctuation(char value) => value is '.' or ',' or ';' or '!' or ')' or ']' or '}';
 
     internal static ITextFormatter ConsoleFormatter { get; } =
         new AddressRedactingFormatter("[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
