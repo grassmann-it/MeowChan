@@ -21,6 +21,8 @@
           <Button x:Name="PluginsRefresh" wv:WorkViewElement.Id="plugins.header.refresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" wv:WorkViewElement.Id="plugins.header.review-repairs" Click="OnReviewBundledRepairsClick" />
+          <!-- HB2: trust, when a change applies and what an image filter may access. -->
+          <controls:HelpButton x:Name="PluginsHelpButton" HelpKey="help.plugins" />
           <!-- What the work view moved off this row (add file, plugin folder): shown only when something is there. -->
           <Button x:Name="PluginsMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnPluginsMoreClick" />
         </WrapPanel>

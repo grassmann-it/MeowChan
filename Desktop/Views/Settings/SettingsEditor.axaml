@@ -86,7 +86,10 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <StackPanel VerticalAlignment="Center" Spacing="4">
-                                <TextBlock x:Name="WorkspaceModeFieldLabel" Text="{Binding WorkspaceModeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock x:Name="WorkspaceModeFieldLabel" Text="{Binding WorkspaceModeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <controls:HelpButton x:Name="WorkspaceModeHelpButton" Grid.Column="1" HelpKey="help.workviews" />
+                                </Grid>
                                 <TextBlock Text="{Binding ModeHint}" Classes="workspace-help" />
                             </StackPanel>
                             <ComboBox x:Name="WorkspaceModeInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=WorkspaceModeFieldLabel}" AutomationProperties.Name="{Binding WorkspaceModeLabel}" AutomationProperties.HelpText="{Binding ModeHint}" Grid.Column="1" HorizontalAlignment="Stretch"
@@ -577,7 +580,10 @@
                     </Expander>
                 </StackPanel>
                 <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
-                    <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" VerticalAlignment="Center" Classes="section-title" />
+                        <controls:HelpButton x:Name="StorageLimitsHelpButton" Grid.Column="1" HelpKey="help.limits" />
+                    </Grid>
                     <Button x:Name="ResetWorkerBudgetsButton" Tag="settings.worker-budgets" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetWorkerBudgetsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                     <StackPanel x:Name="ProfileFolderRow" Classes="workspace-field" Spacing="4">
@@ -1151,7 +1157,10 @@
                     <Button x:Name="ResetBehaviorButton" Tag="settings.behavior" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetBehaviorLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <Expander x:Name="SettingsBehaviorGroup" wv:WorkViewElement.Id="settings.group.behavior" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsBehaviorBody" Spacing="8" Margin="0,8,0,0">
-                    <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" VerticalAlignment="Center" />
+                        <controls:HelpButton x:Name="BoardAdmissionHelpButton" Grid.Column="1" HelpKey="help.admissionWizard" />
+                    </Grid>
                     <CheckBox x:Name="MonitorClipboardUrlsInput" IsChecked="{Binding MonitorClipboardUrls, Mode=TwoWay}" AutomationProperties.Name="{Binding MonitorClipboardLabel}" AutomationProperties.HelpText="{Binding MonitorClipboardHint}">
                         <TextBlock Text="{Binding MonitorClipboardLabel}" TextWrapping="Wrap" />
                     </CheckBox>
@@ -1164,7 +1173,10 @@
                             <!-- An unavailable row stays readable but is visibly set apart; its tooltip names the switch it depends on. -->
                             <Style Selector="TextBlock.workspace-field-label:disabled"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
                         </StackPanel.Styles>
-                        <TextBlock x:Name="SettingsStatisticsHeading" Text="{Binding StatisticsTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <TextBlock x:Name="SettingsStatisticsHeading" Text="{Binding StatisticsTitle}" VerticalAlignment="Center" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <controls:HelpButton x:Name="StatisticsSettingsHelpButton" Grid.Column="1" HelpKey="help.statsSettings" />
+                        </Grid>
                         <TextBlock Text="{Binding StatisticsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                             <StackPanel VerticalAlignment="Center" Spacing="4">

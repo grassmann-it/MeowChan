@@ -24,12 +24,14 @@
       <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*">
         <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge. -->
         <StackPanel x:Name="RulesHeader" Margin="0,0,0,8" MaxWidth="880" HorizontalAlignment="Center">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
                 <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
                     <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
-                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="1" Classes="primary" VerticalAlignment="Top"
+                <!-- HB2: the precedence line stays as the subtitle; the popover adds what the line cannot say. -->
+                <controls:HelpButton x:Name="RulesHelpButton" Grid.Column="1" HelpKey="help.rules" VerticalAlignment="Top" />
+                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="2" Classes="primary" VerticalAlignment="Top"
                         IsVisible="{Binding IsOverviewVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
             </Grid>
         </StackPanel>

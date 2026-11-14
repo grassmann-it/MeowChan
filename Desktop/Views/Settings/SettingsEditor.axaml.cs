@@ -15,6 +15,7 @@ using System.Threading.Tasks;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Updates;
 
 namespace MeowChan
@@ -216,6 +217,7 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
             ShortcutsEditor.Host = this;
