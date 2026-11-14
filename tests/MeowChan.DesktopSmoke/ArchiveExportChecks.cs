@@ -7,6 +7,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
@@ -287,21 +288,9 @@ internal static class ArchiveExportChecks
                 {
                     Texts.SetLanguage(language);
                     Application.Current!.RequestedThemeVariant = theme;
-                    await Program.WaitUntilAsync(() =>
-                    {
-                        window.UpdateLayout();
-                        Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
-                        Border card = (Border)dialog.Child!;
-                        ScrollViewer body = card.GetVisualDescendants().OfType<ScrollViewer>().First();
-                        return PresentationChecks.MatchesRequestedSize(window, width, height)
-                            && page.Bounds.Width > 0 && page.Bounds.Height > 0
-                            && dialog.Bounds.Width <= page.Bounds.Width + 1
-                            && Fits(window, page.FindControl<Button>("ArchiveExportClose")!)
-                            && Fits(window, page.FindControl<Button>("ArchiveExportOpen")!)
-                            && Fits(window, page.FindControl<Button>("ArchiveExportStart")!)
-                            && card.Bounds.Width <= 680 && body.Viewport.Height > 30
-                            && body.Extent.Width <= body.Viewport.Width + 1;
-                    });
+                    await Program.WaitUntilAsync(
+                        () => CompactExportLayoutReady(window, page, width, height),
+                        () => DescribeCompactExportLayout(window, page, width, height));
                     Program.CaptureWindow(window, $"smoke-export-{mode.ToLowerInvariant()}-{language}-{theme.ToString().ToLowerInvariant()}.png");
                 }
             }
@@ -314,6 +303,62 @@ internal static class ArchiveExportChecks
             window.Width = widthBefore; window.Height = heightBefore; window.UpdateLayout();
         }
     }
+    private static bool CompactExportLayoutReady(MainWindow expectedOwner, ArchivePage page, double width, double height)
+    {
+        expectedOwner.UpdateLayout();
+        page.UpdateLayout();
+        Window? owner = TopLevel.GetTopLevel(page) as Window;
+        if (!ReferenceEquals(owner, expectedOwner)) return false;
+
+        Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
+        if (dialog.Child is not Border card) return false;
+        // Resize the actual overlay/card after the owner has acknowledged the native resize. The
+        // dialog owns the scroll body; updating only the page can leave the card on its old measure
+        // during the first pass after a mode or window-size change.
+        dialog.UpdateLayout();
+        card.UpdateLayout();
+        ScrollViewer? body = card.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(viewer => viewer.Name == DialogFrame.BodyName);
+        if (body == null) return false;
+        Control dialogHost = dialog.Parent as Control ?? page;
+        return PresentationChecks.MatchesRequestedSize(owner, width, height)
+            && page.Bounds.Width > 0 && page.Bounds.Height > 0
+            && dialog.IsEffectivelyVisible && dialogHost.Bounds.Width > 0 && dialogHost.Bounds.Height > 0
+            && dialog.Bounds.Width <= dialogHost.Bounds.Width + 1
+            && Fits(owner, page.FindControl<Button>("ArchiveExportClose")!)
+            && Fits(owner, page.FindControl<Button>("ArchiveExportOpen")!)
+            && Fits(owner, page.FindControl<Button>("ArchiveExportStart")!)
+            && card.Bounds.Width <= 680 + 1 && body.Viewport.Height > 30
+            && body.Extent.Width <= body.Viewport.Width + 1;
+    }
+
+    private static string DescribeCompactExportLayout(MainWindow expectedOwner, ArchivePage page, double width, double height)
+    {
+        expectedOwner.UpdateLayout();
+        Window? owner = TopLevel.GetTopLevel(page) as Window;
+        Border? dialog = page.FindControl<Border>("ArchiveExportDialog");
+        Border? card = dialog?.Child as Border;
+        ScrollViewer? body = card?.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(viewer => viewer.Name == DialogFrame.BodyName);
+        Control? dialogHost = dialog?.Parent as Control;
+        Button? close = page.FindControl<Button>("ArchiveExportClose");
+        Button? open = page.FindControl<Button>("ArchiveExportOpen");
+        Button? start = page.FindControl<Button>("ArchiveExportStart");
+        string FitState(Control? control) => owner == null || control == null
+            ? "missing"
+            : Fits(owner, control).ToString();
+        string Geometry(Control? control) => control == null ? "missing" : control.Bounds.ToString();
+        return $"requested={width}x{height}; actual={owner?.Bounds.Size.ToString() ?? "none"}; "
+            + $"ownerMatch={ReferenceEquals(owner, expectedOwner)}; page={Geometry(page)}; "
+            + $"dialog={Geometry(dialog)}; host={Geometry(dialogHost)}; card={Geometry(card)}; "
+            + $"body={Geometry(body)}; viewport={body?.Viewport.ToString() ?? "none"}; extent={body?.Extent.ToString() ?? "none"}; "
+            + $"visible={dialog?.IsEffectivelyVisible.ToString() ?? "missing"}; "
+            + $"fits=close:{FitState(close)},open:{FitState(open)},start:{FitState(start)}; "
+            + $"cardWidth={card?.Bounds.Width.ToString() ?? "missing"}; "
+            + $"bodyHeight={body?.Viewport.Height.ToString() ?? "missing"}; "
+            + $"bodyHorizontalOverflow={(body == null ? "missing" : (body.Extent.Width - body.Viewport.Width).ToString())}";
+    }
+
     private static bool Fits(Window window, Control control)
     {
         Point? point = control.TranslatePoint(default, window);
