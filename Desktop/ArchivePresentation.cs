@@ -123,6 +123,8 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     /// preview width. The post layout and the previews read it, so the larger image is one measured width and not a per-pass guess.
     /// </summary>
     public int MediaWidth { get; init; }
+    /// <summary>The images are laid out as a grid of two columns (R11); otherwise every image has a line of its own.</summary>
+    public bool MediaGrid { get; init; }
 
     // Reader view (plan P0). Each row is built for one page of the projection and never changes afterwards.
     /// <summary>Index in the thread read (not the shown position).</summary>

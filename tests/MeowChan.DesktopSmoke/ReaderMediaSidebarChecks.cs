@@ -103,9 +103,14 @@ internal static class ReaderMediaSidebarChecks
                     "Choosing the next thumbnail did not move the mark and the counter.");
                 page.SelectMediaSidebarIndex(0);
                 await Program.WaitUntilAsync(() => page.MediaSidebarIndex == 0 && sidebar.StripCurrent == 0);
-                if (ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body))
-                    Require(several.MediaWidth > 0 && several.Attachments.All(row => row.ThumbnailWidth == ReaderMediaMultiRules.TileWidth(several.MediaWidth)),
+                // M4/N7: the grid flag of the row is what the panel reads; a row is a grid only with little text AND two tiles that fit the column.
+                if (several.MediaGrid)
+                    Require(ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body, several.MediaWidth) && several.MediaWidth > 0
+                        && several.Attachments.All(row => row.ThumbnailWidth == ReaderMediaMultiRules.TileWidth(several.MediaWidth)),
                         "A post with several images and little text is not laid out as a grid.");
+                else
+                    Require(!ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body) || several.MediaWidth == 0 || !ReaderMediaMultiRules.TilesFit(several.MediaWidth),
+                        "A post that fits the grid rules must be a grid.");
             }
             ArchivePostRow? single = rows.FirstOrDefault(row => row.ShowsMedia && row.Attachments.Count == 1);
             if (single != null)

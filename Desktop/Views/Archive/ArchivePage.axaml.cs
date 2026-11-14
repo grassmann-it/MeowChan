@@ -575,8 +575,9 @@ public partial class ArchivePage : UserControl
             : 0;
         // R11: several images and little text make a two-column grid (the media column keeps its width; each tile is half of it).
         int shownImages = stub || context.HideMedia ? 0 : post.Attachments?.Count ?? 0;
-        bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text);
         int columnWidth = textlessWidth > 0 ? textlessWidth : ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, _largeReader);
+        // Only when two tiles fit into the column (N7): below that the images keep their ordinary width, one per line.
+        bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text, columnWidth);
         int tileWidth = grid ? ReaderMediaMultiRules.TileWidth(columnWidth) : textlessWidth;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
             : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task, tileWidth)).ToArray());
@@ -602,6 +603,7 @@ public partial class ArchivePage : UserControl
             IsRevealed = (verdict.Marks & ReaderPostMarks.Revealed) != 0,
             MediaHidden = context.HideMedia && attachments.Count > 0,
             MediaWidth = grid ? columnWidth : textlessWidth,
+            MediaGrid = grid,
             SuppressReplyToggle = context.SuppressReplyToggle
         };
     }

@@ -532,8 +532,8 @@
                                                         </WrapPanel>
                                                         <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}" MediaWidth="{Binding MediaWidth}">
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
-                                                                <!-- R11: a wrap panel; one file per line unless the post's tiles are half the media column (grid of two columns). -->
-                                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="0" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                <!-- R11: one file per line, except in a post laid out as a grid (two columns); the panel reads that from the post. -->
+                                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><desktop:ReaderMediaPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
                                                                         <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
