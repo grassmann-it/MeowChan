@@ -47,7 +47,11 @@ internal static class ReaderMediaSidebarChecks
             Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
                 && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "Tab does not reach the sidebar.");
             Require(Grid.GetColumn(sidebar) == 0 && Grid.GetColumn(pane) == 2, "The default side is not left.");
-            Require(Math.Abs(frame.ColumnDefinitions[0].ActualWidth - page.ReaderMedia.SidebarWidth) <= 1, "The sidebar does not have its configured width.");
+            // The column takes its width in the next layout pass after the sidebar is shown.
+            await Program.WaitUntilAsync(() => Math.Abs(frame.ColumnDefinitions[0].ActualWidth - page.ReaderMedia.SidebarWidth) <= 1,
+                () => "The sidebar does not have its configured width: column " + frame.ColumnDefinitions[0].ActualWidth + " (" + frame.ColumnDefinitions[0].Width
+                    + ", min " + frame.ColumnDefinitions[0].MinWidth + ", max " + frame.ColumnDefinitions[0].MaxWidth + "), configured " + page.ReaderMedia.SidebarWidth
+                    + ", frame " + frame.Bounds.Size + ", sidebar " + sidebar.Bounds.Size + ", window " + window.Bounds.Size);
 
             // A post with media: its picture (or an explaining placeholder) shows, decoded through the gallery cache.
             ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();

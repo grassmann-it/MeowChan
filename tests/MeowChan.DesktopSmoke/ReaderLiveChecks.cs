@@ -86,7 +86,10 @@ internal static class ReaderLiveChecks
                 "The disabled live entry does not name its missing cause.");
             await catalog.CaptureAsync(Snapshot(6));
             await page.CheckReaderUpdatesAsync();
-            Require(page.CurrentThread!.PostCount == 5 && show.IsVisible, "An unobserved archive thread auto-followed new content.");
+            Require(page.CurrentThread!.PostCount == 5, "An unobserved archive thread auto-followed new content: " + page.CurrentThread.PostCount + " posts.");
+            await Program.WaitUntilAsync(() => show.IsVisible, () => "no new-post notice for the unobserved thread; posts " + page.CurrentThread?.PostCount
+                + ", follow " + page.FollowLive + ", selected " + (posts.SelectedItem as ArchivePostRow)?.Id);
+            Require(page.CurrentThread!.PostCount == 5, "An unobserved archive thread auto-followed new content after the notice.");
             ResourceId other = id with { Thread = "8000" };
             await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(other, "https://boards.4chan.org/g/thread/8000", "Other thread", media, false));
             await page.LoadThreadAsync(other);

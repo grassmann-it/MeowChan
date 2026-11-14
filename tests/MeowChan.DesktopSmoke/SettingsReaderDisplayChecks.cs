@@ -14,6 +14,7 @@ using SkiaSharp;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
@@ -50,28 +51,49 @@ internal static class SettingsReaderDisplayChecks
             await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.Bounds.Width > 0);
             await SettingsSectionChecks.OpenAsync(editor, "settings.reading-media");
 
+            // The reader fields sit in the page's "More settings" group, folded in this work view: open it as a user would. A folded
+            // expander takes its content out of the visual tree (Avalonia 12) and a detached control keeps a stale
+            // IsEffectivelyVisible, so "shown" is "attached and effectively visible".
+            Expander group = editor.FindControl<Expander>("SettingsReadingMediaGroup")!;
+            group.IsExpanded = true;
             Expander longPosts = editor.FindControl<Expander>("ReaderLongPostsSettings")!;
+            await Program.WaitUntilAsync(() => Shown(longPosts), () => "the reading and media group did not open: " + group.IsExpanded);
             Require(!longPosts.IsExpanded, "The long-posts expander is open by default.");
             Require(editor.FindControl<NumericUpDown>("ReaderThumbnailWidthInput")!.Value == Config.ReaderThumbnailWidthDefault,
                 "The reader thumbnail draft did not start at its component default.");
-            Require(!editor.FindControl<NumericUpDown>("GalleryFitMaxUpscalePercentInput")!.IsEffectivelyVisible,
+            Require(!Shown(editor.FindControl<NumericUpDown>("GalleryFitMaxUpscalePercentInput")!),
                 "The gallery cap is visible while unlimited fitting is selected.");
 
             longPosts.IsExpanded = true;
-            await Program.WaitUntilAsync(() => editor.FindControl<NumericUpDown>("ReaderFoldLinesInput")!.IsEffectivelyVisible);
+            await Program.WaitUntilAsync(() => Shown(editor.FindControl<NumericUpDown>("ReaderFoldLinesInput")!));
             window.UpdateLayout();
             foreach ((string name, int value) in ReaderValues)
                 SetNumber(editor, name, value);
             Select(editor.ReaderDateStyleChoices, "SinceOp", item => editor.SelectedReaderDateStyle = item);
             Select(editor.ReaderSpoilersChoices, "Hover", item => editor.SelectedReaderSpoilers = item);
 
+            // Folding takes the fields out of the visual tree; a re-attached number box shows its committed value. A user commits a
+            // typed field (Enter, or leaving it for the group header) before folding; do the same.
+            NumericUpDown foldLines = editor.FindControl<NumericUpDown>("ReaderFoldLinesInput")!;
+            foreach (NumericUpDown typed in longPosts.GetLogicalDescendants().OfType<NumericUpDown>())
+            {
+                // Enter in the field commits it, as leaving it does.
+                Control box = (Control?)typed.GetVisualDescendants().OfType<TextBox>().FirstOrDefault() ?? typed;
+                box.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, Source = box });
+            }
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(foldLines.Value == 36 && editor.ReaderFoldLines == 36, "Committing the fold-lines field did not take its draft: " + foldLines.Value + ", text " + foldLines.Text);
             longPosts.IsExpanded = false;
-            await Program.WaitUntilAsync(() => !editor.FindControl<NumericUpDown>("ReaderFoldLinesInput")!.IsEffectivelyVisible);
+            await Program.WaitUntilAsync(() => !Shown(foldLines),
+                () => "long posts expanded " + longPosts.IsExpanded + ", presenter visible " + longPosts.Presenter?.IsVisible + ", error " + editor.HasError + " " + editor.ErrorMessage);
             longPosts.IsExpanded = true;
-            await Program.WaitUntilAsync(() => editor.FindControl<NumericUpDown>("ReaderFoldLinesInput")!.IsEffectivelyVisible);
+            await Program.WaitUntilAsync(() => Shown(foldLines),
+                () => "after expanding again: expanded " + longPosts.IsExpanded + ", attached " + foldLines.IsAttachedToVisualTree()
+                    + ", group " + editor.FindControl<Expander>("SettingsReadingMediaGroup")?.IsExpanded);
+            Require(foldLines.Value == 36 && foldLines.Text == "36", "Collapsing and expanding the long-posts group lost the committed value: " + foldLines.Text);
 
             Select(editor.GalleryFitUpscaleChoices, "Limited", item => editor.SelectedGalleryFitUpscale = item);
-            await Program.WaitUntilAsync(() => editor.FindControl<NumericUpDown>("GalleryFitMaxUpscalePercentInput")!.IsEffectivelyVisible);
+            await Program.WaitUntilAsync(() => Shown(editor.FindControl<NumericUpDown>("GalleryFitMaxUpscalePercentInput")!));
             SetNumber(editor, nameof(SettingsEditor.GalleryFitMaxUpscalePercent), 350);
 
             await SettingsSectionChecks.OpenAsync(editor, "settings.worker-budgets");
@@ -221,7 +243,9 @@ internal static class SettingsReaderDisplayChecks
                     await SmokeDispatcher.SettleAsync();
                     CheckAnchor(list, before, "date-only " + style);
                     Require((list.SelectedItem as ArchivePostRow)?.Id == selection && sentinel.IsFocused && tabs.SelectedIndex == 0,
-                        "Date-only apply stole focus, tab or the representable selection.");
+                        "Date-only apply stole focus, tab or the representable selection: selected " + (list.SelectedItem as ArchivePostRow)?.Id + " (was " + selection
+                        + "), sentinel focused " + sentinel.IsFocused + " attached " + sentinel.IsAttachedToVisualTree() + ", focus "
+                        + (TopLevel.GetTopLevel(sentinel)?.FocusManager?.GetFocusedElement() as Control)?.Name + ", tab " + tabs.SelectedIndex);
                     Require(renders == 1, "Date-only apply did not coalesce to one render: " + renders);
                     ArchivePostRow row = list.ItemsSource!.Cast<ArchivePostRow>().First(item => item.Quotes.Count > 0);
                     ReaderDateStyle selectedStyle = Enum.Parse<ReaderDateStyle>(style);
@@ -448,6 +472,10 @@ internal static class SettingsReaderDisplayChecks
                 editor.SelectedGalleryFitUpscale = editor.GalleryFitUpscaleChoices.Single(item => item.Value == "Limited");
                 dialog.UpdateLayout();
                 NumericUpDown input = editor.FindControl<NumericUpDown>(name + "Input")!;
+                // The user reaches the field first: the work view folds the page's "More settings" groups, and a folded group's
+                // fields are out of the visual tree. Open every group around the field; the long-posts group folds again below.
+                foreach (Expander around in input.GetLogicalAncestors().OfType<Expander>()) around.IsExpanded = true;
+                await Program.WaitUntilAsync(() => Shown(input), () => name + " did not come into view");
                 input.ApplyTemplate();
                 input.Text = "invalid reader draft";
                 group.IsExpanded = false;
@@ -455,7 +483,11 @@ internal static class SettingsReaderDisplayChecks
                 Click(editor.FindControl<Button>("SaveSettingsButton")!);
                 TextBlock error = editor.FindControl<TextBlock>(name + "InputError")!;
                 await Program.WaitUntilAsync(() => !editor.IsBusy && error.IsEffectivelyVisible
-                    && input.GetVisualDescendants().OfType<TextBox>().Any(text => text.IsFocused));
+                    && input.GetVisualDescendants().OfType<TextBox>().Any(text => text.IsFocused),
+                    () => name + ": busy " + editor.IsBusy + ", has error " + editor.HasError + " '" + editor.ErrorMessage + "', field error visible " + error.IsEffectivelyVisible
+                        + " attached " + error.IsAttachedToVisualTree() + " text '" + error.Text + "', input text '" + input.Text + "' attached " + input.IsAttachedToVisualTree()
+                        + ", focused " + input.GetVisualDescendants().OfType<TextBox>().Any(text => text.IsFocused) + ", applies " + applies + ", group "
+                        + editor.FindControl<Expander>("SettingsReadingMediaGroup")?.IsExpanded + ", long posts " + group.IsExpanded);
                 Require(applies == 0 && savedEvents == 0 && input.Text == "invalid reader draft",
                     name + ": rejected raw draft was committed or replaced.");
                 Require(input.GetVisualDescendants().OfType<TextBox>().Any(text => text.IsFocused), name + ": first invalid field was not focused.");
@@ -502,6 +534,8 @@ internal static class SettingsReaderDisplayChecks
         && left.PostFilterRuleLimit == right.PostFilterRuleLimit && left.HiddenPostLimit == right.HiddenPostLimit
         && left.ReaderDateStyle == right.ReaderDateStyle && left.ReaderSpoilers == right.ReaderSpoilers
         && left.GalleryFitUpscaleLimited == right.GalleryFitUpscaleLimited;
+
+    private static bool Shown(Control control) => control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
 
     private static void SetNumber(SettingsEditor editor, string name, int value)
     {

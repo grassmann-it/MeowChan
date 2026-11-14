@@ -208,7 +208,7 @@ internal static class ReaderUxChecks
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);
-        Require(page.FindControl<Grid>("ArchiveReaderPane")!.Parent == reader, "Reader pane has the wrong owner.");
+        Require(HostsLargeReader(reader, page), "Reader pane has the wrong owner.");
         Program.CaptureWindow(window, "smoke-reader-initial.png");
         Click(page.FindControl<Button>("ExportArchiveButton")!);
         await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
@@ -582,7 +582,10 @@ internal static class ReaderUxChecks
                 Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == false,
                     "Reader thread star lost its localized add label or unmarked state.");
                 star.Focus(); Click(star);
-                await Program.WaitUntilAsync(() => Marked() && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == true);
+                await Program.WaitUntilAsync(() => Marked() && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == true,
+                    () => "star: marked " + Marked() + ", shown mark " + MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) + ", attached " + star.IsAttachedToVisualTree()
+                        + ", enabled " + star.IsEnabled + ", visible " + star.IsEffectivelyVisible + ", bounds " + star.Bounds + ", row " + (star.DataContext as ArchiveThreadRow)?.Summary.Id
+                        + ", current " + id);
                 string remove = language == "de" ? "Threadfavorit entfernen" : "Remove thread favorite";
                 Require(Avalonia.Automation.AutomationProperties.GetName(star) == remove,
                     "Reader thread star lost its localized remove label.");
@@ -855,8 +858,7 @@ internal static class ReaderUxChecks
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 window.UpdateLayout();
-                Require(ReferenceEquals(page.FindControl<Grid>("ArchiveReaderPane")!.Parent, reader),
-                    "Language change reattached the large reader.");
+                Require(HostsLargeReader(reader, page), "Language change reattached the large reader.");
                 foreach (string name in names)
                 {
                     Button button = page.FindControl<Button>(name)!;
@@ -872,14 +874,33 @@ internal static class ReaderUxChecks
                             && Avalonia.Automation.AutomationProperties.GetName(button) == label,
                             "Reader history lost its localized visible label or accessible command name.");
                     }
-                    if (!button.IsEffectivelyVisible) continue;
+                    // A detached control keeps a stale IsEffectivelyVisible; a work view's omitted item is parked outside the bar.
+                    if (!button.IsEffectivelyVisible || Avalonia.LogicalTree.LogicalExtensions.GetLogicalAncestors(button)
+                        .OfType<ActionToolBar>().Any(bar => bar.OmittedHost.Children.Contains(button))) continue;
+                    // R2 (Thread ▾) made the bar fuller: an action the bar moved into "More" is checked where the user finds it,
+                    // in the opened overflow popup (as HtmlExportButtonLabelChecks does for Export).
+                    ActionToolBar? overflow = Avalonia.LogicalTree.LogicalExtensions.GetLogicalAncestors(button).OfType<ActionToolBar>()
+                        .FirstOrDefault(bar => bar.OverflowHost?.Children.Contains(button) == true);
+                    if (overflow != null)
+                    {
+                        Require(overflow.More?.IsEffectivelyVisible == true, name + " moved into More, but the bar shows no More toggle.");
+                        overflow.More!.IsChecked = true;
+                        await Program.WaitUntilAsync(() => { window.UpdateLayout(); return button.IsAttachedToVisualTree() && button.Bounds.Width > 0; },
+                            () => name + " is not shown in the opened More popup.");
+                    }
                     Point? position = icon.TranslatePoint(default, button);
                     Require(button.Bounds.Width > 0 && (labeled.Contains(name) || button.Bounds.Width <= 40)
                         && icon.Bounds.Width > 0 && icon.Bounds.Width <= button.Bounds.Width
                         && position is Point p && p.X >= -1 && p.Y >= -1
                         && p.X + icon.Bounds.Width <= button.Bounds.Width + 1
                         && p.Y + icon.Bounds.Height <= button.Bounds.Height + 1,
-                        name + " icon overflows its compact reader button.");
+                        name + " icon overflows its compact reader button: button " + button.Bounds + ", icon " + icon.Bounds + " at " + position
+                            + ", in overflow " + (overflow != null) + ", language " + language);
+                    if (overflow != null)
+                    {
+                        overflow.More!.IsChecked = false;
+                        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    }
                 }
             }
         }
@@ -1151,5 +1172,9 @@ internal static class ReaderUxChecks
     private static Button GalleryButton(GalleryViewer viewer, string name) => viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == name);
     private static void PressKey(Control control, Key key) { control.Focus(); control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key }); }
     private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
+    // R8: the large reader's host holds the frame (ReaderLargeFrame) with the media sidebar beside the pane, not the pane itself.
+    internal static bool HostsLargeReader(ContentControl reader, ArchivePage page) =>
+        page.FindControl<Grid>("ArchiveReaderPane")!.Parent is Grid { Name: "ReaderLargeFrame" } frame && ReferenceEquals(reader.Content, frame);
+
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

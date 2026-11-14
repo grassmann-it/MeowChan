@@ -90,10 +90,16 @@ internal static class ReaderQuickSettingsChecks
         await Program.WaitUntilAsync(() => page.IsQuickSettingsOpen, () => "the popover did not open");
         QuickSettingsSurface surface = page.ReaderQuickSettings!.Surface;
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Require(surface.Width == 360 && surface.Editors.Count == 6, "The popover is not 360 wide with six fields: " + surface.Width + ", " + surface.Editors.Count);
+        // One editor per registered field (R7 started with six; R5/R6, R8 and R10 added theirs to ReaderQuickSettings.Fields).
+        Require(surface.Width == 360 && surface.Editors.Count == ReaderQuickSettings.Fields.Count
+            && ReaderQuickSettings.Fields.All(field => surface.EditorOf(field.Id) != null),
+            "The popover is not 360 wide with one editor per registered field: " + surface.Width + ", " + surface.Editors.Count + " of " + ReaderQuickSettings.Fields.Count);
         Require(surface.Title.Text == Texts.T("quicksettings.reader.title"), "The popover has no title.");
         Point? close = surface.CloseButton.TranslatePoint(new Point(surface.CloseButton.Bounds.Width, 0), surface);
-        Require(close is { } edge && surface.Bounds.Width - edge.X <= surface.Padding.Right + 1, "The close button is not at the right edge: " + close + " of " + surface.Bounds.Width);
+        Require(close is { } edge && surface.Bounds.Width - edge.X <= surface.Padding.Right + 1, "The close button is not at the right edge: " + close + " of " + surface.Bounds.Width
+            + "; header " + surface.Header.Bounds + " at " + surface.Header.TranslatePoint(default, surface) + ", close " + surface.CloseButton.Bounds + " margin " + surface.CloseButton.Margin
+            + ", columns " + string.Join("/", surface.Header.ColumnDefinitions.Select(column => column.ActualWidth)) + ", body " + surface.Body.Bounds + " extent " + surface.Body.Extent
+            + ", padding " + surface.Padding);
 
         // A choice and a number are applied to the reader within the live budget and the editors keep showing them.
         ComboBox width = (ComboBox)surface.EditorOf(SettingsFieldId.ReaderPostWidth)!;
@@ -126,7 +132,9 @@ internal static class ReaderQuickSettingsChecks
         Require(page.IsReaderDialogOpen == false, "Escape closed more than the popover.");
         await Program.WaitUntilAsync(() => view.IsFocused || !view.IsEffectivelyVisible, () => "the focus did not return to the View button");
 
-        // "All reader settings" asks the shell for the last changed setting, and the popover is gone afterwards.
+        // "All reader settings" asks the shell for the last changed setting, and the popover is gone afterwards. The page keeps its one
+        // popover (ArchivePage.OpenReaderQuickSettings), so the last edit is still the date style whose save failed above: the
+        // settings page opens where the reader just tried a change.
         page.OpenReaderQuickSettings();
         await Program.WaitUntilAsync(() => page.IsQuickSettingsOpen, () => "the popover did not open again");
         QuickSettingsSurface again = page.ReaderQuickSettings!.Surface;
@@ -134,7 +142,8 @@ internal static class ReaderQuickSettingsChecks
             "The reopened popover does not show the confirmed values.");
         again.AllSettingsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => !page.IsQuickSettingsOpen, () => "all settings did not close the popover");
-        Require(allSettings.Count == 1 && allSettings[0] == SettingsFieldId.ReaderPostWidth, "All reader settings named " + string.Join(",", allSettings));
+        Require(ReferenceEquals(again, surface), "Reopening built a second popover surface.");
+        Require(allSettings.Count == 1 && allSettings[0] == SettingsFieldId.ReaderDateStyle, "All reader settings named " + string.Join(",", allSettings));
         _ = window;
     }
 

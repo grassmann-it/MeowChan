@@ -262,7 +262,7 @@ internal static class ShowcaseCaptures
             ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
             SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
-            if (page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
+            if (!ReaderUxChecks.HostsLargeReader(reader, page)
                 || first?.Thumbnail.Source is not Bitmap bitmap || bitmap.PixelSize.Width <= 240
                 || first.Thumbnail.Bounds.Width < 240 || first.Thumbnail.Bounds.Height < 160 || body == null
                 || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)

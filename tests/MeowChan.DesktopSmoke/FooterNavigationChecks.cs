@@ -205,7 +205,9 @@ internal static class FooterNavigationChecks
                     Control x = headerControls[first], y = headerControls[second];
                     Rect intersection = new Rect(x.TranslatePoint(default, window)!.Value, x.Bounds.Size)
                         .Intersect(new Rect(y.TranslatePoint(default, window)!.Value, y.Bounds.Size));
-                    Require(intersection.Width <= 1 || intersection.Height <= 1, "Header controls overlap: " + x.Name + "/" + y.Name);
+                    Require(intersection.Width <= 1 || intersection.Height <= 1, "Header controls overlap: " + x.Name + "/" + y.Name
+                        + " (" + window.SessionHost.Config.WorkspaceMode + ", " + Texts.Language + ", client " + window.ClientSize + "; "
+                        + string.Join("; ", headerControls.Select(control => (control.Name ?? "brand-group") + "@" + control.TranslatePoint(default, window) + "/" + control.Bounds.Size)) + ")");
                 }
             Point a = action.TranslatePoint(default, window)!.Value;
             Point b = pause.TranslatePoint(default, window)!.Value;

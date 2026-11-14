@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
@@ -149,7 +150,8 @@ internal static class ReaderPostWidthChecks
         await CheckScrollCostAsync(window, page, host);
     }
 
-    // The reading mark stays a full-width divider in both modes: it runs to the card edges, however narrow the card is.
+    // The reading mark is a row of its own between two cards (9003fa35): in both modes it runs across the list width (the cards'
+    // 8-dip gutters on both sides), 8 dip above the marked card, however narrow that card is, and never inside it.
     private static async Task CheckReadingLineAsync(MainWindow window, ArchivePage page, ListBox list)
     {
         Application.Current!.RequestedThemeVariant = ThemeVariant.Dark;
@@ -160,15 +162,27 @@ internal static class ReaderPostWidthChecks
         {
             page.ReaderPostWidthPreference = mode;
             await ShowAsync(window, list, "9001");
-            ListBoxItem item = Realized(list, "9001")!;
             list.GetVisualDescendants().OfType<ScrollViewer>().First().Offset = default;
             await Flush(window);
-            TextBlock labelText = item.GetVisualDescendants().OfType<TextBlock>().First(text => text.IsEffectivelyVisible && text.Text == label);
-            Grid divider = labelText.GetVisualAncestors().OfType<Grid>().First();
-            Visual card = divider.GetVisualParent()!;
-            Point start = divider.TranslatePoint(default, card)!.Value;
-            Require(Math.Abs(start.X + 8) < 1 && Math.Abs(divider.Bounds.Width - (card.Bounds.Width + 16)) < 1 && divider.Bounds.Width >= labelText.Bounds.Width + 30,
-                $"The reading line did not run to the card edges in mode {mode}: x={start.X}, width={divider.Bounds.Width}, card={card.Bounds.Width}.");
+            string geometry = "";
+            // The line host places its line from the settled layout, one pass after the card moved.
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                if (Realized(list, "9001") is not { } item) { geometry = "9001 not realized"; return false; }
+                if (item.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == label) is not { } labelText)
+                { geometry = "no visible label " + label; return false; }
+                Grid divider = labelText.GetVisualAncestors().OfType<Grid>().First();
+                Control viewport = divider.FindAncestorOfType<ScrollContentPresenter>()!;
+                Point start = divider.TranslatePoint(default, viewport)!.Value;
+                Point card = item.TranslatePoint(default, viewport)!.Value;
+                geometry = $"x={start.X}, width={divider.Bounds.Width}, list={viewport.Bounds.Width}, line bottom={start.Y + divider.Bounds.Height}, card top={card.Y}, card width={item.Bounds.Width}";
+                return Math.Abs(start.X - 8) < 1 && Math.Abs(divider.Bounds.Width - (viewport.Bounds.Width - 16)) < 1
+                    && divider.Bounds.Width >= labelText.Bounds.Width + 30
+                    && Math.Abs(card.Y - (start.Y + divider.Bounds.Height) - 8) < 1;
+            }, () => $"The reading line did not run across the list 8 dip above its card in mode {mode}: {geometry}.");
+            if (mode == Config.ReaderPostWidthFit)
+                Require(Realized(list, "9001")!.Bounds.Width < list.Bounds.Width - 100, "The fit-width card is not narrower than the line: " + geometry);
             await WaitForThumbnailsAsync(list);
             Program.CaptureWindow(window, $"smoke-reader-postwidth-{mode.ToLowerInvariant()}-1440-dark-reading-line.png");
         }

@@ -179,9 +179,15 @@ internal static class ArchiveFilterSurfaceChecks
         await Program.WaitUntilAsync(() => FocusIn(filters));
         Require(Same(Bounds(results), resultsClosed), state + ": applying from the filter surface left the list layout shifted.");
 
-        // S2/S7: an applied filter raises the toggle's count badge; "Reset all" behind the last chip clears the filters again.
+        // S2/S7: the badge counts one per applied chip (ArchivePage.UpdateArchiveFilterToggle), the search text's chip included: before
+        // a filter is applied it counts at most that chip (the fixture's text, until an earlier state's Reset all cleared it). An applied
+        // filter raises the count by one; "Reset all" behind the last chip clears search text and filters again.
         MeowChan.Desktop.Controls.FilterToggleButton badge = (MeowChan.Desktop.Controls.FilterToggleButton)filters;
-        Require(badge.Count == 0 && !badge.IsBadgeVisible, state + ": the archive filter toggle shows a count before a filter is applied.");
+        string[] chips = ArchivePage.AppliedFilterLabels(page.AppliedSearchSpec!).Select(chip => chip.Field).ToArray();
+        int before = chips.Length;
+        Require(chips.All(field => field == "text") && badge.Count == before && badge.IsBadgeVisible == before > 0
+            && badge.BadgeText == (before > 0 ? before.ToString(System.Globalization.CultureInfo.CurrentCulture) : string.Empty),
+            state + ": before a filter is applied the toggle must count only the search text chip: " + badge.Count + " [" + string.Join(",", chips) + "]");
         filters.IsChecked = true;
         await Program.WaitUntilAsync(() => surface.IsEffectivelyVisible);
         page.FindControl<ComboBox>("ArchivePostsFilter")!.SelectedIndex = 1;
@@ -189,11 +195,15 @@ internal static class ArchiveFilterSurfaceChecks
         SmokeActionClick.Execute(apply);
         await Program.WaitUntilAsync(() => !page.IsBusy && filters.IsChecked != true && page.AppliedSearchSpec?.HasPosts == true);
         Button resetAll = page.GetVisualDescendants().OfType<Button>().First(button => button.Name == "ArchiveAppliedResetAll");
-        Require(badge.Count == 1 && badge.BadgeText == "1" && badge.IsBadgeVisible && resetAll.IsEffectivelyVisible
-            && Avalonia.Automation.AutomationProperties.GetName(badge) == Texts.Count("archive.filters.countName", 1),
+        Require(badge.Count == before + 1 && badge.BadgeText == (before + 1).ToString(System.Globalization.CultureInfo.CurrentCulture)
+            && badge.IsBadgeVisible && resetAll.IsEffectivelyVisible
+            && Avalonia.Automation.AutomationProperties.GetName(badge) == Texts.Count("archive.filters.countName", before + 1),
             state + ": the archive filter toggle must count the applied filter and offer Reset all: " + badge.Count);
         SmokeActionClick.Execute(resetAll);
-        await Program.WaitUntilAsync(() => !page.IsBusy && page.AppliedSearchSpec?.HasPosts == null);
-        Require(badge.Count == 0 && !badge.IsBadgeVisible && !resetAll.IsEffectivelyVisible, state + ": Reset all must clear the applied filters and the badge.");
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.AppliedSearchSpec is { HasPosts: null } spec && string.IsNullOrEmpty(spec.Text));
+        // The page removes the link from the chip row when no chip is left; a removed control keeps a stale IsEffectivelyVisible.
+        bool resetShown = resetAll.IsAttachedToVisualTree() && resetAll.IsEffectivelyVisible;
+        Require(badge.Count == 0 && !badge.IsBadgeVisible && !resetShown,
+            state + ": Reset all must clear the applied filters and the badge: count " + badge.Count + ", badge " + badge.IsBadgeVisible + ", reset shown " + resetShown);
     }
 }

@@ -26,6 +26,7 @@ internal static class ReaderViewChecks
         internal required ProfileLease Lease { get; init; }
         internal required ArchiveCatalog Catalog { get; init; }
         internal required ResourceId Id { get; init; }
+        internal bool Staircase { get; init; }
         internal ArchivePage Page { get; set; } = null!;
         internal Window Window { get; set; } = null!;
         internal ListBox List => Page.FindControl<ListBox>("ArchivePosts")!;
@@ -41,12 +42,16 @@ internal static class ReaderViewChecks
         }
     }
 
-    // 500..619: even posts carry an attachment (none is saved, so no thumbnail loads), 537 holds the find needle.
-    private static CapturedPost[] Posts(int count) => Enumerable.Range(0, count).Select(index =>
+    // 500..619: even posts carry an attachment (none is saved, so no thumbnail loads), 537 holds the find needle. With staircase quotes
+    // each post quotes the one before inside a group of four, for the production conversation view; a reply to the opening post stays
+    // at the root, so 501 quotes nothing and 504..507 is the first full staircase (depth 0, 1, 2, 3).
+    private static CapturedPost[] Posts(int count, bool staircase = false) => Enumerable.Range(0, count).Select(index =>
     {
         string id = (500 + index).ToString();
         string text = index == 37 ? "A text-only post with the needle." : "Reader view post " + id + ".";
-        return new CapturedPost(id, index, PostFieldPresence.All, PostedAt: DateTimeOffset.UnixEpoch.AddMinutes(index), Html: "<p>" + text + "</p>",
+        string quote = staircase && index % 4 != 0 && index != 1
+            ? "<a href=\"#p" + (499 + index) + "\" class=\"quotelink\">&gt;&gt;" + (499 + index) + "</a><br>" : "";
+        return new CapturedPost(id, index, PostFieldPresence.All, PostedAt: DateTimeOffset.UnixEpoch.AddMinutes(index), Html: "<p>" + quote + text + "</p>",
             Attachments: index % 2 == 0 ? new[] { new CapturedAttachment(0, "media-" + id, OriginalFileName: "picture-" + id + ".png") } : null);
     }).ToArray();
 
@@ -62,13 +67,13 @@ internal static class ReaderViewChecks
         Console.WriteLine("SMOKE reader view: View menu, hide media, only posts with media, paging, Up/Down, revealing find hit, reading mark, new posts, placeholder and indentation passed; ReaderPostLayout.MeasurePasses (b10) is not in this source and was not compared.");
     }
 
-    private static async Task<Fixture> OpenAsync(MainWindow owner, int count)
+    private static async Task<Fixture> OpenAsync(MainWindow owner, int count, bool staircase = false)
     {
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-reader-view-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
         ProfileLease lease = ProfileLease.Acquire(profile);
         ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
-        Fixture fixture = new() { Profile = profile, Lease = lease, Catalog = catalog, Id = new("4chan", "g", ThreadId) };
+        Fixture fixture = new() { Profile = profile, Lease = lease, Catalog = catalog, Id = new("4chan", "g", ThreadId), Staircase = staircase };
         await CaptureAsync(fixture, count);
         ArchivePage page = new(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { });
         fixture.Page = page;
@@ -84,7 +89,7 @@ internal static class ReaderViewChecks
 
     private static Task CaptureAsync(Fixture fixture, int count) => fixture.Catalog.CaptureAsync(new CapturedThreadSnapshot(
         fixture.Id, "https://boards.4chan.org/g/thread/" + ThreadId, "Reader view " + ThreadId,
-        ThreadSourceState.Active, DateTimeOffset.UtcNow, fixture.Profile, Posts(count)));
+        ThreadSourceState.Active, DateTimeOffset.UtcNow, fixture.Profile, Posts(count, fixture.Staircase)));
 
     private static async Task ToggleAsync(Fixture fixture, string command)
     {
@@ -118,15 +123,22 @@ internal static class ReaderViewChecks
         Require(page.Projection is { IsIdentity: true, Count: 120 } && fixture.Rows.Length == 50 && fixture.Rows[0].Id == "500",
             "The default view is not the chronological identity.");
         Require(PageText(fixture) == Texts.T("archive.page", 1, 50, 120), "Default page label changed: " + PageText(fixture));
-        Require(page.ReaderViewOptionIds.SequenceEqual(new[] { "reader.view.hide-media", "reader.view.media-only", "watch.follow-live" }),
+        // P0's two media switches lead the menu; the conversation (R3), the media switches (R6), the media sidebar (R8), "Show new posts
+        // automatically" (R2) and the reader settings entry (R7) follow. A detached reader has no post filter host, so no "Post filters…".
+        Require(page.ReaderViewOptionIds.SequenceEqual(new[] { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation",
+                "reader.view.textless-large", "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.sidebar.toggle", "watch.follow-live",
+                "reader.quick-settings" }),
             "The View menu lists other options: " + string.Join(", ", page.ReaderViewOptionIds));
         Button open = page.FindControl<Button>("ReaderViewOpen")!;
         Require(open.Content as string == Texts.T("reader.view.menu"), "The View button has no label.");
         ContextMenu menu = page.BuildReaderViewMenu();
         MenuItem[] viewItems = menu.Items.OfType<MenuItem>().ToArray();
-        Require(viewItems.Where(item => item.ToggleType == MenuItemToggleType.CheckBox).All(item => item.IsChecked != true)
-            && viewItems.Count(item => item.ToggleType == MenuItemToggleType.CheckBox) == page.ReaderViewOptionIds.Count,
-            "View options are not unchecked check items by default.");
+        // Every option but the reader settings entry is a check item; only "Larger images for posts without text" is on by default
+        // (Config.ReaderTextlessLargeImages, R6), every session switch starts off.
+        Require(viewItems.Where(item => item.ToggleType == MenuItemToggleType.CheckBox).All(item => item.IsChecked == Equals(item.Tag, "reader.view.textless-large"))
+            && viewItems.Where(item => item.ToggleType != MenuItemToggleType.CheckBox).Select(item => item.Tag).SequenceEqual(new object[] { "reader.quick-settings" })
+            && viewItems.Count(item => item.ToggleType == MenuItemToggleType.CheckBox) == page.ReaderViewOptionIds.Count - 1,
+            "View options are not check items in their default state: " + string.Join(", ", viewItems.Select(item => item.Tag + "=" + item.ToggleType + "/" + item.IsChecked)));
         // R2: the media rules moved to the Thread menu; View holds only the reader's own look (options as check items, no separator yet).
         Require(viewItems.All(item => !Equals(item.Tag, "rules.edit-scope")) && !menu.Items.OfType<Separator>().Any(),
             "The View menu still carries the media rules or a stray separator.");
@@ -229,7 +241,7 @@ internal static class ReaderViewChecks
         Console.WriteLine("SMOKE reader view media: hide media, only posts with media, paging, Up/Down, find reveal, reading mark and new posts passed.");
     }
 
-    // Placeholder and indentation come from later packages; a test classifier and a test ordering stand in for them.
+    // The placeholder comes from a later package; a test classifier stands in for it.
     private sealed class EveryFifthStub : IReaderPostClassifier
     {
         public bool Active;
@@ -243,26 +255,16 @@ internal static class ReaderViewChecks
         }
     }
 
-    private sealed class Staircase : IReaderPostOrdering
-    {
-        public bool Active;
-        public bool IsActive(ResourceId thread) => Active;
-        public long Revision => 1;
-        // Depth 0, 1, 2, 3, 0, 1, …: each post is the reply of the one before inside a group of four.
-        public ReaderOrderEntry[] Order(ArchivedThreadView thread, ReaderQuoteGraph graph, CancellationToken token) =>
-            Enumerable.Range(0, thread.PostCount).Select(index => new ReaderOrderEntry(index, index % 4, index % 4 == 0 ? -1 : index - 1)).ToArray();
-    }
-
     private static async Task CheckPlaceholderAndIndentAsync(MainWindow owner)
     {
-        await using Fixture fixture = await OpenAsync(owner, 40);
+        await using Fixture fixture = await OpenAsync(owner, 40, staircase: true);
         ArchivePage page = fixture.Page;
         EveryFifthStub stubs = new();
-        Staircase staircase = new();
+        // The indentation comes from the production conversation view (R3), the page's one post ordering; the placeholder still
+        // from a test classifier.
         page.RegisterPostClassifier(stubs);
-        page.RegisterPostOrdering(staircase);
         await page.WaitForReaderViewAsync();
-        Require(page.Projection is { IsIdentity: true }, "Registering inactive parts changed the view.");
+        Require(page.Projection is { IsIdentity: true }, "Registering an inactive classifier changed the view.");
 
         stubs.Active = true;
         page.RequestProjectionRebuild();
@@ -284,20 +286,22 @@ internal static class ReaderViewChecks
             "Show did not reveal the placeholder.");
         stubs.Active = false;
 
-        staircase.Active = true;
         page.RequestProjectionRebuild();
         await page.WaitForReaderViewAsync();
-        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
-        Require(page.Projection is { IsOrdered: true } && fixture.Rows.Single(row => row.Id == "503") is { Depth: 3, ParentId: "502", SuppressReplyToggle: true },
-            "The test ordering did not indent the rows.");
+        await ToggleAsync(fixture, "reader.view.conversation");
+        Require(page.Projection is { IsOrdered: true } && fixture.Rows.Single(row => row.Id == "507") is { Depth: 3, ParentId: "506", SuppressReplyToggle: true },
+            "The conversation view did not indent the rows: " + string.Join(", ", fixture.Rows.Take(8).Select(row => row.Id + "@" + row.Depth + "<" + row.ParentId)));
         double baseLeft = Containers(fixture).Single(item => item.DataContext is ArchivePostRow { Id: "500" }).Margin.Left;
-        double deepLeft = Containers(fixture).Single(item => item.DataContext is ArchivePostRow { Id: "503" }).Margin.Left;
+        await Program.WaitUntilAsync(() =>
+        {
+            if (Containers(fixture).Any(item => item.DataContext is ArchivePostRow { Id: "507" })) return true;
+            fixture.List.ScrollIntoView(fixture.Rows.Single(row => row.Id == "507"));
+            return false;
+        }, () => "507 was not realized");
+        double deepLeft = Containers(fixture).Single(item => item.DataContext is ArchivePostRow { Id: "507" }).Margin.Left;
         Require(Math.Abs(deepLeft - baseLeft - 3 * ArchivePage.ReaderIndentStep) < 0.5, $"Indentation {baseLeft} → {deepLeft}.");
         await CaptureThemesAsync(fixture, "indent");
-        staircase.Active = false;
-        page.RequestProjectionRebuild();
-        await page.WaitForReaderViewAsync();
-        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
+        await ToggleAsync(fixture, "reader.view.conversation");
         Require(page.Projection is { IsIdentity: true } && Containers(fixture).All(item => Math.Abs(item.Margin.Left - baseLeft) < 0.5),
             "A recycled container kept its indentation.");
         Console.WriteLine("SMOKE reader view parts: placeholder, highlight, Show and indentation passed.");
