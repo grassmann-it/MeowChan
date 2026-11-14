@@ -138,19 +138,36 @@ public partial class MainWindow
     /// <summary>
     /// Ends the mode with its gallery. The resume point moves to the shown medium when it is still open, so "Walk through tagging queue"
     /// continues there after a restart; a decided medium needs no move (the next walk starts at the next open entry anyway).
+    /// Returns the queue entry of the medium that was shown last (open or decided), or null outside the mode: the way back to the
+    /// Tagging page marks that row (QW6).
     /// </summary>
-    private void EndGalleryTagging(bool persist)
+    private TagQueueKey? EndGalleryTagging(bool persist)
     {
-        if (_galleryTagging is not { } walk) return;
+        if (_galleryTagging is not { } walk) return null;
         _galleryTagging = null;
         GalleryEntry? shown = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         int index = shown == null ? -1 : walk.IndexOf(shown.EntryKey);
+        TagQueueKey? lastShown = index < 0 ? null : walk.Items[index].Key;
         _gallery?.EndTaggingMode();
         walk.Dispose();
-        if (!persist || _isClosing || index < 0 || walk.StateOf(index) != TagQueueState.Open) return;
+        if (!persist || _isClosing || index < 0 || walk.StateOf(index) != TagQueueState.Open) return lastShown;
         int position = walk.Snapshot.IndexOf(walk.Items[index].Key);
-        if (position < 0 || position == walk.Snapshot.Cursor) return;
+        if (position < 0 || position == walk.Snapshot.Cursor) return lastShown;
         _ = PersistTagQueueCursorAsync(position);
+        return lastShown;
+    }
+
+    /// <summary>
+    /// QW6: the way back of a gallery that was opened over the Tagging page ("Back to Tagging page", Esc): the page is the shown one
+    /// again (it still is unless the person navigated away meanwhile) with the row of the medium shown last selected and in view.
+    /// </summary>
+    private void ReturnToTaggingPage(TagQueueKey? lastShown)
+    {
+        if (_isClosing || _gallery != null) return;
+        if (_selectedPage != WorkspacePage.Tagging && !ShowTaggingPage()) return;
+        if (_taggingPage == null) return;
+        if (lastShown is { } key) _taggingPage.SelectKey(key);
+        else _taggingPage.FocusContent();
     }
 
     private async Task PersistTagQueueCursorAsync(int position)

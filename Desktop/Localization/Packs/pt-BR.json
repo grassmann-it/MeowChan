@@ -4506,6 +4506,11 @@
     "folderSource.version.undone": "As tags copiadas foram removidas desta versão novamente.",
     "folderSource.version.failed": "Não foi possível copiar as tags. O arquivo pode ter mudado de novo ou não pode ser lido. Nada foi alterado.",
     "folderSource.version.undoFailed": "Não foi possível remover as tags copiadas. Remova-as manualmente.",
-    "command.tags.filter-only": "Mostrar somente este"
+    "command.tags.filter-only": "Mostrar somente este",
+    "command.gallery.close.tagging": "Voltar à marcação com tags",
+    "viewer.help.escape.tagging": "Esc  Fechar ajuda ou contexto, sair da tela cheia e, depois, voltar à marcação com tags",
+    "tagging.page.lastShown": "Exibido por último: {0} · posição {1} de {2}",
+    "tagging.page.lastShown.help": "Continua na galeria a partir desta entrada",
+    "tagging.page.continue.notOpen": "Só é possível continuar a partir de uma entrada pendente. Marque esta entrada como pendente primeiro."
   }
 }

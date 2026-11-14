@@ -62,6 +62,7 @@ internal static class R08dViewerCatalog
         ("viewer.help.favorite", "M  Add favorite · U  Remove favorite · F  Add or remove (legacy)", "M  Favorit hinzufügen · U  Favorit entfernen · F  Hinzufügen oder entfernen (alt)"),
         ("viewer.help.escape", "Esc  Close help or context, leave full screen, then gallery", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann Galerie"),
         ("viewer.help.escape.media", "Esc  Close help or context, leave full screen, then back to media", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann zu Medien"),
+        ("viewer.help.escape.tagging", "Esc  Close help or context, leave full screen, then back to the Tagging page", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann zur Seite Taggen"),
         ("viewer.help.more", "All shortcuts", "Alle Tastenkürzel"),
         ("viewer.menu.exportOriginal", "Export", "Exportieren"),
         ("viewer.favorites.title", "Media favorites", "Medienfavoriten"),

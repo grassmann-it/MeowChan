@@ -4543,6 +4543,11 @@
     "folderSource.version.undone": "Zkopírované štítky byly z této verze znovu odebrány.",
     "folderSource.version.failed": "Štítky se nepodařilo zkopírovat. Soubor se mohl znovu změnit nebo ho nelze přečíst. Nic nebylo změněno.",
     "folderSource.version.undoFailed": "Zkopírované štítky se nepodařilo odebrat. Odeberte je ručně.",
-    "command.tags.filter-only": "Zobrazit jen tento"
+    "command.tags.filter-only": "Zobrazit jen tento",
+    "command.gallery.close.tagging": "Zpět na štítkování",
+    "viewer.help.escape.tagging": "Esc  Zavřít nápovědu nebo kontext, ukončit celou obrazovku, pak zpět na štítkování",
+    "tagging.page.lastShown": "Naposledy zobrazeno: {0} · pozice {1} z {2}",
+    "tagging.page.lastShown.help": "Pokračuje v galerii od této položky",
+    "tagging.page.continue.notOpen": "Pokračovat lze jen od otevřené položky. Nejdřív tuto položku označte jako otevřenou."
   }
 }

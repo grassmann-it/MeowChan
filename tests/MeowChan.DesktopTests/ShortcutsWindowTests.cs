@@ -255,7 +255,10 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Contains("\"GalleryHelp\", Texts.T(\"viewer.help\"), RequestShortcutHelp, overflow: true);", gallery);
         Assert.Contains("ShortcutGroups.Gallery, preferred", gallery);
         Assert.Contains("ExpandedAreas: new[] { ShortcutGroups.TagPanel }", gallery);
-        Assert.Contains("\"viewer.help.escape.media\" : \"viewer.help.escape\"", gallery);
+        // The Escape note names the page the way back returns to (media, the Tagging page; QW6): one switch, used by the window and the panel.
+        Assert.Contains("new[] { EscapeHelpKey }", gallery);
+        Assert.Contains("GalleryReturnTarget.Media => \"viewer.help.escape.media\"", gallery);
+        Assert.Contains("GalleryReturnTarget.Tagging => \"viewer.help.escape.tagging\"", gallery);
         Assert.Equal(1, CountOf(gallery, "ShortcutsWindow.IsPassive(window)")); // CanRouteGalleryShortcut
         Assert.Equal(1, CountOf(Source("Desktop/GalleryViewer.Overlay.cs"), "ShortcutsWindow.IsPassive(window)")); // HasGalleryDialog
         Assert.Contains("ShortcutsWindow.IsPassive(window)", Source("Desktop/MediaActions/MediaMenuBuilder.cs"));

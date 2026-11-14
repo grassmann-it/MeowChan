@@ -16,6 +16,7 @@ using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -137,6 +138,8 @@ public partial class MainWindow
             WorkspacePage.Archive => GalleryReturnTarget.Archive,
             WorkspacePage.Downloads => GalleryReturnTarget.Downloads,
             WorkspacePage.Media => GalleryReturnTarget.Media,
+            // QW6: the queue walk started on the Tagging page (its "Start/Continue" button, a row's "Continue here") returns there.
+            WorkspacePage.Tagging => GalleryReturnTarget.Tagging,
             _ => GalleryReturnTarget.None
         };
 
@@ -504,7 +507,8 @@ public partial class MainWindow
 
     private void CloseGalleryCore(bool restoreOrigin, bool cancelPendingOpen)
     {
-        EndGalleryTagging(persist: true); // the tagging mode ends with its gallery and keeps the resume point (PT3)
+        GalleryReturnTarget closingTarget = _gallery?.ReturnTarget ?? GalleryReturnTarget.None;
+        TagQueueKey? lastTagged = EndGalleryTagging(persist: true); // the tagging mode ends with its gallery and keeps the resume point (PT3)
         if (cancelPendingOpen) _archivePage?.CancelPendingGalleryOpen();
         TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
@@ -550,6 +554,7 @@ public partial class MainWindow
         if (restoreOrigin && !_isClosing && closedOrigin != null && ReferenceEquals(closedOrigin, _mediaPage?.Grid)) _mediaPage.FocusGrid();
         if (restoreOrigin && !_isClosing) completed?.Invoke();
         UpdateMediaReturn();
+        if (restoreOrigin && closingTarget == GalleryReturnTarget.Tagging) ReturnToTaggingPage(lastTagged);
     }
 
     private void UpdateGalleryFullscreenPresentation()

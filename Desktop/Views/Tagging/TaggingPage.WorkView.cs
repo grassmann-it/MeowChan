@@ -16,6 +16,7 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_progress, "tagging.progress");
         WorkViewElement.SetId(_start, "tagging.start");
+        WorkViewElement.SetId(_lastShown, "tagging.last-shown");
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
         WorkViewElement.SetId(_filterPanel, "tagging.filter");
@@ -39,6 +40,7 @@ public sealed partial class TaggingPage
         WorkViewPresenter.ApplyToolBar(_actions, _workView);
         _actions.RefreshOverflowLabel();
         WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
+        WorkViewGate.Apply(_lastShown, _workView, stateVisible: TaggingQueueView.LastShownIndex(_queueWork.Queue) != null);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
         WorkViewGate.Apply(_stampPanel, _workView);

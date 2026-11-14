@@ -18,6 +18,9 @@ public static partial class WorkViewPolicy
         Same("tagging.clear-confirm", WorkViewPage.Tagging, WorkViewKind.Element, Required, safety: true),
         Same("tagging.stamp", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.filter", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
+        // T1: "Last shown: file · position n of m" under the progress; a link that continues exactly there. Barebones leaves the
+        // sentence out: its start button already says "Continue at n of m" and carries the same action.
+        new("tagging.last-shown", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.start"),
         // The key hint under the list is help text: Barebones leaves it out, the keys and the context menu stay.
         new("tagging.keys-hint", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.continue-here"),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),

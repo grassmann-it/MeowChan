@@ -135,6 +135,12 @@ public sealed partial class TaggingPage
     /// <summary>Runs a row command on the selection (the lead row for continue and move); refused silently when it does not apply.</summary>
     internal Task ExecuteRowCommandAsync(string id)
     {
+        // T1: a double-click or Enter on a finished or skipped row says why nothing starts (only open entries can be continued from).
+        if (id == "tagging.continue-here" && StartTagging != null && CanChange && Lead is { Item.State: not TagQueueState.Open })
+        {
+            ShowStatus(Texts.T("tagging.page.continue.notOpen"));
+            return Task.CompletedTask;
+        }
         if (!CanRowCommand(id) || Lead is not { } lead) return Task.CompletedTask;
         IReadOnlyList<TaggingQueueRow> selected = Selected;
         TagQueueKey[] keys = selected.Select(row => row.Key).ToArray();
@@ -228,6 +234,37 @@ public sealed partial class TaggingPage
         ShowStatus(_queueWork.Status);
         if (done && select is { } key) SelectOnly(key, hadFocus);
         else if (hadFocus && !_list.IsKeyboardFocusWithin) FocusContent();
+    }
+
+    // The entry to show selected once the list holds it (the page was built or is still loading when the request comes).
+    private TagQueueKey? _pendingSelect;
+
+    /// <summary>
+    /// Selects the row of <paramref name="key"/>, brings it into view and puts the keyboard on it (QW6: the way back from the gallery
+    /// marks the medium shown last). A filter that hides the row is set back to "All entries"; before the queue is loaded the request
+    /// waits for it. False when the page has ended.
+    /// </summary>
+    internal bool SelectKey(TagQueueKey key)
+    {
+        if (_queueWork.Ended) return false;
+        _pendingSelect = key;
+        Refresh();
+        ApplyPendingSelect();
+        return true;
+    }
+
+    private void ApplyPendingSelect()
+    {
+        if (_pendingSelect is not { } key || _queueWork.Ended || !_queueWork.Loaded) return;
+        _pendingSelect = null;
+        if (!_queueWork.Queue.Contains(key)) return; // removed meanwhile: nothing to mark
+        if (_rows.All(row => row.Key != key) && Filter != TaggingQueueFilter.All) Filter = TaggingQueueFilter.All; // re-renders the rows
+        SelectOnly(key, focus: false);
+        // The list is laid out after this turn (the page may just have become the shown one): scroll and focus then.
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (!_queueWork.Ended && IsEffectivelyVisible) SelectOnly(key, focus: true);
+        }, Avalonia.Threading.DispatcherPriority.Input);
     }
 
     private void SelectOnly(TagQueueKey key, bool focus)

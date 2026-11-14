@@ -4500,6 +4500,11 @@
     "folderSource.version.undone": "Les étiquettes copiées ont de nouveau été retirées de cette version.",
     "folderSource.version.failed": "Les étiquettes n’ont pas pu être copiées. Le fichier a peut-être encore changé ou n’est pas lisible. Rien n’a été modifié.",
     "folderSource.version.undoFailed": "Les étiquettes copiées n’ont pas pu être retirées. Retirez-les manuellement.",
-    "command.tags.filter-only": "Afficher uniquement celui-ci"
+    "command.tags.filter-only": "Afficher uniquement celui-ci",
+    "command.gallery.close.tagging": "Retour à l’étiquetage",
+    "viewer.help.escape.tagging": "Esc  Fermer l’aide ou le contexte, quitter le plein écran, puis revenir à l’étiquetage",
+    "tagging.page.lastShown": "Dernier affiché : {0} · position {1} sur {2}",
+    "tagging.page.lastShown.help": "Reprend dans la galerie à cette entrée",
+    "tagging.page.continue.notOpen": "On ne peut reprendre qu’à partir d’une entrée à faire. Marquez d’abord cette entrée comme à faire."
   }
 }

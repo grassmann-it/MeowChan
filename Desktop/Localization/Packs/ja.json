@@ -4414,6 +4414,11 @@
     "folderSource.version.undone": "コピーしたタグをこのバージョンから再び削除しました。",
     "folderSource.version.failed": "タグをコピーできませんでした。ファイルが再び変更されたか、読み取れない可能性があります。何も変更していません。",
     "folderSource.version.undoFailed": "コピーしたタグを削除できませんでした。手動で削除してください。",
-    "command.tags.filter-only": "これだけを表示"
+    "command.tags.filter-only": "これだけを表示",
+    "command.gallery.close.tagging": "タグ付けに戻る",
+    "viewer.help.escape.tagging": "Esc  ヘルプまたはコンテキストを閉じる、全画面を解除、次にタグ付けに戻る",
+    "tagging.page.lastShown": "最後に表示: {0} · {2} 件中 {1} 件目",
+    "tagging.page.lastShown.help": "このエントリからギャラリーで続けます",
+    "tagging.page.continue.notOpen": "未処理の項目からのみ続けられます。先にこの項目を未処理にしてください。"
   }
 }

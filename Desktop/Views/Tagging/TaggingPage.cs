@@ -37,6 +37,10 @@ public sealed partial class TaggingPage : UserControl
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Height = 6, MinHeight = 0, MaxHeight = 6 };
     private readonly TextBlock _percent = new() { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
+    // T1: "Last shown: file · position n of m"; the link continues exactly there (the same action as the start button, which stands at
+    // the same entry).
+    private readonly Button _lastShown = new() { Name = "TaggingLastShown", Classes = { "link", "tnum" }, Padding = new Thickness(0), MinHeight = 24,
+        HorizontalAlignment = HorizontalAlignment.Left, IsVisible = false };
     private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
@@ -56,6 +60,7 @@ public sealed partial class TaggingPage : UserControl
         Name = "TaggingPage";
         Content = BuildLayout();
         _start.Click += (_, _) => _ = StartAsync(null);
+        _lastShown.Click += (_, _) => _ = StartAsync(null);
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeCommands();
         InitializeStamp();
@@ -81,6 +86,7 @@ public sealed partial class TaggingPage : UserControl
     internal ComboBox FilterBox => _filter;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
+    internal Button LastShownLink => _lastShown;
     internal Border ErrorPanel => _error;
     internal bool IsBusy => _queueWork.Busy || _queueWork.Loading;
 
@@ -108,6 +114,7 @@ public sealed partial class TaggingPage : UserControl
         barRow.Children.Add(_percent);
         _progress.Children.Add(_progressText);
         _progress.Children.Add(barRow);
+        _progress.Children.Add(_lastShown);
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
@@ -209,6 +216,7 @@ public sealed partial class TaggingPage : UserControl
         Render();
         RenderStamp();
         RefreshWorkView();
+        ApplyPendingSelect();
     }
 
     private void Render()
@@ -238,6 +246,21 @@ public sealed partial class TaggingPage : UserControl
         UpdateActions();
     }
 
+    // T1: the link follows the queue; it continues like the start button, so it is as enabled as that button. Whether it is shown at all
+    // is the work view's call (WorkViewGate in RefreshWorkView) together with the queue's state.
+    private void RenderLastShown(TagQueueSnapshot queue)
+    {
+        string? text = TaggingQueueView.LastShownText(queue);
+        _lastShown.Content = text; // its visibility is the work-view gate's (RefreshWorkView)
+        _lastShown.IsEnabled = text != null && CanStart;
+        if (text != null)
+        {
+            AutomationProperties.SetName(_lastShown, text);
+            AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
+            ToolTip.SetTip(_lastShown, Texts.T("tagging.page.lastShown.help"));
+        }
+    }
+
     private TagQueueKey[] SelectedKeys() => _list.SelectedItems?.OfType<TaggingQueueRow>().Select(row => row.Key).ToArray() ?? Array.Empty<TagQueueKey>();
 
     private bool CanChange => _queueWork.CanChange;
@@ -252,6 +275,7 @@ public sealed partial class TaggingPage : UserControl
         _start.IsEnabled = label != null && CanStart;
         if (label == null)
             ToolTip.SetTip(_start, Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone"));
+        RenderLastShown(_queueWork.Queue);
         RefreshCommandStates();
     }
 

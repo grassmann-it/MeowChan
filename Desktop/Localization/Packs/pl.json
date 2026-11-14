@@ -4546,6 +4546,11 @@
     "folderSource.version.undone": "Skopiowane tagi zostały ponownie usunięte z tej wersji.",
     "folderSource.version.failed": "Nie udało się skopiować tagów. Plik mógł się znowu zmienić albo nie można go odczytać. Nic nie zostało zmienione.",
     "folderSource.version.undoFailed": "Nie udało się usunąć skopiowanych tagów. Usuń je ręcznie.",
-    "command.tags.filter-only": "Pokaż tylko ten"
+    "command.tags.filter-only": "Pokaż tylko ten",
+    "command.gallery.close.tagging": "Wróć do tagowania",
+    "viewer.help.escape.tagging": "Esc  Zamknij pomoc lub kontekst, wyjdź z pełnego ekranu, potem wróć do tagowania",
+    "tagging.page.lastShown": "Ostatnio pokazano: {0} · pozycja {1} z {2}",
+    "tagging.page.lastShown.help": "Kontynuuje w galerii od tego wpisu",
+    "tagging.page.continue.notOpen": "Kontynuować można tylko od otwartego wpisu. Najpierw oznacz ten wpis jako otwarty."
   }
 }

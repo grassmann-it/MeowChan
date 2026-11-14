@@ -4506,6 +4506,11 @@
     "folderSource.version.undone": "I tag copiati sono stati rimossi di nuovo da questa versione.",
     "folderSource.version.failed": "Impossibile copiare i tag. Il file potrebbe essere cambiato di nuovo o non essere leggibile. Non è stato modificato nulla.",
     "folderSource.version.undoFailed": "Impossibile rimuovere i tag copiati. Rimuovili a mano.",
-    "command.tags.filter-only": "Mostra solo questo"
+    "command.tags.filter-only": "Mostra solo questo",
+    "command.gallery.close.tagging": "Torna al tagging",
+    "viewer.help.escape.tagging": "Esc  Chiudi guida o contesto, esci dallo schermo intero, poi torna al tagging",
+    "tagging.page.lastShown": "Ultimo mostrato: {0} · posizione {1} di {2}",
+    "tagging.page.lastShown.help": "Prosegue nella galleria da questa voce",
+    "tagging.page.continue.notOpen": "Si può continuare solo da una voce da fare. Segna prima questa voce come da fare."
   }
 }

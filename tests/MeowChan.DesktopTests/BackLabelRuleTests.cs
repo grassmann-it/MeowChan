@@ -16,6 +16,7 @@ public sealed class BackLabelRuleTests : IDisposable
     internal static readonly string[] BackKeys =
     {
         "command.reader.history-back", "command.gallery.return", "command.gallery.context-close", "command.gallery.close.media",
+        "command.gallery.close.tagging",
         "command.media.return", "command.sources.back", "command.archive.back-to-list", "command.reader.close.toArchive",
         "command.reader.close.toDownloads", "plugins.back", "archive.back", "gallery.return", "gallery.viewer7", "archive.cleanup.back",
     };

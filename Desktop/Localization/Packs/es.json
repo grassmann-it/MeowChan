@@ -4500,6 +4500,11 @@
     "folderSource.version.undone": "Las etiquetas copiadas se quitaron de nuevo de esta versión.",
     "folderSource.version.failed": "No se pudieron copiar las etiquetas. Puede que el archivo haya vuelto a cambiar o que no se pueda leer. No se cambió nada.",
     "folderSource.version.undoFailed": "No se pudieron quitar las etiquetas copiadas. Quítelas a mano.",
-    "command.tags.filter-only": "Mostrar solo este"
+    "command.tags.filter-only": "Mostrar solo este",
+    "command.gallery.close.tagging": "Volver a Etiquetado",
+    "viewer.help.escape.tagging": "Esc  Cerrar ayuda o contexto, salir de pantalla completa y después volver a Etiquetado",
+    "tagging.page.lastShown": "Visto por última vez: {0} · posición {1} de {2}",
+    "tagging.page.lastShown.help": "Continúa en la galería en esta entrada",
+    "tagging.page.continue.notOpen": "Solo se puede continuar desde una entrada pendiente. Marque primero esta entrada como pendiente."
   }
 }

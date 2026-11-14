@@ -75,6 +75,25 @@ internal static class TaggingQueueView
         return fresh ? Texts.T("command.tagging.start") : Texts.T("tagging.page.continue", resume + 1, queue.Count);
     }
 
+    /// <summary>
+    /// T1: the queue position of the entry shown last, which is where "continue" starts. Null on a fresh queue (nothing decided, the
+    /// cursor still at the first entry: "Start tagging" says it all) and when nothing is open.
+    /// </summary>
+    internal static int? LastShownIndex(TagQueueSnapshot queue)
+    {
+        ArgumentNullException.ThrowIfNull(queue);
+        if (queue.ResumeIndex() is not { } resume) return null;
+        return queue.Cursor > 0 || queue.Done + queue.Skipped > 0 ? resume : null;
+    }
+
+    /// <summary>T1: "Last shown: file.jpg · position 3 of 27", or null when <see cref="LastShownIndex"/> has none.</summary>
+    internal static string? LastShownText(TagQueueSnapshot queue)
+    {
+        if (LastShownIndex(queue) is not { } index) return null;
+        TagQueueItem item = queue.Items[index];
+        return Texts.T("tagging.page.lastShown", item.Name.Length == 0 ? item.AssetId : item.Name, index + 1, queue.Count);
+    }
+
     private static int FirstOpen(TagQueueSnapshot queue)
     {
         for (int index = 0; index < queue.Items.Count; index++)
