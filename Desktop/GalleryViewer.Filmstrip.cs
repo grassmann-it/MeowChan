@@ -73,7 +73,7 @@ internal sealed partial class GalleryViewer
         _filmstrip.TileActivated += OnFilmstripTileActivated;
         _filmstrip.ExitRequested += () => { FocusGallerySurface(); _keyboardInteraction = false; };
         _compactPosition.PropertyChanged += (_, e) =>
-        { if (e.Property == TextBlock.TextProperty) _filmstrip.SetPositionText(_compactPosition.Text); };
+        { if (e.Property == TextBlock.TextProperty) RefreshFilmstripPosition(); };
         _contextPanel.SizeChanged += (_, _) => UpdateFilmstripPlacement();
         ActualThemeVariantChanged += (_, _) => { _filmstripStyleKnown = false; UpdateFilmstripPlacement(); };
         RefreshFilmstripToggle();
@@ -106,6 +106,11 @@ internal sealed partial class GalleryViewer
         for (int i = 0; i < list.Count; i++) if (list[i].EntryKey == key) return i;
         return -1;
     }
+
+    // QW1: the position stands once, between the arrows; the strip repeats it only while the arrows are away (the controls are hidden
+    // and the strip peeks in at the top edge).
+    private void RefreshFilmstripPosition() =>
+        _filmstrip.SetPositionText(GalleryTaggingChrome.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden));
 
     // ---- visibility ----
 
@@ -148,6 +153,7 @@ internal sealed partial class GalleryViewer
         double inset = show && !overlay ? TopRowClearance + GalleryFilmstripPlan.BandHeight(tile) + 2 : 0;
         if (_viewport.Margin.Top != inset) _viewport.Margin = new Thickness(0, inset, 0, 0);
         _filmstrip.Refresh();
+        RefreshFilmstripPosition();
         RefreshFilmstripToggle();
     }
 

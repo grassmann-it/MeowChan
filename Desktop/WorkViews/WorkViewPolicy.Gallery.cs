@@ -96,8 +96,11 @@ public static partial class WorkViewPolicy
         GalleryTool("gallery.toolbar.tags", Overflow, Direct, Direct, "media.tags.edit"),
         // Slideshow: a chosen or running slideshow keeps its toggle on the bar in every view (R6, the viewer passes the state).
         GalleryTool("gallery.toolbar.slideshow", Overflow, Direct, Direct, "gallery.slideshow-toggle"),
-        GalleryTool("gallery.toolbar.slideshow-seconds", Overflow, Direct, Direct, null),
-        GalleryTool("gallery.toolbar.playback-mode", Overflow, Overflow, Direct, null),
+        // E2 (Tom, 14.11.): seconds per image and the playback mode are settings of the slideshow, not tools: under More in every view,
+        // with their captions ("Seconds per image"), where a bare number on the bar explained nothing. The slideshow toggle is the one
+        // control that stays on the bar; the planned split button (G2) opens these same rows as a flyout at that toggle.
+        GalleryTool("gallery.toolbar.slideshow-seconds", Overflow, Overflow, Overflow, null),
+        GalleryTool("gallery.toolbar.playback-mode", Overflow, Overflow, Overflow, null),
         GalleryTool("gallery.toolbar.help", Overflow, Overflow, Direct, "viewer.shortcut-help"),
 
         // ---- Rows of the flyout that no view moves (Overflow everywhere; their shortcuts and the media context menu twin stay). ----

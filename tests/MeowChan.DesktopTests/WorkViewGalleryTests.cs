@@ -43,10 +43,24 @@ public sealed class WorkViewGalleryTests
     public void TheCuratingToolsMoveUnderMoreInBarebonesAndOntoTheBarFromSimpleOn()
     {
         Assert.Empty(WorkViewPolicy.GalleryBarToolIds(WorkView.Barebones));
-        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.slideshow-seconds"],
+        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow"],
             WorkViewPolicy.GalleryBarToolIds(WorkView.Simple));
-        // Advanced adds the playback mode and the shortcut help.
-        Assert.Equal(WorkViewPolicy.GalleryMovableToolIds, WorkViewPolicy.GalleryBarToolIds(WorkView.Advanced));
+        // Advanced adds the shortcut help. E2: the slideshow's seconds and playback mode are settings, not tools: under More in every view.
+        Assert.Equal(["gallery.toolbar.rating", "gallery.toolbar.tags", "gallery.toolbar.slideshow", "gallery.toolbar.help"],
+            WorkViewPolicy.GalleryBarToolIds(WorkView.Advanced));
+    }
+
+    [Fact]
+    public void TheSlideshowSecondsAndModeLeaveTheBarInEveryViewEvenWhileASlideshowRuns()
+    {
+        string[] settings = ["gallery.toolbar.slideshow-seconds", "gallery.toolbar.playback-mode"];
+        foreach (string id in settings)
+            foreach (WorkView view in WorkViewSetting.All)
+            {
+                Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve(id, view));
+                Assert.DoesNotContain(id, WorkViewPolicy.GalleryBarToolIds(view, slideshowActive: true));
+                Assert.Contains(id, WorkViewPolicy.GalleryMovableToolIds); // still placed (menu rows with captions), never dropped
+            }
     }
 
     [Fact]

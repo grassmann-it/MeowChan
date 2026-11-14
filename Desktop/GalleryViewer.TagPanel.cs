@@ -43,6 +43,9 @@ internal sealed partial class GalleryViewer
     /// <summary>The media marked for one tag change; null until the tag panel was opened once.</summary>
     internal GalleryMarks? Marks => _marks;
 
+    /// <summary>True while the panel's favorite and rating row (PT6) is on the screen: it then shows the rating, the info line does not (QW5).</summary>
+    internal bool DecisionRowVisible => _tagPanelOpen && _decisionRow != null;
+
     // While the tag panel holds the slot the post context is neither built nor current.
     private bool PostContextVisible => _contextOpen && !_tagPanelOpen;
 
@@ -65,7 +68,7 @@ internal sealed partial class GalleryViewer
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, ReadSourceTags = owner.ReadSourceTags };
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        surface.CounterText = controller.CounterFor(entry);
+        surface.CounterText = PanelCounter(controller.CounterFor(entry));
         surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
@@ -99,6 +102,7 @@ internal sealed partial class GalleryViewer
         _tagPanelOpen = true;
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
+        UpdateMediaFocusVisibility(); // the info line's rating yields to the row (QW5)
         _sidePanel.TagContent = surface;
         _sidePanel.Segment = GallerySidePanelSegment.Tags;
         if (_contextOpen)
@@ -149,6 +153,7 @@ internal sealed partial class GalleryViewer
         surface?.Dispose();
         controller?.Dispose();
         _threadSection = null; _tagExtra = null; _tagReason = null;
+        UpdateMediaFocusVisibility(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         return true;
@@ -173,14 +178,14 @@ internal sealed partial class GalleryViewer
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            surface.CounterText = controller.CounterFor(entry);
+            surface.CounterText = PanelCounter(controller.CounterFor(entry));
             RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
-        surface.CounterText = frame.Counter;
+        surface.CounterText = PanelCounter(frame.Counter);
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
@@ -254,10 +259,20 @@ internal sealed partial class GalleryViewer
         GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
         surface.Retarget(frame.Target, frame.Label);
         // The owner's position may already be on the next medium (a move was requested): the counter names that one.
-        surface.CounterText = controller.CounterFor(controller.ShownEntry());
+        surface.CounterText = PanelCounter(controller.CounterFor(controller.ShownEntry()));
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
+    }
+
+    // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
+    private string? PanelCounter(string? counter) => GalleryTaggingChrome.PanelCounter(counter, _tagging != null);
+
+    // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
+    private void RefreshPanelCounter()
+    {
+        if (_tagController is { } controller && _tagSurface is { } surface)
+            surface.CounterText = PanelCounter(controller.CounterFor(controller.ShownEntry()));
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------

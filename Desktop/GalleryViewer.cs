@@ -47,7 +47,8 @@ internal sealed class GalleryAssociationIndex
 }
 
 /// <summary>Where the gallery's way back returns to; it only names the target (the command stays gallery.close).</summary>
-internal enum GalleryReturnTarget { None, Media, Thread, Archive, Downloads }
+// Tagging (QW6) is appended, not inserted: the values 0 to 4 are what tests and smokes already name.
+internal enum GalleryReturnTarget { None, Media, Thread, Archive, Downloads, Tagging }
 
 // A diagnostic is data for the owning shell, never an instruction to the transport.
 internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? Entry, long Revision,
@@ -632,7 +633,16 @@ internal sealed partial class GalleryViewer : UserControl
         GalleryReturnTarget.Thread => Texts.T("command.gallery.close.thread"),
         GalleryReturnTarget.Archive => Texts.T("command.gallery.close.archive"),
         GalleryReturnTarget.Downloads => Texts.T("command.gallery.close.downloads"),
+        GalleryReturnTarget.Tagging => Texts.T("command.gallery.close.tagging"),
         _ => CommandCatalog.Label("gallery.close")
+    };
+
+    /// <summary>The Escape note of the shortcut help: it names the page it returns to where the way back does (Media, the Tagging page).</summary>
+    private string EscapeHelpKey => _returnTarget switch
+    {
+        GalleryReturnTarget.Media => "viewer.help.escape.media",
+        GalleryReturnTarget.Tagging => "viewer.help.escape.tagging",
+        _ => "viewer.help.escape"
     };
 
     /// <summary>Below this viewer width the way back shows only its arrow; its name and tooltip keep the target.</summary>
@@ -829,7 +839,8 @@ internal sealed partial class GalleryViewer : UserControl
         // "Where am I" (thread or result list): Barebones leaves it to the details; the position between the arrows stays.
         WorkViewGate.Apply(_scope, _workView, stateVisible: !_mediaFocus);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
-        _ratingStatus.IsVisible = !_mediaFocus;
+        // QW5: with the tag panel's favorite and rating row on the screen, that row is the one place that shows (and changes) the rating.
+        _ratingStatus.IsVisible = GalleryTaggingChrome.InfoRatingVisible(_mediaFocus, DecisionRowVisible);
         // Diagnostic notices have no visibility or auto-hide authority. The capability
         // fallback is neutral layout information, not a dismissible technical banner.
         _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
@@ -917,7 +928,7 @@ internal sealed partial class GalleryViewer : UserControl
         WorkView view = _workView;
         WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
         return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
-            CommandScope.None, new[] { _returnTarget == GalleryReturnTarget.Media ? "viewer.help.escape.media" : "viewer.help.escape" },
+            CommandScope.None, new[] { EscapeHelpKey },
             ExpandedAreas: new[] { ShortcutGroups.TagPanel });
     }
 
@@ -935,7 +946,7 @@ internal sealed partial class GalleryViewer : UserControl
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         AddTaggingHelp();
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T(_returnTarget == GalleryReturnTarget.Media ? "viewer.help.escape.media" : "viewer.help.escape"), Classes = { "workspace-help" } });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T(EscapeHelpKey), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
         if (actions.Children.Count > 0) _helpContent.Children.Add(actions);

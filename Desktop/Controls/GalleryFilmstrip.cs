@@ -84,6 +84,7 @@ internal sealed class GalleryFilmstrip : Border
         _back.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport));
         _forward.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport));
         _position.Classes.Add("workspace-meta");
+        _position.IsVisible = false; // the viewer fills it only while the arrows are away (QW1)
         AutomationProperties.SetAccessibilityView(_position, AccessibilityView.Raw);
         Grid root = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
         root.Children.Add(_back);
@@ -196,8 +197,15 @@ internal sealed class GalleryFilmstrip : Border
         ScrollTo(_current >= 0 && resized ? GalleryFilmstripPlan.CentreOffset(_current, Slots, _tile, _viewport) : _offset);
     }
 
-    /// <summary>The position text at the right end ("3 / 27"); the viewer owns the text.</summary>
-    internal void SetPositionText(string? text) => _position.Text = text ?? string.Empty;
+    /// <summary>The position text at the right end ("3 / 27"); the viewer owns the text. Null or empty hides the block, so no gap stays.</summary>
+    internal void SetPositionText(string? text)
+    {
+        _position.Text = text ?? string.Empty;
+        _position.IsVisible = !string.IsNullOrEmpty(text);
+    }
+
+    /// <summary>Whether the position block shows a text now (tests and smokes).</summary>
+    internal bool IsPositionShown => _position.IsVisible;
 
     /// <summary>Sets the band background (the overlay tone) or clears it (docked).</summary>
     internal void SetBackground(IBrush? background)

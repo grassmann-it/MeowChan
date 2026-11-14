@@ -52,6 +52,10 @@ internal static class TaggingModeChecks
             Require(AutomationProperties.GetName(viewer.TaggingDoneButton) == Texts.T("tagging.done")
                 && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == "Enter", "The Done button has no name or key.");
             Require(viewer.TagSurface!.Session.Stamp.Count == 1, "The panel does not share the window's stamp.");
+            // QW1/QW2: the position and the status stand once (the arrows count, the panel's status line speaks; the strip's line and
+            // the filmstrip's and panel's counters stay away while the arrows and the panel are on the screen).
+            Require(viewer.TagSurface.CounterText == null && !viewer.Filmstrip.IsPositionShown && !viewer.TaggingStatusText.IsVisible,
+                "The position or the status is shown more than once.");
             Program.CaptureWindow(window, "smoke-tagging-mode.png");
 
             // Stamp & next: the stamp tag lands on the bound medium, the medium is done and the gallery shows the next one.

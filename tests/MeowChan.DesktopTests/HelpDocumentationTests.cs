@@ -422,8 +422,9 @@ public sealed class HelpDocumentationTests
     [InlineData("gallery.toolbar.rating", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
     [InlineData("gallery.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct, "rating, media tags and slideshow controls are under More in Barebones and on the toolbar from Simple on")]
     [InlineData("gallery.toolbar.slideshow", Presence.Overflow, Presence.Direct, Presence.Direct, "A chosen or running slideshow keeps its toggle on the toolbar even in Barebones")]
-    [InlineData("gallery.toolbar.playback-mode", Presence.Overflow, Presence.Overflow, Presence.Direct, "playback mode and shortcut help join them in Advanced")]
-    [InlineData("gallery.toolbar.help", Presence.Overflow, Presence.Overflow, Presence.Direct, "playback mode and shortcut help join them in Advanced")]
+    // E2 (QW4): the playback mode left the bar in every view; the phrases are the parts of docs/Help.md that name each row.
+    [InlineData("gallery.toolbar.playback-mode", Presence.Overflow, Presence.Overflow, Presence.Overflow, "playback mode")]
+    [InlineData("gallery.toolbar.help", Presence.Overflow, Presence.Overflow, Presence.Direct, "shortcut help")]
     [InlineData("diagnostics.filters", Presence.Collapsed, Presence.Direct, Presence.Direct, "Diagnostics starts with its filters collapsed in Barebones")]
     [InlineData("diagnostics.toolbar.copy", Presence.Overflow, Presence.Direct, Presence.Direct, "Copy moves under More in Barebones")]
     [InlineData("diagnostics.toolbar.retry-filtered", Presence.Overflow, Presence.Overflow, Presence.Direct, "retrying all filtered entries stays under More in Barebones and Simple")]

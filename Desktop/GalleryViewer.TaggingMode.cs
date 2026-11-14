@@ -95,11 +95,15 @@ internal sealed partial class GalleryViewer
         walk.Changed += OnTaggingChanged;
         ApplyTaggingLabels();
         _taggingStrip.IsVisible = true;
-        _taggingStatus.Text = TaggingModeText.Start(walk);
         RefreshTaggingStrip();
         StartCards(); // the saved card setting (PT4)
         if (_tagPanelOpen && _tagSurface != null && _tagController != null) CoupleTaggingPanel(_tagSurface, _tagController);
         else ShowTagPanel(owner);
+        // QW2: the first sentence goes through the one status line (the panel's while it is open, else the strip's); the first
+        // decision replaces it. QW1: the panel's own counter leaves, the arrows count. QW3: the slideshow line is not for this mode.
+        SayTagging(TaggingModeText.Start(walk));
+        RefreshPanelCounter();
+        RefreshPlaybackControls();
         UpdateHelp();
         RevealOverlayControls();
     }
@@ -115,6 +119,8 @@ internal sealed partial class GalleryViewer
         _taggingOwner = null;
         _taggingStrip.IsVisible = false;
         _taggingStatus.Text = string.Empty;
+        RefreshPanelCounter(); // an open panel shows its "Medium n of m" again
+        RefreshPlaybackControls(); // the slideshow line may speak again
         UpdateHelp();
     }
 
@@ -127,7 +133,9 @@ internal sealed partial class GalleryViewer
         surface.ExtraUndo = _taggingUndo;
         surface.StampApplied += OnTaggingStampApplied;
         _taggingSurface = surface;
-        AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Off); // the panel's status line says it once
+        // QW2: the panel's status line says every sentence once, so the strip's line is neither shown nor read.
+        _taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: true);
+        AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Off);
     }
 
     private void UncoupleTaggingPanel(QuickTagSurface? surface)
@@ -139,7 +147,8 @@ internal sealed partial class GalleryViewer
         _taggingUndo?.Dispose();
         _taggingUndo = null;
         _taggingSurface = null;
-        AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite); // without the panel the strip speaks
+        _taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: false); // without the panel the strip shows the last sentence
+        AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite); // ... and speaks
     }
 
     private void ApplyTaggingLabels()
@@ -178,7 +187,8 @@ internal sealed partial class GalleryViewer
         RefreshTaggingStrip();
     }
 
-    // One sentence for the person: in the strip, and through the panel's polite status line while it is open (never read twice).
+    // One sentence for the person: always remembered in the strip's line (shown while the panel is closed), and through the panel's
+    // polite status line while it is open (the strip's line is hidden then, so it is never shown or read twice).
     private void SayTagging(string text)
     {
         _taggingStatus.Text = text;
