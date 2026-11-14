@@ -78,6 +78,7 @@ internal sealed partial class GalleryViewer
         { if (e.Property == TextBlock.TextProperty) RefreshFilmstripPosition(); };
         _contextPanel.SizeChanged += (_, _) => UpdateFilmstripPlacement();
         ActualThemeVariantChanged += (_, _) => { _filmstripStyleKnown = false; UpdateFilmstripPlacement(); };
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, () => { _filmstripStyleKnown = false; UpdateFilmstripPlacement(); });
         RefreshFilmstripToggle();
     }
 

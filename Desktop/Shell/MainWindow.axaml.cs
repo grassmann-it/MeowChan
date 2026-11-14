@@ -90,6 +90,7 @@ public partial class MainWindow : Window
             if (Application.Current != null)
             {
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
+                MeowChan.Desktop.Theming.ThemeRuntime.ApplyOverrides(_config.ThemeOverrides); // TH2: the user's colours
             }
             MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
             // After the saved theme, so the first logo decoded is the one shown. The header has one
@@ -1274,6 +1275,9 @@ public partial class MainWindow : Window
         // Motion is switched off only for a real theme change; saving other settings must not cut running transitions short.
         if (Application.Current is { } app && ThemeChangeNeeded(app.RequestedThemeVariant, ThemeForPreference(_config.Theme)) is { } next)
             MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = next);
+        // TH2: changed colour overrides recolour live, like a theme change without transitions; an unchanged set is skipped.
+        if (MeowChan.Desktop.Theming.ThemeRuntime.NeedsApply(_config.ThemeOverrides))
+            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => MeowChan.Desktop.Theming.ThemeRuntime.ApplyOverrides(_config.ThemeOverrides));
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
         MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);

@@ -301,6 +301,7 @@ internal sealed partial class GalleryViewer
         _nativeVideoOverlay.Focusable = true;
         KeyboardNavigation.SetTabNavigation(_nativeVideoOverlay, KeyboardNavigationMode.Cycle);
         ActualThemeVariantChanged += (_, _) => ApplyOverlayBackgrounds();
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, ApplyOverlayBackgrounds);
         _overlayFooter.Children.Add(_overlayTransportHost);
         _overlayFooter.SizeChanged += (_, _) =>
         {
