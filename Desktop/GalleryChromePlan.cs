@@ -194,9 +194,11 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             Transport: input.Video,
             Tools: tools,
             Info: info,
-            InfoScope: info && !tag && ViewOffers("gallery.info.scope"),
+            // S2: the "where am I" segment goes first when the bar gets narrow (below NarrowWidth).
+            InfoScope: info && !tag && ViewOffers("gallery.info.scope") && (input.Width <= 0 || input.Width >= NarrowWidth),
             // QW5: the info line's rating yields to the tag panel's row, which shows the same value and is the one place to change it.
-            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions),
+            // GL5c: it also yields to the rating button of the bar (☆ 4), which shows the value too.
+            InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions) && !Movable("gallery.toolbar.rating"),
             Hints: hints,
             // Only a walk of the tagging queue has decisions; Tag in any other gallery is the tag panel alone.
             DecisionRow: tag && input.Walk && bar,

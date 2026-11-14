@@ -4524,8 +4524,8 @@
     "gallery.layout.resetDone": "{0}：布局已重置为工作视图的默认设置。",
     "gallery.layout.filmstripHelp": "当前媒体前后各媒体的缩略图。",
     "gallery.layout.toolsHelp": "缩放、帖子面板、收藏、视图工具和幻灯片。带位置的箭头和 ⋯ 会保留。",
-    "gallery.layout.infoHelp": "画质、范围和评分。错误和警告始终保留。",
-    "gallery.layout.hintsHelp": "开头提示语、幻灯片状态和备注。暂停原因和错误始终保留。",
+    "gallery.layout.infoHelp": "单行显示：尺寸、缩放、来源和序号；工具栏没有评分按钮时还显示评分。错误和警告始终保留。",
+    "gallery.layout.hintsHelp": "信息行右侧的状态：幻灯片放映就绪或正在放映。“就绪”几秒后消失；暂停原因和错误始终保留。",
     "gallery.layout.hintOwn": "您的选择",
     "gallery.layout.hintView": "工作视图默认设置",
     "gallery.layout.whyFocus": "工具已隐藏。请重新显示工具后再更改布局。",
@@ -4684,6 +4684,8 @@
     "settings.mediaBadgeHideBelow": "低于此缩略图尺寸时不显示徽标",
     "settings.mediaBadgeHideBelowHint": "按所显示图片的较短边测量。低于此尺寸时，缩略图完全不显示徽标，只有名称和提示。该值不会超过上方圆点的界限。默认 {0}，范围 {1} 到 {2}。",
     "settings.mediaBadgeMaxPerCorner": "缩略图每个角的徽标数",
-    "settings.mediaBadgeMaxPerCornerHint": "缩略图的一个角最多容纳多少个小徽标；优先级较低的其余徽标不再显示。默认 {0}，范围 {1} 到 {2}。"
+    "settings.mediaBadgeMaxPerCornerHint": "缩略图的一个角最多容纳多少个小徽标；优先级较低的其余徽标不再显示。默认 {0}，范围 {1} 到 {2}。",
+    "settings.galleryStatusDwell": "状态消息的显示时间",
+    "settings.galleryStatusDwellHint": "图库信息行中的简短状态（例如幻灯片的“就绪”）在屏幕上停留多久。正在放映的幻灯片、暂停原因和错误会一直保留。默认 {0} 毫秒，{1} 到 {2} 毫秒。"
   }
 }

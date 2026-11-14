@@ -4681,8 +4681,8 @@
     "gallery.layout.resetDone": "{0}: rozložení obnoveno na výchozí hodnotu zobrazení.",
     "gallery.layout.filmstripHelp": "Náhledy médií před zobrazeným a po něm.",
     "gallery.layout.toolsHelp": "Zoom, panel příspěvku, oblíbené, nástroje zobrazení a prezentace. Šipky s pozicí a ⋯ zůstávají.",
-    "gallery.layout.infoHelp": "Kvalita, rozsah a hodnocení. Chyby a upozornění zůstávají vždy.",
-    "gallery.layout.hintsHelp": "Úvodní věta, stav prezentace a poznámky. Důvody pauzy a chyby zůstávají vždy.",
+    "gallery.layout.infoHelp": "Jeden řádek: velikost, zvětšení, zdroj a číslo, k tomu hodnocení tam, kde lišta nemá tlačítko hodnocení. Chyby a upozornění zůstávají vždy.",
+    "gallery.layout.hintsHelp": "Stav vpravo v informačním řádku: prezentace připravena nebo běží. „Připraveno“ po několika sekundách zmizí; důvody pauzy a chyby zůstávají vždy.",
     "gallery.layout.hintOwn": "Vaše volba",
     "gallery.layout.hintView": "Výchozí hodnota zobrazení",
     "gallery.layout.whyFocus": "Nástroje jsou skryté. Zobrazte je znovu, abyste mohli změnit rozložení.",
@@ -4819,6 +4819,8 @@
     "settings.mediaBadgeHideBelow": "Velikost náhledu, pod kterou se žádné značky nezobrazují",
     "settings.mediaBadgeHideBelowHint": "Měří se na kratší straně zobrazeného obrázku. Pod touto velikostí náhled neukazuje žádné značky, jen svůj název a popisek. Hodnota nikdy nepřekročí hranici pro tečky výše. Výchozí {0}, od {1} do {2}.",
     "settings.mediaBadgeMaxPerCorner": "Značek na roh náhledu",
-    "settings.mediaBadgeMaxPerCornerHint": "Kolik malých značek se vejde do jednoho rohu náhledu; další, s nižší prioritou, se vynechají. Výchozí {0}, od {1} do {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Kolik malých značek se vejde do jednoho rohu náhledu; další, s nižší prioritou, se vynechají. Výchozí {0}, od {1} do {2}.",
+    "settings.galleryStatusDwell": "Zobrazit stavové zprávy po dobu",
+    "settings.galleryStatusDwellHint": "Jak dlouho zůstane na obrazovce krátký stav informačního řádku galerie, například „Připraveno“ u prezentace. Běžící prezentace, důvody pauzy a chyby zůstávají. Výchozí {0} ms, od {1} do {2} ms."
   }
 }

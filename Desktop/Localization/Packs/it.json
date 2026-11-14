@@ -4642,8 +4642,8 @@
     "gallery.layout.resetDone": "{0}: layout ripristinato al valore predefinito della vista di lavoro.",
     "gallery.layout.filmstripHelp": "Miniature dei media prima e dopo quello mostrato.",
     "gallery.layout.toolsHelp": "Zoom, pannello del post, preferito, strumenti della vista e presentazione. Le frecce con la posizione e ⋯ restano.",
-    "gallery.layout.infoHelp": "Qualità, ambito e valutazione. Errori e avvisi restano sempre.",
-    "gallery.layout.hintsHelp": "Frase iniziale, stato della presentazione e note. I motivi di una pausa e gli errori restano sempre.",
+    "gallery.layout.infoHelp": "Una sola riga: dimensione, zoom, origine e numero, più la valutazione dove la barra non ha un pulsante di valutazione. Errori e avvisi restano sempre.",
+    "gallery.layout.hintsHelp": "Lo stato a destra della riga informativa: presentazione pronta o in corso. «Pronto» scompare dopo alcuni secondi; i motivi di una pausa e gli errori restano sempre.",
     "gallery.layout.hintOwn": "La tua scelta",
     "gallery.layout.hintView": "Valore predefinito della vista di lavoro",
     "gallery.layout.whyFocus": "Gli strumenti sono nascosti. Mostrali di nuovo per cambiare il layout.",
@@ -4779,6 +4779,8 @@
     "settings.mediaBadgeHideBelow": "Dimensione della miniatura sotto la quale non appare alcun contrassegno",
     "settings.mediaBadgeHideBelowHint": "Misurata sul lato più corto dell’immagine mostrata. Sotto questa dimensione una miniatura non mostra alcun contrassegno, solo il nome e il suggerimento. Non supera mai il limite dei punti indicato sopra. Predefinito {0}, da {1} a {2}.",
     "settings.mediaBadgeMaxPerCorner": "Contrassegni per angolo della miniatura",
-    "settings.mediaBadgeMaxPerCornerHint": "Quanti piccoli contrassegni può contenere un angolo di una miniatura; gli altri, di priorità minore, vengono omessi. Predefinito {0}, da {1} a {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Quanti piccoli contrassegni può contenere un angolo di una miniatura; gli altri, di priorità minore, vengono omessi. Predefinito {0}, da {1} a {2}.",
+    "settings.galleryStatusDwell": "Mostra i messaggi di stato per",
+    "settings.galleryStatusDwellHint": "Per quanto tempo resta sullo schermo uno stato breve della riga informativa della galleria, ad esempio «Pronto» della presentazione. Una presentazione in corso, i motivi di una pausa e gli errori restano. Predefinito {0} ms, da {1} a {2} ms."
   }
 }

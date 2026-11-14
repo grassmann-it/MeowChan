@@ -1005,6 +1005,10 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
+        /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
+        [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
+        public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
+        internal const int GalleryStatusDwellMsDefault = 3000, GalleryStatusDwellMsMinimum = 1000, GalleryStatusDwellMsMaximum = 10_000;
         /// <summary>The filmstrip of the gallery (thumbnails of the media before and after the shown one at the top): shown or not.</summary>
         public bool GalleryFilmstrip { get; set; } = true;
         /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
@@ -1430,6 +1434,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
             if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
+            if (GalleryStatusDwellMs is < GalleryStatusDwellMsMinimum or > GalleryStatusDwellMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
             if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
@@ -1651,6 +1657,7 @@ namespace MeowChan
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
+                GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
@@ -1890,6 +1897,7 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
@@ -2090,6 +2098,7 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
             // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
             // the layout after the reset when the draft asked for one, otherwise against the box as the draft loaded it (its baseline); the

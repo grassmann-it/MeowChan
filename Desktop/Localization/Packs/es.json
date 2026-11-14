@@ -4636,8 +4636,8 @@
     "gallery.layout.resetDone": "{0}: disposición restablecida al valor predeterminado de la vista de trabajo.",
     "gallery.layout.filmstripHelp": "Miniaturas de los medios anteriores y posteriores al mostrado.",
     "gallery.layout.toolsHelp": "Zoom, panel de la publicación, favorito, herramientas de vista y presentación. Las flechas con la posición y ⋯ permanecen.",
-    "gallery.layout.infoHelp": "Calidad, ámbito y valoración. Los errores y avisos siempre permanecen.",
-    "gallery.layout.hintsHelp": "Frase de inicio, estado de la presentación y notas. Los motivos de una pausa y los errores siempre permanecen.",
+    "gallery.layout.infoHelp": "Una línea: tamaño, zoom, origen y número, y la valoración donde la barra no tiene botón de valoración. Los errores y avisos siempre permanecen.",
+    "gallery.layout.hintsHelp": "El estado a la derecha de la línea de información: presentación lista o en marcha. «Listo» desaparece tras unos segundos; los motivos de una pausa y los errores siempre permanecen.",
     "gallery.layout.hintOwn": "Su elección",
     "gallery.layout.hintView": "Valor predeterminado de la vista de trabajo",
     "gallery.layout.whyFocus": "Las herramientas están ocultas. Vuelva a mostrarlas para cambiar la disposición.",
@@ -4773,6 +4773,8 @@
     "settings.mediaBadgeHideBelow": "Tamaño de miniatura por debajo del cual no se muestran marcas",
     "settings.mediaBadgeHideBelowHint": "Se mide en el lado más corto de la imagen mostrada. Por debajo de este tamaño, una miniatura no muestra ninguna marca, solo su nombre y su información emergente. Nunca supera el límite de los puntos indicado arriba. Predeterminado {0}, de {1} a {2}.",
     "settings.mediaBadgeMaxPerCorner": "Marcas por esquina de la miniatura",
-    "settings.mediaBadgeMaxPerCornerHint": "Cuántas marcas pequeñas cabe en una esquina de una miniatura; las demás, de menor prioridad, se omiten. Predeterminado {0}, de {1} a {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Cuántas marcas pequeñas cabe en una esquina de una miniatura; las demás, de menor prioridad, se omiten. Predeterminado {0}, de {1} a {2}.",
+    "settings.galleryStatusDwell": "Mostrar los mensajes de estado durante",
+    "settings.galleryStatusDwellHint": "Cuánto tiempo permanece en pantalla un estado breve de la línea de información de la galería, por ejemplo «Listo» de la presentación. Una presentación en marcha, los motivos de una pausa y los errores permanecen. Predeterminado {0} ms, de {1} a {2} ms."
   }
 }

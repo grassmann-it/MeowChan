@@ -4524,8 +4524,8 @@
     "gallery.layout.resetDone": "{0}: 레이아웃을 작업 보기의 기본값으로 초기화했습니다.",
     "gallery.layout.filmstripHelp": "표시 중인 미디어 앞뒤 미디어의 미리보기입니다.",
     "gallery.layout.toolsHelp": "확대/축소, 게시물 패널, 즐겨찾기, 보기 도구, 슬라이드쇼. 위치가 있는 화살표와 ⋯ 는 그대로 남습니다.",
-    "gallery.layout.infoHelp": "화질, 범위, 평가. 오류와 경고는 항상 남습니다.",
-    "gallery.layout.hintsHelp": "시작 문구, 슬라이드쇼 상태, 안내. 일시 중지 이유와 오류는 항상 남습니다.",
+    "gallery.layout.infoHelp": "한 줄로 크기, 확대/축소, 출처, 번호를 표시하며, 막대에 평가 버튼이 없으면 평가도 표시합니다. 오류와 경고는 항상 남습니다.",
+    "gallery.layout.hintsHelp": "정보 줄 오른쪽의 상태입니다(슬라이드쇼 준비됨 또는 실행 중). “준비됨”은 몇 초 뒤에 사라지며, 일시 중지 이유와 오류는 항상 남습니다.",
     "gallery.layout.hintOwn": "내가 선택한 값",
     "gallery.layout.hintView": "작업 보기 기본값",
     "gallery.layout.whyFocus": "도구가 숨겨져 있습니다. 레이아웃을 바꾸려면 다시 표시하세요.",
@@ -4684,6 +4684,8 @@
     "settings.mediaBadgeHideBelow": "배지를 표시하지 않는 미리보기 크기",
     "settings.mediaBadgeHideBelowHint": "표시된 그림의 짧은 변을 기준으로 잰 값입니다. 이보다 작으면 미리보기는 배지를 전혀 보여 주지 않고 이름과 툴팁만 남습니다. 위의 점 기준을 넘지 않습니다. 기본값 {0}, {1}~{2}.",
     "settings.mediaBadgeMaxPerCorner": "미리보기 모서리당 배지 수",
-    "settings.mediaBadgeMaxPerCornerHint": "미리보기의 한 모서리에 들어가는 작은 배지의 수입니다. 우선순위가 낮은 배지는 생략됩니다. 기본값 {0}, {1}~{2}."
+    "settings.mediaBadgeMaxPerCornerHint": "미리보기의 한 모서리에 들어가는 작은 배지의 수입니다. 우선순위가 낮은 배지는 생략됩니다. 기본값 {0}, {1}~{2}.",
+    "settings.galleryStatusDwell": "상태 메시지 표시 시간",
+    "settings.galleryStatusDwellHint": "갤러리 정보 줄의 짧은 상태 표시(예: 슬라이드쇼 “준비됨”)가 화면에 남는 시간입니다. 실행 중인 슬라이드쇼, 일시 중지 이유, 오류는 계속 남습니다. 기본값 {0}ms, {1}~{2}ms."
   }
 }

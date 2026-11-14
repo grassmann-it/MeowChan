@@ -396,20 +396,10 @@ internal sealed partial class GalleryViewer : UserControl
         _chrome.Child = WithDockTransport(WithTaggingStrip(toolbar)); // the tagging mode's decision strip sits below the toolbar (PT3); GL2: the video bar above it
         foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");
-        StackPanel infoContent = new() { Spacing = 2 };
-        Grid infoHeadline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-        infoHeadline.Children.Add(_quality);
-        infoHeadline.Children.Add(_position); Grid.SetColumn(_position, 1);
-        infoContent.Children.Add(infoHeadline);
-        infoContent.Children.Add(_scope);
-        infoContent.Children.Add(_provenance);
-        infoContent.Children.Add(_warnings);
-        infoContent.Children.Add(_favoriteError);
-        infoContent.Children.Add(_ratingStatus);
-        infoContent.Children.Add(_overlayFallbackNotice);
-        infoContent.Children.Add(_slideshowStatus);
+        // GL5c: one line "size · zoom · source · number" with the integrity note and the rating as segments, the status segment on the
+        // right; the warning and error lines stay below it (GalleryViewer.InfoLine.cs).
         AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
-        _infoOverlay.Child = infoContent;
+        _infoOverlay.Child = BuildInfoContent();
         // Close sits at the top right of the surface it closes (× · Esc), outside the scrolling list of shortcuts.
         _helpTitle.Classes.Add("section-title");
         _helpTitle.VerticalAlignment = VerticalAlignment.Center;

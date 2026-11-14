@@ -245,7 +245,7 @@ internal sealed partial class GalleryViewer
         // GL0: what the slideshow does is a hint (the layout's Hints, off with hidden tools); why it waits and a failure always show.
         bool shown = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow
             && (!GalleryChromePlan.IsHint(_shownSlideshowStatus) || _modeTools == null || BuildChromePlan().Hints);
-        string text = shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty;
+        string text = ApplyStatusDwell(_shownSlideshowStatus, shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty); // GL5c: "ready" fades out after the dwell time
         if (_slideshowStatus.Text != text) _slideshowStatus.Text = text;
         _slideshowStatus.IsVisible = text.Length > 0;
     }

@@ -4636,8 +4636,8 @@
     "gallery.layout.resetDone": "{0} : disposition réinitialisée à la valeur par défaut de la vue de travail.",
     "gallery.layout.filmstripHelp": "Miniatures des médias avant et après celui qui est affiché.",
     "gallery.layout.toolsHelp": "Zoom, panneau de la publication, favori, outils de la vue et diaporama. Les flèches avec la position et ⋯ restent.",
-    "gallery.layout.infoHelp": "Qualité, portée et note. Les erreurs et les avertissements restent toujours.",
-    "gallery.layout.hintsHelp": "Phrase de départ, état du diaporama et remarques. Les raisons d’une pause et les erreurs restent toujours.",
+    "gallery.layout.infoHelp": "Une seule ligne : taille, zoom, source et numéro, plus la note lorsque la barre n’a pas de bouton de note. Les erreurs et les avertissements restent toujours.",
+    "gallery.layout.hintsHelp": "L’état à droite de la ligne d’informations : diaporama prêt ou en cours. « Prêt » disparaît après quelques secondes ; les raisons d’une pause et les erreurs restent toujours.",
     "gallery.layout.hintOwn": "Votre choix",
     "gallery.layout.hintView": "Valeur par défaut de la vue de travail",
     "gallery.layout.whyFocus": "Les outils sont masqués. Réaffichez-les pour modifier la disposition.",
@@ -4773,6 +4773,8 @@
     "settings.mediaBadgeHideBelow": "Taille de miniature en dessous de laquelle aucune pastille n’est affichée",
     "settings.mediaBadgeHideBelowHint": "Mesurée sur le petit côté de l’image affichée. En dessous de cette taille, une miniature n’affiche aucune pastille, seulement son nom et son infobulle. Elle ne dépasse jamais la limite des points ci-dessus. Par défaut {0}, de {1} à {2}.",
     "settings.mediaBadgeMaxPerCorner": "Pastilles par coin de miniature",
-    "settings.mediaBadgeMaxPerCornerHint": "Nombre de petites pastilles qu’un coin d’une miniature peut contenir ; les suivantes, de moindre priorité, sont omises. Par défaut {0}, de {1} à {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Nombre de petites pastilles qu’un coin d’une miniature peut contenir ; les suivantes, de moindre priorité, sont omises. Par défaut {0}, de {1} à {2}.",
+    "settings.galleryStatusDwell": "Afficher les messages d’état pendant",
+    "settings.galleryStatusDwellHint": "Durée d’affichage d’un état bref de la ligne d’informations de la galerie, par exemple « Prêt » pour le diaporama. Un diaporama en cours, les raisons d’une pause et les erreurs restent affichés. Par défaut {0} ms, de {1} à {2} ms."
   }
 }

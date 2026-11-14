@@ -37,7 +37,7 @@ internal static class GalleryLayoutMenu
     internal static IReadOnlyList<string> RowIds { get; } = Array.AsReadOnly(
         new[] { FilmstripId, FilmstripTopId, FilmstripBottomId, ToolsId, InfoId, HintsId, ResetId });
 
-    /// <summary>The command whose shortcut a row shows (L for the filmstrip; the layout commands are unbound by default).</summary>
+    /// <summary>The command whose shortcut a row shows (the filmstrip's toggle for the filmstrip; the layout commands are unbound by default).</summary>
     internal static string CommandOf(string rowId) => rowId == FilmstripId ? "gallery.filmstrip-toggle" : rowId;
 
     /// <summary>The block a switch row stands for (null for the other rows).</summary>

@@ -4684,8 +4684,8 @@
     "gallery.layout.resetDone": "{0}: układ przywrócony do wartości domyślnej widoku roboczego.",
     "gallery.layout.filmstripHelp": "Miniatury mediów przed pokazanym i po nim.",
     "gallery.layout.toolsHelp": "Powiększenie, panel wpisu, ulubione, narzędzia widoku i pokaz slajdów. Strzałki z pozycją i ⋯ zostają.",
-    "gallery.layout.infoHelp": "Jakość, zakres i ocena. Błędy i ostrzeżenia zawsze zostają.",
-    "gallery.layout.hintsHelp": "Zdanie startowe, stan pokazu slajdów i uwagi. Powody pauzy i błędy zawsze zostają.",
+    "gallery.layout.infoHelp": "Jeden wiersz: rozmiar, powiększenie, źródło i numer, a także ocena tam, gdzie na pasku nie ma przycisku oceny. Błędy i ostrzeżenia zawsze zostają.",
+    "gallery.layout.hintsHelp": "Stan po prawej stronie wiersza informacji: pokaz slajdów gotowy lub trwa. „Gotowe” znika po kilku sekundach; powody pauzy i błędy zawsze zostają.",
     "gallery.layout.hintOwn": "Twój wybór",
     "gallery.layout.hintView": "Wartość domyślna widoku roboczego",
     "gallery.layout.whyFocus": "Narzędzia są ukryte. Pokaż je ponownie, aby zmienić układ.",
@@ -4822,6 +4822,8 @@
     "settings.mediaBadgeHideBelow": "Rozmiar miniatury, poniżej którego nie pokazuje się żadnych znaczników",
     "settings.mediaBadgeHideBelowHint": "Mierzony na krótszym boku pokazanego obrazu. Poniżej tego rozmiaru miniatura nie pokazuje żadnych znaczników, tylko nazwę i podpowiedź. Wartość nigdy nie przekracza granicy dla kropek powyżej. Domyślnie {0}, od {1} do {2}.",
     "settings.mediaBadgeMaxPerCorner": "Znaczników na róg miniatury",
-    "settings.mediaBadgeMaxPerCornerHint": "Ile małych znaczników mieści jeden róg miniatury; pozostałe, o niższym priorytecie, są pomijane. Domyślnie {0}, od {1} do {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Ile małych znaczników mieści jeden róg miniatury; pozostałe, o niższym priorytecie, są pomijane. Domyślnie {0}, od {1} do {2}.",
+    "settings.galleryStatusDwell": "Pokazuj komunikaty o stanie przez",
+    "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms."
   }
 }

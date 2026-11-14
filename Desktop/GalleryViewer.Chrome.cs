@@ -314,7 +314,7 @@ internal sealed partial class GalleryViewer
         _ratingStatus.IsVisible = plan.InfoRating;
         // Diagnostic notices have no visibility or auto-hide authority. The capability
         // fallback is neutral layout information, not a dismissible technical banner.
-        _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
+        UpdateInfoLine(); // GL5c: the info block shows while a segment of its line or a safety line does (and sets the dock margin when that changes)
         ApplyDockMargin();
         // The video bar is a plan block (Transport); its docked host is visible only while the dock hosts it and the video is shown (the
         // transport left the player, so the player's own visibility no longer hides it).

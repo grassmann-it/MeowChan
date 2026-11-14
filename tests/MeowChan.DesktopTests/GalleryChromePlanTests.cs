@@ -163,8 +163,8 @@ public sealed class GalleryChromePlanTests
         Assert.Equal(expected, plan.BarToolIds);
         // The info line: quality always; the scope only outside the mode and as the view says; the rating yields to the panel's row.
         Assert.True(plan.InfoQuality);
-        Assert.Equal(!tag && view != WorkView.Barebones, plan.InfoScope);
-        Assert.Equal(!panel, plan.InfoRating);
+        Assert.Equal(!tag && view != WorkView.Barebones && width >= GalleryChromePlan.NarrowWidth, plan.InfoScope); // S2: the scope leaves below 900
+        Assert.Equal(!panel && !plan.Rating, plan.InfoRating); // GL5c: and the rating button of the bar shows the value too
         Assert.Equal(walk && width < 1280, plan.StripTwoRows);
     }
 

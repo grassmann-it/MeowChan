@@ -126,6 +126,7 @@ public static class SettingsTransfer
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB,
             StatsSampleIntervalMs = source.StatsSampleIntervalMs,
             ControlsIdleHideMs = source.ControlsIdleHideMs,
+            GalleryStatusDwellMs = source.GalleryStatusDwellMs,
             StatsHistorySamples = source.StatsHistorySamples,
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs,
             StatsTrayTooltip = source.StatsTrayTooltip,

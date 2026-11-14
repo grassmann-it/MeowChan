@@ -4642,8 +4642,8 @@
     "gallery.layout.resetDone": "{0}: layout redefinido para o padrão da visualização.",
     "gallery.layout.filmstripHelp": "Miniaturas das mídias antes e depois da exibida.",
     "gallery.layout.toolsHelp": "Zoom, painel da postagem, favorito, ferramentas de visualização e apresentação. As setas com a posição e ⋯ permanecem.",
-    "gallery.layout.infoHelp": "Qualidade, escopo e avaliação. Erros e avisos sempre permanecem.",
-    "gallery.layout.hintsHelp": "Frase inicial, estado da apresentação e observações. Os motivos de uma pausa e os erros sempre permanecem.",
+    "gallery.layout.infoHelp": "Uma linha: tamanho, zoom, origem e número, mais a avaliação onde a barra não tem botão de avaliação. Erros e avisos sempre permanecem.",
+    "gallery.layout.hintsHelp": "O estado à direita da linha de informações: apresentação pronta ou em andamento. “Pronto” some após alguns segundos; os motivos de uma pausa e os erros sempre permanecem.",
     "gallery.layout.hintOwn": "Sua escolha",
     "gallery.layout.hintView": "Padrão da visualização",
     "gallery.layout.whyFocus": "As ferramentas estão ocultas. Mostre-as novamente para alterar o layout.",
@@ -4779,6 +4779,8 @@
     "settings.mediaBadgeHideBelow": "Tamanho da miniatura abaixo do qual nenhuma marca é exibida",
     "settings.mediaBadgeHideBelowHint": "Medido no lado mais curto da imagem exibida. Abaixo deste tamanho, uma miniatura não mostra nenhuma marca, apenas o nome e a dica. Nunca ultrapassa o limite dos pontos acima. Padrão {0}, de {1} a {2}.",
     "settings.mediaBadgeMaxPerCorner": "Marcas por canto da miniatura",
-    "settings.mediaBadgeMaxPerCornerHint": "Quantas marcas pequenas cabem em um canto de uma miniatura; as demais, de menor prioridade, são omitidas. Padrão {0}, de {1} a {2}."
+    "settings.mediaBadgeMaxPerCornerHint": "Quantas marcas pequenas cabem em um canto de uma miniatura; as demais, de menor prioridade, são omitidas. Padrão {0}, de {1} a {2}.",
+    "settings.galleryStatusDwell": "Exibir mensagens de status por",
+    "settings.galleryStatusDwellHint": "Por quanto tempo um status curto da linha de informações da galeria, como “Pronto” da apresentação, fica na tela. Uma apresentação em andamento, os motivos de uma pausa e os erros permanecem. Padrão {0} ms, de {1} a {2} ms."
   }
 }
