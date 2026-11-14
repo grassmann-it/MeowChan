@@ -376,6 +376,8 @@ public partial class SettingsEditor
     private bool FinishFieldValidation(bool focusError = true)
     {
         if (_firstInvalidInput == null) return true;
+        // R6: every field with an error opens its group, not only the first one that takes the focus.
+        SweepGroups();
         SetErrorMessage("settings.notSaved");
         SetStatusMessage("settings.unsaved");
         if (!focusError) return false;

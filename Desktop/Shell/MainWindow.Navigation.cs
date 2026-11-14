@@ -204,6 +204,9 @@ public partial class MainWindow
                 _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
                 _settingsEditor.Updates = _session.Updates;
                 _settingsEditor.BusyChanged += OnSettingsBusyChanged;
+                // The page is built after the first frame: it starts in the window's view and follows every later change (WV8).
+                _settingsEditor.ApplyWorkView(_workViews.Current, viewChanged: true);
+                _workViews.Changed += (_, current) => _settingsEditor?.ApplyWorkView(current, viewChanged: true);
                 SettingsPageHost.Content = _settingsEditor;
                 return true;
             case 1:

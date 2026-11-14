@@ -11,7 +11,7 @@ public sealed class WorkViewPolicyTests
     private static readonly WorkViewPage[] PagesWithoutRowsYet =
     [
         WorkViewPage.Gallery,
-        WorkViewPage.Settings, WorkViewPage.Dialogs
+        WorkViewPage.Dialogs
     ];
 
     [Fact]

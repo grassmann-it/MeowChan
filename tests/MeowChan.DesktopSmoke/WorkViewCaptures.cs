@@ -102,8 +102,10 @@ internal static class WorkViewCaptures
                                 CheckPresence(window, page, view);
                                 if (page == "downloads") CheckShellAndDownloads(window, view);
                                 CheckSectionsAndMore(window, page, view);
+                                if (page == "settings") WorkViewSettingsChecks.CheckGroups(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
+                                if (page == "settings") WorkViewSettingsChecks.ProbeSearch(window, view);
                                 if (page == "archive")
                                 {
                                     WorkViewArchiveChecks.RequirePlacement(window, view);

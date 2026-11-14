@@ -331,6 +331,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            InitializeWorkViews();
 
             Texts.Changed += OnLanguageChanged;
             DownloadDestinationValidator.Shared.CleanupFailed += OnDestinationCleanupFailed;
@@ -910,6 +911,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
             SetErrorMessage(null);
             SetStatusMessage(null);
@@ -1438,6 +1440,7 @@ namespace MeowChan
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
         }
 
@@ -1464,6 +1467,7 @@ namespace MeowChan
                 GallerySlideshowSecondsInput.NumberFormat, out _) && !DataValidationErrors.GetHasErrors(GallerySlideshowSecondsInput)) return true;
             GallerySlideshowSecondsInputError.Text = Texts.T("settings.fieldInteger", GallerySlideshowSecondsLabel, 1, 300);
             GallerySlideshowSecondsInputError.IsVisible = true;
+            SweepGroups();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
             _firstInvalidInput ??= GallerySlideshowSecondsInput;
             return FinishFieldValidation(focusError);

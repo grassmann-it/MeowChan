@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Layout;
@@ -50,7 +51,9 @@ public partial class SettingsEditor
     {
         foreach (var item in CategoryPages())
         {
-            if (!ReferenceEquals(input, item.Page) && !input.GetVisualAncestors().Contains(item.Page)) continue;
+            // Logical as well as visual: a collapsed group's content may not have a visual parent yet.
+            if (!ReferenceEquals(input, item.Page) && !input.GetVisualAncestors().Contains(item.Page)
+                && !input.GetLogicalAncestors().Contains(item.Page)) continue;
             SelectCategory(item.Id);
             return;
         }
@@ -177,7 +180,7 @@ public partial class SettingsEditor
             new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading, () => SelectCategory("settings.reading-media")),
             new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading, () => SelectCategory("settings.downloads")),
             new("settings.worker-budgets", StorageLimitsLabel, () => SettingsWorkerBudgetsPageTitle,
-                () => { SelectCategory("settings.worker-budgets"); SettingsWorkerBudgetsHeading.IsExpanded = true; }),
+                () => { SelectCategory("settings.worker-budgets"); SettingsLimitsGroup.IsExpanded = true; SettingsWorkerBudgetsHeading.IsExpanded = true; }),
             new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading, () => SelectCategory("settings.updates"))
         };
         AddOptional("settings.notifications", "SettingsNotificationsHeading");

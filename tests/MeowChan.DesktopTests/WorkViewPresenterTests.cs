@@ -7,6 +7,8 @@ using Ursa.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>The appliers per element kind (plan AP5 §3.1 item 4) on real, windowless controls.</summary>
+// One collection: both register controls in the static work-view registry, which reads them from whichever thread asks.
+[Collection("Work views")]
 public sealed class WorkViewPresenterTests
 {
     [Fact]

@@ -435,7 +435,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         Panel root = (Panel)editor.Content!;
         Assert.Contains(root.Children.OfType<TextBlock>(), text => text.Text == Texts.T("settings.shortcutsEditor.hint"));
         Assert.Equal(new[] { "action", "context", "effectiveBinding" }.Select(key => Texts.T("settings.shortcutsEditor." + key)),
-            root.Children.OfType<Grid>().Single().Children.OfType<TextBlock>().Select(text => text.Text));
+            ((Panel)editor.MoreGroup.Content!).Children.OfType<Grid>().Single().Children.OfType<TextBlock>().Select(text => text.Text)); // the table sits in the settings group
         foreach (string key in new[] { "resetAll", "recordAdditional", "clearBinding", "restoreDefault", "applyRecording", "takeOver", "cancelRecording" })
         {
             Button button = FindButton(editor, key);

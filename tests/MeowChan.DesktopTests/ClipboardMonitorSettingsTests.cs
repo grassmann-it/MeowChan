@@ -170,8 +170,10 @@ public sealed class ClipboardMonitorSettingsTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement checkbox = Assert.Single(markup.Descendants().Where(e => (string?)e.Attribute(x + "Name") == "MonitorClipboardUrlsInput"));
         Assert.Equal("CheckBox", checkbox.Name.LocalName);
-        Assert.Equal("SettingsBehaviorPage", (string?)checkbox.Parent!.Attribute(x + "Name"));
-        Assert.Equal("{Binding IsEditable}", (string?)checkbox.Parent.Attribute("IsEnabled"));
+        // The switch sits in the behaviour group ("More settings") of the page, which carries the editability binding.
+        Assert.Equal("SettingsBehaviorBody", (string?)checkbox.Parent!.Attribute(x + "Name"));
+        XElement page = Assert.Single(checkbox.Ancestors(), e => (string?)e.Attribute(x + "Name") == "SettingsBehaviorPage");
+        Assert.Equal("{Binding IsEditable}", (string?)page.Attribute("IsEnabled"));
         Assert.Equal("{Binding MonitorClipboardUrls, Mode=TwoWay}", (string?)checkbox.Attribute("IsChecked"));
         Assert.Equal("{Binding MonitorClipboardLabel}", (string?)checkbox.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding MonitorClipboardHint}", (string?)checkbox.Attribute("AutomationProperties.HelpText"));
