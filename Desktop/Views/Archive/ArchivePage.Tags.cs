@@ -353,7 +353,7 @@ public partial class ArchivePage
         ToolTip.SetTip(ReaderTagsOpen, Texts.T("tags.openHint"));
         TagSuggestionInput.Localize(ReaderTagInput);
         ReaderTagAdd.Content = Texts.T("tags.add");
-        ReaderTagClose.Content = Texts.T("tags.close");
+        MeowChan.Desktop.Controls.HeaderBar.MakeClose(ReaderTagClose, Texts.T("tags.close"));
         _tagBarRendered = null;
         UpdatePrivateTagActions();
     }

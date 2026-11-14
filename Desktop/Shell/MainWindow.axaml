@@ -359,22 +359,25 @@
                             <Button x:Name="CopyAllUrlsButton" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized subtle" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
                             <Button x:Name="DetailsToggleButton" wv:WorkViewElement.Id="downloads.toolbar.details" Classes="subtle" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
                         </desktop:ActionToolBar>
-                        <Grid x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6" Margin="8,2,8,6" IsVisible="False">
-                            <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
-                            <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
-                            <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
-                            <Button x:Name="DownloadSearchClose" Grid.Column="3" Classes="localized subtle" Tag="downloads.searchClose" Click="OnDownloadSearchClose" />
-                        </Grid>
+                        <!-- The search row's way out stands alone at its right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+                        <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,6" IsVisible="False">
+                            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                                <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
+                                <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                                <Button x:Name="DownloadSearchClear" Grid.Column="2" Classes="localized subtle" Tag="downloads.searchClear" Click="OnDownloadSearchClear" />
+                            </Grid>
+                            <Button x:Name="DownloadSearchClose" controls:HeaderBar.IsEnd="True" Click="OnDownloadSearchClose" />
+                        </controls:HeaderBar>
                     </Grid>
                 </Border>
                 <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
                               ResizeDirection="Columns" Background="Transparent" />
                 <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="workspace-section-flush" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
-                        <Grid Margin="16,10,10,8" ColumnDefinitions="*,Auto">
+                        <controls:HeaderBar Margin="16,10,10,8">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
-                            <Button x:Name="InspectorCloseButton" Grid.Column="1" Classes="subtle icon-square" Click="OnDetailsToggleClick" />
-                        </Grid>
+                            <Button x:Name="InspectorCloseButton" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" Click="OnDetailsToggleClick" />
+                        </controls:HeaderBar>
                         <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel Margin="16,2,16,16" Spacing="12">
                                 <TextBlock x:Name="InspectorEmptyState" Tag="detail.empty" Classes="localized muted" TextWrapping="Wrap" />
@@ -535,15 +538,17 @@
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
                 Classes="workspace-overlay" Margin="20" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
-            <Grid RowDefinitions="Auto,*,Auto">
-                <TextBlock x:Name="ShellHelpTitle" Classes="section-title" Margin="16,16,16,12" />
+            <!-- Modal header bar: the title and, alone at the top right, the close cross (HeaderBar end slot). The footer held
+                 only this Close, so it is gone; Escape still dismisses the help (OnShellKeyDown). -->
+            <Grid RowDefinitions="Auto,*">
+                <controls:HeaderBar x:Name="ShellHelpHeader" Margin="16,16,16,12">
+                    <TextBlock x:Name="ShellHelpTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" />
+                </controls:HeaderBar>
                 <ScrollViewer Grid.Row="1" Margin="16,0,16,16" Classes="InsetContent"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
                     <TextBlock x:Name="ShellHelpText" TextWrapping="Wrap" LineHeight="22" />
                 </ScrollViewer>
-                <Border Grid.Row="2" Classes="workspace-dialog-footer">
-                    <Button x:Name="ShellHelpClose" HorizontalAlignment="Right" MinWidth="96" />
-                </Border>
             </Grid>
         </Border>
     </Grid>

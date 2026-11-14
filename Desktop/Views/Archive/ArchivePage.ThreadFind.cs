@@ -192,7 +192,7 @@ public partial class ArchivePage
         ReaderFindQuery.Watermark = Texts.T("readerFind.query");
         ReaderFindPrevious.Content = Texts.T("readerFind.previous");
         ReaderFindNext.Content = Texts.T("readerFind.next");
-        ReaderFindClose.Content = Texts.T("readerFind.close");
+        HeaderBar.MakeClose(ReaderFindClose, Texts.T("readerFind.close"));
         ReaderFindRetry.Content = Texts.T("readerFind.retry");
         ReaderFindRetry.IsVisible = _threadFindStatus == "readerFind.failed";
         var result = _threadFindResult;

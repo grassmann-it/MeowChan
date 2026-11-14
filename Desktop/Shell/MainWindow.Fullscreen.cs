@@ -886,7 +886,8 @@ public partial class MainWindow
         FullscreenButton.Classes.Set("selected", WindowState == WindowState.FullScreen);
         Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
             CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
-        CommandBindings.Apply(ShellHelpClose, "window.close");
+        // The help's close cross in its header bar: the catalog icon, the same name and tooltip as the former footer button.
+        CommandBindings.Apply(ShellHelpClose, "window.close", iconOnly: true);
         foreach (string id in MainPageOrder.CommandIds)
             CommandBindings.Apply(WorkspaceControl<MenuItem>(MainPageOrder.ControlStem(id) + "MenuItem"), id);
         foreach (var pair in new[] { ("ManualImportMenuItem", "import.open"), ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),

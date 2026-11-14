@@ -259,15 +259,21 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <StackPanel Spacing="4">
-                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <Button x:Name="ArchiveBackButton" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
-                        <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    </Grid>
+                    <!-- Tom's rule (14.11.): the ways out of the reader stand alone at the right edge of its header row, after a gap and a
+                         divider (HeaderBar end slot), last in the row's tab order: the state returns, the narrow "Back to thread list" and
+                         the large reader's close. The toolbar below keeps only the reader's own actions. -->
+                    <controls:HeaderBar x:Name="ReaderHeaderBar">
+                        <TextBlock x:Name="ArchiveReaderTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <Button x:Name="ArchiveGalleryReturn" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                        <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
+                        <Button x:Name="ArchiveMediaReturn" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
+                        <Button x:Name="ArchiveBackButton" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
+                        <Button x:Name="ArchiveCloseReader" controls:HeaderBar.IsEnd="True" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                    </controls:HeaderBar>
                     <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
                          policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
                     <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
-                    <Button x:Name="ArchiveCloseReader" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
                     <Button x:Name="ReaderTagsOpen" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ArchiveOpenGallery" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
@@ -276,9 +282,6 @@
                     <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
                     <Button x:Name="ReaderViewOpen" wv:WorkViewElement.Id="reader.toolbar.view" Click="OnReaderViewMenuClick" />
                     <Button x:Name="ArchiveReadPosts" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
-                    <Button x:Name="ArchiveGalleryReturn" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
-                    <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
-                    <Button x:Name="ArchiveMediaReturn" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReaderFullscreen" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
@@ -291,6 +294,7 @@
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
+                        <controls:HeaderBar x:Name="ReaderFindRow">
                         <WrapPanel ItemSpacing="8" LineSpacing="4">
                             <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
                                 <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
@@ -301,8 +305,10 @@
                             <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
-                            <Button x:Name="ReaderFindClose" Click="OnCloseThreadFind" />
                         </WrapPanel>
+                        <!-- The find bar's way out: alone at the right edge (HeaderBar end slot), the drawn cross with its name. -->
+                        <Button x:Name="ReaderFindClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadFind" />
+                        </controls:HeaderBar>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
                         <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
@@ -311,12 +317,14 @@
                     <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="4">
                         <WrapPanel x:Name="ReaderTagChips" ItemSpacing="8" LineSpacing="4" />
                         <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="8" LineSpacing="4" IsVisible="False" />
+                        <controls:HeaderBar x:Name="ReaderTagRow">
                         <WrapPanel ItemSpacing="8" LineSpacing="4">
                             <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
                             <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
                             <Button x:Name="ReaderTagManage" Click="OnManageTags" />
-                            <Button x:Name="ReaderTagClose" Click="OnCloseThreadTags" />
                         </WrapPanel>
+                        <Button x:Name="ReaderTagClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadTags" />
+                        </controls:HeaderBar>
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
@@ -725,10 +733,10 @@
         </StackPanel>
         <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="workspace-section" IsVisible="False">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <controls:HeaderBar>
                     <TextBlock x:Name="PreviewTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <Button x:Name="ClosePreviewButton" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnClosePreview" />
-                </Grid>
+                    <Button x:Name="ClosePreviewButton" controls:HeaderBar.IsEnd="True" Click="OnClosePreview" />
+                </controls:HeaderBar>
                 <Grid Grid.Row="1">
                     <Image x:Name="ArchivePreviewImage" Stretch="Uniform" />
                     <TextBlock x:Name="ArchivePreviewMessage" Classes="muted" TextWrapping="Wrap" />

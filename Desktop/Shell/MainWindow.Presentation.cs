@@ -308,6 +308,7 @@ public partial class MainWindow
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
         ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
+        MeowChan.Desktop.Controls.HeaderBar.MakeClose(DownloadSearchClose, Texts.T("downloads.searchClose"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
         AutomationProperties.SetName(WorkspaceMenuItem, CommandCatalog.Label("navigation.app-menu")); // A24: the application menu, not "Settings"

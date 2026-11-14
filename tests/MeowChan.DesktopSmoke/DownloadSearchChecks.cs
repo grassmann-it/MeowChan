@@ -78,10 +78,10 @@ internal static class DownloadSearchChecks
             await Program.WaitUntilAsync(() => window.VisibleBoards.Contains(board));
             Require(window.VisibleResultCount == window.VisibleBoards.Count, "Board count did not follow the active list.");
             Click(window.FindControl<Button>("DownloadSearchClose")!);
-            Require(window.FindControl<Grid>("DownloadSearchBar")!.IsVisible && window.FindControl<Button>("DownloadSearchClear")!.IsVisible,
+            Require(window.FindControl<Control>("DownloadSearchBar")!.IsVisible && window.FindControl<Button>("DownloadSearchClear")!.IsVisible,
                 "Collapsed active search lost its filter summary or clear action.");
             Click(window.FindControl<Button>("DownloadSearchClear")!);
-            await Program.WaitUntilAsync(() => input.Text == "" && !window.FindControl<Grid>("DownloadSearchBar")!.IsVisible);
+            await Program.WaitUntilAsync(() => input.Text == "" && !window.FindControl<Control>("DownloadSearchBar")!.IsVisible);
             tabs.SelectedIndex = 0;
             TextBox url = window.FindControl<TextBox>("UrlInput")!;
             url.Text = "not-a-valid-url";
