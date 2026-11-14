@@ -157,7 +157,7 @@ public partial class ArchivePage
             && !_page.IsReaderDialogOpen && (!_requireRefreshAllowed || (_page.ReaderRefreshAllowed?.Invoke() ?? true))
             && _pane.IsEffectivelyVisible && _pane.IsEffectivelyEnabled
             && _owner is { IsActive: true, IsVisible: true }
-            && !_owner.OwnedWindows.Any(window => window.IsVisible)
+            && !_owner.OwnedWindows.Any(window => window.IsVisible && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window))
             && ReferenceEquals(TopLevel.GetTopLevel(_pane), _owner)
             && (_owner.FocusManager?.GetFocusedElement() is not { } current || ReferenceEquals(current, _ownedFocus));
 
@@ -769,7 +769,7 @@ public partial class ArchivePage
             && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
             && source.IsEffectivelyVisible && source.IsEffectivelyEnabled
             && CommandRouter.IsRoutingContextActive(pane, source)
-            && TopLevel.GetTopLevel(pane) is Window owner && !owner.OwnedWindows.Any(window => window.IsVisible)
+            && TopLevel.GetTopLevel(pane) is Window owner && !owner.OwnedWindows.Any(window => window.IsVisible && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window))
             && ReferenceEquals(posts.SelectedItem, post) && _thread?.FindPostIndex(post.Id) >= 0
             && !(posts.ContainerFromItem(post)?.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd) ?? false)
