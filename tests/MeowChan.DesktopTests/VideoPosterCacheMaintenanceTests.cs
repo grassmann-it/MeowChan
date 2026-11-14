@@ -346,6 +346,28 @@ public sealed class VideoPosterCacheMaintenanceTests
     }
 
     [Fact]
+    public void StoredCheckAcceptsStoredFixedDynamicAndMultiBlockMembersButNotFalseCompleteMembers()
+    {
+        byte[] raw = [0, 1, 2, 3, 4];
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, StoredZlib(raw))));
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, FixedZlib(raw))));
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, DynamicZlib(raw))));
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(4, 1, MultiStoredZlib(raw))));
+        Assert.True(VideoPosterCache.ValidStored(SyntheticPng(1, 1, StoredZlib([0, 1]), interlaceMethod: 1)));
+
+        byte[] stored = StoredZlib(raw);
+        byte[] trailingMemberBytes = [.. stored[..^4], 0x42, 0x42, .. stored[^4..]];
+        Assert.False(VideoPosterCache.ValidStored(SyntheticPng(4, 1, trailingMemberBytes)));
+
+        byte[] nonFinalBlock = NonFinalStoredZlib(raw);
+        Assert.False(VideoPosterCache.ValidStored(SyntheticPng(4, 1, nonFinalBlock)));
+
+        // The member boundary pass rejects output beyond the exact IHDR-derived scanline budget before ZLibStream sees it.
+        Assert.False(VideoPosterCache.ValidStored(SyntheticPng(1, 1, StoredZlib([0, 1, 2]))));
+        Assert.False(VideoPosterCache.ValidStored(SyntheticPng(4, 1, stored[..^1])));
+    }
+
+    [Fact]
     public void StoredCheckRequiresTheZlibAdlerTrailer()
     {
         byte[] withoutAdler = WithoutIdatAdlerTrailer(Png(12, 8, SKColors.Coral));
@@ -414,6 +436,180 @@ public sealed class VideoPosterCacheMaintenanceTests
     }
 
     private static int IndexOf(byte[] bytes, ReadOnlySpan<byte> value) => bytes.AsSpan().IndexOf(value);
+
+    private static byte[] SyntheticPng(int width, int height, byte[] zlib, byte interlaceMethod = 0)
+    {
+        byte[] ihdr = new byte[13];
+        BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(0, 4), (uint)width);
+        BinaryPrimitives.WriteUInt32BigEndian(ihdr.AsSpan(4, 4), (uint)height);
+        ihdr[8] = 8;
+        ihdr[9] = 0; // 8-bit grayscale, so raw scanlines are one filter byte plus one byte per pixel.
+        ihdr[12] = interlaceMethod;
+        return [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            .. Chunk("IHDR", ihdr), .. Chunk("IDAT", zlib), .. Chunk("IEND", [])];
+    }
+
+    private static byte[] StoredZlib(byte[] raw) => Zlib(StoredDeflate(raw), raw);
+
+    private static byte[] NonFinalStoredZlib(byte[] raw) => Zlib(StoredDeflate(raw, final: false), raw);
+
+    private static byte[] MultiStoredZlib(byte[] raw)
+    {
+        DeflateBitWriter writer = new();
+        WriteStoredBlock(writer, raw[..2], final: false);
+        WriteStoredBlock(writer, raw[2..], final: true);
+        return Zlib(writer.ToArray(), raw);
+    }
+
+    private static byte[] FixedZlib(byte[] raw)
+    {
+        DeflateBitWriter writer = new();
+        writer.Bits(1, 1); // BFINAL
+        writer.Bits(1, 2); // BTYPE=01, fixed Huffman
+        foreach (byte value in raw) WriteFixedSymbol(writer, value);
+        WriteFixedSymbol(writer, 256); // end-of-block
+        return Zlib(writer.ToArray(), raw);
+    }
+
+    private static byte[] DynamicZlib(byte[] raw)
+    {
+        DeflateBitWriter writer = new();
+        writer.Bits(1, 1); // BFINAL
+        writer.Bits(2, 2); // BTYPE=10, dynamic Huffman
+        writer.Bits(29, 5); // HLIT=286
+        writer.Bits(0, 5); // HDIST=1
+        writer.Bits(15, 4); // HCLEN=19
+        foreach (int length in new[] { 2, 0, 0, 2, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0 }) writer.Bits(length, 3);
+
+        WriteDynamicCodeLengthSymbol(writer, 9);
+        for (int repeat = 0; repeat < 47; repeat++) WriteDynamicRepeat(writer, 3); // code 16, repeat six nines
+        for (int repeat = 0; repeat < 3; repeat++) WriteDynamicCodeLengthSymbol(writer, 9);
+        WriteDynamicCodeLengthSymbol(writer, 1); // one mandatory one-bit distance code
+
+        foreach (byte value in raw) WriteDeflateCode(writer, value, 9); // symbols 0..4 have nine-bit canonical codes 0..4
+        WriteDeflateCode(writer, 256, 9); // EOB
+        return Zlib(writer.ToArray(), raw);
+    }
+
+    private static byte[] StoredDeflate(byte[] raw, bool final = true)
+    {
+        DeflateBitWriter writer = new();
+        WriteStoredBlock(writer, raw, final);
+        return writer.ToArray();
+    }
+
+    private static void WriteStoredBlock(DeflateBitWriter writer, byte[] raw, bool final)
+    {
+        writer.Bits(final ? 1 : 0, 1);
+        writer.Bits(0, 2); // BTYPE=00, stored
+        writer.Align();
+        writer.Bits(raw.Length, 16);
+        writer.Bits(raw.Length ^ 0xFFFF, 16);
+        foreach (byte value in raw) writer.Bits(value, 8);
+    }
+
+    private static void WriteFixedSymbol(DeflateBitWriter writer, int symbol)
+    {
+        (int code, int length) = symbol switch
+        {
+            <= 143 => (0x30 + symbol, 8),
+            <= 255 => (0x190 + symbol - 144, 9),
+            <= 279 => (symbol - 256, 7),
+            <= 287 => (0xC0 + symbol - 280, 8),
+            _ => throw new ArgumentOutOfRangeException(nameof(symbol)),
+        };
+        WriteDeflateCode(writer, code, length);
+    }
+
+    private static void WriteDeflateCode(DeflateBitWriter writer, int code, int length)
+    {
+        writer.Bits(ReverseBits(code, length), length);
+    }
+
+    private static int ReverseBits(int value, int length)
+    {
+        int reversed = 0;
+        for (int index = 0; index < length; index++)
+        {
+            reversed = (reversed << 1) | (value & 1);
+            value >>= 1;
+        }
+        return reversed;
+    }
+
+    private static void WriteDynamicCodeLengthSymbol(DeflateBitWriter writer, int symbol)
+    {
+        switch (symbol)
+        {
+            case 0: WriteDeflateCode(writer, 0, 2); break; // canonical code 00, length 2
+            case 1: WriteDeflateCode(writer, 1, 2); break; // canonical code 01, length 2
+            case 9: WriteDeflateCode(writer, 2, 2); break; // canonical code 10, length 2
+            case 16: WriteDeflateCode(writer, 3, 2); break; // canonical code 11, length 2
+            default: throw new ArgumentOutOfRangeException(nameof(symbol));
+        }
+    }
+
+    private static void WriteDynamicRepeat(DeflateBitWriter writer, int extra)
+    {
+        WriteDynamicCodeLengthSymbol(writer, 16);
+        writer.Bits(extra, 2);
+    }
+
+    private static byte[] Zlib(byte[] deflate, byte[] raw)
+    {
+        byte[] result = new byte[2 + deflate.Length + 4];
+        result[0] = 0x78;
+        result[1] = 0x9C;
+        Buffer.BlockCopy(deflate, 0, result, 2, deflate.Length);
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(result.Length - 4), Adler32(raw));
+        return result;
+    }
+
+    private static uint Adler32(byte[] bytes)
+    {
+        const uint Modulus = 65_521;
+        uint first = 1, second = 0;
+        foreach (byte value in bytes)
+        {
+            first += value;
+            if (first >= Modulus) first -= Modulus;
+            second += first;
+            if (second >= Modulus) second %= Modulus;
+        }
+        return (second << 16) | first;
+    }
+
+    private sealed class DeflateBitWriter
+    {
+        private readonly List<byte> _bytes = [0];
+        private int _bit;
+
+        internal void Bits(int value, int count)
+        {
+            for (int index = 0; index < count; index++)
+            {
+                if (((value >> index) & 1) != 0) _bytes[^1] |= (byte)(1 << _bit);
+                if (++_bit == 8)
+                {
+                    _bit = 0;
+                    _bytes.Add(0);
+                }
+            }
+        }
+
+        internal void Align()
+        {
+            if (_bit == 0) return;
+            _bit = 0;
+            _bytes.Add(0);
+        }
+
+        internal byte[] ToArray()
+        {
+            if (_bit == 0) _bytes.RemoveAt(_bytes.Count - 1);
+            return _bytes.ToArray();
+        }
+    }
 
     private static byte[] Chunk(string type, byte[] data)
     {

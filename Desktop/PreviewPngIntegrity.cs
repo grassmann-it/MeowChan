@@ -239,6 +239,283 @@ internal static class PreviewPngIntegrity
     private static int CountPassSamples(int length, int start, int step) =>
         length <= start ? 0 : checked((length - start + step - 1) / step);
 
+    private static readonly int[] CodeLengthOrder = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+    private static readonly int[] LengthBase = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31, 35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258];
+    private static readonly int[] LengthExtra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
+    private static readonly int[] DistanceBase = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
+    private static readonly int[] DistanceExtra = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+    private static readonly DeflateHuffmanTable FixedLiteralLength = CreateFixedLiteralLengthTable();
+    private static readonly DeflateHuffmanTable FixedDistance = CreateFixedDistanceTable();
+
+    /// <summary>
+    /// Finds the one RFC 1951 member boundary without inflating it. ZLibStream is still the authority for the bytes and Adler-32;
+    /// this pass supplies the missing BFINAL/EOB/boundary proof while limiting parsed output to the already-derived scanline length.
+    /// </summary>
+    private static bool HasCompleteDeflateMember(byte[] compressed, int expectedOutput)
+    {
+        if (compressed.Length < 6 || !ValidZlibHeader(compressed)) return false;
+        DeflateBitReader reader = new(compressed.AsSpan(2, compressed.Length - 6));
+        int output = 0;
+        bool final;
+        do
+        {
+            if (!reader.TryReadBits(1, out int finalBit) || !reader.TryReadBits(2, out int blockType)) return false;
+            final = finalBit != 0;
+            switch (blockType)
+            {
+                case 0:
+                    if (!ReadStoredBlock(ref reader, expectedOutput, ref output)) return false;
+                    break;
+                case 1:
+                    if (!ReadCompressedBlock(ref reader, FixedLiteralLength, FixedDistance, expectedOutput, ref output)) return false;
+                    break;
+                case 2:
+                    if (!ReadDynamicTables(ref reader, out DeflateHuffmanTable? literalLength, out DeflateHuffmanTable? distance)
+                        || literalLength is null || distance is null
+                        || !ReadCompressedBlock(ref reader, literalLength, distance, expectedOutput, ref output)) return false;
+                    break;
+                default:
+                    return false;
+            }
+        }
+        while (!final);
+
+        reader.AlignToByte();
+        return output == expectedOutput && reader.AtEnd;
+    }
+
+    private static bool ReadStoredBlock(ref DeflateBitReader reader, int expectedOutput, ref int output)
+    {
+        reader.AlignToByte();
+        if (!reader.TryReadBits(16, out int length) || !reader.TryReadBits(16, out int complement)
+            || (length ^ 0xFFFF) != complement || !reader.TrySkipBytes(length)) return false;
+        return AddOutput(length, expectedOutput, ref output);
+    }
+
+    private static bool ReadCompressedBlock(ref DeflateBitReader reader, DeflateHuffmanTable literalLength,
+        DeflateHuffmanTable distance, int expectedOutput, ref int output)
+    {
+        while (true)
+        {
+            if (!literalLength.TryReadSymbol(ref reader, out int symbol)) return false;
+            if (symbol <= 255)
+            {
+                if (!AddOutput(1, expectedOutput, ref output)) return false;
+                continue;
+            }
+            if (symbol == 256) return true;
+            if (symbol is < 257 or > 285) return false;
+
+            int lengthIndex = symbol - 257;
+            if (!reader.TryReadBits(LengthExtra[lengthIndex], out int lengthExtra)) return false;
+            int length = LengthBase[lengthIndex] + lengthExtra;
+            if (!distance.TryReadSymbol(ref reader, out int distanceSymbol) || distanceSymbol is < 0 or > 29) return false;
+            if (!reader.TryReadBits(DistanceExtra[distanceSymbol], out int distanceExtra)) return false;
+            int distanceValue = DistanceBase[distanceSymbol] + distanceExtra;
+            if (distanceValue > output || distanceValue > 32_768 || !AddOutput(length, expectedOutput, ref output)) return false;
+        }
+    }
+
+    private static bool ReadDynamicTables(ref DeflateBitReader reader, out DeflateHuffmanTable? literalLength,
+        out DeflateHuffmanTable? distance)
+    {
+        literalLength = null;
+        distance = null;
+        if (!reader.TryReadBits(5, out int hlitBits) || !reader.TryReadBits(5, out int hdistBits)
+            || !reader.TryReadBits(4, out int hclenBits)) return false;
+
+        int hlit = hlitBits + 257;
+        int hdist = hdistBits + 1;
+        int hclen = hclenBits + 4;
+        int[] codeLengthLengths = new int[19];
+        for (int index = 0; index < hclen; index++)
+            if (!reader.TryReadBits(3, out codeLengthLengths[CodeLengthOrder[index]])) return false;
+        if (!TryBuildHuffman(codeLengthLengths, out DeflateHuffmanTable? codeLengthTable) || codeLengthTable is null) return false;
+
+        int[] lengths = new int[hlit + hdist];
+        int written = 0;
+        while (written < lengths.Length)
+        {
+            if (!codeLengthTable.TryReadSymbol(ref reader, out int symbol)) return false;
+            switch (symbol)
+            {
+                case <= 15:
+                    lengths[written++] = symbol;
+                    break;
+                case 16:
+                    if (written == 0 || !reader.TryReadBits(2, out int repeatPreviousBits)) return false;
+                    int repeatPrevious = repeatPreviousBits + 3;
+                    if (written + repeatPrevious > lengths.Length) return false;
+                    int previous = lengths[written - 1];
+                    for (int index = 0; index < repeatPrevious; index++) lengths[written++] = previous;
+                    break;
+                case 17:
+                    if (!reader.TryReadBits(3, out int repeatZeroBits) || written + repeatZeroBits + 3 > lengths.Length) return false;
+                    written += repeatZeroBits + 3;
+                    break;
+                case 18:
+                    if (!reader.TryReadBits(7, out int longRepeatBits) || written + longRepeatBits + 11 > lengths.Length) return false;
+                    written += longRepeatBits + 11;
+                    break;
+                default:
+                    return false;
+            }
+        }
+
+        if (lengths[256] == 0) return false;
+        if (!TryBuildHuffman(lengths.AsSpan(0, hlit), out literalLength) || literalLength is null) return false;
+        if (!TryBuildHuffman(lengths.AsSpan(hlit, hdist), out distance) || distance is null) return false;
+        return true;
+    }
+
+    private static bool AddOutput(int amount, int expectedOutput, ref int output)
+    {
+        if (amount < 0 || output > expectedOutput - amount) return false;
+        output += amount;
+        return true;
+    }
+
+    private static DeflateHuffmanTable CreateFixedLiteralLengthTable()
+    {
+        int[] lengths = new int[288];
+        for (int symbol = 0; symbol <= 143; symbol++) lengths[symbol] = 8;
+        for (int symbol = 144; symbol <= 255; symbol++) lengths[symbol] = 9;
+        for (int symbol = 256; symbol <= 279; symbol++) lengths[symbol] = 7;
+        for (int symbol = 280; symbol <= 287; symbol++) lengths[symbol] = 8;
+        return BuildHuffmanOrThrow(lengths);
+    }
+
+    private static DeflateHuffmanTable CreateFixedDistanceTable()
+    {
+        int[] lengths = new int[32];
+        Array.Fill(lengths, 5);
+        return BuildHuffmanOrThrow(lengths);
+    }
+
+    private static DeflateHuffmanTable BuildHuffmanOrThrow(ReadOnlySpan<int> lengths) =>
+        TryBuildHuffman(lengths, out DeflateHuffmanTable? result) && result is not null
+            ? result
+            : throw new InvalidOperationException("The fixed DEFLATE Huffman table is invalid.");
+
+    private static bool TryBuildHuffman(ReadOnlySpan<int> lengths, out DeflateHuffmanTable? result)
+    {
+        result = null;
+        int maximumLength = 0;
+        int[] counts = new int[16];
+        foreach (int length in lengths)
+        {
+            if (length is < 0 or > 15) return false;
+            if (length != 0)
+            {
+                counts[length]++;
+                maximumLength = Math.Max(maximumLength, length);
+            }
+        }
+
+        Dictionary<int, int>?[] symbolsByLength = new Dictionary<int, int>?[maximumLength + 1];
+        int code = 0;
+        int[] nextCode = new int[16];
+        for (int bitLength = 1; bitLength <= maximumLength; bitLength++)
+        {
+            code = (code + counts[bitLength - 1]) << 1;
+            if (code + counts[bitLength] > (1 << bitLength)) return false;
+            nextCode[bitLength] = code;
+        }
+        for (int symbol = 0; symbol < lengths.Length; symbol++)
+        {
+            int bitLength = lengths[symbol];
+            if (bitLength == 0) continue;
+            Dictionary<int, int> map = symbolsByLength[bitLength] ??= new Dictionary<int, int>();
+            map.Add(nextCode[bitLength]++, symbol);
+        }
+        result = new DeflateHuffmanTable(symbolsByLength, maximumLength);
+        return true;
+    }
+
+    private sealed class DeflateHuffmanTable
+    {
+        private readonly Dictionary<int, int>?[] _symbolsByLength;
+        private readonly int _maximumLength;
+
+        internal DeflateHuffmanTable(Dictionary<int, int>?[] symbolsByLength, int maximumLength)
+        {
+            _symbolsByLength = symbolsByLength;
+            _maximumLength = maximumLength;
+        }
+
+        internal bool TryReadSymbol(ref DeflateBitReader reader, out int symbol)
+        {
+            int code = 0;
+            for (int length = 1; length <= _maximumLength; length++)
+            {
+                if (!reader.TryReadBits(1, out int bit)) break;
+                code |= bit << (length - 1);
+                if (_symbolsByLength[length] is { } symbols && symbols.TryGetValue(code, out symbol)) return true;
+            }
+            symbol = 0;
+            return false;
+        }
+    }
+
+    private ref struct DeflateBitReader
+    {
+        private readonly ReadOnlySpan<byte> _data;
+        private int _byteOffset;
+        private int _bitOffset;
+
+        internal DeflateBitReader(ReadOnlySpan<byte> data)
+        {
+            _data = data;
+            _byteOffset = 0;
+            _bitOffset = 0;
+        }
+
+        internal bool AtEnd => _byteOffset == _data.Length && _bitOffset == 0;
+
+        internal bool TryReadBits(int count, out int value)
+        {
+            value = 0;
+            for (int bit = 0; bit < count; bit++)
+            {
+                if (!TryReadBit(out int current)) return false;
+                value |= current << bit;
+            }
+            return true;
+        }
+
+        internal bool TryReadBit(out int value)
+        {
+            if (_byteOffset >= _data.Length)
+            {
+                value = 0;
+                return false;
+            }
+            value = (_data[_byteOffset] >> _bitOffset) & 1;
+            if (++_bitOffset == 8)
+            {
+                _bitOffset = 0;
+                _byteOffset++;
+            }
+            return true;
+        }
+
+        internal void AlignToByte()
+        {
+            if (_bitOffset != 0)
+            {
+                _bitOffset = 0;
+                _byteOffset++;
+            }
+        }
+
+        internal bool TrySkipBytes(int count)
+        {
+            if (_bitOffset != 0 || count < 0 || _data.Length - _byteOffset < count) return false;
+            _byteOffset += count;
+            return true;
+        }
+    }
+
     private static bool HasCompleteScanlines(byte[] png, ParsedPng parsed)
     {
         try
@@ -254,7 +531,7 @@ internal static class PreviewPngIntegrity
                 Buffer.BlockCopy(png, offset, compressedBytes, compressedOffset, length);
                 compressedOffset += length;
             }
-            if (!ValidZlibHeader(compressedBytes)) return false;
+            if (!ValidZlibHeader(compressedBytes) || !HasCompleteDeflateMember(compressedBytes, parsed.InflatedLength)) return false;
 
             // MemoryStream supplies blocks to the managed/native inflater. The previous one-byte adapter made every compressed byte
             // an inflater roundtrip; exact scanline bounds plus the explicit zlib header/trailer checks below provide the same bound
@@ -264,7 +541,7 @@ internal static class PreviewPngIntegrity
             byte[] discard = new byte[8192];
             uint adlerA = 1, adlerB = 0;
             if (!ValidateRows(inflater, parsed, discard, ref adlerA, ref adlerB)) return false;
-            if (inflater.ReadByte() != -1 || compressed.Position != compressed.Length) return false;
+            if (inflater.ReadByte() != -1) return false;
 
             uint expectedAdler = BinaryPrimitives.ReadUInt32BigEndian(compressedBytes.AsSpan(compressedLength - 4));
             uint actualAdler = (adlerB << 16) | adlerA;
