@@ -32,6 +32,8 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderInlineVideoMaxFileMiB), 256, 1, 4096 };
         yield return new object[] { nameof(Config.ReaderMediaStripLimit), 12, 2, 40 };
         yield return new object[] { nameof(Config.ReaderMediaGridTextLimit), 280, 0, 2000 };
+        yield return new object[] { nameof(Config.ReaderPreviewPrefetchPosts), 8, 0, 50 };
+        yield return new object[] { nameof(Config.ReaderPreviewSizeMemory), 20000, 1000, 200000 };
     }
 
     [Theory]
