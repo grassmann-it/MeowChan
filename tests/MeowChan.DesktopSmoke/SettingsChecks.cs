@@ -745,7 +745,8 @@ internal static class SettingsChecks
     private static async Task AssertErrorInViewportAsync(SettingsWindow window)
     {
         TextBlock error = window.Editor.FindControl<TextBlock>("SettingsError")!;
-        ScrollViewer scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First();
+        // The settings window has a category navigation ScrollViewer ahead of the page one: use the one that holds the error.
+        ScrollViewer scroll = error.FindAncestorOfType<ScrollViewer>() ?? throw new InvalidOperationException("The settings error is not inside a ScrollViewer.");
         try
         {
             await WaitUntilAsync(() =>

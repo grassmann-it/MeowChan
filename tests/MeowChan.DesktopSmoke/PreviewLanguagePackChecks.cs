@@ -59,8 +59,7 @@ internal static class PreviewLanguagePackChecks
             await SettingsSectionChecks.OpenFieldAsync(editor, "DownloadPathInput");
             TextBox path = editor.FindControl<TextBox>("DownloadPathInput")!;
             NumericUpDown timer = editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
-            timer.ApplyTemplate();
-            TextBox numeric = timer.GetVisualDescendants().OfType<TextBox>().Single(t => t.Name == "PART_TextBox");
+            TextBox numeric = SettingsSectionChecks.NumericEditingSurface(editor, timer);
             Config saved = Config.LoadConfig(profile);
             byte[] savedSettings = File.ReadAllBytes(Path.Combine(profile, "settings.json"));
             decimal savedValue = saved.RecheckTimer;

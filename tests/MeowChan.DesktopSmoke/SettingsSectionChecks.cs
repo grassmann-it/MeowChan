@@ -76,6 +76,18 @@ internal static class SettingsSectionChecks
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "No settings category mapping for this field.")
     });
 
+    /// <summary>The numeric field's editing TextBox after the field was opened. The settings groups are collapsible
+    /// Expanders; a field inside a collapsed group is not attached to the visual tree (so it has no TopLevel, layout or
+    /// template) until its groups are expanded and laid out.</summary>
+    internal static TextBox NumericEditingSurface(SettingsEditor editor, NumericUpDown input)
+    {
+        for (var parent = input.Parent; parent != null; parent = parent.Parent)
+            if (parent is Expander group) group.IsExpanded = true;
+        (TopLevel.GetTopLevel(editor) as Avalonia.Layout.Layoutable)?.UpdateLayout();
+        input.ApplyTemplate();
+        return input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
+    }
+
     internal static async Task OpenAsync(SettingsEditor editor, string section)
     {
         // A synthetic click can reveal the embedded editor and request navigation in

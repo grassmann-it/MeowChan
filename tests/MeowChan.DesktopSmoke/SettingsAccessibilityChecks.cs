@@ -39,7 +39,7 @@ internal static class SettingsAccessibilityChecks
                     {
                         await SettingsSectionChecks.OpenFieldAsync(editor, field);
                         NumericUpDown input = editor.FindControl<NumericUpDown>(field)!;
-                        TextBox text = input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
+                        TextBox text = SettingsSectionChecks.NumericEditingSurface(editor, input);
                         text.BringIntoView();
                         Button outside = editor.FindControl<Button>("SaveSettingsButton")!;
                         foreach (string part in new[] { "PART_IncreaseButton", "PART_DecreaseButton" })
