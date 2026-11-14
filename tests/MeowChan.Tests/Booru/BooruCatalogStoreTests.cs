@@ -12,7 +12,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Tests.Booru;
 
-public sealed class BooruCatalogStoreTests
+public sealed partial class BooruCatalogStoreTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
 

@@ -851,6 +851,11 @@ internal sealed class BooruCatalogStore
     /// </summary>
     internal const int StateChangeSlackBytes = 4096;
 
+    // Neither a lowered-limit exception nor state-change slack may produce a file that ReadBounded cannot reopen.
+    internal static long WriteCeiling(long previousDocumentBytes, long configuredLimitBytes, bool stateChangeOnly) =>
+        Math.Min(MaximumDocumentBytes,
+            Math.Max(configuredLimitBytes, previousDocumentBytes) + (stateChangeOnly ? StateChangeSlackBytes : 0));
+
     private void WriteLocked(Cache previous, BooruCatalogSnapshot snapshot, string? addedPostKey, string? addedWatcherId,
         ProfileAdmissionToken admission, CancellationToken cancellationToken, bool stateChangeOnly = false)
     {
@@ -860,7 +865,7 @@ internal sealed class BooruCatalogStore
         // The limit stops growth only: a write that does not enlarge the document (pause, resume, a shrinking
         // rewrite) stays possible even when the document is already above a limit that was lowered afterwards, and a
         // pure state change (cancel, remove) gets a small slack because a longer state name is a few bytes larger.
-        long allowed = Math.Max(limit, previous.DocumentBytes) + (stateChangeOnly ? StateChangeSlackBytes : 0);
+        long allowed = WriteCeiling(previous.DocumentBytes, limit, stateChangeOnly);
         if (bytes.Length > allowed) throw CatalogFull(bytes.Length, limit);
 
         string directory = Path.GetDirectoryName(_path)!;
@@ -1077,8 +1082,8 @@ internal sealed class BooruCatalogStore
         if (post.PostUrl is not null && (!DanbooruPostReference.TryParse(post.PostUrl, out DanbooruPostReference? reference, out _)
             || reference is null || reference.PostId != post.PostId))
             throw new ArgumentException("The Booru post URL does not match its provider identity.", nameof(post));
-        ValidateOptionalText(post.RawRating, nameof(post.RawRating), 128);
-        ValidateOptionalText(post.SourceClaim, nameof(post.SourceClaim), MaximumClaimTextLength);
+        ValidateProviderText(post.RawRating, nameof(post.RawRating), 128);
+        ValidateProviderText(post.SourceClaim, nameof(post.SourceClaim), MaximumClaimTextLength);
         if (!Enum.IsDefined(post.Rating)) throw new ArgumentException("The Booru post rating is invalid.", nameof(post));
         if (post.Score is < 0 || post.FavoriteCount is < 0)
             throw new ArgumentException("The Booru post counters are invalid.", nameof(post));
@@ -1145,8 +1150,10 @@ internal sealed class BooruCatalogStore
         if (!DanbooruTagQuery.TryParse(watcher.Query, out DanbooruTagQuery? query, out _)
             || query is null || query.ProviderQuery != watcher.Query)
             throw new ArgumentException("The Booru watcher query is not canonical.", nameof(watcher));
+        // Enum.TryParse also accepts numeric strings, whitespace and comma lists for non-flags enums.
+        // Durable names must be exact: successor checks rely on the canonical Removed spelling.
         if (!Enum.TryParse(watcher.State, ignoreCase: false, out DanbooruWatcherState state)
-            || !Enum.IsDefined(state))
+            || !Enum.IsDefined(state) || watcher.State != state.ToString())
             throw new ArgumentException("The Booru watcher state is invalid.", nameof(watcher));
         ValidateOptionalText(watcher.ErrorCode, nameof(watcher.ErrorCode), 128);
         ValidateOptionalText(watcher.HighWaterMark, nameof(watcher.HighWaterMark), 18);
@@ -1217,7 +1224,8 @@ internal sealed class BooruCatalogStore
         if (watcher.ResumeState is not null)
         {
             if (!Enum.TryParse(watcher.ResumeState, ignoreCase: false, out DanbooruWatcherState parsed)
-                || parsed is not (DanbooruWatcherState.Active or DanbooruWatcherState.Paused))
+                || parsed is not (DanbooruWatcherState.Active or DanbooruWatcherState.Paused)
+                || watcher.ResumeState != parsed.ToString())
                 throw Invalid("resume state", name);
             resume = parsed;
         }
@@ -1379,6 +1387,14 @@ internal sealed class BooruCatalogStore
     private static void ValidateOptionalText(string? value, string parameterName, int maximumLength)
     {
         if (value is not null) ValidateRequiredText(value, parameterName, maximumLength);
+    }
+
+    // Provider free text is inert metadata, not an identity. A flagged empty value is a real observation and
+    // must remain distinct from null and from an absent field (including when it clears an earlier claim).
+    private static void ValidateProviderText(string? value, string parameterName, int maximumLength)
+    {
+        if (value is not null && (value.Length > maximumLength || value.Any(char.IsControl)))
+            throw new ArgumentException("The provider text is invalid or exceeds its bound.", parameterName);
     }
 
     private static bool Has(BooruPostClaimPresence value, BooruPostClaimPresence flag) => (value & flag) != 0;
