@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using MeowChan.Gallery;
@@ -199,4 +200,13 @@ internal sealed record TagQueueAddResult(TagQueueSnapshot Snapshot, int Added, i
 internal sealed class TagQueueNewerVersionException : InvalidOperationException
 {
     internal TagQueueNewerVersionException() : base("The tagging queue file was written by a newer version and is read-only.") { }
+}
+
+/// <summary>
+/// The tagging queue file (or its backup) exists but could not be read (locked, access denied, an I/O error). The host tells it from a
+/// refused write by this type, never by its message.
+/// </summary>
+internal sealed class TagQueueReadException : IOException
+{
+    internal TagQueueReadException(Exception inner) : base("The tagging queue could not be read.", inner) { }
 }

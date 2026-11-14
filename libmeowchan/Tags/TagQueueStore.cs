@@ -26,6 +26,12 @@ internal sealed class TagQueueStore
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly ProfileLease _lease;
     private readonly string _path;
+    // W3-24: the bytes last read or written for the file and for its backup, with what they parse to. A read still loads the bytes and
+    // compares them in full, so a file changed by anything else is parsed (and refused) as before; only an unchanged file skips the
+    // parse. Accessed only inside the lease's exclusion.
+    private byte[]? _primaryBytes, _backupBytes;
+    private TagQueueSnapshot? _primarySnapshot;
+    private int _parses;
 
     internal TagQueueStore(string profileDirectory, ProfileLease lease)
     {
@@ -37,6 +43,9 @@ internal sealed class TagQueueStore
 
     /// <summary>Reads the file. A missing file is an empty queue; anything unreadable throws <see cref="InvalidDataException"/>.</summary>
     internal TagQueueSnapshot Read() => _lease.RunExclusive(ReadCore);
+
+    /// <summary>How often this store parsed a file in full (tests: an unchanged file is not parsed again).</summary>
+    internal int ParsesForTests => _lease.RunExclusive(() => _parses);
 
     /// <summary>
     /// Appends the entries that are valid, not yet in the queue and fit under the entry limit, in the given order. Duplicates (also
@@ -168,10 +177,12 @@ internal sealed class TagQueueStore
         try { current = ReadWritable(); }
         catch (InvalidDataException) when (!finishedOnly)
         {
-            // The recovery save never rotates damaged bytes into the backup: PreserveFile keeps them, then the empty queue replaces them.
+            // The recovery save never rotates damaged bytes into the backup: WriteAllText without a backup preserves them next to the
+            // file (one .corrupt-* copy), then the empty queue replaces them.
             RejectLink(_path);
-            if (File.Exists(_path)) AtomicJsonFile.PreserveFile(_path);
             string empty = Serialize(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>());
+            _primaryBytes = null;
+            _primarySnapshot = null;
             AtomicJsonFile.WriteAllText(_path, empty, backupCurrentFile: false, token);
             return new TagQueueSnapshot(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready);
         }
@@ -239,8 +250,18 @@ internal sealed class TagQueueStore
             throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.TagQueueFile, _lease.StoreLimits.TagQueueFileBytes,
                 "The tagging queue has reached its size limit.");
         PrepareBackupForRotation();
+        bool rotates = File.Exists(_path);
+        byte[]? previous = _primaryBytes;
+        _primaryBytes = null;
+        _primarySnapshot = null;
+        _backupBytes = null;
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
-        return new TagQueueSnapshot(revision, cursor, stamp.ToArray(), Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready);
+        TagQueueSnapshot committed = new(revision, cursor, stamp.ToArray(), Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready);
+        // The write rotated the file just read (and validated) into the backup; the file now holds exactly these bytes.
+        if (rotates) _backupBytes = previous;
+        _primaryBytes = Encoding.UTF8.GetBytes(json);
+        _primarySnapshot = committed;
+        return committed;
     }
 
     private TagQueueSnapshot ReadWritable()
@@ -260,7 +281,14 @@ internal sealed class TagQueueStore
                 throw new InvalidDataException("The tagging queue is missing but a backup exists. Clear the queue to start over; nothing is restored automatically.");
             return TagQueueSnapshot.Empty;
         }
-        return Parse(_path);
+        byte[] bytes = ReadBytes(_path);
+        if (_primarySnapshot != null && _primaryBytes != null && bytes.AsSpan().SequenceEqual(_primaryBytes)) return _primarySnapshot;
+        _primaryBytes = null;
+        _primarySnapshot = null;
+        _parses++;
+        TagQueueSnapshot snapshot = ParseBytes(bytes);
+        (_primaryBytes, _primarySnapshot) = (bytes, snapshot);
+        return snapshot;
     }
 
     // A backup of a newer version or one that cannot be opened is not ours to move: the write is refused with a message that names
@@ -271,12 +299,24 @@ internal sealed class TagQueueStore
         if (!File.Exists(_path)) return;
         try
         {
-            if (File.Exists(backupPath) && Parse(backupPath).State == TagQueueLoadState.NewerVersion)
-                throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
+            if (File.Exists(backupPath))
+            {
+                // A backup with the bytes this store validated or rotated into place itself needs no second parse.
+                byte[] bytes = ReadBytes(backupPath);
+                if (_backupBytes == null || !bytes.AsSpan().SequenceEqual(_backupBytes))
+                {
+                    _backupBytes = null;
+                    _parses++;
+                    if (ParseBytes(bytes).State == TagQueueLoadState.NewerVersion)
+                        throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
+                    _backupBytes = bytes;
+                }
+            }
         }
-        catch (FileNotFoundException) { }
+        catch (FileNotFoundException) { _backupBytes = null; }
         catch (InvalidDataException)
         {
+            _backupBytes = null;
             if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
                 throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
         }
@@ -290,18 +330,23 @@ internal sealed class TagQueueStore
             throw new InvalidDataException("The tagging queue path is not a regular file.");
     }
 
-    private static TagQueueSnapshot Parse(string path)
+    private static byte[] ReadBytes(string path)
     {
         RejectLink(path);
         long length;
         try { length = new FileInfo(path).Length; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { throw new IOException("The tagging queue could not be read.", error); }
+        { throw new TagQueueReadException(error); }
         if (length > ProfileStoreLimits.TagQueueFileCeilingBytes) throw new InvalidDataException("The tagging queue exceeds its size limit.");
         byte[] bytes;
         try { bytes = File.ReadAllBytes(path); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { throw new IOException("The tagging queue could not be read.", error); }
+        { throw new TagQueueReadException(error); }
+        return bytes;
+    }
+
+    private static TagQueueSnapshot ParseBytes(byte[] bytes)
+    {
         try
         {
             // Malformed bytes are never replaced with U+FFFD inside an identity: decode strictly, then parse.
@@ -388,8 +433,7 @@ internal sealed class TagQueueStore
         if (historical.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException("A property has the wrong kind.");
         JsonElement length = element.GetProperty("Length");
         if (length.ValueKind != JsonValueKind.Number) throw new InvalidDataException("A property has the wrong kind.");
-        if (!Enum.TryParse(RequiredString(element, "Kind"), out SavedMediaKind kind) || !Enum.IsDefined(kind)
-            || !Enum.TryParse(RequiredString(element, "State"), out TagQueueState state) || !Enum.IsDefined(state))
+        if (!TryParseName(RequiredString(element, "Kind"), out SavedMediaKind kind) || !TryParseName(RequiredString(element, "State"), out TagQueueState state))
             throw new InvalidDataException("A state or kind is unknown.");
         string? done = OptionalString(element, "DoneAtUtc");
         TagQueueItem item = new(new ResourceId(RequiredString(thread, "Source"), RequiredString(thread, "Board"), RequiredString(thread, "Thread")),
@@ -398,6 +442,19 @@ internal sealed class TagQueueStore
             OptionalString(element, "ImportItem"), OptionalString(element, "BooruPost"), historical.GetBoolean(), OptionalString(element, "LocalSlot"),
             RequiredString(element, "Name"), kind, state, Time(RequiredString(element, "AddedAtUtc")), done == null ? null : Time(done));
         return item.Validate() == null ? item : throw new InvalidDataException("The tagging queue holds an invalid entry.");
+    }
+
+    // Only the exact name the writer uses: Enum.TryParse would also take "1", " Done", "done" or "Open, Done", which the strict file refuses.
+    private static bool TryParseName<TEnum>(string text, out TEnum value) where TEnum : struct, Enum
+    {
+        foreach (TEnum candidate in Enum.GetValues<TEnum>())
+        {
+            if (!string.Equals(candidate.ToString(), text, StringComparison.Ordinal)) continue;
+            value = candidate;
+            return true;
+        }
+        value = default;
+        return false;
     }
 
     private static string Serialize(long revision, int cursor, IReadOnlyList<string> stamp, IReadOnlyList<TagQueueItem> items)

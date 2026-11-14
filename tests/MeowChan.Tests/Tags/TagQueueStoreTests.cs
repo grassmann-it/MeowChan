@@ -537,4 +537,143 @@ public sealed class TagQueueStoreTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new TagQueueDecisionLog(TagQueueDecisionLog.MaximumDepth + 1));
         Assert.Equal(TagQueueDecisionLog.DefaultDepth, new TagQueueDecisionLog().Depth);
     }
+
+    // W3-01 / W3-18: an undo names its decision and removes it only after the write; the depth is a setting that trims at once.
+    [Fact]
+    public void TheDecisionLogFindsExactlyTheNamedDecisionRemovesItOnlyOnRequestAndFollowsALoweredDepth()
+    {
+        TagQueueDecision Decision(int n) => new(Item(n).Key, TagQueueState.Open, TagQueueState.Done, n, n + 1, Item(n).Key);
+        TagQueueDecisionLog log = new(5);
+        TagQueueDecision[] pushed = Enumerable.Range(1, 5).Select(Decision).ToArray();
+        foreach (TagQueueDecision decision in pushed) log.Push(decision);
+        Assert.Same(pushed[4], log.Find());
+        Assert.Same(pushed[2], log.Find(pushed[2]));
+        Assert.Equal(5, log.Count); // finding never removes
+        Assert.True(log.Remove(pushed[4]));
+        Assert.False(log.Remove(pushed[4]));
+        Assert.Null(log.Find(pushed[4]));
+        log.Depth = 2;
+        Assert.Equal(new[] { pushed[2], pushed[3] }, new[] { log.Find(pushed[2]), log.Find(pushed[3]) });
+        Assert.Null(log.Find(pushed[1])); // fell out with the lowered depth
+        Assert.Throws<ArgumentOutOfRangeException>(() => log.Depth = TagQueueDecisionLog.MaximumDepth + 1);
+
+        TagQueueSnapshot onlyFour = new(1, 0, Array.Empty<string>(), new[] { Item(4) }, TagQueueLoadState.Ready);
+        log.ForgetMissing(onlyFour);
+        Assert.Equal(1, log.Count);
+        Assert.Same(pushed[3], log.Last);
+    }
+
+    // W3-04: the undo's resume point is the entry the cursor stood on, wherever it stands now.
+    [Fact]
+    public void AnUndoFindsTheOldResumePointAgainAfterEntriesBeforeItLeftTheQueue()
+    {
+        TagQueueItem[] all = Items(1, 7).ToArray();
+        TagQueueDecision decision = new(all[5].Key, TagQueueState.Open, TagQueueState.Done, 5, 6, all[5].Key);
+        TagQueueSnapshot withoutThird = new(2, 5, Array.Empty<string>(), all.Where((_, i) => i != 2).ToArray(), TagQueueLoadState.Ready);
+        Assert.Equal(TagQueueCursorTarget.Relative(all[5].Key, 0), decision.CursorTargetIn(withoutThird));
+
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(all);
+        store.SetStates(new[] { Set(6, TagQueueState.Done) }, T0, TagQueueCursorTarget.Relative(Item(6).Key, 1));
+        store.Remove(new[] { Item(3).Key });
+        TagQueueSnapshot undone = store.SetStates(new[] { Set(6, TagQueueState.Open) }, T0, decision.CursorTargetIn(store.Read()));
+        Assert.Equal(4, undone.Cursor);
+        Assert.Equal(Item(6).Key, undone.Items[undone.Cursor].Key);
+
+        // Without the anchor (it left the queue, or the cursor stood behind the last entry) the old position counts, clamped.
+        TagQueueDecision behind = new(all[6].Key, TagQueueState.Open, TagQueueState.Done, 7, 7);
+        Assert.Equal(TagQueueCursorTarget.At(6), behind.CursorTargetIn(withoutThird));
+    }
+
+    // W3-23: only the names the writer uses are states and kinds; numbers and flag lists are refused, never read.
+    [Fact]
+    public void ANumericOrCombinedStateOrKindIsRefused()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(Items(1, 1));
+        string good = File.ReadAllText(FileOf(temp));
+        foreach (string broken in new[]
+        {
+            good.Replace("\"State\":\"Open\"", "\"State\":\"1\""),
+            good.Replace("\"State\":\"Open\"", "\"State\":\"0\""),
+            good.Replace("\"Kind\":\"Image\"", "\"Kind\":\"0\""),
+            good.Replace("\"State\":\"Open\"", "\"State\":\"open\""),
+            good.Replace("\"State\":\"Open\"", "\"State\":\" Open\""),
+            good.Replace("\"State\":\"Open\"", "\"State\":\"Open, Skipped\""),
+        })
+        {
+            Assert.NotEqual(good, broken);
+            File.WriteAllText(FileOf(temp), broken);
+            Assert.Throws<InvalidDataException>(() => store.Read());
+        }
+        File.WriteAllText(FileOf(temp), good);
+        Assert.Equal(TagQueueState.Open, store.Read().Items[0].State);
+    }
+
+    // W3-24: a decision on an unchanged file parses neither the file nor its backup again; a file or backup changed by anything else is
+    // compared in full, parsed and refused like before.
+    [Fact]
+    public void AnUnchangedFileIsNotParsedAgainForEveryDecisionButAChangedOneIs()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(Items(1, 50));
+        store.SetStates(new[] { Set(1, TagQueueState.Done) }, T0, TagQueueCursorTarget.Relative(Item(1).Key, 1));
+        Assert.True(File.Exists(FileOf(temp) + ".bak"));
+        int parses = store.ParsesForTests;
+        for (int n = 2; n <= 21; n++)
+            store.SetStates(new[] { Set(n, TagQueueState.Done) }, T0.AddSeconds(n), TagQueueCursorTarget.Relative(Item(n).Key, 1));
+        Assert.Equal(21, store.Read().Done);
+        Assert.Equal(parses, store.ParsesForTests);
+
+        string good = File.ReadAllText(FileOf(temp));
+        File.WriteAllText(FileOf(temp), good.Replace("\"State\":\"Skipped\"", "x").Replace("\"State\":\"Open\"", "\"State\":\"Nope\""));
+        Assert.Throws<InvalidDataException>(() => store.Read());
+        File.WriteAllText(FileOf(temp), good);
+        Assert.Equal(21, store.Read().Done);
+        Assert.True(store.ParsesForTests > parses);
+
+        File.WriteAllText(FileOf(temp) + ".bak", "{\"Version\":99}");
+        Assert.Throws<ProfileBackupBlockedException>(() => store.SetCursor(0));
+        Assert.Equal(good, File.ReadAllText(FileOf(temp)));
+    }
+
+    // W3-22: clearing a damaged file keeps exactly one copy of the damaged bytes.
+    [Fact]
+    public void ClearingADamagedFileKeepsExactlyOneCopyOfTheDamagedBytes()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        File.WriteAllText(FileOf(temp), "damaged bytes");
+        TagQueueStore store = new(temp.Path, lease);
+        Assert.Equal(0, store.Clear(finishedOnly: false).Count);
+        string copy = Assert.Single(Directory.GetFiles(temp.Path, TagQueueStore.FileName + ".corrupt-*"));
+        Assert.Equal("damaged bytes", File.ReadAllText(copy));
+    }
+
+    // W3-21: an unreadable file is told apart by its type, not by its message.
+    [Fact]
+    public void AFileThatCannotBeOpenedIsAReadErrorOfItsOwnType()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(Items(1, 1));
+        File.SetUnixFileMode(FileOf(temp), UnixFileMode.None);
+        try
+        {
+            try { using (File.OpenRead(FileOf(temp))) { } return; } // running with rights that ignore the mode: nothing to check
+            catch (UnauthorizedAccessException) { }
+            TagQueueReadException error = Assert.Throws<TagQueueReadException>(() => store.Read());
+            Assert.IsAssignableFrom<IOException>(error);
+            Assert.IsType<UnauthorizedAccessException>(error.InnerException);
+        }
+        finally { File.SetUnixFileMode(FileOf(temp), UnixFileMode.UserRead | UnixFileMode.UserWrite); }
+    }
 }
