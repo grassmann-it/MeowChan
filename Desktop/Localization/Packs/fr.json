@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Afficher la publication enregistrée #{0} dans Médias",
     "booru.ui.watcher.showInMediaFor": "Afficher la publication enregistrée #{0} de la veille « {1} » dans Médias",
     "booru.crossLinks.missingLocal": "L’original enregistré de la publication #{0} n’est plus disponible dans la bibliothèque de médias locale.",
+    "booru.crossLinks.navigationFailed": "Impossible d’afficher la publication #{0} dans Médias. Réessayez.",
     "media.toolbar.booru": "Ouvrir Booru",
     "media.toolbar.booruTip": "Ouvrir Danbooru sans modifier la bibliothèque de médias ni envoyer de requête.",
     "nav.booru": "Booru",

@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Pokaż zapisany post #{0} w sekcji Media",
     "booru.ui.watcher.showInMediaFor": "Pokaż zapisany post #{0} z obserwacji „{1}” w sekcji Media",
     "booru.crossLinks.missingLocal": "Zapisany oryginał postu #{0} nie jest już dostępny w lokalnej bibliotece multimediów.",
+    "booru.crossLinks.navigationFailed": "Nie udało się wyświetlić postu #{0} w sekcji Media. Spróbuj ponownie.",
     "media.toolbar.booru": "Otwórz Booru",
     "media.toolbar.booruTip": "Otwórz Danbooru bez zmiany biblioteki multimediów i bez wysyłania żądania.",
     "nav.booru": "Booru",

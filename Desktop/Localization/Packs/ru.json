@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Показать сохранённую публикацию #{0} в разделе «Медиа»",
     "booru.ui.watcher.showInMediaFor": "Показать сохранённую публикацию #{0} наблюдателя «{1}» в разделе «Медиа»",
     "booru.crossLinks.missingLocal": "Сохранённый оригинал публикации #{0} больше недоступен в локальной медиабиблиотеке.",
+    "booru.crossLinks.navigationFailed": "Не удалось показать публикацию #{0} в разделе «Медиа». Попробуйте ещё раз.",
     "media.toolbar.booru": "Открыть Booru",
     "media.toolbar.booruTip": "Открыть Danbooru, не изменяя медиабиблиотеку и не отправляя запрос.",
     "nav.booru": "Booru",

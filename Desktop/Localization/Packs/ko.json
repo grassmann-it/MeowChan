@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "저장된 게시물 #{0}을(를) 미디어에 표시",
     "booru.ui.watcher.showInMediaFor": "감시자 “{1}”에서 저장한 게시물 #{0}을(를) 미디어에 표시",
     "booru.crossLinks.missingLocal": "게시물 #{0}의 저장된 원본을 로컬 미디어 라이브러리에서 더 이상 사용할 수 없습니다.",
+    "booru.crossLinks.navigationFailed": "게시물 #{0}을(를) 미디어에 표시하지 못했습니다. 다시 시도하세요.",
     "media.toolbar.booru": "Booru 열기",
     "media.toolbar.booruTip": "미디어 라이브러리를 변경하거나 요청을 보내지 않고 Danbooru를 엽니다.",
     "nav.booru": "Booru",

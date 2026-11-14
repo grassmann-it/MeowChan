@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Mostra il post salvato #{0} in Media",
     "booru.ui.watcher.showInMediaFor": "Mostra il post salvato #{0} dal monitoraggio «{1}» in Media",
     "booru.crossLinks.missingLocal": "L’originale salvato del post #{0} non è più disponibile nella libreria multimediale locale.",
+    "booru.crossLinks.navigationFailed": "Impossibile mostrare il post #{0} in Media. Riprova.",
     "media.toolbar.booru": "Apri Booru",
     "media.toolbar.booruTip": "Apri Danbooru senza modificare la libreria multimediale né inviare richieste.",
     "nav.booru": "Booru",

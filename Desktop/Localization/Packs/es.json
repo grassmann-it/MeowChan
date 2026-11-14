@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Mostrar la publicación guardada #{0} en Medios",
     "booru.ui.watcher.showInMediaFor": "Mostrar la publicación guardada #{0} del vigilante «{1}» en Medios",
     "booru.crossLinks.missingLocal": "El original guardado de la publicación #{0} ya no está disponible en la biblioteca multimedia local.",
+    "booru.crossLinks.navigationFailed": "No se pudo mostrar la publicación #{0} en Medios. Inténtalo de nuevo.",
     "media.toolbar.booru": "Abrir Booru",
     "media.toolbar.booruTip": "Abrir Danbooru sin modificar la biblioteca multimedia ni enviar ninguna solicitud.",
     "nav.booru": "Booru",

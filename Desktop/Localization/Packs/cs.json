@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "Zobrazit uložený příspěvek #{0} v sekci Média",
     "booru.ui.watcher.showInMediaFor": "Zobrazit uložený příspěvek #{0} ze sledování „{1}“ v sekci Média",
     "booru.crossLinks.missingLocal": "Uložený originál příspěvku #{0} už není dostupný v místní knihovně médií.",
+    "booru.crossLinks.navigationFailed": "Příspěvek #{0} se nepodařilo zobrazit v sekci Média. Zkuste to znovu.",
     "media.toolbar.booru": "Otevřít Booru",
     "media.toolbar.booruTip": "Otevřít Danbooru beze změny knihovny médií a bez odeslání požadavku.",
     "nav.booru": "Booru",

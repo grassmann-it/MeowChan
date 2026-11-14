@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "在媒体中显示已保存的帖子 #{0}",
     "booru.ui.watcher.showInMediaFor": "在媒体中显示关注器“{1}”保存的帖子 #{0}",
     "booru.crossLinks.missingLocal": "帖子 #{0} 的已保存原图在本地媒体库中已不可用。",
+    "booru.crossLinks.navigationFailed": "无法在媒体中显示帖子 #{0}。请重试。",
     "media.toolbar.booru": "打开 Booru",
     "media.toolbar.booruTip": "打开 Danbooru，不更改媒体库，也不发送请求。",
     "nav.booru": "Booru",

@@ -7,6 +7,7 @@
     "booru.ui.result.showInMediaFor": "保存済みの投稿 #{0} をメディアで表示",
     "booru.ui.watcher.showInMediaFor": "監視「{1}」で保存した投稿 #{0} をメディアで表示",
     "booru.crossLinks.missingLocal": "投稿 #{0} の保存済みオリジナルは、ローカルのメディアライブラリでは利用できなくなっています。",
+    "booru.crossLinks.navigationFailed": "投稿 #{0} をメディアで表示できませんでした。もう一度お試しください。",
     "media.toolbar.booru": "Booruを開く",
     "media.toolbar.booruTip": "メディアライブラリを変更せず、リクエストも送信せずにDanbooruを開きます。",
     "nav.booru": "Booru",
