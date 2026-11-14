@@ -87,7 +87,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
         {
             ("navigation.downloads", "Downloads", "Downloads", "Descargas", "Téléchargements", "Загрузки"),
             ("navigation.continue-reading", "Continue reading", "Weiterlesen", "Continuar leyendo", "Continuer la lecture", "Продолжить чтение"),
-            ("navigation.archive", "Archive", "Archiv", "Archivo", "Archive", "Архив"),
+            ("navigation.archive", "Archive", "Archiv", "Archivo", "Archives", "Архив"),
             ("navigation.rules", "Rules", "Regeln", "Reglas", "Règles", "Правила"),
             // EN/DE use the WP titles; exact ES/FR/RU expectations still describe the delivered packs.
             // Parent coordinates those packs and their new wording; do not weaken their exact label checks here.

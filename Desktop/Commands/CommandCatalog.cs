@@ -325,7 +325,7 @@ public static class CommandCatalog
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Back", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild als Bild speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
+        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild als Bilddatei speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
         // Transport row (plan V1): A sets A, then B, then turns the loop off; "." shows the next frame (LibVLC 3 has no step back,
         // so "," stays free). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
         new("video.ab-loop", "command.video.ab-loop", "A–B loop", "A–B-Schleife", "repeat", "A", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
