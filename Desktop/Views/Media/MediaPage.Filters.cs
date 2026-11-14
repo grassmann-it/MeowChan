@@ -524,7 +524,19 @@ public sealed partial class MediaPage
 
     // The provider source is shown by its name; chan sources keep their identifier.
     private static string SourceLabel(string source) => source == BooruMediaIdentity.Source ? Texts.T("booru.media.source")
-        : source == Import.ManualImportIdentity.Source ? Texts.T("import.media.source") : source;
+        : source == Import.ManualImportIdentity.Source ? Texts.T("import.media.source")
+        : source == FolderSources.FolderSourceIdentity.Source ? Texts.T("folderSource.media.source") : source;
+
+    // A folder source is one "board" of the folder source: it is shown by its name ("Folder: Holiday"), never by its id.
+    private string BoardLabel(string source, string board, bool withSource)
+    {
+        if (source == FolderSources.FolderSourceIdentity.Source)
+        {
+            string? name = _snapshot?.Entries.FirstOrDefault(entry => entry.Thread.Source == source && entry.Thread.Board == board)?.ThreadTitle;
+            return Texts.T("folderSource.media.board", name ?? Texts.T("folderSource.media.unknown"));
+        }
+        return withSource ? Texts.T("media.filter.boardOfSource", board, source) : "/" + board + "/";
+    }
 
     private void RenderBoardOptions()
     {
@@ -535,14 +547,13 @@ public sealed partial class MediaPage
             .Concat(entries.Select(entry => (entry.Thread.Source, entry.Thread.Board)).Distinct()
                 .Where(pair => source == null || pair.Source == source)
                 .OrderBy(pair => pair.Board, StringComparer.Ordinal).ThenBy(pair => pair.Source, StringComparer.Ordinal)
-                .Select(pair => new BoardChoice(pair.Source, pair.Board,
-                    source == null ? Texts.T("media.filter.boardOfSource", pair.Board, pair.Source) : "/" + pair.Board + "/")))
+                .Select(pair => new BoardChoice(pair.Source, pair.Board, BoardLabel(pair.Source, pair.Board, source == null))))
             .ToList();
         if (selected is { Source: not null, Board: not null }
             && (source == null || source == selected.Source)
             && !options.Any(option => option.Board == selected.Board && option.Source == selected.Source))
         {
-            string label = source == null ? Texts.T("media.filter.boardOfSource", selected.Board, selected.Source) : "/" + selected.Board + "/";
+            string label = BoardLabel(selected.Source, selected.Board, source == null);
             options.Add(new BoardChoice(selected.Source, selected.Board, UnavailableOption(label)));
         }
         int excluded = _terms.Count(term => term.Field == MediaFilterField.Board && term.Exclude);

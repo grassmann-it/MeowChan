@@ -284,6 +284,14 @@ namespace MeowChan
             ImportMaxTotalFiles = config.ImportMaxTotalFiles;
             ImportMaxTagsPerBatch = config.ImportMaxTagsPerBatch;
             ImportMaxBatches = config.ImportMaxBatches;
+            FolderSourceMaxFiles = config.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = config.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = config.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = config.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = config.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = config.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = config.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = config.FolderSourceBackgroundHashing;
             MediaIndexMaxEntries = config.MediaIndexMaxEntries;
             MediaIndexMaxThreads = config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = config.ImportCatalogLimitMiB;
@@ -339,6 +347,13 @@ namespace MeowChan
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
             ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
             ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(FolderSourceMaxFilesInput, FolderSourceMaxFiles!.Value);
+            ResetNumber(FolderSourceMaxRootsInput, FolderSourceMaxRoots!.Value);
+            ResetNumber(FolderSourceHashParallelismInput, FolderSourceHashParallelism!.Value);
+            ResetNumber(FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB!.Value);
+            ResetNumber(FolderSourceRescanMinutesInput, FolderSourceRescanMinutes!.Value);
+            ResetNumber(FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB!.Value);
+            ResetNumber(FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow!.Value);
             ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
@@ -896,6 +911,14 @@ namespace MeowChan
             ImportMaxTotalFiles = _config.ImportMaxTotalFiles;
             ImportMaxTagsPerBatch = _config.ImportMaxTagsPerBatch;
             ImportMaxBatches = _config.ImportMaxBatches;
+            FolderSourceMaxFiles = _config.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = _config.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = _config.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = _config.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = _config.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = _config.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = _config.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = _config.FolderSourceBackgroundHashing;
             MediaIndexMaxEntries = _config.MediaIndexMaxEntries;
             MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
@@ -947,6 +970,13 @@ namespace MeowChan
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
             ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
             ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(FolderSourceMaxFilesInput, FolderSourceMaxFiles!.Value);
+            ResetNumber(FolderSourceMaxRootsInput, FolderSourceMaxRoots!.Value);
+            ResetNumber(FolderSourceHashParallelismInput, FolderSourceHashParallelism!.Value);
+            ResetNumber(FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB!.Value);
+            ResetNumber(FolderSourceRescanMinutesInput, FolderSourceRescanMinutes!.Value);
+            ResetNumber(FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB!.Value);
+            ResetNumber(FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow!.Value);
             ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);
@@ -1054,6 +1084,8 @@ namespace MeowChan
                     nameof(BandwidthInputHelp), nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
                     nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
                 })
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+                foreach (string property in FolderSourceTextProperties())
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
@@ -1335,6 +1367,14 @@ namespace MeowChan
                 candidate.ImportMaxTotalFiles = GetInteger(ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum);
                 candidate.ImportMaxTagsPerBatch = GetInteger(ImportMaxTagsPerBatch, ImportMaxTagsPerBatchLabel, Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum);
                 candidate.ImportMaxBatches = GetInteger(ImportMaxBatches, ImportMaxBatchesLabel, Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum);
+                candidate.FolderSourceMaxFiles = GetInteger(FolderSourceMaxFiles, FolderSourceMaxFilesLabel, Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum);
+                candidate.FolderSourceMaxRoots = GetInteger(FolderSourceMaxRoots, FolderSourceMaxRootsLabel, Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum);
+                candidate.FolderSourceHashParallelism = GetInteger(FolderSourceHashParallelism, FolderSourceHashParallelismLabel, Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum);
+                candidate.FolderSourceHashMaxFileGiB = GetInteger(FolderSourceHashMaxFileGiB, FolderSourceHashMaxFileGiBLabel, Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum);
+                candidate.FolderSourceRescanMinutes = GetInteger(FolderSourceRescanMinutes, FolderSourceRescanMinutesLabel, Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum);
+                candidate.FolderSourceCatalogLimitMiB = GetInteger(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBLabel, Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum);
+                candidate.FolderSourceGalleryHashWindow = GetInteger(FolderSourceGalleryHashWindow, FolderSourceGalleryHashWindowLabel, Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum);
+                candidate.FolderSourceBackgroundHashing = FolderSourceBackgroundHashing;
                 candidate.MediaIndexMaxEntries = GetInteger(MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum);
                 candidate.MediaIndexMaxThreads = GetInteger(MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum);
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
@@ -1459,6 +1499,14 @@ namespace MeowChan
             ImportMaxTotalFiles = _config.ImportMaxTotalFiles;
             ImportMaxTagsPerBatch = _config.ImportMaxTagsPerBatch;
             ImportMaxBatches = _config.ImportMaxBatches;
+            FolderSourceMaxFiles = _config.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = _config.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = _config.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = _config.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = _config.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = _config.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = _config.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = _config.FolderSourceBackgroundHashing;
             MediaIndexMaxEntries = _config.MediaIndexMaxEntries;
             MediaIndexMaxThreads = _config.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = _config.ImportCatalogLimitMiB;
@@ -1510,6 +1558,13 @@ namespace MeowChan
             ResetNumber(ImportMaxTotalFilesInput, ImportMaxTotalFiles!.Value);
             ResetNumber(ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch!.Value);
             ResetNumber(ImportMaxBatchesInput, ImportMaxBatches!.Value);
+            ResetNumber(FolderSourceMaxFilesInput, FolderSourceMaxFiles!.Value);
+            ResetNumber(FolderSourceMaxRootsInput, FolderSourceMaxRoots!.Value);
+            ResetNumber(FolderSourceHashParallelismInput, FolderSourceHashParallelism!.Value);
+            ResetNumber(FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB!.Value);
+            ResetNumber(FolderSourceRescanMinutesInput, FolderSourceRescanMinutes!.Value);
+            ResetNumber(FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB!.Value);
+            ResetNumber(FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow!.Value);
             ResetNumber(MediaIndexMaxEntriesInput, MediaIndexMaxEntries!.Value);
             ResetNumber(MediaIndexMaxThreadsInput, MediaIndexMaxThreads!.Value);
             ResetNumber(ImportCatalogLimitMiBInput, ImportCatalogLimitMiB!.Value);

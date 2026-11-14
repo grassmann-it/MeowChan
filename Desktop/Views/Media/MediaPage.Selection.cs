@@ -43,6 +43,8 @@ public sealed partial class MediaPage
     private QuickTagPopover? _selectionTagPopover;
     /// <summary>The quick tag popover of the selection while it is open ("Advanced…" in it opens <see cref="SelectionTagWindow"/>).</summary>
     internal QuickTagPopover? SelectionTagPopover => _selectionTagPopover;
+    /// <summary>Hashes the unhashed folder source files among the given entries (a user action) and returns their entries with digest.</summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>, CancellationToken, Task<IReadOnlyDictionary<MediaLibraryEntry, MediaLibraryEntry>>>? HashFolderFilesAsync { get; set; }
 
     /// <summary>The selected tiles in page order. Selected tiles are always among the shown ones.</summary>
     internal IReadOnlyList<MediaLibraryTile> SelectedTiles => MediaLibrarySelection.Pick(_tiles, _grid.Selection.SelectedIndexes);
@@ -277,6 +279,8 @@ public sealed partial class MediaPage
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
+        tiles = await WithHashedFolderFilesAsync(tiles);
+        if (_lifetime.IsCancellationRequested) return;
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
         MediaSelectionTagDialog dialog = new(session, tiles.Count, ReadBooruCatalog);
         _selectionTag = dialog;
@@ -292,6 +296,35 @@ public sealed partial class MediaPage
                 RefreshUserData(); // The new tags show at once in filters and details.
                 UpdateSelectionBar();
             }
+        }
+    }
+}
+
+public sealed partial class MediaPage
+{
+    // A folder source file can carry a tag only once its bytes are hashed: the selection's unhashed folder files are hashed
+    // first (the note says so), the tiles then carry their entries with digest. Nothing else of the selection changes.
+    private async Task<IReadOnlyList<MediaLibraryTile>> WithHashedFolderFilesAsync(IReadOnlyList<MediaLibraryTile> tiles)
+    {
+        if (HashFolderFilesAsync is not { } hash) return tiles;
+        MediaLibraryEntry[] unhashed = tiles.SelectMany(tile => tile.Occurrences.Append(tile.Entry))
+            .Where(entry => entry.FolderItemId != null && entry.Sha256 == null && entry.Presence == MediaLibraryPresence.Present).Distinct().ToArray();
+        if (unhashed.Length == 0) return tiles;
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        ShowSelectionNote(Texts.T("folderSource.selection.hashing", unhashed.Length.ToString("N0", Texts.Culture)));
+        try
+        {
+            IReadOnlyDictionary<MediaLibraryEntry, MediaLibraryEntry> hashed = await hash(unhashed, _lifetime.Token);
+            MediaLibraryEntry Map(MediaLibraryEntry entry) => hashed.TryGetValue(entry, out MediaLibraryEntry? updated) ? updated : entry;
+            return tiles.Select(tile => tile with { Entry = Map(tile.Entry), Occurrences = tile.Occurrences.Select(Map).ToArray() }).ToArray();
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return tiles; }
+        finally
+        {
+            _selectionBusy = false;
+            ShowSelectionNote(null);
+            if (!_lifetime.IsCancellationRequested) UpdateSelectionBar();
         }
     }
 }

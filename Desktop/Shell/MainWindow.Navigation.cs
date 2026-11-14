@@ -194,6 +194,7 @@ public partial class MainWindow
         InitializePostBookmarks();
         InitializeTagQueue();
         InitializePostFilters();
+        InitializeFolderSources();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");
     }
@@ -250,7 +251,8 @@ public partial class MainWindow
                     if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
                 }, sourceId => ShowStatus(StatusSegment.Diagnostics, sourceId), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
                 {
-                    GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows
+                    GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows,
+                    FolderSources = CreateFolderSourceServices()
                 };
                 _sourcesPage.BusyChanged += OnSettingsBusyChanged;
                 _sourcesPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);

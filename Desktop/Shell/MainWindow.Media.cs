@@ -50,6 +50,8 @@ public partial class MainWindow
             AudioCacheLimits = () => new((long)_session.Config.AudioProbeCacheLimitMiB * 1024 * 1024, _session.Config.AudioProbeCacheEntries),
             ExportAllConfirmSource = () => (_session.Config.ExportConfirmFiles, (long)_session.Config.ExportConfirmGiB * 1024 * 1024 * 1024),
             ReadImportCatalog = _session.ReadManualImportCatalog,
+            ReadFolderSources = _session.ReadFolderSources,
+            HashFolderFilesAsync = HashFolderFilesForActionAsync,
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
@@ -117,7 +119,8 @@ public partial class MainWindow
         try
         {
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(window, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
+                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog,
+                folderStart: start, folderHashWindow: _session.Config.FolderSourceGalleryHashWindow);
             GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen, entry));
             if (!Current()) return;
             if (first == null)
@@ -165,6 +168,9 @@ public partial class MainWindow
         Control? origin = FocusManager?.GetFocusedElement() as Control;
         try
         {
+            // An unhashed folder file is hashed now as a user action (also above the size limit for automatic hashing).
+            await HashFolderItemForActionAsync(indexed);
+            if (!Current()) return;
             GalleryEntry? entry = await MediaMenuIdentity.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog, _session.ReadManualImportCatalog);
             if (!Current()) return;
@@ -227,6 +233,8 @@ public partial class MainWindow
         Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
         try
         {
+            if (alreadyResolved == null) await HashFolderItemForActionAsync(indexed);
+            if (!Current()) return;
             GalleryEntry? match = alreadyResolved ?? await MediaMenuIdentity.ResolveAsync(indexed,
                 _session.OpenArchiveReaderAsync, Storage.MediaAssetReader.OpenAsync, Current, CancellationToken.None, _session.ReadBooruCatalog,
                 _session.ReadManualImportCatalog);
@@ -259,6 +267,16 @@ public partial class MainWindow
         }
     }
 
+    // A folder source file is written to (favorite, rating, tags) only once its bytes are hashed; a user action may hash any size.
+    private async Task HashFolderItemForActionAsync(MediaLibraryEntry indexed)
+    {
+        if (indexed.FolderItemId is not { } id || indexed.Sha256 != null || indexed.Presence != MediaLibraryPresence.Present
+            || !FolderSources.FolderSourceIdentity.TryParseId(id, out Guid item)) return;
+        try { await _session.HashFolderItemAsync(item, FolderSources.FolderSourceHashPriority.UserAction); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
+            or Microsoft.Data.Sqlite.SqliteException) { /* Resolution below then reports the file as unavailable. */ }
+    }
+
     private void RefreshMediaPageAfterMenuAction(Control? origin, Func<bool> hostCurrent, Func<bool> presentationCurrent)
     {
         if (!hostCurrent() || _mediaPage is not { } page) return;
@@ -288,7 +306,8 @@ internal static class MediaMenuIdentity
         && indexed.AssetId == resolved.Asset.AssetId && indexed.PostId == resolved.Post?.PostId
         && indexed.Position == resolved.Attachment?.Position
         && indexed.AttachmentRevisionKey == resolved.AttachmentResolution?.Binding?.Reference.RevisionKey
-        && string.Equals(indexed.Sha256, resolved.Asset.Sha256, StringComparison.OrdinalIgnoreCase)
+        // A folder source file indexed before its bytes were hashed learns its digest when it is opened.
+        && (indexed.FolderItemId != null && indexed.Sha256 == null || string.Equals(indexed.Sha256, resolved.Asset.Sha256, StringComparison.OrdinalIgnoreCase))
         && indexed.Length == resolved.Asset.Length && indexed.MediaId == resolved.Asset.MediaIdentifier
         && indexed.Variant == resolved.Asset.Variant && indexed.Historical == resolved.Historical
         && indexed.Unassigned == resolved.Unassigned
@@ -304,6 +323,18 @@ internal static class MediaMenuIdentity
         if (!isCurrent() || token.IsCancellationRequested || indexed.Presence != MediaLibraryPresence.Present
             || indexed.Directory == null) return null;
         GalleryEntry? resolved;
+        if (indexed.FolderItemId != null)
+        {
+            // A folder source file is no archived thread: its entry comes from the shadow catalog's virtual manifest.
+            resolved = await FolderSourceMediaGallery.ResolveAsync(indexed, openManifest, token);
+            if (resolved == null || !Matches(indexed, resolved) || !isCurrent() || token.IsCancellationRequested) return null;
+            try
+            {
+                await using Stream verified = await resolved.Manifest.OpenVerifiedReadAsync(resolved.Asset.AssetId, token);
+                return isCurrent() && !token.IsCancellationRequested ? resolved : null;
+            }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
+        }
         if (indexed.ImportItemId != null)
         {
             // An imported file is no archived thread: its entry comes from the import catalog and the batch manifest.

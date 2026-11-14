@@ -100,6 +100,8 @@ public sealed partial class MediaPage : UserControl
     internal Func<BooruCatalogSnapshot?>? ReadBooruCatalog { get; set; }
     /// <summary>Read-only access to the import catalog (manually imported files). Null: the page shows no imports.</summary>
     internal Func<Import.ManualImportCatalogSnapshot?>? ReadImportCatalog { get; set; }
+    /// <summary>Read-only access to the folder source catalog (files of read-only folders). Null: the page shows no folder files.</summary>
+    internal Func<FolderSources.FolderSourceCatalogSnapshot?>? ReadFolderSources { get; set; }
     /// <summary>Opens a provider post page; the shell supplies the browser launcher, tests a recorder.</summary>
     internal Func<Uri, Task>? OpenProviderPage { get; set; }
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
@@ -276,10 +278,11 @@ public sealed partial class MediaPage : UserControl
             MediaLibrarySnapshot? previous = force ? null : _snapshot;
             Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
             Func<Import.ManualImportCatalogSnapshot?>? readImports = ReadImportCatalog;
+            Func<FolderSources.FolderSourceCatalogSnapshot?>? readFolders = ReadFolderSources;
             // A refresh reads every manifest again (no reuse of kept views); identities are still recorded for the next open.
             MediaManifestCache manifests = force ? new MediaManifestCache(_manifests.UsesIdentity ? null : _openManifest, building.Token) : _manifests;
             MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, manifests,
-                previous, progress, building.Token, readBooru, readImports), building.Token);
+                previous, progress, building.Token, readBooru, readImports, readFolders), building.Token);
             if (!ReferenceEquals(_building, building)) return;
             SetSnapshot(built);
             _progress = null;

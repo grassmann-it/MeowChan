@@ -585,6 +585,33 @@ namespace MeowChan
         internal Import.ManualImportLimits ImportLimits => new(ImportMaxFilesPerBatch, ImportMaxBatchGiB * 1024L * 1024 * 1024,
             ImportMaxFileMiB * 1024L * 1024);
 
+        // Read-only folder sources (PLAN-POWER-TAGGEN PR2/PR3, E3). Every limit is a setting; the catalog enforces fixed ceilings
+        // (2,000,000 items per profile, 1,024 characters per path).
+        /// <summary>Most files over all folder sources (missing ones do not count); lowering it keeps every file, a scan only adds no more.</summary>
+        public int FolderSourceMaxFiles { get; set; } = FolderSources.FolderSourceCatalog.DefaultMaxFiles;
+        /// <summary>Most folder sources; lowering it keeps every source, only new ones are refused.</summary>
+        public int FolderSourceMaxRoots { get; set; } = FolderSources.FolderSourceCatalog.DefaultMaxRoots;
+        /// <summary>Files hashed at the same time.</summary>
+        public int FolderSourceHashParallelism { get; set; } = FolderSources.FolderSourceHasher.DefaultParallelism;
+        /// <summary>Largest file hashed without a user action (viewing, background), in GiB; a larger one is hashed when you favorite, rate or tag it.</summary>
+        public int FolderSourceHashMaxFileGiB { get; set; } = FolderSources.FolderSourceHasher.DefaultMaxFileGiB;
+        /// <summary>Minutes between automatic rescans of every folder source; 0 = only by hand.</summary>
+        public int FolderSourceRescanMinutes { get; set; }
+        /// <summary>Size limit of the folder source catalog (folder-sources.db) in MiB; lowering it only stops growth.</summary>
+        public int FolderSourceCatalogLimitMiB { get; set; } = FolderSources.FolderSourceCatalog.DefaultCatalogLimitMiB;
+        /// <summary>Unhashed folder files on each side of the opened one that the gallery hashes when it opens; farther ones are left out until hashed.</summary>
+        public int FolderSourceGalleryHashWindow { get; set; } = FolderSourceGalleryHashWindowDefault;
+        /// <summary>Whether unhashed folder files are hashed in the background while you are idle.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool FolderSourceBackgroundHashing { get; set; } = true;
+        internal const int FolderSourceMaxFilesMinimum = FolderSources.FolderSourceCatalog.MinimumMaxFiles, FolderSourceMaxFilesMaximum = FolderSources.FolderSourceCatalog.MaxFilesCeiling;
+        internal const int FolderSourceMaxRootsMinimum = FolderSources.FolderSourceCatalog.MinimumMaxRoots, FolderSourceMaxRootsMaximum = FolderSources.FolderSourceCatalog.MaxRootsCeiling;
+        internal const int FolderSourceHashParallelismMinimum = FolderSources.FolderSourceHasher.MinimumParallelism, FolderSourceHashParallelismMaximum = FolderSources.FolderSourceHasher.ParallelismCeiling;
+        internal const int FolderSourceHashMaxFileGiBMinimum = FolderSources.FolderSourceHasher.MinimumMaxFileGiB, FolderSourceHashMaxFileGiBMaximum = FolderSources.FolderSourceHasher.MaxFileGiBCeiling;
+        internal const int FolderSourceRescanMinutesMinimum = 0, FolderSourceRescanMinutesMaximum = 1_440;
+        internal const int FolderSourceCatalogLimitMiBMinimum = FolderSources.FolderSourceCatalog.MinimumCatalogLimitMiB, FolderSourceCatalogLimitMiBMaximum = FolderSources.FolderSourceCatalog.CatalogLimitMiBCeiling;
+        internal const int FolderSourceGalleryHashWindowDefault = 16, FolderSourceGalleryHashWindowMinimum = 0, FolderSourceGalleryHashWindowMaximum = 200;
+
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
 
@@ -1289,6 +1316,20 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaIndexMaxThreads), "MediaIndexMaxThreads is outside its supported range (" + MediaIndexMaxThreadsMinimum + " to " + MediaIndexMaxThreadsMaximum + ").");
             if (ImportCatalogLimitMiB is < ImportCatalogLimitMiBMinimum or > ImportCatalogLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "ImportCatalogLimitMiB is outside its supported range (" + ImportCatalogLimitMiBMinimum + " to " + ImportCatalogLimitMiBMaximum + ").");
+            if (FolderSourceMaxFiles is < FolderSourceMaxFilesMinimum or > FolderSourceMaxFilesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceMaxFiles), "FolderSourceMaxFiles is outside its supported range (" + FolderSourceMaxFilesMinimum + " to " + FolderSourceMaxFilesMaximum + ").");
+            if (FolderSourceMaxRoots is < FolderSourceMaxRootsMinimum or > FolderSourceMaxRootsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceMaxRoots), "FolderSourceMaxRoots is outside its supported range (" + FolderSourceMaxRootsMinimum + " to " + FolderSourceMaxRootsMaximum + ").");
+            if (FolderSourceHashParallelism is < FolderSourceHashParallelismMinimum or > FolderSourceHashParallelismMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceHashParallelism), "FolderSourceHashParallelism is outside its supported range (" + FolderSourceHashParallelismMinimum + " to " + FolderSourceHashParallelismMaximum + ").");
+            if (FolderSourceHashMaxFileGiB is < FolderSourceHashMaxFileGiBMinimum or > FolderSourceHashMaxFileGiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceHashMaxFileGiB), "FolderSourceHashMaxFileGiB is outside its supported range (" + FolderSourceHashMaxFileGiBMinimum + " to " + FolderSourceHashMaxFileGiBMaximum + ").");
+            if (FolderSourceRescanMinutes is < FolderSourceRescanMinutesMinimum or > FolderSourceRescanMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceRescanMinutes), "FolderSourceRescanMinutes is outside its supported range (" + FolderSourceRescanMinutesMinimum + " to " + FolderSourceRescanMinutesMaximum + ").");
+            if (FolderSourceCatalogLimitMiB is < FolderSourceCatalogLimitMiBMinimum or > FolderSourceCatalogLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceCatalogLimitMiB), "FolderSourceCatalogLimitMiB is outside its supported range (" + FolderSourceCatalogLimitMiBMinimum + " to " + FolderSourceCatalogLimitMiBMaximum + ").");
+            if (FolderSourceGalleryHashWindow is < FolderSourceGalleryHashWindowMinimum or > FolderSourceGalleryHashWindowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceGalleryHashWindow), "FolderSourceGalleryHashWindow is outside its supported range (" + FolderSourceGalleryHashWindowMinimum + " to " + FolderSourceGalleryHashWindowMaximum + ").");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -1411,6 +1452,14 @@ namespace MeowChan
                 MediaIndexMaxEntries = MediaIndexMaxEntries,
                 MediaIndexMaxThreads = MediaIndexMaxThreads,
                 ImportCatalogLimitMiB = ImportCatalogLimitMiB,
+                FolderSourceMaxFiles = FolderSourceMaxFiles,
+                FolderSourceMaxRoots = FolderSourceMaxRoots,
+                FolderSourceHashParallelism = FolderSourceHashParallelism,
+                FolderSourceHashMaxFileGiB = FolderSourceHashMaxFileGiB,
+                FolderSourceRescanMinutes = FolderSourceRescanMinutes,
+                FolderSourceCatalogLimitMiB = FolderSourceCatalogLimitMiB,
+                FolderSourceGalleryHashWindow = FolderSourceGalleryHashWindow,
+                FolderSourceBackgroundHashing = FolderSourceBackgroundHashing,
                 ReaderThumbnailWidth = ReaderThumbnailWidth,
                 ReaderFoldLines = ReaderFoldLines,
                 ReaderPreviewLines = ReaderPreviewLines,
@@ -1613,6 +1662,14 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            FolderSourceMaxFiles = source.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = source.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = source.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = source.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = source.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = source.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = source.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = source.FolderSourceBackgroundHashing;
             ReaderThumbnailWidth = source.ReaderThumbnailWidth;
             ReaderFoldLines = source.ReaderFoldLines;
             ReaderPreviewLines = source.ReaderPreviewLines;
@@ -1774,6 +1831,14 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            FolderSourceMaxFiles = source.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = source.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = source.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = source.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = source.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = source.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = source.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = source.FolderSourceBackgroundHashing;
             ReaderThumbnailWidth = source.ReaderThumbnailWidth;
             ReaderFoldLines = source.ReaderFoldLines;
             ReaderPreviewLines = source.ReaderPreviewLines;

@@ -218,6 +218,11 @@ internal sealed partial class DesktopSessionHost
                         && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
                         directories.Add(booruDirectory);
                 }
+                // A folder source file has no folder of its own: each favorite names its virtual item folder (answered by the shadow catalog).
+                if (FolderSources.FolderSourceIdentity.TryGetRootId(group.Key, out Guid folderRoot))
+                    foreach (FavoriteEntry folderFavorite in group)
+                        if (FolderSources.FolderSourceIdentity.TryParseId(folderFavorite.Key.MediaIdentifier, out Guid folderItem))
+                            directories.Add(FolderSources.FolderSourceIdentity.VirtualDirectory(_profileLease.ProfileDirectory, folderRoot, folderItem));
                 try
                 {
                     directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath,

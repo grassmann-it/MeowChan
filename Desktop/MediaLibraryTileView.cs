@@ -35,11 +35,14 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
     /// <summary>True for a downloaded provider medium (Danbooru): it has a post of the provider, not a chan thread.</summary>
     public bool IsProviderMedium => Entry.BooruPostId != null;
     public bool IsImported => Entry.ImportItemId != null;
+    /// <summary>True for a file of a read-only folder source.</summary>
+    public bool IsFolderFile => Entry.FolderItemId != null;
     public string ThreadLabel => IsProviderMedium ? Texts.T("booru.media.tile.post", Entry.BooruPostId!)
         : IsImported ? Texts.T("import.media.tile", Entry.ThreadTitle)
+        : IsFolderFile ? Texts.T("folderSource.media.board", Entry.ThreadTitle)
         : Texts.T("media.tile.thread", string.IsNullOrWhiteSpace(Entry.ThreadTitle) ? "#" + Entry.Thread.Thread : Entry.ThreadTitle);
     public string Detail => Entry.Presence == MediaLibraryPresence.Missing ? Texts.T("media.tile.missing")
-        : Entry.Unassigned && !IsProviderMedium && !IsImported ? Texts.T("media.tile.unassigned")
+        : Entry.Unassigned && !IsProviderMedium && !IsImported && !IsFolderFile ? Texts.T("media.tile.unassigned")
         : Entry.Length is long length ? SizeText.Format(length) : string.Empty;
     public string DetailWithState => State is { } state && MediaLibraryStateText.Compact(state, Tile.IsGroup) is { Length: > 0 } compact
         ? (Detail.Length == 0 ? compact : Detail + " · " + compact) : Detail;

@@ -910,6 +910,65 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ImportMaxBatchesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsFolderSourcesHeading" Text="{Binding FolderSourcesGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceMaxFilesFieldLabel" Text="{Binding FolderSourceMaxFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceMaxFilesInput" Value="{Binding FolderSourceMaxFiles, Mode=TwoWay}" Minimum="1000" Maximum="2000000" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceMaxFilesFieldLabel}" AutomationProperties.Name="{Binding FolderSourceMaxFilesLabel}" AutomationProperties.HelpText="{Binding FolderSourceMaxFilesHelp}" />
+                                <TextBlock x:Name="FolderSourceMaxFilesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceMaxFilesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceMaxRootsFieldLabel" Text="{Binding FolderSourceMaxRootsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceMaxRootsInput" Value="{Binding FolderSourceMaxRoots, Mode=TwoWay}" Minimum="1" Maximum="64" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceMaxRootsFieldLabel}" AutomationProperties.Name="{Binding FolderSourceMaxRootsLabel}" AutomationProperties.HelpText="{Binding FolderSourceMaxRootsHelp}" />
+                                <TextBlock x:Name="FolderSourceMaxRootsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceMaxRootsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceHashParallelismFieldLabel" Text="{Binding FolderSourceHashParallelismLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceHashParallelismInput" Value="{Binding FolderSourceHashParallelism, Mode=TwoWay}" Minimum="1" Maximum="8" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceHashParallelismFieldLabel}" AutomationProperties.Name="{Binding FolderSourceHashParallelismLabel}" AutomationProperties.HelpText="{Binding FolderSourceHashParallelismHelp}" />
+                                <TextBlock x:Name="FolderSourceHashParallelismInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceHashParallelismHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceHashMaxFileGiBFieldLabel" Text="{Binding FolderSourceHashMaxFileGiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceHashMaxFileGiBInput" Value="{Binding FolderSourceHashMaxFileGiB, Mode=TwoWay}" Minimum="1" Maximum="1024" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceHashMaxFileGiBFieldLabel}" AutomationProperties.Name="{Binding FolderSourceHashMaxFileGiBLabel}" AutomationProperties.HelpText="{Binding FolderSourceHashMaxFileGiBHelp}" />
+                                <TextBlock x:Name="FolderSourceHashMaxFileGiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceHashMaxFileGiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <CheckBox x:Name="FolderSourceBackgroundHashingInput" IsChecked="{Binding FolderSourceBackgroundHashing, Mode=TwoWay}" AutomationProperties.Name="{Binding FolderSourceBackgroundHashingLabel}" AutomationProperties.HelpText="{Binding FolderSourceBackgroundHashingHint}"><TextBlock Text="{Binding FolderSourceBackgroundHashingLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding FolderSourceBackgroundHashingHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceRescanMinutesFieldLabel" Text="{Binding FolderSourceRescanMinutesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceRescanMinutesInput" Value="{Binding FolderSourceRescanMinutes, Mode=TwoWay}" Minimum="0" Maximum="1440" Increment="5" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceRescanMinutesFieldLabel}" AutomationProperties.Name="{Binding FolderSourceRescanMinutesLabel}" AutomationProperties.HelpText="{Binding FolderSourceRescanMinutesHelp}" />
+                                <TextBlock x:Name="FolderSourceRescanMinutesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceRescanMinutesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceCatalogLimitMiBFieldLabel" Text="{Binding FolderSourceCatalogLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceCatalogLimitMiBInput" Value="{Binding FolderSourceCatalogLimitMiB, Mode=TwoWay}" Minimum="16" Maximum="4096" Increment="16" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceCatalogLimitMiBFieldLabel}" AutomationProperties.Name="{Binding FolderSourceCatalogLimitMiBLabel}" AutomationProperties.HelpText="{Binding FolderSourceCatalogLimitMiBHelp}" />
+                                <TextBlock x:Name="FolderSourceCatalogLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceCatalogLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="FolderSourceGalleryHashWindowFieldLabel" Text="{Binding FolderSourceGalleryHashWindowLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="FolderSourceGalleryHashWindowInput" Value="{Binding FolderSourceGalleryHashWindow, Mode=TwoWay}" Minimum="0" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=FolderSourceGalleryHashWindowFieldLabel}" AutomationProperties.Name="{Binding FolderSourceGalleryHashWindowLabel}" AutomationProperties.HelpText="{Binding FolderSourceGalleryHashWindowHelp}" />
+                                <TextBlock x:Name="FolderSourceGalleryHashWindowInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding FolderSourceGalleryHashWindowHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="MediaIndexMaxEntriesFieldLabel" Text="{Binding MediaIndexMaxEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">

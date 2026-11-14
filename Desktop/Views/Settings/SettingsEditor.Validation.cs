@@ -174,7 +174,7 @@ public partial class SettingsEditor
             nameof(BooruRetryAfterCooldownHoursHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
             nameof(ProfileRegistryLimitHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(FolderSourceMaxFilesHelp), nameof(FolderSourceMaxRootsHelp), nameof(FolderSourceHashParallelismHelp), nameof(FolderSourceHashMaxFileGiBHelp), nameof(FolderSourceRescanMinutesHelp), nameof(FolderSourceCatalogLimitMiBHelp), nameof(FolderSourceGalleryHashWindowHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
@@ -276,6 +276,20 @@ public partial class SettingsEditor
             Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum, true);
         yield return (ImportMaxBatchesInput, ImportMaxBatches, ImportMaxBatchesLabel, Texts.T("settings.unitCount"),
             Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum, true);
+        yield return (FolderSourceMaxFilesInput, FolderSourceMaxFiles, FolderSourceMaxFilesLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum, true);
+        yield return (FolderSourceMaxRootsInput, FolderSourceMaxRoots, FolderSourceMaxRootsLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum, true);
+        yield return (FolderSourceHashParallelismInput, FolderSourceHashParallelism, FolderSourceHashParallelismLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum, true);
+        yield return (FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB, FolderSourceHashMaxFileGiBLabel, Texts.T("settings.unitGiB"),
+            Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum, true);
+        yield return (FolderSourceRescanMinutesInput, FolderSourceRescanMinutes, FolderSourceRescanMinutesLabel, Texts.T("settings.unitMinutes"),
+            Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum, true);
+        yield return (FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum, true);
+        yield return (FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow, FolderSourceGalleryHashWindowLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum, true);
         yield return (MediaIndexMaxEntriesInput, MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Texts.T("settings.unitCount"),
             Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum, true);
         yield return (MediaIndexMaxThreadsInput, MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Texts.T("settings.unitCount"),

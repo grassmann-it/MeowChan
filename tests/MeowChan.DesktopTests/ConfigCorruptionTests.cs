@@ -47,7 +47,14 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.TagQueueLimit), Config.TagQueueLimitMinimum, Config.TagQueueLimitMaximum),
         (nameof(Config.TagQueueFileLimitMiB), Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum),
         (nameof(Config.TagQueueHistory), Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum),
-        (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum)
+        (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum),
+        (nameof(Config.FolderSourceMaxFiles), Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum),
+        (nameof(Config.FolderSourceMaxRoots), Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum),
+        (nameof(Config.FolderSourceHashParallelism), Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum),
+        (nameof(Config.FolderSourceHashMaxFileGiB), Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum),
+        (nameof(Config.FolderSourceRescanMinutes), Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum),
+        (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
+        (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum)
     };
 
     public static IEnumerable<object[]> LimitCases() =>
