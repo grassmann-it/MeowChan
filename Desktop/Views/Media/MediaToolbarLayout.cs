@@ -6,16 +6,18 @@ namespace MeowChan;
 /// <summary>
 /// How the media toolbar adapts to the width of its page (pure rules; <see cref="MediaPage"/> applies them). The order of the row is fixed:
 /// search and filters on the left, the order (criterion and direction) on the right, with the less important tools in front of or behind it.
-/// When the width runs short, the less important tools move under "More" (⋯) first and the order stays visible; only below
-/// <see cref="CompactWidth"/> do the search field and the criterion shrink to their narrow minimum. The widths are layout measures of
-/// this row in dip (the 760 dip window minimum leaves the page about 600), not limits of the user's data.
+/// The stages: Wide shows everything; Reduced moves the focus mode, "Refresh" and "Shuffle again" under "More" (⋯); Compact moves the
+/// Booru mode switch under More as well, drops the "Sort" label in front of the criterion, and lets the search field and the criterion shrink
+/// to their narrow minimum. The order itself, the search and the filter toggle never move. The widths are layout measures of this row in
+/// dip (the Booru mode switch and the "Sort" label added about 80 dip to the old fit points of 840 and 660), not limits of the user's data;
+/// the media sort toolbar smoke check measures that the last tool of the row still fits at each stage.
 /// </summary>
 internal static class MediaToolbarLayout
 {
     /// <summary>Below this width "Refresh" and "Shuffle again" move under More.</summary>
-    internal const double ReducedWidth = 840;
-    /// <summary>Below this width the search field and the criterion shrink to <see cref="NarrowSearchMinWidth"/> and <see cref="NarrowSortMinWidth"/>.</summary>
-    internal const double CompactWidth = 660;
+    internal const double ReducedWidth = 920;
+    /// <summary>Below this width the Booru mode switch moves under More too, the "Sort" label goes, and the search field and the criterion shrink to <see cref="NarrowSearchMinWidth"/> and <see cref="NarrowSortMinWidth"/>.</summary>
+    internal const double CompactWidth = 740;
     internal const double SearchMinWidth = 180, NarrowSearchMinWidth = 120;
     internal const double SortMinWidth = 160, NarrowSortMinWidth = 120;
     /// <summary>The longest the search field grows in the row; the free space beyond it stays empty between the two groups.</summary>
@@ -31,14 +33,20 @@ internal static class MediaToolbarLayout
 
     // The work-view ids of the tools that leave the row first, in the order they leave (the order they have under More follows the policy).
     // The focus mode (M4) leaves the row first: it stays a shortcut (Shift+F) and an entry under More, so nothing is lost.
-    private static readonly string[] Demotable = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"];
+    private static readonly string[] DemotableReduced = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"];
+    // N6: the Booru mode switch (a Direct tool from Simple on) is the last one to leave, with the Compact stage; under More it keeps its checked entry.
+    private static readonly string[] DemotableCompact = [.. DemotableReduced, "media.toolbar.booru-mode"];
 
     /// <summary>Whether the width moves this tool (by its work-view id) under More. The order, search and filter toggle never move.</summary>
     internal static bool IsMovedUnderMore(Level level, string? id) =>
-        level != Level.Wide && id != null && Array.IndexOf(Demotable, id) >= 0;
+        level != Level.Wide && id != null && Array.IndexOf(level == Level.Compact ? DemotableCompact : DemotableReduced, id) >= 0;
 
     /// <summary>The ids that move under More at this level.</summary>
-    internal static IReadOnlyList<string> MovedUnderMore(Level level) => level == Level.Wide ? Array.Empty<string>() : Demotable;
+    internal static IReadOnlyList<string> MovedUnderMore(Level level) =>
+        level == Level.Wide ? Array.Empty<string>() : level == Level.Compact ? DemotableCompact : DemotableReduced;
+
+    /// <summary>Whether the "Sort" label in front of the criterion is shown (it goes with the Compact stage; the criterion keeps its own name).</summary>
+    internal static bool ShowsSortLabel(Level level) => level != Level.Compact;
 
     internal static double SearchMin(Level level) => level == Level.Compact ? NarrowSearchMinWidth : SearchMinWidth;
 

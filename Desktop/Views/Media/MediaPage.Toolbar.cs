@@ -76,7 +76,9 @@ public sealed partial class MediaPage
         }
         _nameFilter.VerticalAlignment = _filters.VerticalAlignment = VerticalAlignment.Center;
         tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 3);
-        _sortLabel.Bind(Visual.IsVisibleProperty, _sort.GetObservable(Visual.IsVisibleProperty));
+        // The label follows the criterion box, and goes with the Compact stage (N6).
+        _sort.PropertyChanged += (_, e) => { if (e.Property == Visual.IsVisibleProperty) SyncSortLabel(); };
+        SyncSortLabel();
         AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);
         ApplyToolbarMinWidths();
         tools.SizeChanged += (_, e) => ApplyToolbarWidth(e.NewSize.Width);
@@ -93,17 +95,20 @@ public sealed partial class MediaPage
         RefreshWorkView();
     }
 
+    private void SyncSortLabel() => _sortLabel.IsVisible = _sort.IsVisible && MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);
+
     private void ApplyToolbarMinWidths()
     {
         _nameFilter.MinWidth = MediaToolbarLayout.SearchMin(_toolbarLevel);
         _sort.MinWidth = MediaToolbarLayout.SortMin(_toolbarLevel);
+        SyncSortLabel();
     }
 
     // After the work view decided: what the width moves under More is hidden like what the view moves (its state still wants it, so
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

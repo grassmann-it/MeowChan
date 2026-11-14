@@ -575,7 +575,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("_mediaPage.RestoreSort(savedSort, savedDirection)", Read("Desktop/Shell/MainWindow.Media.cs"));
         Assert.Contains("In narrow windows the focus button, Refresh and Shuffle again move under More; Order stays visible", text);
         Assert.Equal(new[] { "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle" },
-            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
         Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.sort"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
             Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("media.sort", view));

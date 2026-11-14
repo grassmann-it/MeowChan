@@ -124,8 +124,9 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         Assert.Contains("Name = \"MediaSortLabel\", Classes = { \"muted\" }", sorting);
         Assert.Contains("_sortLabel.Text = Texts.T(\"media.sort\");", sorting);
         Assert.Contains("AutomationProperties.SetName(_sort, _sortLabel.Text);", sorting);
-        // The label follows the box's visibility and is not read twice by a screen reader.
-        Assert.Contains("_sortLabel.Bind(Visual.IsVisibleProperty, _sort.GetObservable(Visual.IsVisibleProperty));", toolbar);
+        // The label follows the box's visibility (and goes with the Compact stage, N6) and is not read twice by a screen reader.
+        Assert.Contains("_sortLabel.IsVisible = _sort.IsVisible && MediaToolbarLayout.ShowsSortLabel(_toolbarLevel);", toolbar);
+        Assert.Contains("e.Property == Visual.IsVisibleProperty) SyncSortLabel();", toolbar);
         Assert.Contains("AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);", toolbar);
         // The name is set in one place (on every language change), not twice.
         Assert.DoesNotContain("AutomationProperties.SetName(_sort, Texts.T(\"media.sort\"));", page);
