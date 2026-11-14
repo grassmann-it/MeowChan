@@ -87,6 +87,37 @@ public sealed class TagFilterPickerTests : IDisposable
     }
 
     [Fact]
+    public void TypedTextThatNamesAnAddableTagIsAnUnfinishedEntryOnlyWhenThePageKeepsIt()
+    {
+        PrivateTagDefinition red = Tag("red"), blue = Tag("blue");
+        HashSet<TagId> used = new();
+        int changes = 0;
+        TagFilterPicker picker = new() { Snapshot = () => Snapshot(red, blue), Used = () => used };
+        picker.PendingChanged += (_, _) => changes++;
+        picker.Search.SetTextSilently("re");
+        Assert.False(picker.HasPending); // Media applies at once and keeps nothing
+        picker.KeepQueryOnDismiss = true;
+        Assert.True(picker.HasPending);
+        picker.Search.SetTextSilently("-re");
+        Assert.True(picker.HasPending); // the dash only says "exclude"
+        picker.Search.SetTextSilently("zzz");
+        Assert.False(picker.HasPending); // names no tag: nothing to finish
+        picker.Search.SetTextSilently("-");
+        Assert.False(picker.HasPending);
+        picker.Search.SetTextSilently("red");
+        used.Add(red.Id);
+        Assert.False(picker.HasPending); // already in the filter
+        used.Clear();
+        Assert.True(picker.HasPending);
+        picker.ClearPending();
+        Assert.False(picker.HasPending);
+        Assert.False(picker.Search.HasText);
+        Assert.Equal(1, changes);
+        picker.ClearPending(); // nothing left to clear: no further change
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
     public void ATagChipSaysItsStateAndOffersTheOtherOneAsAToggle()
     {
         Guid id = Guid.NewGuid();

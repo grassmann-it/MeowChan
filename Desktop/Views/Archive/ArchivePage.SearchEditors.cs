@@ -94,9 +94,9 @@ public partial class ArchivePage
         ArchiveSearchError.IsVisible = message.Length > 0;
         SyncSearchPanelGaps();
     }
-    private static Control ValidationFocusTarget(Control editor) => editor is ArchiveDateEditor
+    private Control ValidationFocusTarget(Control editor) => editor is ArchiveDateEditor
         ? editor.GetLogicalDescendants().OfType<TextBox>().FirstOrDefault(text => !text.IsReadOnly) ?? editor
-        : editor;
+        : ReferenceEquals(editor, ArchiveTagChoiceHost) ? ArchiveTagChoice : editor;
     private void RevealSearchValidationError(long generation)
     {
         if (TopLevel.GetTopLevel(this) is not Window owner) return;
@@ -211,7 +211,8 @@ public partial class ArchivePage
         finally { _updatingBoardScopes = false; }
         InvalidateBoardSuggestions();
     }
-    private void RenderDraftTags(string name, string editorName, IEnumerable<(string Label, Action Remove)> entries)
+    private void RenderDraftTags(string name, string editorName, IEnumerable<(string Label, Action Remove)> entries,
+        Func<int, string, Action, ClosableTag>? createChip = null)
     {
         WrapPanel panel = Control<WrapPanel>(name); panel.Children.Clear();
         int index = 0;
@@ -221,12 +222,13 @@ public partial class ArchivePage
             ClosableTag? tag = null;
             // Only a removal made from the tag itself (keyboard focus on it) moves focus; pointer removals
             // and other re-renders leave focus alone. No search is applied.
-            tag = CreateFilterTag(entry.Label, () =>
+            Action remove = () =>
             {
                 bool focused = tag!.IsKeyboardFocusWithin;
                 entry.Remove();
                 if (focused) FocusAfterDraftTagRemoval(name, editorName, position, tag);
-            });
+            };
+            tag = createChip?.Invoke(position, entry.Label, remove) ?? CreateFilterTag(entry.Label, remove);
             panel.Children.Add(tag);
         }
         // The chips of a category are a polite live region named by their labels, so a new chip is announced.
@@ -255,8 +257,8 @@ public partial class ArchivePage
         // ApplySearchAsync adds leftover source, board and state input first; only a chosen tag still needs
         // Include or Exclude. For the unapplied-draft marker, leftover source or board text is unapplied input.
         bool pending = HasPendingTagChoice;
-        if (validateFields) DataValidationErrors.SetErrors(ArchiveTagChoice, pending ? new object[] { Texts.T("tags.filter.pending") } : null);
-        if (validateFields && pending) _invalidSearchEditor = ArchiveTagChoice;
+        if (validateFields) DataValidationErrors.SetErrors(ArchiveTagChoiceHost, pending ? new object[] { Texts.T("tags.filter.pending") } : null);
+        if (validateFields && pending) _invalidSearchEditor = ArchiveTagChoiceHost;
         if (pending) throw new InvalidOperationException(Texts.T("tags.filter.pending"));
         if (!validateFields && (!string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) || !string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter"))))
             throw new InvalidOperationException("Unadded source or board text.");

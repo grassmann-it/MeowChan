@@ -475,22 +475,32 @@ internal static class PrivateTagBarChecks
         await f.Host.SetThreadTagAsync(blue, threads[1], true); await f.Host.SetThreadTagAsync(blue, threads[2], true);
 
         ArchivePage page = f.Page;
-        ComboBox choice = f.C<ComboBox>("ArchiveTagChoice"), mode = f.C<ComboBox>("ArchiveTagMode");
+        MeowChan.Desktop.Controls.TagFilterPicker choice = f.C<MeowChan.Desktop.Controls.TagFilterPicker>("ArchiveTagChoice");
+        DataValidationErrors choiceHost = f.C<DataValidationErrors>("ArchiveTagChoiceHost");
+        ComboBox mode = f.C<ComboBox>("ArchiveTagMode");
         TextBlock error = f.C<TextBlock>("ArchiveSearchError");
         string[] Rows() => f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread!).Order().ToArray();
-        string[] Choices() => choice.ItemsSource!.Cast<object>().Select(item => item.ToString()!).ToArray();
+        string[] Choices() => page.AddableDraftTagNames;
+        // The popover's typed route: text into the search field, then Enter (Shift+Enter or a leading "-" excludes).
+        void Type(string text, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            choice.Search.Text = text; choice.Search.FlushQuery();
+            choice.Search.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = modifiers });
+        }
         string[] Draft() => f.C<WrapPanel>("ArchiveDraftTags").Children.OfType<Ursa.Controls.ClosableTag>()
-            .Select(tag => ((TextBlock)tag.Content!).Text!).ToArray();
+            .Select(ArchivePage.FilterTagLabel).ToArray();
+        Ursa.Controls.ClosableTag DraftChip(string label) => f.C<WrapPanel>("ArchiveDraftTags").Children.OfType<Ursa.Controls.ClosableTag>()
+            .Single(tag => ArchivePage.FilterTagLabel(tag) == label);
         string[] Applied() => f.C<WrapPanel>("ArchiveAppliedFilters").Children.OfType<Ursa.Controls.ClosableTag>()
-            .Select(tag => ((TextBlock)tag.Content!).Text!).ToArray();
-        void Choose(string label) => choice.SelectedItem = choice.ItemsSource!.Cast<object>().Single(item => item.ToString() == label);
-        void RemoveDraft(string label) => f.C<WrapPanel>("ArchiveDraftTags").Children.OfType<Ursa.Controls.ClosableTag>()
-            .Single(tag => ((TextBlock)tag.Content!).Text == label).Command!.Execute(null);
+            .Select(ArchivePage.FilterTagLabel).ToArray();
+        void RemoveDraft(string label) => DraftChip(label).Command!.Execute(null);
         async Task SearchAsync() { await page.ApplySearchAsync(); await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background); }
 
         Require(await page.ApplySearchSpecAsync(new ArchiveSearchSpec(sort: ArchiveThreadSort.Title)), "Initial list failed.");
         Require(Rows().SequenceEqual(new[] { "3001", "3002", "3003", "3004" }) && Applied().Length == 0, "Unfiltered list is wrong.");
-        Require(Choices().SequenceEqual(new[] { Texts.T("tags.filter.choose"), "red", "blue", "unused" }), "Tag choices are wrong: " + string.Join("|", Choices()));
+        Require(Choices().SequenceEqual(new[] { "blue", "red", "unused" }), "Tag choices are wrong: " + string.Join("|", Choices()));
+        Require(choice.IsEnabled && Avalonia.Automation.AutomationProperties.GetName(choice) == Texts.T("tags.filter.add")
+            && f.C<TextBlock>("ArchiveTagChoiceLabel").Text == Texts.T("tags.filter.label"), "The tag picker is not named or enabled.");
 
         // Sorting the table by its tag column: by sorted names (elementwise), threads without tags last, header toggles direction.
         await ShowTableAsync(f);
@@ -501,16 +511,16 @@ internal static class PrivateTagBarChecks
         f.C<DataGrid>("ArchiveThreadTable").CollectionView!.SortDescriptions.Clear();
 
         // Include one tag.
-        Choose("red"); f.Click("ArchiveAddTagInclude");
-        Require(Draft().SequenceEqual(new[] { "Tag: red" }) && Choices().SequenceEqual(new[] { Texts.T("tags.filter.choose"), "blue", "unused" })
-            && choice.SelectedIndex == 0, "Include did not move the tag into the draft.");
+        Type("red");
+        Require(Draft().SequenceEqual(new[] { "Tag: red" }) && Choices().SequenceEqual(new[] { "blue", "unused" })
+            && !choice.HasPending && !choice.Search.HasText, "Include did not move the tag into the draft.");
         Require(Rows().Length == 4, "Editing the draft must not search by itself.");
         await SearchAsync();
         Require(Rows().SequenceEqual(new[] { "3001", "3002" }) && Applied().SequenceEqual(new[] { "Tag: red" }), "Include filter result is wrong: " + string.Join(",", Rows()));
         Require(page.AppliedSearchSpec!.SchemaVersion == 2 && page.AppliedSearchRequest!.TagMembership != null, "Applied request is not tag-bound.");
 
         // Two included tags: all, then at least one.
-        Choose("blue"); f.Click("ArchiveAddTagInclude");
+        Require(page.AddDraftTagByName("blue", include: true) == null, "Including blue failed.");
         await SearchAsync();
         Require(Rows().SequenceEqual(new[] { "3002" }), "All-of-two result is wrong: " + string.Join(",", Rows()));
         mode.SelectedIndex = 1;
@@ -519,21 +529,34 @@ internal static class PrivateTagBarChecks
 
         // Exclude.
         RemoveDraft("Tag: blue");
-        Choose("blue"); f.Click("ArchiveAddTagExclude");
-        Require(Draft().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude draft is wrong.");
+        Type("-blue");
+        Require(Draft().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }) && DraftChip("Without tag: blue").Classes.Contains("chip-exclude")
+            && !DraftChip("Tag: red").Classes.Contains("chip-exclude"), "Exclude draft is wrong.");
+        // The chip's toggle switches the state in the draft only (nothing is searched); the close mark removes.
+        Ursa.Controls.ClosableTag ToggleOf(string label) => DraftChip(label);
+        void Press(string label) => ((Button)((StackPanel)ToggleOf(label).Content!).Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Press("Without tag: blue");
+        Require(Draft().SequenceEqual(new[] { "Tag: red", "Tag: blue" }) && !DraftChip("Tag: blue").Classes.Contains("chip-exclude")
+            && Rows().SequenceEqual(new[] { "3001", "3002", "3003" }), "The toggle did not include the excluded tag, or it searched: " + string.Join("|", Draft()));
+        Press("Tag: blue");
+        Require(Draft().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }) && DraftChip("Without tag: blue").Classes.Contains("chip-exclude")
+            && Choices().SequenceEqual(new[] { "unused" }), "The toggle did not exclude the tag again: " + string.Join("|", Draft()));
+        Require(page.AddDraftTagByName("red", include: false) is { } both && both == Texts.T("tags.filter.error.both"), "A tag in the other list was not refused.");
         await SearchAsync();
         Require(Rows().SequenceEqual(new[] { "3001" }) && Applied().SequenceEqual(new[] { "Tag: red", "Without tag: blue" }), "Exclude result is wrong: " + string.Join(",", Rows()));
 
         // A chosen but not added tag is an unfinished entry: explained, nothing searched. Unlike a source or
         // board (added on Search), the app cannot guess Include or Exclude. The request to choose stands once,
         // under the tag choice in the opened filter surface, not again above the toolbar.
-        Choose("unused");
+        // With the popover the unfinished entry is a tag typed into its search field and not added (Enter / Shift+Enter).
+        choice.Search.Text = "unused"; choice.Search.FlushQuery();
+        Require(choice.HasPending, "Typed text naming a tag is not an unfinished entry.");
         await SearchAsync();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        Require(Rows().SequenceEqual(new[] { "3001" }) && DataValidationErrors.GetHasErrors(choice)
-            && DataValidationErrors.GetErrors(choice)?.OfType<object>().Select(item => item.ToString()).SequenceEqual(new[] { Texts.T("tags.filter.pending") }) == true,
+        Require(Rows().SequenceEqual(new[] { "3001" }) && DataValidationErrors.GetHasErrors(choiceHost)
+            && DataValidationErrors.GetErrors(choiceHost)?.OfType<object>().Select(item => item.ToString()).SequenceEqual(new[] { Texts.T("tags.filter.pending") }) == true,
             "Pending tag choice was applied or ignored silently.");
-        TextBlock[] shownUnderChoice = choice.GetVisualDescendants().OfType<TextBlock>()
+        TextBlock[] shownUnderChoice = choiceHost.GetVisualDescendants().OfType<TextBlock>()
             .Where(text => text.Text == Texts.T("tags.filter.pending") && text.IsEffectivelyVisible).ToArray();
         Console.WriteLine("SMOKE private-tags pending-choice: " + System.Text.Json.JsonSerializer.Serialize(new
         {
@@ -542,8 +565,8 @@ internal static class PrivateTagBarChecks
         }));
         Require(page.IsFilterSurfaceOpen && choice.IsEffectivelyVisible && shownUnderChoice.Length == 1 && !error.IsVisible,
             "The Include/Exclude request is not shown exactly once, under the tag choice.");
-        choice.SelectedIndex = 0;
-        Require(!DataValidationErrors.GetHasErrors(choice), "Clearing the choice did not clear its mark.");
+        choice.Search.Text = string.Empty; choice.Search.FlushQuery();
+        Require(!choice.HasPending && !DataValidationErrors.GetHasErrors(choiceHost), "Clearing the entry did not clear its mark.");
 
         // Gallery, export and reader navigation resolve the very same frozen request.
         await using (ArchiveReader reader = await f.Host.OpenArchiveReaderAsync(CancellationToken.None))
@@ -584,7 +607,7 @@ internal static class PrivateTagBarChecks
         mode.BringIntoView();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Capture(page, "filter-editor");
-        Console.WriteLine("SMOKE private-tags filter [en]: include, all/any, exclude, pending choice, shared frozen request, chip removal, refresh, deleted tag, stored definition checked.");
+        Console.WriteLine("SMOKE private-tags filter [en]: popover include/exclude (typed Enter, leading dash), chip toggle, all/any, exclude, pending entry, shared frozen request, chip removal, refresh, deleted tag, stored definition checked.");
     }
 
     private static async Task ManagerJourneyAsync(MainWindow owner)
@@ -688,8 +711,8 @@ internal static class PrivateTagBarChecks
         Require(f.Chips().Length == 0 && Equals(f.C<Button>("ReaderTagsOpen").Content, "Tags"), "Tag bar still shows the deleted tag.");
         ArchiveThreadRow[] rows = f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().ToArray();
         Require(!rows.Single(row => row.Summary.Id == first).HasTags && rows.Single(row => row.Summary.Id == second).TagsText == "Tags: blue", "List rows still show the deleted tag.");
-        string[] choices = f.C<ComboBox>("ArchiveTagChoice").ItemsSource!.Cast<object>().Select(item => item.ToString()!).ToArray();
-        Require(choices.SequenceEqual(new[] { Texts.T("tags.filter.choose"), "blue", "fixed_name" }), "Filter choices are stale: " + string.Join("|", choices));
+        string[] choices = page.AddableDraftTagNames;
+        Require(choices.SequenceEqual(new[] { "blue", "fixed_name" }), "Filter choices are stale: " + string.Join("|", choices));
         // The table column shows the deletion and then a rename, in the same rows, once the manager closes.
         Require(TagCell(f, firstRow) == "" && TagCell(f, secondRow) == "blue", "Table column still shows the deleted tag: " + TagCell(f, secondRow));
         manager = await OpenManagerAsync();

@@ -101,12 +101,11 @@
                                 <!-- Own tags: include, exclude, and how several included tags combine. -->
                                 <StackPanel x:Name="ArchiveFilterGroupTags" wv:WorkViewElement.Id="archive.filters.tags" Spacing="8">
                                     <TextBlock x:Name="ArchiveTagChoiceLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                    <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveTagChoiceLabel}" />
-                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                                        <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
-                                        <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
-                                    </Grid>
-                                    <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
+                                    <!-- Same pattern as the Media page: a popover with a search over the own tags adds one to the draft (Enter includes, Shift+Enter or a leading "-" excludes); the draft chips carry the state toggle. The host shows the unfinished-entry mark. -->
+                                    <DataValidationErrors x:Name="ArchiveTagChoiceHost">
+                                        <controls:TagFilterPicker x:Name="ArchiveTagChoice" AutomationProperties.LabeledBy="{Binding #ArchiveTagChoiceLabel}" />
+                                    </DataValidationErrors>
+                                    <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" AutomationProperties.LiveSetting="Polite" />
                                     <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
                                 </StackPanel>
                                 <StackPanel x:Name="ArchiveFilterGroupTagMode" wv:WorkViewElement.Id="archive.filters.tag-mode" Spacing="8">

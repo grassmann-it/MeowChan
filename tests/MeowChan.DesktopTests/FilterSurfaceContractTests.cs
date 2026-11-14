@@ -60,4 +60,26 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("ArchivePage.CreateTagFilterChip(", chips);
         Assert.Contains("ToggleTagFilter(tagId)", chips);
     }
+
+    [Fact]
+    public void TheArchiveTagEditorUsesThePopoverAndTheChipTogglesAndKeepsItsPendingValidation()
+    {
+        string axaml = Source("Desktop/Views/Archive/ArchivePage.axaml"), tags = Source("Desktop/Views/Archive/ArchivePage.TagFilter.cs"),
+            editors = Source("Desktop/Views/Archive/ArchivePage.SearchEditors.cs");
+        Assert.Contains("<controls:TagFilterPicker x:Name=\"ArchiveTagChoice\"", axaml);
+        Assert.Contains("<DataValidationErrors x:Name=\"ArchiveTagChoiceHost\">", axaml);
+        foreach (string gone in new[] { "<ComboBox x:Name=\"ArchiveTagChoice\"", "ArchiveAddTagInclude", "ArchiveAddTagExclude", "OnAddTagInclude", "OnAddTagExclude" })
+        {
+            Assert.DoesNotContain(gone, axaml);
+            Assert.DoesNotContain(gone, tags);
+        }
+        Assert.DoesNotContain("TagChoice(", tags);
+        Assert.Contains("ArchiveTagChoice.KeepQueryOnDismiss = true;", tags);
+        Assert.Contains("ArchiveTagChoice.Picked = (id, exclude) => AddDraftTag(id, include: !exclude);", tags);
+        Assert.Contains("CreateTagFilterChip(", tags);
+        Assert.Contains("ToggleDraftTag(", tags);
+        Assert.Contains("DataValidationErrors.SetErrors(ArchiveTagChoiceHost, pending", editors);
+        Assert.Contains("_invalidSearchEditor = ArchiveTagChoiceHost;", editors);
+        Assert.Contains("private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;", tags);
+    }
 }
