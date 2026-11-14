@@ -59,14 +59,14 @@ internal static class MediaLibraryBadges
         : row.State?.Favorite == MediaLibraryFlag.Yes;
 
     /// <summary>
-    /// How far the badges of the top-right corner reach into the picture from its right edge, plus a gap; 0 when the corner holds none. The
-    /// selection check is arranged beside them, never on top.
+    /// How far the badges of the top-right corner reach into the area they are placed on (the slot of a media tile) from its right edge, plus a gap;
+    /// 0 when the corner holds none. The selection check is arranged beside them, never on top.
     /// </summary>
-    internal static double TopRightExtent(MediaBadgePlan plan, double pictureWidth)
+    internal static double TopRightExtent(MediaBadgePlan plan, double areaWidth)
     {
         double reach = 0;
         foreach (PlacedBadge placed in plan.Badges)
-            if (placed.Badge.Corner == MediaBadgeCorner.TopRight) reach = Math.Max(reach, pictureWidth - placed.Bounds.Left);
+            if (placed.Badge.Corner == MediaBadgeCorner.TopRight) reach = Math.Max(reach, areaWidth - placed.Bounds.Left);
         return reach > 0 ? reach + CornerGap : 0;
     }
 

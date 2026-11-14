@@ -100,7 +100,8 @@ internal sealed class MediaLibraryTileView : UserControl
     // Selected tiles carry a check mark besides the list's highlight, so the state does not depend on color alone.
     private readonly Border _selectedMark = WorkspaceChips.CreateSelectionCheck("MediaTileSelected");
     // MB1b: what the tile says about the medium (favourite, kind, file missing, queue, own tags or none yet, booru source) is drawn by the
-    // shared media badges over exactly the shown picture: one render-only view, no child control per badge. Only the favourite toggle stays a
+    // shared media badges in the tile's slot corners (the same place on every tile of a row, whatever the picture's shape; the play mark stays on
+    // the picture): one render-only view, no child control per badge. Only the favourite toggle stays a
     // button (bottom right); the badge carries the state at rest, so the toggle is quiet unless the tile is hovered or focused. The queue
     // badge is refreshed alone when the queue changes (RefreshQueueBadge).
     private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage };
@@ -202,11 +203,11 @@ internal sealed class MediaLibraryTileView : UserControl
     public MediaLibraryTileView()
     {
         MaxWidth = 190; Height = TileHeight;
-        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it, the badges lie exactly on the picture and
-        // the selection check and the star are arranged on its corners.
-        LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174;
+        // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it. The badges, the selection check and the star are
+        // arranged on the slot's corners, not on the picture's, so a portrait and a landscape tile carry them at the same height.
+        LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174; preview.MarksOnSlot = true;
         _topRight.Children.Add(_selectedMark);
-        // The check keeps clear of a badge in the same corner; the badges' place follows the picture, so the inset follows its bounds.
+        // The check keeps clear of a badge in the same corner; the badges' place follows the slot, so the inset follows its bounds.
         _badges.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) UpdateTopRightInset(); };
         // Top left, where the favourite badge sits: the toggle shows only on hover or focus and then takes the badge's place, so it never covers the
         // tag count or the untagged mark of the bottom right corner, nor the kind of the bottom left.
@@ -328,15 +329,14 @@ internal sealed class MediaLibraryTileView : UserControl
         if (row == null) { _badges.Clear(); _badgeText.Reset(); _sentence = string.Empty; UpdateTopRightInset(); return; }
         MediaBadgeState full = MediaLibraryBadges.ForRow(row, InTagQueue?.Invoke(row.Entry) == true);
         _sentence = _badgeText.Get(full, _badges.Options);
-        _badges.Apply(MediaLibraryBadges.Visible(full, _appearance), _preview.PictureBounds.Size);
+        _badges.Apply(MediaLibraryBadges.Visible(full, _appearance), _preview.PictureBounds.Size, _preview.Bounds.Size);
         UpdateTopRightInset();
     }
 
-    // The selection check is arranged on the marks band, which can be wider than a thin picture, so that difference is part of the inset.
+    // The selection check and the badges share the slot's corner: the check keeps clear of the badges of the top right corner.
     private void UpdateTopRightInset()
     {
-        Rect picture = _preview.PictureBounds, band = _preview.MarksBounds;
-        double inset = MediaLibraryBadges.CornerInset + Math.Max(0, band.Right - picture.Right) + MediaLibraryBadges.TopRightExtent(_badges.Plan, picture.Width);
+        double inset = MediaLibraryBadges.CornerInset + MediaLibraryBadges.TopRightExtent(_badges.Plan, _preview.MarksBounds.Width);
         if (_topRight.Margin.Right != inset) _topRight.Margin = new Thickness(0, 2, inset, 0);
     }
 

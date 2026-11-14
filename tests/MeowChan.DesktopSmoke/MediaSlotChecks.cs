@@ -330,20 +330,38 @@ internal static class MediaSlotChecks
                     Expect(Inside(picture2, new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size)), $"{label}: badge {placed.Badge.Id} {placed.Bounds} leaves the drawn image.");
                 Console.WriteLine("SMOKE media-slot archive-badges: " + JsonSerializer.Serialize(new { label, mode = badges.Plan.Mode.ToString(), ids = badges.Plan.Badges.Select(placed => placed.Badge.Id.ToString()).ToArray(), text = tile.BadgeDescription }));
             }
+            // MB1b: the badges of a media tile sit on the corners of the tile's slot, so every tile of the row carries the same badge at the same place
+            // (a portrait, a landscape, a wide and a video tile alike); the star and the check share those corners; only the play mark follows the picture.
+            Dictionary<MediaBadgeId, (Point Place, string Label)> firstPlace = new();
             foreach (MediaLibraryTileView tile in libraryTiles)
             {
                 string file = (tile.DataContext as MediaLibraryTileRow)!.Entry.Name ?? "?", label = "media tile #" + ((tile.DataContext as MediaLibraryTileRow)!.Index + 1) + " " + name;
                 Image image = tile.GetVisualDescendants().OfType<Image>().First();
-                Rect picture = RectIn(image, host);
-                Rect drawn = Marks(Drawn(picture, image.Source!.Size.Width / image.Source.Size.Height));
-                Console.WriteLine("SMOKE media-slot media-tile: " + JsonSerializer.Serialize(new { label, control = picture.ToString(), drawn = drawn.ToString() }));
-                // The badges lie exactly on the shown picture and every badge of the plan is inside it; the star toggle is on the picture's marks band.
+                Rect picture = RectIn(image, host), slot = RectIn(image.GetVisualParent<Control>()!, host);
+                Rect drawn = Drawn(picture, image.Source!.Size.Width / image.Source.Size.Height);
+                Console.WriteLine("SMOKE media-slot media-tile: " + JsonSerializer.Serialize(new { label, control = picture.ToString(), drawn = drawn.ToString(), slot = slot.ToString() }));
                 Rect badgeView = RectIn(tile.Badges, host);
-                Expect(Inside(drawn, badgeView) || badgeView.Width <= 0 || !tile.Badges.IsVisible, $"{label}: the badge view {badgeView} is not on the drawn image {drawn}.");
+                Expect(tile.Badges.Options.Anchor == MediaBadgeAnchor.Slot, $"{label}: the media page's badges must be anchored to the slot.");
+                Expect(!tile.Badges.IsVisible || Math.Abs(badgeView.X - slot.X) < 1.5 && Math.Abs(badgeView.Y - slot.Y) < 1.5
+                    && Math.Abs(badgeView.Width - slot.Width) < 1.5 && Math.Abs(badgeView.Height - slot.Height) < 1.5,
+                    $"{label}: the badge view {badgeView} is not on the tile's slot {slot}.");
                 foreach (PlacedBadge placed in tile.Badges.Plan.Badges)
-                    Expect(Inside(new Rect(0, 0, badgeView.Width, badgeView.Height), placed.Bounds), $"{label}: badge {placed.Badge.Id} {placed.Bounds} is outside the picture {badgeView}.");
+                {
+                    Expect(Inside(new Rect(0, 0, badgeView.Width, badgeView.Height), placed.Bounds), $"{label}: badge {placed.Badge.Id} {placed.Bounds} is outside the slot {badgeView}.");
+                    if (placed.Badge.Id == MediaBadgeId.PlayMark)
+                    {
+                        Point centre = placed.Bounds.Center + badgeView.TopLeft;
+                        Expect(Math.Abs(centre.X - drawn.Center.X) < 1.5 && Math.Abs(centre.Y - drawn.Center.Y) < 1.5, $"{label}: the play mark centre {centre} is not the drawn picture's centre {drawn.Center}.");
+                    }
+                    else if (firstPlace.TryGetValue(placed.Badge.Id, out var first))
+                        Expect(Math.Abs(first.Place.X - placed.Bounds.X) < 0.01 && Math.Abs(first.Place.Y - placed.Bounds.Y) < 0.01,
+                            $"{label}: badge {placed.Badge.Id} sits at {placed.Bounds.TopLeft} but at {first.Place} on {first.Label}: a row's badges must share one height.");
+                    else firstPlace[placed.Badge.Id] = (placed.Bounds.TopLeft, label);
+                }
                 if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileFavoriteToggle" && c.IsVisible && c.Bounds.Width > 0) is { } star)
-                    Expect(Inside(drawn, RectIn(star, host)), $"{label}: MediaTileFavoriteToggle {RectIn(star, host)} is not on the drawn image {drawn}.");
+                    Expect(Inside(slot, RectIn(star, host)), $"{label}: MediaTileFavoriteToggle {RectIn(star, host)} is not in the tile's slot {slot}.");
+                if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileSelected" && c.IsVisible && c.Bounds.Width > 0) is { } check)
+                    Expect(Inside(slot, RectIn(check, host)), $"{label}: MediaTileSelected {RectIn(check, host)} is not in the tile's slot {slot}.");
             }
             foreach (ArchiveMediaTileView tile in archiveTiles)
             {
@@ -363,6 +381,10 @@ internal static class MediaSlotChecks
                 foreach (PlacedBadge placed in tile.Badges.Plan.Badges)
                     if (placed.Badge.Corner != MediaBadgeCorner.TopLeft && placed.Badge.Corner != MediaBadgeCorner.Center)
                         Expect(!starRect.Intersects(placed.Bounds.Translate(new Vector(badgeView.X, badgeView.Y))), $"media tile #{(tile.DataContext as MediaLibraryTileRow)!.Index + 1} {name}: badge {placed.Badge.Id} and star overlap.");
+                if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "MediaTileSelected" && c.IsVisible && c.Bounds.Width > 0) is { } selected)
+                    foreach (PlacedBadge placed in tile.Badges.Plan.Badges)
+                        if (placed.Badge.Id != MediaBadgeId.PlayMark)
+                            Expect(!RectIn(selected, host).Intersects(placed.Bounds.Translate(new Vector(badgeView.X, badgeView.Y))), $"media tile #{(tile.DataContext as MediaLibraryTileRow)!.Index + 1} {name}: badge {placed.Badge.Id} and the selection check overlap.");
             }
             Program.CaptureWindow(host, "media-slot-tiles-" + name + ".png", directory);
         }

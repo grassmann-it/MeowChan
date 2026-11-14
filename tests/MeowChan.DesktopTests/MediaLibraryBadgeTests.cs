@@ -129,6 +129,58 @@ public sealed class MediaLibraryBadgeTests : IDisposable
         Assert.Equal(120 - badge.Bounds.Left + MediaLibraryBadges.CornerGap, MediaLibraryBadges.TopRightExtent(missing, 120), 6);
     }
 
+    private static (Rect Badges, Rect Check, MediaBadgePlan Plan, Rect Play) Lay(double aspect, bool slotMarks, MediaBadgeOptions options)
+    {
+        MediaBadgeView badges = new() { Options = options };
+        Avalonia.Controls.Border check = new() { Width = 16, Height = 16, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+        LetterboxPanel panel = new() { Width = 174, Height = 120, Aspect = aspect, MarksOnSlot = slotMarks, Children = { new Avalonia.Controls.Image(), badges, check } };
+        badges.Apply(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Video, Duration: TimeSpan.FromSeconds(9), TagCount: 2, Missing: true), new Size(1, 1));
+        panel.Measure(new Size(174, 120)); panel.Arrange(new Rect(0, 0, 174, 120));
+        Rect play = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark).Bounds;
+        return (badges.Bounds, check.Bounds, badges.Plan, play);
+    }
+
+    [Fact]
+    public void TheMediaPageAnchorsItsBadgesToTheSlotAndAPortraitAndALandscapeTileCarryThemAtTheSameHeight()
+    {
+        Assert.Equal(MediaBadgeAnchor.Slot, MediaBadgeOptions.MediaPage.Anchor);
+        var portrait = Lay(2d / 3, true, MediaBadgeOptions.MediaPage);
+        var landscape = Lay(16d / 9, true, MediaBadgeOptions.MediaPage);
+        var square = Lay(1, true, MediaBadgeOptions.MediaPage);
+        foreach (var tile in new[] { portrait, landscape, square })
+        {
+            Assert.Equal(new Rect(0, 0, 174, 120), tile.Badges);   // the view lies on the whole slot
+            Assert.Equal(new Rect(158, 0, 16, 16), tile.Check);    // the selection check is in the slot's corner, beside the badges' corner
+            // The play mark is the picture's: centred on the slot (the letterbox centres the picture).
+            Assert.Equal((87d, 60d), (tile.Play.Center.X, tile.Play.Center.Y));
+        }
+        PlacedBadge[] Chips(MediaBadgePlan plan) => plan.Badges.Where(placed => placed.Badge.Id != MediaBadgeId.PlayMark).ToArray();
+        Assert.Equal(Chips(portrait.Plan), Chips(landscape.Plan));
+        Assert.Equal(Chips(portrait.Plan), Chips(square.Plan));
+        // The mark follows the picture: a landscape picture has a smaller circle than a portrait one of the same slot (the shorter side differs).
+        Assert.True(landscape.Play.Width > portrait.Play.Width);
+    }
+
+    [Fact]
+    public void WithThePictureAnchorTheOldPlaceOnTheLetterboxedPictureIsKept()
+    {
+        MediaBadgeOptions picture = MediaBadgeOptions.MediaPage with { Anchor = MediaBadgeAnchor.Picture };
+        var portrait = Lay(2d / 3, false, picture);
+        var landscape = Lay(16d / 9, false, picture);
+        Assert.Equal(80, portrait.Badges.Width, 1);          // 120 x 2/3: the view hugs the picture
+        Assert.True(landscape.Badges.Height < 120);
+        Assert.NotEqual(portrait.Badges.Top, landscape.Badges.Top);   // the old behaviour: another height per picture shape
+    }
+
+    [Fact]
+    public void TheTileArrangesBadgesCheckAndStarOnTheSlotsCorners()
+    {
+        string tile = File.ReadAllText(Path.Combine(Root(), "Desktop/MediaLibraryTileView.cs"));
+        Assert.Contains("preview.MarksOnSlot = true", tile);
+        Assert.Contains("_preview.Bounds.Size", tile);   // the slot size is handed to the badge view
+    }
+
     [Fact]
     public void RebindingAnUnchangedStateAllocatesNothing()
     {
