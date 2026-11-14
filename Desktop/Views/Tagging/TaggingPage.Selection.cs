@@ -53,7 +53,7 @@ public sealed partial class TaggingPage
         _selRemove.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.Remove);
         _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent());
-        _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
+        _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selClear.Click += (_, _) => ClearSelection();
         _selClear.HorizontalAlignment = HorizontalAlignment.Right;
         _selClear.Classes.Add("command-icon");

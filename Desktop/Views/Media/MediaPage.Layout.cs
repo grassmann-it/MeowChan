@@ -64,7 +64,7 @@ public sealed partial class MediaPage
         // The geometry needs the render platform: it is made once the button is shown.
         chevron.AttachedToVisualTree += (_, _) => chevron.Data ??= Geometry.Parse("M 1,1 L 5,5 L 9,1");
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
-        _layoutButton.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _layoutLabel, chevron } };
+        _layoutButton.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _layoutLabel, chevron } };
         ((MenuFlyout)_layoutButton.Flyout!).Opening += (_, _) => FillLayoutFlyout((MenuFlyout)_layoutButton.Flyout!);
     }
 
@@ -188,7 +188,7 @@ public sealed partial class MediaPage
         columns[gridColumn].Width = new GridLength(1, GridUnitType.Star);
         _tagHandle.IsVisible = shown;
         _tagSidebar.Margin = right ? new Thickness(0, 0, SidebarMargin, 8) : new Thickness(SidebarMargin, 0, 0, 8);
-        surface.Margin = !shown ? new Thickness(12, 0, 12, 8) : right ? new Thickness(12, 0, 6, 8) : new Thickness(6, 0, 12, 8);
+        surface.Margin = !shown ? new Thickness(12, 0, 12, 8) : right ? new Thickness(12, 0, 8, 8) : new Thickness(8, 0, 12, 8);
     }
 
     // The drag (or the arrow keys) on the handle ended: the width of the list as it is now becomes the saved width (one save).

@@ -38,7 +38,7 @@ internal sealed class TaggingQueueTileView : Border
         AutomationProperties.SetAccessibilityView(_preview, AccessibilityView.Raw);
         _selected.HorizontalAlignment = HorizontalAlignment.Right;
         _selected.VerticalAlignment = VerticalAlignment.Top;
-        _selected.Margin = new Thickness(0, 4, 28, 0);
+        _selected.Margin = new Thickness(0, 4, 32, 0);
         Grid picture = new() { Children = { _preview, _badges.Overlay, _selected } };
         Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(PreviewHeight + ",Auto"), RowSpacing = 4 };
         cell.Children.Add(picture);

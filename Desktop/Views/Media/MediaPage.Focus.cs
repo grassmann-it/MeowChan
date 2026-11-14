@@ -100,9 +100,9 @@ public sealed partial class MediaPage
         // Tom's rule 14.11. evening: the way out stands at the far left, first in the row (and in its tab order), then a gap with a thin
         // separator, then the counter. Icon plus a short text; a narrow row keeps only the icon.
         _focusExit.HorizontalAlignment = HorizontalAlignment.Left;
-        _focusExit.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { WorkspaceIcons.Create(WorkspaceIcons.ChevronLeft), _focusExitLabel } };
+        _focusExit.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { WorkspaceIcons.Create(WorkspaceIcons.ChevronLeft), _focusExitLabel } };
         Border separator = new() { Name = "MediaFocusExitSeparator", Width = FocusExitSeparatorThickness, HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(0, 6), IsHitTestVisible = false };
+            VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(0, 8), IsHitTestVisible = false };
         separator.Bind(Border.BackgroundProperty, separator.GetResourceObservable("Workspace.Border"));
         Border gap = new() { Name = "MediaFocusExitGap", Width = FocusExitGap, Child = separator };
         _focusRow.Children.Add(_focusExit); Avalonia.Controls.Grid.SetColumn(_focusExit, 0);
