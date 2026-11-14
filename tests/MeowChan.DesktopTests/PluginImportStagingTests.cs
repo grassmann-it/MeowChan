@@ -59,6 +59,133 @@ public sealed class PluginImportStagingTests : IDisposable
         Assert.DoesNotContain(Directory.EnumerateFileSystemEntries(_root), path => Path.GetFileName(path).StartsWith(".plugin-import-"));
     }
 
+    [Theory]
+    [InlineData("write")]
+    [InlineData("flush")]
+    public async Task LeaseMarkerWriteOrFlushFailureStopsBeforeThePayloadFactory(string failure)
+    {
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        bool factoryCalled = false;
+        try
+        {
+            Assert.NotNull(lease);
+            lease.Failure = failure;
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// must not be created"u8.ToArray(),
+                CancellationToken.None, path =>
+                {
+                    factoryCalled = true;
+                    return new RecordingPayloadStream(path, "none");
+                }));
+
+            Assert.False(factoryCalled);
+            Assert.False(File.Exists(stage.PayloadPath));
+            Assert.DoesNotContain("length:0", lease.Events);
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "failed.cs"), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Fact]
+    public async Task LeaseMarkerIsDurableBeforeCreateAndOnlyClearedAfterHandleAndPathProof()
+    {
+        RecordingLeaseStream? lease = null;
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        Assert.NotNull(lease);
+        int captures = 0;
+        await stage.WriteAsync("// verified source"u8.ToArray(), CancellationToken.None,
+            path =>
+            {
+                Assert.True(lease.DurableMarkerFlushed);
+                Assert.Equal(1, lease.Length);
+                Assert.DoesNotContain("length:0", lease.Events);
+                return new RecordingPayloadStream(path, "none");
+            },
+            file =>
+            {
+                captures++;
+                Assert.Equal(1, lease.Length); // Both handle captures precede crash-cleanup permission.
+                return RegularProfileFile.TryGetIdentity(file);
+            });
+
+        Assert.Equal(2, captures);
+        Assert.Equal(new[] { "marker-write", "flush-to-disk:1", "length:0", "flush-to-disk:0" }, lease.Events);
+        Assert.Equal(0, lease.Length);
+        string destination = Path.Combine(_plugins, "verified.cs");
+        stage.Publish(destination, CancellationToken.None);
+        stage.Dispose();
+        Assert.Equal("// verified source", File.ReadAllText(destination));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Fact]
+    public async Task CancellationAfterTheDurableMarkerStillPreventsPayloadCreation()
+    {
+        RecordingLeaseStream? lease = null;
+        using CancellationTokenSource cancellation = new();
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        bool factoryCalled = false;
+        try
+        {
+            Assert.NotNull(lease);
+            lease.AfterMarkerFlush = cancellation.Cancel;
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stage.WriteAsync("// cancelled"u8.ToArray(),
+                cancellation.Token, path =>
+                {
+                    factoryCalled = true;
+                    return new RecordingPayloadStream(path, "none");
+                }));
+            Assert.True(lease.DurableMarkerFlushed);
+            Assert.False(factoryCalled);
+            Assert.False(File.Exists(stage.PayloadPath));
+            Assert.DoesNotContain("length:0", lease.Events);
+        }
+        finally { stage.Dispose(); }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Theory]
+    [InlineData("clear")]
+    [InlineData("empty-flush")]
+    public async Task FailureToClearTheVerifiedLeaseRemainsAnOwnedUnpublishablePayload(string failure)
+    {
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        try
+        {
+            Assert.NotNull(lease);
+            lease.Failure = failure;
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// verified but not ready"u8.ToArray(), CancellationToken.None));
+            Assert.True(File.Exists(stage.PayloadPath));
+            Assert.True(lease.DurableMarkerFlushed);
+            Assert.Contains("length:0", lease.Events);
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "failed.cs"), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Fact]
+    public async Task AVerifiedCrashPairBecomesCleanupEligibleWhenItsLeaseHandleIsReleased()
+    {
+        RecordingLeaseStream? lease = null;
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        await stage.WriteAsync("// complete crash remnant"u8.ToArray(), CancellationToken.None);
+        Assert.NotNull(lease);
+        Assert.Equal(0, lease.Length);
+        lease.Dispose(); // Simulate process lease release, deliberately without staging disposal.
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
     [Fact]
     public async Task ARealFileStreamIsFlushedToDiskAndClosedBeforePublication()
     {
@@ -80,7 +207,9 @@ public sealed class PluginImportStagingTests : IDisposable
     [InlineData("close")]
     public async Task AWriteFlushOrCloseFailureNeverMakesThePartialPayloadPublishable(string failure)
     {
-        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
         RecordingPayloadStream? output = null;
         string destination = Path.Combine(_plugins, "failed.cs");
         try
@@ -89,6 +218,10 @@ public sealed class PluginImportStagingTests : IDisposable
                 CancellationToken.None, path => output = new(path, failure)));
             Assert.NotNull(output);
             Assert.Contains("closed", output.Events);
+            Assert.NotNull(lease);
+            Assert.True(lease.DurableMarkerFlushed);
+            Assert.Equal(1, lease.Length);
+            Assert.DoesNotContain("length:0", lease.Events);
             Assert.Throws<InvalidOperationException>(() => stage.Publish(destination, CancellationToken.None));
             Assert.False(File.Exists(destination));
             PluginImportStaging.CleanupAbandoned(_plugins);
@@ -218,6 +351,113 @@ public sealed class PluginImportStagingTests : IDisposable
         PluginImportStaging.CleanupAbandoned(_plugins);
         Assert.True(File.Exists(stage.PayloadPath));
         Assert.True(File.Exists(lease));
+    }
+
+    [Theory]
+    [InlineData("write", false)]
+    [InlineData("flush", false)]
+    [InlineData("write", true)]
+    [InlineData("flush", true)]
+    public async Task UnknownPayloadSurvivesFailedDisposeMarkerAndRestartCleanup(string failure, bool replace)
+    {
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        string retained = Path.Combine(_root, "retained-unknown.tmp");
+        try
+        {
+            Assert.NotNull(lease);
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// identity unavailable"u8.ToArray(),
+                CancellationToken.None,
+                path =>
+                {
+                    FileStream output = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    output.Write("// unknown payload"u8);
+                    output.Flush(flushToDisk: true);
+                    return output;
+                },
+                _ =>
+                {
+                    Assert.True(lease.DurableMarkerFlushed);
+                    lease.Failure = failure; // Only the subsequent Dispose marker write/flush fails.
+                    return null;
+                }));
+            Assert.Equal(1, lease.Length);
+            if (replace)
+            {
+                File.Move(stage.PayloadPath, retained); // Closed handles: also supported on Windows.
+                File.WriteAllText(stage.PayloadPath, "foreign replacement");
+            }
+        }
+        finally { stage.Dispose(); }
+
+        Assert.NotNull(lease);
+        Assert.Equal(2, lease.Events.Count(value => value == "marker-write"));
+        Assert.DoesNotContain("length:0", lease.Events); // In particular, never truncate before a failed rewrite.
+        string leasePath = Path.ChangeExtension(stage.PayloadPath, ".lock");
+        Assert.Equal(new byte[] { 0x01 }, File.ReadAllBytes(leasePath));
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal(replace ? "foreign replacement" : "// unknown payload", File.ReadAllText(stage.PayloadPath));
+        if (replace) Assert.Equal("// unknown payload", File.ReadAllText(retained));
+        Assert.Equal(new byte[] { 0x01 }, File.ReadAllBytes(leasePath));
+    }
+
+    [Fact]
+    public async Task AFactoryThatCreatesThenThrowsLeavesADurableQuarantineWithoutAHandleIdentity()
+    {
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        try
+        {
+            Assert.NotNull(lease);
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// never reaches write"u8.ToArray(),
+                CancellationToken.None, path =>
+                {
+                    Assert.True(lease.DurableMarkerFlushed);
+                    using FileStream output = new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+                    output.Write("// factory partial"u8);
+                    throw new IOException("Synthetic factory failure after CreateNew.");
+                }));
+            Assert.Equal(1, lease.Length);
+        }
+        finally { stage.Dispose(); }
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("// factory partial", File.ReadAllText(stage.PayloadPath));
+        Assert.Equal(new byte[] { 0x01 }, File.ReadAllBytes(Path.ChangeExtension(stage.PayloadPath, ".lock")));
+    }
+
+    [Fact]
+    public async Task HandleIdentityWithoutMatchingClosedPathNeverClearsTheQuarantine()
+    {
+        RecordingLeaseStream? lease = null;
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins,
+            static file => RegularProfileFile.TryGetIdentity(file), path => lease = new(path));
+        string retained = Path.Combine(_root, "retained-verified-handle.tmp");
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// owned handle"u8.ToArray(), CancellationToken.None,
+                path => new RecordingPayloadStream(path, "none")
+                {
+                    AfterClose = () =>
+                    {
+                        File.Move(path, retained);
+                        File.WriteAllText(path, "foreign closed-path replacement");
+                    }
+                }));
+            Assert.NotNull(lease);
+            Assert.Equal(1, lease.Length);
+            Assert.DoesNotContain("length:0", lease.Events);
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "failed.cs"), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("foreign closed-path replacement", File.ReadAllText(stage.PayloadPath));
+        Assert.Equal("// owned handle", File.ReadAllText(retained));
+        Assert.False(File.Exists(Path.ChangeExtension(stage.PayloadPath, ".lock")));
     }
 
     [Fact]
@@ -706,11 +946,52 @@ public sealed class PluginImportStagingTests : IDisposable
         }
     }
 
+    // Real CreateNew lease handle; failures are injected at the actual marker I/O, not at a fake success seam.
+    private sealed class RecordingLeaseStream(string path)
+        : FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None)
+    {
+        internal string Failure { get; set; } = "none";
+        internal List<string> Events { get; } = [];
+        internal bool DurableMarkerFlushed { get; private set; }
+        internal Action? AfterMarkerFlush { get; set; }
+
+        public override void WriteByte(byte value)
+        {
+            Events.Add("marker-write");
+            if (Failure == "write") throw new IOException("Synthetic lease marker write failure.");
+            base.WriteByte(value);
+        }
+
+        public override void SetLength(long value)
+        {
+            Events.Add("length:" + value);
+            if (value == 0 && Failure == "clear") throw new IOException("Synthetic lease marker clear failure.");
+            base.SetLength(value);
+        }
+
+        public override void Flush(bool flushToDisk)
+        {
+            if (flushToDisk)
+            {
+                Events.Add("flush-to-disk:" + Length);
+                if (Failure == "flush" || (Failure == "empty-flush" && Length == 0))
+                    throw new IOException("Synthetic durable lease flush failure.");
+            }
+            base.Flush(flushToDisk);
+            if (flushToDisk && Length != 0)
+            {
+                DurableMarkerFlushed = true;
+                AfterMarkerFlush?.Invoke();
+            }
+        }
+    }
+
     // Real temporary FileStream handles: no plugin execution, public endpoint or private profile.
     private sealed class RecordingPayloadStream(string path, string failure)
         : FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous)
     {
         internal List<string> Events { get; } = [];
+        internal Action? AfterClose { get; set; }
 
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
@@ -737,6 +1018,7 @@ public sealed class PluginImportStagingTests : IDisposable
         {
             await base.DisposeAsync();
             Events.Add("closed");
+            AfterClose?.Invoke();
             if (failure == "close") throw new IOException("Synthetic close failure.");
         }
     }
