@@ -51,11 +51,18 @@ internal static partial class GalleryToolbarLayoutChecks
             await LayoutAsync(window);
             DialogGallery.Record(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!, "gallery-shortcut-help", "shortcuts window",
                 "F1 shortcuts window on the Gallery group from inside the gallery");
+            // F1 in the gallery toggles the same window shut; the shortcuts window is a window of its own, so the keyboard goes back to the viewer first.
+            window.Activate();
+            await LayoutAsync(window);
+            viewer.Focus();
             PressKey(viewer, Key.F1);
             await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
 
             Grid viewport = Find<Grid>(viewer, "GalleryViewport");
-            await RightClickAsync(viewport, window);
+            // The context request on the viewport (the way the other media-menu smokes raise it); a synthesized right-button press/release
+            // opened the menu only in some cells of a live window run.
+            viewport.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+            await LayoutAsync(window);
             await UntilAsync(() => viewer.MediaMenu?.IsOpen == true);
             await LayoutAsync(window);
             DialogGallery.RecordSurface(viewer.MediaMenu!, "gallery-media-menu", "context menu", "right-click on the shown picture");
@@ -74,17 +81,5 @@ internal static partial class GalleryToolbarLayoutChecks
                 await UntilAsync(() => host.Content is not GalleryViewer);
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryToolbarLayoutChecks.Gallery: " + exception));
         }
-    }
-
-    private static async Task RightClickAsync(Control target, TopLevel root)
-    {
-        Point at = target.TranslatePoint(new Point(Math.Max(1, target.Bounds.Width / 2), Math.Max(1, target.Bounds.Height / 2)), root) ?? new Point(40, 40);
-        using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
-        target.RaiseEvent(new PointerPressedEventArgs(target, pointer, root, at, 0,
-            new PointerPointProperties(RawInputModifiers.RightMouseButton, PointerUpdateKind.RightButtonPressed), KeyModifiers.None));
-        target.RaiseEvent(new PointerReleasedEventArgs(target, pointer, root, at, 1,
-            new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.RightButtonReleased), KeyModifiers.None, MouseButton.Right));
-        pointer.Capture(null);
-        await LayoutAsync((Window)root);
     }
 }

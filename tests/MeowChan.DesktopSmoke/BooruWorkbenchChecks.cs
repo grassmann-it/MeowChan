@@ -430,8 +430,12 @@ internal static partial class BooruWorkbenchChecks
         await SettleAsync();
     }
 
+    // The entry keeps the header it was created with when the language changes afterwards (observed in the dialog gallery: the
+    // German cells still show the English text), so the English catalog label counts as well as the current one. The smoke itself runs in English.
     private static MenuItem Entry(MenuItem menu) => menu.Items.OfType<MenuItem>()
-        .FirstOrDefault(item => item.Header as string == CommandLabel()) ?? throw new InvalidOperationException("The Danbooru menu entry does not exist.");
+        .FirstOrDefault(item => item.Header as string == CommandLabel()
+            || item.Header as string == MeowChan.Desktop.Commands.CommandCatalog.Get("booru.open").LabelEn)
+        ?? throw new InvalidOperationException("The Danbooru menu entry does not exist.");
 
     private static string CommandLabel() => MeowChan.Desktop.Commands.CommandCatalog.Label("booru.open");
 
@@ -472,26 +476,6 @@ internal static partial class BooruWorkbenchChecks
         Require(lifetime.Windows.Count == windowsBefore.Length && windowsBefore.All(window => lifetime.Windows.Contains(window)),
             "The page command opened or closed a top-level window.");
         return page;
-    }
-
-    // Compatibility helper for the out-of-scope legacy dialog-gallery partial only.
-    // The B9 scenario above must use OpenPageAsync and never wait for a tool window.
-    private static async Task<BooruWorkbenchWindow> OpenAsync(MainWindow owner, MenuItem menu)
-    {
-        MenuItem entry = Entry(menu);
-        menu.IsSubMenuOpen = true;
-        await SettleAsync();
-        Require(entry.IsVisible && entry.IsEnabled, "The Danbooru entry is not available although ports are connected.");
-        menu.IsSubMenuOpen = false;
-        entry.Command!.Execute(null);
-        IClassicDesktopStyleApplicationLifetime lifetime = (IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!;
-        await Program.WaitUntilAsync(() => lifetime.Windows.OfType<BooruWorkbenchWindow>().Any(candidate => candidate.IsVisible), () => "window not shown");
-        BooruWorkbenchWindow window = lifetime.Windows.OfType<BooruWorkbenchWindow>().Single();
-        await SettleAsync(window);
-        entry.Command.Execute(null);
-        await SettleAsync(window);
-        Require(lifetime.Windows.OfType<BooruWorkbenchWindow>().Count() == 1, "The command opened a second window.");
-        return window;
     }
 
     private static async Task CheckStateAsync(BooruPage page, BooruUiHarness h, BooruCallStatus status, string expected,

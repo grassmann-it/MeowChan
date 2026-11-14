@@ -99,34 +99,46 @@ internal static partial class DialogGalleryChecks
         try
         {
             config.ShowInformationNotifications = config.ShowWarningNotifications = config.ShowErrorNotifications = true;
+            // The session feedback store records only warnings and errors (SessionFeedbackStore.Record): information, success and
+            // action toasts carry no Entry. Each toast is therefore found by its own message text, and the recorded kinds
+            // are additionally pinned to their gallery operation.
             FeedbackToastContent[] Toasts() => owner.GetVisualDescendants().OfType<NotificationCard>()
-                .Where(card => !card.IsClosing && !card.IsClosed).Select(card => card.Content).OfType<FeedbackToastContent>()
-                .Where(content => content.Entry?.Operation.StartsWith("gallery.toast.", StringComparison.Ordinal) == true).ToArray();
+                .Where(card => !card.IsClosing && !card.IsClosed).Select(card => card.Content).OfType<FeedbackToastContent>().ToArray();
             // The window keeps at most three cards, so each kind is published, captured and dismissed on its own.
-            (string Kind, Action Show)[] kinds =
+            (string Kind, string Message, bool Recorded, Action Show)[] kinds =
             [
-                ("info", () => publish.Invoke(owner, [Texts.T("notification.session"), "Added 3 threads to the watch list.", NotificationType.Information, "info-" + cell, "gallery.toast.info"])),
-                ("success", () => publish.Invoke(owner, [Texts.T("notification.session"), "Saved 12 files to the archive.", NotificationType.Success, "success-" + cell, "gallery.toast.success"])),
-                ("warning", () => publish.Invoke(owner, [Texts.T("notification.session"), "The board is rate limited; the next check is delayed.", NotificationType.Warning, "warning-" + cell, "gallery.toast.warning"])),
-                ("error", () => publish.Invoke(owner, [Texts.T("notification.error"), "The destination folder is not writable.", NotificationType.Error, "error-" + cell, "gallery.toast.error"])),
-                ("action", () => publishAction.Invoke(owner, [Texts.T("notification.session"), "Removed the watch for /g/ thread 7400.", NotificationType.Information,
-                    new[] { new FeedbackToastAction(Texts.T("action.cancel"), () => Task.CompletedTask) }, "action-" + cell, "gallery.toast.action"])),
+                ("info", "Added 3 threads to the watch list.", false,
+                    () => publish.Invoke(owner, [Texts.T("notification.session"), "Added 3 threads to the watch list.", NotificationType.Information, "info-" + cell, "gallery.toast.info"])),
+                ("success", "Saved 12 files to the archive.", false,
+                    () => publish.Invoke(owner, [Texts.T("notification.session"), "Saved 12 files to the archive.", NotificationType.Success, "success-" + cell, "gallery.toast.success"])),
+                ("warning", "The board is rate limited; the next check is delayed.", true,
+                    () => publish.Invoke(owner, [Texts.T("notification.session"), "The board is rate limited; the next check is delayed.", NotificationType.Warning, "warning-" + cell, "gallery.toast.warning"])),
+                ("error", "The destination folder is not writable.", true,
+                    () => publish.Invoke(owner, [Texts.T("notification.error"), "The destination folder is not writable.", NotificationType.Error, "error-" + cell, "gallery.toast.error"])),
+                ("action", "Removed the watch for /g/ thread 7400.", false,
+                    () => publishAction.Invoke(owner, [Texts.T("notification.session"), "Removed the watch for /g/ thread 7400.", NotificationType.Information,
+                        new[] { new FeedbackToastAction(Texts.T("action.cancel"), () => Task.CompletedTask) }, "action-" + cell, "gallery.toast.action"])),
             ];
-            foreach ((string kind, Action show) in kinds)
+            foreach ((string kind, string message, bool recorded, Action show) in kinds)
             {
+                string? violation = null; // a contract violation fails the scene after the toast is closed; it is not a mere gap
                 show();
                 try
                 {
-                    await Program.WaitUntilAsync(() => Toasts().Any(toast => toast.Entry!.Operation.EndsWith("." + kind, StringComparison.Ordinal)
-                        && toast.IsEffectivelyVisible && toast.Bounds.Width > 0), () => "toast " + kind + " count " + Toasts().Length);
+                    await Program.WaitUntilAsync(() => Toasts().Any(toast => toast.Message == message && toast.IsEffectivelyVisible && toast.Bounds.Width > 0),
+                        () => "toast " + kind + " count " + Toasts().Length);
                     await DialogFrameChecks.Settle();
-                    FeedbackToastContent toast = Toasts().First(candidate => candidate.Entry!.Operation.EndsWith("." + kind, StringComparison.Ordinal));
+                    FeedbackToastContent toast = Toasts().First(candidate => candidate.Message == message);
+                    if (recorded ? toast.Entry?.Operation != "gallery.toast." + kind : toast.Entry != null)
+                        violation = "toast " + kind + " has the wrong feedback record: " + (toast.Entry?.Operation ?? "none");
+                    else if ((kind == "action") != (toast.ActionButton != null))
+                        violation = "toast " + kind + (kind == "action" ? " lacks its action button." : " shows an action button.");
                     NotificationCard card = toast.GetVisualAncestors().OfType<NotificationCard>().First();
                     DialogGallery.RecordSurface(card, "toast-" + kind, "toast", toast.Title);
                     if (kind == "error")
                     {
                         DialogGallery.Record(owner, "toasts-in-main-window", "main window", "error toast at the corner, banner below the menu");
-                        Ursa.Controls.Banner banner = owner.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+                        MeowChan.Desktop.Controls.WorkspaceBanner banner = owner.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!;
                         if (banner.IsEffectivelyVisible && banner.Bounds.Width > 0) DialogGallery.RecordSurface(banner, "shell-error-banner", "banner", "the last failure stays visible below the menu until closed");
                         else DialogGallery.Skip("shell-error-banner", "the shell banner was not visible");
                     }
@@ -135,8 +147,14 @@ internal static partial class DialogGalleryChecks
                 {
                     DialogGallery.Skip("toast-" + kind, ex.Message);
                 }
-                foreach (FeedbackToastContent toast in Toasts()) owner.DismissShellFeedback(toast.Entry!);
+                // A recorded kind is dismissed through the shell (it also acknowledges its banner); the others only close their card.
+                foreach (FeedbackToastContent toast in Toasts().Where(candidate => candidate.Message == message))
+                {
+                    if (toast.Entry != null) owner.DismissShellFeedback(toast.Entry);
+                    else toast.GetVisualAncestors().OfType<NotificationCard>().FirstOrDefault()?.Close();
+                }
                 await DialogFrameChecks.Settle();
+                if (violation != null) throw new InvalidOperationException(violation);
             }
         }
         finally
@@ -149,7 +167,7 @@ internal static partial class DialogGalleryChecks
     {
         const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
         MethodInfo showHelp = typeof(MainWindow).GetMethod("ShowShellHelp", instance)!;
-        showHelp.Invoke(owner, null);
+        showHelp.Invoke(owner, [null]); // the optional ShortcutHelpContext: null means the current area
         try
         {
             // F1 opens the one shortcuts window (KS2), no longer an overlay of the main window.
