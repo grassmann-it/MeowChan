@@ -64,7 +64,9 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 
 The header uses words beside the rates: **Down / Up** for network traffic and
 **Read / Write** for disk traffic (German: **Download / Upload**, **Lesen / Schreiben**),
-without Network/Disk headings, arrows or single-letter direction labels. It can
+without Network/Disk headings, arrows or single-letter direction labels. (The
+optional header icons described under [Statistics and disk traffic](#statistics-and-disk-traffic)
+replace the words with symbols and arrows.) It can
 show two graphs, each with two separate series: Down and Read are solid with a
 filled area; Up and Write are dashed. The categories are not summed. **Auto**
 keeps both categories available in every work view where the header layout fits; click the header rates or graphs to open
@@ -198,7 +200,7 @@ Plugins; it is not a command to start watching or downloading.
 
 ### Clipboard URL monitor
 
-**Scan clipboard for URLs** in Settings → **Behavior** is off by default. Enable it
+**Scan clipboard for URLs** in Settings → **Session and window** is off by default. Enable it
 and Save to opt into passive checks, approximately every two seconds while the
 app is open, restored and ready. Blocking dialogs or imports defer scanning.
 Manual Add, tray import and paste actions remain available without this opt-in.
@@ -525,7 +527,33 @@ starts the export; in the SHA-256 search, Enter in the hash field starts the sea
 as soon as the button is available. These shortcuts never bypass a disabled action or confirm a destructive operation
 without its required acknowledgement.
 
+### Back and Close at the right edge
+
+Where a row has a way out, it stands alone at the right edge of that row, after a
+gap and apart from the row's own actions, and comes last in the Tab order. This
+holds for the Downloads search bar (**Close**) and details panel (**Hide details**,
+German: **Details ausblenden**), the F1 help panel, the Archive reader's header
+(**Back to thread list**, **Back to gallery**, **Back to media** and **Close
+reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**, **Zurück zu
+Medien**, **Reader schließen**), the reader's find bar (**Close find**, **Suche
+schließen**) and tag row (**Close tags**, **Tags schließen**), and the Archive
+preview (**Close preview**, **Vorschau schließen**). Several of these are a drawn
+cross; each keeps its name as tooltip and screen-reader name. The gallery keeps its
+own placement of **Back to {target}** at the top right. Esc closes as before.
+Dialogs and other rows are not moved by this layout yet.
+
 ### Rule templates
+
+The Rules page opens on an overview of saved rules by scope, unsaved drafts and the
+read-only built-in defaults (German: **Programmstandards**). **Create rule** (German:
+**Regel erstellen**) guides you through Scope, Settings and Review; **Edit**
+(**Bearbeiten**) opens the settings of a saved rule directly. Drafts stay on the
+overview when you switch pages. After a successful **Save rule** (German: **Regel
+speichern**) the page returns to the overview, shows “Rule for … saved. Applies to
+new decisions.” and puts keyboard focus on the saved rule's row, or on the new row
+for a new rule. If saving is refused or fails, for example because of an invalid
+value, a conflicting change or a store error, you stay in the editor and see the
+reason. **Discard draft** (German: **Entwurf verwerfen**) is unchanged.
 
 In Rules, each effective media-type or size value names its own origin. **Open
 rule** opens that exact Global, Source, Board or Thread scope. **Open parent
@@ -650,7 +678,8 @@ tags, undo steps, the neighbouring media and file name words used to rank
 suggestions, and offered source tags. A value of 0 switches off recent tags, file
 name words or source tags where the range allows it. **Save** applies a new value
 to panels you open afterwards; an already open panel keeps the limits it opened
-with. **Media marked for tagging** is stored for the later marking feature and has
+with. The one exception is **Recently used tags remembered**: a lower saved value,
+including 0, trims the remembered list at once, keeping the newest entries. **Media marked for tagging** is stored for the later marking feature and has
 no effect yet; its tag-store write limit stays fixed and separate.
 
 Cache and confirmation limits behave differently from collection limits. A full
@@ -723,18 +752,22 @@ for confirmation before clearing the counters, not media.
 
 Rates use at most three digits with adaptive precision, for example **127 KiB/s**,
 **1.27 MiB/s**, or **12.7 MiB/s** (decimal commas in languages that use them).
-Units stay binary; values move to the next unit before the number needs four digits.
-This compact rate formatting also applies to the statistics page and tray; it does
-not change file-size totals or the underlying measurements.
+Units stay binary; values move to the next unit before the number needs four digits,
+so a rate that would round to 1000 reads one unit higher (1000 B/s becomes **0.98 KiB/s**).
+Below 1 KiB/s whole bytes are shown. This compact rate formatting also applies to the
+statistics page and tray; it does not change file-size totals or the underlying
+measurements.
 
-**Use icons for header I/O labels** in **Settings → Behavior → Statistics** is
-optional and off by default. It replaces the direction words with network/disk
-symbols and arrows in the corresponding graph colours. Hovering a direction shows
+**Use icons for header I/O labels** (German: **Symbole für I/O-Werte in der
+Kopfleiste**) in **Settings → Session and window → Statistics** (German:
+**Sitzung und Fenster → Statistik**) is optional and off by default. It replaces
+the direction words with network/disk symbols and arrows in the corresponding
+graph colours; Read keeps the solid line and Write the dashed one. Hovering a direction shows
 its full name, current rate, and whether its series is solid or dashed. Clicking
 still opens Statistics; the button keeps its full screen-reader description.
 This option also works when the graphs are hidden. Turning it off restores the words.
 
-Settings → **Behavior → Statistics** controls the sampling and persistence:
+Settings → **Session and window → Statistics** controls the sampling and persistence:
 
 | Setting | Default | Allowed |
 | --- | --- | --- |
@@ -1360,6 +1393,10 @@ archive export folder; if it no longer exists, or matches the remembered export
 folder, you are asked again. You may explicitly select the export folder for
 this save, but it is not remembered as the frames folder. Cancel saves nothing.
 Existing files are never overwritten; a free numbered name is used instead.
+The file is named after the video and the playback position. The command is
+available only while a video is shown and ready, and it sits under **More** in
+every work view. A notice **Frame saved** (German: **Einzelbild gespeichert**)
+names the file; if nothing could be saved, a warning says so.
 There is no separate Settings control for changing the frames folder yet.
 
 Deutsch: Das Standbild eines Videos speichert die Galerie als PNG in einem beim
@@ -1367,8 +1404,12 @@ ersten Mal gewählten Ordner. Der eigene Standbildordner wird gemerkt; der
 Exportordner wird nie stillschweigend übernommen. Ist der gemerkte Ordner nicht
 mehr vorhanden oder inzwischen der Exportordner, wird erneut gefragt. Ein
 bewusst gewählter Exportordner gilt nur für diesen Speichervorgang. Abbrechen
-speichert nichts; vorhandene Dateien werden nie überschrieben. Eine eigene
-Einstellung zum Wechseln des Standbildordners gibt es noch nicht.
+speichert nichts; vorhandene Dateien werden nie überschrieben. Der Dateiname
+nennt das Video und die Abspielposition. Der Befehl ist nur verfügbar, solange
+ein Video angezeigt wird und bereit ist, und steht in jeder Arbeitsansicht unter
+**Mehr**. Eine Meldung nennt die gespeicherte Datei; scheitert das Speichern,
+warnt eine Meldung. Eine eigene Einstellung zum Wechseln des Standbildordners
+gibt es noch nicht.
 
 ### Local video
 

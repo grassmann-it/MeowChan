@@ -300,6 +300,19 @@ public sealed class HelpDocumentationTests
     [InlineData("Archive filters and saved searches", "tags.filter.include")]
     [InlineData("Archive filters and saved searches", "tags.filter.exclude")]
     [InlineData("Saving a video frame", "command.video.snapshot")]
+    [InlineData("Saving a video frame", "gallery.frame.saved")]
+    [InlineData("Rule templates", "rules.save")]
+    [InlineData("Rule templates", "rules.overview.create")]
+    [InlineData("Rule templates", "rules.discard")]
+    [InlineData("Statistics and disk traffic", "stats.headerIcons.label")]
+    [InlineData("Back and Close at the right edge", "archive.back")]
+    [InlineData("Back and Close at the right edge", "gallery.return")]
+    [InlineData("Back and Close at the right edge", "command.media.return")]
+    [InlineData("Back and Close at the right edge", "reader.close")]
+    [InlineData("Back and Close at the right edge", "readerFind.close")]
+    [InlineData("Back and Close at the right edge", "tags.close")]
+    [InlineData("Back and Close at the right edge", "command.preview.close")]
+    [InlineData("Back and Close at the right edge", "action.hideDetails")]
     public void HelpActionNamesMatchEnglishAndGermanCatalogs(string heading, string key)
     {
         string text = Plain(Section(Read(Help), heading));
@@ -431,6 +444,145 @@ public sealed class HelpDocumentationTests
         Assert.DoesNotContain("Down ↓", header);
         Assert.DoesNotContain("Read R", header);
         Assert.Equal(37, IoStatsDisplay.HeaderDiskRate(new IoRates(NetDown: 1, NetUp: 2, DiskWrite: 11, DiskRead: 37, Requests: 0)));
+    }
+
+    [Fact]
+    public void SnapshotHelpFollowsTheCommandCatalogAndTheGermanNameUsersActuallySee()
+    {
+        string frames = Plain(Section(Read(Help), "Saving a video frame"));
+        CommandDefinition snapshot = CommandCatalog.Get("video.snapshot");
+        Assert.Equal("command.video.snapshot", snapshot.LabelKey);
+        Assert.Equal("Shift+S", snapshot.Shortcut);
+        Assert.Contains("**Save frame as image**", Section(Read(Help), "Saving a video frame"), StringComparison.Ordinal);
+        Assert.Contains(snapshot.LabelEn, frames, StringComparison.Ordinal);
+
+        // CommandCatalog.Label looks the key up in the localization catalog first and uses the definition's LabelDe only as a
+        // fallback, so the German name shown in the gallery menu is the catalog text. The Help must name that one.
+        string shownGerman = BuiltInCatalog.German[snapshot.LabelKey];
+        Assert.Contains("(German: " + shownGerman + ", Shift+S)", frames, StringComparison.Ordinal);
+        Assert.DoesNotContain("Einzelbild als Bild speichern", Read(Help), StringComparison.Ordinal);
+
+        // The flow the new sentences describe: a free numbered name from the video name and position, only for a ready video, Under More.
+        string unused = Path.Combine(Path.GetTempPath(), "help-frames-" + Guid.NewGuid().ToString("N"));
+        Assert.Equal("clip-1-12-345.png", Path.GetFileName(GalleryFrameFile.Path(unused, "clip.webm", 72_345)));
+        Assert.Contains("named after the video and the playback position", frames, StringComparison.Ordinal);
+        Assert.Contains("only while a video is shown and ready", frames, StringComparison.Ordinal);
+        Assert.Contains("if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested", Read("Desktop/GalleryViewer.cs"), StringComparison.Ordinal);
+        foreach (WorkView view in Enum.GetValues<WorkView>())
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("gallery.menu.save-frame", view));
+        Assert.Contains("sits under More in every work view", frames, StringComparison.Ordinal);
+        Assert.Contains("Der Dateiname nennt das Video und die Abspielposition", frames, StringComparison.Ordinal);
+        Assert.Contains("in jeder Arbeitsansicht unter Mehr", frames, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RulesSaveHelpDescribesTheOverviewReturnTheStatusTextAndTheFocusTarget()
+    {
+        string rules = Plain(Section(Read(Help), "Rule templates"));
+        string saved = string.Format(CultureInfo.InvariantCulture, BuiltInCatalog.English["rules.overview.saved"], "…");
+        Assert.Equal("Rule for … saved. Applies to new decisions.", saved);
+        Assert.Contains("“" + saved + "”", rules, StringComparison.Ordinal);
+        Assert.Contains("opens on an overview of saved rules by scope, unsaved drafts and the read-only built-in defaults", rules, StringComparison.Ordinal);
+        Assert.Contains("(German: Programmstandards)", rules, StringComparison.Ordinal);
+        Assert.Equal("Programmstandards", BuiltInCatalog.German["rules.overview.defaults"]);
+        Assert.Contains("guides you through Scope, Settings and Review", rules, StringComparison.Ordinal);
+        Assert.Equal("Scope|Settings|Review", string.Join('|', new[] { "rules.wizard.stepScope", "rules.wizard.stepSettings", "rules.wizard.stepReview" }
+            .Select(key => BuiltInCatalog.English[key])));
+        Assert.Contains("puts keyboard focus on the saved rule's row, or on the new row for a new rule", rules, StringComparison.Ordinal);
+        Assert.Contains("If saving is refused or fails", rules, StringComparison.Ordinal);
+        Assert.Contains("you stay in the editor and see the reason", rules, StringComparison.Ordinal);
+        Assert.Contains("Drafts stay on the overview when you switch pages", rules, StringComparison.Ordinal);
+
+        // Static source seams (no page is constructed): the Save button runs the return path and a refusal keeps the wizard open.
+        string page = Read("Desktop/Views/Rules/RulesPage.axaml.cs");
+        Assert.Contains("OnSaveRule(object? sender, RoutedEventArgs e) => await SaveAndReturnToOverviewAsync()", page, StringComparison.Ordinal);
+        Assert.Contains("public bool CanSave => IsEditable && _draft.Dirty && !_draft.Stale;", page, StringComparison.Ordinal);
+        string wizard = Read("Desktop/Views/Rules/RulesPage.Wizard.cs");
+        Assert.Contains("if (!saved || _ended || !_wizard.IsOpen || _draft.Scope != scope) return saved;", wizard, StringComparison.Ordinal);
+        Assert.Contains("_overviewStatus = (\"rules.overview.saved\", FormatScope(scope));", wizard, StringComparison.Ordinal);
+        Assert.Contains("_wizardReturnScope = scope;", wizard, StringComparison.Ordinal);
+        Assert.DoesNotContain("Save rule stays available while a field is invalid", Read(Help), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RightEdgeHelpListsOnlyRowsThatUseTheHeaderBarEndSlotAndNamesDialogsAsNotMovedYet()
+    {
+        string text = Plain(Section(Read(Help), "Back and Close at the right edge"));
+        Assert.Contains("stands alone at the right edge of that row", text, StringComparison.Ordinal);
+        Assert.Contains("comes last in the Tab order", text, StringComparison.Ordinal);
+        Assert.Contains("The gallery keeps its own placement of Back to {target} at the top right", text, StringComparison.Ordinal);
+        Assert.Contains("Esc closes as before", text, StringComparison.Ordinal);
+        Assert.Contains("Dialogs and other rows are not moved by this layout yet", text, StringComparison.Ordinal);
+        Assert.True(HeaderBar.EndGap > 0 && HeaderBar.EndSpacing > 0);
+
+        // Every button the Help names is declared in the end slot of a HeaderBar (static XAML check; layout and tab order
+        // are covered by HeaderBarContractTests, not here).
+        string main = Read("Desktop/Shell/MainWindow.axaml");
+        string archive = Read("Desktop/Views/Archive/ArchivePage.axaml");
+        (string Xaml, string Name)[] ends =
+        [
+            (main, "DownloadSearchClose"), (main, "InspectorCloseButton"), (main, "ShellHelpClose"),
+            (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader"),
+            (archive, "ReaderFindClose"), (archive, "ReaderTagClose"), (archive, "ClosePreviewButton")
+        ];
+        foreach ((string xaml, string name) in ends)
+            Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);
+
+        // The reader header declares its own title before the ways out, so they are last in reading and Tab order.
+        int start = archive.IndexOf("<controls:HeaderBar x:Name=\"ReaderHeaderBar\">", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        string header = archive[start..archive.IndexOf("</controls:HeaderBar>", start, StringComparison.Ordinal)];
+        int title = header.IndexOf("ArchiveReaderTitle", StringComparison.Ordinal);
+        Assert.True(title >= 0);
+        foreach (string name in new[] { "ArchiveGalleryReturn", "ArchiveMediaReturn", "ArchiveBackButton", "ArchiveCloseReader" })
+            Assert.True(header.IndexOf(name, StringComparison.Ordinal) > title, name);
+    }
+
+    [Fact]
+    public void CompactRateExamplesAndTheHeaderIconOptionMatchTheFormatterSettingAndCatalog()
+    {
+        string statistics = Plain(Section(Read(Help), "Statistics and disk traffic"));
+        CultureInfo invariant = CultureInfo.InvariantCulture;
+        Assert.Equal("127 KiB/s", ByteUnits.Rate(127 * 1024, invariant));
+        Assert.Equal("1.27 MiB/s", ByteUnits.Rate(1.27 * 1024 * 1024, invariant));
+        Assert.Equal("12.7 MiB/s", ByteUnits.Rate(12.7 * 1024 * 1024, invariant));
+        Assert.Equal("0.98 KiB/s", ByteUnits.Rate(1000, invariant));
+        Assert.Equal("999 B/s", ByteUnits.Rate(999, invariant));
+        foreach (string example in new[] { "127 KiB/s", "1.27 MiB/s", "12.7 MiB/s" })
+            Assert.Contains(example, statistics, StringComparison.Ordinal);
+        Assert.Contains("Rates use at most three digits with adaptive precision", statistics, StringComparison.Ordinal);
+        Assert.Contains("1000 B/s becomes 0.98 KiB/s", statistics, StringComparison.Ordinal);
+        Assert.Contains("Below 1 KiB/s whole bytes are shown", statistics, StringComparison.Ordinal);
+        Assert.Contains("it does not change file-size totals", statistics, StringComparison.Ordinal);
+
+        // The optional icon mode: off by default, labelled in the settings category the user sees, never the only name.
+        Assert.False(new Config().StatsHeaderIcons);
+        Assert.Contains("is optional and off by default", statistics, StringComparison.Ordinal);
+        Assert.Contains("Settings → Session and window → Statistics (German: Sitzung und Fenster → Statistik)", statistics, StringComparison.Ordinal);
+        Assert.Equal("Session and window", BuiltInCatalog.English["settings.behavior"]);
+        Assert.Equal("Sitzung und Fenster", BuiltInCatalog.German["settings.behavior"]);
+        Assert.Equal("Statistics", BuiltInCatalog.English["stats.settings.title"]);
+        Assert.Equal("Statistik", BuiltInCatalog.German["stats.settings.title"]);
+        Assert.Contains("Read keeps the solid line and Write the dashed one", statistics, StringComparison.Ordinal);
+        Assert.Contains("the button keeps its full screen-reader description", statistics, StringComparison.Ordinal);
+        Assert.Contains("Turning it off restores the words", statistics, StringComparison.Ordinal);
+        foreach (string tip in new[] { "stats.headerIcons.readTip", "stats.headerIcons.downTip" })
+            Assert.Contains("Solid line", BuiltInCatalog.English[tip], StringComparison.Ordinal);
+        foreach (string tip in new[] { "stats.headerIcons.writeTip", "stats.headerIcons.upTip" })
+            Assert.Contains("Dashed line", BuiltInCatalog.English[tip], StringComparison.Ordinal);
+        string overview = Plain(Section(Read(Help), "From a package to an offline picture"));
+        Assert.Contains("replace the words with symbols and arrows", overview, StringComparison.Ordinal);
+        Assert.DoesNotContain("Settings → Behavior", Plain(Read(Help)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QuickTagLimitHelpNamesTheRecentTagsException()
+    {
+        string limits = Plain(Section(Read(Help), "Storage and limits"));
+        Assert.Contains("an already open panel keeps the limits it opened with", limits, StringComparison.Ordinal);
+        Assert.Contains("The one exception is Recently used tags remembered: a lower saved value, including 0, trims the remembered list at once, keeping the newest entries", limits, StringComparison.Ordinal);
+        Assert.Equal("Recently used tags remembered", QuickTagLabel("quickTagRecent"));
+        Assert.Contains("QuickTagSettings.ApplyRecentLimit(recent, _config);", Read("Desktop/Shell/MainWindow.GalleryPreferences.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
