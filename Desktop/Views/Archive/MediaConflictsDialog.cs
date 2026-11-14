@@ -25,8 +25,6 @@ internal sealed class MediaConflictsDialog : Window
     private const int PageSize = 100;
     private readonly Func<int, int, CancellationToken, Task<MediaConflictPage>> _list;
     private readonly Func<string, MediaConflictUserAction, CancellationToken, Task<MediaConflictActionOutcome>> _decide;
-    private readonly WindowChromeBar _chrome = new();
-    private readonly TextBlock _heading = new() { Name = "MediaConflictsHeading" };
     private readonly TextBlock _status = new() { Name = "MediaConflictsStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly StackPanel _rows = new() { Name = "MediaConflictsRows", Spacing = 8 };
     private readonly Button _more = new() { Name = "MediaConflictsMore" };
@@ -53,42 +51,31 @@ internal sealed class MediaConflictsDialog : Window
         _list = list ?? throw new ArgumentNullException(nameof(list));
         _decide = decide ?? throw new ArgumentNullException(nameof(decide));
         Name = "MediaConflictsDialog";
-        Width = 760; Height = 560; MinWidth = 480; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal list dialog on the list step; the title stands in the title bar only, so there is no header.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _status.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _more.Click += async (_, _) => await LoadAsync(append: true);
         _close.Click += (_, _) => Close();
         _reclaim.Click += async (_, _) => await ReclaimAsync();
-        // Header: title; body: the alternatives with their per-row Keep/Promote/Discard and More;
-        // footer: the polite status line (empty, done or failed) above Reclaim/Close.
+        // Body: the alternatives with their per-row Keep/Promote/Discard and More;
+        // footer: the polite status line (empty, done or failed) above Reclaim and Close (right-most).
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_rows); body.Children.Add(_more);
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        if (_previewReclaim != null && _doReclaim != null) actions.Children.Add(_reclaim);
-        actions.Children.Add(_close);
-        StackPanel footerContent = new() { Spacing = 8 };
-        footerContent.Children.Add(_status); footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        Grid frame = DialogFrame.Build(_heading, body, footer);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
+        bool canReclaim = _previewReclaim != null && _doReclaim != null;
+        Border footer = DialogFooter.Build(_close, canReclaim ? new Control[] { _reclaim } : null, _status, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, body, footer), modal: true);
         Title = Texts.T("transfer.conflicts.title");
-        Opened += async (_, _) => { _chrome.Attach(this); await LoadAsync(append: false); };
+        Opened += async (_, _) => await LoadAsync(append: false);
         Closed += (_, _) => { Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); _lifetime.Dispose(); };
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first withdraws a pending confirmation (discard, promote or reclaim), then closes.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_confirming != null || _confirmingPromote != null || _reclaimQuote != null) { _confirming = null; _confirmingPromote = null; _reclaimQuote = null; Render(); } else Close();
-        }, RoutingStrategies.Tunnel);
+            if (_confirming == null && _confirmingPromote == null && _reclaimQuote == null) return false;
+            _confirming = null; _confirmingPromote = null; _reclaimQuote = null; Render(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         Render();
     }
@@ -165,9 +152,8 @@ internal sealed class MediaConflictsDialog : Window
     {
         _reclaim.Content = _reclaimQuote is { } q
             ? Texts.T("transfer.conflicts.reclaim.confirm", q.Bytes, q.Roots) : Texts.T("transfer.conflicts.reclaim");
-        _heading.Text = Texts.T("transfer.conflicts.title");
-        Title = _heading.Text;
-        _close.Content = Texts.T("transfer.import.close");
+        Title = Texts.T("transfer.conflicts.title");
+        _close.Content = Texts.T("action.close");
         _more.Content = Texts.T("transfer.conflicts.more", _loaded.Count, _total);
         _more.IsVisible = _loaded.Count < _total;
         _rows.Children.Clear();

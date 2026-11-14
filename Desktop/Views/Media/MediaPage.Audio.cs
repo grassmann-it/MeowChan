@@ -17,7 +17,7 @@ namespace MeowChan;
 // shown as a hint. A video whose sound is not known yet is shown for neither "mit Ton" nor "ohne Ton".
 public sealed partial class MediaPage
 {
-    private readonly ComboBox _soundFilter = new() { Name = "MediaSoundFilter", MinWidth = 130 };
+    private readonly ComboBox _soundFilter = new() { Name = "MediaSoundFilter" };
     private readonly TextBlock _audioNote = new() { Name = "MediaAudioNote", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "muted" } };
     private MediaAudioMap _audio = MediaAudioMap.Empty;
     private MediaAudioScanProgress? _audioProgress;
@@ -32,7 +32,7 @@ public sealed partial class MediaPage
     internal MediaAudioMap AudioResults => _audio;
     internal int UncheckedVideos => _audioUnknown;
 
-    private bool SoundFilterActive => _soundFilter.SelectedIndex > 0;
+    private bool SoundFilterActive => HasField(MediaFilterField.Sound);
 
     private string? AudioCachePath => _cacheFile?.Path is not { } cachePath ? null
         : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(cachePath))!, MediaAudioCache.FileName);

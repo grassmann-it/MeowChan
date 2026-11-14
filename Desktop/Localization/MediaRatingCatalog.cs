@@ -20,7 +20,7 @@ internal static class MediaRatingCatalog
         ("media.rating.search", "Search identities", "Bewertungen durchsuchen"),
         ("media.rating.noSaved", "No saved ratings.", "Keine gespeicherten Bewertungen."),
         ("media.rating.noMatching", "No matching ratings.", "Keine passenden Bewertungen."),
-        ("media.rating.summary", "{0} shown · {1} saved ratings", "{0} angezeigt · {1} gespeicherte Bewertungen"),
+        ("media.rating.summary", "Shown: {0} · saved ratings: {1}", "Angezeigt: {0} · gespeicherte Bewertungen: {1}"),
         ("media.rating.confirmRemove", "Remove rating for this exact identity?", "Bewertung für genau diese Identität entfernen?"),
         ("media.rating.removeThis", "Remove this rating", "Diese Bewertung entfernen"),
         ("media.rating.cancel", "Cancel", "Abbrechen"),

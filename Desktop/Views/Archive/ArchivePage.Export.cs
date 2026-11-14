@@ -366,7 +366,7 @@ public partial class ArchivePage
             if (!ExportRequestIsCurrent(request)) return;
             Control<ComboBox>("ArchiveExportLegacy").ItemsSource = candidates.Select(candidate => candidate.Directory).ToArray();
             Control<ComboBox>("ArchiveExportLegacy").SelectedIndex = candidates.Count > 0 ? 0 : -1;
-            ExportStatus(ArchiveExportStatusText.Localized(candidates.Count == 0 ? "export.legacyNone" : "export.legacyFound", candidates.Count));
+            ExportStatus(candidates.Count == 0 ? ArchiveExportStatusText.Localized("export.legacyNone") : ArchiveExportStatusText.Counted("export.legacyFound", candidates.Count));
         }
         catch (OperationCanceledException) when (_exportLookupCancellation?.IsCancellationRequested == true)
         { if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }
@@ -408,10 +408,11 @@ public partial class ArchivePage
     }
     private void OnExportKeyDown(object? sender, KeyEventArgs e)
     { if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
-      if (e.Key == Key.Escape) { e.Handled = true; OnExportClose(sender, e); }
+      // Escape is the overlay policy (OverlayFrame): the same close as the cross and the footer button, which cancels a running export.
+      if (MeowChan.Desktop.Controls.OverlayFrame.TryHandleEscape(e, () => OnExportClose(sender, e))) return;
       // Enter in the destination box is the keyboard form of the primary button: "Export", or
       // "Close" right after a success until the destination is edited again.
-      else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }
+      if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }
           && _exportCard != null && _exportPrimaryClose && !_exportRunning)
       { e.Handled = true; OnExportClose(sender, e); }
       else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && e.Source is TextBox { Name: "ArchiveExportDestination" }

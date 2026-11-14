@@ -68,7 +68,53 @@ internal static class GalleryMediaTagChecks
             // TP2: the gallery opens the tag panel next to the picture; the full dialog is behind "Advanced...".
             Require(viewer.IsTagPanelOpen && viewer.TagSurface != null && window.GalleryMediaTagWindow == null,
                 "Ctrl+Shift+T did not open the tag panel instead of the dialog.");
+            // V2: the tag panel is the Tags segment of the side panel host (one × in its head); the Post segment takes the host over
+            // and the Tags segment brings the panel back for the same medium.
+            Require(viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags && viewer.SidePanel.TagsButton.IsChecked == true
+                && !viewer.TagSurface!.CloseButton.IsVisible, "The tag panel is not the Tags segment of the side panel.");
+            viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
+            Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
+            viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
+            // "1 marked" with its clear button, the panel's target is the selection while a mark exists, and the panel is on the first medium again.
+            MeowChan.Desktop.Controls.QuickTagSurface marking = viewer.TagSurface!;
+            Require(viewer.Marks is { Count: 0 } && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The tag panel starts with marks.");
+            Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.MarkNext)),
+                "Shift+Page Down was not handled by the tag panel.");
+            Require(viewer.Marks.Count == 1 && marking.MarkBar.IsVisible && marking.Session.IsSelection && marking.MarkedCount == 1
+                && ((TextBlock)marking.MarkedBadge.Child!).Text == Texts.T("tags.quick.marked", "1"), "Marking did not show the counter chip and the selection.");
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey);
+            Require(marking.Session.IsSelection && marking.MarkedCount == 1, "The selection did not follow the gallery to the next medium.");
+            Program.CaptureWindow(window, "smoke-gallery-marked.png");
+            Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.UnmarkPrevious)),
+                "Shift+Page Up was not handled by the tag panel.");
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey);
+            Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "Unmarking did not return the panel to the single medium.");
+            // The clear button ends a mark as well.
+            marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.MarkNext));
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
+            marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
+            // PT6: the favorite and rating row sits above the field; Shift+4 in the empty field rates the shown medium, the row and the status line
+            // say so, and the panel's undo key takes the rating back (the newest step of the tag and decision stacks goes first).
+            MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
+            Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
+                "The row does not show an unrated medium: " + decisions.Summary.Text);
+            marking.FocusField();
+            KeyEventArgs rate = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.D4, KeyModifiers = KeyModifiers.Shift };
+            marking.Input.RaiseEvent(rate);
+            await UntilAsync(() => decisions.View.Rating == 4);
+            Require(rate.Handled && decisions.StarButtons[3].IsChecked == true && marking.Status.Text == Texts.T("gallery.decision.status.ratingSaved", 4)
+                && string.IsNullOrEmpty(marking.Input.Text), "Shift+4 in the empty field did not rate the shown medium: " + marking.Status.Text);
+            Program.CaptureWindow(window, "smoke-gallery-decision-row.png");
+            Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Undo)), "The undo key did not reach the decision stack.");
+            await UntilAsync(() => decisions.View.Rating == null);
+            Require(decisions.StarButtons.All(star => star.IsChecked != true), "The undo left a star checked.");
+            viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey);
             viewer.TagSurface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;
@@ -200,7 +246,8 @@ internal static class GalleryMediaTagChecks
             PrivateTagCommit threadTag = await session.DefinePrivateTagAsync("thread_only");
             await session.SetThreadTagAsync(threadTag.Tag, Resource, true);
 
-            async Task<MediaTagDialog> OpenAsync(Control origin)
+            // TP3 (E5): the context menu's "Tag…" opens the quick tag popover on the tile; the full dialog is "Advanced…" inside it.
+            async Task<QuickTagPopover> OpenPopoverAsync(Control origin)
             {
                 origin.Focus();
                 origin.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
@@ -209,9 +256,21 @@ internal static class GalleryMediaTagChecks
                     .Single(item => item.Tag as string == "media.tags.edit");
                 Require(edit.IsEnabled && edit.Command!.CanExecute(null), "Bound archive image has no enabled media-tag action.");
                 Require(Equals(edit.Header, Texts.T("media.tags.edit")), "Media-tag action is not localized.");
+                Require(!page.ArchiveMediaMenu.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.tags.dialog"),
+                    "The menu must offer one tag entry, not a second one for the dialog.");
                 // Execute the actual menu command, then retire its popup as a native click does.
                 edit.Command!.Execute(null);
                 page.ArchiveMediaMenu.Close();
+                await UntilAsync(() => shell.ArchiveTagPopover is { IsOpen: true });
+                QuickTagPopover popover = shell.ArchiveTagPopover!;
+                Require(popover.Surface != null && ReferenceEquals(popover.Anchor, origin) && shell.GalleryMediaTagWindow == null,
+                    "The archive tag popover is not anchored at the tile or a dialog opened instead.");
+                return popover;
+            }
+            async Task<MediaTagDialog> OpenAsync(Control origin)
+            {
+                QuickTagPopover popover = await OpenPopoverAsync(origin);
+                popover.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
                 MediaTagDialog dialog = shell.GalleryMediaTagWindow!;
                 Require(dialog.Session.Target == target && shell.OwnedWindows.Contains(dialog),
@@ -230,6 +289,17 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => (inline = page.FindControl<ListBox>("ArchivePosts")!.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                 .FirstOrDefault(view => view.IsEffectivelyVisible)) != null);
             await ArchiveMediaCommandChecks.RunAsync(page, inline!);
+            // The popover itself: add a tag, see the store change and the strip repaint, undo it, close with Escape; focus returns to the tile.
+            QuickTagPopover quick = await OpenPopoverAsync(inline!);
+            await quick.Surface!.Session.AddAsync("popover_tag").WaitAsync(Deadline);
+            Require(session.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "popover_tag" }),
+                "The tag popover did not write the tag to the exact media version.");
+            await quick.Surface.Session.UndoAsync().WaitAsync(Deadline);
+            Require(session.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Count == 0, "Undo in the tag popover did not take the tag off again.");
+            Program.CaptureWindow(shell, "smoke-archive-media-tag-popover.png");
+            quick.Surface.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await UntilAsync(() => shell.ArchiveTagPopover == null);
+            Require(await quick.Result == QuickTagPopoverCloseReason.Closed, "Escape did not close the tag popover.");
             MediaTagDialog first = await OpenAsync(inline!);
             first.Input.Text = "archive_image";
             first.AddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -268,6 +338,8 @@ internal static class GalleryMediaTagChecks
             Require(looseEdit.IsEnabled && looseEdit.Command!.CanExecute(null), "A loose archive file must offer media tags as a local file.");
             looseEdit.Command!.Execute(null);
             page.ArchiveMediaMenu.Close();
+            await UntilAsync(() => shell.ArchiveTagPopover is { IsOpen: true });
+            shell.ArchiveTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog looseDialog = shell.GalleryMediaTagWindow!;
             Require(looseDialog.Session.IsLocal && looseDialog.Session.Target == null, "The loose file must get a local, not a bound or guessed target.");
@@ -279,7 +351,7 @@ internal static class GalleryMediaTagChecks
             Require(afterLoose.LocalAssignments.Count == 1 && afterLoose.TagsOf(looseThread).Count == 0
                 && afterLoose.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "archive_image" }),
                 "Tagging the loose file changed thread or bound tags, or did not store one local assignment.");
-            Console.WriteLine("SMOKE archive media tags [en]: inline image -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; loose file tagged as a local occurrence; no gallery opened.");
+            Console.WriteLine("SMOKE archive media tags [en]: inline image -> right-click Tag… -> tag popover (add, undo, Esc) -> Advanced… -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; loose file tagged as a local occurrence; no gallery opened.");
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally

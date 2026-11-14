@@ -48,6 +48,8 @@ internal static partial class MediaPageChecks
                 await ClickTileAsync(page, window, 0);
                 await ClickTileAsync(page, window, 2, KeyModifiers.Shift);
                 ClickRaise(C<Button>(page, "MediaSelectionTag"));
+                await UntilAsync(() => page.SelectionTagPopover is { IsOpen: true, Surface: not null });
+                page.SelectionTagPopover!.Surface!.AdvancedButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
                 await UntilAsync(() => page.SelectionTagWindow != null);
                 MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
                 await UntilAsync(() => dialog.OccurrenceBoxes.Count >= 3);

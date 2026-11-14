@@ -28,6 +28,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.PostBookmarkLimit), Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum),
         (nameof(Config.SavedSearchLimit), Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum),
         (nameof(Config.ReaderGroupLimit), Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum),
+        (nameof(Config.ProfileRegistryLimit), Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum),
         (nameof(Config.ExportConfirmFiles), Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum),
         (nameof(Config.ExportConfirmGiB), Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum),
         (nameof(Config.PosterCacheLimitMiB), Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum),
@@ -42,7 +43,20 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.ImportMaxTagsPerBatch), Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum),
         (nameof(Config.ImportMaxBatches), Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum),
         (nameof(Config.MediaIndexMaxEntries), Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum),
-        (nameof(Config.MediaIndexMaxThreads), Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum)
+        (nameof(Config.MediaIndexMaxThreads), Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum),
+        (nameof(Config.TagQueueLimit), Config.TagQueueLimitMinimum, Config.TagQueueLimitMaximum),
+        (nameof(Config.TagQueueFileLimitMiB), Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum),
+        (nameof(Config.TagQueueHistory), Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum),
+        (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum),
+        (nameof(Config.FolderSourceMaxFiles), Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum),
+        (nameof(Config.FolderSourceMaxRoots), Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum),
+        (nameof(Config.FolderSourceHashParallelism), Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum),
+        (nameof(Config.FolderSourceHashMaxFileGiB), Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum),
+        (nameof(Config.FolderSourceRescanMinutes), Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum),
+        (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
+        (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum),
+        (nameof(Config.TagQueueWalkWindow), Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum),
+        (nameof(Config.TagStampSize), Config.TagStampSizeMinimum, Config.TagStampSizeMaximum)
     };
 
     public static IEnumerable<object[]> LimitCases() =>

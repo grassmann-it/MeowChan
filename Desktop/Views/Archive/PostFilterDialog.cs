@@ -33,8 +33,6 @@ internal sealed class PostFilterDialog : Window
 
     private readonly PostFilterDialogModel _model;
     private readonly CancellationToken _lifetime;
-    private readonly WindowChromeBar _chrome = new() { Name = "PostFilterChrome" };
-    private readonly TextBlock _heading = Label("PostFilterHeading");
     private readonly TextBlock _hint = Label("PostFilterHint");
     private readonly TextBlock _notice = Label("PostFilterNotice");
     private readonly Button _recover = new() { Name = "PostFilterRecover" };
@@ -74,12 +72,10 @@ internal sealed class PostFilterDialog : Window
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _lifetime = lifetime;
         Name = "PostFilterDialog";
-        Width = 720; Height = 640; MinWidth = 360; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal list-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _hint.Classes.Add("muted");
         _patternHint.Classes.Add("muted");
         _draftError.Classes.Add("workspace-error");
@@ -89,7 +85,7 @@ internal sealed class PostFilterDialog : Window
         AutomationProperties.SetLiveSetting(_draftError, AutomationLiveSetting.Assertive);
 
         StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(_heading); header.Children.Add(_hint);
+        header.Children.Add(_hint);
         header.Children.Add(_notice); header.Children.Add(_recover); header.Children.Add(_status);
 
         WrapPanel choices = new() { ItemSpacing = 12, LineSpacing = 8 };
@@ -109,14 +105,9 @@ internal sealed class PostFilterDialog : Window
         _tabs.Items.Add(_rulesTab); _tabs.Items.Add(_postsTab);
         StackPanel body = new() { Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_tabs);
-        WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(_close);
-        Grid frame = DialogFrame.Build(header, body, buttons);
+        Grid frame = DialogFrame.Build(header, body, DialogFooter.Build(_close));
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
-        Grid grid = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        grid.Children.Add(_chrome);
-        grid.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = grid;
+        DialogWindow.Frame(this, frame, modal: true, captionName: "PostFilterChrome");
 
         _field.SelectionChanged += (_, _) => { if (!_refreshing && _field.SelectedIndex >= 0) { _model.Field = Fields[_field.SelectedIndex]; Refresh(); } };
         _match.SelectionChanged += (_, _) => { if (!_refreshing && _match.SelectedIndex >= 0) { _model.Match = Matches[_match.SelectedIndex]; Refresh(); } };
@@ -136,7 +127,13 @@ internal sealed class PostFilterDialog : Window
         _model.Changed += OnModelChanged;
         Texts.Changed += OnTextsChanged;
         KeyDown += OnKeyDown;
-        Opened += (_, _) => { if (!_closed) { _chrome.Attach(this); _pattern.Focus(); } };
+        // Escape first leaves the edit of a rule (back to adding one), and only then closes the dialog.
+        DialogEscape.Attach(this, () =>
+        {
+            if (!_model.IsEditing) return false;
+            CancelEdit(); return true;
+        });
+        Opened += (_, _) => { if (!_closed) _pattern.Focus(); };
         Closed += (_, _) => Detach();
         Refresh();
     }
@@ -184,10 +181,8 @@ internal sealed class PostFilterDialog : Window
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        // Escape first leaves the edit of a rule (back to adding one), and only then closes the dialog.
-        if (e.Key == Key.Escape) { e.Handled = true; if (_model.IsEditing) CancelEdit(); else Close(); }
         // Enter in the search text is the keyboard form of "Add rule", or of "Save changes" while a rule is edited.
-        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _pattern))
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _pattern))
         {
             if (_model.CanSave) { e.Handled = true; _ = SaveAsync(); }
             else if (_model.CanAdd) { e.Handled = true; _ = AddAsync(); }
@@ -235,7 +230,7 @@ internal sealed class PostFilterDialog : Window
         _refreshing = true;
         try
         {
-            Title = Texts.T("postFilter.title"); _heading.Text = Title;
+            Title = Texts.T("postFilter.title");
             _hint.Text = Texts.T("postFilter.hint");
             string? notice = _model.StoreNotice;
             _notice.Text = notice ?? string.Empty;
@@ -281,7 +276,7 @@ internal sealed class PostFilterDialog : Window
                 Array.IndexOf(HiddenActions, _model.HiddenAction));
             _hiddenAction.IsEnabled = idle;
             RenderPosts(idle);
-            ButtonText(_close, Texts.T("postFilter.close"));
+            ButtonText(_close, Texts.T("action.close"));
         }
         finally { _refreshing = false; }
     }

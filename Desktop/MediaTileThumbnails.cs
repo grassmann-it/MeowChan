@@ -190,8 +190,9 @@ internal static class MediaTileThumbnails
         return null;
     }
 
-    // The index is derived data: only bytes that still match it are shown.
+    // The index is derived data: only bytes that still match it are shown. A folder source file indexed before it was hashed
+    // has no digest yet: its virtual manifest hashed it when it was opened, and the verified read below checks those bytes.
     private static MediaAssetReference? Matching(MediaAssetSnapshot manifest, MediaLibraryEntry entry) =>
         manifest.FindById(entry.AssetId!) is { } asset && asset.Length == entry.Length
-        && string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase) ? asset : null;
+        && (entry.FolderItemId != null && entry.Sha256 == null || string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)) ? asset : null;
 }

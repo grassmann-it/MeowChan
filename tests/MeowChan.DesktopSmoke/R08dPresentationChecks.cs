@@ -73,7 +73,7 @@ internal static class R08dPresentationChecks
                 "Offline Feather search did not expose its complete local MIT text and revision.");
             Program.CaptureWindow(about, "smoke-r08d-about-licenses.png");
         }
-        finally { Click(about.FindControl<Button>("CloseButton")!); }
+        finally { about.Close(); }
         await Program.WaitUntilAsync(() => !about.IsVisible);
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         await Program.WaitUntilAsync(() => !window.SettingsPageVisible);

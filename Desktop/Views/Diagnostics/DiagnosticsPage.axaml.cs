@@ -55,15 +55,16 @@ public partial class DiagnosticsPage : UserControl
         _canRetry = canRetry;
     }
 
-    internal void Refresh(DesktopSessionView view, bool available)
+    /// <summary>
+    /// Shows the current session. <paramref name="snapshot"/> is the snapshot the Status page already took for its status line
+    /// (same view, same wait states); without one the page takes its own, so a page used on its own stays complete.
+    /// </summary>
+    internal void Refresh(DesktopSessionView view, bool available, DiagnosticsSnapshot? snapshot = null)
     {
         if (_ended) return;
         _available = available;
         _removedTargets.Clear();
-        DiagnosticsSnapshot snapshot = DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke());
-        this.FindControl<TextBlock>("DiagnosticsSummary")!.Text = Texts.T("downloads.statusSummary",
-            snapshot.Threads, snapshot.Boards, snapshot.Queued, snapshot.Active);
-        DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
+        snapshot ??= DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke());
         _entries = snapshot.Entries.Concat(PlatformDiagnostics.Entries()).ToArray(); // problems first, platform facts last
         RefreshDiagnosticSources();
         ApplyDiagnosticFilters();
@@ -81,21 +82,53 @@ public partial class DiagnosticsPage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("CopyDiagnosticButton")!, "diagnostics.copy", Texts.T("diagnostics.copy"));
-        AutomationProperties.SetHelpText(this.FindControl<Button>("CopyDiagnosticButton")!, Texts.T("diagnostics.copyPrivacy"));
+        // The privacy note is help, not page text: it sits on the copy buttons (tooltip and accessible help) and nowhere else.
+        Button copy = this.FindControl<Button>("CopyDiagnosticButton")!;
+        CommandBindings.ApplyLabeled(copy, "diagnostics.copy", Texts.T("diagnostics.copy"));
+        ToolTip.SetTip(copy, Texts.T("diagnostics.copyPrivacy"));
+        AutomationProperties.SetHelpText(copy, Texts.T("diagnostics.copyPrivacy"));
+        ApplyFeedbackButtonLabels();
         CommandBindings.ApplyLabeled(this.FindControl<Button>("OpenDiagnosticWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         grid.Columns[0].Header = Texts.T("diagnostics.category");
         grid.Columns[1].Header = Texts.T("diagnostics.resource");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
+        this.FindControl<DataGrid>("PlatformGrid")!.Columns[0].Header = Texts.T("diagnostics.message");
+        AutomationProperties.SetName(this.FindControl<DataGrid>("PlatformGrid")!, Texts.T("diagnostics.platform"));
         RefreshDiagnosticFilterLabels();
     }
 
-    private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry;
+    // One selection across the two tables: the platform facts (own group) and the requests and problems never both hold a row.
+    private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry
+        ?? this.FindControl<DataGrid>("PlatformGrid")!.SelectedItem as DiagnosticEntry;
+    private bool _syncingSelection;
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (!_refreshingDiagnostics) _diagnosticSelectionRemoved = false;
+        if (!_syncingSelection && this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem != null)
+            ClearOtherSelection(this.FindControl<DataGrid>("PlatformGrid")!);
         RefreshSelection();
+    }
+    private void OnPlatformSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!_syncingSelection && this.FindControl<DataGrid>("PlatformGrid")!.SelectedItem != null)
+            ClearOtherSelection(this.FindControl<DataGrid>("DiagnosticsGrid")!);
+        RefreshSelection();
+    }
+    private void ClearOtherSelection(DataGrid other)
+    {
+        _syncingSelection = true;
+        try { other.SelectedItems.Clear(); }
+        finally { _syncingSelection = false; }
+    }
+
+    // The table row takes the free height (Height *): the content root is at least as tall as the viewport, and the table
+    // may grow to it. Below the shell minimum the page scrolls instead of squeezing the table to nothing.
+    private void OnDiagnosticScrollSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        double viewport = e.NewSize.Height;
+        this.FindControl<Grid>("DiagnosticsContentRoot")!.MinHeight = viewport;
+        this.FindControl<DataGrid>("DiagnosticsGrid")!.MaxHeight = Math.Max(viewport, 480);
     }
 
     private void OnDiagnosticPageSizeChanged(object? sender, SizeChangedEventArgs e)

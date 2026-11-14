@@ -21,6 +21,8 @@ namespace MeowChan.Desktop;
 /// <summary>One immutable key per dialog; pointer commits and keyboard confirmation share the host executor.</summary>
 internal sealed class MediaRatingDialog : Window
 {
+    /// <summary>The dialog's size step (read by the footer budget test).</summary>
+    internal const DialogSize DialogStep = DialogSize.M;
     private readonly Ursa.Controls.Rating _rating;
     private readonly TextBlock _value = new() { Name = "MediaRatingValue" };
     private readonly TextBlock _confirmedValue = new() { Name = "MediaRatingConfirmed", TextWrapping = TextWrapping.Wrap };
@@ -31,7 +33,6 @@ internal sealed class MediaRatingDialog : Window
     private readonly Func<int?, Task> _commit;
     private readonly FavoriteAssetKey _key;
     private readonly SelectableTextBlock _identity;
-    private readonly TextBlock _heading = new();
     private readonly TextBlock _help = new() { TextWrapping = TextWrapping.Wrap };
     private bool _closed;
     private bool _keyboardChoice;
@@ -44,8 +45,9 @@ internal sealed class MediaRatingDialog : Window
     {
         _commit = commit; _key = key; _confirmed = value;
         Name = "MediaRatingDialog"; Title = MediaRatingText.LocalizedLabel;
-        Width = 520; Height = 440; MinWidth = 360; MinHeight = 380;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD1: a modal form (its error state with a wrapped footer needs the form step), fitted to the screen;
+        // the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogStep, modal: true);
         _rating = new() { Name = "MediaRatingEditor", Count = 5, AllowHalf = false, AllowClear = false,
             DefaultValue = value ?? 0, Value = value ?? 0, Focusable = true, Size = 28 };
         AutomationProperties.SetName(_rating, MediaRatingText.LocalizedLabel);
@@ -61,19 +63,16 @@ internal sealed class MediaRatingDialog : Window
         _retry.Content = MediaRatingText.Catalog("media.rating.retry");
         _retry.Click += async (_, _) => await SaveAsync(_attempt);
         _clear.Classes.Add("danger");
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(_clear); actions.Children.Add(_retry); actions.Children.Add(_close);
-        _heading.Classes.Add("section-title");
+        Border actions = DialogFooter.Build(_close, new Control[] { _clear, _retry });
         _identity = new() { Text = MediaRatingText.LocalizedIdentity(key), TextWrapping = TextWrapping.Wrap };
         _identity.Classes.Add("workspace-meta");
-        // UX103 P7: title fixed on top, the save/remove error in the local strip below it,
-        // the asset identity and editor scroll, and the actions stay in the fixed footer.
+        // UX103 P7: the save/remove error in the local strip on top, the asset identity and editor
+        // scroll, and the actions stay in the fixed footer (Close right-most).
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_identity); body.Children.Add(_confirmedValue);
         body.Children.Add(_rating); body.Children.Add(_value);
         _help.Classes.Add("workspace-help"); body.Children.Add(_help);
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 72)),
-            WindowChromeKind.Dialog);
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 72)), modal: true);
         _rating.AddHandler(PointerReleasedEvent, async (_, e) =>
         {
             if (_busy) return;
@@ -95,7 +94,7 @@ internal sealed class MediaRatingDialog : Window
             else if (e.Key is Key.Enter or Key.Space)
             { e.Handled = true; if (_rating.Value >= 1) await SaveAsync((int)_rating.Value); }
         };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; if (!_busy) Close(); } };
+        DialogEscape.Attach(this, isBusy: () => _busy);
         CommandRouter router = new(this);
         for (int number = 1; number <= 5; number++)
         {
@@ -122,7 +121,6 @@ internal sealed class MediaRatingDialog : Window
         // Also guards callbacks queued before Closed; never reset editor or operation state here.
         if (Volatile.Read(ref _closed)) return;
         Title = MediaRatingText.LocalizedLabel;
-        _heading.Text = Title;
         _identity.Text = MediaRatingText.LocalizedIdentity(_key);
         _help.Text = MediaRatingText.Catalog("media.rating.help");
         _confirmedValue.Text = ConfirmedText();

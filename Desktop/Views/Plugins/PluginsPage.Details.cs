@@ -79,7 +79,7 @@ public partial class PluginsPage
         {
             ResultKind.Thread => Texts.T("plugins.threadResult", EntryCount, AttachmentCount) + "\n" + RawContent
                 + (PreviewLimited ? "\n" + Texts.T("plugins.previewLimited") : string.Empty),
-            ResultKind.Catalog => Texts.T("plugins.catalogResult", EntryCount) + "\n" + RawContent,
+            ResultKind.Catalog => Texts.Count("plugins.catalogResult", EntryCount) + "\n" + RawContent,
             ResultKind.Failure => RawContent,
             ResultKind.Deferred => Texts.T("plugins.deferred", RetryAt, RawContent),
             ResultKind.NotFound => Texts.T("plugins.notFound", HttpStatusCode),

@@ -31,8 +31,12 @@
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}"
-                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+                    <!-- The tagline's star column. Its width, reported by SizeChanged, decides which form of the tagline the text block shows
+                         (MainWindow.Tagline.cs); the text block carries no localization tag because the form is set from code. -->
+                    <Panel x:Name="WorkspaceTaglineHost" Grid.Column="1" ClipToBounds="True">
+                        <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
+                    </Panel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
                              statistics page. The inner parts are not exposed separately. -->
@@ -95,7 +99,7 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
                         <MenuItem x:Name="WorkspaceMenuItem">
-                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media | Rules, Sources, Plugins | Status). -->
+                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media | Rules, Sources & Plugins | Status). -->
                             <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
@@ -142,7 +146,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
-                    <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left"><TextBlock Tag="feedback.open" Classes="localized" /></Button>
+                    <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left" />
                 </Grid>
                 <Button x:Name="ShellFeedbackDismissButton" Grid.Column="1" Classes="subtle icon-square"
                         Margin="8,0,0,0" VerticalAlignment="Top"
@@ -203,7 +207,12 @@
                     </controls:WorkspaceBanner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" wv:WorkViewElement.Id="downloads.results.panel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
-                            <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
+                            <Expander.Header>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock x:Name="AdmissionResultsTitle" Text="URL results" VerticalAlignment="Center" />
+                                    <controls:HelpButton x:Name="AdmissionResultsHelpButton" Grid.Column="1" HelpKey="help.admissionResults" />
+                                </Grid>
+                            </Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />
                             </ScrollViewer>
@@ -480,6 +489,7 @@
         <ContentControl Grid.Row="2" x:Name="MediaPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="BooruPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
@@ -502,7 +512,7 @@
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
                 <Button x:Name="MediaNavigationButton" Classes="nav localized" Tag="nav.media" Content="Media" Click="OnMediaNavigationClick" />
                 <Button x:Name="BooruNavigationButton" Classes="nav localized" Tag="nav.booru" Content="Booru" Click="OnBooruNavigationClick" />
-                <!-- Footer groups: Downloads, Archive, Media, Booru | Rules, Sources, Plugins | Status | More, Settings.
+                <!-- Footer groups: Downloads, Archive, Media, Booru | Rules, Sources & Plugins | Status | More, Settings.
                      UpdatePageNavigation shows a separator only between two groups that both have a visible button. -->
                 <Border x:Name="FooterSeparatorWork" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />

@@ -218,7 +218,8 @@ internal static class MediaLibraryGallery
     internal static async Task<IReadOnlyList<GalleryEntry>> ResolveAsync(IReadOnlyList<MediaLibraryEntry> entries,
         Func<CancellationToken, Task<ArchiveReader>> openReader,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, CancellationToken cancellationToken = default,
-        Func<BooruCatalogSnapshot?>? readBooruCatalog = null, Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
+        Func<BooruCatalogSnapshot?>? readBooruCatalog = null, Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null,
+        int folderStart = -1, int folderHashWindow = 0)
     {
         ArgumentNullException.ThrowIfNull(entries);
         Dictionary<(ResourceId, string, string, string?, int?), GalleryEntry> found = new();
@@ -239,6 +240,17 @@ internal static class MediaLibraryGallery
             if (!importsRead) { imports = readImportCatalog == null ? null : ReadImports(readImportCatalog); importsRead = true; }
             if (await ManualImportMediaGallery.ResolveAsync(item, imports, openManifest, cancellationToken).ConfigureAwait(false) is { } resolved)
                 imported.TryAdd(item, resolved);
+        }
+        // Folder source files: hashed ones resolve at once; an unhashed one is hashed when its manifest is opened, so only the
+        // nearest unhashed files of the window (folderHashWindow on each side of folderStart) are opened, the rest are left out.
+        Dictionary<MediaLibraryEntry, GalleryEntry> folders = new();
+        for (int index = 0; index < entries.Count; index++)
+        {
+            MediaLibraryEntry item = entries[index];
+            if (item.FolderItemId == null || item.Presence != MediaLibraryPresence.Present) continue;
+            if (item.Sha256 == null && (folderStart < 0 || Math.Abs(index - folderStart) > folderHashWindow)) continue;
+            if (await FolderSourceMediaGallery.ResolveAsync(item, openManifest, cancellationToken).ConfigureAwait(false) is { } resolved)
+                folders.TryAdd(item, resolved);
         }
         ResourceId[] archived = entries.Where(entry => entry.Presence == MediaLibraryPresence.Present && !entry.IsCatalogMedium)
             .Select(entry => entry.Thread).Distinct().ToArray();
@@ -264,6 +276,7 @@ internal static class MediaLibraryGallery
         {
             if (entry.BooruPostId != null) { if (booru.TryGetValue(entry, out GalleryEntry? provider)) result.Add(provider); continue; }
             if (entry.ImportItemId != null) { if (imported.TryGetValue(entry, out GalleryEntry? import)) result.Add(import); continue; }
+            if (entry.FolderItemId != null) { if (folders.TryGetValue(entry, out GalleryEntry? folder)) result.Add(folder); continue; }
             if (entry.Presence == MediaLibraryPresence.Present && entry.Directory != null && entry.AssetId != null
                 && found.TryGetValue((entry.Thread, entry.Directory, entry.AssetId, entry.PostId, entry.Position), out GalleryEntry? match))
                 result.Add(match);

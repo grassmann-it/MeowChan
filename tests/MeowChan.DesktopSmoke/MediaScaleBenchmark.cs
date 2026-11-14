@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Diagnostics;
 using MeowChan.Gallery;
@@ -132,14 +133,13 @@ internal static class MediaScaleBenchmark
         // 4. Filter changes: each one runs Present() synchronously.
         CheckBox missing = Find<CheckBox>(page, "MediaShowMissing");
         ComboBox kind = Find<ComboBox>(page, "MediaKindFilter");
-        Button reset = Find<Button>(page, "MediaFilterReset");
         string[] addable = page.AddableTagNames;
         await recorder.UiStepAsync("4 filter", "show missing on", () => missing.IsChecked = true, Shown);
         await recorder.UiStepAsync("4 filter", "show missing off", () => missing.IsChecked = false, Shown);
         await recorder.UiStepAsync("4 filter", "type = images", () => kind.SelectedIndex = 1, Shown);
         await recorder.UiStepAsync("4 filter", "type = any", () => kind.SelectedIndex = 0, Shown);
         await recorder.UiStepAsync("4 filter", "tag include (first of " + addable.Length + ")", () => page.AddTagFilterByName(addable[0], include: true), Shown);
-        await recorder.UiStepAsync("4 filter", "reset", () => reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), Shown);
+        await recorder.UiStepAsync("4 filter", "reset", () => page.ResetFilters(), Shown);
 
         // 5. Search typing, one keystroke at a time, then clearing the field.
         TextBox name = Find<TextBox>(page, "MediaNameFilter");
@@ -197,6 +197,9 @@ internal static class MediaScaleBenchmark
         {
             Stopwatch watch = Stopwatch.StartNew();
             double sync = Sync(() => PointerClick(edit));
+            // TP3: the menu entry opens the quick tag popover; the measured dialog is its "Advanced…".
+            await UntilAsync(() => window.MediaPageTagPopover is { IsOpen: true, Surface: not null }, Long, "tag popover");
+            window.MediaPageTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.MediaPageTagWindow?.IsVisible == true, Long, "tag dialog");
             dialog = window.MediaPageTagWindow!;
             double visible = watch.Elapsed.TotalMilliseconds;

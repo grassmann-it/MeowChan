@@ -28,21 +28,20 @@ public sealed class WindowChromePolicyTests
     public void CaptionUsesExistingLocalizationKeys(WindowState state, string expected) =>
         Assert.Equal(expected, WindowChromePolicy.MaximizeLabel(state));
 
+    // Modals plan MD3: the XAML no longer carries literal sizes or the startup location; the dialog factory's size step
+    // (DialogWindow.Configure in the code-behind: size, minimum, centring on the owner, screen fit) does.
     [Theory]
-    [InlineData("Desktop/Views/Settings/SettingsWindow.axaml", "940", "760", "480", "480")]
-    [InlineData("Desktop/Views/About/AboutWindow.axaml", "800", "660", "440", "400")]
-    public void SecondaryWindowsHaveOwnCaptionWithoutChangingCapabilitiesOrSize(string path,
-        string width, string height, string minWidth, string minHeight)
+    [InlineData("Desktop/Views/Settings/SettingsWindow.axaml", "DialogSize.XL")]
+    [InlineData("Desktop/Views/About/AboutWindow.axaml", "DialogSize.L")]
+    public void SecondaryWindowsHaveOwnCaptionWithoutChangingCapabilitiesOrSize(string path, string step)
     {
         XElement window = XDocument.Load(Source(path)).Root!;
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
         Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
-        Assert.Equal("CenterOwner", (string?)window.Attribute("WindowStartupLocation"));
-        Assert.Equal(width, (string?)window.Attribute("Width"));
-        Assert.Equal(height, (string?)window.Attribute("Height"));
-        Assert.Equal(minWidth, (string?)window.Attribute("MinWidth"));
-        Assert.Equal(minHeight, (string?)window.Attribute("MinHeight"));
+        foreach (string literal in new[] { "WindowStartupLocation", "Width", "Height", "MinWidth", "MinHeight" })
+            Assert.Null(window.Attribute(literal));
+        Assert.Contains("DialogWindow.Configure(this, " + step + ", modal: ", File.ReadAllText(Source(path + ".cs")));
         Assert.Null(window.Attribute("CanResize"));
         Assert.Null(window.Attribute("CanMaximize"));
         Assert.Null(window.Attribute("CanMinimize"));

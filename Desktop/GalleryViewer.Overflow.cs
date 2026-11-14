@@ -286,7 +286,8 @@ internal sealed partial class GalleryViewer
 
     private bool ContextOverPicture => PostOverlayEffective || Bounds.Width < CompactPostWidth;
 
-    private double ContextOverlayWidth => PostOverlayEffective
-        ? Math.Min(360, Math.Max(0, Bounds.Width - 24))
-        : Math.Min(Math.Max(0, Bounds.Width - 24), Math.Clamp(Bounds.Width - MinimumPictureWidth - 24, 330, 360));
+    // The side panel's wished width (V2), fitted to the viewer: the overlay option only has to fit, the narrow placement keeps a strip
+    // of the picture free as far as the panel's minimum width allows.
+    private double ContextOverlayWidth => MeowChan.Desktop.Controls.GallerySidePanel.EffectiveWidth(_panelWidth, Bounds.Width,
+        overlayOption: PostOverlayEffective, narrow: true, MinimumPictureWidth);
 }

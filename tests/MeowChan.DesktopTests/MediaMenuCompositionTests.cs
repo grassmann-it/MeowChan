@@ -33,7 +33,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     [Fact]
     public void EverySurfaceListsTheSameCommonActionsInTheSameOrder()
     {
-        string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.export-original",
+        string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.queue.add", "media.export-original",
             "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
         foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.MediaPage or MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
             Assert.Equal(expected, Ids(MediaMenuComposition.Compose(Full(surface))));
@@ -44,6 +44,21 @@ public sealed class MediaMenuCompositionTests : IDisposable
         foreach (MediaMenuSurface surface in new[] { MediaMenuSurface.Gallery, MediaMenuSurface.NativeVideoOverlay })
             Assert.Equal(expected.Skip(1), Ids(MediaMenuComposition.Compose(Full(surface))));
         Assert.Equal(MediaMenuComposition.Order, Enum.GetValues<MediaMenuAction>());
+    }
+
+    [Fact]
+    public void TheQueueActionIsInTheFirstGroupAndNamesWhyItIsUnavailable()
+    {
+        foreach (MediaMenuSurface surface in All)
+        {
+            MediaMenuItemModel queue = MediaMenuComposition.Compose(Full(surface)).Items.Single(item => item.Action == MediaMenuAction.Queue);
+            Assert.Equal(("media.queue.add", 0, true), (queue.CommandId, queue.Group, queue.Available));
+            Assert.Equal(CommandCatalog.Label("media.queue.add"), queue.Label);
+            MediaMenuItemModel blocked = MediaMenuComposition.Compose(Full(surface) with { QueueBlocked = "provider" }).Items.Single(item => item.Action == MediaMenuAction.Queue);
+            Assert.Equal((false, "provider"), (blocked.Available, blocked.Reason));
+            MediaMenuItemModel unwired = MediaMenuComposition.Compose(Full(surface) with { QueueWired = false }).Items.Single(item => item.Action == MediaMenuAction.Queue);
+            Assert.Equal((false, MediaMenuReasons.Unavailable), (unwired.Available, unwired.Reason));
+        }
     }
 
     [Fact]
@@ -132,6 +147,25 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
+    public void ABlockedTagTargetStaysEnabledWhenThePopoverExplainsItAndAGoneFileStaysDisabled()
+    {
+        string reason = Texts.T("booru.media.tags.unavailable");
+        foreach (MediaMenuSurface surface in All)
+        {
+            MediaMenuItemModel explained = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = reason, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.True(explained.Available, surface.ToString());
+            Assert.Equal(CommandCatalog.Label("media.tags.edit"), explained.Label);
+            MediaMenuItemModel gone = MediaMenuComposition.Compose(Full(surface) with { Present = false, TagsBlocked = reason, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.False(gone.Available, surface.ToString());
+            MediaMenuItemModel unwired = MediaMenuComposition.Compose(Full(surface) with { TagsWired = false, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.False(unwired.Available, surface.ToString());
+        }
+    }
+
+    [Fact]
     public void ProviderPostActionsExistOnlyForDanbooruMediaAndNeverGuessAnAddress()
     {
         foreach (MediaMenuSurface surface in All)
@@ -210,7 +244,7 @@ public sealed class MediaMenuCompositionTests : IDisposable
     public void TheCommonActionsAreGroupedIntoThreeSectionsByTheirDeclaredGroup()
     {
         MediaMenuModel model = MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage) with { ProviderMedia = true, ProviderPostKnown = true });
-        Assert.Equal(new[] { 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
+        Assert.Equal(new[] { 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2 }, model.Items.Select(item => item.Group));
     }
 
     [Fact]

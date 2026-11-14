@@ -80,14 +80,28 @@ internal static class IoStatsDisplay
     // --- the header setting and its layouts ---------------------------------------------------------------------------------
 
     /// <summary>
-    /// The values of <c>Config.StatsHeaderGraph</c>. Auto, Network and NetworkAndDisk are the original three; their source
-    /// selection stays unchanged. Disk, SideBySide and Text were added later. Auto adapts the arrangement to the window width.
+    /// The values of <c>Config.StatsHeaderGraph</c>. Auto, Network and NetworkAndDisk are the original three and keep their
+    /// behaviour; Disk, SideBySide and Text are the layout choices added later and Off hides the display altogether (an older file
+    /// never holds them).
     /// </summary>
     internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk",
-        HeaderGraphDisk = "Disk", HeaderGraphSideBySide = "SideBySide", HeaderGraphText = "Text";
+        HeaderGraphDisk = "Disk", HeaderGraphSideBySide = "SideBySide", HeaderGraphText = "Text", HeaderGraphOff = "Off";
 
     private static readonly string[] HeaderGraphValues =
-        [HeaderGraphAuto, HeaderGraphNetwork, HeaderGraphDisk, HeaderGraphNetworkAndDisk, HeaderGraphSideBySide, HeaderGraphText];
+        [HeaderGraphAuto, HeaderGraphNetwork, HeaderGraphDisk, HeaderGraphNetworkAndDisk, HeaderGraphSideBySide, HeaderGraphText, HeaderGraphOff];
+
+    /// <summary>Whether the setting hides the whole display (graphs and values); the user's explicit choice, so no work view overrides it.</summary>
+    internal static bool HeaderIsOff(string? setting) => NormalizeHeaderGraph(setting) == HeaderGraphOff;
+
+    /// <summary>
+    /// The value that shows the display again: <paramref name="lastShown"/> when it is a real arrangement, else Auto. The window
+    /// remembers the arrangement the user had before switching Off, for the "show in the header" checkbox of the statistics page.
+    /// </summary>
+    internal static string HeaderGraphShownAgain(string? lastShown)
+    {
+        string normalized = NormalizeHeaderGraph(lastShown);
+        return normalized == HeaderGraphOff ? HeaderGraphAuto : normalized;
+    }
 
     /// <summary>All values in the order the settings row lists them.</summary>
     internal static IReadOnlyList<string> HeaderGraphChoices => HeaderGraphValues;
@@ -113,7 +127,8 @@ internal static class IoStatsDisplay
     internal enum HeaderArrangement { Rows, GraphBlocks, TextBlocks, TextRows }
 
     /// <summary>What the header draws: which values (labelled rates) and which graphs, and how they are arranged.</summary>
-    internal readonly record struct HeaderLayout(bool NetValue, bool DiskValue, bool NetGraph, bool DiskGraph, HeaderArrangement Arrangement)
+    /// <param name="Hidden">The whole display is off (setting "Off"): nothing is drawn and the header measures nothing.</param>
+    internal readonly record struct HeaderLayout(bool NetValue, bool DiskValue, bool NetGraph, bool DiskGraph, HeaderArrangement Arrangement, bool Hidden = false)
     {
         /// <summary>Whether each block stacks its directional rates on two lines.</summary>
         internal bool TwoLineLabels => Arrangement is HeaderArrangement.GraphBlocks or HeaderArrangement.TextBlocks;
@@ -124,6 +139,7 @@ internal static class IoStatsDisplay
     /// every graph is dropped; two metrics become compact rows while a single metric keeps its stacked directions.
     /// Two graph blocks need <see cref="HeaderBlocksMinimumWidth"/> and fall back to rows in between. Auto: two blocks in a wide window, otherwise aligned rows, in every work view.
     /// Network / Disk: that block only. NetworkAndDisk: both rows with graphs. SideBySide: two graph blocks. Text: two text blocks.
+    /// Off: nothing at all, at every width and in every work view (the user's explicit choice wins over the "Required" policy rows).
     /// </summary>
     internal static HeaderLayout ResolveHeaderLayout(string? setting, double width = double.PositiveInfinity)
     {
@@ -136,6 +152,7 @@ internal static class IoStatsDisplay
             HeaderGraphNetworkAndDisk => new(true, true, graphs, graphs, rows),
             HeaderGraphSideBySide => blocks ? new(true, true, true, true, HeaderArrangement.GraphBlocks) : new(true, true, graphs, graphs, rows),
             HeaderGraphText => new(true, true, false, false, graphs ? HeaderArrangement.TextBlocks : HeaderArrangement.TextRows),
+            HeaderGraphOff => new(false, false, false, false, HeaderArrangement.TextRows, Hidden: true),
             _ => new(true, true, graphs, graphs, blocks ? HeaderArrangement.GraphBlocks : rows)
         };
     }

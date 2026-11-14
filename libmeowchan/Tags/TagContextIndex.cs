@@ -63,7 +63,8 @@ internal sealed class TagContextIndex
         _bound = Freeze(bound);
 
         Dictionary<LocalMediaTagTarget, List<TagId>> local = new();
-        HashSet<(TagId, LocalMediaTagTarget)> seenLocal = new();
+        // Like bound files: one count per file (occurrence) and tag, however many of its revisions carry the tag.
+        HashSet<(TagId, LocalMediaOccurrenceId)> seenLocal = new();
         foreach (PrivateLocalMediaTagAssignment item in snapshot.LocalAssignments)
         {
             if ((++step & 1023) == 0) cancellation.ThrowIfCancellationRequested();
@@ -71,7 +72,7 @@ internal sealed class TagContextIndex
             LocalMediaOccurrence? occurrence = _registry.Find(item.Target.Occurrence);
             if (occurrence == null) continue;
             if (occurrence.Find(item.Target.Revision) is { } revision) Add(byHash, revision.Sha256, item.TagId);
-            if (seenLocal.Add((item.TagId, item.Target))) Count(occurrence.Locator.Thread, item.TagId);
+            if (seenLocal.Add((item.TagId, item.Target.Occurrence))) Count(occurrence.Locator.Thread, item.TagId);
         }
         _local = Freeze(local);
         _byHash = Freeze(byHash);
@@ -84,6 +85,9 @@ internal sealed class TagContextIndex
 
     /// <summary>Total entries of all lookups; a rough size for tests and budgets, not a memory measurement.</summary>
     internal int ApproximateEntries { get; }
+
+    /// <summary>True when the index of this snapshot is already built, so <see cref="For"/> returns at once (a UI thread asks before it would build).</summary>
+    internal static bool IsBuilt(PrivateTagStoreSnapshot snapshot) => Cache.TryGetValue(snapshot, out _);
 
     /// <summary>The index of a snapshot, built once. The build is O(assignments) and may run on any thread.</summary>
     internal static TagContextIndex For(PrivateTagStoreSnapshot snapshot, CancellationToken cancellation = default)

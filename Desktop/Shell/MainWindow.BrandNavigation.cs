@@ -15,6 +15,8 @@ public partial class MainWindow
     {
         RefreshReadingResumeLabels();
         RefreshPostBookmarkLabels();
+        RefreshTagQueueLabels();
+        RefreshTaggingPageLabels();
         foreach (string id in MainPageOrder.CommandIds)
             CommandBindings.Apply(WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"), id, iconWithLabel: true);
         CommandBindings.Apply(WorkspaceControl<Button>("SettingsNavigationButton"), "navigation.settings", iconWithLabel: true);

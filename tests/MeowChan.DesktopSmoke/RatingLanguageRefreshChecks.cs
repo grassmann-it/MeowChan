@@ -235,7 +235,6 @@ internal static class RatingLanguageRefreshChecks
         int confirmed, string currentValue)
     {
         Require(dialog.Title == MediaRatingText.LocalizedLabel
-            && Private<TextBlock>(dialog, "_heading").Text == MediaRatingText.LocalizedLabel
             && Private<TextBlock>(dialog, "_help").Text == Texts.T("media.rating.help")
             && Need<TextBlock>(dialog, "MediaRatingConfirmed").Text == MediaRatingText.LocalizedSaved(confirmed)
             && Need<TextBlock>(dialog, "MediaRatingValue").Text == currentValue
@@ -255,7 +254,7 @@ internal static class RatingLanguageRefreshChecks
             && Need<TextBlock>(manager, "MediaRatingsSummary").Text == Texts.T("media.rating.summary", count, count)
             && Equals(Private<Button>(manager, "_confirm").Content, Texts.T("media.rating.removeThis"))
             && Equals(Private<Button>(manager, "_cancel").Content, Texts.T("media.rating.cancel"))
-            && Equals(Private<Button>(manager, "_close").Content, Texts.T("media.rating.close")),
+            && Equals(Private<Button>(manager, "_close").Content, Texts.T("action.close")),
             Texts.Language + ": manager summary/search/action presentation is stale.");
     }
 

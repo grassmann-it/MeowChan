@@ -26,7 +26,7 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("Name = \"ArchiveAppliedResetAll\"", chips);
         Assert.Contains("panel.Children.Add(_appliedResetAll);", chips);
         // The link is added after the chips, and runs the same reset as the empty state.
-        Assert.True(chips.IndexOf("panel.Children.Add(CreateFilterTag(", StringComparison.Ordinal) < chips.IndexOf("panel.Children.Add(_appliedResetAll);", StringComparison.Ordinal));
+        Assert.True(chips.IndexOf("panel.Children.Add(CreateAppliedChip(", StringComparison.Ordinal) < chips.IndexOf("panel.Children.Add(_appliedResetAll);", StringComparison.Ordinal));
         Assert.Contains("OnResetArchiveFiltersClick(_appliedResetAll, e)", chips);
         Assert.Contains("ArchiveFilters.Show(", presentation);
         Assert.Contains("Texts.Count(\"archive.filters.countName\", count)", presentation);
@@ -46,7 +46,7 @@ public sealed class FilterSurfaceContractTests
     public void MediaRefreshIsAnIconButtonAndTheTagComboAndItsTwoButtonsAreGone()
     {
         string page = Source("Desktop/Views/Media/MediaPage.cs"), filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
-        Assert.Contains("IconButtons.Apply(_refresh, \"refresh-cw\", Texts.T(\"media.refresh\"));", page);
+        Assert.Contains("WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T(\"media.refresh\"));", page);
         Assert.Contains("Name = \"MediaRefresh\"", page);
         Assert.Contains("new() { Name = \"MediaTagAdd\" }", filters);
         foreach (string gone in new[] { "MediaTagChoice", "MediaTagInclude", "MediaTagExclude" })
@@ -54,11 +54,40 @@ public sealed class FilterSurfaceContractTests
     }
 
     [Fact]
-    public void TagChipsInTheMediaHeaderCarryTheToggle()
+    public void TheMediaHeadFollowsThePageGridAndShuffleAndRefreshAreSquareIcons()
     {
-        string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs");
-        Assert.Contains("ArchivePage.CreateTagFilterChip(", chips);
-        Assert.Contains("ToggleTagFilter(tagId)", chips);
+        string page = Source("Desktop/Views/Media/MediaPage.cs");
+        Assert.Contains("Margin = new Thickness(12, 8, 12, 8), Classes = { \"workspace-page-header\" }", page);
+        Assert.Contains("_headerBody = new() { Spacing = 8 }", page);
+        Assert.Contains("WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T(\"media.shuffle\"));", page);
+        Assert.DoesNotContain("_shuffle.Content = Texts.T", page);
+        Assert.DoesNotContain("refresh-cw", page);
+    }
+
+    [Fact]
+    public void TheMediaHeaderChipsAreTermChipsOfTheOneFactoryAndNegatableOnesToggle()
+    {
+        // M2: one chip model for both pages; the archive's tag chip factory is a thin wrapper over it.
+        string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs"), archive = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.cs");
+        Assert.Contains("WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable,", chips);
+        Assert.Contains("chip.Negatable ? () => ToggleFilterChip(term!) : null", chips);
+        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true)", archive);
+        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove)", archive);
+        Assert.DoesNotContain("ArchivePage.CreateTagFilterChip(", chips);
+    }
+
+    [Fact]
+    public void TheMediaTermSetIsTheOneTruthOfTheFilter()
+    {
+        string filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
+        Assert.Contains("private readonly List<MediaFilterTerm> _terms = new();", filters);
+        Assert.Contains("MediaFilterTerms.ToFilter(AllTerms(), _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All)", filters);
+        // The fields write the set (EditTerms) and show it (SyncFilterControls); no field is read to build the filter any more.
+        Assert.Contains("private void SyncFilterControls()", filters);
+        foreach (string gone in new[] { "_includeTags", "_excludeTags", "_threadFilter", "(MediaLibraryKindFilter)Math.Clamp(_kindFilter.SelectedIndex" })
+            Assert.DoesNotContain(gone, filters);
+        Assert.Contains("_filterAdd.PickedTerm = AddFilterTerm;", Source("Desktop/Views/Media/MediaPage.FilterChips.cs"));
+        Assert.Contains("WorkViewElement.SetId(_filterAdd, \"media.filter.add\")", Source("Desktop/Views/Media/MediaPage.WorkView.cs"));
     }
 
     [Fact]
@@ -81,5 +110,17 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("DataValidationErrors.SetErrors(ArchiveTagChoiceHost, pending", editors);
         Assert.Contains("_invalidSearchEditor = ArchiveTagChoiceHost;", editors);
         Assert.Contains("private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;", tags);
+    }
+
+    [Fact]
+    public void AppliedTagChipsCarryTheSameToggleAndSearchAgainAtOnce()
+    {
+        string chips = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.cs"), toggle = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.Toggle.cs");
+        Assert.Contains("CreateTagFilterChip(item.Label, TagFilterLabel(id), id, item.Field == \"tagExclude\"", toggle);
+        Assert.Contains("async () => await ToggleAppliedTag(id)", toggle);
+        // The toggle and the removal share one search path, so a refused definition and a late draft edit behave the same.
+        Assert.Contains("SearchFromAppliedChip(applied.WithTags(filter), \"tags\")", toggle);
+        Assert.Contains("await SearchFromAppliedChip(CopySearch(", chips);
+        Assert.Contains("ArchiveTagFilter.MaximumTagsPerList", toggle);
     }
 }

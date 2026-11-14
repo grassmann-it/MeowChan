@@ -64,9 +64,10 @@ internal static class PostFilterCatalog
         ("postFilter.hideWithReplies", "Hide post and its replies", "Post samt Antworten ausblenden"),
         ("postFilter.hideDone", "No. {0} is hidden. “Show post again” in its menu or View → Post filters… shows it again.", "Nr. {0} ist ausgeblendet. „Post wieder anzeigen“ in seinem Menü oder Ansicht → Postfilter… zeigt ihn wieder an."),
         ("postFilter.unhideDone", "No. {0} is shown again.", "Nr. {0} wird wieder angezeigt."),
-        ("postFilter.recovery.available", "The post filter file is damaged, so no post filter applies. A backup with {0} rules and {1} hidden posts can be restored.", "Die Postfilter-Datei ist beschädigt, deshalb wirkt kein Postfilter. Eine Sicherung mit {0} Regeln und {1} ausgeblendeten Posts lässt sich wiederherstellen."),
+        ("postFilter.recovery.available", "The post filter file is damaged, so no post filter applies. A backup (rules: {0}, hidden posts: {1}) can be restored.", "Die Postfilter-Datei ist beschädigt, deshalb wirkt kein Postfilter. Eine Sicherung (Regeln: {0}, ausgeblendete Posts: {1}) lässt sich wiederherstellen."),
         ("postFilter.recovery.restore", "Restore backup", "Sicherung wiederherstellen"),
         ("postFilter.recovery.done", "The backup was restored.", "Die Sicherung wurde wiederhergestellt."),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("postFilter.close", "Close", "Schließen"),
         ("budgets.postFilterRules", "Post filter rules", "Postfilter-Regeln"),
         ("budgets.hiddenPosts", "Individually hidden posts", "Einzeln ausgeblendete Posts"),

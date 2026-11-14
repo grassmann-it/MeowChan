@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -100,8 +101,6 @@ internal sealed class UrlTextExportDialog : Window
 {
     private readonly ArchiveUrlTextExportPlan _plan;
     private readonly UrlTextExportOperation _operation;
-    private readonly WindowChromeBar _chrome = new() { Name = "UrlTextExportChrome" };
-    private readonly TextBlock _heading = new() { Name = "UrlTextExportHeading", TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _labels = new() { Name = "UrlTextExportConsent", Spacing = 8 };
     private readonly TextBlock _source = new() { Name = "UrlTextExportSource", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _board = new() { Name = "UrlTextExportBoard", TextWrapping = TextWrapping.Wrap };
@@ -122,46 +121,31 @@ internal sealed class UrlTextExportDialog : Window
         _plan = plan;
         _operation = new(plan, choose, write, token, limitMiB);
         Name = "UrlTextExportDialog";
-        Width = 640; Height = 600; MinWidth = 360; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal form-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _status.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        var buttons = new WrapPanel
-        {
-            ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right
-        };
-        buttons.Children.Add(_save); buttons.Children.Add(_close);
-        var footerContent = new StackPanel { Spacing = 12 };
-        footerContent.Children.Add(_status); footerContent.Children.Add(buttons);
-        var footer = new Border { Child = footerContent };
-        footer.Classes.Add("workspace-dialog-footer");
+        // Close doubles as Cancel until the save starts, so it stays and is right-most; Save comes before it.
+        var footer = DialogFooter.Build(_close, new Control[] { _save }, _status, statusAbove: true);
         _labels.Margin = new Thickness(16, 0, 16, 16);
-        // Heading fixed, consent labels scroll, failures in the local strip, actions and status in the footer.
-        var frame = MeowChan.Desktop.Controls.DialogFrame.Build(_heading, _labels, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error));
-        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
-        Opened += OnOpened;
+        // Consent labels scroll (the title is in the title bar), failures in the local strip, actions and status in the footer.
+        var frame = DialogFrame.Build(header: null, _labels, footer, DialogFrame.ErrorStrip(_error));
+        DialogWindow.Frame(this, frame, modal: true, captionName: "UrlTextExportChrome");
         _save.Click += OnSave;
         _close.Click += OnClose;
-        KeyDown += OnKeyDown;
+        DialogEscape.Attach(this);
         Closed += OnClosed;
         _operation.Changed += Refresh;
         Texts.Changed += OnTextsChanged;
         Refresh();
     }
-    private void OnOpened(object? sender, EventArgs e) { if (!_terminated) _chrome.Attach(this); }
     private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
     private void Refresh()
     {
         if (_terminated) return;
         Title = Texts.T("urltext.export.title");
-        _heading.Text = Title;
         _labels.Children.Clear();
         void Add(string key, params object?[] args)
         {
@@ -178,7 +162,7 @@ internal sealed class UrlTextExportDialog : Window
         Add("url", _plan.Url); Add("scope"); Add("excluded"); Add("privacy"); Add("noClient"); Add("availability");
         _save.Content = Texts.T("urltext.export.save");
         _save.IsEnabled = !_operation.Started && !_operation.Ended;
-        _close.Content = Texts.T(_operation.Started ? "urltext.export.close" : "urltext.export.cancel");
+        _close.Content = Texts.T(_operation.Started ? "action.close" : "urltext.export.cancel");
         AutomationProperties.SetName(_save, (string)_save.Content!);
         AutomationProperties.SetName(_close, (string)_close.Content!);
         // Failures go to the local error strip; progress and outcomes stay in the footer status.
@@ -189,7 +173,6 @@ internal sealed class UrlTextExportDialog : Window
     }
     private async void OnSave(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => await _operation.ConfirmAsync();
     private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
-    private void OnKeyDown(object? sender, KeyEventArgs e) { if (e.Key == Key.Escape) { e.Handled = true; Close(); } }
     private void OnClosed(object? sender, EventArgs e) => _ = TerminateAsync();
     internal Task TerminateAsync()
     {
@@ -198,8 +181,7 @@ internal sealed class UrlTextExportDialog : Window
         Texts.Changed -= OnTextsChanged;
         _operation.Changed -= Refresh;
         _save.Click -= OnSave; _close.Click -= OnClose;
-        Opened -= OnOpened;
-        KeyDown -= OnKeyDown; Closed -= OnClosed;
+        Closed -= OnClosed;
         return _termination = DrainAsync();
     }
     private async Task DrainAsync() { await _operation.TerminateAsync(); _operation.Dispose(); }

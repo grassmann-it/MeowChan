@@ -202,6 +202,11 @@ public sealed class FirstRunEffectiveLimitTests : IDisposable
     private static string Expected(string key, string code, params object[] arguments)
     {
         var entry = FirstRunLimitCatalog.Entries.Single(e => e.Key == key);
+        // A count of exactly one selects the singular text of the plural-aware path.
+        var singular = arguments.Length > 0 && Convert.ToInt64(arguments[0], CultureInfo.InvariantCulture) == 1
+            ? MeowChan.Desktop.Localization.CountCatalog.Entries.Cast<(string Key, string English, string German)?>().FirstOrDefault(e => e!.Value.Key == key + ".one")
+            : null;
+        if (singular is { } one) entry = one;
         return string.Format(CultureInfo.GetCultureInfo(code), code == "de" ? entry.German : entry.English, arguments);
     }
 

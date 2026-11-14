@@ -11,6 +11,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Http;
 
 namespace MeowChan.DesktopSmoke;
@@ -181,9 +182,11 @@ internal static class StatisticsChecks
             await PresentationChecks.SwitchModeAsync(window, mode);
             if (mode != "Barebones") await EnsureWideAsync(window);
             await RequireHeaderAsync(window, disk: true, graph: true, "Auto/" + mode);   // both graphs in every work view, where there is room
-            // The tagline shows where the title bar has room and is gone where it has not (never a stub).
+            // The tagline shows in full, as "— quip", or not at all; what is shown is never cut off and the stage names what is on screen.
             Control tagline = window.FindControl<Control>("WorkspaceSubtitle")!;
-            if (mode == "Barebones") Require(!tagline.IsVisible, "The tagline is still shown in the narrow Barebones title bar.");
+            Require((window.TaglineStage != HeaderTaglineStage.None) == tagline.IsVisible, $"The tagline stage {window.TaglineStage} does not match its visibility {tagline.IsVisible} in {mode}.");
+            if (tagline is TextBlock { IsVisible: true } shown)
+                Require(shown.Bounds.Width <= window.FindControl<Control>("WorkspaceTaglineHost")!.Bounds.Width - HeaderTaglineFit.Tolerance + 0.01, $"The tagline is wider than its column in {mode}: {shown.Bounds.Width}.");
             if (mode == "Advanced") Require(tagline.IsEffectivelyVisible && tagline.Bounds.Width > 100, $"The tagline is missing in a wide title bar: visible {tagline.IsVisible}, bounds {tagline.Bounds}, column {window.FindControl<Grid>("WorkspaceHeader")!.ColumnDefinitions[1].ActualWidth}, window {window.Bounds.Width}.");
             Program.CaptureWindow(window, $"smoke-statistics-header-dark-{mode.ToLowerInvariant()}.png");
         }
@@ -200,10 +203,10 @@ internal static class StatisticsChecks
         await Program.WaitUntilAsync(() => settings.FindControl<Control>("SettingsBehaviorPage")!.IsVisible);
         ComboBox input = settings.FindControl<ComboBox>("StatsHeaderGraphInput")!;
         await Program.WaitUntilAsync(() => input.IsEffectivelyVisible && input.Bounds.Width > 0);
-        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"]),
-            "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide and Text.");
+        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"]),
+            "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide, Text and Off.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");
@@ -473,8 +476,56 @@ internal static class StatisticsChecks
         page.CancelButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && page.ResetButton.IsEnabled);
         Require(Hub(window).Snapshot().Total.Session.NetDown >= before, "Cancel reset the counters.");
-        Console.WriteLine("SMOKE statistics page: " + variant + "; rows " + page.Rows.Count + "; the reset question opens on Cancel.");
+        await SegmentExtrasAsync(window, page);
+        await ErrorLinkAsync(window);
+        Console.WriteLine("SMOKE statistics page: " + variant + "; rows " + page.Rows.Count + "; the reset question opens on Cancel; upload, axes, Reset in the history bar, error count to Diagnostics.");
     }
+
+    // Status merge (SM4): upload is the fifth figure, every graph has the same axes, Reset sits in the history bar (the right
+    // edge of the page head belongs to Back and Close, and there is no such control any more).
+    private static Task SegmentExtrasAsync(MainWindow window, StatisticsPage page)
+    {
+        Require(page.FindControl<TextBlock>("NetUpValue")!.Text is { Length: > 0 } up && up != ByteUnits.Rate(0)
+            && !string.IsNullOrEmpty(page.FindControl<TextBlock>("NetUpCaption")!.Text), "The upload figure is missing or never moved.");
+        foreach ((string start, string end, string top, string half, IoGraph graph) in new[]
+        {
+            ("HistoryStart", "HistoryEnd", "ScaleTop", "ScaleHalf", page.Graph),
+            ("WriteHistoryStart", "WriteHistoryEnd", "WriteScaleTop", "WriteScaleHalf", page.WriteGraph),
+            ("ReadHistoryStart", "ReadHistoryEnd", "ReadScaleTop", "ReadScaleHalf", page.ReadGraph)
+        })
+        {
+            Require(page.FindControl<TextBlock>(start)!.Text == page.FindControl<TextBlock>("HistoryStart")!.Text
+                && page.FindControl<TextBlock>(end)!.Text == Texts.T("stats.now"), start + ": the time axis is missing or differs from the others.");
+            TextBlock scaleTop = page.FindControl<TextBlock>(top)!, scaleHalf = page.FindControl<TextBlock>(half)!;
+            Require(scaleTop.IsVisible == graph.HasTraffic && scaleHalf.IsVisible == graph.HasTraffic
+                && (!graph.HasTraffic || (scaleTop.Text == ByteUnits.Rate(graph.Peak) && scaleHalf.Text == ByteUnits.Rate(graph.Peak / 2))),
+                top + ": the scale labels do not follow the graph.");
+        }
+        Require(page.FindControl<TextBlock>("SourcesTitle")!.Text == Texts.T("stats.sources.title"), "The table section keeps the name of the Sources page.");
+        Require(page.ResetButton.GetVisualAncestors().OfType<Control>().Any(control => WorkViewElement.GetId(control) == "statistics.history"),
+            "Reset is not in the history bar.");
+        return Task.CompletedTask;
+    }
+
+    // The error count of a source row leads to the diagnostics segment: source filter set, "Only problems" on.
+    private static async Task ErrorLinkAsync(MainWindow window)
+    {
+        StatisticsPage page = Page(window);
+        StatisticsRow row = page.Rows.Single(candidate => candidate.Key == SecondFixture);
+        await Program.WaitUntilAsync(() => row.CanOpenDiagnostics && FindErrorLink(page, row) is { IsEffectivelyVisible: true },
+            () => $"errors {row.Errors}, can open {row.CanOpenDiagnostics}");
+        Button link = FindErrorLink(page, row)!;
+        Require(AutomationProperties.GetName(link) == row.ErrorsLinkText && row.ErrorsLinkText.Contains(row.Name, StringComparison.Ordinal),
+            "The error link does not name where it leads.");
+        SmokeActionClick.Execute(link);
+        await Program.WaitUntilAsync(() => window.DiagnosticsSegmentShown && window.DiagnosticsPageHost.Content is DiagnosticsPage { SourceFilter: SecondFixture, ProblemsOnly: true },
+            () => "segment " + window.StatusSegmentSelected + ", filter " + (window.DiagnosticsPageHost.Content as DiagnosticsPage)?.SourceFilter);
+        // Back to the statistics for what follows.
+        await OpenPageAsync(window, byGraphClick: false);
+    }
+
+    private static Button? FindErrorLink(StatisticsPage page, StatisticsRow row) => page.RowsGrid.GetVisualDescendants().OfType<Button>()
+        .FirstOrDefault(button => button.Classes.Contains("stats-error-link") && ReferenceEquals(button.DataContext, row));
 
     private static async Task CheckResetWorkViewFlowAsync(MainWindow window, StatisticsPage page)
     {

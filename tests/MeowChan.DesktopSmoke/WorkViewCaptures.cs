@@ -508,7 +508,7 @@ internal static class WorkViewCaptures
         if (page.CurrentWorkView != workView)
             throw new InvalidOperationException($"media/{view}: the page applied {page.CurrentWorkView}.");
         // Visibility of these follows page state or is derived from the lists below.
-        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more"];
+        string[] derived = ["media.toolbar.more", "media.selection.more", "media.toolbar.shuffle", "media.status.untagged", "media.filter.more", "media.filter.add"];
         Control[] controls = WorkViewElement.For(WorkViewPage.Media).Where(control => control.FindLogicalAncestorOfType<MediaPage>() == page).ToArray();
         foreach (Control control in controls)
         {
@@ -520,7 +520,7 @@ internal static class WorkViewCaptures
                 throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
         // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
-        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] header = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
         string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
                 && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();

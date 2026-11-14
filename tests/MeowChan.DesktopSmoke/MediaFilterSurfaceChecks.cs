@@ -57,7 +57,11 @@ internal static partial class MediaPageChecks
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             foreach (string code in new[] { "de", "en" })
                 await FilterChipRowAsync(window, page, theme, code);
-            Console.WriteLine("SMOKE media filter chips: every active filter is a removable chip in one row with the surface closed, Filters (n), Reset all, empty-state reset, error line style; DE/EN, Light/Dark passed.");
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
+            foreach (string code in new[] { "de", "en" })
+                await FocusModeAsync(window, page, theme, code);
+            Console.WriteLine("SMOKE media focus mode: Shift+F / the ⤢ tool hides toolbar, chips, hint, status and filter section and shows one 32 dip row (live counter, filter count with its chips as tooltip, 'Exit focus ×' alone at the right); grid and selection bar stay usable; Escape ends the mode before the selection; the exit button, the shortcut and the search request end it; start and end are announced (polite live region); a narrow page moves the tool under More; DE/EN, Light/Dark passed.");
+            Console.WriteLine("SMOKE media filter chips: every active filter is a removable chip in one row with the surface closed, Filters (n), Reset all, empty-state reset, error line style, + Filter excludes a type and a source (chips, combo summaries, grid) and a switched type chip shows the other part; DE/EN, Light/Dark passed.");
             Console.WriteLine("SMOKE media filter surface: the toggle (ToggleButton with count badge, input height like the sort combo) opens the fields inline under the status line and pushes the grid down (no overlay, no Close button; header, chips and status unmoved), live filtering from the section, focus in/out, Tab cycle, Escape order (dropdown first), programmatic open keeps focus, tiles fit their cells; DE/EN, Light/Dark, 1400/660 passed.");
         }
         finally { Texts.SetLanguage(language); page.EndLifetime(); window.Close(); }
@@ -123,6 +127,77 @@ internal static partial class MediaPageChecks
         Require(page.ActiveFilterCount == 0 && C<CheckBox>(page, "MediaFavoritesOnly").IsChecked == false && page.Tiles.Count == ReturnThreads + 2, state + ": Reset all.");
         Require(page.AddTagFilterByName("surface", include: true) == null, state + ": tag add again.");
         Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1, state + ": tag filter restored.");
+
+        // M2: "+ Filter" behind the chips adds any field by keyboard. Shift+Enter excludes: "Without type: Images" is a chip of its own
+        // (chip-exclude), the type combo shows "3 types", and the grid holds the tagged media that are no images. Switching the chip
+        // (as its body click does) shows exactly the other part; an excluded source summarizes in its combo; removing restores.
+        FilterTermPicker add = page.FilterAdd;
+        Require(add.IsEffectivelyVisible && Avalonia.Automation.AutomationProperties.GetName(add) == Texts.T("media.filter.add") && add.Classes.Contains("chip-available"),
+            state + ": + Filter must follow the chips.");
+        void Pick(string text, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            add.Search.Text = text; add.Search.FlushQuery();
+            add.Search.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = modifiers });
+        }
+        string images = Texts.T("media.filter.kind.image");
+        Pick(images, KeyModifiers.Shift);
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.kindExcludeChip", images)));
+        int notImages = page.Tiles.Count;
+        Ursa.Controls.ClosableTag typeChip() => page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single(tag => tag.Tag as string == "type:image");
+        Require(typeChip().Classes.Contains("chip-exclude") && kind.SelectedItem as string == Texts.Count("media.filter.kind.count", 3)
+            && page.CurrentFilter().Kinds.Count == 3 && !page.CurrentFilter().Kinds.Contains(MediaLibraryKindFilter.Image) && notImages < SurfaceTagged + 1,
+            state + ": an excluded type must be a chip, summarize in its combo and narrow the grid: " + string.Join(" | ", Labels()) + " / " + notImages);
+        Require(page.ToggleFilterChipFor(MediaFilterTerm.Type(MediaLibraryKindFilter.Image)) == null, state + ": switching the type chip failed.");
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.kindChip", images)));
+        Require(!typeChip().Classes.Contains("chip-exclude") && kind.SelectedIndex == (int)MediaLibraryKindFilter.Image
+            && page.Tiles.Count + notImages == SurfaceTagged + 1, state + ": the switched type chip must show exactly the other part: " + page.Tiles.Count);
+        Pick("-media-fixture");
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.sourceExcludeChip", "media-fixture")));
+        Require(page.CurrentFilter().ExcludeSources.Contains("media-fixture")
+            && C<ComboBox>(page, "MediaSourceFilter").SelectedItem?.ToString() == Texts.T("media.filter.combo.excluded", 1),
+            state + ": an excluded source must reach the filter and summarize in its combo.");
+        while (page.FilterChips.Children.Count > 1) Remove(page.FilterChips.Children.Count - 1).Execute(null);
+        Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1 && kind.SelectedIndex == 0
+            && C<ComboBox>(page, "MediaSourceFilter").SelectedIndex == 0, state + ": removing the added chips must restore the tag filter alone.");
+
+        // M3: Enter in the search field turns the recognized "field:value" tokens into chips and keeps the rest in the field. A token that
+        // is not understood stays as text with a hint that says why (a polite live region); plain text is left alone. "Copy filters as
+        // text" writes the whole filter back as a query, from the row's menu and from every chip's menu.
+        string typed = "type:video source:media-fixture bogus:x";
+        name.Text = typed;
+        name.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        await UntilAsync(() => page.ActiveFilterCount == 4 && page.QueryNote != null); // tag, type, source and the name chip of what stayed
+        string video = Texts.T("media.filter.kind.video");
+        Require(name.Text == "bogus:x" && Labels().Contains(Texts.T("media.filter.kindChip", video))
+            && Labels().Contains(Texts.T("archive.sourceChip", "media-fixture")) && Labels().Contains(Texts.T("media.filter.nameChip", "bogus:x")),
+            state + ": Enter must turn the type and source tokens into chips and leave the unknown token in the field: " + name.Text + " / " + string.Join(" | ", Labels()));
+        Require(page.QueryNote == Texts.T("media.query.converted", Texts.T("media.filter.kindChip", video) + ", " + Texts.T("archive.sourceChip", "media-fixture"))
+            && page.QueryProblem == Texts.T("media.query.kept", Texts.T("media.query.kept.item", "bogus:x", Texts.T("media.query.reason.unknownField"))),
+            state + ": the hint must name what was added and what stayed text: " + page.QueryNote + " / " + page.QueryProblem);
+        TextBlock hintNote = C<TextBlock>(page, "MediaQueryNote"), hintProblem = C<TextBlock>(page, "MediaQueryProblem");
+        Require(hintNote.IsEffectivelyVisible && hintProblem.IsEffectivelyVisible && hintProblem.Classes.Contains("workspace-error")
+            && Avalonia.Automation.AutomationProperties.GetLiveSetting(hintNote) == Avalonia.Automation.AutomationLiveSetting.Polite
+            && Avalonia.Automation.AutomationProperties.GetLiveSetting(hintProblem) == Avalonia.Automation.AutomationLiveSetting.Polite, state + ": the hint must be visible and polite.");
+        window.UpdateLayout();
+        Program.CaptureWindow(window, $"smoke-media-query-hint-{code}-{theme.ToString().ToLowerInvariant()}.png");
+        string? copied = null;
+        page.CopyTextForTests = text => { copied = text; return Task.CompletedTask; };
+        string expectedText = "tag:surface type:video source:media-fixture name:\"bogus:x\"";
+        Require(page.FiltersAsText() == expectedText, state + ": the filter as text was " + page.FiltersAsText());
+        Ursa.Controls.ClosableTag firstChip = (Ursa.Controls.ClosableTag)page.FilterChips.Children[0];
+        Require(firstChip.ContextMenu!.ItemsSource is System.Collections.IEnumerable entries && entries.OfType<MenuItem>().Any(item => item.Name == WorkspaceChips.CopyTextItemName)
+            && (page.FilterChips.Parent as Control)?.ContextMenu != null, state + ": the chip and the row must offer Copy filters as text.");
+        await page.CopyFiltersAsTextAsync();
+        Require(copied == expectedText && page.QueryNote == Texts.T("media.query.copied") && page.QueryProblem == null, state + ": copying must write the query and say so: " + copied);
+        // Plain text is not a query: Enter changes nothing and clears the hint.
+        name.Text = "plain";
+        await UntilAsync(() => page.QueryNote == null);
+        name.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        Require(name.Text == "plain" && page.QueryNote == null && page.QueryProblem == null && page.ActiveFilterCount == 4, state + ": plain text must stay a name filter.");
+        name.Text = string.Empty;
+        while (page.FilterChips.Children.Count > 1) Remove(page.FilterChips.Children.Count - 1).Execute(null);
+        await UntilAsync(() => page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1);
+        Require(name.Text == string.Empty && page.QueryNote == null, state + ": removing the converted chips must restore the tag filter alone.");
     }
 
     private static async Task FilterSurfaceStateAsync(Window window, MediaPage page, ThemeVariant theme, string code, double width, double height)
@@ -199,8 +274,26 @@ internal static partial class MediaPageChecks
             state + ": applied chips or status moved or are hidden by the open section.");
         Require(page.GetVisualDescendants().OfType<Control>().All(control => control.Name != "MediaFilterClose") && surface.ZIndex == 0
             && !surface.Classes.Contains("workspace-overlay"), state + ": the media filter section must have no Close button and no overlay level.");
+        // M5: the fields stand in the column grid of this width, every combo under its label, nothing wider than the section, and the tab key
+        // walks down one column and on to the next.
+        await UntilAsync(() => { window.UpdateLayout(); return page.FilterGridColumns == MediaFilterGridLayout.Columns(page.Bounds.Width); });
+        Rect viewport = Bounds(scroll);
+        Control[] cells = page.FilterGrid.GetVisualDescendants().OfType<Control>().Where(control => control is ComboBox or CheckBox && control.IsEffectivelyVisible).ToArray();
+        Require(cells.Length >= 2 && cells.All(cell => Bounds(cell).Left >= viewport.Left - 1 && Bounds(cell).Right <= viewport.Right + 1),
+            state + ": a filter field is wider than the section (" + page.FilterGridColumns + " columns): " + string.Join(" ", cells.Select(cell => cell.Name + Bounds(cell))));
+        TextBlock[] labels = page.FilterGrid.GetVisualDescendants().OfType<TextBlock>().Where(text => text.Classes.Contains("workspace-field-label") && text.IsEffectivelyVisible).ToArray();
+        Require(labels.Length >= 1 && labels.All(label => !string.IsNullOrWhiteSpace(label.Text) && Bounds(label).Right <= viewport.Right + 1)
+            && cells.OfType<ComboBox>().All(combo => combo.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Stretch
+                && labels.Any(label => Math.Abs(Bounds(label).Left - Bounds(combo).Left) <= 1 && Bounds(label).Bottom <= Bounds(combo).Top + 1)),
+            state + ": a combo has no label above it or is not stretched to its column.");
+        for (int index = 1; index < cells.Length; index++)
+        {
+            Point before = Bounds(cells[index - 1]).TopLeft, at = Bounds(cells[index]).TopLeft;
+            Require((Math.Abs(at.X - before.X) <= 1 && at.Y > before.Y) || (at.X > before.X + 1 && at.Y < before.Y + 1),
+                state + ": the field order is not column by column at " + cells[index].Name + ": " + before + " then " + at);
+        }
         // Long content scrolls inside the surface; the last field stays reachable.
-        Button reset = C<Button>(page, "MediaFilterReset");
+        Button reset = C<Button>(page, "MediaTagAdd"); // the last field of the section since M5 (the tag button; the reset button is gone)
         scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
         await UntilAsync(() => { window.UpdateLayout(); return Contains(Bounds(scroll), Bounds(reset)); });
         scroll.Offset = default;

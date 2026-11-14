@@ -62,6 +62,8 @@ namespace MeowChan
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
+        /// <summary>The profile folder these settings belong to; null for settings not bound to a profile.</summary>
+        [JsonIgnore] internal string? ProfileDirectory => _profileDirectory;
         [JsonIgnore] internal ProfileOrigin Origin { get; private set; }
         [JsonIgnore] internal bool AllowsOrdinaryWrites => Origin is ProfileOrigin.Unbound or ProfileOrigin.ConfirmedNew or ProfileOrigin.ExistingValid;
         internal void EnsureOrdinaryWritesAllowed()
@@ -229,6 +231,46 @@ namespace MeowChan
         internal const int ReaderGroupLimitDefault = Persistence.ProfileStoreLimits.DefaultReaderGroups;
         internal const int ReaderGroupLimitMinimum = Persistence.ProfileStoreLimits.MinimumReaderGroups;
         internal const int ReaderGroupLimitMaximum = Persistence.ProfileStoreLimits.ReaderGroupCeiling;
+        /// <summary>Most entries of the tagging queue. Lowering it below the current number keeps every entry; only adding is refused until the count is below the limit again.</summary>
+        public int TagQueueLimit { get; set; } = TagQueueLimitDefault;
+        internal const int TagQueueLimitDefault = Persistence.ProfileStoreLimits.DefaultTagQueueEntries;
+        internal const int TagQueueLimitMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueEntries;
+        internal const int TagQueueLimitMaximum = Persistence.ProfileStoreLimits.TagQueueEntryCeiling;
+        /// <summary>Write limit of tag-queue.json in MiB. Lowering it below the current size keeps the file readable; only writes that would make it larger are refused.</summary>
+        public int TagQueueFileLimitMiB { get; set; } = TagQueueFileLimitMiBDefault;
+        internal const int TagQueueFileLimitMiBDefault = Persistence.ProfileStoreLimits.DefaultTagQueueFileBytes / (1024 * 1024);
+        internal const int TagQueueFileLimitMiBMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueFileBytes / (1024 * 1024);
+        internal const int TagQueueFileLimitMiBMaximum = Persistence.ProfileStoreLimits.TagQueueFileCeilingBytes / (1024 * 1024);
+        /// <summary>How many finished entries the tagging queue keeps; older finished entries drop out. 0 keeps none. Open and skipped entries are never dropped.</summary>
+        public int TagQueueHistory { get; set; } = TagQueueHistoryDefault;
+        internal const int TagQueueHistoryDefault = Persistence.ProfileStoreLimits.DefaultTagQueueHistory;
+        internal const int TagQueueHistoryMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueHistory;
+        internal const int TagQueueHistoryMaximum = Persistence.ProfileStoreLimits.TagQueueHistoryCeiling;
+        /// <summary>Adding more media than this to the tagging queue at once asks for confirmation first. Nothing is cut short: after the confirmation every medium is added.</summary>
+        public int TagQueueConfirmAbove { get; set; } = TagQueueConfirmAboveDefault;
+        internal const int TagQueueConfirmAboveDefault = 200;
+        internal const int TagQueueConfirmAboveMinimum = 10;
+        internal const int TagQueueConfirmAboveMaximum = 10_000;
+        /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
+        public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
+        internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
+        internal const int ProfileRegistryLimitMinimum = Persistence.ProfileRegistry.MinimumLimit;
+        internal const int ProfileRegistryLimitMaximum = Persistence.ProfileRegistry.LimitCeiling;
+        /// <summary>
+        /// How many open entries of the tagging queue one walk opens at once (the gallery is built over them); the next walk continues behind them.
+        /// Nothing is dropped from the queue: a smaller window only walks the queue in more rounds.
+        /// </summary>
+        public int TagQueueWalkWindow { get; set; } = TagQueueWalkWindowDefault;
+        internal const int TagQueueWalkWindowDefault = 200;
+        internal const int TagQueueWalkWindowMinimum = 10;
+        internal const int TagQueueWalkWindowMaximum = 5_000;
+        /// <summary>
+        /// Tags the stamp set of quick tagging holds (PT5). Lowering it cuts the stamp from its end; the cut names are gone, nothing else changes.
+        /// </summary>
+        public int TagStampSize { get; set; } = TagStampSizeDefault;
+        internal const int TagStampSizeDefault = Desktop.QuickTagOptions.DefaultStampSize;
+        internal const int TagStampSizeMinimum = Desktop.QuickTagOptions.MinimumStampSize;
+        internal const int TagStampSizeMaximum = Desktop.QuickTagOptions.MaximumStampSize;
         /// <summary>Rows in a source's watch list on the Sources page before "Show all in Downloads" takes over. Every watch stays reachable under Downloads.</summary>
         public int SourcesWatchPreviewRows { get; set; } = SourcesWatchPreviewRowsDefault;
         internal const int SourcesWatchPreviewRowsDefault = 8;
@@ -314,7 +356,7 @@ namespace MeowChan
         /// <summary>Most sources (rows and keys per day); further sources are summed into one "other" row.</summary>
         public int StatsMaxSources { get; set; } = StatsMaxSourcesDefault;
         internal const int StatsMaxSourcesDefault = 64, StatsMaxSourcesMinimum = 8, StatsMaxSourcesMaximum = 256;
-        /// <summary>What the graph in the header shows: "Auto", "Network", "Disk", "NetworkAndDisk" (both stacked), "SideBySide" or "Text" (see IoStatsDisplay.ResolveHeaderLayout). The statistics page always shows both.</summary>
+        /// <summary>What the graph in the header shows: "Auto", "Network", "Disk", "NetworkAndDisk" (both stacked), "SideBySide", "Text" or "Off" (hides the display and its measuring; see IoStatsDisplay.ResolveHeaderLayout). The statistics page always shows both.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string StatsHeaderGraph
         {
@@ -325,6 +367,30 @@ namespace MeowChan
         /// <summary>Use coloured network/disk direction icons instead of words in the header. Off by default; the accessible description is unchanged.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool StatsHeaderIcons { get; set; }
+        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default; see TaglinePicker).</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string HeaderTagline
+        {
+            get => _headerTagline;
+            set => _headerTagline = Desktop.TaglinePicker.NormalizeMode(value);
+        }
+        private string _headerTagline = Desktop.TaglinePicker.ModePerStart;
+        /// <summary>The quip the "Fixed" mode shows (a TaglineCatalog id; an id that no longer exists falls back to the classic one).</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string HeaderTaglineFixedId
+        {
+            get => _headerTaglineFixedId;
+            set => _headerTaglineFixedId = Desktop.TaglineCatalog.NormalizeId(value);
+        }
+        private string _headerTaglineFixedId = Desktop.TaglineCatalog.DefaultId;
+        /// <summary>The version (major.minor.build) whose release quip this profile has had its chance to see; empty until the first start with a tagline.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string LastTaglineVersion
+        {
+            get => _lastTaglineVersion;
+            set => _lastTaglineVersion = Desktop.TaglineCatalog.NormalizeVersion(value);
+        }
+        private string _lastTaglineVersion = string.Empty;
         /// <summary>Memory in MiB for the decoded images of the gallery (decoded at display size), so stepping back and forth shows them at once; 0 keeps nothing.</summary>
         public int GalleryImageCacheMiB { get; set; } = GalleryImageCacheMiBDefault;
         internal const int GalleryImageCacheMiBDefault = (int)(Desktop.GalleryImageCache.DefaultBudgetBytes / (1024 * 1024));
@@ -375,10 +441,69 @@ namespace MeowChan
         internal const int ReaderThreadingDepthDefault = ReaderConversationTree.DepthDefault;
         internal const int ReaderThreadingDepthMinimum = ReaderConversationTree.DepthMinimum;
         internal const int ReaderThreadingDepthMaximum = ReaderConversationTree.DepthMaximum;
+        // Reading history and reader media size (R5/R6): every number has default/minimum/maximum; the switches are quick view toggles too.
+        public int ReadingHistoryLimit { get; set; } = ReadingHistoryLimitDefault;
+        internal const int ReadingHistoryLimitDefault = ReaderDisplayPreferences.ReadingHistoryLimitDefault;
+        internal const int ReadingHistoryLimitMinimum = ReaderDisplayPreferences.ReadingHistoryLimitMinimum;
+        internal const int ReadingHistoryLimitMaximum = ReaderDisplayPreferences.ReadingHistoryLimitMaximum;
+        public int ReaderTextlessMediaWidth { get; set; } = ReaderTextlessMediaWidthDefault;
+        internal const int ReaderTextlessMediaWidthDefault = ReaderDisplayPreferences.TextlessMediaWidthDefault;
+        internal const int ReaderTextlessMediaWidthMinimum = ReaderDisplayPreferences.TextlessMediaWidthMinimum;
+        internal const int ReaderTextlessMediaWidthMaximum = ReaderDisplayPreferences.TextlessMediaWidthMaximum;
+        public int ReaderHoverEnlargeSize { get; set; } = ReaderHoverEnlargeSizeDefault;
+        internal const int ReaderHoverEnlargeSizeDefault = ReaderDisplayPreferences.HoverEnlargeSizeDefault;
+        internal const int ReaderHoverEnlargeSizeMinimum = ReaderDisplayPreferences.HoverEnlargeSizeMinimum;
+        internal const int ReaderHoverEnlargeSizeMaximum = ReaderDisplayPreferences.HoverEnlargeSizeMaximum;
+        public int ReaderHoverEnlargeDelayMs { get; set; } = ReaderHoverEnlargeDelayMsDefault;
+        internal const int ReaderHoverEnlargeDelayMsDefault = ReaderDisplayPreferences.HoverEnlargeDelayDefault;
+        internal const int ReaderHoverEnlargeDelayMsMinimum = ReaderDisplayPreferences.HoverEnlargeDelayMinimum;
+        internal const int ReaderHoverEnlargeDelayMsMaximum = ReaderDisplayPreferences.HoverEnlargeDelayMaximum;
+        public int ReaderFocusedMediaScalePercent { get; set; } = ReaderFocusedMediaScalePercentDefault;
+        internal const int ReaderFocusedMediaScalePercentDefault = ReaderDisplayPreferences.FocusedMediaScaleDefault;
+        internal const int ReaderFocusedMediaScalePercentMinimum = ReaderDisplayPreferences.FocusedMediaScaleMinimum;
+        internal const int ReaderFocusedMediaScalePercentMaximum = ReaderDisplayPreferences.FocusedMediaScaleMaximum;
+        public bool ReaderTextlessLargeImages { get; set; } = true;
+        public bool ReaderHoverEnlarge { get; set; } = false;
+        public bool ReaderFocusedMediaEnlarge { get; set; } = false;
+        // The media sidebar of the large reader (R8): off unless chosen (View menu or Settings), on the left unless set to the right.
+        public bool ReaderMediaSidebar { get; set; } = false;
+        private string _readerMediaSidebarSide = ReaderMediaSidebarSideLeft;
+        internal const string ReaderMediaSidebarSideLeft = "Left", ReaderMediaSidebarSideRight = "Right";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderMediaSidebarSide
+        {
+            get => _readerMediaSidebarSide;
+            set => _readerMediaSidebarSide = string.Equals(value?.Trim(), ReaderMediaSidebarSideRight, StringComparison.OrdinalIgnoreCase)
+                ? ReaderMediaSidebarSideRight : ReaderMediaSidebarSideLeft;
+        }
+        public int ReaderMediaSidebarWidth { get; set; } = ReaderMediaSidebarWidthDefault;
+        internal const int ReaderMediaSidebarWidthDefault = ReaderDisplayPreferences.MediaSidebarWidthDefault;
+        internal const int ReaderMediaSidebarWidthMinimum = ReaderDisplayPreferences.MediaSidebarWidthMinimum;
+        internal const int ReaderMediaSidebarWidthMaximum = ReaderDisplayPreferences.MediaSidebarWidthMaximum;
+        public int ReaderMediaSidebarMinimumWidth { get; set; } = ReaderMediaSidebarMinimumWidthDefault;
+        internal const int ReaderMediaSidebarMinimumWidthDefault = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
+        internal const int ReaderMediaSidebarMinimumWidthMinimum = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum;
+        internal const int ReaderMediaSidebarMinimumWidthMaximum = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum;
+        // Inline video in the reader (R10): off unless chosen; then a click or Enter plays a video in its post or in the media sidebar.
+        // Autoplay (muted) is a second opt-in. The number of live players and the largest file played inline are limits.
+        public bool ReaderInlineVideo { get; set; } = false;
+        public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
+        public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
+        internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
+        internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
+        internal const int ReaderInlineVideoMaxPlayersMaximum = ReaderInlineVideoOptions.MaxPlayersMaximum;
+        public int ReaderInlineVideoMaxFileMiB { get; set; } = ReaderInlineVideoMaxFileMiBDefault;
+        internal const int ReaderInlineVideoMaxFileMiBDefault = ReaderInlineVideoOptions.MaxFileMiBDefault;
+        internal const int ReaderInlineVideoMaxFileMiBMinimum = ReaderInlineVideoOptions.MaxFileMiBMinimum;
+        internal const int ReaderInlineVideoMaxFileMiBMaximum = ReaderInlineVideoOptions.MaxFileMiBMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
         internal const int GalleryFitMaxUpscalePercentMaximum = GalleryFitPreferences.MaxUpscalePercentMaximum;
+        public int GalleryMaxZoomPercent { get; set; } = GalleryMaxZoomPercentDefault;
+        internal const int GalleryMaxZoomPercentDefault = GalleryZoomLimits.MaxPercentDefault;
+        internal const int GalleryMaxZoomPercentMinimum = GalleryZoomLimits.MaxPercentMinimum;
+        internal const int GalleryMaxZoomPercentMaximum = GalleryZoomLimits.MaxPercentMaximum;
         public int PostFilterRuleLimit { get; set; } = PostFilterRuleLimitDefault;
         internal const int PostFilterRuleLimitDefault = ProfileStoreLimits.DefaultPostFilterRules;
         internal const int PostFilterRuleLimitMinimum = ProfileStoreLimits.MinimumPostFilterRules;
@@ -437,7 +562,7 @@ namespace MeowChan
             set => _readerSpoilers = Enum.TryParse(value?.Trim(), true, out ReaderSpoilerMode mode) && Enum.IsDefined(mode)
                 ? mode.ToString() : "Hide";
         }
-        // The order of the media page (MediaSortPreference): a criterion name and "Default"/"Reversed". The random order is not kept.
+        // The order of the media page (MediaSortPreference): a criterion name and "Default"/"Reversed". The random order is never written; the last other choice stays.
         private string _mediaSort = MediaSortPreference.Format(MediaSortPreference.DefaultSort), _mediaSortDirection = "Default";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string MediaSort
@@ -486,8 +611,70 @@ namespace MeowChan
         internal Import.ManualImportLimits ImportLimits => new(ImportMaxFilesPerBatch, ImportMaxBatchGiB * 1024L * 1024 * 1024,
             ImportMaxFileMiB * 1024L * 1024);
 
+        // Read-only folder sources (PLAN-POWER-TAGGEN PR2/PR3, E3). Every limit is a setting; the catalog enforces fixed ceilings
+        // (2,000,000 items per profile, 1,024 characters per path).
+        /// <summary>Most files over all folder sources (missing ones do not count); lowering it keeps every file, a scan only adds no more.</summary>
+        public int FolderSourceMaxFiles { get; set; } = FolderSources.FolderSourceCatalog.DefaultMaxFiles;
+        /// <summary>Most folder sources; lowering it keeps every source, only new ones are refused.</summary>
+        public int FolderSourceMaxRoots { get; set; } = FolderSources.FolderSourceCatalog.DefaultMaxRoots;
+        /// <summary>Files hashed at the same time.</summary>
+        public int FolderSourceHashParallelism { get; set; } = FolderSources.FolderSourceHasher.DefaultParallelism;
+        /// <summary>Largest file hashed without a user action (viewing, background), in GiB; a larger one is hashed when you favorite, rate or tag it.</summary>
+        public int FolderSourceHashMaxFileGiB { get; set; } = FolderSources.FolderSourceHasher.DefaultMaxFileGiB;
+        /// <summary>Minutes between automatic rescans of every folder source; 0 = only by hand.</summary>
+        public int FolderSourceRescanMinutes { get; set; }
+        /// <summary>Size limit of the folder source catalog (folder-sources.db) in MiB; lowering it only stops growth.</summary>
+        public int FolderSourceCatalogLimitMiB { get; set; } = FolderSources.FolderSourceCatalog.DefaultCatalogLimitMiB;
+        /// <summary>Unhashed folder files on each side of the opened one that the gallery hashes when it opens; farther ones are left out until hashed.</summary>
+        public int FolderSourceGalleryHashWindow { get; set; } = FolderSourceGalleryHashWindowDefault;
+        /// <summary>Whether unhashed folder files are hashed in the background while you are idle.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool FolderSourceBackgroundHashing { get; set; } = true;
+        internal const int FolderSourceMaxFilesMinimum = FolderSources.FolderSourceCatalog.MinimumMaxFiles, FolderSourceMaxFilesMaximum = FolderSources.FolderSourceCatalog.MaxFilesCeiling;
+        internal const int FolderSourceMaxRootsMinimum = FolderSources.FolderSourceCatalog.MinimumMaxRoots, FolderSourceMaxRootsMaximum = FolderSources.FolderSourceCatalog.MaxRootsCeiling;
+        internal const int FolderSourceHashParallelismMinimum = FolderSources.FolderSourceHasher.MinimumParallelism, FolderSourceHashParallelismMaximum = FolderSources.FolderSourceHasher.ParallelismCeiling;
+        internal const int FolderSourceHashMaxFileGiBMinimum = FolderSources.FolderSourceHasher.MinimumMaxFileGiB, FolderSourceHashMaxFileGiBMaximum = FolderSources.FolderSourceHasher.MaxFileGiBCeiling;
+        internal const int FolderSourceRescanMinutesMinimum = 0, FolderSourceRescanMinutesMaximum = 1_440;
+        internal const int FolderSourceCatalogLimitMiBMinimum = FolderSources.FolderSourceCatalog.MinimumCatalogLimitMiB, FolderSourceCatalogLimitMiBMaximum = FolderSources.FolderSourceCatalog.CatalogLimitMiBCeiling;
+        internal const int FolderSourceGalleryHashWindowDefault = 16, FolderSourceGalleryHashWindowMinimum = 0, FolderSourceGalleryHashWindowMaximum = 200;
+
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
+
+        /// <summary>
+        /// The stamp set of quick tagging (PT5): own tag names in stamp order that every tag surface offers first and gives to the
+        /// shown medium with one key. A direct view preference (saved when the stamp changes), not a limit; its length is bounded by
+        /// the stamp size, and invalid or repeated names are dropped when it is read (<c>QuickTagStamp</c>). Replaced by the stamp of
+        /// <c>tag-queue.json</c> once the tagging queue ships.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] TagStamp { get => _tagStamp; set => _tagStamp = value ?? []; }
+        private string[] _tagStamp = [];
+
+        /// <summary>
+        /// Card mode of the tagging mode (PT4): a walk starts in the card mode (the choice the person made with K last). A direct view
+        /// preference, saved when the mode is toggled.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool TaggingCardsDefault { get; set; }
+
+        /// <summary>
+        /// The cards of the card mode, in order (key 1 first): any of back, skip, done, favorite, stamp, rate-1 to rate-5. Empty is the default
+        /// set; unknown and repeated names are dropped and a short list is filled up (<c>TaggingCardSettings</c>).
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] TaggingCards { get => _taggingCards; set => _taggingCards = value ?? []; }
+        private string[] _taggingCards = [];
+
+        /// <summary>How many of the cards are shown (default 5, minimum 2, maximum 5: one key each); an out-of-range value is clamped.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTaggingCardCountConverter))]
+        public int TaggingCardCount
+        {
+            get => _taggingCardCount;
+            set => _taggingCardCount = Math.Clamp(value, TaggingCardCountMinimum, TaggingCardCountMaximum);
+        }
+        private int _taggingCardCount = TaggingCardCountDefault;
+        internal const int TaggingCardCountDefault = 5, TaggingCardCountMinimum = 2, TaggingCardCountMaximum = TaggingCardCommands.CardKeys;
 
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -556,7 +743,17 @@ namespace MeowChan
             ReaderReplyLines = Math.Clamp(ReaderReplyLines, ReaderReplyLinesMinimum, ReaderReplyLinesMaximum);
             ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
+            ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
+            ReaderTextlessMediaWidth = Math.Clamp(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthMinimum, ReaderTextlessMediaWidthMaximum);
+            ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
+            ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
+            ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
+            ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
+            ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
+            ReaderInlineVideoMaxPlayers = Math.Clamp(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersMinimum, ReaderInlineVideoMaxPlayersMaximum);
+            ReaderInlineVideoMaxFileMiB = Math.Clamp(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBMinimum, ReaderInlineVideoMaxFileMiBMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
+            GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
             QuickTagSuggestionCount = Math.Clamp(QuickTagSuggestionCount, QuickTagSuggestionCountMinimum, QuickTagSuggestionCountMaximum);
@@ -701,6 +898,14 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
+        /// <summary>The filmstrip of the gallery (thumbnails of the media before and after the shown one at the top): shown or not.</summary>
+        public bool GalleryFilmstrip { get; set; } = true;
+        /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
+        public int GalleryFilmstripHeight { get; set; } = GalleryFilmstripHeightDefault;
+        internal const int GalleryFilmstripHeightDefault = 72, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
+        public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
+        internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -716,6 +921,11 @@ namespace MeowChan
         public bool ShowShortcutHelp { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryContextOpen { get; set; }
+        /// <summary>
+        /// The gallery side panel's width in dip (V2), dragged at its left edge. A view preference of the layout profile, kept as
+        /// ColumnWidths["gallery.panelWidth"]; outside the limits it is clamped.
+        /// </summary>
+        internal const int GalleryPanelWidthDefault = 320, GalleryPanelWidthMinimum = 280, GalleryPanelWidthMaximum = 480;
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
         public double ArchiveSplitWidth
         {
@@ -793,7 +1003,7 @@ namespace MeowChan
         /// <summary>Resolves the profile without creating files or directories.</summary>
         public static string GetConfigDirectory()
         {
-            string? overrideDirectory = ResolveProfileOverrides(
+            string? overrideDirectory = ResolveProfileOverrides(CommandLineProfile,
                 Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"),
                 Environment.GetEnvironmentVariable("OCHAN_PROFILE"));
             if (overrideDirectory != null)
@@ -807,6 +1017,33 @@ namespace MeowChan
                 throw new InvalidOperationException("The user configuration directory could not be resolved.");
 
             return ResolveDefaultProfileDirectory(homePath);
+        }
+
+        private static string? s_commandLineProfile;
+
+        /// <summary>The profile folder given with <c>--profile</c> (absolute), set once by the app's entry point before any
+        /// profile is resolved; null when the start had no such argument. It wins over the default profile.</summary>
+        internal static string? CommandLineProfile
+        {
+            get => System.Threading.Volatile.Read(ref s_commandLineProfile);
+            set => System.Threading.Volatile.Write(ref s_commandLineProfile, value == null ? null : Path.TrimEndingDirectorySeparator(Path.GetFullPath(value)));
+        }
+
+        /// <summary>
+        /// The profile chosen by <c>--profile</c> (<paramref name="argument"/>) or by the environment variables, or null for the
+        /// default profile. The argument and an environment variable may name the same folder; different folders are refused
+        /// like two different environment variables, so a start never silently opens another profile than one it was given.
+        /// </summary>
+        internal static string? ResolveProfileOverrides(string? argument, string? meowChanProfile, string? oChanProfile)
+        {
+            string? environment = ResolveProfileOverrides(meowChanProfile, oChanProfile);
+            string? selected = string.IsNullOrWhiteSpace(argument) ? null :
+                Path.TrimEndingDirectorySeparator(Path.GetFullPath(argument));
+            if (selected != null && environment != null && !string.Equals(selected, environment,
+                OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "--profile and MEOWCHAN_PROFILE (or OCHAN_PROFILE) select different profiles. Use only one, or name the same directory.");
+            return selected ?? environment;
         }
 
         internal static string? ResolveProfileOverrides(string? meowChanProfile, string? oChanProfile)
@@ -1006,6 +1243,20 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(SavedSearchLimit), "SavedSearchLimit is outside its supported range (" + SavedSearchLimitMinimum + " to " + SavedSearchLimitMaximum + ").");
             if (ReaderGroupLimit is < ReaderGroupLimitMinimum or > ReaderGroupLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderGroupLimit), "ReaderGroupLimit is outside its supported range (" + ReaderGroupLimitMinimum + " to " + ReaderGroupLimitMaximum + ").");
+            if (TagQueueLimit is < TagQueueLimitMinimum or > TagQueueLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueLimit), "TagQueueLimit is outside its supported range (" + TagQueueLimitMinimum + " to " + TagQueueLimitMaximum + ").");
+            if (TagQueueFileLimitMiB is < TagQueueFileLimitMiBMinimum or > TagQueueFileLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueFileLimitMiB), "TagQueueFileLimitMiB is outside its supported range (" + TagQueueFileLimitMiBMinimum + " to " + TagQueueFileLimitMiBMaximum + ").");
+            if (TagQueueHistory is < TagQueueHistoryMinimum or > TagQueueHistoryMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueHistory), "TagQueueHistory is outside its supported range (" + TagQueueHistoryMinimum + " to " + TagQueueHistoryMaximum + ").");
+            if (TagQueueConfirmAbove is < TagQueueConfirmAboveMinimum or > TagQueueConfirmAboveMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
+            if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
+            if (TagQueueWalkWindow is < TagQueueWalkWindowMinimum or > TagQueueWalkWindowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueWalkWindow), "TagQueueWalkWindow is outside its supported range (" + TagQueueWalkWindowMinimum + " to " + TagQueueWalkWindowMaximum + ").");
+            if (TagStampSize is < TagStampSizeMinimum or > TagStampSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagStampSize), "TagStampSize is outside its supported range (" + TagStampSizeMinimum + " to " + TagStampSizeMaximum + ").");
             if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SourcesWatchPreviewRows), "SourcesWatchPreviewRows is outside its supported range (" + SourcesWatchPreviewRowsMinimum + " to " + SourcesWatchPreviewRowsMaximum + ").");
             if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
@@ -1030,6 +1281,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
             if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
+            if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
+            if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -1064,8 +1319,28 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderPageSize), "ReaderPageSize is outside its supported range.");
             if (ReaderThreadingDepth is < ReaderThreadingDepthMinimum or > ReaderThreadingDepthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
+            if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReadingHistoryLimit), "ReadingHistoryLimit is outside its supported range.");
+            if (ReaderTextlessMediaWidth is < ReaderTextlessMediaWidthMinimum or > ReaderTextlessMediaWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderTextlessMediaWidth), "ReaderTextlessMediaWidth is outside its supported range.");
+            if (ReaderHoverEnlargeSize is < ReaderHoverEnlargeSizeMinimum or > ReaderHoverEnlargeSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeSize), "ReaderHoverEnlargeSize is outside its supported range.");
+            if (ReaderHoverEnlargeDelayMs is < ReaderHoverEnlargeDelayMsMinimum or > ReaderHoverEnlargeDelayMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeDelayMs), "ReaderHoverEnlargeDelayMs is outside its supported range.");
+            if (ReaderFocusedMediaScalePercent is < ReaderFocusedMediaScalePercentMinimum or > ReaderFocusedMediaScalePercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderFocusedMediaScalePercent), "ReaderFocusedMediaScalePercent is outside its supported range.");
+            if (ReaderMediaSidebarWidth is < ReaderMediaSidebarWidthMinimum or > ReaderMediaSidebarWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarWidth), "ReaderMediaSidebarWidth is outside its supported range.");
+            if (ReaderMediaSidebarMinimumWidth is < ReaderMediaSidebarMinimumWidthMinimum or > ReaderMediaSidebarMinimumWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarMinimumWidth), "ReaderMediaSidebarMinimumWidth is outside its supported range.");
+            if (ReaderInlineVideoMaxPlayers is < ReaderInlineVideoMaxPlayersMinimum or > ReaderInlineVideoMaxPlayersMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxPlayers), "ReaderInlineVideoMaxPlayers is outside its supported range.");
+            if (ReaderInlineVideoMaxFileMiB is < ReaderInlineVideoMaxFileMiBMinimum or > ReaderInlineVideoMaxFileMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxFileMiB), "ReaderInlineVideoMaxFileMiB is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
+            if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryMaxZoomPercent), "GalleryMaxZoomPercent is outside its supported range.");
             if (PostFilterRuleLimit is < PostFilterRuleLimitMinimum or > PostFilterRuleLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PostFilterRuleLimit), "PostFilterRuleLimit is outside its supported range.");
             if (HiddenPostLimit is < HiddenPostLimitMinimum or > HiddenPostLimitMaximum)
@@ -1102,6 +1377,20 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaIndexMaxThreads), "MediaIndexMaxThreads is outside its supported range (" + MediaIndexMaxThreadsMinimum + " to " + MediaIndexMaxThreadsMaximum + ").");
             if (ImportCatalogLimitMiB is < ImportCatalogLimitMiBMinimum or > ImportCatalogLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportCatalogLimitMiB), "ImportCatalogLimitMiB is outside its supported range (" + ImportCatalogLimitMiBMinimum + " to " + ImportCatalogLimitMiBMaximum + ").");
+            if (FolderSourceMaxFiles is < FolderSourceMaxFilesMinimum or > FolderSourceMaxFilesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceMaxFiles), "FolderSourceMaxFiles is outside its supported range (" + FolderSourceMaxFilesMinimum + " to " + FolderSourceMaxFilesMaximum + ").");
+            if (FolderSourceMaxRoots is < FolderSourceMaxRootsMinimum or > FolderSourceMaxRootsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceMaxRoots), "FolderSourceMaxRoots is outside its supported range (" + FolderSourceMaxRootsMinimum + " to " + FolderSourceMaxRootsMaximum + ").");
+            if (FolderSourceHashParallelism is < FolderSourceHashParallelismMinimum or > FolderSourceHashParallelismMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceHashParallelism), "FolderSourceHashParallelism is outside its supported range (" + FolderSourceHashParallelismMinimum + " to " + FolderSourceHashParallelismMaximum + ").");
+            if (FolderSourceHashMaxFileGiB is < FolderSourceHashMaxFileGiBMinimum or > FolderSourceHashMaxFileGiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceHashMaxFileGiB), "FolderSourceHashMaxFileGiB is outside its supported range (" + FolderSourceHashMaxFileGiBMinimum + " to " + FolderSourceHashMaxFileGiBMaximum + ").");
+            if (FolderSourceRescanMinutes is < FolderSourceRescanMinutesMinimum or > FolderSourceRescanMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceRescanMinutes), "FolderSourceRescanMinutes is outside its supported range (" + FolderSourceRescanMinutesMinimum + " to " + FolderSourceRescanMinutesMaximum + ").");
+            if (FolderSourceCatalogLimitMiB is < FolderSourceCatalogLimitMiBMinimum or > FolderSourceCatalogLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceCatalogLimitMiB), "FolderSourceCatalogLimitMiB is outside its supported range (" + FolderSourceCatalogLimitMiBMinimum + " to " + FolderSourceCatalogLimitMiBMaximum + ").");
+            if (FolderSourceGalleryHashWindow is < FolderSourceGalleryHashWindowMinimum or > FolderSourceGalleryHashWindowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(FolderSourceGalleryHashWindow), "FolderSourceGalleryHashWindow is outside its supported range (" + FolderSourceGalleryHashWindowMinimum + " to " + FolderSourceGalleryHashWindowMaximum + ").");
             if (PluginEditorExecutable is { Length: > 4096 } || PluginEditorExecutable?.Any(char.IsControl) == true
                 || PluginEditorArguments == null || PluginEditorArguments.Length > 32
                 || PluginEditorArguments.Any(value => value == null || value.Length > 4096 || value.Any(char.IsControl)))
@@ -1178,6 +1467,13 @@ namespace MeowChan
                 PostBookmarkLimit = PostBookmarkLimit,
                 SavedSearchLimit = SavedSearchLimit,
                 ReaderGroupLimit = ReaderGroupLimit,
+                TagQueueLimit = TagQueueLimit,
+                TagQueueFileLimitMiB = TagQueueFileLimitMiB,
+                TagQueueHistory = TagQueueHistory,
+                TagQueueConfirmAbove = TagQueueConfirmAbove,
+                ProfileRegistryLimit = ProfileRegistryLimit,
+                TagQueueWalkWindow = TagQueueWalkWindow,
+                TagStampSize = TagStampSize,
                 SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
@@ -1191,6 +1487,9 @@ namespace MeowChan
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
+                GalleryFilmstrip = GalleryFilmstrip,
+                GalleryFilmstripHeight = GalleryFilmstripHeight,
+                GalleryFilmstripPreload = GalleryFilmstripPreload,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1201,6 +1500,9 @@ namespace MeowChan
                 StatsMaxSources = StatsMaxSources,
                 StatsHeaderGraph = StatsHeaderGraph,
                 StatsHeaderIcons = StatsHeaderIcons,
+                HeaderTagline = HeaderTagline,
+                HeaderTaglineFixedId = HeaderTaglineFixedId,
+                LastTaglineVersion = LastTaglineVersion,
                 GalleryImageCacheMiB = GalleryImageCacheMiB,
                 GalleryPreloadAhead = GalleryPreloadAhead,
                 GalleryPreloadBehind = GalleryPreloadBehind,
@@ -1213,6 +1515,14 @@ namespace MeowChan
                 MediaIndexMaxEntries = MediaIndexMaxEntries,
                 MediaIndexMaxThreads = MediaIndexMaxThreads,
                 ImportCatalogLimitMiB = ImportCatalogLimitMiB,
+                FolderSourceMaxFiles = FolderSourceMaxFiles,
+                FolderSourceMaxRoots = FolderSourceMaxRoots,
+                FolderSourceHashParallelism = FolderSourceHashParallelism,
+                FolderSourceHashMaxFileGiB = FolderSourceHashMaxFileGiB,
+                FolderSourceRescanMinutes = FolderSourceRescanMinutes,
+                FolderSourceCatalogLimitMiB = FolderSourceCatalogLimitMiB,
+                FolderSourceGalleryHashWindow = FolderSourceGalleryHashWindow,
+                FolderSourceBackgroundHashing = FolderSourceBackgroundHashing,
                 ReaderThumbnailWidth = ReaderThumbnailWidth,
                 ReaderFoldLines = ReaderFoldLines,
                 ReaderPreviewLines = ReaderPreviewLines,
@@ -1221,7 +1531,24 @@ namespace MeowChan
                 ReaderReplyLines = ReaderReplyLines,
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
+                ReadingHistoryLimit = ReadingHistoryLimit,
+                ReaderTextlessMediaWidth = ReaderTextlessMediaWidth,
+                ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
+                ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
+                ReaderFocusedMediaScalePercent = ReaderFocusedMediaScalePercent,
+                ReaderTextlessLargeImages = ReaderTextlessLargeImages,
+                ReaderHoverEnlarge = ReaderHoverEnlarge,
+                ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
+                ReaderMediaSidebar = ReaderMediaSidebar,
+                ReaderMediaSidebarSide = ReaderMediaSidebarSide,
+                ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
+                ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
+                ReaderInlineVideo = ReaderInlineVideo,
+                ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
+                ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
+                ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
+                GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
                 QuickTagSuggestionCount = QuickTagSuggestionCount,
@@ -1240,6 +1567,10 @@ namespace MeowChan
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
                 PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
+                TagStamp = (string[])TagStamp.Clone(),
+                TaggingCardsDefault = TaggingCardsDefault,
+                TaggingCards = (string[])TaggingCards.Clone(),
+                TaggingCardCount = TaggingCardCount,
                 Theme = Theme,
                 Animations = Animations,
                 Language = Language,
@@ -1355,6 +1686,13 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            TagQueueLimit = source.TagQueueLimit;
+            TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
+            TagQueueHistory = source.TagQueueHistory;
+            TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            ProfileRegistryLimit = source.ProfileRegistryLimit;
+            TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagStampSize = source.TagStampSize;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
@@ -1368,6 +1706,9 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryFilmstrip = source.GalleryFilmstrip;
+            GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1378,6 +1719,9 @@ namespace MeowChan
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
             StatsHeaderIcons = source.StatsHeaderIcons;
+            HeaderTagline = source.HeaderTagline;
+            HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            LastTaglineVersion = source.LastTaglineVersion;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;
@@ -1390,6 +1734,14 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            FolderSourceMaxFiles = source.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = source.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = source.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = source.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = source.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = source.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = source.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = source.FolderSourceBackgroundHashing;
             ReaderThumbnailWidth = source.ReaderThumbnailWidth;
             ReaderFoldLines = source.ReaderFoldLines;
             ReaderPreviewLines = source.ReaderPreviewLines;
@@ -1398,7 +1750,24 @@ namespace MeowChan
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
+            ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
+            ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
+            ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
+            ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
+            ReaderHoverEnlarge = source.ReaderHoverEnlarge;
+            ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
+            ReaderMediaSidebar = source.ReaderMediaSidebar;
+            ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
+            ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
+            ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
+            ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;
@@ -1444,6 +1813,10 @@ namespace MeowChan
             StatusPageSegment = source.StatusPageSegment;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
+            TagStamp = (string[])source.TagStamp.Clone();
+            TaggingCardsDefault = source.TaggingCardsDefault;
+            TaggingCards = (string[])source.TaggingCards.Clone();
+            TaggingCardCount = source.TaggingCardCount;
             LoadWarning = source.LoadWarning;
             LoadProblem = source.LoadProblem;
             LoadDisabledSourceGrants = source.LoadDisabledSourceGrants;
@@ -1491,6 +1864,17 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            TagQueueLimit = source.TagQueueLimit;
+            TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
+            TagQueueHistory = source.TagQueueHistory;
+            TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            ProfileRegistryLimit = source.ProfileRegistryLimit;
+            TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagStampSize = source.TagStampSize;
+            // The card mode choices are edited on the settings page (Tagging); K in the gallery still saves the start choice as a view preference.
+            TaggingCardsDefault = source.TaggingCardsDefault;
+            TaggingCards = (string[])source.TaggingCards.Clone();
+            TaggingCardCount = source.TaggingCardCount;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
@@ -1504,6 +1888,9 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryFilmstrip = source.GalleryFilmstrip;
+            GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1514,6 +1901,9 @@ namespace MeowChan
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
             StatsHeaderIcons = source.StatsHeaderIcons;
+            HeaderTagline = source.HeaderTagline;
+            HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            // LastTaglineVersion is a direct view preference (the window writes it), not edited in Settings.
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;
@@ -1526,6 +1916,14 @@ namespace MeowChan
             MediaIndexMaxEntries = source.MediaIndexMaxEntries;
             MediaIndexMaxThreads = source.MediaIndexMaxThreads;
             ImportCatalogLimitMiB = source.ImportCatalogLimitMiB;
+            FolderSourceMaxFiles = source.FolderSourceMaxFiles;
+            FolderSourceMaxRoots = source.FolderSourceMaxRoots;
+            FolderSourceHashParallelism = source.FolderSourceHashParallelism;
+            FolderSourceHashMaxFileGiB = source.FolderSourceHashMaxFileGiB;
+            FolderSourceRescanMinutes = source.FolderSourceRescanMinutes;
+            FolderSourceCatalogLimitMiB = source.FolderSourceCatalogLimitMiB;
+            FolderSourceGalleryHashWindow = source.FolderSourceGalleryHashWindow;
+            FolderSourceBackgroundHashing = source.FolderSourceBackgroundHashing;
             ReaderThumbnailWidth = source.ReaderThumbnailWidth;
             ReaderFoldLines = source.ReaderFoldLines;
             ReaderPreviewLines = source.ReaderPreviewLines;
@@ -1534,7 +1932,24 @@ namespace MeowChan
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
+            ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
+            ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
+            ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
+            ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
+            ReaderHoverEnlarge = source.ReaderHoverEnlarge;
+            ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
+            ReaderMediaSidebar = source.ReaderMediaSidebar;
+            ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
+            ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
+            ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
+            ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
+            ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;
@@ -1581,7 +1996,12 @@ namespace MeowChan
         }
 
         // Compatibility settings host uses its existing isolated config owner.
-        internal void ForgetReadingPositionFile() => File.Delete(Path.Combine(_profileDirectory ?? GetConfigDirectory(), "reading-position.json"));
+        internal void ForgetReadingPositionFile()
+        {
+            string directory = _profileDirectory ?? GetConfigDirectory();
+            try { File.Delete(Path.Combine(directory, "reading-history.json")); }
+            finally { File.Delete(Path.Combine(directory, "reading-position.json")); }
+        }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());
 
@@ -1837,6 +2257,40 @@ namespace MeowChan
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
     }
 
+    /// <summary>
+    /// A list of names kept as a view preference (the tag stamp): a damaged value (not an array, other element types) never fails the
+    /// whole settings file; it reads as the strings that are there, at most <see cref="MaximumItems"/> of them.
+    /// </summary>
+    internal sealed class DesktopPreferenceNameListConverter : JsonConverter<string[]>
+    {
+        internal const int MaximumItems = 64;
+        public DesktopPreferenceNameListConverter() { }
+        public override bool HandleNull => true;
+
+        public override string[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartArray)
+            {
+                reader.Skip();
+                return [];
+            }
+            List<string> items = new();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (reader.TokenType == JsonTokenType.String && items.Count < MaximumItems && reader.GetString() is { } text) items.Add(text);
+                else reader.Skip();
+            }
+            return items.ToArray();
+        }
+
+        public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            foreach (string item in value ?? []) writer.WriteStringValue(item);
+            writer.WriteEndArray();
+        }
+    }
+
     internal sealed class DesktopPreferenceBooleanConverter : JsonConverter<bool>
     {
         public DesktopPreferenceBooleanConverter() { }
@@ -1916,6 +2370,19 @@ namespace MeowChan
                 return Math.Clamp(value, Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
             reader.Skip();
             return Config.GallerySlideshowVideoRepeatsDefault;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceTaggingCardCountConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.TaggingCardCountMinimum, Config.TaggingCardCountMaximum);
+            reader.Skip();
+            return Config.TaggingCardCountDefault;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

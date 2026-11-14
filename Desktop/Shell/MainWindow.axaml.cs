@@ -129,8 +129,11 @@ public partial class MainWindow : Window
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
             RegisterManualImportCommand();
+            InitializeProfileMenu();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
+            RegisterTagQueueCommands();
+            RegisterTaggingPageCommands();
             // Section and rule-template registrations belong to pages built after the first frame
             // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();
@@ -796,6 +799,7 @@ public partial class MainWindow : Window
         _trayUpdateItem = new NativeMenuItem { IsVisible = false };
         _trayUpdateItem.Click += OnTrayUpdateClick;
         menu.Items.Add(_trayUpdateItem);
+        AddTrayNavigationItems(menu); // statistics and settings, then a separator
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
         exitItem.Click += async (sender, e) => await CloseApplicationAsync();
@@ -894,6 +898,7 @@ public partial class MainWindow : Window
         _trayOpenItem = null;
         _trayFolderItem = null;
         _trayExitItem = null;
+        DisposeTrayNavigation();
         _trayPauseItem = null;
         _trayUpdateItem = null;
         _trayUpdateKey = string.Empty;
@@ -967,6 +972,7 @@ public partial class MainWindow : Window
         if (_trayOpenItem != null) ApplyTrayCommandItem(_trayOpenItem, "app.show");
         if (_trayFolderItem != null) ApplyTrayCommandItem(_trayFolderItem, "location.open-folder");
         if (_clipboardMenuItem != null) ApplyTrayCommandItem(_clipboardMenuItem, "watch.import-clipboard");
+        RefreshTrayNavigationIcons();
         if (_trayExitItem != null) ApplyTrayCommandItem(_trayExitItem, "app.quit");
         _trayPauseIconPaused = null;
         RefreshTray();
@@ -1267,6 +1273,7 @@ public partial class MainWindow : Window
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
         ApplyHeaderGraphMode();
+        ApplyHeaderTaglineSetting();
         ApplyGalleryPreferences();
     }
 

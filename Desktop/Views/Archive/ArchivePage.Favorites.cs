@@ -48,11 +48,9 @@ public partial class ArchivePage
         ResourceId[] selectedThreads = FrozenArchiveSelection();
         var query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
         var eligibleUrls = CaptureExportWorkUrls(_workFilter, GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>());
-        Window dialog = new()
-        {
-            Name = "FavoritesOverviewDialog", Title = Texts.T("viewer.favorites.title"), Width = 760, Height = 580,
-            MinWidth = 450, MinHeight = 340, WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+        // Modals plan MD3: the list-and-detail step; the title stands in the title bar only.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(Texts.T("viewer.favorites.title"), DialogSize.L, modal: true);
+        dialog.Name = "FavoritesOverviewDialog";
         ComboBox scope = new() { Name = "FavoritesScope", ItemsSource = new[]
         {
             Texts.T("viewer.favorites.current"), Texts.T("viewer.favorites.selected"),
@@ -90,11 +88,9 @@ public partial class ArchivePage
         ScrollViewer.SetHorizontalScrollBarVisibility(list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         WrapPanel filters = new() { ItemSpacing = 8, LineSpacing = 8 };
         filters.Children.Add(scope); filters.Children.Add(search);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
         // Selection actions stay with the list; export always targets the shown set.
         WrapPanel selectionActions = new() { ItemSpacing = 8, LineSpacing = 8 };
         selectionActions.Children.Add(view); selectionActions.Children.Add(remove);
-        actions.Children.Add(export); actions.Children.Add(close);
         StackPanel header = new() { Spacing = 12 };
         header.Children.Add(filters); header.Children.Add(summary);
         Grid content = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12, Margin = new Thickness(16, 0, 16, 12) };
@@ -102,25 +98,19 @@ public partial class ArchivePage
         results.Children.Add(list); results.Children.Add(emptyState);
         content.Children.Add(results);
         content.Children.Add(selectionActions); Grid.SetRow(selectionActions, 1);
-        StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent };
-        footer.Classes.Add("workspace-dialog-footer");
+        // Close is the way out (primary, right-most); the status keeps the full width above the buttons.
+        Border footer = MeowChan.Desktop.Controls.DialogFooter.Build(close, new Control[] { export },
+            new ScrollViewer { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
+            statusAbove: true);
         // Scope and search stay fixed; the list keeps its own virtualized scrolling and fills the body
         // until the body reaches its minimum height, after which the whole body scrolls.
         Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
         ScrollViewer bodyScroll = layout.Children.OfType<ScrollViewer>().Single();
         bodyScroll.SizeChanged += (_, args) => content.Height = Math.Max(180, args.NewSize.Height - content.Margin.Bottom);
-        dialog.Content = WindowChrome.Frame(dialog, layout);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, layout, modal: true);
         close.Click += (_, _) => dialog.Close();
         clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
-        dialog.KeyDown += (_, key) =>
-        {
-            if (key.Handled || key.Key != Key.Escape) return;
-            key.Handled = true;
-            dialog.Close();
-        };
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog);
 
         FavoriteEntry[] scoped = all;
         FavoriteEntry[] visible = all;
@@ -158,12 +148,12 @@ public partial class ArchivePage
             string exportLabel = Texts.T("viewer.favorites.exportShown", visible.Length);
             export.Content = exportLabel;
             AutomationProperties.SetName(export, exportLabel);
-            string exportHint = Texts.T("viewer.favorites.exportShownHint", visible.Length);
+            string exportHint = Texts.Count("viewer.favorites.exportShownHint", visible.Length);
             ToolTip.SetTip(export, exportHint);
             AutomationProperties.SetHelpText(export, exportHint);
             clearSearch.IsEnabled = !actionRunning;
             export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
-            if (selected?.Missing == true) Notice(Texts.T("viewer.favorites.unavailable", 1));
+            if (selected?.Missing == true) Notice(Texts.Count("viewer.favorites.unavailable", 1));
         }
         list.SelectionChanged += (_, _) => RefreshActions();
         async Task LoadScopeAsync()
@@ -188,7 +178,7 @@ public partial class ArchivePage
                 if (request != generation || loading.IsCancellationRequested) return;
                 scoped = next;
                 missing = resolved.Missing.Select(entry => entry.Key).ToHashSet();
-                Notice(missing.Count == 0 ? string.Empty : Texts.T("viewer.favorites.unavailable", missing.Count));
+                Notice(missing.Count == 0 ? string.Empty : Texts.Count("viewer.favorites.unavailable", missing.Count));
                 scopeLoading = false;
                 Render();
             }
@@ -248,7 +238,7 @@ public partial class ArchivePage
                 if (galleryStart == null)
                 {
                     missing.Add(selected.Entry.Key); Render();
-                    Notice(Texts.T("viewer.favorites.unavailable", 1));
+                    Notice(Texts.Count("viewer.favorites.unavailable", 1));
                     return;
                 }
                 dialog.Close();
@@ -285,16 +275,13 @@ public partial class ArchivePage
             ?? TopLevel.GetTopLevel(this) as Window;
         if (owner == null) return;
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();
-        Window dialog = new()
-        {
-            Title = Texts.T("export.dialog.title"), Width = 600, Height = 300, MinWidth = 420, MinHeight = 280,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+        // Modals plan MD3: the form step; the title stands in the title bar only.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(Texts.T("export.dialog.title"), DialogSize.M, modal: true);
         // The same Export header as the thread dialog: files have one format, so both choices show as text.
         ExportChoiceField format = new("OriginalExportFormat");
         format.Set(Texts.T("export.format"), new[] { new ExportChoiceField.Option("originals", Texts.T("export.format.originals")) }, "originals", true);
         ExportChoiceField scope = new("OriginalExportScope");
-        string scopeText = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
+        string scopeText = Texts.Count("viewer.export.scope", assets.Length + missingCount, scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
         scope.Set(Texts.T("export.scope"), new[] { new ExportChoiceField.Option("files", scopeText) }, "files", true);
         WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 6 };
         choices.Children.Add(format); choices.Children.Add(scope);
@@ -305,7 +292,7 @@ public partial class ArchivePage
         void Notice(string text) { status.Text = text; error.Text = string.Empty; }
         void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         if (assets.Length == 0)
-            status.Text = missingCount > 0 ? Texts.T("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
+            status.Text = missingCount > 0 ? Texts.Count("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
         Button browse = CommandBindings.CreateButton("export.browse-parent", () => { });
         browse.IsEnabled = assets.Length > 0;
         Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { });
@@ -316,12 +303,7 @@ public partial class ArchivePage
         openFolder.IsEnabled = !string.IsNullOrEmpty(destination.Text);
         Button cancel = CommandBindings.CreateButton("export.close", () => { });
         cancel.Name = "OriginalExportClose";
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
-        cancel.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
-        actions.Children.Add(cancel); actions.Children.Add(openFolder); actions.Children.Add(start);
-        TextBlock title = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap }; title.Classes.Add("page-title");
-        StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(title); header.Children.Add(choices);
+        cancel.Classes.Add("subtle"); start.Classes.Add("primary");
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
         // Said before the export starts: own tags never travel with copied files (no silent drop, no implied round trip).
@@ -329,19 +311,19 @@ public partial class ArchivePage
             TextWrapping = TextWrapping.Wrap };
         privateOmitted.Classes.Add("workspace-help");
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
-        TextBlock unavailable = new() { Text = Texts.T("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
+        TextBlock unavailable = new() { Text = Texts.Count("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
         StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
         content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-        StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        dialog.Content = WindowChrome.Frame(dialog, MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer,
-            MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error)), WindowChromeKind.Dialog);
+        // Start is the primary action right-most; Close and Open folder stay left of it; the status keeps the full width above.
+        Border footer = MeowChan.Desktop.Controls.DialogFooter.Build(start, new Control[] { cancel, openFolder },
+            new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
+            statusAbove: true);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, MeowChan.Desktop.Controls.DialogFrame.Build(choices, content, footer,
+            MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error)), modal: true);
         CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         bool running = false;
         dialog.Closing += (_, args) =>
@@ -351,13 +333,13 @@ public partial class ArchivePage
             run.Cancel();
         };
         dialog.Closed += (_, _) => run.Cancel();
-        dialog.KeyDown += (_, key) =>
+        // Escape stops a running copy first (a local cancel), then closes the dialog.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog, tryCancelLocal: () =>
         {
-            if (key.Handled || key.Key != Key.Escape) return;
-            key.Handled = true;
-            if (running) run.Cancel();
-            else dialog.Close();
-        };
+            if (!running) return false;
+            run.Cancel();
+            return true;
+        });
         openFolder.Click += async (_, _) =>
         {
             string? path = destination.Text;

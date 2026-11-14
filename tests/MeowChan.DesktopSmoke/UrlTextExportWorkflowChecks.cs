@@ -86,7 +86,7 @@ internal static class UrlTextExportWorkflowChecks
                                 .Select(part => Named<TextBlock>(dialog, "UrlTextExport" + part)).ToArray();
                             // Observe the real native client at both the normal and minimum scene.
                             // Never measure a clamped/larger host as a successful 360-DIP layout.
-                            foreach (var size in new[] { (Width: 640d, Height: 600d), (Width: 360d, Height: 360d) })
+                            foreach (var size in new[] { (Width: 640d, Height: 520d), (Width: 420d, Height: 360d) }) // form step: preferred and minimum (modals plan MD2)
                             {
                                 dialog.Width = size.Width;
                                 dialog.Height = size.Height;
@@ -138,15 +138,15 @@ internal static class UrlTextExportWorkflowChecks
                                 foreach (string code in new[] { "es", "fr", "ru" })
                                 {
                                     Texts.SetLanguage(code);
-                                    await WaitAsync(() => Equals(close.Content, Texts.T("urltext.export.close"))
+                                    await WaitAsync(() => Equals(close.Content, Texts.T("action.close"))
                                         && Equals(save.Content, Texts.T("urltext.export.save")), "saved live " + code);
                                     await SettleAsync(dialog);
                                     Require(!save.IsEnabled && close.IsEffectivelyEnabled
                                         && Named<TextBlock>(dialog, "UrlTextExportStatus").Text == Texts.T("urltext.export.saved")
                                         && choosers == beforeChoose + 1 && writes == beforeWrite + 1,
                                         "Saved language refresh changed the result or authorized another write.");
-                                    CheckGeometry(dialog, save, close, "urltext.export.close", new Size(360, 360),
-                                        $"{fixture.Id.Source}/360x360/{code}/saved");
+                                    CheckGeometry(dialog, save, close, "action.close", new Size(420, 360),
+                                        $"{fixture.Id.Source}/420x360/{code}/saved");
                                 }
                                 Require(File.ReadAllBytes(target).SequenceEqual(expected), "Saved live refresh changed final bytes.");
                             }
@@ -219,6 +219,8 @@ internal static class UrlTextExportWorkflowChecks
         foreach (string name in new[] { "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton" })
         {
             Button button = Named<Button>(dialog, name);
+            // A modal dialog has the Dialog caption (modals plan MD2): no minimize, which would strand the blocked owner.
+            if (name == "WindowMinimizeButton") { Require(!button.IsVisible, scene + ": a modal dialog offers minimize"); continue; }
             bool belongsToChrome = button.GetVisualAncestors().Contains(chrome);
             bool visible = button.IsEffectivelyVisible;
             bool fitsChrome = Fits(button, chrome, default);

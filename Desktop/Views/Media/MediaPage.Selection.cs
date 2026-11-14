@@ -7,8 +7,10 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -38,6 +40,11 @@ public sealed partial class MediaPage
     /// <summary>Shows the export dialog for the frozen originals, the number of tiles that had none to offer and the label of what is exported.</summary>
     internal Func<IReadOnlyList<FavoriteExportAsset>, int, string, Task>? ExportOriginals { get; set; }
     internal Window? SelectionTagWindow => _selectionTag;
+    private QuickTagPopover? _selectionTagPopover;
+    /// <summary>The quick tag popover of the selection while it is open ("Advanced…" in it opens <see cref="SelectionTagWindow"/>).</summary>
+    internal QuickTagPopover? SelectionTagPopover => _selectionTagPopover;
+    /// <summary>Hashes the unhashed folder source files among the given entries (a user action) and returns their entries with digest.</summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>, CancellationToken, Task<IReadOnlyDictionary<MediaLibraryEntry, MediaLibraryEntry>>>? HashFolderFilesAsync { get; set; }
 
     /// <summary>The selected tiles in page order. Selected tiles are always among the shown ones.</summary>
     internal IReadOnlyList<MediaLibraryTile> SelectedTiles => MediaLibrarySelection.Pick(_tiles, _grid.Selection.SelectedIndexes);
@@ -48,13 +55,13 @@ public sealed partial class MediaPage
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
         // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
         _selectionRow.IsVisible = false;
-        foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selMore, _selClear })
+        foreach (Control control in new Control[] { _selectionText, _selTag, _selQueue, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
-        return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote } };
+        return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote, BuildQueueAsk() } };
     }
 
     private void LocalizeSelection()
@@ -63,24 +70,33 @@ public sealed partial class MediaPage
         _selGallery.Content = Texts.T("media.selection.gallery");
         _selExport.Content = Texts.T("media.selection.export");
         _selClear.Content = Texts.T("media.selection.clear");
+        LocalizeQueue();
         LocalizeExportAll();
         UpdateSelectionBar();
     }
 
     internal void ClearSelection() => _grid.Selection.Clear();
 
-    // Escape (fixed) clears and media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
+    // Escape (fixed) ends the focus mode, then dismisses the "export all" question, then clears; media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _exportAllAsk.IsVisible)
+        // PT1: a pending "add to tagging queue" question is dismissed before the levels below.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _queueAsk.IsVisible)
         {
-            DismissExportAllAsk();
+            DismissQueueAsk();
             e.Handled = true;
             return true;
         }
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _grid.Selection.Count > 0)
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
-            ClearSelection();
+            // The levels in order (MediaFocusMode.Escape): the focus mode, a pending "export all" question, the selection.
+            switch (MediaFocusMode.Escape(_focusMode, _exportAllAsk.IsVisible, _grid.Selection.Count))
+            {
+                case MediaEscapeStep.ExitFocus: SetFocusMode(false); break;
+                case MediaEscapeStep.DismissExportAll: DismissExportAllAsk(); break;
+                case MediaEscapeStep.ClearSelection: ClearSelection(); break;
+                default: return false;
+            }
             e.Handled = true;
             return true;
         }
@@ -117,12 +133,14 @@ public sealed partial class MediaPage
               + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);
         bool ready = reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested;
         SetAction(_selTag, ready && TagServices != null, reason, TagServices != null, "media.selection.tag.hint", Texts.T("media.selection.howTo"));
+        UpdateQueueActions(ready, reason);
         SetAction(_selGallery, ready && OpenGallery != null, reason, OpenGallery != null, "media.selection.gallery.hint");
         SetAction(_selExport, ready && ExportOriginals != null, reason, ExportOriginals != null, "media.selection.export.hint");
         _selClear.IsEnabled = count > 0;
         UpdateExportAll();
         RefreshWorkView();
-        if (count == 0 && !_selectionBusy) ShowSelectionNote(null);
+        if (count == 0 && !_selectionBusy) { _folderNoteShown = false; ShowSelectionNote(null); }
+        UpdateFolderVersionNote(count);
     }
 
     private int NotSavedSelected()
@@ -168,7 +186,7 @@ public sealed partial class MediaPage
         if (!_selGallery.IsEnabled || OpenGallery == null) return;
         (IReadOnlyList<MediaLibraryEntry> entries, int notSaved) = MediaLibrarySelection.GalleryEntries(SelectedTiles);
         ShowSelectionNote(notSaved == 0 ? null : entries.Count == 0 ? Texts.T("media.selection.note.noneSaved")
-            : Texts.T("media.selection.note.galleryPartial", entries.Count, notSaved));
+            : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
         if (entries.Count == 0) return;
         await OpenGallery(entries, 0);
     }
@@ -187,12 +205,12 @@ public sealed partial class MediaPage
         DismissExportAllAsk();
         _selectionBusy = true;
         UpdateSelectionBar();
-        if (preparing is { } count) ShowSelectionNote(Texts.T("media.exportAll.preparing", count.ToString("N0", Texts.Culture)));
+        if (preparing is { } count) ShowSelectionNote(Texts.Count("media.exportAll.preparing", count, count.ToString("N0", Texts.Culture)));
         try
         {
             // Reading the manifests is IO and a large plan is a long loop: neither belongs on the UI thread. The plan holds no controls.
             MediaLibraryExportPlan plan = await Task.Run(() => MediaLibraryExport.BuildAsync(tiles, _openManifest, _lifetime.Token), _lifetime.Token);
-            ShowSelectionNote(plan.Unavailable == 0 ? null : Texts.T("viewer.favorites.unavailable", plan.Unavailable));
+            ShowSelectionNote(plan.Unavailable == 0 ? null : Texts.Count("viewer.favorites.unavailable", plan.Unavailable));
             await export(plan.Assets, plan.Unavailable, scope);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
@@ -207,12 +225,65 @@ public sealed partial class MediaPage
         }
     }
 
+    /// <summary>
+    /// Tags the selection in the quick tag popover (tri-state chips over every occurrence of the chosen tiles, one write per change).
+    /// It opens on <paramref name="anchor"/> (the tile of the menu), by default on the selection bar's button. "Advanced…" opens the
+    /// full dialog (<see cref="TagSelectionDialogAsync"/>) to pick occurrences.
+    /// </summary>
+    internal async Task TagSelectionAsync(Control? anchor = null)
+    {
+        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
+        if (tiles.Count == 0) return;
+        static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
+        Control host = Usable(anchor) ? anchor! : Usable(_selTag) ? _selTag : _grid;
+        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
+        MediaLibraryTileRow? lead = SelectedRow;
+        TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
+        // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
+        QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
+        Control? origin = null;
+        try
+        {
+            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), options with
+            {
+                ReadSourceTags = ReadBooruCatalog,
+                IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
+                RestoreFocus = false
+            });
+            origin = popover.Origin;
+            _selectionTagPopover = popover;
+            reason = await popover.Result;
+        }
+        finally
+        {
+            _selectionTagPopover = null;
+            _selectionBusy = false;
+            if (!_lifetime.IsCancellationRequested)
+            {
+                // The new tags show at once in filters and details; the tiles are rebuilt, so the focus is placed again.
+                if (session.Changed) RefreshUserData();
+                UpdateSelectionBar();
+                if (reason != QuickTagPopoverCloseReason.Advanced) RestoreMediaMenuActionFocus(origin, () => !OwnedWindowOpen());
+            }
+        }
+        if (reason == QuickTagPopoverCloseReason.Advanced && !_lifetime.IsCancellationRequested) await TagSelectionDialogAsync();
+    }
+
+    private bool OwnedWindowOpen() => (_owner ?? TopLevel.GetTopLevel(this) as Window)?.OwnedWindows.Any(window => window.IsVisible) == true;
+
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>
-    internal async Task TagSelectionAsync()
+    internal async Task TagSelectionDialogAsync()
     {
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;
         IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
+        tiles = await WithHashedFolderFilesAsync(tiles);
+        if (_lifetime.IsCancellationRequested) return;
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
         MediaSelectionTagDialog dialog = new(session, tiles.Count, ReadBooruCatalog);
         _selectionTag = dialog;
@@ -228,6 +299,35 @@ public sealed partial class MediaPage
                 RefreshUserData(); // The new tags show at once in filters and details.
                 UpdateSelectionBar();
             }
+        }
+    }
+}
+
+public sealed partial class MediaPage
+{
+    // A folder source file can carry a tag only once its bytes are hashed: the selection's unhashed folder files are hashed
+    // first (the note says so), the tiles then carry their entries with digest. Nothing else of the selection changes.
+    private async Task<IReadOnlyList<MediaLibraryTile>> WithHashedFolderFilesAsync(IReadOnlyList<MediaLibraryTile> tiles)
+    {
+        if (HashFolderFilesAsync is not { } hash) return tiles;
+        MediaLibraryEntry[] unhashed = tiles.SelectMany(tile => tile.Occurrences.Append(tile.Entry))
+            .Where(entry => entry.FolderItemId != null && entry.Sha256 == null && entry.Presence == MediaLibraryPresence.Present).Distinct().ToArray();
+        if (unhashed.Length == 0) return tiles;
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        ShowSelectionNote(Texts.T("folderSource.selection.hashing", unhashed.Length.ToString("N0", Texts.Culture)));
+        try
+        {
+            IReadOnlyDictionary<MediaLibraryEntry, MediaLibraryEntry> hashed = await hash(unhashed, _lifetime.Token);
+            MediaLibraryEntry Map(MediaLibraryEntry entry) => hashed.TryGetValue(entry, out MediaLibraryEntry? updated) ? updated : entry;
+            return tiles.Select(tile => tile with { Entry = Map(tile.Entry), Occurrences = tile.Occurrences.Select(Map).ToArray() }).ToArray();
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return tiles; }
+        finally
+        {
+            _selectionBusy = false;
+            ShowSelectionNote(null);
+            if (!_lifetime.IsCancellationRequested) UpdateSelectionBar();
         }
     }
 }

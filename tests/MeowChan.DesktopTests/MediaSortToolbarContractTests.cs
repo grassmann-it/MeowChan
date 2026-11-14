@@ -59,6 +59,27 @@ public sealed class MediaSortToolbarContractTests
     }
 
     [Fact]
+    public void ChoosingRandomKeepsTheLastOtherChoiceForTheNextStart()
+    {
+        Config config = new();
+        Assert.True(MediaSortPreference.Remember(config, MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed));
+        Assert.Equal(("Size", "Reversed"), (config.MediaSort, config.MediaSortDirection));
+        // Random (with whatever direction the page held) writes nothing: the settings still say Size, reversed.
+        Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed));
+        Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Default));
+        Assert.Equal(("Size", "Reversed"), (config.MediaSort, config.MediaSortDirection));
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(config.MediaSort, config.MediaSortDirection));
+        // The next real choice replaces it, also back to the default order.
+        Assert.True(MediaSortPreference.Remember(config, MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default));
+        Assert.Equal(("ByThread", "Default"), (config.MediaSort, config.MediaSortDirection));
+        // A fresh profile that only ever shuffled starts with the default order.
+        Config fresh = new();
+        Assert.False(MediaSortPreference.Remember(fresh, MediaLibrarySort.Random, MediaLibrarySortDirection.Default));
+        Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default), MediaSortPreference.Restore(fresh.MediaSort, fresh.MediaSortDirection));
+        Assert.Throws<ArgumentNullException>(() => MediaSortPreference.Remember(null!, MediaLibrarySort.Name, MediaLibrarySortDirection.Default));
+    }
+
+    [Fact]
     public void TheSettingsFileKeepsTheOrderAndNormalisesWhatIsHandEdited()
     {
         using TempDirectory directory = new();
@@ -112,12 +133,13 @@ public sealed class MediaSortToolbarContractTests
         Assert.Empty(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Wide));
         foreach (MediaToolbarLayout.Level level in new[] { MediaToolbarLayout.Level.Reduced, MediaToolbarLayout.Level.Compact })
         {
-            Assert.Equal(["media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(level));
+            Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(level));
             Assert.All(MediaToolbarLayout.MovedUnderMore(level), id => Assert.True(MediaToolbarLayout.IsMovedUnderMore(level, id)));
             foreach (string kept in new[] { "media.sort", "media.search", "media.filter.toggle", "media.toolbar.more", "media.toolbar.export-all", null })
                 Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, kept), kept);
         }
         Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Wide, "media.toolbar.refresh"));
+        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Wide, "media.toolbar.focus"));
         // Every id that can move is a policy row of the media page that the view puts under More as well, so it has a place and an order there.
         Assert.All(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced), id =>
         {

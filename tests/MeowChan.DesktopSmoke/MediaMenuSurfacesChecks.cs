@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
@@ -292,6 +293,8 @@ internal static class MediaMenuSurfacesChecks
         if (tag.IsEnabled)
         {
             tag.Command!.Execute(null);
+            await UntilAsync(() => page.MediaSelectionTagPopover is { IsOpen: true, Surface: not null });
+            page.MediaSelectionTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => page.MediaSelectionTagWindow != null);
             Require(((MediaSelectionTagDialog)page.MediaSelectionTagWindow!).Session.Candidates.Count >= 2, "Tag together did not list the occurrences of both selected files.");
             page.MediaSelectionTagWindow!.Close();

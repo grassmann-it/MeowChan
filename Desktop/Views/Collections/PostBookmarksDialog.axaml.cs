@@ -59,8 +59,11 @@ internal partial class PostBookmarksDialog : Window
     internal PostBookmarksDialog(DesktopSessionHost owner, Func<PostBookmarkKey, CancellationToken, Task<bool>> open)
     {
         AvaloniaXamlLoader.Load(this);
-        // Also shown modeless (bookmark list beside the reader), so it keeps minimize.
-        WindowChrome.WrapContent(this);
+        // Also shown modeless (bookmark list beside the reader), so it keeps minimize (modals plan MD3: L step, factory caption).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: false);
+        MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: false);
+        MeowChan.Desktop.Controls.DialogFooter.Fill(this.FindControl<Border>("DialogFrameFooter")!, B("Save"),
+            new Control[] { B("Reload"), B("Cancel") }, this.FindControl<ScrollViewer>("StatusHost"), statusAbove: true);
         _owner = owner; _open = open;
         Title = Texts.T("bookmarks.title");
         Texts.Changed += OnLanguageChanged;
@@ -110,13 +113,9 @@ internal partial class PostBookmarksDialog : Window
         Register("post-bookmarks.save", () => CanSave, SaveAsync);
         Register("post-bookmarks.remove", () => CanRemove, RemoveAsync);
         Register("post-bookmarks.open-target", () => CanOpen, OpenAsync);
-        KeyDown += async (_, e) =>
-        {
-            _router.Route(e);
-            // Bubble handler lets native text/IME handling consume Escape first.
-            if (!e.Handled && e.Key == Key.Escape && !_busy && !_confirming)
-            { e.Handled = true; await RequestCloseAsync(); }
-        };
+        KeyDown += (_, e) => _router.Route(e);
+        // Bubble handler lets native text/IME handling consume Escape first; never while busy or asking (the dialog policy).
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _busy || _confirming, close: () => _ = RequestCloseAsync());
         Opened += (_, _) => { if (_key != null) NoteInput.Focus(); else List.Focus(); };
         Refresh();
     }
@@ -431,20 +430,17 @@ internal partial class PostBookmarksDialog : Window
         _confirming = true;
         try
         {
-            Window confirm = new() { Title = Title, Width = 460, SizeToContent = SizeToContent.Height,
-                MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            // Modals plan MD1: a small modal confirmation whose height follows the text; the title stands in the title bar only.
+            Window confirm = MeowChan.Desktop.Controls.DialogWindow.Create(Title ?? string.Empty, DialogSize.S, modal: true, heightToContent: true);
             Button cancel = new() { Content = Texts.T("bookmarks.keepEditing") };
             Button accept = new() { Content = action };
             accept.Classes.Add("danger");
-            WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
-                Children = { cancel, accept } };
-            TextBlock heading = new() { Text = Title, TextWrapping = TextWrapping.Wrap };
-            heading.Classes.Add("section-title");
             TextBlock body = new() { Text = explanation, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 12) };
-            confirm.Content = WindowChrome.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, buttons), WindowChromeKind.Dialog);
+            MeowChan.Desktop.Controls.DialogWindow.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(header: null, body,
+                MeowChan.Desktop.Controls.DialogFooter.Build(accept, new Control[] { cancel })), modal: true);
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
-            confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };
+            MeowChan.Desktop.Controls.DialogEscape.Attach(confirm, close: () => confirm.Close(false));
             return await confirm.ShowDialog<bool>(this);
         }
         finally { _confirming = false; }

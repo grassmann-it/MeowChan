@@ -30,7 +30,8 @@ internal static class MediaToolbarLayout
         : width < ReducedWidth ? Level.Reduced : Level.Wide;
 
     // The work-view ids of the tools that leave the row first, in the order they leave (the order they have under More follows the policy).
-    private static readonly string[] Demotable = ["media.toolbar.refresh", "media.toolbar.shuffle"];
+    // The focus mode (M4) leaves the row first: it stays a shortcut (Shift+F) and an entry under More, so nothing is lost.
+    private static readonly string[] Demotable = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"];
 
     /// <summary>Whether the width moves this tool (by its work-view id) under More. The order, search and filter toggle never move.</summary>
     internal static bool IsMovedUnderMore(Level level, string? id) =>

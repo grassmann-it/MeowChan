@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -81,6 +82,10 @@ internal static partial class MediaPageChecks
             Require(page.Grid.SelectedItem is MediaLibraryTileRow { Entry.PostId: "100" }, "The click did not select A's bound tile.");
             Require(Tags("100") == string.Empty, "The bound tile must start without media tags.");
             await OpenMenuAndEditTagsAsync();
+            // TP3 (E5): "Tag…" opens the quick tag popover on the tile; "Advanced…" in it opens the dialog for the same file.
+            await UntilAsync(() => shell.MediaPageTagPopover is { IsOpen: true, Surface: not null });
+            Require(shell.MediaPageTagWindow == null, "The right-click entry opened the dialog instead of the popover.");
+            shell.MediaPageTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => shell.MediaPageTagWindow?.IsVisible == true);
             MediaTagDialog dialog = shell.MediaPageTagWindow!;
             PrivateMediaTagTarget target = MediaLibraryFilterEngine.TagTarget(Row("100").Entry)!;
@@ -178,7 +183,7 @@ internal static partial class MediaPageChecks
             await shell.GalleryCleanupTask.WaitAsync(Deadline);
             Require(Row("100").State!.Favorite == MediaLibraryFlag.Yes && Row("100").State!.UserRating == 3,
                 "Closing the gallery did not refresh the page's own state: " + Row("100").State!.Favorite + "/" + Row("100").State!.UserRating);
-            Require(Row("100").DetailWithState.Contains('★') && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
+            Require(Row("100").DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
             MediaLibraryTileView after = await TileViewAsync("100");
             await UntilAsync(() => ToolTip.GetTip(after) is string tip && tip.Contains(Texts.T("media.state.rating", Texts.T("media.state.ratingValue", 3))));
             await UntilAsync(FocusInGrid);

@@ -63,6 +63,6 @@ public static class WorkViewDensity
     /// <summary>Default width of the downloads progress column: narrower where Advanced adds its technical columns.</summary>
     public static double DownloadCompletionWidth(WorkView view) => view == WorkView.Advanced ? 140 : 300;
 
-    /// <summary>Minimum width of the archive table pane: Advanced shows every column.</summary>
-    public static double ArchiveTableMinWidth(WorkView view) => view == WorkView.Advanced ? 900 : 650;
+    /// <summary>Minimum width of the archive table pane: Advanced shows every column (the 48 dip favourite column included).</summary>
+    public static double ArchiveTableMinWidth(WorkView view) => view == WorkView.Advanced ? 950 : 650;
 }

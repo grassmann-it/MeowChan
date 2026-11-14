@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using Texts = MeowChan.Desktop.Localization.Texts;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
@@ -39,10 +40,14 @@ internal static class ReaderLiveChecks
             int consciousMoves = 0;
             page.ConsciousReadingPositionChanged += _ => ++consciousMoves;
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-            CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
+            TextBlock liveState = page.FindControl<TextBlock>("ReaderLiveState")!;
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
             await page.CheckReaderUpdatesAsync();
-            Require(follow.IsEnabled && follow.IsChecked != true, "Watched reader must offer explicit, initially disabled live following.");
+            // R3: following live is the View menu's "Show new posts automatically" (a check item), its state a text in the status line.
+            Require(page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible, "Watched reader must offer explicit, initially disabled live following.");
+            MenuItem followItem() => page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "watch.follow-live"));
+            Require(followItem().IsEnabled && followItem().IsChecked != true && followItem().ToggleType == MenuItemToggleType.CheckBox
+                && followItem().Header as string == Texts.T("command.watch.follow-live"), "The View menu has no unchecked, enabled live entry.");
             object originalRows = posts.ItemsSource!;
             await catalog.CaptureAsync(Snapshot(2));
             await page.CheckReaderUpdatesAsync();
@@ -60,7 +65,9 @@ internal static class ReaderLiveChecks
             Require(!show.IsVisible, "Manual update retained a stale notice.");
             Require(consciousMoves > 0, "Manual new-post action did not publish a conscious reading position.");
             consciousMoves = 0; // Equivalent to discarding all pre-forget captures.
-            follow.IsChecked = true;
+            await page.SetFollowLiveAsync(true);
+            Require(page.FollowLive && liveState.IsVisible && liveState.Text == Texts.T("reader.live.stateOn") && followItem().IsChecked == true,
+                "Switching live following on did not show its state text and check mark.");
             mayRefresh = false;
             await catalog.CaptureAsync(Snapshot(5));
             await page.CheckReaderUpdatesAsync();
@@ -73,14 +80,17 @@ internal static class ReaderLiveChecks
             Program.CaptureWindow(window, "smoke-reader-follow-live.png");
             watched = false;
             await page.CheckReaderUpdatesAsync();
-            Require(!follow.IsEnabled && follow.IsChecked != true, "Watch removal left live following active.");
+            Require(!page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible && !followItem().IsEnabled
+                && followItem().IsChecked != true, "Watch removal left live following active.");
+            Require(ToolTip.GetTip(followItem()) is string reasonTip && reasonTip.Contains(Texts.T("reader.live.reason.notWatched")),
+                "The disabled live entry does not name its missing cause.");
             await catalog.CaptureAsync(Snapshot(6));
             await page.CheckReaderUpdatesAsync();
             Require(page.CurrentThread!.PostCount == 5 && show.IsVisible, "An unobserved archive thread auto-followed new content.");
             ResourceId other = id with { Thread = "8000" };
             await catalog.RegisterThreadAsync(new ArchiveThreadRegistration(other, "https://boards.4chan.org/g/thread/8000", "Other thread", media, false));
             await page.LoadThreadAsync(other);
-            Require(!show.IsVisible && follow.IsChecked != true, "Thread switch retained another thread's pending update.");
+            Require(!show.IsVisible && !page.FollowLive, "Thread switch retained another thread's pending update.");
             Console.WriteLine("SMOKE reader live: unchanged poll silent, new-post notice preserves snapshot/anchor, explicit refresh, opt-in following, modal/gallery deferral, watch removal and thread switch passed.");
         }
         finally

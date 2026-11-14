@@ -69,15 +69,28 @@ public partial class MainWindow
                 () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
                 () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
+            // R8: the media sidebar switch works in both readers (it shows in the large one); its steps only where it is shown.
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.toggle", readerPane, ReaderShown,
+                () => live.CanToggleMediaSidebar, live.ToggleMediaSidebar, Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.previous-media", readerPane, () => _largeReaderOpen && ReaderShown(),
+                () => live.CanStepMediaSidebar(-1), () => live.StepMediaSidebar(-1), Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.next-media", readerPane, () => _largeReaderOpen && ReaderShown(),
+                () => live.CanStepMediaSidebar(1), () => live.StepMediaSidebar(1), Priority: 100));
         }
         // The saved-ratings manager is a dialog of the shell; it opens from the media page, the archive and the gallery (which routes it itself).
         _shortcutRouter.Register(new CommandRegistration("media.rating.manage", this,
             () => _gallery == null && _selectedPage is WorkspacePage.Media or WorkspacePage.Archive,
             () => !_isClosing && !_ratingManagerOpen, () => _ = ManageMediaRatingsAsync(), Priority: 100));
         if (_mediaPage is { } media)
+        {
             _shortcutRouter.Register(new CommandRegistration("media.tags.edit", media,
                 () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
                 () => media.SelectedTiles.Count > 0, () => _ = media.EditTagsByShortcutAsync(), Priority: 100));
+            // The focus mode (M4): Shift+F is a typed capital in a text field, so the router leaves it to the field (no AllowInTextInput).
+            _shortcutRouter.Register(new CommandRegistration(MediaFocusMode.CommandId, media,
+                () => _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null,
+                () => media.CanToggleFocusMode, media.ToggleFocusModeByShortcut, Priority: 100));
+        }
     }
 
     private void RegisterRuleTemplateCommands()

@@ -56,7 +56,7 @@ public partial class ArchivePage
         Control<Expander>("ArchiveExportScopeDetails").IsVisible = (_exportMembers?.Length ?? 1) > 1;
         TextBlock fixedScope = Control<TextBlock>("ArchiveExportFixedScope");
         fixedScope.IsVisible = _exportAllResults && _exportThread != null;
-        fixedScope.Text = fixedScope.IsVisible ? Texts.T("export.resultsFrozen", _exportMembers?.Length ?? 1) : string.Empty;
+        fixedScope.Text = fixedScope.IsVisible ? Texts.Count("export.resultsFrozen", _exportMembers?.Length ?? 1) : string.Empty;
         if (_exportThread == null)
         {
             Control<TextBlock>("ArchiveExportSummary").Text = _exportResolving ? Texts.T("export.resultsResolving") : string.Empty;
@@ -65,7 +65,7 @@ public partial class ArchivePage
         if (_exportAllResults)
         {
             ResourceId[] members = _exportMembers ?? new[] { _exportThread };
-            Control<TextBlock>("ArchiveExportSummary").Text = Texts.T("export.resultsFrozen", members.Length) + "\n" +
+            Control<TextBlock>("ArchiveExportSummary").Text = Texts.Count("export.resultsFrozen", members.Length) + "\n" +
                 string.Join("\n", members.Select(ExportMemberLabel));
             return;
         }

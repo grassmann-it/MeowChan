@@ -76,9 +76,14 @@ internal static partial class SmokeScenarios
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
         ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),
+        ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow)),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
+        ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
+        ["tagging-cards"] = new(SmokeStage.Ready, mainWindow => TaggingCardsChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
         ["manual-import"] = new(SmokeStage.Ready, mainWindow => ManualImportChecks.RunAsync(mainWindow)),
+        ["profile-switch"] = new(SmokeStage.Ready, mainWindow => ProfileSwitchChecks.RunAsync(mainWindow)),
+        ["folder-source"] = new(SmokeStage.Ready, mainWindow => FolderSourceChecks.RunAsync(mainWindow)),
         ["booru-media"] = new(SmokeStage.Ready, mainWindow => BooruMediaChecks.RunAsync(mainWindow)),
         ["private-tags"] = new(SmokeStage.Ready, mainWindow => PrivateTagBarChecks.RunAsync(mainWindow)),
         ["reader-find"] = new(SmokeStage.Ready, mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)),
@@ -194,6 +199,11 @@ internal static partial class SmokeScenarios
         ["statistics"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatisticsChecks.RunAsync(mainWindow))
         {
             Configure = config => { config.WorkspaceMode = "Advanced"; config.StatsSampleIntervalMs = StatisticsChecks.SampleIntervalMs; }
+        },
+        ["status-deep-links"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatusDeepLinkChecks.RunAsync(mainWindow)),
+        ["context-menus-header"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ContextMenusHeaderChecks.RunAsync(mainWindow))
+        {
+            Configure = config => { config.WorkspaceMode = "Advanced"; config.StatsHeaderGraph = "Auto"; }
         },
         ["picker-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPickerLifetimeChecks.RunAsync(mainWindow)),
         ["settings-category"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsCategoryChecks.RunAsync(mainWindow)),

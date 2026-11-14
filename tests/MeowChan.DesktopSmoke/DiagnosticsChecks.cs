@@ -227,8 +227,8 @@ internal static class DiagnosticsChecks
         await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == theme && Application.Current?.RequestedThemeVariant == expected);
     }
 
-    // MS-R2: a healthy session lists only the always-present platform rows. The "no problems" hint is shown then and must
-    // not draw over those rows, which the tester copies into reports.
+    // MS-R2 (SM3): a healthy session has no request and no problem. The table is empty and says so; the always-present platform
+    // facts, which the tester copies into reports, sit in their own closed "Platform (n)" group instead of under that hint.
     private static async Task RunHealthyAsync(MainWindow window, DiagnosticsPage page)
     {
         DesktopSessionView healthy = new DesktopSessionView(Array.Empty<DesktopThreadEntry>(), Array.Empty<DesktopBoardEntry>(),
@@ -240,25 +240,30 @@ internal static class DiagnosticsChecks
             page.Refresh(healthy, true);
             TextBlock hint = page.FindControl<TextBlock>("DiagnosticsEmpty")!;
             DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
-            DiagnosticEntry[] rows = grid.ItemsSource!.Cast<DiagnosticEntry>().ToArray();
+            DataGrid platformGrid = page.FindControl<DataGrid>("PlatformGrid")!;
+            Expander platform = page.FindControl<Expander>("DiagnosticPlatformSection")!;
+            DiagnosticEntry[] rows = platformGrid.ItemsSource!.Cast<DiagnosticEntry>().ToArray();
             Require(rows.Length > 0 && rows.All(entry => entry.Kind == DiagnosticKind.Information),
-                "The healthy diagnostics fixture should list only the platform information rows.");
-            hint.BringIntoView();
+                "The healthy diagnostics fixture should list only the platform information rows, in the platform group.");
+            Require(!(grid.ItemsSource?.Cast<DiagnosticEntry>().Any() ?? false),
+                "The healthy diagnostics table must hold no platform fact: those belong to the platform group.");
+            Require(platform.IsVisible && Equals(platform.Header, Texts.T("diagnostics.platform") + " (" + rows.Length + ")"),
+                "The platform group lost its count header.");
             await Program.WaitUntilAsync(() =>
             {
                 window.UpdateLayout();
-                return hint.IsEffectivelyVisible && hint.Bounds.Height > 0 && grid.GetVisualDescendants().OfType<DataGridRow>()
-                    .Count(row => row.IsEffectivelyVisible && row.Bounds.Height > 0) == rows.Length;
+                return hint.IsEffectivelyVisible && hint.Bounds.Height > 0;
             });
             Require(hint.Text == Texts.T("diagnostics.empty"), "The healthy diagnostics hint lost its text.");
-            Rect hintRect = new Rect(hint.TranslatePoint(new Point(0, 0), page)!.Value, hint.Bounds.Size);
-            foreach (DataGridRow row in grid.GetVisualDescendants().OfType<DataGridRow>().Where(row => row.IsEffectivelyVisible))
+            platform.IsExpanded = true;
+            await Program.WaitUntilAsync(() =>
             {
-                Rect rowRect = new Rect(row.TranslatePoint(new Point(0, 0), page)!.Value, row.Bounds.Size);
-                Require(!hintRect.Intersects(rowRect),
-                    $"The healthy diagnostics hint {hintRect} draws over the platform row {rowRect} ({(row.DataContext as DiagnosticEntry)?.Key}).");
-            }
+                window.UpdateLayout();
+                return platformGrid.GetVisualDescendants().OfType<DataGridRow>()
+                    .Count(row => row.IsEffectivelyVisible && row.Bounds.Height > 0) == rows.Length;
+            });
             Program.CaptureWindow(window, $"smoke-diagnostics-healthy-{language}.png");
+            platform.IsExpanded = false;
         }
     }
 

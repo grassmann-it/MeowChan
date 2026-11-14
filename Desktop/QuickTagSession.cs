@@ -12,7 +12,7 @@ namespace MeowChan.Desktop;
 /// Why the quick tag surface offers a suggestion (PLAN-SCHNELL-TAGGEN §2.2). The strongest contribution names the chip; the
 /// text is shown in its tooltip and accessible name so the ranking stays explainable.
 /// </summary>
-internal enum QuickTagReason { Frequent, Recent, Thread, Neighbour, SameFile, FileName, Title, SourceTag }
+internal enum QuickTagReason { Frequent, Recent, Thread, Neighbour, SameFile, FileName, Title, SourceTag, Stamp }
 
 /// <summary>
 /// One ranked suggestion of the quick tag strip: an own tag (<see cref="Id"/>) or a name that choosing creates as an own tag
@@ -64,24 +64,41 @@ internal sealed class DelegateQuickTagSuggestions(Func<QuickTagSuggestionRequest
 }
 
 /// <summary>
-/// Limits of the quick tag surface. Each one becomes a setting in TP5 (<c>QuickTagUndoDepth</c>, <c>QuickTagSuggestionCount</c>);
-/// until then the defaults apply. Out-of-range values are clamped, never refused.
+/// Limits of the quick tag surface. Each one is a setting (TP5: <c>QuickTagUndoDepth</c>, <c>QuickTagSuggestionCount</c>,
+/// <c>QuickTagMarkedMediaLimit</c>); a host without the setting uses the defaults. Out-of-range values are clamped, never refused.
 /// </summary>
 internal sealed record QuickTagOptions
 {
     internal const int DefaultUndoDepth = 20, MinimumUndoDepth = 1, MaximumUndoDepth = 100;
     internal const int DefaultSuggestionCount = 9, MinimumSuggestionCount = 3, MaximumSuggestionCount = 18;
+    /// <summary>Media the gallery lets the user mark for one tag change (<c>QuickTagMarkedMediaLimit</c>, E4). The write stays
+    /// under <c>PrivateTagStore.MaximumMediaAssignments</c>, which the maximum never exceeds.</summary>
+    internal const int DefaultMarkedMediaLimit = 500, MinimumMarkedMediaLimit = 10, MaximumMarkedMediaLimit = 5000;
     /// <summary>Suggestions 1–9 get a number and the Alt/⌘ shortcut; more chips are shown without one.</summary>
     internal const int NumberedSuggestions = 9;
+    /// <summary>The stamp size (PT5, setting <c>TagStampSize</c> with PT7): the most tags the stamp set holds.</summary>
+    internal const int DefaultStampSize = 9, MinimumStampSize = 1, MaximumStampSize = 18;
     internal static readonly QuickTagOptions Default = new();
 
     internal int UndoDepth { get; init; } = DefaultUndoDepth;
     internal int SuggestionCount { get; init; } = DefaultSuggestionCount;
+    internal int MarkedMediaLimit { get; init; } = DefaultMarkedMediaLimit;
+
+    /// <summary>The marked-media limit inside its range and below what one tag write accepts.</summary>
+    internal static int ClampMarkedMediaLimit(int value) =>
+        Math.Clamp(value, MinimumMarkedMediaLimit, Math.Min(MaximumMarkedMediaLimit, PrivateTagStore.MaximumMediaAssignments));
+
+    internal int StampSize { get; init; } = DefaultStampSize;
+
+    /// <summary>The stamp a host shares between its surfaces: the saved names, cut to the (clamped) stamp size.</summary>
+    internal QuickTagStamp CreateStamp(IEnumerable<string?>? savedNames = null) => new(savedNames, Normalized().StampSize);
 
     internal QuickTagOptions Normalized() => this with
     {
         UndoDepth = Math.Clamp(UndoDepth, MinimumUndoDepth, MaximumUndoDepth),
-        SuggestionCount = Math.Clamp(SuggestionCount, MinimumSuggestionCount, MaximumSuggestionCount)
+        SuggestionCount = Math.Clamp(SuggestionCount, MinimumSuggestionCount, MaximumSuggestionCount),
+        MarkedMediaLimit = ClampMarkedMediaLimit(MarkedMediaLimit),
+        StampSize = Math.Clamp(StampSize, MinimumStampSize, MaximumStampSize)
     };
 }
 
@@ -97,6 +114,11 @@ internal interface IQuickTagTarget
     bool Busy { get; }
     string? MessageKey { get; }
     TagDialogChange? LastChange { get; }
+    /// <summary>
+    /// True after the last write was a revert that finished (<see cref="RevertAsync"/>). A cancelled revert leaves it false
+    /// without a <see cref="MessageKey"/>: nothing (or only part) was written back, so it is no success.
+    /// </summary>
+    bool Undone { get; }
     /// <summary>True for a selection: chips are tri-state and texts count files.</summary>
     bool IsSelection { get; }
     TagCoverage Coverage();
@@ -120,6 +142,7 @@ internal static class QuickTagTarget
         public bool Busy => session.Busy;
         public string? MessageKey => session.MessageKey;
         public TagDialogChange? LastChange => session.LastChange;
+        public bool Undone => session.Undone;
         public bool IsSelection => false;
         public TagCoverage Coverage() => session.Coverage();
         public Task AddAsync(string name, CancellationToken token) => session.AddAsync(name, token);
@@ -136,6 +159,7 @@ internal static class QuickTagTarget
         public bool Busy => session.Busy;
         public string? MessageKey => session.MessageKey;
         public TagDialogChange? LastChange => session.LastChange;
+        public bool Undone => session.Undone;
         public bool IsSelection => true;
         public TagCoverage Coverage() => session.Coverage();
         public Task AddAsync(string name, CancellationToken token) => session.AddAsync(name, token);
@@ -148,7 +172,17 @@ internal static class QuickTagTarget
 }
 
 /// <summary>What the status line of the surface says after the last attempt.</summary>
-internal enum QuickTagStatusKind { None, Added, Removed, UndoneAdd, UndoneRemove, Error, Unavailable }
+internal enum QuickTagStatusKind
+{
+    None, Added, Removed, UndoneAdd, UndoneRemove, Error, Unavailable,
+    /// <summary>The stamp was applied: <see cref="QuickTagStatus.Name"/> lists the tags it gave.</summary>
+    StampApplied,
+    /// <summary>The stamp is empty or the target already carries all of it: nothing was written.</summary>
+    StampEmpty, StampComplete,
+    StampAdded, StampRemoved,
+    /// <summary>A tag was refused because the stamp holds its most (<see cref="QuickTagStatus.Files"/> = the limit).</summary>
+    StampFull
+}
 
 /// <summary>
 /// The status line: the last change (polite), its undo, or a refused write (assertive, kept until the next successful change).
@@ -156,7 +190,7 @@ internal enum QuickTagStatusKind { None, Added, Removed, UndoneAdd, UndoneRemove
 internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "", int Files = 0, string? MessageKey = null, string? Medium = null)
 {
     internal static readonly QuickTagStatus None = new(QuickTagStatusKind.None);
-    internal bool IsError => Kind is QuickTagStatusKind.Error or QuickTagStatusKind.Unavailable;
+    internal bool IsError => Kind is QuickTagStatusKind.Error or QuickTagStatusKind.Unavailable or QuickTagStatusKind.StampFull;
 
     internal string Text => Kind switch
     {
@@ -167,6 +201,12 @@ internal sealed record QuickTagStatus(QuickTagStatusKind Kind, string Name = "",
         QuickTagStatusKind.UndoneRemove => Medium == null ? Texts.T("tags.quick.status.undoneRemove", Name) : Texts.T("tags.quick.status.undoneRemoveOn", Name, Medium),
         QuickTagStatusKind.Error => Texts.T(MessageKey ?? "tags.error.other"),
         QuickTagStatusKind.Unavailable => Texts.T("tags.unavailable"),
+        QuickTagStatusKind.StampApplied => Texts.T("tags.quick.stamp.applied", Name),
+        QuickTagStatusKind.StampEmpty => Texts.T("tags.quick.stamp.emptyStatus"),
+        QuickTagStatusKind.StampComplete => Texts.T("tags.quick.stamp.complete"),
+        QuickTagStatusKind.StampAdded => Texts.T("tags.quick.stamp.added", Name),
+        QuickTagStatusKind.StampRemoved => Texts.T("tags.quick.stamp.removed", Name),
+        QuickTagStatusKind.StampFull => Texts.T("tags.quick.stamp.full", Files),
         _ => string.Empty
     };
 }
@@ -189,13 +229,25 @@ internal sealed class QuickTagSession : IDisposable
     private IQuickTagTarget _target;
     private bool _running;
     private bool _disposed;
+    private int _appliedCount;
 
-    internal QuickTagSession(IQuickTagTarget target, int undoDepth = QuickTagOptions.DefaultUndoDepth)
+    /// <param name="stamp">The stamp set shared by the surfaces of a profile; a session without one has its own empty stamp.</param>
+    internal QuickTagSession(IQuickTagTarget target, int undoDepth = QuickTagOptions.DefaultUndoDepth, QuickTagStamp? stamp = null)
     {
         _target = target ?? throw new ArgumentNullException(nameof(target));
         UndoDepth = Math.Clamp(undoDepth, QuickTagOptions.MinimumUndoDepth, QuickTagOptions.MaximumUndoDepth);
+        Stamp = stamp ?? new QuickTagStamp();
         _target.Updated += OnTargetUpdated;
+        Stamp.Changed += OnStampChanged;
     }
+
+    /// <summary>The stamp set (PT5): tags offered first and given to the target together by <see cref="ApplyStampAsync"/>.</summary>
+    internal QuickTagStamp Stamp { get; }
+
+    /// <summary>Ids of the stamp tags that exist now, in stamp order (a name no tag carries is skipped).</summary>
+    internal IReadOnlyList<TagId> StampSet => Stamp.Resolve(Snapshot).Select(tag => tag.Id).ToArray();
+
+    internal bool InStamp(TagId tag) => Snapshot?.Find(tag) is { } definition && Stamp.Contains(definition.Name);
 
     internal IQuickTagTarget Target => _target;
     /// <summary>The host's name for the medium of the target (the gallery panel: the file name); set before <see cref="Retarget"/>.
@@ -276,9 +328,81 @@ internal sealed class QuickTagSession : IDisposable
         return suggestion.Id is { } id && Snapshot?.Find(id) != null ? ToggleAsync(id, token) : AddAsync(suggestion.Name.Display, token);
     }
 
+    /// <summary>Adds an own tag to the stamp (the chip's context menu); a full stamp refuses it and says so in the status line.</summary>
+    internal bool AddToStamp(TagId tag)
+    {
+        if (Snapshot?.Find(tag) is not { } definition) return false;
+        switch (Stamp.Add(definition.Name))
+        {
+            case QuickTagStampAdd.Full:
+                _status = new QuickTagStatus(QuickTagStatusKind.StampFull, definition.Name.Display, Stamp.Capacity);
+                Updated?.Invoke();
+                return false;
+            case QuickTagStampAdd.Added:
+                _status = new QuickTagStatus(QuickTagStatusKind.StampAdded, definition.Name.Display);
+                Updated?.Invoke();
+                return true;
+            default:
+                return true;
+        }
+    }
+
+    /// <summary>Takes an own tag out of the stamp; the tag itself and its assignments stay.</summary>
+    internal bool RemoveFromStamp(TagId tag)
+    {
+        if (Snapshot?.Find(tag) is not { } definition || !Stamp.Remove(definition.Name)) return false;
+        _status = new QuickTagStatus(QuickTagStatusKind.StampRemoved, definition.Name.Display);
+        Updated?.Invoke();
+        return true;
+    }
+
+    /// <summary>True when applying the stamp would write something: a stamp tag exists that not every file of the target carries.</summary>
+    internal bool CanApplyStamp => Ready && StampPending().Count > 0;
+
+    private IReadOnlyList<PrivateTagDefinition> StampPending()
+    {
+        TagCoverage coverage = Coverage();
+        return Stamp.Resolve(Snapshot).Where(tag => coverage.StateOf(tag.Id) != TagToggleState.All).ToArray();
+    }
+
+    /// <summary>
+    /// Gives every stamp tag that the target does not carry on all its files to the target (the current medium or the whole
+    /// selection). One write per tag, each its own undo step, so Ctrl+Z takes the tags back one by one. Nothing already set is
+    /// written again. The first refused write stops the run and its error stays in the status line. Never retargets and never
+    /// moves on: the host decides what follows (<see cref="Applied"/> reports each tag, the returned count how many were set).
+    /// </summary>
+    /// <returns>How many tags were written.</returns>
+    internal async Task<int> ApplyStampAsync(CancellationToken token = default)
+    {
+        if (!Ready) return 0;
+        IReadOnlyList<PrivateTagDefinition> pending = StampPending();
+        if (pending.Count == 0)
+        {
+            _status = new QuickTagStatus(Stamp.Count == 0 || Stamp.Resolve(Snapshot).Count == 0 ? QuickTagStatusKind.StampEmpty : QuickTagStatusKind.StampComplete);
+            Updated?.Invoke();
+            return 0;
+        }
+        List<string> given = new();
+        foreach (PrivateTagDefinition tag in pending)
+        {
+            if (token.IsCancellationRequested || !Ready) break;
+            int before = _appliedCount;
+            await RunAsync(target => target.AddExistingAsync(tag.Id, token));
+            if (_status.IsError) return given.Count;
+            if (_appliedCount != before) given.Add(tag.Name.Display);
+        }
+        if (given.Count > 0)
+        {
+            _status = new QuickTagStatus(QuickTagStatusKind.StampApplied, string.Join(", ", given), _target.Coverage().Total);
+            Updated?.Invoke();
+        }
+        return given.Count;
+    }
+
     /// <summary>
     /// Undoes the newest step for exactly its subjects. A refused undo keeps the step for another try, unless its tag no longer
-    /// exists (then there is nothing to restore and the step is dropped).
+    /// exists (then there is nothing to restore and the step is dropped). A cancelled undo (closing the surface mid-write) is no
+    /// success either: the step stays (reverting it again is idempotent per subject) and the status claims nothing.
     /// </summary>
     internal async Task UndoAsync(CancellationToken token = default)
     {
@@ -296,6 +420,7 @@ internal sealed class QuickTagSession : IDisposable
             _status = new QuickTagStatus(QuickTagStatusKind.Error, change.Name, change.Subjects.Count, key);
             if (target.Snapshot is { } snapshot && snapshot.Find(change.Tag) == null) _undo.Remove(change);
         }
+        else if (!target.Undone) _status = QuickTagStatus.None;
         else
         {
             _undo.Remove(change);
@@ -325,7 +450,7 @@ internal sealed class QuickTagSession : IDisposable
         }
         // Nothing changed (the tag was already there): a former error is no longer current.
         else if (_status.IsError) _status = QuickTagStatus.None;
-        if (applied != null) Applied?.Invoke(applied);
+        if (applied != null) { _appliedCount++; Applied?.Invoke(applied); }
         Updated?.Invoke();
     }
 
@@ -336,6 +461,7 @@ internal sealed class QuickTagSession : IDisposable
     }
 
     private void OnTargetUpdated() { if (!_disposed) Updated?.Invoke(); }
+    private void OnStampChanged() { if (!_disposed) Updated?.Invoke(); }
 
     private sealed record StepOrigin(IQuickTagTarget Target, string? Label);
 
@@ -344,6 +470,7 @@ internal sealed class QuickTagSession : IDisposable
         if (_disposed) return;
         _disposed = true;
         _target.Updated -= OnTargetUpdated;
+        Stamp.Changed -= OnStampChanged;
         Updated = null;
         Applied = null;
     }

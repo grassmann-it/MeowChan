@@ -17,6 +17,7 @@ public sealed class CatalogShortcutGapTests
         {
             bool mac = platform == ShortcutPlatform.MacOS;
             yield return new object[] { platform, "media.select-all", mac ? "⌘A" : "Ctrl+A" };
+            yield return new object[] { platform, "media.focus-mode", mac ? "⇧F" : "Shift+F" };
             yield return new object[] { platform, "thread.favorite-toggle", mac ? "⌘D" : "Ctrl+D" };
             yield return new object[] { platform, "thread.tags", mac ? "⌘T" : "Ctrl+T" };
             yield return new object[] { platform, "media.tags.edit", mac ? "⇧⌘T" : "Ctrl+Shift+T" };

@@ -18,8 +18,18 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderPageSize), 50, 20, 200 };
         yield return new object[] { nameof(Config.ReaderThreadingDepth), 6, 1, 16 };
         yield return new object[] { nameof(Config.GalleryFitMaxUpscalePercent), 200, 100, 1600 };
+        yield return new object[] { nameof(Config.GalleryMaxZoomPercent), 1600, 200, 6400 };
         yield return new object[] { nameof(Config.PostFilterRuleLimit), 200, 20, 2000 };
         yield return new object[] { nameof(Config.HiddenPostLimit), 10000, 1000, 100000 };
+        yield return new object[] { nameof(Config.ReadingHistoryLimit), 10, 5, 25 };
+        yield return new object[] { nameof(Config.ReaderTextlessMediaWidth), 360, 120, 960 };
+        yield return new object[] { nameof(Config.ReaderFocusedMediaScalePercent), 200, 100, 400 };
+        yield return new object[] { nameof(Config.ReaderHoverEnlargeSize), 640, 240, 1600 };
+        yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
+        yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
+        yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
+        yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
+        yield return new object[] { nameof(Config.ReaderInlineVideoMaxFileMiB), 256, 1, 4096 };
     }
 
     [Theory]

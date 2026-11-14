@@ -18,7 +18,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
-    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings }
+    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings, Tagging }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
@@ -130,16 +130,25 @@ public partial class MainWindow
             string mode = _config.WorkspaceMode;
             return _session.SaveViewPreferencesAsync(current => current.GetLayoutProfile(mode).ArchiveMediaTiles = tiles);
         };
+        // The reader's quick media switches (View menu) write only the switch that was flipped; Settings shows the confirmed value again.
+        _archivePage.SaveReaderMediaSwitches = async change =>
+        {
+            await _session.SaveViewPreferencesAsync(change);
+            _settingsEditor?.RefreshConfirmedReaderMedia();
+        };
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
         _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
         ReaderSettingsPreferences.Apply(_archivePage, _config);
+        _archivePage.QuickSettingsHost = CreateQuickSettingsHost();
         _archivePage.GetFavorites = _session.GetFavorites;
         _archivePage.GetMediaRating = _session.GetMediaRating;
         _archivePage.SetMediaRatingAsync = SetMediaRatingAsync;
         _archivePage.CanChangeMediaRating = key => !_isClosing && !_ratingChanges.Contains(key);
         _archivePage.EditMediaRatingAsync = EditMediaRatingAsync;
-        _archivePage.EditArchiveMediaTagsAsync = EditGalleryMediaTagsAsync;
+        _archivePage.EditArchiveMediaTagsAsync = entry => EditGalleryMediaTagsAsync(entry);
+        _archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync;
+        _archivePage.TagPopoverOptions = TagPopoverDefaults;
         _archivePage.CopyFilePathAsync = CopyFilePathAsync;
         _archivePage.ManageMediaRatingsAsync = ManageMediaRatingsAsync;
         _archivePage.IsArchiveFavorite = _session.IsFavorite;
@@ -185,7 +194,10 @@ public partial class MainWindow
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "media-done");
         InitializeReadingResume();
         InitializePostBookmarks();
+        InitializeTagQueue();
+        InitializeTaggingPage();
         InitializePostFilters();
+        InitializeFolderSources();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");
     }
@@ -240,9 +252,10 @@ public partial class MainWindow
                 _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
                 {
                     if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
-                }, () => ShowStatus(StatusSegment.Diagnostics), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
+                }, sourceId => ShowStatus(StatusSegment.Diagnostics, sourceId), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
                 {
-                    GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows
+                    GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows,
+                    FolderSources = CreateFolderSourceServices()
                 };
                 _sourcesPage.BusyChanged += OnSettingsBusyChanged;
                 _sourcesPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
@@ -349,6 +362,7 @@ public partial class MainWindow
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
         BooruPageHost.IsVisible = page == WorkspacePage.Booru;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
+        TaggingPageHost.IsVisible = page == WorkspacePage.Tagging;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
         StatusNavigationButton.Classes.Set("selected", page == WorkspacePage.Status);
@@ -375,6 +389,7 @@ public partial class MainWindow
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         if (page == WorkspacePage.Media) _ = _mediaPage?.ActivateAsync();
         if (page == WorkspacePage.Booru) _ = _booruPage?.ActivateAsync();
+        if (page == WorkspacePage.Tagging) ActivateTaggingPage();
         return true;
     }
 
@@ -541,8 +556,8 @@ public partial class MainWindow
         if (_selectedPage != WorkspacePage.Status) return;
         if (_galleryCoversWorkspace || _sessionRowsApplying) { _sessionDirtyWhileCovered = true; return; }
         DesktopSessionView current = view ?? _session.Projection.View;
-        RefreshStatusCounts(current);
-        if (DiagnosticsSegmentShown) _diagnosticsPage?.Refresh(current, !WorkspaceCommandBusy);
+        DiagnosticsSnapshot? snapshot = RefreshStatusCounts(current);
+        if (DiagnosticsSegmentShown) _diagnosticsPage?.Refresh(current, !WorkspaceCommandBusy, snapshot);
     }
 
     private System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardIdentity> GetRuleSuggestionContexts()

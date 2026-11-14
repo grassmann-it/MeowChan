@@ -126,11 +126,13 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
     {
         string source = ReadSource("MediaRatingDialog");
         string apply = Between(source, "private void ApplyTexts()", "private void RefreshValueText()");
-        foreach (string required in new[] { "Title = MediaRatingText.LocalizedLabel", "_heading.Text = Title", "_identity.Text = MediaRatingText.LocalizedIdentity(_key)", "_help.Text = MediaRatingText.Catalog",
+        foreach (string required in new[] { "Title = MediaRatingText.LocalizedLabel", "_identity.Text = MediaRatingText.LocalizedIdentity(_key)", "_help.Text = MediaRatingText.Catalog",
             "_confirmedValue.Text = ConfirmedText()", "RefreshValueText();", "CommandBindings.Apply(_clear,",
             "_close.Content = MediaRatingText.Catalog", "_retry.Content = MediaRatingText.Catalog",
             "CommandBindings.BindShortcutHelp(_rating,", "RefreshErrorText();" })
             Assert.Contains(required, apply);
+        // Owner decision E1: the title stands in the title bar only, the body does not repeat it.
+        Assert.DoesNotContain("_heading", source);
         Assert.Contains("MediaRatingText.FormatError(_errorLabel(), _errorDetails)", source);
         Assert.Contains("_errorDetails = error.Message;", source);
         Assert.DoesNotContain("Texts.T(_errorDetails", source);
@@ -144,7 +146,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
         string apply = Between(source, "private void ApplyTexts()", "private void RefreshErrorText()");
         foreach (string required in new[] { "Title = CommandCatalog.Label", "_search.PlaceholderText = MediaRatingText.Catalog",
             "AutomationProperties.SetName(_search,", "_frozen is MediaRatingEntry entry", "CommandBindings.Apply(_remove,", "_confirm.Content = MediaRatingText.Catalog", "_cancel.Content = MediaRatingText.Catalog",
-            "_close.Content = MediaRatingText.Catalog", "row.RefreshTexts()", "RefreshSummary();",
+            "_close.Content = Texts.T(\"action.close\")", "row.RefreshTexts()", "RefreshSummary();",
             "MediaRatingText.Catalog(\"media.rating.confirmRemove\")", "(_list.SelectedItem as Row)?.ToString()", "RefreshErrorText();" })
             Assert.Contains(required, apply);
         Assert.Contains("new Binding(nameof(Row.ValueText)) { Source = row }", source);
@@ -214,7 +216,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.search"] = "Search identities",
             ["media.rating.noSaved"] = "No saved ratings.",
             ["media.rating.noMatching"] = "No matching ratings.",
-            ["media.rating.summary"] = "{0} shown · {1} saved ratings",
+            ["media.rating.summary"] = "Shown: {0} · saved ratings: {1}",
             ["media.rating.confirmRemove"] = "Remove rating for this exact identity?",
             ["media.rating.removeThis"] = "Remove this rating",
             ["media.rating.cancel"] = "Cancel",
@@ -240,7 +242,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.search"] = "Bewertungen durchsuchen",
             ["media.rating.noSaved"] = "Keine gespeicherten Bewertungen.",
             ["media.rating.noMatching"] = "Keine passenden Bewertungen.",
-            ["media.rating.summary"] = "{0} angezeigt · {1} gespeicherte Bewertungen",
+            ["media.rating.summary"] = "Angezeigt: {0} · gespeicherte Bewertungen: {1}",
             ["media.rating.confirmRemove"] = "Bewertung für genau diese Identität entfernen?",
             ["media.rating.removeThis"] = "Diese Bewertung entfernen",
             ["media.rating.cancel"] = "Abbrechen",
@@ -266,15 +268,15 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.search"] = "Buscar identidades",
             ["media.rating.noSaved"] = "No hay valoraciones guardadas.",
             ["media.rating.noMatching"] = "No hay valoraciones coincidentes.",
-            ["media.rating.summary"] = "{0} mostradas · {1} valoraciones guardadas",
+            ["media.rating.summary"] = "Mostradas: {0} · valoraciones guardadas: {1}",
             ["media.rating.confirmRemove"] = "¿Eliminar la valoración de esta identidad exacta?",
             ["media.rating.removeThis"] = "Eliminar esta valoración",
             ["media.rating.cancel"] = "Cancelar",
             ["media.rating.close"] = "Cerrar",
             ["media.rating.retry"] = "Reintentar",
-            ["media.rating.help"] = "Haz clic para guardar • Las flechas eligen; Enter o Espacio guarda",
-            ["media.rating.keyboardHelp"] = "Las flechas eligen; Enter o Espacio guarda. Escape cierra sin guardar una elección del teclado.",
-            ["media.rating.keyboardSave"] = "{0} (pulsa Enter o Espacio para guardar)",
+            ["media.rating.help"] = "Haga clic para guardar • Las flechas eligen; Intro o Espacio guarda",
+            ["media.rating.keyboardHelp"] = "Las flechas eligen; Intro o Espacio guarda. Escape cierra sin guardar una elección del teclado.",
+            ["media.rating.keyboardSave"] = "{0} (pulse Intro o Espacio para guardar)",
             ["media.rating.error.save"] = "No se pudo guardar la valoración.",
             ["media.rating.error.remove"] = "No se pudo eliminar la valoración.",
             ["media.rating.error.load"] = "No se pudieron cargar las valoraciones.",
@@ -292,7 +294,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
             ["media.rating.search"] = "Rechercher des identités",
             ["media.rating.noSaved"] = "Aucune évaluation enregistrée.",
             ["media.rating.noMatching"] = "Aucune évaluation correspondante.",
-            ["media.rating.summary"] = "{0} affichées · {1} évaluations enregistrées",
+            ["media.rating.summary"] = "Affichées : {0} · évaluations enregistrées : {1}",
             ["media.rating.confirmRemove"] = "Supprimer l’évaluation de cette identité exacte ?",
             ["media.rating.removeThis"] = "Supprimer cette évaluation",
             ["media.rating.cancel"] = "Annuler",

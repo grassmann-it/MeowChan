@@ -94,6 +94,8 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_readPosts, "gallery.toolbar.read-posts"); Mark(_readPosts);
         WorkViewElement.SetId(_contextToggle, "gallery.toolbar.post-panel"); Mark(_contextToggle);
         WorkViewElement.SetId(_contextPanel, "gallery.post-panel"); Mark(_contextPanel);
+        WorkViewElement.SetId(_sidePanel.PostButton, "gallery.panel.post"); Mark(_sidePanel.PostButton);
+        WorkViewElement.SetId(_sidePanel.TagsButton, "gallery.panel.tags"); Mark(_sidePanel.TagsButton);
         WorkViewElement.SetId(_fit, "gallery.toolbar.fit"); Mark(_fit);
         WorkViewElement.SetId(_actual, "gallery.toolbar.actual"); Mark(_actual);
         WorkViewElement.SetId(_ratingButton, "gallery.toolbar.rating"); Mark(_ratingButton);
@@ -104,6 +106,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_helpButton, "gallery.toolbar.help"); Mark(_helpButton);
         WorkViewElement.SetId(_zoomIn, "gallery.menu.zoom-in"); Mark(_zoomIn);
         WorkViewElement.SetId(_zoomOut, "gallery.menu.zoom-out"); Mark(_zoomOut);
+        WorkViewElement.SetId(_rotate, "gallery.menu.rotate"); Mark(_rotate);
         WorkViewElement.SetId(_manageRatingsButton, "gallery.menu.manage-ratings"); Mark(_manageRatingsButton);
         WorkViewElement.SetId(_exportOriginal, "gallery.menu.export-original"); Mark(_exportOriginal);
         WorkViewElement.SetId(_saveFrame, "gallery.menu.save-frame"); Mark(_saveFrame);
@@ -164,6 +167,7 @@ internal sealed partial class GalleryViewer
         PresentMovableTools();
         UpdateMediaFocusVisibility();
         RefreshOverflowItems();
+        UpdateFilmstripPlacement();
         if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
     }
 

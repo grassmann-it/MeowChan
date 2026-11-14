@@ -31,7 +31,7 @@ internal static class WorkViewGalleryChecks
         HashSet<string> registered = viewer.RegisteredWorkViewIds.ToHashSet(StringComparer.Ordinal);
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Page == WorkViewPage.Gallery && entry.Kind is WorkViewKind.Action or WorkViewKind.Element
-                && entry.Id != "gallery.video.transport" && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
+                && entry.Id is not ("gallery.video.transport" or "gallery.video.player-menu") && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
         if (orphaned.Length > 0)
             throw new InvalidOperationException("gallery: work-view rows without a registered control: " + string.Join(", ", orphaned));
         Console.WriteLine($"SMOKE work-views registrations: gallery: {registered.Count} ids registered, no orphaned policy row.");
@@ -123,6 +123,18 @@ internal static class WorkViewGalleryChecks
             double panelTop = panel.TranslatePoint(default, viewer)?.Y ?? 0;
             if (panelTop < backBottom - 0.5)
                 throw new InvalidOperationException($"{scene}: the post panel starts at {panelTop:0.#} under the way back (bottom {backBottom:0.#}).");
+            // V2: the host's head has the segment "Post | Tags" on the left and the × alone at the right edge; the post shows.
+            ToggleButton post = (ToggleButton)Tool(viewer, "gallery.panel.post"), tags = (ToggleButton)Tool(viewer, "gallery.panel.tags");
+            Button close = viewer.SidePanel.CloseButton;
+            if (!post.IsEffectivelyVisible || !tags.IsEffectivelyVisible || post.IsChecked != true || tags.IsChecked == true)
+                throw new InvalidOperationException($"{scene}: the panel segment does not show Post (post={post.IsChecked}, tags={tags.IsChecked}).");
+            double tagsRight = tags.TranslatePoint(new Point(tags.Bounds.Width, 0), viewer)?.X ?? 0;
+            double closeLeft = close.TranslatePoint(default, viewer)?.X ?? 0, closeRight = closeLeft + close.Bounds.Width;
+            double panelRight = panel.TranslatePoint(new Point(panel.Bounds.Width, 0), viewer)?.X ?? 0;
+            if (close.Name != "GalleryReturnImage" || !close.IsEffectivelyVisible || closeLeft - tagsRight < 24 || panelRight - closeRight > 24)
+                throw new InvalidOperationException($"{scene}: the × is not alone at the right edge of the panel head (tags end {tagsRight:0.#}, × {closeLeft:0.#}–{closeRight:0.#}, panel end {panelRight:0.#}).");
+            if (panel.Bounds.Width < MeowChan.Config.GalleryPanelWidthMinimum - 24.5 || panel.Bounds.Width > MeowChan.Config.GalleryPanelWidthMaximum + 0.5)
+                throw new InvalidOperationException($"{scene}: the panel width {panel.Bounds.Width:0.#} is outside its limits.");
         }
         finally
         {

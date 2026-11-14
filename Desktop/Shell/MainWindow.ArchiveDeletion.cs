@@ -30,11 +30,9 @@ public partial class MainWindow
             ArchivePermanentDeletionPlan plan = await _session.PrepareArchiveDeletionAsync(ids);
             if (_isClosing) return;
             string title = CommandCatalog.Label("archive.delete-permanently");
-            Window dialog = new()
-            {
-                Name = "ArchivePermanentDeleteDialog", Title = title, Width = 640, Height = 460,
-                MinWidth = 360, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
+            // Modals plan MD3: the form step; the title stands in the title bar only, the destructive action is the primary one.
+            Window dialog = DialogWindow.Create(title, DialogSize.M, modal: true);
+            dialog.Name = "ArchivePermanentDeleteDialog";
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
@@ -78,26 +76,18 @@ public partial class MainWindow
             Button tagRetry = new() { Name = "ArchivePermanentDeleteTagRetry", Content = Texts.T("archive.delete.tagRetry"), IsVisible = false };
             Avalonia.Automation.AutomationProperties.SetName(tagRetry, Texts.T("archive.delete.tagRetry"));
             IReadOnlyList<ResourceId>? tagRetryIds = null;
-            // Risk flow: Cancel stays on its own at the start, the destructive action sits apart at the end.
-            StackPanel risky = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-            risky.Children.Add(ratingRetry); risky.Children.Add(tagRetry); risky.Children.Add(delete);
-            Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 24 };
-            actions.Children.Add(cancel); actions.Children.Add(risky); Grid.SetColumn(risky, 2);
             status.IsVisible = !string.IsNullOrEmpty(status.Text);
             status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) status.IsVisible = !string.IsNullOrEmpty(status.Text); };
-            StackPanel footer = new() { Spacing = 8 };
-            footer.Children.Add(status); footer.Children.Add(actions);
-            TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap };
-            heading.Classes.Add("section-title");
-            StackPanel header = new() { Spacing = 8 };
-            header.Children.Add(heading); header.Children.Add(summary);
+            // Risk flow: Cancel and the retries stay left of the destructive action, which is the primary one right-most.
+            // The status or result summary keeps the full width above the buttons.
+            Border footer = DialogFooter.Build(delete, new Control[] { cancel, ratingRetry, tagRetry }, status, statusAbove: true);
             detail.Margin = new Thickness(16, 4, 16, 16);
             detail.VerticalAlignment = VerticalAlignment.Top;
-            dialog.Content = WindowChrome.Frame(dialog, DialogFrame.Build(header, detail, footer, DialogFrame.ErrorStrip(failure)), WindowChromeKind.Dialog);
+            DialogWindow.Frame(dialog, DialogFrame.Build(summary, detail, footer, DialogFrame.ErrorStrip(failure)), modal: true);
             bool executing = false;
-            cancel.Click += (_, _) => dialog.Close();
             dialog.Closing += (_, e) => { if (executing) e.Cancel = true; };
-            dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape && !executing) { e.Handled = true; dialog.Close(); } };
+            DialogEscape.Attach(dialog, isBusy: () => executing);
+            cancel.Click += (_, _) => dialog.Close();
             async Task RetryRatingsAsync()
             {
                 if (executing || ratingRetryIds == null) return;
@@ -162,7 +152,7 @@ public partial class MainWindow
                     _postBookmarksDialog?.InvalidateAvailability();
                     status.Text = Texts.Count("archive.delete.deleted", result.DeletedThreads.Count);
                     if (result.Files != null)
-                        status.Text += " " + Texts.T("archive.delete.filesRemoved", result.Files.DeletedFileCount);
+                        status.Text += " " + Texts.Count("archive.delete.filesRemoved", result.Files.DeletedFileCount);
                     await ArchivePage.ActivateAsync();
                 }
                 catch (Exception error) when (error is not OutOfMemoryException)

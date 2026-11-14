@@ -11,6 +11,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -26,14 +27,22 @@ public partial class SettingsEditor
     {
         if (_isClosed || !IsEditable || sender is not Button origin) return;
         _settingsMore?.Hide();
-        var export = new MenuItem { Header = Texts.T("settings.transfer.export") };
+        // The two entries of the head's More button: the export (a download) and the rare, destructive "Reset all", set apart by a separator.
+        var export = new MenuItem { Header = Texts.T("settings.transfer.export"), Icon = CommandBindings.NamedIcon("download") };
         AutomationProperties.SetName(export, Texts.T("settings.transfer.export"));
         export.Click += (_, _) =>
         {
             _settingsMore?.Hide();
             SettingsExportTask = ExportSavedSettingsAsync();
         };
-        _settingsMore = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export } };
+        var resetAll = new MenuItem { Header = ResetAllLabel, Icon = CommandBindings.NamedIcon("rotate-ccw") };
+        AutomationProperties.SetName(resetAll, ResetAllLabel);
+        resetAll.Click += (_, _) =>
+        {
+            _settingsMore?.Hide();
+            OpenResetConfirmation(origin, SettingsResetScope.All);
+        };
+        _settingsMore = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight, Items = { export, new Separator(), resetAll } };
         _settingsMore.ShowAt(origin);
     }
 

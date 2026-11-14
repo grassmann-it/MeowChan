@@ -44,7 +44,8 @@ internal static class SecondaryWindowChromeChecks
         {
             Task dialog = about.ShowDialog(owner);
             using MediaNativeInput input = await StageDialogAsync(about, "about");
-            await CheckCaptionAsync(about, input, "about");
+            // Modals plan MD3: About is a modal dialog on the factory, so its caption has no minimize.
+            await CheckCaptionAsync(about, input, "about", WindowChromeKind.Dialog);
             Button close = Caption(about, "WindowCloseButton");
             Require(close.Focus(), "About caption close cannot receive keyboard focus.");
             await input.KeyAsync(MediaNativeInput.Enter);
@@ -115,7 +116,7 @@ internal static class SecondaryWindowChromeChecks
         return input;
     }
 
-    // Former system-caption window, modal, Window variant: Escape keeps closing it.
+    // Modal list dialog on the dialog factory (modals plan MD2): Dialog variant, no minimize; Escape keeps closing it.
     private static async Task CheckRatingsManagerAsync(MainWindow owner)
     {
         var dialog = new MediaRatingsManagerDialog(owner.SessionHost);
@@ -125,12 +126,12 @@ internal static class SecondaryWindowChromeChecks
         {
             Task shown = dialog.ShowDialog(owner);
             using MediaNativeInput input = await StageDialogAsync(dialog, "ratings-manager");
-            await CheckCaptionAsync(dialog, input, "ratings-manager");
+            await CheckCaptionAsync(dialog, input, "ratings-manager", WindowChromeKind.Dialog);
             await input.KeyAsync(MediaNativeInput.Escape);
             await Program.WaitUntilAsync(() => closed);
             await shown;
             await WaitActiveAsync(owner, "ratings-manager-owner-return");
-            Console.WriteLine("SMOKE ratings-manager caption: Window variant; native Escape closed the modal; owner active again.");
+            Console.WriteLine("SMOKE ratings-manager caption: Dialog variant (no minimize); native Escape closed the modal; owner active again.");
         }
         finally { if (!closed) dialog.Close(); }
     }
@@ -188,9 +189,9 @@ internal static class SecondaryWindowChromeChecks
             window.Show();
             using MediaNativeInput input = await StageDialogAsync(window, "startup-error");
             await CheckCaptionAsync(window, input, "startup-error");
-            await input.KeyAsync(MediaNativeInput.Escape); // IsCancel exit button, unchanged by the caption
+            await input.KeyAsync(MediaNativeInput.Escape); // the dialog Escape policy closes it, unchanged by the caption
             await Program.WaitUntilAsync(() => closed);
-            Console.WriteLine("SMOKE startup-error caption: ownerless Window variant; native Escape reached the cancel button.");
+            Console.WriteLine("SMOKE startup-error caption: ownerless Window variant; native Escape closed it through the dialog policy.");
         }
         finally { if (!closed) window.Close(); }
     }

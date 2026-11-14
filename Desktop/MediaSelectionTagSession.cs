@@ -13,12 +13,17 @@ namespace MeowChan.Desktop;
 /// every occurrence is chosen by default and can be deselected. An add or remove is one admitted write for all chosen
 /// occurrences, bound to the tag revision the dialog shows: it happens completely or not at all. Media tags only.
 /// Occurrences are bound post versions or loose local files; both go through the same subject resolver and write.
+/// The session copies what it is given: later changes of the caller's list (the gallery's marks) never reach it, and a
+/// change it makes keeps the exact subjects it wrote, so an undo reverts those and nothing else.
 /// </summary>
 internal sealed class MediaSelectionTagSession
 {
     private readonly Func<PrivateTagLoadSnapshot> _load;
     private readonly Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> _defineAndSet;
     private readonly Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> _set;
+    private readonly IReadOnlyList<MediaTagCandidate> _candidates;
+    // The subject of each occurrence, fixed when the session starts (index = candidate index); null: cannot be tagged.
+    private readonly MediaTagSubject?[] _subjects;
     private readonly bool[] _chosen;
     private int _choice;
     private (PrivateTagStoreSnapshot Snapshot, int Choice, IReadOnlyList<MediaTagSubject> Subjects, HashSet<TagId>[] Tags, TagCoverage Coverage)? _carried;
@@ -26,16 +31,47 @@ internal sealed class MediaSelectionTagSession
     internal MediaSelectionTagSession(IReadOnlyList<MediaTagCandidate> candidates, Func<PrivateTagLoadSnapshot> load,
         Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> defineAndSet,
         Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> set)
+        : this(Copy(candidates), load, defineAndSet, set, null)
     {
-        Candidates = candidates ?? throw new ArgumentNullException(nameof(candidates));
+    }
+
+    private MediaSelectionTagSession(IReadOnlyList<MediaTagCandidate> candidates, Func<PrivateTagLoadSnapshot> load,
+        Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> defineAndSet,
+        Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> set,
+        IReadOnlyList<MediaTagSubject>? subjects)
+    {
+        _candidates = candidates;
+        _subjects = subjects != null ? subjects.Cast<MediaTagSubject?>().ToArray() : candidates.Select(candidate => candidate.Subject).ToArray();
         _load = load ?? throw new ArgumentNullException(nameof(load));
         _defineAndSet = defineAndSet ?? throw new ArgumentNullException(nameof(defineAndSet));
         _set = set ?? throw new ArgumentNullException(nameof(set));
-        _chosen = candidates.Select(candidate => candidate.Subject != null).ToArray();
+        _chosen = _subjects.Select(subject => subject != null).ToArray();
         Reload();
     }
 
-    internal IReadOnlyList<MediaTagCandidate> Candidates { get; }
+    private static IReadOnlyList<MediaTagCandidate> Copy(IReadOnlyList<MediaTagCandidate> candidates) =>
+        (candidates ?? throw new ArgumentNullException(nameof(candidates))).ToArray();
+
+    /// <summary>
+    /// A session over exactly these subjects (the gallery's marked media), each once, all chosen. The list is copied: marking or
+    /// unmarking afterwards needs a new session and never changes this one. It has no <see cref="Candidates"/> (those belong
+    /// to the media page dialog); <see cref="Count"/> is the number of subjects.
+    /// </summary>
+    internal static MediaSelectionTagSession ForSubjects(IEnumerable<MediaTagSubject> subjects, Func<PrivateTagLoadSnapshot> load,
+        Func<string, IReadOnlyList<MediaTagSubject>, long?, CancellationToken, Task<PrivateTagCommit>> defineAndSet,
+        Func<TagId, IReadOnlyList<MediaTagSubject>, bool, long?, CancellationToken, Task<PrivateTagCommit>> set)
+    {
+        ArgumentNullException.ThrowIfNull(subjects);
+        MediaTagSubject[] fixedSubjects = subjects.Distinct().ToArray();
+        return new MediaSelectionTagSession(Array.Empty<MediaTagCandidate>(), load, defineAndSet, set, fixedSubjects);
+    }
+
+    /// <summary>The occurrences the media page dialog lists; empty for a session made by <see cref="ForSubjects"/>.</summary>
+    internal IReadOnlyList<MediaTagCandidate> Candidates => _candidates;
+    /// <summary>How many occurrences (or subjects) the session spans, taggable or not.</summary>
+    internal int Count => _subjects.Length;
+    /// <summary>The distinct subjects the session was made over, in order (frozen at the start).</summary>
+    internal IReadOnlyList<MediaTagSubject> Subjects() => _subjects.OfType<MediaTagSubject>().Distinct().ToArray();
     /// <summary>Null while the tag index is unavailable; then nothing can be changed.</summary>
     internal PrivateTagStoreSnapshot? Snapshot { get; private set; }
     /// <summary>The last accepted change in this dialog, until it is undone or another change is made.</summary>
@@ -48,12 +84,13 @@ internal sealed class MediaSelectionTagSession
     internal event Action? Updated;
 
     internal bool IsChosen(int index) => _chosen[index];
-    internal IReadOnlyList<MediaTagCandidate> Chosen => Candidates.Where((_, index) => _chosen[index]).ToArray();
+    internal IReadOnlyList<MediaTagCandidate> Chosen => _candidates.Where((_, index) => _chosen[index]).ToArray();
+    private IEnumerable<MediaTagSubject> ChosenSubjects() => _subjects.Where((_, index) => _chosen[index]).OfType<MediaTagSubject>();
 
     /// <summary>Includes or excludes one occurrence. An occurrence without a tag target cannot be chosen.</summary>
     internal void Choose(int index, bool chosen)
     {
-        if (Busy || index < 0 || index >= _chosen.Length || (chosen && Candidates[index].Subject == null)) return;
+        if (Busy || index < 0 || index >= _chosen.Length || (chosen && _subjects[index] == null)) return;
         _chosen[index] = chosen;
         _choice++;
         Updated?.Invoke();
@@ -62,7 +99,7 @@ internal sealed class MediaSelectionTagSession
     internal void ChooseAll(bool chosen)
     {
         if (Busy) return;
-        for (int index = 0; index < _chosen.Length; index++) _chosen[index] = chosen && Candidates[index].Subject != null;
+        for (int index = 0; index < _chosen.Length; index++) _chosen[index] = chosen && _subjects[index] != null;
         _choice++;
         Updated?.Invoke();
     }
@@ -78,7 +115,7 @@ internal sealed class MediaSelectionTagSession
         if (Snapshot is not { } snapshot) return null;
         if (_carried is { } known && ReferenceEquals(known.Snapshot, snapshot) && known.Choice == _choice) return known;
         // Two views of the same loose file (for example two legacy posts) are one occurrence: one subject.
-        IReadOnlyList<MediaTagSubject> subjects = Chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>().Distinct().ToArray();
+        IReadOnlyList<MediaTagSubject> subjects = ChosenSubjects().Distinct().ToArray();
         HashSet<TagId>[] tags = subjects.Select(subject => snapshot.TagsOf(subject).Select(tag => tag.Id).ToHashSet()).ToArray();
         Dictionary<TagId, int> carriers = new();
         foreach (HashSet<TagId> set in tags)
@@ -134,7 +171,7 @@ internal sealed class MediaSelectionTagSession
     internal Task AddAsync(string? name, CancellationToken token = default) => RunAsync(async () =>
     {
         PrivateTagStoreSnapshot snapshot = Snapshot!;
-        IReadOnlyList<MediaTagSubject> subjects = Chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>()
+        IReadOnlyList<MediaTagSubject> subjects = ChosenSubjects()
             .Select(subject => MediaTagSubjects.Freeze(subject, snapshot)).Distinct().ToArray();
         // The undo takes the tag off exactly the files that lacked it; files that already had it keep it.
         PrivateTagDefinition? known = PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _) && parsed != null
@@ -200,7 +237,7 @@ internal sealed class MediaSelectionTagSession
     private async Task RunAsync(Func<Task<bool>> operation, bool undo = false)
     {
         if (Busy || Snapshot == null) return;
-        if (!undo && Chosen.Count == 0) { MessageKey = "media.selection.tag.noneChosen"; Updated?.Invoke(); return; }
+        if (!undo && !_chosen.Any(chosen => chosen)) { MessageKey = "media.selection.tag.noneChosen"; Updated?.Invoke(); return; }
         Busy = true;
         MessageKey = null;
         Undone = false;

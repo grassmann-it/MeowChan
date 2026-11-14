@@ -76,13 +76,13 @@ internal sealed class TagToggleRow : INotifyPropertyChanged
     internal string UsesText => IsHeader ? string.Empty : Uses.ToString(Texts.Culture);
 
     internal string AccessibleName => Tag is null ? Label : StateName + ", "
-        + (Uses > 0 ? Texts.T("tags.dialog.usesName", Uses) : Texts.T("tags.dialog.unusedName"));
+        + (Uses > 0 ? Texts.Count("tags.dialog.usesName", Uses) : Texts.T("tags.dialog.unusedName"));
 
     private string StateName => Tag is not { } tag ? Label : (Many, State) switch
     {
         (false, TagToggleState.All) => Texts.T("tags.dialog.row.on", tag.Name.Display),
         (false, _) => Texts.T("tags.dialog.row.off", tag.Name.Display),
-        (true, TagToggleState.All) => Texts.T("tags.dialog.row.all", tag.Name.Display, Total),
+        (true, TagToggleState.All) => Texts.Count("tags.dialog.row.all", Total, tag.Name.Display, Total),
         (true, TagToggleState.Some) => Texts.T("tags.dialog.row.some", tag.Name.Display, Carriers, Total),
         _ => Texts.T("tags.dialog.row.none", tag.Name.Display)
     };

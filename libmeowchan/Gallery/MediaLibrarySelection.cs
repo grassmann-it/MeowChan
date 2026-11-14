@@ -156,14 +156,15 @@ internal static class MediaLibraryExport
     // they cannot drift, and its non-null outputs carry the validated facts to the caller: a blank directory, asset id,
     // media id or hash is "no original to offer" (FindById rejects a blank id, and a blank folder is not a manifest).
     private static bool TryGetOriginal(MediaLibraryEntry entry, [NotNullWhen(true)] out string? directory,
-        [NotNullWhen(true)] out string? assetId, [NotNullWhen(true)] out string? mediaId, [NotNullWhen(true)] out string? sha256)
+        [NotNullWhen(true)] out string? assetId, [NotNullWhen(true)] out string? mediaId, out string? sha256)
     {
         bool original = entry.Presence == MediaLibraryPresence.Present && entry.Variant == "original";
         directory = original && !string.IsNullOrWhiteSpace(entry.Directory) ? entry.Directory : null;
         assetId = original && !string.IsNullOrWhiteSpace(entry.AssetId) ? entry.AssetId : null;
         mediaId = original && !string.IsNullOrWhiteSpace(entry.MediaId) ? entry.MediaId : null;
         sha256 = original && !string.IsNullOrWhiteSpace(entry.Sha256) ? entry.Sha256 : null;
-        return directory != null && assetId != null && mediaId != null && sha256 != null;
+        // A folder source file may not be hashed yet (PR2): its digest comes with its virtual manifest, so sha256 can be null for it.
+        return directory != null && assetId != null && mediaId != null && (sha256 != null || original && entry.FolderItemId != null);
     }
 
     /// <summary>Count and bytes of the originals the tiles would offer, from the index only.</summary>
@@ -206,7 +207,9 @@ internal static class MediaLibraryExport
                 manifests[directory] = manifest;
             }
             MediaAssetReference? asset = manifest?.FindById(assetId);
-            if (manifest == null || asset == null || !string.Equals(asset.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
+            // A folder source file indexed before it was hashed learned its digest when its manifest was opened just now.
+            if (manifest == null || asset == null
+                || !(entry.FolderItemId != null && sha256 == null) && !string.Equals(asset.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
                 || asset.MediaIdentifier != mediaId || asset.Variant != entry.Variant) { unavailable++; continue; }
             assets.Add(FavoriteExportAsset.From(entry.Thread, manifest, asset));
         }

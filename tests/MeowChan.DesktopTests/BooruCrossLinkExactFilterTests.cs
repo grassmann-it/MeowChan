@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Threading;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -45,10 +46,10 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.Null(filter.MinimumRating);
         Assert.False(filter.FavoritesOnly);
         Assert.False(filter.WithoutMediaTags);
-        Assert.Equal(MediaLibraryKindFilter.Any, filter.Kind);
+        Assert.Empty(filter.Kinds); // M1: no type restriction (the set replaced the single Kind)
         Assert.Equal(MediaLibrarySoundFilter.Any, filter.Sound);
         Assert.False(model.Get<CheckBox>("_missing").IsChecked);
-        Assert.Equal(0, model.Get<ComboBox>("_tagMode").SelectedIndex);
+        Assert.Equal(0, model.Get<TwoWayToggle>("_tagMode").SelectedIndex);
         Assert.False(model.Get<bool>("_localizing"));
         var passing = MediaLibraryFilterEngine.Apply([exact, neighbour], filter, MediaLibraryUserData.Unavailable);
         Assert.Same(exact, Assert.Single(passing));
@@ -69,7 +70,8 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.True(model.Apply("123"));
         object[] chips = ((IEnumerable)Call(model.Page, "ActiveFilterChips")!).Cast<object>().ToArray();
         string Property(object chip, string name) => (string)chip.GetType().GetProperty(name)!.GetValue(chip)!;
-        Assert.Equal(new[] { "thread", "source" }, chips.Select(chip => Property(chip, "Key")));
+        // M2: chip keys are term identities ("+field:value"); the order is the term set's (thread, then source).
+        Assert.Equal(new[] { "thread", "source" }, chips.Select(chip => Property(chip, "Key").TrimStart('+', '-').Split(':')[0]));
         Assert.Equal(Texts.T("media.filter.threadChip", Texts.T("booru.media.tile.post", "123")), Property(chips[0], "Label"));
         Assert.Equal(Texts.T("archive.sourceChip", Texts.T("booru.media.source")), Property(chips[1], "Label"));
         Assert.DoesNotContain(chips, chip => Property(chip, "Key") == "name");
@@ -177,8 +179,7 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.False(model.Page.ShowBooruPostAsync("123").GetAwaiter().GetResult());
         Assert.Equal("a different filename", model.Page.NameFilter.Text);
         Assert.True(model.Page.CurrentFilter().FavoritesOnly);
-        Assert.Single(model.Get<List<Guid>>("_includeTags"));
-        Assert.Single(model.Get<List<Guid>>("_excludeTags"));
+        Assert.Equal(2, model.Get<List<MediaFilterTerm>>("_terms").Count(term => term.Field == MediaFilterField.Tag)); // both old tags kept (M2 term set)
     });
 
     [Fact]
@@ -191,8 +192,7 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.Equal(1, gateCalls);
         Assert.Equal("a different filename", model.Page.NameFilter.Text);
         Assert.True(model.Page.CurrentFilter().FavoritesOnly);
-        Assert.Single(model.Get<List<Guid>>("_includeTags"));
-        Assert.Single(model.Get<List<Guid>>("_excludeTags"));
+        Assert.Equal(2, model.Get<List<MediaFilterTerm>>("_terms").Count(term => term.Field == MediaFilterField.Tag)); // both old tags kept (M2 term set)
     });
 
     [Fact]
@@ -232,13 +232,14 @@ public sealed class BooruCrossLinkExactFilterTests
             Set(Page, "_lifetime", _lifetime);
             Set(Page, "_snapshot", new MediaLibrarySnapshot(entries, [], [], true));
             Set(Page, "_nameFilter", new SearchBox());
-            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_sourceFilter", "_boardFilter", "_minRating", "_tagMode" })
+            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_sourceFilter", "_boardFilter", "_minRating" })
                 Set(Page, field, new ComboBox());
-            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_minRating", "_tagMode" })
+            Set(Page, "_tagMode", new TwoWayToggle()); // M5: the all | any switch
+            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_minRating" })
             { Get<ComboBox>(field).ItemsSource = new[] { "Any", "First", "Second", "Third", "Fourth", "Fifth" }; Get<ComboBox>(field).SelectedIndex = 0; }
             foreach (string field in new[] { "_favoritesOnly", "_withoutMediaTags", "_missing" }) Set(Page, field, new CheckBox());
-            Set(Page, "_includeTags", new List<Guid>());
-            Set(Page, "_excludeTags", new List<Guid>());
+            // M2: the term set is the filter (constructor bypassed, so the readonly list is set here).
+            Set(Page, "_terms", new List<MediaFilterTerm>());
         }
         internal T Get<T>(string field) => (T)typeof(MediaPage).GetField(field, Private)!.GetValue(Page)!;
         internal void IncompatibleFilters()
@@ -247,11 +248,16 @@ public sealed class BooruCrossLinkExactFilterTests
             Get<ComboBox>("_kindFilter").SelectedIndex = (int)MediaLibraryKindFilter.Video;
             Get<ComboBox>("_soundFilter").SelectedIndex = (int)MediaLibrarySoundFilter.WithSound;
             Get<ComboBox>("_minRating").SelectedIndex = 5;
-            Get<ComboBox>("_tagMode").SelectedIndex = 1;
+            Get<TwoWayToggle>("_tagMode").SelectedIndex = 1;
             foreach (string field in new[] { "_favoritesOnly", "_withoutMediaTags", "_missing" }) Get<CheckBox>(field).IsChecked = true;
-            Get<List<Guid>>("_includeTags").Add(Guid.NewGuid());
-            Get<List<Guid>>("_excludeTags").Add(Guid.NewGuid());
-            Set(Page, "_threadFilter", ((ResourceId Thread, string Title)?)(new ResourceId("old", "board", "456"), "Old thread"));
+            // The fields show the old state; the term set (M2) is what CurrentFilter reads.
+            Get<List<MediaFilterTerm>>("_terms").AddRange(new[]
+            {
+                MediaFilterTerm.Type(MediaLibraryKindFilter.Video), MediaFilterTerm.Sound(MediaLibrarySoundFilter.WithSound), MediaFilterTerm.Rating(5),
+                MediaFilterTerm.Flag(MediaFilterField.Favorite), MediaFilterTerm.Flag(MediaFilterField.Untagged), MediaFilterTerm.Flag(MediaFilterField.Missing),
+                MediaFilterTerm.Tag(Guid.NewGuid()), MediaFilterTerm.Tag(Guid.NewGuid(), exclude: true),
+                MediaFilterTerm.InThread(new ResourceId("old", "board", "456"))
+            });
         }
         internal bool Apply(string post) => (bool)Call(Page, "ApplyBooruNavigationFilters", BooruMediaIdentity.Thread(post), post)!;
         public void Dispose() => _lifetime.Dispose();

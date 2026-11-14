@@ -97,7 +97,7 @@ public sealed class PluginProbeLanguageRefreshTests : IDisposable
         foreach (string language in new[] { "es", "fr", "ru", "en" })
         {
             Texts.SetLanguage(language);
-            Assert.Equal(Texts.T("plugins.catalogResult", 101) + "\n" + raw, state.Render());
+            Assert.Equal(Texts.Count("plugins.catalogResult", 101) + "\n" + raw, state.Render());
             Assert.Equal(raw, state.RawContent);
         }
     }

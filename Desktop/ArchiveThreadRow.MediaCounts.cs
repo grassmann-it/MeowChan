@@ -22,7 +22,7 @@ internal sealed partial record ArchiveThreadRow
                 : Texts.T("archive.media.countUnavailable");
             status += "\n" + Texts.T("archive.media.countHint");
             if (_mediaCount?.MissingOrChangedFiles > 0)
-                status += "\n" + Texts.T("archive.media.missingVersions", _mediaCount.MissingOrChangedFiles);
+                status += "\n" + Texts.Count("archive.media.missingVersions", _mediaCount.MissingOrChangedFiles);
             if (_mediaCount?.Error is { Length: > 0 } error) status += "\n" + error;
             if (_mediaCountWork is { Media.Count: > 0 } work)
                 status += "\n" + Texts.T("archive.media.currentProgress", WorkStatusFormatter.Format(work).Progress);

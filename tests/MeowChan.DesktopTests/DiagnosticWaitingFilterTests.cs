@@ -109,7 +109,7 @@ public sealed class DiagnosticWaitingFilterTests
     }
 
     [Fact]
-    public void MarkupKeepsNeutralWrappingOptInAndVisibleCanonicalCopyNotice()
+    public void MarkupKeepsTheShortOptInLabelAndShowsTheCopyNoticeOnlyAsHelp()
     {
         XElement root = XDocument.Load(Source("DiagnosticsPage.axaml")).Root!;
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -117,17 +117,14 @@ public sealed class DiagnosticWaitingFilterTests
         Assert.Equal("CheckBox", waiting.Name.LocalName);
         Assert.Equal("False", (string?)waiting.Attribute("IsChecked"));
         Assert.Equal("OnDiagnosticFilterChanged", (string?)waiting.Attribute("IsCheckedChanged"));
-        Assert.NotNull(waiting.Attribute("MaxWidth"));
+        // The label is short and never wraps: a wrapped label made the box taller than its neighbours.
+        Assert.Null(waiting.Attribute("MaxWidth"));
         XElement label = Assert.Single(waiting.Elements());
         Assert.Equal("diagnostics.includeWaiting", (string?)label.Attribute("Tag"));
         Assert.Equal("localized", (string?)label.Attribute("Classes"));
-        Assert.Equal("Wrap", (string?)label.Attribute("TextWrapping"));
-        XElement privacy = root.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "DiagnosticCopyPrivacy");
-        Assert.Equal("diagnostics.copyPrivacy", (string?)privacy.Attribute("Tag"));
-        Assert.Equal("workspace-help localized", (string?)privacy.Attribute("Classes"));
-        Assert.Equal("Wrap", (string?)privacy.Attribute("TextWrapping"));
-        Assert.Null(privacy.Attribute("IsVisible"));
-        Assert.Equal("1", (string?)privacy.Parent!.Attribute("Grid.Row")); // Always-visible action footer.
+        Assert.Equal("NoWrap", (string?)label.Attribute("TextWrapping"));
+        // The privacy note is no longer a line of the page; it is the help of the copy buttons (see the source contract below).
+        Assert.DoesNotContain(root.Descendants(), element => (string?)element.Attribute(x + "Name") == "DiagnosticCopyPrivacy");
     }
 
     [Fact]
@@ -140,10 +137,12 @@ public sealed class DiagnosticWaitingFilterTests
         Assert.Contains("AutomationProperties.SetName(this.FindControl<CheckBox>(\"DiagnosticIncludeWaiting\")!, Texts.T(\"diagnostics.includeWaiting\"))", bulk);
         Assert.DoesNotContain("this.FindControl<CheckBox>(\"DiagnosticIncludeWaiting\")!.Content =", bulk);
         string page = File.ReadAllText(Source("DiagnosticsPage.axaml.cs"));
-        Assert.Contains("DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke())", page);
+        // One snapshot per refresh: the Status page hands over the one it took for its status line; only a page used on its own takes its own.
+        Assert.Contains("snapshot ??= DiagnosticsSnapshot.From(view, GetTargetWaitStates?.Invoke())", page);
         Assert.Contains("if (control is TextBlock text) text.Text = Texts.T(key);", page);
         Assert.Contains("RefreshDiagnosticFilterLabels();", page);
-        Assert.Contains("AutomationProperties.SetHelpText(this.FindControl<Button>(\"CopyDiagnosticButton\")!, Texts.T(\"diagnostics.copyPrivacy\"))", page);
+        Assert.Contains("AutomationProperties.SetHelpText(copy, Texts.T(\"diagnostics.copyPrivacy\"))", page);
+        Assert.Contains("ToolTip.SetTip(copy, Texts.T(\"diagnostics.copyPrivacy\"))", page);
     }
 
     private static DiagnosticEntry Entry(DiagnosticKind kind, long watch) =>

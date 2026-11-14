@@ -40,7 +40,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(10) };
     private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
     private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
-    // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×. Every medium starts at 1×.
+    // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×, a right-click offers
+    // 0.25×–4× (VideoRates.Choices). Every medium starts at 1×.
     private readonly Button _speed = new() { Name = "GalleryVideoSpeed", Classes = { "media-control" }, MinWidth = 44, Height = 32,
         Padding = new Thickness(8, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly GalleryTransportSlider _seek = new() { Name = "GalleryVideoSeek", Classes = { "media-slider" }, Minimum = 0, Maximum = 1000, MinWidth = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
@@ -79,9 +80,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private Window? _ownerWindow;
     private IPointer? _seekPointer;
     private int _loopRestarts;
-    internal static readonly float[] Rates = { 0.5f, 1f, 1.5f, 2f };
-    private const int NormalRateIndex = 1;
-    private int _rateIndex = NormalRateIndex;
+    internal static readonly float[] Rates = VideoRates.Cycle;
+    private float _rate = VideoRates.Normal;
     private bool _repeatOwnedBySlideshow;
     private string? _repeatOwnedReason;
     private bool _canSeek;
@@ -102,7 +102,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal event Action? SeekInteractionStarted;
     internal bool LoopEnabled => _intent.LoopEnabled;
     /// <summary>The playback speed chosen for the current medium (1 after every new medium).</summary>
-    internal float Rate => Rates[_rateIndex];
+    internal float Rate => _rate;
     /// <summary>The shown position in milliseconds (a pending seek's target while it runs).</summary>
     internal long PositionMs => _timeline.DisplayPosition;
     /// <summary>Whether the transport can seek now (a seekable medium with a known length).</summary>
@@ -127,7 +127,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (!ReferenceEquals(host, _externalTransportHost)) CancelSeekGesture();
         _externalTransportHost = host;
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
-        Grid.SetRowSpan(UsesSoftwareVideo ? _softwareVideo : _video, host == null ? 1 : 2);
+        Grid.SetRowSpan(SurfaceControl, host == null ? 1 : 2);
+        ApplyVolumePlacement();
         // Always submit the latest desired host, even if it is the actual parent:
         // an earlier cross-root request may still be pending. The transfer owns removal.
         GalleryControlTransfer.Move(_transportPanel, host ?? _root,
@@ -162,7 +163,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         get
         {
             if (_externalTransportHost != null) return 0;
-            Control surface = UsesSoftwareVideo ? _softwareVideo : _video;
+            Control surface = SurfaceControl;
             Point? bottom = surface.TranslatePoint(new Point(0, surface.Bounds.Height), this);
             return bottom.HasValue ? Math.Max(0, Bounds.Height - bottom.Value.Y) : 0;
         }
@@ -301,6 +302,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (_repeatOwnedBySlideshow == owned && _repeatOwnedReason == reason) return;
         _repeatOwnedBySlideshow = owned; _repeatOwnedReason = reason;
         _loop.IsEnabled = _playPause.IsEnabled && !owned;
+        // The A–B loop is a repeat too: a running slideshow's video rule owns repetition, so the loop ends and waits.
+        if (owned) ClearAbLoop();
         RefreshTransportPresentation();
     }
 
@@ -322,17 +325,27 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         Dispatcher.UIThread.VerifyAccess();
         if (IsDisposed || !_speed.IsEnabled) return;
-        int next = direction == 0 ? NormalRateIndex : Math.Clamp(_rateIndex + Math.Sign(direction), 0, Rates.Length - 1);
-        if (next == _rateIndex) return;
-        _rateIndex = next;
-        RefreshTransportPresentation();
-        ApplyRate();
+        SetRate(VideoRates.Step(_rate, direction));
     }
 
     private void CycleRate()
     {
         if (IsDisposed || !_speed.IsEnabled) return;
-        _rateIndex = (_rateIndex + 1) % Rates.Length;
+        SetRate(VideoRates.Next(_rate));
+    }
+
+    /// <summary>Chooses any speed of <see cref="VideoRates.Choices"/> (the right-click menu and the player menu).</summary>
+    internal void ChooseRate(float rate)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (IsDisposed || !_speed.IsEnabled) return;
+        SetRate(VideoRates.Normalize(rate));
+    }
+
+    private void SetRate(float rate)
+    {
+        if (VideoRates.Same(rate, _rate)) return;
+        _rate = rate;
         RefreshTransportPresentation();
         ApplyRate();
     }
@@ -343,7 +356,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _ = CommandAsync(playback => playback.Player.SetRate(rate));
     }
 
-    internal static string RateLabel(float rate) => rate.ToString("0.#", Texts.Culture) + MultiplicationSign;
+    internal static string RateLabel(float rate) => rate.ToString("0.##", Texts.Culture) + MultiplicationSign;
 
     // The times sign of a rate label ("1.5×") is text next to a number, not an icon, so it is not a drawn catalog icon (P6).
     private const char MultiplicationSign = '\u00D7';
@@ -364,12 +377,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 Playback? playback = _playback;
                 return playback != null && IsCurrent(playback.Generation) && playback.Player.TakeSnapshot(0, path, 0, 0) && File.Exists(path);
             }
-            catch (Exception) { return false; }
+            catch (Exception error) when (error is not OutOfMemoryException) { Serilog.Log.Warning(error, "The native video snapshot failed."); return false; }
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
         if (saved || !UsesSoftwareVideo || _softwareVideo.Source is not Avalonia.Media.Imaging.Bitmap shown) return saved;
-        try { shown.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default); return File.Exists(path); }
-        catch (Exception) { return false; }
+        // Copied here, encoded and written on a worker: a large frame never stalls the UI thread (logged on failure).
+        return await GalleryFramePng.SaveAsync(shown, path).ConfigureAwait(true);
     }
 
     private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, SoftwareVideoSurface? Surface, CancellationToken Token);
@@ -470,21 +483,27 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
             slider.Resources["SliderThumbWidth"] = 12d;
             slider.Resources["SliderThumbHeight"] = 12d;
         }
-        StackPanel secondary = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        secondary.Children.Add(_speed); secondary.Children.Add(_mute); secondary.Children.Add(_volume); secondary.Children.Add(_loop);
-        Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        timeline.Children.Add(_seek);
-        timeline.Children.Add(_time); Grid.SetColumn(_time, 1);
+        // One row: ▶ · time · seek (with the A–B marks) · speed · repeat · A·B · next frame · volume · full screen · ⋯.
+        StackPanel secondary = _secondary;
+        secondary.Children.Add(_speed); secondary.Children.Add(_loop); secondary.Children.Add(_abLoopButton);
+        secondary.Children.Add(_frameStep); secondary.Children.Add(_volumeHost);
+        secondary.Children.Add(_fullscreen); secondary.Children.Add(_playerMenuButton);
+        Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
+        timeline.Children.Add(_time);
+        Grid seekTrack = new();
+        seekTrack.Children.Add(_seek); seekTrack.Children.Add(_seekMarks);
+        timeline.Children.Add(seekTrack); Grid.SetColumn(seekTrack, 1);
+        InitializeTransportExtras();
         Grid controls = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
         controls.Children.Add(_playPause);
         controls.Children.Add(timeline); Grid.SetColumn(timeline, 1);
         controls.Children.Add(secondary); Grid.SetColumn(secondary, 2);
         // A narrow post-context pane gets two deliberate rows, never a loosely
-        // wrapping button pile. Audio and loop remain reachable at every width.
+        // wrapping button pile: the timeline above, ▶ and every other control below.
         bool compact = false;
         _transportPanel.SizeChanged += (_, _) =>
         {
-            bool nextCompact = _transportPanel.Bounds.Width < 560;
+            bool nextCompact = _transportPanel.Bounds.Width < CompactTransportWidth;
             if (compact == nextCompact) return;
             compact = nextCompact;
             controls.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto");
@@ -499,8 +518,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _transportPanel.Child = transport;
         // Seek, time, volume and playback form one reserved surface. Its dynamic
         // resources follow open-window theme changes without touching playback.
-        Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
-        _root.Children.Add(videoSurface);
+        InitializeViewTransform();
+        _root.Children.Add(SurfaceControl);
         _root.Children.Add(_transportPanel); Grid.SetRow(_transportPanel, 1); Content = _root;
         _status.IsVisible = false;
         _status.PropertyChanged += (_, args) =>
@@ -560,11 +579,13 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 _transportWindow = null;
             }
             if (_ownerWindow != null) _ownerWindow.Deactivated += OnWindowDeactivated;
+            AttachOwnerWindowExtras();
             Texts.Changed += OnLanguageChanged; ShortcutService.Changed += RefreshTransportPresentation; RefreshTransportPresentation();
         };
         DetachedFromVisualTree += async (_, _) =>
         {
             if (_ownerWindow != null) _ownerWindow.Deactivated -= OnWindowDeactivated;
+            DetachOwnerWindowExtras();
             _ownerWindow = null;
             if (IsDisposed) DetachTransport();
             else SetExternalTransportHost(null);
@@ -629,6 +650,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         string speedKeys = string.Join(" · ", new[] { "video.speed-down", "video.speed-up", "video.speed-reset" }
             .Select(id => CommandCatalog.ShortcutDisplay(id)).Where(gesture => gesture != null));
         string speedTip = speed + " · " + Texts.T("viewer.video.speedHelp") + (speedKeys.Length > 0 ? " · " + speedKeys : string.Empty);
+        speedTip += " · " + Texts.T("viewer.video.speedMore");
         AutomationProperties.SetName(_speed, speed);
         AutomationProperties.SetHelpText(_speed, speedTip);
         ToolTip.SetTip(_speed, speedTip);
@@ -637,6 +659,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
         ToolTip.SetTip(_volume, volumeLabel);
+        RefreshTransportExtras();
     }
     private static Control TransportIcon(string command, int size, string? state = null)
     {
@@ -673,7 +696,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         CancellationToken token = request.Token;
         PerformanceDiagnostics.Record("video.show", "begin", request.Id, asset: entry.Asset.AssetId, revision: generation);
         _loopRestarts = 0;
-        _rateIndex = NormalRateIndex; // A new medium starts at normal speed; its new native player does too.
+        ResetViewTransform();
+        _rate = VideoRates.Normal; // A new medium starts at normal speed; its new native player does too.
+        ResetTransportExtras(); // Its A–B loop and audio tracks are its own.
         CancelSeekGesture();
         BeginScrubSession(entry, generation);
         _timeline.Reset(generation);
@@ -713,6 +738,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
                     input = new StreamMediaInput(stream);
                     media = new Media(_engine, input);
+                    AddInitialRotation(media);
                     // VLC 3's MP4 demux can consume a callback-backed, single-chunk
                     // video-only track to EOF while its reported clock stays at 250ms.
                     // Keep the verified handle (never reopen by path); avformat demuxes
@@ -731,7 +757,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                         _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
                         _ = RefreshAudioStateAsync(generation, ownedPlayer);
                         // A replay or repeat may re-open the input; keep the chosen speed.
-                        if (_rateIndex != NormalRateIndex) ApplyRate();
+                        if (!VideoRates.Same(_rate, VideoRates.Normal)) ApplyRate();
+                        RequestAudioTrackRefresh(generation, ownedPlayer);
                     });
                 };
                 player.Paused += (_, _) => PostIntent(generation, intent =>
@@ -760,7 +787,11 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     Post(generation, () =>
                     {
                         if (!_ended && _timeline.Observe(generation, revision, args.Time))
+                        {
                             RenderTime();
+                            CheckAbLoop(args.Time);
+                        }
+                        if (_sourceSize == null) RequestNativeSize(generation, ownedPlayer);
                         if (_audioProbe.Tick()) _ = RefreshAudioStateAsync(generation, ownedPlayer);
                     });
                 };
@@ -769,6 +800,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     // Invalidate before requesting: a probe in flight may have read the old track list.
                     _audioProbe.Invalidate();
                     _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                    RequestAudioTrackRefresh(generation, ownedPlayer);
                 }
                 player.ESAdded += (_, _) => TrackChanged();
                 player.ESDeleted += (_, _) => TrackChanged();
@@ -786,6 +818,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                         if (_ended) { _canSeek = _knownSeekable; UpdateTime(_length); EnableTransport(true); }
                         _isPlaying = false; RefreshTransportPresentation();
                         if (_length <= 0) _ = FailAsync(generation);
+                        // A loop whose B lies at the very end meets the natural end first: it returns to A as well.
+                        else if (_abLoop.IsActive && JumpToLoopStart()) { }
                         else if (_intent.CanRepeat(intent)) _ = RestartAfterEndAsync(intent, ownedPlayer);
                         else
                         {
@@ -1026,6 +1060,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _loop.IsEnabled = enabled && !_repeatOwnedBySlideshow;
         _mute.IsEnabled = _volume.IsEnabled = enabled && _audioAvailable;
         _seek.IsEnabled = enabled && _canSeek && _length > 0;
+        UpdateTransportExtrasEnabled();
     }
 
     // A track list/output may become available only after Playing. Query on our
@@ -1092,8 +1127,14 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (!CanAdjustVolume || direction == 0) return;
         // Same bounds/step and same synchronous ValueChanged/latest-intent/persistence path
         // as pointer input. No play/pause/loop/mute policy or second backend setter here.
-        double step = _volume.SmallChange;
-        _volume.Value = Math.Clamp(_volume.Value + Math.Sign(direction) * step, _volume.Minimum, _volume.Maximum);
+        AdjustVolumeBy(Math.Sign(direction) * _volume.SmallChange);
+    }
+
+    // The wheel over the volume control takes the same path in larger steps.
+    private void AdjustVolumeBy(double delta)
+    {
+        if (!CanAdjustVolume || delta == 0) return;
+        _volume.Value = Math.Clamp(_volume.Value + delta, _volume.Minimum, _volume.Maximum);
     }
 
     private Task SetVolumeAsync(int volume, bool userInitiated)

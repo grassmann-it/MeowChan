@@ -130,12 +130,14 @@ internal static partial class GalleryToolbarLayoutChecks
                     mode.SelectedIndex = 0;
                     await LayoutAsync(window);
                     Require(!chrome.IsVisualAncestorOf(slideshow), "The slideshow control did not return to the menu.");
-                    // A shortcut of a menu command works with the menu closed: F1 opens the shortcut help.
+                    // A shortcut of a menu command works with the menu closed: F1 opens the one shortcuts window on the gallery group.
                     viewer.Focus();
                     PressKey(viewer, Key.F1);
-                    await UntilAsync(() => Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+                    await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+                    Require(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!.Editor.Context.Area == MeowChan.Desktop.Commands.ShortcutGroups.Gallery,
+                        "F1 in the gallery did not open the shortcuts window on the Gallery group.");
                     PressKey(viewer, Key.F1);
-                    await UntilAsync(() => !Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+                    await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
                 }
                 viewer.SetOverflowOpen(false);
                 await LayoutAsync(window);
@@ -158,7 +160,7 @@ internal static partial class GalleryToolbarLayoutChecks
     };
     private static readonly string[] Rare =
     {
-        "GalleryPlus", "GalleryMinus", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryPlaybackModeSelector",
+        "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryPlaybackModeSelector",
         "GallerySlideshowToggle", "GalleryOverlayToggle", "GalleryPostOverlayToggle", "GalleryFullscreen", "GalleryHelp",
         "GalleryVideoRepeatToggle", "GallerySaveFrame"
     };
@@ -196,7 +198,7 @@ internal static partial class GalleryToolbarLayoutChecks
     // Every rare command is a labelled row of the menu: same instance, name, label text and (where bound) shortcut.
     private static void RequireOverflow(GalleryViewer viewer)
     {
-        string[] shortcuts = { "GalleryPlus", "GalleryMinus", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryFullscreen", "GalleryHelp" };
+        string[] shortcuts = { "GalleryPlus", "GalleryMinus", "GalleryRotate", "GalleryRating", "GalleryTags", "GalleryExportOriginal", "GalleryFullscreen", "GalleryHelp" };
         foreach (string name in Rare.Where(name => name != "GalleryPlaybackModeSelector"))
         {
             Button row = Find<Button>(viewer, name);

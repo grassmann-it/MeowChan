@@ -213,13 +213,10 @@ internal static class GalleryCaptionChecks
     {
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         bool originalContext = viewer.CaptureState().ContextOpen;
-        Border help = Find<Border>(viewer, "GalleryShortcutHelp");
-        bool originalHelp = help.IsVisible;
         Dictionary<string, Color>? firstLight = null, previous = null;
         try
         {
             SetContext(viewer, true);
-            if (!help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             GalleryViewerState held = viewer.CaptureState();
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark, ThemeVariant.Light })
             {
@@ -227,7 +224,7 @@ internal static class GalleryCaptionChecks
                 await Program.WaitUntilAsync(() => window.ActualThemeVariant == variant && viewer.ActualThemeVariant == variant);
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
                 Dictionary<string, Color> colors = new();
-                foreach (string name in new[] { "GalleryContext", "GalleryShortcutHelp", "GalleryOverlayControls", "GalleryOverlayInfo" })
+                foreach (string name in new[] { "GalleryContext", "GalleryOverlayControls", "GalleryOverlayInfo" })
                 {
                     Border panel = Find<Border>(viewer, name);
                     if (!panel.IsEffectivelyVisible || panel.ActualThemeVariant != variant)
@@ -261,8 +258,8 @@ internal static class GalleryCaptionChecks
                 }
                 GalleryViewerState current = viewer.CaptureState();
                 if (current.Key != held.Key || current.PostId != held.PostId || current.AttachmentPosition != held.AttachmentPosition
-                    || current.ManualZoom != held.ManualZoom || !current.ContextOpen || !help.IsVisible)
-                    throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode, context or help.");
+                    || current.ManualZoom != held.ManualZoom || !current.ContextOpen)
+                    throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode or context.");
                 if (viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Any(control => control.Name == "GalleryPostAssociation"))
                     await CheckContextSelectorAsync(window, viewer, variant);
                 Console.WriteLine("SMOKE gallery live theme: " + JsonSerializer.Serialize(new
@@ -273,7 +270,6 @@ internal static class GalleryCaptionChecks
         }
         finally
         {
-            if (!originalHelp && help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             SetContext(viewer, originalContext);
             Application.Current.RequestedThemeVariant = originalTheme;
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);

@@ -31,6 +31,8 @@ public partial class ArchivePage
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
+        // Escape inside the media sidebar closes only the sidebar (R8), before any reader-wide dismissal.
+        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { CloseMediaSidebar(); return true; }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
         {
@@ -155,7 +157,7 @@ public partial class ArchivePage
             && !_page.IsReaderDialogOpen && (!_requireRefreshAllowed || (_page.ReaderRefreshAllowed?.Invoke() ?? true))
             && _pane.IsEffectivelyVisible && _pane.IsEffectivelyEnabled
             && _owner is { IsActive: true, IsVisible: true }
-            && !_owner.OwnedWindows.Any(window => window.IsVisible)
+            && !_owner.OwnedWindows.Any(window => window.IsVisible && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window))
             && ReferenceEquals(TopLevel.GetTopLevel(_pane), _owner)
             && (_owner.FocusManager?.GetFocusedElement() is not { } current || ReferenceEquals(current, _ownedFocus));
 
@@ -262,6 +264,7 @@ public partial class ArchivePage
 
     internal Control DetachReader()
     {
+        _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
         InvalidateFilenameSearch();
         ++_readerFocusRequest;
         Grid pane = ArchiveReaderPane;
@@ -283,11 +286,14 @@ public partial class ArchivePage
         UpdateReaderNavigation();
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
-        return pane;
+        // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
+        return WrapLargeReader(pane);
     }
 
-    internal void AttachReader(Control pane)
+    internal void AttachReader(Control content)
     {
+        _ = ReleaseInlineVideos(); // R10: the large reader closes
+        Grid pane = UnwrapLargeReader(content);
         InvalidateFilenameSearch();
         CloseThreadFind();
         StopObservingReaderMediaKeys();
@@ -297,7 +303,7 @@ public partial class ArchivePage
         _readerTabScope = null;
         pane.ClearValue(ReaderPostLayout.LargeReaderProperty);
         Border export = ArchiveExportDialog;
-        ((Grid)pane).Children.Remove(export);
+        pane.Children.Remove(export);
         ArchiveRoot.Children.Add(export);
         ++_readerScopeRequest;
         _readerThreads = Array.Empty<ResourceId>();
@@ -399,7 +405,8 @@ public partial class ArchivePage
             ScrollViewer? scroll = posts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
             ScrollContentPresenter? viewport = scroll?.GetVisualDescendants().OfType<ScrollContentPresenter>().FirstOrDefault();
             if (viewport == null || container.TranslatePoint(default, viewport) is not Point position) continue;
-            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - 8, 0,
+            // The post that carries the reading line scrolls to just below the line, which sits above its card.
+            double offset = Math.Clamp(scroll!.Offset.Y + position.Y - 8 - (row.HasUnreadLine ? ReaderUnreadLineHost.Reach : 0), 0,
                 Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
             if (Math.Abs(offset - scroll.Offset.Y) > 1)
             {
@@ -764,7 +771,7 @@ public partial class ArchivePage
             && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
             && source.IsEffectivelyVisible && source.IsEffectivelyEnabled
             && CommandRouter.IsRoutingContextActive(pane, source)
-            && TopLevel.GetTopLevel(pane) is Window owner && !owner.OwnedWindows.Any(window => window.IsVisible)
+            && TopLevel.GetTopLevel(pane) is Window owner && !owner.OwnedWindows.Any(window => window.IsVisible && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window))
             && ReferenceEquals(posts.SelectedItem, post) && _thread?.FindPostIndex(post.Id) >= 0
             && !(posts.ContainerFromItem(post)?.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .Any(text => text.SelectionStart != text.SelectionEnd) ?? false)

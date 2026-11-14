@@ -66,9 +66,13 @@
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="10"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
                         KeyboardNavigation.TabNavigation="Cycle">
-                    <!-- The toggle directly above names the surface; no repeated title. -->
-                    <Grid RowDefinitions="*,Auto" RowSpacing="8">
-                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" HorizontalScrollBarVisibility="Disabled">
+                    <!-- MD4 overlay header: the surface names itself (like every overlay) and its cross sits alone at the top right (OverlayFrame). -->
+                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                        <controls:HeaderBar x:Name="ArchiveFilterSurfaceHeader">
+                            <TextBlock x:Name="ArchiveFilterSurfaceTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsEnd="True" Click="OnFilterCloseClick" />
+                        </controls:HeaderBar>
+                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="ArchiveFilterFields" Spacing="8" Margin="0,0,12,0">
                                 <!-- Every field has a visible label above it, like Settings; the placeholders stay short.
                                      WV2: each field is a group with a work-view id. Where the view moves a group off the surface it
@@ -146,7 +150,7 @@
                                 </Expander>
                             </StackPanel>
                         </ScrollViewer>
-                        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
                             <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
                             <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
                         </Grid>
@@ -163,7 +167,7 @@
                                             <ContextMenu Opening="OnArchiveSelectionMenuOpening">
                                                 <MenuItem Header="{Binding GalleryLabel}" Click="OnThreadGalleryMenu" />
                                                 <MenuItem Header="{Binding ReadLabel}" Click="OnThreadReadMenu" />
-                                                <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" Click="OnThreadExportMenu" />
+                                                <MenuItem Tag="selection.export" Classes="localized" Header="Export selection" Click="OnThreadExportMenu" />
                                                 <MenuItem Tag="action.showDetails" Classes="localized" Header="Show details" Click="OnArchiveSelectionDetails" />
                                                 <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
                                                 <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnArchiveRetrySelection" />
@@ -203,18 +207,23 @@
                             </DataGrid.Styles>
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="Source / board" SortMemberPath="Identity" Width="150" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding Identity}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Identity}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /><desktop:ArchiveThreadFavoriteButton Grid.Column="1" VerticalAlignment="Center" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Posts" Width="65" MinWidth="55" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTemplateColumn Header="Saved versions" SortMemberPath="SavedMediaCount" Width="145" MinWidth="110"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Last capture" Width="145" MinWidth="125" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- A1: numbers and dates never wrap; the default widths come from ArchivePage.ColumnFit (ThreadDefaultWidths is only the fallback). -->
+                                <DataGridTemplateColumn Header="Posts" SortMemberPath="Posts" Width="70" MinWidth="55"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding Posts}" TextAlignment="Right" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Saved versions" SortMemberPath="SavedMediaCount" Width="120" MinWidth="110"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Last capture" SortMemberPath="LastCapture" Width="145" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding LastCapture}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Tags" SortMemberPath="TagColumnText" Width="170" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock AutomationProperties.AutomationId="ArchiveThreadTagCell" Text="{Binding TagColumnText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TagColumnTip}" AutomationProperties.HelpText="{Binding TagColumnTip}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- A2: the favourite star is the last column by key (saved widths and orders of older versions stay valid) and the first by
+                                     display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
+                                     (the width the 12 dip cell padding leaves) with the 18 dip star. -->
+                                <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
                             <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening">
                                 <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" Click="OnThreadGalleryMenu" />
                                 <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" Click="OnThreadReadMenu" />
-                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection…" Click="OnThreadExportMenu" />
+                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection" Click="OnThreadExportMenu" />
                                 <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" Click="OnArchiveCopySelection" />
                                 <MenuItem Tag="action.showDetails" Classes="localized" Header="Show details" Click="OnArchiveSelectionDetails" />
                                 <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
@@ -281,14 +290,15 @@
                     <Button x:Name="ReaderFindOpen" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
                     <Button x:Name="ReaderViewOpen" wv:WorkViewElement.Id="reader.toolbar.view" Click="OnReaderViewMenuClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu next to "View"; "View" stays the reader's own look, the bar's "More" stays "More". -->
+                    <Button x:Name="ReaderThreadOpen" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
                     <Button x:Name="ArchiveReadPosts" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
+                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <Button x:Name="ArchiveReaderFullscreen" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     <Button x:Name="ArchiveHistoryBack" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <!-- Starting/stopping post capture is a tool (R3 Top 10d); whether posts are captured stays in the status line. -->
-                    <Button x:Name="CapturePostsButton" wv:WorkViewElement.Id="reader.toolbar.capture" Classes="ghost" Click="OnCaptureClick" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
@@ -329,7 +339,8 @@
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
-                        <CheckBox x:Name="ReaderFollowLive" wv:WorkViewElement.Id="reader.status.follow-live" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
+                        <!-- R3: following live is "Show new posts automatically" in the View menu; this line only says whether it is on. -->
+                        <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
@@ -357,6 +368,10 @@
                                                     <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
                                                     <Setter Property="Margin" Value="8,4" />
                                                     <Setter Property="Padding" Value="2,0" />
+                                                </Style>
+                                                <!-- The selected (focused) card: its media can be drawn larger (R6); inherited by everything in the card. -->
+                                                <Style Selector="ListBoxItem:selected">
+                                                    <Setter Property="desktop:ReaderPostLayout.Focused" Value="True" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem /template/ ContentPresenter">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
@@ -469,14 +484,18 @@
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
-                                                    <StackPanel Margin="8,8,8,12" Spacing="8" AutomationProperties.HelpText="{Binding DepthLabel}">
-                                                        <!-- Reading mark: a full-width divider at the top edge of the first post after the last one read. It runs to the
-                                                             card edges (it cancels the card's inner margin) and carries the count between two rules. -->
-                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8" Margin="-8,-8,-8,0" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
+                                                    <Panel>
+                                                    <!-- Reading mark: its own row between two cards, never inside one. The marked post's container reserves the
+                                                         gap as extra top margin (8 dip of air each side); the host arranges the line into it across the full list width. -->
+                                                    <desktop:ReaderUnreadLineHost HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" IsVisible="{Binding HasUnreadLine}"
+                                                                                  AutomationProperties.Name="{Binding UnreadLabel}">
+                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8">
                                                             <Rectangle Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" Margin="0,4" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                             <Rectangle Grid.Column="2" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                         </Grid>
+                                                    </desktop:ReaderUnreadLineHost>
+                                                    <StackPanel Margin="8,8,8,12" Spacing="8" AutomationProperties.HelpText="{Binding DepthLabel}">
                                                         <!-- Placeholder of a post the view hides: number, reason and Show instead of the post. -->
                                                         <WrapPanel ItemSpacing="8" LineSpacing="2" IsVisible="{Binding IsStub}">
                                                             <TextBlock Text="{Binding StubText}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -512,7 +531,7 @@
                                                             <Button Classes="reader-quote reader-view-hide-again" Content="{Binding HideAgainLabel}" AutomationProperties.Name="{Binding HideAgainLabel}"
                                                                     Click="OnReaderHideAgainClick" VerticalAlignment="Center" />
                                                         </WrapPanel>
-                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}">
+                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}" MediaWidth="{Binding MediaWidth}">
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
@@ -573,6 +592,7 @@
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>
                                                     </StackPanel>
+                                                    </Panel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
@@ -599,7 +619,11 @@
                                             <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
                                                     CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <StackPanel Spacing="12">
-                                                    <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" />
+                                                    <!-- MD4 overlay header: the question on the left, the cross (cancel) alone at the top right (OverlayFrame). -->
+                                                    <controls:HeaderBar x:Name="ReaderLinkHeader">
+                                                        <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsEnd="True" Click="OnReaderLinkCancel" />
+                                                    </controls:HeaderBar>
                                                     <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
                                                     <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                                     <CheckBox x:Name="ReaderLinkRemember" />
@@ -654,6 +678,7 @@
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="8" LineSpacing="8" IsVisible="False">
                                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
                                             <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
+                                            <Button x:Name="ArchiveMediaSelectionQueue" Click="OnMediaSelectionQueueClick" />
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />

@@ -17,6 +17,12 @@ internal sealed class ThumbnailDecodeGate
 {
     /// <summary>Fairness constant, not a user-visible limit: how many images may pass a waiting poster in a row.</summary>
     internal const int MaximumConsecutiveImages = 8;
+    /// <summary>
+    /// Technical limit, deliberately not a setting: parallel thumbnail decodes of the archive page. Decodes compete with
+    /// the UI thread and the native poster decoder for CPU and memory; more slots do not show visible rows sooner, they
+    /// only delay the one the user looks at. Documented here instead of being a hidden literal at the call site.
+    /// </summary>
+    internal const int ArchiveSlots = 2;
 
     private sealed class Waiter
     {

@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.DesktopTests;
 
@@ -46,6 +47,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [InlineData("Disk", true)]
     [InlineData("SideBySide", true)]
     [InlineData("Text", false)]
+    [InlineData("Off", false)]
     [InlineData("nonsense", true)]
     public void TheHeaderDrawsTheDiskGraphBySettingAlone(string setting, bool disk) =>
         Assert.Equal(disk, IoStatsDisplay.HeaderShowsDisk(setting));
@@ -56,7 +58,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [InlineData("nonsense", true)]
     [InlineData("Network", false)]
     [InlineData("network", false)]
-    public void TheDiskValueShowsInEveryViewUnlessTheSettingIsNetwork(string setting, bool shown) =>
+    [InlineData("Off", false)]
+    public void TheDiskValueShowsInEveryViewUnlessTheSettingIsNetworkOrOff(string setting, bool shown) =>
         Assert.Equal(shown, IoStatsDisplay.HeaderShowsDiskValue(setting));
 
     // (setting, window width) -> net value, disk value, net graph, disk graph, arrangement
@@ -84,13 +87,40 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [InlineData("Text", 1000.0, true, true, false, false, "TextBlocks")]
     [InlineData("Text", 900.0, true, true, false, false, "TextRows")]
     [InlineData("nonsense", 1100.0, true, true, true, true, "Rows")]
+    // Off hides the whole display at every width: no value, no graph.
+    [InlineData("Off", 1400.0, false, false, false, false, "TextRows")]
+    [InlineData("Off", 900.0, false, false, false, false, "TextRows")]
+    [InlineData("off", 1100.0, false, false, false, false, "TextRows")]
     public void EachSettingResolvesToItsLayoutAtTheWindowWidth(string setting, double width, bool net, bool disk, bool netGraph, bool diskGraph, string arrangement)
     {
         IoStatsDisplay.HeaderLayout layout = IoStatsDisplay.ResolveHeaderLayout(setting, width);
         Assert.Equal((net, disk, netGraph, diskGraph), (layout.NetValue, layout.DiskValue, layout.NetGraph, layout.DiskGraph));
         Assert.Equal(arrangement, layout.Arrangement.ToString());
         Assert.Equal(arrangement is "GraphBlocks" or "TextBlocks", layout.TwoLineLabels);
+        Assert.Equal(setting.Equals("off", StringComparison.OrdinalIgnoreCase), layout.Hidden);
     }
+
+    [Fact]
+    public void OffIsTheOnlySettingThatHidesTheDisplayAndEveryWidthAndViewKeepsItHidden()
+    {
+        foreach (string setting in IoStatsDisplay.HeaderGraphChoices)
+            foreach (double width in new[] { 0.0, 500.0, 900.0, 1100.0, 1400.0, double.PositiveInfinity })
+                Assert.Equal(setting == IoStatsDisplay.HeaderGraphOff, IoStatsDisplay.ResolveHeaderLayout(setting, width).Hidden);
+        Assert.True(IoStatsDisplay.HeaderIsOff("Off") && IoStatsDisplay.HeaderIsOff(" off "));
+        Assert.False(IoStatsDisplay.HeaderIsOff("Auto") || IoStatsDisplay.HeaderIsOff(null) || IoStatsDisplay.HeaderIsOff("nonsense"));
+        // The policy row stays Required in every view; the explicit setting wins (the header never reads a work view).
+        foreach (WorkView view in WorkViewSetting.All)
+            Assert.True(WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("shell.header.graph", view)));
+    }
+
+    [Theory]
+    [InlineData("Network", "Network")]
+    [InlineData("SideBySide", "SideBySide")]
+    [InlineData("Off", "Auto")]
+    [InlineData(null, "Auto")]
+    [InlineData("nonsense", "Auto")]
+    public void TheStatisticsCheckboxShowsTheLastArrangementOrAutoAgain(string? lastShown, string expected) =>
+        Assert.Equal(expected, IoStatsDisplay.HeaderGraphShownAgain(lastShown));
 
     [Fact]
     public void NarrowWindowsDropGraphsAndWideWindowsStackDirectionsUnlessCompactRowsAreExplicit()
@@ -99,7 +129,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
         {
             IoStatsDisplay.HeaderLayout narrow = IoStatsDisplay.ResolveHeaderLayout(setting, IoStatsDisplay.HeaderGraphsMinimumWidth - 1);
             Assert.False(narrow.NetGraph || narrow.DiskGraph, setting);
-            Assert.True(narrow.NetValue || narrow.DiskValue, setting);
+            Assert.Equal(setting != "Off", narrow.NetValue || narrow.DiskValue);
+            if (setting == IoStatsDisplay.HeaderGraphOff) continue; // nothing at any width
             IoStatsDisplay.HeaderLayout wide = IoStatsDisplay.ResolveHeaderLayout(setting, IoStatsDisplay.HeaderBlocksMinimumWidth);
             Assert.Equal(setting != "NetworkAndDisk", wide.TwoLineLabels);
             Assert.Equal(setting != "Text", wide.NetGraph || wide.DiskGraph);
@@ -113,7 +144,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
         Assert.True(IoStatsDisplay.HeaderShowsDiskValue("Auto") && IoStatsDisplay.HeaderShowsDisk("Auto"));
         Assert.False(IoStatsDisplay.HeaderShowsDiskValue("Network"));
         Assert.True(IoStatsDisplay.HeaderShowsDiskValue("NetworkAndDisk") && IoStatsDisplay.HeaderShowsDisk("NetworkAndDisk"));
-        Assert.Equal(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"], IoStatsDisplay.HeaderGraphChoices);
+        Assert.Equal(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"], IoStatsDisplay.HeaderGraphChoices);
         // An unknown value from a newer release reads as Auto.
         Assert.Equal("Auto", IoStatsDisplay.NormalizeHeaderGraph("Diagonal"));
     }
@@ -203,11 +234,13 @@ public sealed class StatsHeaderGraphTests : IDisposable
         Assert.True(IoStatsDisplay.HeaderShowsDisk(config.StatsHeaderGraph));
     }
 
-    [Fact]
-    public void TheValueSurvivesCloneBothCopiesAndSaveReload()
+    [Theory]
+    [InlineData("NetworkAndDisk")]
+    [InlineData("Off")]
+    public void TheValueSurvivesCloneBothCopiesAndSaveReload(string value)
     {
         using TempDirectory directory = new();
-        Config original = new() { StatsHeaderGraph = "NetworkAndDisk" };
+        Config original = new() { StatsHeaderGraph = value };
         Config clone = original.Clone();
         Config live = new();
         live.CopySettingsFieldsFrom(clone);
@@ -216,13 +249,15 @@ public sealed class StatsHeaderGraphTests : IDisposable
         copy.SaveConfig(directory.Path);
         Config loaded = Config.LoadConfig(directory.Path);
         Assert.Null(loaded.LoadWarning);
-        foreach (Config config in new[] { clone, live, copy, loaded }) Assert.Equal("NetworkAndDisk", config.StatsHeaderGraph);
-        Assert.Contains("\"StatsHeaderGraph\": \"NetworkAndDisk\"", Regex.Replace(File.ReadAllText(Path.Combine(directory.Path, "settings.json")), "\"\\s*:\\s*\"", "\": \""));
+        foreach (Config config in new[] { clone, live, copy, loaded }) Assert.Equal(value, config.StatsHeaderGraph);
+        Assert.Contains("\"StatsHeaderGraph\": \"" + value + "\"", Regex.Replace(File.ReadAllText(Path.Combine(directory.Path, "settings.json")), "\"\\s*:\\s*\"", "\": \""));
     }
 
     [Theory]
     [InlineData("\"Both\"", "Auto")]
     [InlineData("\"network\"", "Network")]
+    [InlineData("\"Off\"", "Off")]
+    [InlineData("\"OFF\"", "Off")]
     [InlineData("42", "Auto")]
     [InlineData("null", "Auto")]
     [InlineData("true", "Auto")]
@@ -293,7 +328,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
         [
             "stats.headerGraph.label", "stats.headerGraph.hint",
             "stats.headerGraph.auto", "stats.headerGraph.network", "stats.headerGraph.networkAndDisk",
-            "stats.headerGraph.disk", "stats.headerGraph.sideBySide", "stats.headerGraph.text"
+            "stats.headerGraph.disk", "stats.headerGraph.sideBySide", "stats.headerGraph.text", "stats.headerGraph.off"
         ];
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
         {
@@ -306,9 +341,9 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Each graph has its own scale. In the header, download and read are drawn solid with a filled area, upload and write dashed. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.", Texts.T("stats.headerGraph.hint"));
         Texts.SetLanguage("de");
-        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz und Datenträger mit je einem eigenen Graphen, in jeder Ansicht. Nebeneinander braucht ein breites Fenster; schmale Fenster lassen die Graphen weg und behalten die Werte.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz und Datenträger mit je einem eigenen Graphen, in jeder Ansicht. Nebeneinander braucht ein breites Fenster; schmale Fenster lassen die Graphen weg und behalten die Werte. Jeder Graph hat seine eigene Skala. In der Kopfleiste sind Download und Lesen durchgezogen mit gefüllter Fläche gezeichnet, Upload und Schreiben gestrichelt. Aus blendet die Anzeige aus und beendet ihre Messung; die Statistikseite und das Tray-Menü holen sie zurück.", Texts.T("stats.headerGraph.hint"));
         Assert.Equal("Graph in der Kopfleiste", Texts.T("stats.headerGraph.label"));
     }
 
@@ -316,7 +351,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     public void TheGraphTextsAndRetainedStatisticsLabelsResolveWithTheirPlaceholders()
     {
         string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
-        (string Key, int Placeholders)[] keys = [("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0),
+        (string Key, int Placeholders)[] keys = [("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.metric.netUp", 0), ("stats.sources.title", 0),
             ("stats.peak", 1), ("stats.legend.net", 0), ("stats.legend.disk", 0)];
         foreach (string language in languages)
         {
@@ -345,5 +380,24 @@ public sealed class StatsHeaderGraphTests : IDisposable
         float[] disk = [4_000_000f, 1f];
         Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, IoGraphGeometry.Peak(network));
         Assert.Equal(4_194_304d, IoGraphGeometry.Peak(disk));   // 4 MiB; its own scale
+    }
+
+    [Fact]
+    public void TheOffTextsExistInAllTwelveLanguagesAndTheHintNamesTheWayBack()
+    {
+        string english = "";
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            Texts.SetLanguage(language);
+            foreach (string key in new[] { "stats.headerGraph.off", "stats.headerMonitor.show", "stats.headerGraph.hint" })
+            {
+                string text = Texts.T(key);
+                Assert.NotEqual(key, text);
+                Assert.False(string.IsNullOrWhiteSpace(text), language + " " + key);
+            }
+            if (language == "en") english = Texts.T("stats.headerGraph.off");
+            else Assert.NotEqual(english, Texts.T("stats.headerGraph.off"));
+            if (language is "en" or "de") Assert.Contains(language == "en" ? "Off hides" : "Aus blendet", Texts.T("stats.headerGraph.hint"));
+        }
     }
 }

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
@@ -28,13 +30,17 @@ public partial class MainWindow
     {
         // A saved zero must discard recent tags immediately, even when the tag panel is closed.
         if (_quickTagRecent is { } recent) QuickTagSettings.ApplyRecentLimit(recent, _config);
+        ApplyTaggingPreferences();
         ConfigureGalleryScrubPreview();
         _gallery?.Configure(_desiredGalleryContext ?? _config.GalleryContextOpen, _config.ShowShortcutHelp,
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
+        _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
+        if (_gallery != null) _gallery.PanelWidth = GalleryPanelWidthPreference();
+        ConfigureGalleryFilmstrip();
         if (_archivePage != null)
         {
             _archivePage.ReadingFontSizePreference = ReadingFontSize();
@@ -42,6 +48,23 @@ public partial class MainWindow
             ReaderSettingsPreferences.Apply(_archivePage, _config);
             _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
         }
+    }
+
+    // V2: the width of the gallery side panel is a view preference of the layout profile (ColumnWidths["gallery.panelWidth"]),
+    // written with the window's column widths (MainWindow.ViewPreferences.cs) and clamped to the panel's limits when read.
+    private double GalleryPanelWidthPreference() =>
+        _config.ColumnWidths.TryGetValue(GallerySidePanel.WidthPreferenceKey, out double width)
+            ? GallerySidePanel.ClampWidth(width) : Config.GalleryPanelWidthDefault;
+
+    private void QueueGalleryPanelWidth(double width)
+    {
+        string mode = _config.WorkspaceMode;
+        width = GallerySidePanel.ClampWidth(width);
+        if (!_pendingColumnWidths.TryGetValue(mode, out Dictionary<string, double>? pending))
+            _pendingColumnWidths[mode] = pending = new(StringComparer.Ordinal);
+        pending[GallerySidePanel.WidthPreferenceKey] = width;
+        _config.GetLayoutProfile(mode).ColumnWidths[GallerySidePanel.WidthPreferenceKey] = width;
+        QueueWindowPreferences(); // in fullscreen the draft waits for the next window save or the final flush on close
     }
 
     private void QueueGalleryPlaybackPreference(GalleryPlaybackPreferences preferences)

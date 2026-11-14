@@ -69,9 +69,10 @@ public sealed class WorkViewGalleryTests
     }
 
     [Fact]
-    public void OnlyTheWhereAmILineIsLeftOutAndItsAlternativeIsTheDetails()
+    public void OnlyTheWhereAmILineAndTheFilmstripAreLeftOutAndTheirAlternativesExist()
     {
-        Assert.Equal(["gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
+        // The filmstrip (V3) is away in Barebones by default; the L key, the menu row and the setting bring it back in every view.
+        Assert.Equal(["gallery.filmstrip", "gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
             .Select(entry => entry.Id).ToArray());
         WorkViewEntry scope = WorkViewPolicy.Get("gallery.info.scope");
         Assert.Equal(Presence.Hidden, scope.Barebones);

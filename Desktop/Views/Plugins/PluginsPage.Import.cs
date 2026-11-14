@@ -14,7 +14,11 @@ public partial class PluginsPage
     /// <summary>Test seam for the file dialog: returns the chosen file's path, or null when nothing was chosen.</summary>
     internal Func<Task<string?>>? PickPluginFile { get; set; }
 
-    private void UpdateAddAction() => SetAction("PluginsAdd", "plugins.unavailable", _services != null);
+    private void UpdateAddAction()
+    {
+        SetAction("PluginsAdd", "plugins.unavailable", _services != null);
+        SetAction("PluginsEmptyAdd", "plugins.unavailable", _services != null); // the empty state's copy of the same action
+    }
 
     private async void OnAddClick(object? sender, RoutedEventArgs e) => await AddPluginAsync();
 

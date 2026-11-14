@@ -84,11 +84,6 @@ public partial class SettingsEditor
         OpenResetConfirmation(button, scope);
     }
 
-    private void OnResetAllClick(object? sender, RoutedEventArgs e)
-    {
-        if (sender is Button button) OpenResetConfirmation(button, SettingsResetScope.All);
-    }
-
     private static bool TryGetResetScope(string id, out SettingsResetScope scope)
     {
         scope = id switch

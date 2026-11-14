@@ -200,14 +200,18 @@ public partial class MainWindow
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
+        _gallery.ShortcutHelpRequested += context => { if (!_isClosing) ShowShellHelp(context); };
         _gallery.ShellKeyRequested += OnShellKeyDown;
         GalleryViewer preferenceOwner = _gallery;
         _gallery.ContextOpenChanged += open =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(open, null); };
+        _gallery.PanelWidthChanged += width =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPanelWidth(width); };
         _gallery.VideoVolumeChanged += volume =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
+        _gallery.FilmstripPreferenceChanged += show => OnGalleryFilmstripPreferenceChanged(preferenceOwner, show);
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
         _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
@@ -370,7 +374,7 @@ public partial class MainWindow
         // Downloaded provider posts are no chan thread: a window of them is named by its source, a mixed one is a result list.
         string scope = providerPosts > 0 && !_galleryResultsScope
             ? providerPosts == _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count()
-                ? Texts.T("booru.media.gallery.scope", providerPosts)
+                ? Texts.Count("booru.media.gallery.scope", providerPosts)
                 : Texts.T("gallery.results") + " · " + _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count() + " " + Texts.T("gallery.threads")
             : _galleryResultsScope
             ? Texts.T("gallery.results") + " · " + _galleryThreads.Count + " " + Texts.T("gallery.threads")
@@ -431,7 +435,8 @@ public partial class MainWindow
         // MoveGalleryAsync cannot accept navigation while resolving. Do not
         // expose enabled arrows before that guard is released after decoding.
         bool ready = _galleryResolvingRequest != _galleryRequest;
-        _gallery.SetPosition((_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
+        // The tagging mode names the place in the whole queue ("Queue 12 of 200") instead of the place in the walk's list (PT3).
+        _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? (_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
             ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
             ready && _galleryIndex > 0,
             ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
@@ -499,6 +504,7 @@ public partial class MainWindow
 
     private void CloseGalleryCore(bool restoreOrigin, bool cancelPendingOpen)
     {
+        EndGalleryTagging(persist: true); // the tagging mode ends with its gallery and keeps the resume point (PT3)
         if (cancelPendingOpen) _archivePage?.CancelPendingGalleryOpen();
         TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;

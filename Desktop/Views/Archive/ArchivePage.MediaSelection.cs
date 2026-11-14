@@ -10,6 +10,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -29,10 +30,16 @@ public partial class ArchivePage
     internal MediaSelectionTagServices? MediaTagServices { get; set; }
     internal Window? MediaSelectionTagWindow => _mediaSelectionTagDialog;
 
-    private void AttachMediaSelectionTags(DesktopSessionHost host) =>
+    /// <summary>Adds gallery entries to the tagging queue and returns the sentence for the status line; null disables the queue actions.</summary>
+    internal Func<IReadOnlyList<GalleryEntry>, Task<string>>? AddToTagQueue { get; set; }
+
+    private void AttachMediaSelectionTags(DesktopSessionHost host)
+    {
+        AddToTagQueue = entries => TagQueueActions.AddAsync(host, entries);
         MediaTagServices = new(host.GetPublishedPrivateTagSnapshot,
             (name, subjects, expectedRevision, token) => host.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
             (tag, subjects, assigned, expectedRevision, token) => host.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token));
+    }
 
     private void InitializeMediaSelection()
     {
@@ -141,6 +148,7 @@ public partial class ArchivePage
     private void LocalizeMediaSelection()
     {
         ArchiveMediaSelectionTag.Content = Texts.T("media.selection.tag");
+        ArchiveMediaSelectionQueue.Content = Texts.T("media.selection.queue");
         ArchiveMediaSelectionGallery.Content = Texts.T("media.selection.gallery");
         ArchiveMediaSelectionExport.Content = Texts.T("media.selection.export");
         ArchiveMediaSelectionClear.Content = Texts.T("media.selection.clear");
@@ -160,6 +168,7 @@ public partial class ArchivePage
         ArchiveMediaSelectionStatus.Text = ArchiveMediaSelection.Status(count);
         bool ready = _available && !_busy && !_ended && !IsReaderDialogOpen && !_mediaSelectionBusy && _thread != null;
         SetMediaSelectionAction(ArchiveMediaSelectionTag, ready && MediaTagServices != null, MediaTagServices != null, "media.selection.tag.hint");
+        SetMediaSelectionAction(ArchiveMediaSelectionQueue, ready && AddToTagQueue != null, AddToTagQueue != null, "media.selection.queue.hint");
         SetMediaSelectionAction(ArchiveMediaSelectionGallery, ready && OpenMediaGallery != null, OpenMediaGallery != null, "media.selection.gallery.hint");
         SetMediaSelectionAction(ArchiveMediaSelectionExport, ready, true, "media.selection.export.hint");
         ArchiveMediaSelectionClear.IsEnabled = !_ended;
@@ -189,6 +198,9 @@ public partial class ArchivePage
     private async void OnMediaSelectionTagClick(object? sender, RoutedEventArgs e) =>
         await RunMediaSelectionButtonAsync(ArchiveMediaSelectionTag, (thread, rows, entries, origin) => TagMediaSelectionAsync(thread, rows, entries, origin));
 
+    private async void OnMediaSelectionQueueClick(object? sender, RoutedEventArgs e) =>
+        await RunMediaSelectionButtonAsync(ArchiveMediaSelectionQueue, (thread, rows, entries, origin) => AddMediaSelectionToQueueAsync(thread, rows, entries));
+
     private async void OnMediaSelectionGalleryClick(object? sender, RoutedEventArgs e) =>
         await RunMediaSelectionButtonAsync(ArchiveMediaSelectionGallery, (thread, rows, entries, origin) => OpenMediaSelectionGalleryAsync(thread, rows, entries, origin));
 
@@ -211,8 +223,51 @@ public partial class ArchivePage
         catch (Exception error) { reportError(error.Message); }
     }
 
-    /// <summary>Adds or removes one own tag on every occurrence of the selected files; the dialog lists them and tags all by default.</summary>
+    private QuickTagPopover? _mediaSelectionTagPopover;
+    internal QuickTagPopover? MediaSelectionTagPopover => _mediaSelectionTagPopover;
+
+    /// <summary>
+    /// Tags the selected files in the quick tag popover on the button that asked (tri-state chips over every occurrence, one write per
+    /// change). "Advanced…" opens the dialog that lists the occurrences (<see cref="TagMediaSelectionDialogAsync"/>).
+    /// </summary>
     private async Task TagMediaSelectionAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin)
+    {
+        if (_mediaSelectionBusy || MediaTagServices is not { } services) return;
+        IReadOnlyList<MediaLibraryTile> tiles = ArchiveMediaSelection.Tiles(thread.Summary, rows, entries);
+        if (tiles.Count == 0 || rows.Length == 0) return;
+        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
+        GalleryAssetKey leadKey = new(thread.Summary.Id, rows[0].Manifest.Directory, rows[0].Asset.AssetId);
+        if ((entries.FirstOrDefault(entry => entry.Key == leadKey) ?? entries.FirstOrDefault()) is not { } lead) return;
+        ResourceId threadId = thread.Summary.Id;
+        TagContext selectionContext = QuickTagPopoverContext.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null };
+        // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
+        QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext);
+        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        _mediaSelectionBusy = true;
+        UpdateActions();
+        QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
+        try
+        {
+            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), options with
+            {
+                ReadSourceTags = _sourceTagSuggestions.Read,
+                IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,
+                Name = "ArchiveSelectionTagPopover"
+            });
+            _mediaSelectionTagPopover = popover;
+            reason = await popover.Result;
+        }
+        finally
+        {
+            _mediaSelectionTagPopover = null;
+            _mediaSelectionBusy = false;
+            if (!_ended) UpdateActions();
+        }
+        if (reason == QuickTagPopoverCloseReason.Advanced && !_ended) await TagMediaSelectionDialogAsync(thread, rows, entries, origin);
+    }
+
+    /// <summary>Adds or removes one own tag on every occurrence of the selected files; the dialog lists them and tags all by default.</summary>
+    private async Task TagMediaSelectionDialogAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries, Control origin)
     {
         if (_mediaSelectionBusy || MediaTagServices is not { } services) return;
         if ((TopLevel.GetTopLevel(origin) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
@@ -229,6 +284,15 @@ public partial class ArchivePage
             _mediaSelectionBusy = false;
             if (!_ended) UpdateActions();
         }
+    }
+
+    /// <summary>Adds the selected files (one per file, in the tab's order) to the tagging queue and says what happened.</summary>
+    private async Task AddMediaSelectionToQueueAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries)
+    {
+        if (AddToTagQueue is not { } add) return;
+        IReadOnlyList<GalleryEntry> selected = ArchiveMediaSelection.GalleryEntries(thread.Summary, rows, entries);
+        string message = await add(selected);
+        if (!_ended) Message(message);
     }
 
     /// <summary>Opens the gallery with exactly the selected files in the tab's order, starting at the first.</summary>
@@ -248,6 +312,7 @@ public partial class ArchivePage
     private void EndMediaSelectionLifetime()
     {
         _mediaSelectionTagDialog?.CloseForLifetime();
+        _mediaSelectionTagPopover?.Close(QuickTagPopoverCloseReason.Stale);
         _mediaSelectionBusy = false;
     }
 }

@@ -1,4 +1,5 @@
 using Avalonia.Input;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
@@ -19,7 +20,7 @@ public sealed class QuickTagCommandTests
     [Fact]
     public void EveryQuickTagIdIsACatalogCommandWithLabelsAndNothingElseUsesTheNamespace()
     {
-        Assert.Equal(16, QuickTagCommands.All.Count);
+        Assert.Equal(17, QuickTagCommands.All.Count);
         Assert.Equal(QuickTagCommands.All.Count, QuickTagCommands.All.Distinct().Count());
         foreach (string id in QuickTagCommands.All)
         {
@@ -119,46 +120,76 @@ public sealed class QuickTagCommandTests
             Assert.Equal(new[] { "gallery", "media", "reader", "archive" }, CommandCatalog.Get(id).ExecutionContexts);
     }
 
-    [Fact]
-    public void OnlyTheMarkingCommandsStillAwaitTheirHandlerAndAreUnavailableInactiveAndRaiseNoIssue()
+    private static readonly string[] PanelCommands =
     {
-        // TP2 wired the gallery panel (paging, commit-and-next, thread section, undo, nine toggles); the batch marking of the marking package and nothing else waits.
-        string[] unwired = { QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious };
-        Assert.Equal(unwired.OrderBy(x => x, StringComparer.Ordinal), QuickTagCommands.AwaitingHandler.OrderBy(x => x, StringComparer.Ordinal));
+        QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.MarkNext,
+        QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection
+    };
+
+    [Fact]
+    public void EveryQuickTagCommandIsWiredNowAndTheMarkingKeysAreActiveWithoutIssues()
+    {
+        // TP2 wired the gallery panel (paging, commit-and-next, thread section, undo, nine toggles), TP4 the marking: nothing awaits a handler.
+        Assert.Empty(QuickTagCommands.AwaitingHandler);
+        Assert.Equal(QuickTagCommands.All.OrderBy(x => x, StringComparer.Ordinal), QuickTagCommands.WiredIds.OrderBy(x => x, StringComparer.Ordinal));
         foreach (var platform in Enum.GetValues<ShortcutPlatform>())
         {
             var bindings = EffectiveShortcutBindings.Build(null, platform);
             Assert.Empty(bindings.Issues);
-            foreach (string id in QuickTagCommands.AwaitingHandler)
-            {
-                var command = CommandCatalog.Get(id);
-                Assert.False(command.IsImplemented, id);
-                Assert.Equal(CommandAvailability.Unavailable, command.Availability);
-                Assert.Empty(bindings.For(id));
-                Assert.NotEmpty(bindings.RequestedGestures[id]);
-            }
-            foreach (string id in QuickTagCommands.All.Except(unwired))
+            foreach (string id in QuickTagCommands.All)
             {
                 Assert.True(CommandCatalog.Get(id).IsImplemented, id);
+                Assert.False(CommandCatalog.Get(id).IsAwaitingHandler, id);
                 Assert.NotEmpty(bindings.For(id));
             }
         }
         var linux = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.CommitNext));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Z, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Undo));
-        Assert.False(linux.Matches(new KeyEventArgs { Key = Key.PageDown, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkNext));
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.PageDown, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkNext));
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.PageUp, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkPrevious));
     }
 
     [Fact]
-    public void ASavedBindingOnAnUnwiredQuickTagCommandIsRetainedAndReportedWhileItWaitsForItsHandler()
+    public void UndoAndTheNineSuggestionTogglesAreWiredByThePopoverAndActiveWithTheirDefaults()
+    {
+        string[] wired = new[] { QuickTagCommands.Undo, QuickTagCommands.StampApply }.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray();
+        Assert.Equal(QuickTagCommands.All.Count - PanelCommands.Length, wired.Length);
+        foreach (string id in wired)
+        {
+            Assert.DoesNotContain(id, QuickTagCommands.AwaitingHandler);
+            Assert.True(CommandCatalog.Get(id).IsImplemented, id);
+        }
+        var linux = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Z, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Undo));
+        for (int n = 1; n <= QuickTagCommands.SuggestionCount; n++)
+            Assert.True(linux.Matches(new KeyEventArgs { Key = Key.D0 + n, KeyModifiers = KeyModifiers.Alt }, QuickTagCommands.Suggestion(n)), n.ToString());
+        Assert.False(linux.Matches(new KeyEventArgs { Key = Key.D1, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Suggestion(1)));
+    }
+
+    [Fact]
+    public void AnIdIsWiredOnlyWhenItIsInTheWiredListSoTheMarkingWasInactiveUntilItsHandlerExisted()
+    {
+        // The rule behind AwaitingHandler: registered ids without a handler stay awaiting, wired ones do not.
+        string[] withoutMarking = QuickTagCommands.WiredIds.Where(id => id != QuickTagCommands.MarkNext && id != QuickTagCommands.MarkPrevious).ToArray();
+        IReadOnlySet<string> awaiting = QuickTagCommands.Unwired(QuickTagCommands.All, withoutMarking);
+        Assert.Equal(new[] { QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious }.OrderBy(x => x, StringComparer.Ordinal), awaiting.OrderBy(x => x, StringComparer.Ordinal));
+        Assert.Empty(QuickTagCommands.Unwired(QuickTagCommands.All, QuickTagCommands.All));
+        Assert.Equal(QuickTagCommands.All.Count, QuickTagCommands.Unwired(QuickTagCommands.All, Array.Empty<string>()).Count);
+        // Every wired id has a gallery panel handler and every handled id is wired: a handler and its registration cannot drift apart.
+        Assert.Equal(GalleryTagPanelCommands.Handled.OrderBy(x => x, StringComparer.Ordinal), QuickTagCommands.WiredIds.OrderBy(x => x, StringComparer.Ordinal));
+        foreach (string id in QuickTagCommands.WiredIds) Assert.NotNull(GalleryTagPanelCommands.RouteOf(id));
+    }
+
+    [Fact]
+    public void ASavedBindingOnAMarkingCommandIsNowActiveAndRaisesNoIssue()
     {
         var section = new ShortcutBindingsSection().Set(QuickTagCommands.MarkNext, [ShortcutGesture.Parse("Primary+Shift+Enter")]);
-        string before = section.Raw.GetRawText();
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-        Assert.Empty(bindings.For(QuickTagCommands.MarkNext));
-        Assert.Contains(bindings.Issues, issue => issue.CommandId == QuickTagCommands.MarkNext && issue.Reason?.Code == "notImplemented" && !issue.BlocksSave);
-        Assert.DoesNotContain(bindings.Issues, issue => issue.CommandId != QuickTagCommands.MarkNext);
-        Assert.Equal(before, section.Raw.GetRawText());
+        Assert.Equal("Ctrl+Shift+Enter", Assert.Single(bindings.For(QuickTagCommands.MarkNext)).Display(ShortcutPlatform.Linux));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Enter, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift }, QuickTagCommands.MarkNext));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.PageDown, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkNext));
+        Assert.DoesNotContain(bindings.Issues, issue => issue.Reason?.Code == "notImplemented");
     }
 
     [Fact]

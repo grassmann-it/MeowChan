@@ -63,7 +63,10 @@ internal static class PowerUserCommandChecks
             {
                 Texts.SetLanguage(language);
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F1 });
-                string help = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
+                // F1 opens the one shortcuts window (KS2); its plain text is the former F1 list of this context.
+                await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+                var shortcutsWindow = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!;
+                string help = shortcutsWindow.PlainText;
                 Require(help.Contains(CommandCatalog.Label("navigation.rules"), StringComparison.Ordinal)
                     && help.Contains(CommandCatalog.ShortcutDisplay("session.pause")!, StringComparison.Ordinal)
                     && help.Contains(CommandCatalog.ScopeHint("watch.import-clipboard")!, StringComparison.Ordinal), "F1 omitted the scoped command help.");
@@ -71,10 +74,14 @@ internal static class PowerUserCommandChecks
                 string generic = CommandCatalog.ScopeHint("navigation.rules")!;
                 Require(!help.Contains(generic, StringComparison.Ordinal) && help.Contains(Texts.T("help.scope.generalNote"), StringComparison.Ordinal)
                     && help.Split(Texts.T("help.scope.generalNote")).Length == 2, "F1 repeats the generic scope qualifier or lacks its single note.");
-                Require(!Press(window, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
-                    "A page shortcut escaped the help overlay.");
-                Program.CaptureWindow(window, "smoke-poweruser-help-" + language + ".png");
+                // The window is modeless: the owner's page shortcuts keep working while it is open.
+                Require(Press(window, "navigation.archive").Handled && window.SelectedPage == MainWindow.WorkspacePage.Archive,
+                    "A page shortcut was blocked by the modeless shortcuts window.");
+                Require(Press(window, "navigation.downloads").Handled && window.SelectedPage == MainWindow.WorkspacePage.Downloads,
+                    "The downloads shortcut did not return with the shortcuts window open.");
+                Program.CaptureWindow(shortcutsWindow, "smoke-poweruser-help-" + language + ".png");
                 window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
             }
             Window dialog = new Window { Width = 240, Height = 120, Content = new TextBox() };
             Task dismissed = dialog.ShowDialog(window);

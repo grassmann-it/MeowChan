@@ -30,6 +30,8 @@ public sealed class DialogFooterBudgetTests : IDisposable
     // padding 16,0,16,8 around a 1 dip bordered Border with Inset.Message 12; Button padding 10,5 and 1 dip border, MinHeight 30.
     private const double BodySize = 13, SideInset = 16, ButtonChrome = 22, ButtonHeight = 30, ItemGap = 8;
     private const double FooterVertical = 1 + 24, HeaderVertical = 24, StripChrome = 8 + 26, StatusGap = 8;
+    // DialogFrame without a header: the layout starts 16 dip below the title bar.
+    private const double HeaderlessTopInset = 16;
     // A body that still shows something useful between the fixed parts (it scrolls beyond this).
     private const double UsableBody = 80;
 
@@ -124,7 +126,12 @@ public sealed class DialogFooterBudgetTests : IDisposable
             CultureInfo.InvariantCulture);
         XElement Named(string name) => markup.Descendants().Single(element => (string?)element.Attribute(x + "Name") == name);
         XElement strip = Named("DialogFrameErrorStrip").Descendants().First(element => element.Name.LocalName == "ScrollViewer");
-        return (Attribute(root, "MinWidth"), Attribute(root, "MinHeight"), Attribute(strip, "MaxHeight"), Attribute(Named("SavedSearchStatusHost"), "MaxHeight"));
+        // Modals plan MD3: the minimum width is the L step's, the minimum height the dialog's own (the step's is lower).
+        Avalonia.Size step = WorkspaceMetrics.DialogMinimumSize(DialogSize.L);
+        Assert.Contains("DialogWindow.Configure(this, DialogSize.L, modal: true);", File.ReadAllText(Source("Desktop/Views/Collections/SavedArchiveSearchesDialog.axaml.cs")));
+        Assert.Null(root.Attribute("MinWidth"));
+        Assert.Null(root.Attribute("MinHeight"));
+        return (step.Width, Math.Max(step.Height, SavedArchiveSearchesDialog.MinimumHeight), Attribute(strip, "MaxHeight"), Attribute(Named("SavedSearchStatusHost"), "MaxHeight"));
     }
 
     [Fact]
@@ -166,12 +173,13 @@ public sealed class DialogFooterBudgetTests : IDisposable
 
     private static (double MinWidth, double MinHeight, double StripCap) RatingGeometry()
     {
+        // The minimum comes from the dialog's size step (modals plan MD1), the strip cap from its source.
         string source = File.ReadAllText(Source("Desktop/MediaRatingDialog.cs"));
-        Match size = Regex.Match(source, @"MinWidth = (?<w>\d+); MinHeight = (?<h>\d+);");
+        Assert.Contains("DialogWindow.Configure(this, DialogStep, modal: true);", source);
         Match strip = Regex.Match(source, @"DialogFrame\.ErrorStrip\(_error, maxHeight: (?<cap>\d+)\)");
-        Assert.True(size.Success && strip.Success, "The rating dialog's minimum or error strip cap is no longer where this test reads it.");
-        return (double.Parse(size.Groups["w"].Value, CultureInfo.InvariantCulture), double.Parse(size.Groups["h"].Value, CultureInfo.InvariantCulture),
-            double.Parse(strip.Groups["cap"].Value, CultureInfo.InvariantCulture));
+        Assert.True(strip.Success, "The rating dialog's error strip cap is no longer where this test reads it.");
+        Avalonia.Size minimum = WorkspaceMetrics.DialogMinimumSize(MediaRatingDialog.DialogStep);
+        return (minimum.Width, minimum.Height, double.Parse(strip.Groups["cap"].Value, CultureInfo.InvariantCulture));
     }
 
     private static double[] RatingFooterWidths() => new[]
@@ -199,8 +207,10 @@ public sealed class DialogFooterBudgetTests : IDisposable
         foreach (string code in Codes())
         {
             Texts.SetLanguage(code);
-            // Error state: heading, the capped strip with Retry shown next to Remove rating and Close.
-            double header = HeaderVertical + LineHeight(14);
+            // Error state: no heading (the title stands in the title bar only, owner decision E1), the frame's top inset,
+            // the capped strip with Retry shown next to Remove rating and Close.
+            Assert.DoesNotContain("_heading", File.ReadAllText(Source("Desktop/MediaRatingDialog.cs")));
+            double header = HeaderlessTopInset;
             double footer = FooterVertical + WrappedHeight(WrapRows(RatingFooterWidths(), minWidth - 2 * SideInset));
             double needed = WorkspaceMetrics.TitleBarHeight + header + stripCap + StripChrome + footer + UsableBody;
             if (needed > worst) { worst = needed; worstLanguage = code; }
@@ -214,9 +224,10 @@ public sealed class DialogFooterBudgetTests : IDisposable
     [Fact]
     public void ShortFooterVerbsOfEveryDialogFitTheNarrowestFramedWindowInEveryLanguage()
     {
-        // The narrowest framed dialog minimum in the product is the rating dialog's; a bare verb (English up to 14 characters:
-        // Close, Cancel, Retry, Reload, Save, Apply, Discard) must fit one footer line in every language.
-        (double minWidth, _, _) = RatingGeometry();
+        // The narrowest framed dialog minimum in the product is the small step's (modals plan MD1: prompts and confirmations);
+        // a bare verb (English up to 14 characters: Close, Cancel, Retry, Reload, Save, Apply, Discard) must fit one footer
+        // line in every language.
+        double minWidth = WorkspaceMetrics.DialogMinimumSize(DialogSize.S).Width;
         Regex verb = new(@"\.(close|cancel|retry|reload|save|apply|done|discard)$", RegexOptions.Compiled);
         string[] keys = BuiltInCatalog.English.Where(pair => verb.IsMatch(pair.Key) && pair.Value.Length <= 14 && !pair.Value.Contains('{'))
             .Select(pair => pair.Key).ToArray();

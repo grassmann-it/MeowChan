@@ -247,9 +247,7 @@ internal sealed class MediaHashSearchOperation
 internal sealed class MediaHashSearchDialog : Window
 {
     private readonly MediaHashSearchOperation _operation;
-    private readonly WindowChromeBar _chrome = new() { Name = "MediaHashSearchChrome" };
     private readonly TextBox _input = new() { Name = "MediaHashSearchInput", MaxLength = 256 };
-    private readonly TextBlock _heading = Label("MediaHashSearchHeading");
     private readonly TextBlock _scope = Label("MediaHashSearchScope");
     private readonly TextBlock _inputLabel = Label("MediaHashSearchInputLabel");
     private readonly TextBlock _generation = Label("MediaHashSearchGeneration");
@@ -271,34 +269,29 @@ internal sealed class MediaHashSearchDialog : Window
         _operation = new(snapshot, lifetime);
         if (!string.IsNullOrEmpty(initialHash)) { _input.Text = initialHash; _searchOnOpen = true; }
         Name = "MediaHashSearchDialog";
-        Width = 760; Height = 640; MinWidth = 360; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal list dialog on the list step; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        // UX103 P7: task, draft, search action and request status stay in the fixed header;
+        // UX103 P7: draft, search action and request status stay in the fixed header (the title is in the title bar);
         // scope, captured generation, page range and result rows scroll; paging/close stay fixed.
         var header = new StackPanel { Spacing = 8 };
-        header.Children.Add(_heading); header.Children.Add(_inputLabel); header.Children.Add(_input);
+        header.Children.Add(_inputLabel); header.Children.Add(_input);
         header.Children.Add(_search); header.Children.Add(_status);
         var body = new StackPanel { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_scope); body.Children.Add(_generation);
         body.Children.Add(_page); body.Children.Add(_rows);
-        var buttons = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(_close);
+        var buttons = DialogFooter.Build(_close, new Control[] { _previous, _next });
         var frame = DialogFrame.Build(header, body, buttons);
         // The caption bar sits outside the frame; the window keeps cycling Tab through both.
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
-        var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        grid.Children.Add(_chrome);
-        grid.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = grid;
+        DialogWindow.Frame(this, frame, modal: true, captionName: "MediaHashSearchChrome");
         _search.Click += OnSearch; _previous.Click += OnPrevious; _next.Click += OnNext; _close.Click += OnClose;
         _input.PropertyChanged += OnInputChanged;
         _operation.Changed += OnOperationChanged;
         Opened += OnOpened; Closed += OnClosed; KeyDown += OnKeyDown;
+        DialogEscape.Attach(this);
         Texts.Changed += OnTextsChanged;
         Refresh();
     }
@@ -319,7 +312,7 @@ internal sealed class MediaHashSearchDialog : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         if (_closed) return;
-        _chrome.Attach(this); _input.Focus();
+        _input.Focus();
         if (_searchOnOpen && _search.IsEnabled) _ = _operation.SearchAsync(_input.Text);
     }
     private void OnOperationChanged() => Dispatcher.UIThread.Post(Refresh);
@@ -328,7 +321,7 @@ internal sealed class MediaHashSearchDialog : Window
     {
         if (_closed) return;
         var view = _operation.Current;
-        Title = MediaHashSearchCatalog.T("mediahash.title"); _heading.Text = Title;
+        Title = MediaHashSearchCatalog.T("mediahash.title");
         _scope.Text = MediaHashSearchCatalog.T("mediahash.scope");
         _inputLabel.Text = MediaHashSearchCatalog.T("mediahash.input");
         AutomationProperties.SetName(_input, _inputLabel.Text);
@@ -337,7 +330,8 @@ internal sealed class MediaHashSearchDialog : Window
         void ButtonText(Button button, string key)
         { button.Content = MediaHashSearchCatalog.T(key); AutomationProperties.SetName(button, (string)button.Content!); }
         ButtonText(_search, "mediahash.search"); ButtonText(_previous, "mediahash.previous");
-        ButtonText(_next, "mediahash.next"); ButtonText(_close, "mediahash.close");
+        ButtonText(_next, "mediahash.next");
+        _close.Content = Texts.T("action.close"); AutomationProperties.SetName(_close, (string)_close.Content);
         _search.IsEnabled = view.Status is not (MediaHashSearchOperation.Status.Searching or MediaHashSearchOperation.Status.Closed);
         string key = view.Status switch
         {
@@ -384,9 +378,8 @@ internal sealed class MediaHashSearchDialog : Window
     private void OnClose(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => Close();
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { e.Handled = true; Close(); }
-        // Enter in the hash box is the keyboard form of the explicit search button.
-        else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _input) && _search.IsEnabled)
+        // Escape is the dialog policy (DialogEscape). Enter in the hash box is the keyboard form of the explicit search button.
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && ReferenceEquals(e.Source, _input) && _search.IsEnabled)
         { e.Handled = true; OnSearch(sender, new Avalonia.Interactivity.RoutedEventArgs()); }
     }
     private void OnClosed(object? sender, EventArgs e) => _ = TerminateAsync();

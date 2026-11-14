@@ -4,8 +4,6 @@
         xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
         x:Class="MeowChan.AboutWindow"
         Title="About MeowChan"
-        Width="800" Height="660" MinWidth="440" MinHeight="400"
-        WindowStartupLocation="CenterOwner"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}"
         Foreground="{DynamicResource Workspace.Text}">
@@ -18,7 +16,7 @@
              keeps its own scrolling (licenses list/text side by side), so the body region itself does
              not scroll vertically; that avoids a second scroll around the tabs. No inner Tab cycle:
              the window cycle keeps the caption buttons reachable. -->
-        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
         <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
             <!-- Orange and grey cat together, in either theme; one accessible name for the pair. -->
@@ -128,9 +126,6 @@
             </TabItem>
         </TabControl>
         </ScrollViewer>
-        <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
-            <Button x:Name="CloseButton" HorizontalAlignment="Right" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
-        </Border>
         </Grid>
     </Grid>
 </Window>

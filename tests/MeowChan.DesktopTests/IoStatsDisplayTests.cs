@@ -187,6 +187,7 @@ public sealed class IoStatsDisplayTests : IDisposable
         Assert.Equal("1.0 MiB", chan.DiskRead);
         Assert.Equal("1,204", chan.Requests);
         Assert.Equal("3", chan.Errors);
+        Assert.Equal(3, chan.ErrorCount);
         Assert.Equal("6.0 MiB", total.Session);
         Assert.Equal("1,219", total.Requests);
     }

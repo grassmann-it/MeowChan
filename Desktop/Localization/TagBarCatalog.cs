@@ -52,13 +52,14 @@ internal static class TagBarCatalog
         ("tags.manage.title", "Manage tags", "Tags verwalten"),
         ("tags.manage.intro", "Rename or delete your own tags. Tags stay local in this profile.", "Eigene Tags umbenennen oder löschen. Tags bleiben lokal in diesem Profil."),
         ("tags.manage.list", "Own tags", "Eigene Tags"),
-        ("tags.manage.row", "{0} · {1} threads · {2} media", "{0} · {1} Threads · {2} Medien"),
+        ("tags.manage.row", "{0} · threads: {1} · media: {2}", "{0} · Threads: {1} · Medien: {2}"),
         ("tags.manage.name", "New name", "Neuer Name"),
         ("tags.manage.rename", "Rename", "Umbenennen"),
         ("tags.manage.delete", "Delete tag…", "Tag löschen…"),
-        ("tags.manage.confirm", "Delete the tag “{0}”? It will be removed from {1} threads and {2} media. This cannot be undone.", "Tag „{0}“ löschen? Er wird von {1} Threads und {2} Medien entfernt. Das lässt sich nicht rückgängig machen."),
+        ("tags.manage.confirm", "Delete the tag “{0}”? It will be removed from threads ({1}) and media ({2}). This cannot be undone.", "Tag „{0}“ löschen? Er wird von Threads ({1}) und Medien ({2}) entfernt. Das lässt sich nicht rückgängig machen."),
         ("tags.manage.confirmDelete", "Delete", "Löschen"),
         ("tags.manage.keep", "Keep tag", "Tag behalten"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("tags.manage.close", "Close", "Schließen"),
         ("tags.manage.renamed", "Renamed.", "Umbenannt."),
         ("tags.manage.deleted", "Tag deleted.", "Tag gelöscht."),
@@ -85,12 +86,13 @@ internal static class TagBarCatalog
         ("tags.manage.orphansIntro", "Tags of loose files stay on their file even when it is moved, replaced or missing. Check which ones can no longer be found.", "Tags loser Dateien bleiben an ihrer Datei, auch wenn sie verschoben, ersetzt oder nicht mehr vorhanden ist. Prüfen, welche nicht mehr auffindbar sind."),
         ("tags.manage.orphansCheck", "Check tagged loose files", "Getaggte lose Dateien prüfen"),
         ("tags.manage.orphansChecking", "Checking tagged loose files…", "Getaggte lose Dateien werden geprüft…"),
-        ("tags.manage.orphans", "{0} tag assignments refer to {1} loose files that are missing, moved, replaced or now linked to a post. They are kept until you remove them.", "{0} Tagzuordnungen verweisen auf {1} lose Dateien, die fehlen, verschoben, ersetzt oder jetzt einem Post zugeordnet sind. Sie bleiben erhalten, bis du sie entfernst."),
+        ("tags.manage.orphans", "Tag assignments ({0}) refer to loose files ({1}) that are missing, moved, replaced or now linked to a post. They are kept until you remove them.", "Tagzuordnungen ({0}) verweisen auf lose Dateien ({1}), die fehlen, verschoben, ersetzt oder jetzt einem Post zugeordnet sind. Sie bleiben erhalten, bis du sie entfernst."),
         ("tags.manage.orphansUnchecked", "{0} tagged loose files could not be checked.", "{0} getaggte lose Dateien konnten nicht geprüft werden."),
         ("tags.manage.orphansNone", "All tagged loose files were found.", "Alle getaggten losen Dateien wurden gefunden."),
         ("tags.manage.orphansRemove", "Remove these assignments", "Diese Zuordnungen entfernen"),
         ("tags.manage.orphansRemoved", "Orphaned assignments removed. The tags themselves were kept.", "Verwaiste Zuordnungen entfernt. Die Tags selbst bleiben erhalten."),
         ("tags.export.omitted", "Only the files are copied. Own tags, including tags of loose files, are not part of any export or transfer yet and stay in this profile.", "Kopiert werden nur die Dateien. Eigene Tags, auch die loser Dateien, sind noch in keinem Export und keiner Übertragung enthalten und bleiben in diesem Profil."),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("tags.media.close", "Close", "Schließen")
     };
 }

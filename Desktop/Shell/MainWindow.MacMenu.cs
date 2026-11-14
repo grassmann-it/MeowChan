@@ -101,6 +101,8 @@ public partial class MainWindow
             case "navigation.continue-reading": _ = ResumeLastReadingAsync(); return;
             // No default gesture: runs directly, like the app-menu entry (a gesture the user assigns reaches the router).
             case "workspace.view-cycle": _ = CycleWorkViewAsync(); return;
+            // Help opens the shortcuts window directly, also when the user removed its gesture (KS2).
+            case "viewer.shortcut-help": ShowShellHelp(); return;
         }
         foreach (string id in node.Commands)
             if (PressMenuGesture(id)) return;

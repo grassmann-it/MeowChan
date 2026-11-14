@@ -68,6 +68,8 @@ public static partial class WorkViewPolicy
         Same("gallery.favorite.indicator", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         // Play/pause, seek, volume and mute, repeat and speed of a shown video or GIF (GalleryVideoPlayer's one transport).
         Same("gallery.video.transport", WorkViewPage.Gallery, WorkViewKind.Element, Required),
+        // The transport's own "⋯" (speed choices, audio track, save frame, repeat): part of the transport, never reduced.
+        Same("gallery.video.player-menu", WorkViewPage.Gallery, WorkViewKind.Action, Required),
         // The tools toggle brings the hidden tools back; "More" is the way to everything a view moved; "Read posts" appears
         // only for an empty gallery (state) and is then the way on.
         Same("gallery.toolbar.tools-toggle", WorkViewPage.Gallery, WorkViewKind.Action, Required, "gallery.tools-toggle"),
@@ -77,6 +79,11 @@ public static partial class WorkViewPolicy
         // ---- Post panel: the way to the post, its association and (later) the tag panel slot. Direct in every view. ----
         Same("gallery.toolbar.post-panel", WorkViewPage.Gallery, WorkViewKind.Action, Direct, "gallery.context-toggle"),
         Same("gallery.post-panel", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
+        // V2: the segment "Post | Tags" in the head of the side panel (the host stays "gallery.post-panel"). It is the panel's own
+        // navigation, so no view reduces it. Elements, not actions: the commands (P, Ctrl+Shift+T) keep their rows on the bar
+        // ("gallery.toolbar.post-panel", "gallery.toolbar.tags"), which decide where a dialog returns the focus to.
+        Same("gallery.panel.post", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
+        Same("gallery.panel.tags", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
 
         // ---- Picture tools next to the post panel: fit and 1:1 are frequent and cost one icon each. ----
         Same("gallery.toolbar.fit", WorkViewPage.Gallery, WorkViewKind.Action, Direct, "gallery.fit"),
@@ -96,6 +103,8 @@ public static partial class WorkViewPolicy
         // ---- Rows of the flyout that no view moves (Overflow everywhere; their shortcuts and the media context menu twin stay). ----
         GalleryMenuRow("gallery.menu.zoom-in", "gallery.zoom-in", 110),
         GalleryMenuRow("gallery.menu.zoom-out", "gallery.zoom-out", 120),
+        // Turns the shown picture or video by 90° (a view transform, upright again with every new medium).
+        GalleryMenuRow("gallery.menu.rotate", "gallery.rotate", 125),
         GalleryMenuRow("gallery.menu.manage-ratings", "media.rating.manage", 130),
         GalleryMenuRow("gallery.menu.export-original", "media.export-original", 140),
         GalleryMenuRow("gallery.menu.save-frame", "video.snapshot", 150),
@@ -104,7 +113,13 @@ public static partial class WorkViewPolicy
         GalleryMenuRow("gallery.menu.video-rule", null, 170),
         GalleryMenuRow("gallery.menu.overlay-toggle", "gallery.overlay-toggle", 180),
         GalleryMenuRow("gallery.menu.post-overlay-toggle", "gallery.post-overlay-toggle", 190),
+        GalleryMenuRow("gallery.menu.filmstrip-toggle", "gallery.filmstrip-toggle", 195),
         GalleryMenuRow("gallery.menu.fullscreen", "window.fullscreen", 200),
+
+        // ---- Filmstrip (V3): the thumbnails of the media before and after the shown one, at the top. Barebones leaves it away by default
+        // (the way to it is L and the row under More); Simple and Advanced show it. A user's own choice (the setting, L, the row) wins
+        // in every view: the viewer raises the element to Direct as a changed state (R6). ----
+        new("gallery.filmstrip", WorkViewPage.Gallery, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "gallery.filmstrip-toggle"),
 
         // ---- Information lines under the picture. ----
         // "Where am I" (thread or result list with its source): Barebones leaves it to the details (I, the media context menu

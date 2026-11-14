@@ -1,0 +1,111 @@
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Styling;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+
+namespace MeowChan.DesktopSmoke;
+
+// M4: the focus mode of the media page (media.focus-mode). The toolbar, the chips with "+ Filter", the hint row, the status line and the
+// filter section are hidden; one 32 dip row shows the live counter and the filter count on the left and "Exit focus ×" alone at the right
+// end; the grid and the selection bar stay. Escape ends the mode first, the selection next. Starting and ending are announced through a
+// polite live region. A narrow page moves the toolbar button under More. Keyboard input is routed, not OS input.
+internal static partial class MediaPageChecks
+{
+    private static async Task FocusModeAsync(Window window, MediaPage page, ThemeVariant theme, string code)
+    {
+        string state = $"focus {theme}/{code}";
+        window.RequestedThemeVariant = theme;
+        Texts.SetLanguage(code);
+        window.Width = 1400; window.Height = 900;
+        window.UpdateLayout();
+        await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide && page.FocusButton.IsEffectivelyVisible && page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1);
+        Button focus = page.FocusButton, exit = page.FocusExitButton, filtersButton = page.FocusFiltersButton;
+        Control toolbar = C<Control>(page, "MediaToolbar"), chipRow = C<Control>(page, "MediaFilterChipRow"), status = C<Control>(page, "MediaStatus"),
+            hint = C<Control>(page, "MediaQueryHint"), surface = C<Control>(page, "MediaFilterSurface"), selectionRow = C<Control>(page, "MediaSelectionRow");
+        Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && status.IsEffectivelyVisible
+            && Avalonia.Automation.AutomationProperties.GetName(focus) == Texts.T("command.media.focus-mode") && focus.Classes.Contains("icon-square")
+            && ToolTip.GetTip(focus)?.ToString() == CommandBindings.Tooltip("media.focus-mode") && page.FocusAnnouncement == null,
+            state + ": the page must start with its header and the ⤢ tool named like the command.");
+        Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(C<TextBlock>(page, "MediaFocusAnnouncement")) == Avalonia.Automation.AutomationLiveSetting.Polite,
+            state + ": the announcement must be a polite live region.");
+
+        // Start with something selected: the selection bar must stay usable.
+        page.Grid.Selection.Clear();
+        page.Grid.Selection.Select(0); page.Grid.Selection.Select(1);
+        Require(page.SelectedTiles.Count == 2 && selectionRow.IsEffectivelyVisible, state + ": the setup selection.");
+        focus.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        window.UpdateLayout();
+        await UntilAsync(() => page.IsFocusMode && page.FocusRow.IsEffectivelyVisible);
+        Require(page.FocusHiddenRows.All(row => !row.IsVisible) && !toolbar.IsEffectivelyVisible && !chipRow.IsEffectivelyVisible && !status.IsEffectivelyVisible
+            && !hint.IsEffectivelyVisible && !surface.IsEffectivelyVisible && !page.FilterAdd.IsEffectivelyVisible && !page.NameFilter.IsEffectivelyVisible,
+            state + ": the toolbar, chips, hint, status and filter section must be hidden.");
+        Require(page.Grid.IsEffectivelyVisible && page.Grid.Bounds.Height > 100 && selectionRow.IsEffectivelyVisible && page.SelectedTiles.Count == 2
+            && C<Button>(page, "MediaSelectionClear").IsEffectivelyVisible && C<Button>(page, "MediaSelectionGallery").IsEnabled,
+            state + ": the grid and the selection bar must stay.");
+        Require(page.FocusAnnouncement == Texts.T("media.focus.on"), state + ": the start must be announced: " + page.FocusAnnouncement);
+        // The row: 32 dip, the counter on the left (the page's status behind the label), the exit alone at the right end.
+        TextBlock text = C<TextBlock>(page, "MediaFocusText");
+        Require(Math.Abs(page.FocusRow.Bounds.Height - 32) < 0.6 && text.Text == MediaFocusMode.Line(C<TextBlock>(page, "MediaStatus").Text)
+            && text.Text!.StartsWith(Texts.T("media.focus.label"), StringComparison.Ordinal),
+            state + ": the focus row must be 32 dip and show the live counter: " + page.FocusRow.Bounds.Height + " / " + text.Text);
+        Require(exit.IsEffectivelyVisible && exit.Content as string == Texts.T("media.focus.exit") && page.FocusRow.Bounds.Width - (exit.Bounds.X + exit.Bounds.Width) < 1.5
+            && exit.Bounds.X > page.FocusRow.Bounds.Width / 2 && Avalonia.Automation.AutomationProperties.GetName(exit) == Texts.T("media.focus.exit"),
+            state + ": 'Exit focus ×' must sit alone at the right end: " + exit.Bounds + " in " + page.FocusRow.Bounds);
+        Require(filtersButton.IsEffectivelyVisible && filtersButton.Content as string == Texts.T("media.filters.count", 1)
+            && ToolTip.GetTip(filtersButton)?.ToString() == Texts.T("tags.filter.includeChip", "surface"), state + ": the active filter must be counted with its chips as the tooltip.");
+        Program.CaptureWindow(window, $"smoke-media-focus-{code}-{theme.ToString().ToLowerInvariant()}.png");
+
+        // The counter is live: a filter changed meanwhile (here through the section's own combo, which is hidden) changes the row.
+        ComboBox kind = C<ComboBox>(page, "MediaKindFilter");
+        kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+        await UntilAsync(() => filtersButton.Content as string == Texts.T("media.filters.count", 2) && page.IsFocusMode);
+        kind.SelectedIndex = 0;
+        await UntilAsync(() => filtersButton.Content as string == Texts.T("media.filters.count", 1) && page.Tiles.Count == SurfaceTagged + 1);
+        Require(page.IsFocusMode, state + ": the mode must stay while the filters change.");
+
+        // Escape on the grid ends the mode first; the selection survives until the next Escape.
+        page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        window.UpdateLayout();
+        Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && status.IsEffectivelyVisible
+            && page.SelectedTiles.Count == 2 && page.FocusAnnouncement == Texts.T("media.focus.off"),
+            state + ": the first Escape must end the focus mode and keep the selection: " + page.SelectedTiles.Count);
+        page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        Require(page.SelectedTiles.Count == 0 && !page.IsFocusMode, state + ": the second Escape must clear the selection.");
+
+        // The exit button and Escape on the button end the mode as well; the search field's request (Primary+F) shows the header.
+        page.ToggleFocusModeByShortcut();
+        Require(page.IsFocusMode && page.FocusAnnouncement == Texts.T("media.focus.on"), state + ": the shortcut must start the mode.");
+        exit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(!page.IsFocusMode && page.FocusAnnouncement == Texts.T("media.focus.off") && toolbar.IsEffectivelyVisible, state + ": the exit button must end the mode.");
+        page.SetFocusMode(true);
+        exit.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        Require(!page.IsFocusMode, state + ": Escape on the exit button must end the mode.");
+        page.SetFocusMode(true);
+        page.FocusSearch();
+        Require(!page.IsFocusMode && page.NameFilter.IsEffectivelyVisible, state + ": asking for the search field must show the header again.");
+
+        // A narrow page moves the tool under More; the entry there is the command's.
+        if (code == "en")
+        {
+            window.Width = 660; window.Height = 560;
+            window.UpdateLayout();
+            await UntilAsync(() => page.ToolbarLevel != MediaToolbarLayout.Level.Wide);
+            window.UpdateLayout();
+            Require(!focus.IsVisible && page.HeaderMoreIds.Contains("media.toolbar.focus") && page.HeaderMoreIds[0] == "media.toolbar.focus",
+                state + ": a narrow page must move the tool under More, first: " + string.Join(", ", page.HeaderMoreIds));
+            page.SetFocusMode(true);
+            window.UpdateLayout();
+            Require(page.FocusRow.IsEffectivelyVisible && exit.IsEffectivelyVisible && page.FocusRow.Bounds.Height < 33
+                && page.FocusRow.Bounds.Width - (exit.Bounds.X + exit.Bounds.Width) < 1.5, state + ": the focus row must fit the narrow page with the exit at the right.");
+            Program.CaptureWindow(window, $"smoke-media-focus-narrow-{theme.ToString().ToLowerInvariant()}.png");
+            page.SetFocusMode(false);
+            window.Width = 1400; window.Height = 900;
+            window.UpdateLayout();
+            await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide && focus.IsEffectivelyVisible);
+        }
+        Require(!page.IsFocusMode, state + ": the mode must be off at the end.");
+    }
+}

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,30 +17,47 @@ internal enum MediaLibraryKindFilter { Any, Image, Gif, Video, Other }
 /// <summary>Sound property of a video. A sound choice implies videos only; images and GIFs have no sound property.</summary>
 internal enum MediaLibrarySoundFilter { Any, WithSound, WithoutSound }
 
+/// <summary>A board together with its source: board names are only unique within a source (used to exclude one board).</summary>
+internal readonly record struct MediaLibraryBoardKey(string Source, string Board);
+
 /// <summary>
 /// Filter of the media page. Immutable; an empty filter shows everything. Tags work like the archive
 /// tag filter, with one difference: a media occurrence carries its own media tags plus the tags of
 /// its thread, so a thread tag such as "rpt" finds every file in those threads.
+/// <para>Type, source and board can be excluded as well as included. The type is a set (<see cref="Kinds"/>, empty = every type):
+/// "without type video" is the set of the other types (<see cref="AllKindsExcept"/>). The source and the board are one included value
+/// each (a board needs its source) plus sets of excluded sources and excluded boards; every part narrows, so an excluded source that is
+/// also the included one shows nothing, like two filters that cannot both hold.</para>
 /// </summary>
 internal sealed record MediaLibraryFilter
 {
     internal const int MaximumNameLength = 200;
 
+    private static readonly MediaLibraryKindFilter[] ConcreteKinds =
+        [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Other];
+
+    /// <summary>
+    /// <paramref name="kind"/> (one type, as before) and <paramref name="kinds"/> (a set) both restrict the type: a medium must be one of
+    /// them together. Naming Any or all four types is no restriction. The new parts come last, so existing calls keep their meaning.
+    /// </summary>
     internal MediaLibraryFilter(ArchiveTagFilter? tags = null, MediaLibraryKindFilter kind = MediaLibraryKindFilter.Any,
         bool favoritesOnly = false, int? minimumRating = null, string? source = null, string? board = null,
         string? nameContains = null, ResourceId? thread = null, MediaLibrarySoundFilter sound = MediaLibrarySoundFilter.Any,
-        bool withoutMediaTags = false)
+        bool withoutMediaTags = false, IEnumerable<MediaLibraryKindFilter>? kinds = null,
+        IEnumerable<string>? excludeSources = null, IEnumerable<MediaLibraryBoardKey>? excludeBoards = null)
     {
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (minimumRating is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(minimumRating), "Ratings are whole values from 1 to 5.");
         if (!Enum.IsDefined(sound)) throw new ArgumentOutOfRangeException(nameof(sound));
-        if (sound != MediaLibrarySoundFilter.Any && kind is not (MediaLibraryKindFilter.Any or MediaLibraryKindFilter.Video))
+        FrozenSet<MediaLibraryKindFilter> kindSet = CanonicalKinds(kind, kinds);
+        // A sound filter concerns videos only: the type set must leave videos in (an empty set does).
+        if (sound != MediaLibrarySoundFilter.Any && kindSet.Count > 0 && !kindSet.Contains(MediaLibraryKindFilter.Video))
             throw new ArgumentException("A sound filter concerns videos only.", nameof(sound));
         if (board != null && source == null) throw new ArgumentException("A board filter needs its source.", nameof(board));
         string? name = string.IsNullOrWhiteSpace(nameContains) ? null : nameContains.Trim();
         if (name is { Length: > MaximumNameLength }) throw new ArgumentException("The file name text is too long.", nameof(nameContains));
         Tags = tags;
-        Kind = kind;
+        Kinds = kindSet;
         FavoritesOnly = favoritesOnly;
         MinimumRating = minimumRating;
         Source = string.IsNullOrEmpty(source) ? null : source;
@@ -48,16 +66,57 @@ internal sealed record MediaLibraryFilter
         Thread = thread;
         Sound = sound;
         WithoutMediaTags = withoutMediaTags;
+        ExcludeSources = (excludeSources ?? []).Where(value => !string.IsNullOrEmpty(value)).ToFrozenSet(StringComparer.Ordinal);
+        ExcludeBoards = (excludeBoards ?? []).Where(key => !string.IsNullOrEmpty(key.Source) && !string.IsNullOrEmpty(key.Board)).ToFrozenSet();
     }
+
+    private static FrozenSet<MediaLibraryKindFilter> CanonicalKinds(MediaLibraryKindFilter kind, IEnumerable<MediaLibraryKindFilter>? kinds)
+    {
+        HashSet<MediaLibraryKindFilter>? restriction = kind == MediaLibraryKindFilter.Any ? null : [kind];
+        if (kinds != null)
+        {
+            HashSet<MediaLibraryKindFilter> named = [];
+            bool any = false;
+            foreach (MediaLibraryKindFilter item in kinds)
+            {
+                if (!Enum.IsDefined(item)) throw new ArgumentOutOfRangeException(nameof(kinds));
+                if (item == MediaLibraryKindFilter.Any) any = true; else named.Add(item);
+            }
+            // An empty set, or Any among the others, restricts nothing; otherwise the set narrows what the single type allowed.
+            if (!any && named.Count > 0)
+            {
+                if (restriction == null) restriction = named; else restriction.IntersectWith(named);
+            }
+        }
+        // Nothing left means the two restrictions exclude each other; that is no filter that can be told apart from "all", so it is refused.
+        if (restriction is { Count: 0 }) throw new ArgumentException("The named types exclude each other.", nameof(kinds));
+        return restriction == null || ConcreteKinds.All(restriction.Contains) ? Unrestricted : restriction.ToFrozenSet();
+    }
+
+    private static readonly FrozenSet<MediaLibraryKindFilter> Unrestricted = FrozenSet<MediaLibraryKindFilter>.Empty;
 
     internal static MediaLibraryFilter None { get; } = new();
 
+    /// <summary>Every concrete type except the given ones: the set for "without type X". All four given is refused (nothing would be left).</summary>
+    internal static IReadOnlySet<MediaLibraryKindFilter> AllKindsExcept(params MediaLibraryKindFilter[] excluded)
+    {
+        HashSet<MediaLibraryKindFilter> rest = [.. ConcreteKinds];
+        rest.ExceptWith(excluded);
+        if (rest.Count == 0) throw new ArgumentException("Excluding every type leaves nothing to show.", nameof(excluded));
+        return rest;
+    }
+
     internal ArchiveTagFilter? Tags { get; }
-    internal MediaLibraryKindFilter Kind { get; }
+    /// <summary>The types shown. Empty = every type (never "none"); never holds Any and never all four types.</summary>
+    internal IReadOnlySet<MediaLibraryKindFilter> Kinds { get; }
     internal bool FavoritesOnly { get; }
     internal int? MinimumRating { get; }
     internal string? Source { get; }
     internal string? Board { get; }
+    /// <summary>Sources whose media is not shown (empty: none).</summary>
+    internal IReadOnlySet<string> ExcludeSources { get; }
+    /// <summary>Boards (with their source) whose media is not shown (empty: none).</summary>
+    internal IReadOnlySet<MediaLibraryBoardKey> ExcludeBoards { get; }
     internal string? NameContains { get; }
     /// <summary>The thread as a meta tag: only media of exactly this thread.</summary>
     internal ResourceId? Thread { get; }
@@ -66,8 +125,29 @@ internal sealed record MediaLibraryFilter
     /// <summary>Only media that could carry media tags but carry none yet (<see cref="MediaLibraryUserData.LacksMediaTags"/>); thread tags do not count.</summary>
     internal bool WithoutMediaTags { get; }
 
-    internal bool IsEmpty => Tags == null && Kind == MediaLibraryKindFilter.Any && !FavoritesOnly && MinimumRating == null
-        && Source == null && Board == null && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any && !WithoutMediaTags;
+    internal bool IsEmpty => Tags == null && Kinds.Count == 0 && !FavoritesOnly && MinimumRating == null
+        && Source == null && Board == null && ExcludeSources.Count == 0 && ExcludeBoards.Count == 0
+        && NameContains == null && Thread == null && Sound == MediaLibrarySoundFilter.Any && !WithoutMediaTags;
+
+    // The sets compare by content (the synthesized record equality would compare the set objects).
+    public bool Equals(MediaLibraryFilter? other) => other != null && Equals(Tags, other.Tags) && Kinds.SetEquals(other.Kinds)
+        && FavoritesOnly == other.FavoritesOnly && MinimumRating == other.MinimumRating && Source == other.Source && Board == other.Board
+        && ExcludeSources.SetEquals(other.ExcludeSources) && ExcludeBoards.SetEquals(other.ExcludeBoards)
+        && NameContains == other.NameContains && Equals(Thread, other.Thread) && Sound == other.Sound && WithoutMediaTags == other.WithoutMediaTags;
+
+    public override int GetHashCode()
+    {
+        HashCode hash = new();
+        hash.Add(Tags); hash.Add(FavoritesOnly); hash.Add(MinimumRating); hash.Add(Source); hash.Add(Board);
+        hash.Add(NameContains); hash.Add(Thread); hash.Add(Sound); hash.Add(WithoutMediaTags);
+        // Order-independent over the sets, so equal sets hash alike whatever their enumeration order.
+        int kinds = 0, sources = 0, boards = 0;
+        foreach (MediaLibraryKindFilter kind in Kinds) kinds ^= (int)kind * 397 + 17;
+        foreach (string source in ExcludeSources) sources ^= StringComparer.Ordinal.GetHashCode(source);
+        foreach (MediaLibraryBoardKey board in ExcludeBoards) boards ^= board.GetHashCode();
+        hash.Add(kinds); hash.Add(sources); hash.Add(boards);
+        return hash.ToHashCode();
+    }
 }
 
 /// <summary>Why a filter could not be applied. The page then shows nothing instead of a wider list.</summary>
@@ -278,7 +358,9 @@ internal static class MediaLibraryFilterEngine
         if (filter.Thread != null && entry.Thread != filter.Thread) return false;
         if (filter.Source != null && !string.Equals(entry.Thread.Source, filter.Source, StringComparison.Ordinal)) return false;
         if (filter.Board != null && !string.Equals(entry.Thread.Board, filter.Board, StringComparison.Ordinal)) return false;
-        if (filter.Kind != MediaLibraryKindFilter.Any && KindOf(entry) != filter.Kind) return false;
+        if (filter.ExcludeSources.Count > 0 && filter.ExcludeSources.Contains(entry.Thread.Source)) return false;
+        if (filter.ExcludeBoards.Count > 0 && filter.ExcludeBoards.Contains(new MediaLibraryBoardKey(entry.Thread.Source, entry.Thread.Board))) return false;
+        if (filter.Kinds.Count > 0 && !filter.Kinds.Contains(KindOf(entry))) return false;
         if (filter.NameContains != null && (entry.Name == null
             || entry.Name.IndexOf(filter.NameContains, StringComparison.OrdinalIgnoreCase) < 0)) return false;
         if (filter.FavoritesOnly && !data.IsFavorite(entry)) return false;

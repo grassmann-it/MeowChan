@@ -478,6 +478,27 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
+    /// Several tags on ONE media subject in one write: all or none. The same subject rules as <see cref="SetMediaSubjects"/> (a local
+    /// add registers the observed file in the same write; a stale or conflicting registration rejects the whole write). Used where
+    /// the tags of one file version are given to another version at once.
+    /// </summary>
+    internal PrivateTagCommit SetSubjectTagsAdmitted(IReadOnlyCollection<TagId> tags, MediaTagSubject subject, bool assigned,
+        ProfileAdmissionToken admission, long? expectedRevision = null, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(tags);
+        TagId[] ids = tags.Distinct().ToArray();
+        if (ids.Length == 0) throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget);
+        MediaTagSubject[] frozen = RequireSubjects(new[] { subject });
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            foreach (TagId tag in ids) RequireKnown(model, tag);
+            bool changed = false;
+            foreach (TagId tag in ids) changed |= ApplySubjects(model, tag, frozen, assigned);
+            return (changed, ids[0]);
+        });
+    }
+
+    /// <summary>
     /// Create-or-get a tag by name and give it to the subjects in ONE write, so a failed assignment can never leave a
     /// newly created, unassigned tag behind. Same subject rules as <see cref="SetMediaSubjects"/>.
     /// </summary>

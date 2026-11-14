@@ -56,7 +56,7 @@ public sealed partial class MediaPage : UserControl
     // The shared empty state (centered, one sentence, one primary action); its sentence and actions are added in the constructor.
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "MediaEmptyState", IsVisible = false };
     // Everything under the title: it is hidden while the library is empty, so the empty page shows the sentence and its action only.
-    private readonly StackPanel _headerBody = new() { Spacing = 4 };
+    private readonly StackPanel _headerBody = new() { Spacing = 8 };
     private MediaLibrarySnapshot? _snapshot;
     private IReadOnlyList<MediaLibraryEntry> _shown = Array.Empty<MediaLibraryEntry>();
     private IReadOnlyList<MediaLibraryTile> _tiles = Array.Empty<MediaLibraryTile>();
@@ -100,11 +100,21 @@ public sealed partial class MediaPage : UserControl
     internal Func<BooruCatalogSnapshot?>? ReadBooruCatalog { get; set; }
     /// <summary>Read-only access to the import catalog (manually imported files). Null: the page shows no imports.</summary>
     internal Func<Import.ManualImportCatalogSnapshot?>? ReadImportCatalog { get; set; }
+    /// <summary>Read-only access to the folder source catalog (files of read-only folders). Null: the page shows no folder files.</summary>
+    internal Func<FolderSources.FolderSourceCatalogSnapshot?>? ReadFolderSources { get; set; }
     /// <summary>Opens a provider post page; the shell supplies the browser launcher, tests a recorder.</summary>
     internal Func<Uri, Task>? OpenProviderPage { get; set; }
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
     internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
+    /// <summary>
+    /// Opens the quick tag popover (the shell resolves the exact file and owns the tag session) on the given anchor for one entry:
+    /// the entry, the tile it opened on, the context of the suggestions and the page's guard. Completes when the popover closed.
+    /// Null falls back to the tag dialog of <see cref="EditTagsForMenuAsync"/>.
+    /// </summary>
+    internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
+    /// <summary>Limits and suggestions of the selection's tag popover (the shell binds the saved settings); unset uses the defaults.</summary>
+    internal Func<TagContext, QuickTagPopoverOptions>? TagPopoverOptions { get; set; }
     /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
     internal Func<Task>? ManageMediaRatingsAsync
     {
@@ -160,13 +170,15 @@ public sealed partial class MediaPage : UserControl
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
-        StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
+        // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
+        // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
+        StackPanel header = new() { Margin = new Thickness(12, 8, 12, 8), Classes = { "workspace-page-header" } };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
         // what is applied stays in the header above it.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildStatusRow(_status));
+        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
@@ -180,6 +192,7 @@ public sealed partial class MediaPage : UserControl
         _empty.Classes.Add(WorkspaceEmptyState.TextClass);
         _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
+        InstallFocus(body); // M4: the rows the focus mode hides are grouped, its row takes their place (MediaPage.Focus.cs)
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "workspace-section-flush" } };
@@ -189,7 +202,7 @@ public sealed partial class MediaPage : UserControl
         _sort.SelectionChanged += (_, _) => OnSortChanged();
         _sortDirection.Click += (_, _) => { if (!_localizing) ToggleSortDirection(); };
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
-        _missing.IsCheckedChanged += (_, _) => FilterEdited(); // a filter: chips, work view and the grid follow
+        // Showing missing files is a filter term since M2 (MediaPage.Filters.cs WireFlag): chips, work view and the grid follow.
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
@@ -266,10 +279,11 @@ public sealed partial class MediaPage : UserControl
             MediaLibrarySnapshot? previous = force ? null : _snapshot;
             Func<BooruCatalogSnapshot?>? readBooru = ReadBooruCatalog;
             Func<Import.ManualImportCatalogSnapshot?>? readImports = ReadImportCatalog;
+            Func<FolderSources.FolderSourceCatalogSnapshot?>? readFolders = ReadFolderSources;
             // A refresh reads every manifest again (no reuse of kept views); identities are still recorded for the next open.
             MediaManifestCache manifests = force ? new MediaManifestCache(_manifests.UsesIdentity ? null : _openManifest, building.Token) : _manifests;
             MediaLibrarySnapshot built = await Task.Run(() => MediaLibraryIndexBuilder.BuildAsync(_openReader, manifests,
-                previous, progress, building.Token, readBooru, readImports), building.Token);
+                previous, progress, building.Token, readBooru, readImports, readFolders), building.Token);
             if (!ReferenceEquals(_building, building)) return;
             SetSnapshot(built);
             _progress = null;
@@ -400,7 +414,7 @@ public sealed partial class MediaPage : UserControl
         catch (ArgumentException) { invalid = true; }
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
         return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
-            Sort, SortDirection, _missing.IsChecked == true, _seed, _userData, snapshot == null ? null : _userOrder,
+            Sort, SortDirection, HasField(MediaFilterField.Missing), _seed, _userData, snapshot == null ? null : _userOrder,
             _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
     }
 
@@ -494,6 +508,7 @@ public sealed partial class MediaPage : UserControl
         PresentCount++;
         InvalidateSharedMediaMenu();
         DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
+        DismissQueueAsk();
         _filterActive = result.FilterActive;
         _filterFailed = result.ErrorKey != null;
         _untaggedTiles = result.UntaggedTiles;
@@ -502,7 +517,6 @@ public sealed partial class MediaPage : UserControl
         _audioUnknown = result.AudioUnknown;
         _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
         _filterError.IsVisible = result.ErrorKey != null;
-        _filterReset.IsEnabled = _filterActive || _missing.IsChecked == true;
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
         // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.
@@ -555,6 +569,7 @@ public sealed partial class MediaPage : UserControl
         UpdateSearchResult();
         UpdateFilterToggle();
         UpdateSelectionBar();
+        EndFocusWithoutHeader();
     }
 
     // The status line alone: what a progress tick changes. Every count in it is kept, so a tick costs no pass over the index.
@@ -564,16 +579,17 @@ public sealed partial class MediaPage : UserControl
         int missing = _shownMissing;
         List<string> parts = new();
         if (_loadingCache) parts.Add(Texts.T("media.cache.loading"));
-        if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.T("media.indexing", progress.ThreadsDone, progress.ThreadsTotal));
+        if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.Count("media.indexing", progress.ThreadsTotal, progress.ThreadsDone, progress.ThreadsTotal));
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? Texts.T("media.filter.count", _shown.Count, _unfiltered)
             : missing > 0 ? Texts.Count("media.countMissing", threads, _shown.Count, threads, missing) : Texts.Count("media.count", threads, _shown.Count, threads));
         if (_snapshot != null && _providerEntries is > 0 and int provider)
-            parts.Add(Texts.T("booru.media.statusCount", provider));
+            parts.Add(Texts.Count("booru.media.statusCount", provider));
         if (_snapshot is { Complete: false } && _building == null) parts.Add(Texts.T("media.incomplete"));
         if (_failed) parts.Add(Texts.T("media.failed"));
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
         if (CacheLimitNote() is { } note) parts.Add(note);
         _status.Text = string.Join(" · ", parts);
+        RefreshFocusRow();
     }
 
     // The saved index has a write limit (a setting); near it and above it the page says so instead of silently rebuilding.
@@ -742,6 +758,13 @@ public sealed partial class MediaPage : UserControl
                 await EditTagsByShortcutAsync();
                 return;
             }
+            // media.queue.add: the selection (or nothing when nothing is selected) goes to the tagging queue, like the selection bar's action.
+            if (CommandBindings.Matches(e, "media.queue.add"))
+            {
+                e.Handled = true;
+                if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
+                return;
+            }
             // Rating, details, export and folder of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))
@@ -763,11 +786,38 @@ public sealed partial class MediaPage : UserControl
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
         if (_grid.Selection.Count > 1) { await TagSelectionAsync(); return; }
-        if (SelectedRow is not { } row || row.State?.CanEditMediaTags != true) return;
+        if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryEntry entry = row.Entry;
-        if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, Current);
-        else await ExecuteMediaActionAsync("media.tags.edit", entry, Current);
+        Control anchor = _grid.ContainerFromItem(row) ?? _grid;
+        await OpenTagsAsync(entry, row, anchor, Current);
+    }
+
+    /// <summary>Why the tile cannot be tagged (null when it can): unknown tag index, a provider medium, no bound version.</summary>
+    private static string? TagsBlockedReason(MediaLibraryEntry entry, MediaLibraryEntryState? state) =>
+        state?.CanEditMediaTags == true ? null : state == null || !state.TagsKnown ? MediaMenuReasons.TagsUnknown
+            : MediaMenuReasons.Tags(entry.AttachmentRevisionKey == null && entry.LocalSlot == null
+                ? GalleryMediaTagUnavailable.NoPostVersion : GalleryMediaTagUnavailable.InvalidIdentity,
+                providerMedia: entry.BooruPostId != null);
+
+    /// <summary>
+    /// "Tag…" of one tile (menu, shortcut): the quick tag popover on the tile, or the reason as text when the tile cannot be tagged.
+    /// Without a popover host the tag dialog opens as before.
+    /// </summary>
+    private async Task OpenTagsAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current)
+    {
+        if (TagsBlockedReason(entry, row.State) is { } blocked)
+        {
+            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current });
+            return;
+        }
+        if (TagPopoverAsync is { } popover)
+        {
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current);
+            return;
+        }
+        if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, current);
+        else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
     private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder" };
@@ -894,7 +944,9 @@ public sealed partial class MediaPage : UserControl
             Task RunBlank(Func<Task> action) => RunMenuActionAsync(action, blank);
             ContextMenu blankMenu = new() { ItemsSource = new Control[]
             {
-                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank)
+                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank),
+                MediaMenuBuilder.ContextItem(blank, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, RunBlank,
+                    MediaMenuReasons.Unavailable)
             } };
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
@@ -908,6 +960,7 @@ public sealed partial class MediaPage : UserControl
         int selectedCount = _grid.Selection.Count;
         bool several = selectedCount > 1;
         bool hostActions = ExecuteMediaMenuActionAsync != null;
+        IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
         {
             Present = entry.Presence == MediaLibraryPresence.Present,
@@ -922,11 +975,11 @@ public sealed partial class MediaPage : UserControl
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
-            TagsWired = EditTagsForMenuAsync != null || hostActions,
-            TagsBlocked = state?.CanEditMediaTags == true ? null : state == null || !state.TagsKnown ? MediaMenuReasons.TagsUnknown
-                : MediaMenuReasons.Tags(entry.AttachmentRevisionKey == null && entry.LocalSlot == null
-                    ? GalleryMediaTagUnavailable.NoPostVersion : GalleryMediaTagUnavailable.InvalidIdentity,
-                    providerMedia: entry.BooruPostId != null),
+            TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
+            TagsBlocked = TagsBlockedReason(entry, state),
+            TagsBlockedExplained = true,
+            QueueWired = AddToTagQueue != null,
+            QueueBlocked = TagQueueActions.BlockedReason(entry.Presence == MediaLibraryPresence.Present, entry.BooruPostId != null),
             ExportWired = hostActions,
             FolderWired = hostActions,
             CopyPathWired = hostActions,
@@ -944,8 +997,9 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
             [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
-            [MediaMenuAction.Tags] = () => EditTagsForMenuAsync != null
-                ? EditTagsForMenuAsync(entry, Current) : ExecuteMediaActionAsync("media.tags.edit", entry, Current),
+            [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
+            // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
+            [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),
@@ -975,6 +1029,8 @@ public sealed partial class MediaPage : UserControl
             }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable));
         }
         context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run));
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
+            MediaMenuReasons.Unavailable));
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote);
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }
@@ -1014,9 +1070,11 @@ public sealed partial class MediaPage : UserControl
         _title.Text = Texts.T("media.title");
         _subtitle.Text = Texts.T("media.subtitle");
         AutomationProperties.SetName(_sort, Texts.T("media.sort"));
-        _shuffle.Content = Texts.T("media.shuffle");
+        // The tools of the row beside the order are icons (M1); the name is the tooltip and the accessible name.
+        WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");
-        IconButtons.Apply(_refresh, "refresh-cw", Texts.T("media.refresh"));
+        WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
+        LocalizeFocus();
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;

@@ -286,6 +286,32 @@ public sealed class TagContextSuggestionTests
         Assert.Empty(TagContextIndex.For(snapshot).TagsOf(null));
     }
 
+    // R18 (review 14.11. night): a loose file counts once per tag in the thread, however many of its revisions carry the tag.
+    [Fact]
+    public void ALooseFileWithTwoTaggedRevisionsCountsOnceForTheThread()
+    {
+        PrivateTagDefinition loc = Tag("loc");
+        LocalMediaOccurrenceId occurrenceId = new(Guid.NewGuid()), otherId = new(Guid.NewGuid());
+        LocalMediaRevisionId first = new(Guid.NewGuid()), second = new(Guid.NewGuid()), third = new(Guid.NewGuid());
+        LocalMediaRegistry registry = new(new[]
+        {
+            new LocalMediaOccurrence(occurrenceId, new LocalMediaLocator(Thread("lt"), "dir", "pic.png"),
+                new[] { new LocalMediaRevision(first, Hex('d'), 10, Hex('1')), new LocalMediaRevision(second, Hex('e'), 11, Hex('2')) }),
+            new LocalMediaOccurrence(otherId, new LocalMediaLocator(Thread("lt"), "dir", "other.png"),
+                new[] { new LocalMediaRevision(third, Hex('f'), 12, Hex('3')) })
+        });
+        PrivateTagStoreSnapshot snapshot = Snap(new[] { loc }, registry: registry, local: new[]
+        {
+            (loc, new LocalMediaTagTarget(occurrenceId, first)), (loc, new LocalMediaTagTarget(occurrenceId, second)),
+            (loc, new LocalMediaTagTarget(otherId, third))
+        });
+
+        Assert.Equal(2, TagContextIndex.For(snapshot).ThreadMediaTags(Thread("lt"))[loc.Id]); // two files, not three revisions
+        // Both revisions still answer for their own bytes.
+        Assert.Equal(new[] { loc.Id }, TagContextIndex.For(snapshot).TagsOfHash(Hex('1')));
+        Assert.Equal(new[] { loc.Id }, TagContextIndex.For(snapshot).TagsOfHash(Hex('2')));
+    }
+
     // ------------------------------------------------------------------ word matching
 
     [Fact]
@@ -410,6 +436,53 @@ public sealed class TagContextSuggestionTests
         Assert.Empty(typed.Own);
     }
 
+    // R05 (review 14.11. night): typed source matches stop early instead of copying the whole catalog per keystroke, and the
+    // result is exactly the one of an unbounded match (context candidates included, wherever they rank in the catalog).
+    [Fact]
+    public void TypedSourceTagsStopEarlyInALargeCatalogAndMatchTheUnboundedRanking()
+    {
+        PrivateTagDefinition own = Tag("a_own");
+        PrivateTagStoreSnapshot snapshot = Snap(new[] { own });
+        TagSuggestionIndex sources = TagSuggestionIndex.FromSourceTags(Enumerable.Range(0, 50_000)
+            .Select(i => ("a" + i.ToString("00000"), i % 97 + 1)).Append(("x_a_word", 3)).Append(("a_own", 500)));
+        TagContext context = new() { SourceTags = new[] { "a49999", "a12345", "x_a_word", "a_own" }, FileName = "a00007.png" };
+
+        TypedTagSuggestions bounded = default!, unbounded = default!;
+        for (int round = 0; round < 2; round++) // the second round measures with every cache warm
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            bounded = TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources);
+            long boundedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            before = GC.GetAllocatedBytesForCurrentThread();
+            unbounded = TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources, sourceLimit: 100_000);
+            long unboundedBytes = GC.GetAllocatedBytesForCurrentThread() - before;
+            if (round == 1) Assert.True(boundedBytes * 8 < unboundedBytes, $"bounded {boundedBytes} B, unbounded {unboundedBytes} B");
+        }
+
+        Assert.Equal(TagSuggestionIndex.SourceLimit, bounded.Source.Count);
+        Assert.Equal(unbounded.Source.Take(TagSuggestionIndex.SourceLimit).Select(item => (item.Name.Display, item.Score, item.Uses, item.TypedMatch)),
+            bounded.Source.Select(item => (item.Name.Display, item.Score, item.Uses, item.TypedMatch)));
+        // The context tags lead the prefix group although the catalog ranks them far behind; an own tag is never a source row.
+        Assert.Contains("a49999", Names(bounded.Source));
+        Assert.Contains("a12345", Names(bounded.Source));
+        Assert.DoesNotContain(bounded.Source, item => item.Name.Display == "a_own");
+        Assert.Equal(new[] { "a_own" }, Names(bounded.Own));
+        // With a limit of one the strongest context tag still wins over the most used catalog names.
+        Assert.Equal(Names(unbounded.Source.Take(1)), Names(TagContextSuggestions.RankTyped(snapshot, "a", context, sources: sources, sourceLimit: 1).Source));
+    }
+
+    [Fact]
+    public void MatchKeyListsANameExactlyAsMatchDoes()
+    {
+        TagSuggestionIndex sources = TagSuggestionIndex.FromSourceTags(new[] { ("blue_eyes", 5), ("light_blue", 2), ("blue", 1), ("sky", 4) });
+        foreach (string text in new[] { "blue", "BLUE", "eyes", "ue", "lu" })
+            foreach (TagSuggestion item in sources.Match(text))
+                Assert.Equal(item, sources.MatchKey(text, item.Name.Key));
+        Assert.Null(sources.MatchKey("blue", "SKY"));
+        Assert.Null(sources.MatchKey("blue", "MISSING"));
+        Assert.Null(sources.MatchKey("  ", "BLUE"));
+    }
+
     // ------------------------------------------------------------------ order, limits, empty data
 
     [Fact]
@@ -455,6 +528,15 @@ public sealed class TagContextSuggestionTests
         Assert.Equal((3, 0, 100, 0, 0), (low.SuggestionCount, low.RecentCount, low.NeighbourScan, low.FilenameTokens, low.SourceTagsPerMedium));
         TagContextOptions high = new(int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue, int.MaxValue);
         Assert.Equal((18, 500, 20_000, 32, 200), (high.SuggestionCount, high.RecentCount, high.NeighbourScan, high.FilenameTokens, high.SourceTagsPerMedium));
+    }
+
+    // R19 (review 14.11. night): one source of truth for the suggestion count of the surface and of the context ranking.
+    [Fact]
+    public void TheSuggestionCountRangeIsTheQuickTagSettingsRange()
+    {
+        Assert.Equal((QuickTagOptions.DefaultSuggestionCount, QuickTagOptions.MinimumSuggestionCount, QuickTagOptions.MaximumSuggestionCount),
+            (TagContextOptions.DefaultSuggestionCount, TagContextOptions.MinimumSuggestionCount, TagContextOptions.MaximumSuggestionCount));
+        Assert.Equal(QuickTagOptions.Default.SuggestionCount, TagContextOptions.Default.SuggestionCount);
     }
 
     [Fact]

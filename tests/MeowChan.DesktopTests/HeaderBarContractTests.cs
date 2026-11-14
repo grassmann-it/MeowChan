@@ -88,7 +88,7 @@ public sealed class HeaderBarContractTests
     }
 
     // Inventory (14.11.): every way out moved to an end slot. The gallery viewer keeps its own overlay placement (WV4), Rules,
-    // Sources, Plugins, Diagnostics and Statistics are other workers' surfaces; window modals have the caption's ×.
+    // Diagnostics and Statistics are other workers' surfaces (Sources and Plugins joined on 14.11.); window modals have the caption's ×.
     public static TheoryData<string, string> WaysOut => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveGalleryReturn" },
@@ -101,6 +101,8 @@ public sealed class HeaderBarContractTests
         { "Desktop/Shell/MainWindow.axaml", "DownloadSearchClose" },
         { "Desktop/Shell/MainWindow.axaml", "InspectorCloseButton" },
         { "Desktop/Shell/MainWindow.axaml", "ShellHelpClose" },
+        { "Desktop/Views/Sources/SourcesPage.axaml", "SourceBackButton" },
+        { "Desktop/Views/Plugins/PluginsPage.axaml", "PluginBack" },
     };
 
     [Theory]

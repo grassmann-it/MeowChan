@@ -266,6 +266,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             if (State == DesktopSessionState.Ready) Updates.Start();
             if (State == DesktopSessionState.Ready) StartMediaTagReconcile();
+            if (State == DesktopSessionState.Ready) StartFolderSources();
             // In the background: recovering pending originals may wait for queue admission (paused queue, space gate).
             if (State == DesktopSessionState.Ready) StartBooruInBackground();
         }
@@ -579,6 +580,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ApplyPrivateTagLimits();
             ApplyStoreLimits();
             ApplyIoStatsOptions();
+            ApplyFolderSourceSettings();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
@@ -805,6 +807,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         await Drain(startupCanceled).ConfigureAwait(false);
         await Drain(restoration).ConfigureAwait(false);
         await Drain(_mediaTagReconcile ?? Task.CompletedTask).ConfigureAwait(false);
+        await Drain(StopFolderSourcesAsync()).ConfigureAwait(false);
         Task registryStopped = _registry.StopAsync();
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
         // An unpublished start may still own a transport: drain its cleanup before releasing all owners.

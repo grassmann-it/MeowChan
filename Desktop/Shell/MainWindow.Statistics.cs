@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using MeowChan.Desktop.Stats;
 
 namespace MeowChan;
 
@@ -14,7 +15,21 @@ public partial class MainWindow
         TransferDiskGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
         _statisticsPage = new StatisticsPage();
         _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
+        _statisticsPage.DiagnosticsRequested += OnStatisticsDiagnosticsRequested;
         _statusPage?.AttachStatistics(_statisticsPage); // the statistics segment of the Status page
+        _statisticsPage.SetHeaderMonitorShown(!IoStatsDisplay.HeaderIsOff(_config.StatsHeaderGraph));
+        _statisticsPage.HeaderMonitorToggled += show =>
+            ChooseHeaderGraph(show ? IoStatsDisplay.HeaderGraphShownAgain(_lastShownHeaderGraph) : IoStatsDisplay.HeaderGraphOff);
+        InitializeHeaderIoMenu(); // right-click / Menu key on the header display (MainWindow.HeaderMenu.cs)
+    }
+
+    // An error count of the statistics table leads to the diagnostics segment: the source's problems (the source filter set,
+    // "Only problems" on), or for the total row every source's. Where the window cannot navigate, nothing changes.
+    private void OnStatisticsDiagnosticsRequested(string? sourceId)
+    {
+        if (!ShowStatus(StatusSegment.Diagnostics, sourceId)) return;
+        _diagnosticsPage?.FilterSource(sourceId); // null clears an earlier source choice
+        _diagnosticsPage?.SetProblemsOnly(true);
     }
 
     // The display name of a source id for the table; null for ids no provider announces (they show as written).

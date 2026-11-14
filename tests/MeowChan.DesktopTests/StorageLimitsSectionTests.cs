@@ -78,10 +78,10 @@ public sealed class StorageLimitsSectionTests : IDisposable
         Assert.Equal(string.Empty, editor.ParallelEffectiveText);
         editor.MaxParallelDownloads = 90;
         editor.ParallelDownloadsSafetyLimit = 32;
-        Assert.Equal(Texts.T("settings.parallelEffective", 32), editor.ParallelEffectiveText);
+        Assert.Equal(Texts.Count("settings.parallelEffective", 32), editor.ParallelEffectiveText);
         Assert.Contains("32", editor.ParallelEffectiveText);
         editor.MaxParallelDownloads = 8;
-        Assert.Equal(Texts.T("settings.parallelEffective", 8), editor.ParallelEffectiveText);
+        Assert.Equal(Texts.Count("settings.parallelEffective", 8), editor.ParallelEffectiveText);
         Assert.Contains(nameof(SettingsEditor.ParallelEffectiveText), changed);
 
         changed.Clear();
@@ -101,8 +101,8 @@ public sealed class StorageLimitsSectionTests : IDisposable
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
-            Assert.DoesNotContain("settings.parallelEffective", Texts.T("settings.parallelEffective", 5));
-            Assert.Contains("5", Texts.T("settings.parallelEffective", 5));
+            Assert.DoesNotContain("settings.parallelEffective", Texts.Count("settings.parallelEffective", 5));
+            Assert.Contains("5", Texts.Count("settings.parallelEffective", 5));
         }
     }
 

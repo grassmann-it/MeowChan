@@ -6,6 +6,7 @@ internal static class NativeTransferPreviewCatalog
     {
         ("transfer.preview.open", "Inspect transfer package…", "Transferpaket prüfen…"),
         ("transfer.preview.title", "Inspect transfer package", "Transferpaket prüfen"),
+        // Obsolete since modals MD2: the title stands in the title bar only (E1); kept so the language packs keep one key set.
         ("transfer.preview.heading", "Transfer package inventory", "Transferpaket-Inventar"),
         ("transfer.preview.choose", "Choose transfer package…", "Transferpaket wählen…"),
         ("transfer.preview.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
@@ -20,8 +21,8 @@ internal static class NativeTransferPreviewCatalog
         ("transfer.preview.idle", "Choose a package to inspect.", "Paket zum Prüfen wählen."),
         ("transfer.preview.inventoryOnly", "Inventory only — nothing is imported, applied, or merged.", "Nur Inventar — nichts wird importiert, übernommen oder zusammengeführt."),
         ("transfer.preview.cleanupRetained", "Cleanup did not finish; temporary inspection files may remain. No archive data was changed.", "Die Bereinigung wurde nicht abgeschlossen; temporäre Prüfdateien können zurückbleiben. Archivdaten wurden nicht geändert."),
-        ("transfer.preview.summary", "{0} threads · {1} posts · {2} unique payloads · {3:N0} bytes", "{0} Threads · {1} Posts · {2} eindeutige Payloads · {3:N0} Bytes"),
-        ("transfer.preview.thread", "{0} /{1}/ {2} · {3} posts\n{4}\n{5}\n{6}", "{0} /{1}/ {2} · {3} Posts\n{4}\n{5}\n{6}"),
+        ("transfer.preview.summary", "Threads: {0} · posts: {1} · unique payloads: {2} · {3:N0} bytes", "Threads: {0} · Posts: {1} · eindeutige Payloads: {2} · {3:N0} Bytes"),
+        ("transfer.preview.thread", "{0} /{1}/ {2} · posts: {3}\n{4}\n{5}\n{6}", "{0} /{1}/ {2} · Posts: {3}\n{4}\n{5}\n{6}"),
         ("transfer.preview.originals", "Originals: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Originale: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),
         ("transfer.preview.previews", "Previews: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Vorschauen: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),
         ("transfer.preview.retained", "Retained bindings: contained {0} · omitted {1} · unknown {2} · unavailable {3} · failed {4} · cancelled {5}", "Retained Bindungen: enthalten {0} · ausgelassen {1} · unbekannt {2} · nicht verfügbar {3} · fehlgeschlagen {4} · abgebrochen {5}"),

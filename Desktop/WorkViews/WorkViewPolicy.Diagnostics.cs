@@ -3,14 +3,13 @@ using static MeowChan.Desktop.WorkViews.Presence;
 
 namespace MeowChan.Desktop.WorkViews;
 
-// Plan AP5 §1.11: diagnostics page. Owned by WV7. The table, its details, the summary, the errors and the filters' default
+// Plan AP5 §1.11: diagnostics page. Owned by WV7. The table, its details, the errors and the filters' default
 // values are the same in every view (R4/R5); a view only decides where the filters and the two secondary actions sit.
 public static partial class WorkViewPolicy
 {
     private static IEnumerable<WorkViewEntry> DiagnosticsEntries() =>
     [
         // Data and state: never reduced.
-        Same("diagnostics.summary", WorkViewPage.Diagnostics, WorkViewKind.Element, Required),
         Same("diagnostics.table", WorkViewPage.Diagnostics, WorkViewKind.Element, Required),
         Same("diagnostics.details", WorkViewPage.Diagnostics, WorkViewKind.Element, Required),
         Same("diagnostics.filter-summary", WorkViewPage.Diagnostics, WorkViewKind.Element, Required),
@@ -28,6 +27,8 @@ public static partial class WorkViewPolicy
         new("diagnostics.toolbar.copy", WorkViewPage.Diagnostics, WorkViewKind.Action, Overflow, Direct, Direct,
             "diagnostics.copy", OverflowOrder: 10),
         Same("diagnostics.toolbar.more", WorkViewPage.Diagnostics, WorkViewKind.Element, Direct),
+        // Platform facts (a few rows about this machine): their own group below the table, closed in every view.
+        Same("diagnostics.platform", WorkViewPage.Diagnostics, WorkViewKind.Section, Collapsed),
         // Session messages: header with its counter is always there, the list starts closed like today.
         Same("diagnostics.session-messages", WorkViewPage.Diagnostics, WorkViewKind.Section, Collapsed),
     ];

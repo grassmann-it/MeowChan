@@ -343,13 +343,18 @@ internal static class ReaderIdeaChecks
         Require(Container(fixture, "324").GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == label),
             "The reading-mark line did not show its label: " + label);
         Require(!Container(fixture, "325").GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == label), "A second line appeared.");
-        // The divider runs to the card edges: it is as wide as the post content plus the card's inner margin on both sides.
+        // The line is a row of its own: across the full list width (the cards' 8-dip gutters on both sides), above the card with
+        // 8 dip of air, and never inside the card.
         TextBlock labelText = Container(fixture, "324").GetVisualDescendants().OfType<TextBlock>().First(text => text.IsEffectivelyVisible && text.Text == label);
         Grid divider = labelText.GetVisualAncestors().OfType<Grid>().First();
-        Visual card = divider.GetVisualParent()!;
-        Point dividerStart = divider.TranslatePoint(new Point(0, 0), card)!.Value;
-        Require(Math.Abs(dividerStart.X + 8) < 1 && Math.Abs(divider.Bounds.Width - (card.Bounds.Width + 16)) < 1,
-            "The reading line did not run to the card edges: x=" + dividerStart.X + ", width=" + divider.Bounds.Width + ", card=" + card.Bounds.Width);
+        ListBoxItem markedCard = Container(fixture, "324");
+        Control viewport = divider.FindAncestorOfType<Avalonia.Controls.Presenters.ScrollContentPresenter>()!;
+        Point dividerStart = divider.TranslatePoint(new Point(0, 0), viewport)!.Value;
+        Point cardStart = markedCard.TranslatePoint(new Point(0, 0), viewport)!.Value;
+        Require(Math.Abs(dividerStart.X - 8) < 1 && Math.Abs(divider.Bounds.Width - (viewport.Bounds.Width - 16)) < 1,
+            "The reading line did not run across the list: x=" + dividerStart.X + ", width=" + divider.Bounds.Width + ", list=" + viewport.Bounds.Width);
+        Require(Math.Abs(cardStart.Y - (dividerStart.Y + divider.Bounds.Height) - 8) < 1,
+            "The reading line was not 8 dip above its card: line bottom=" + (dividerStart.Y + divider.Bounds.Height) + ", card top=" + cardStart.Y);
         Program.CaptureWindow(fixture.Window, "smoke-reader-i3-unread-line.png");
         // Scrolling past the line shows the way back; the button returns to the line and disappears there.
         ScrollViewer scroll = ListScroll(fixture);

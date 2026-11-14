@@ -148,10 +148,10 @@ public sealed class WorkViewPolicyTests
     {
         foreach (string mode in Modes.Append("other"))
         {
-            foreach (string key in new[] { "identity", "title", "posts", "media", "source", "work", "lastCapture", "tags", "future" })
+            foreach (string key in new[] { "identity", "title", "posts", "media", "source", "work", "lastCapture", "tags", "favorite", "future" })
                 Assert.Equal(mode switch
                 {
-                    "Barebones" => key is "identity" or "title" or "posts" or "media",
+                    "Barebones" => key is "identity" or "title" or "posts" or "media" or "favorite",
                     "Simple" => key is not "work" and not "lastCapture" and not "tags",
                     _ => true
                 }, MeowChan.ArchivePage.DefaultColumnVisible("ArchiveThreadTable", mode, key));
@@ -184,7 +184,7 @@ public sealed class WorkViewPolicyTests
             Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));
             Assert.Equal(barebones, WorkViewDensity.Compact(view));
             Assert.Equal(advanced ? 140 : 300, WorkViewDensity.DownloadCompletionWidth(view));
-            Assert.Equal(advanced ? 900 : 650, WorkViewDensity.ArchiveTableMinWidth(view));
+            Assert.Equal(advanced ? 950 : 650, WorkViewDensity.ArchiveTableMinWidth(view));
         }
     }
 }

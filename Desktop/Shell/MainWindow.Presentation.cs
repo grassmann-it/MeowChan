@@ -96,14 +96,8 @@ public partial class MainWindow
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
-        bool showSpeed = Bounds.Width >= 760;
         ApplyHeaderGraphMode(); // below 1000 DIPs every graph goes and the labelled values stay; two blocks need 1280
-        if (TransferSpeed.IsVisible != showSpeed)
-        {
-            TransferSpeed.IsVisible = showSpeed;
-            UpdateSpeedSamplingState();
-            _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
-        }
+        ApplyHeaderMonitorVisibility(); // gone below 760 DIPs and with the setting "Off"
         if (ShellHelpOverlay.IsVisible)
             ShellHelpOverlay.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         RememberNormalGeometry();
@@ -318,10 +312,17 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
         CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
         CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
+        // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
+        CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
+        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, "navigation.diagnostics", Texts.T("feedback.open"));
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
-        ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
+        LocalizeHeaderTagline();
         MeowChan.Desktop.Controls.HeaderBar.MakeClose(DownloadSearchClose, Texts.T("downloads.searchClose"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
@@ -586,6 +587,8 @@ public partial class MainWindow
                 : double.PositiveInfinity;
             AdmissionRepairPanel.Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
             Expander admissionResults = AdmissionResultsExpander;
+            // The 32 dip help button would double the header of the compact one-row report; the popover returns with the normal layout.
+            AdmissionResultsHelpButton.IsVisible = !compactIntake;
             // Semi's expander spaces its header/content through resource keys rather
             // than the control's Padding. Scope compact spacing to this one report.
             if (compactIntake)

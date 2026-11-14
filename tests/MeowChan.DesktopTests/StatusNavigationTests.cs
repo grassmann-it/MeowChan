@@ -222,9 +222,9 @@ public sealed class StatusNavigationTests : IDisposable
     {
         IoRates rates = new(NetDown: 2.4 * 1024 * 1024, NetUp: 0, DiskWrite: 1.9 * 1024 * 1024, DiskRead: 0, Requests: 0);
         Assert.Equal("Active 3 · Waiting 41 · Problems 2", StatusPage.ComposeStrip(3, 41, 2, null));
-        Assert.Equal("Active 3 · Waiting 41 · Problems 2 · ↓ 2.4 MiB/s · W 1.9 MiB/s", StatusPage.ComposeStrip(3, 41, 2, rates));
+        Assert.Equal("Active 3 · Waiting 41 · Problems 2 · Down 2.4 MiB/s · Write 1.9 MiB/s", StatusPage.ComposeStrip(3, 41, 2, rates));
         Texts.SetLanguage("de");
-        Assert.Equal("Aktiv 0 · Wartend 0 · Probleme 0 · ↓ 2,4 MiB/s · S 1,9 MiB/s", StatusPage.ComposeStrip(0, 0, 0, rates));
+        Assert.Equal("Aktiv 0 · Wartend 0 · Probleme 0 · Download 2,4 MiB/s · Schreiben 1,9 MiB/s", StatusPage.ComposeStrip(0, 0, 0, rates));
     }
 
     [Fact]

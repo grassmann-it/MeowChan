@@ -25,6 +25,7 @@ public sealed class StoreLimitSettingsTests
         (nameof(Config.PostBookmarkLimit), 10_000, 1_000, 100_000, "postBookmarks"),
         (nameof(Config.SavedSearchLimit), 500, 50, 5_000, "savedSearches"),
         (nameof(Config.ReaderGroupLimit), 500, 50, 5_000, "readerGroups"),
+        (nameof(Config.ProfileRegistryLimit), 32, 1, 256, "profileRegistry"),
         (nameof(Config.SourcesWatchPreviewRows), 8, 3, 200, "sourcesWatchPreviewRows"),
         (nameof(Config.ExportConfirmFiles), 500, 10, 100_000, "exportConfirmFiles"),
         (nameof(Config.ExportConfirmGiB), 2, 1, 1_024, "exportConfirmGiB"),
@@ -47,6 +48,13 @@ public sealed class StoreLimitSettingsTests
         (nameof(Config.ImportMaxBatches), 100_000, 1_000, 1_000_000, "importBatches"),
         (nameof(Config.MediaIndexMaxEntries), 1_000_000, 100_000, 5_000_000, "mediaIndexEntries"),
         (nameof(Config.MediaIndexMaxThreads), 200_000, 20_000, 1_000_000, "mediaIndexThreads"),
+        (nameof(Config.FolderSourceMaxFiles), 200_000, 1_000, 2_000_000, "folderSourceFiles"),
+        (nameof(Config.FolderSourceMaxRoots), 8, 1, 64, "folderSourceRoots"),
+        (nameof(Config.FolderSourceHashParallelism), 2, 1, 8, "folderSourceParallelism"),
+        (nameof(Config.FolderSourceHashMaxFileGiB), 8, 1, 1_024, "folderSourceHashMaxFile"),
+        (nameof(Config.FolderSourceRescanMinutes), 0, 0, 1_440, "folderSourceRescan"),
+        (nameof(Config.FolderSourceCatalogLimitMiB), 256, 16, 4_096, "folderSourceCatalog"),
+        (nameof(Config.FolderSourceGalleryHashWindow), 16, 0, 200, "folderSourceGalleryWindow"),
     };
 
     private static int Get(Config config, string property) => (int)typeof(Config).GetProperty(property)!.GetValue(config)!;
@@ -202,7 +210,7 @@ public sealed class StoreLimitSettingsTests
                     Assert.Contains(minimum.ToString(), hint);
                     Assert.Contains(maximum.ToString(), hint);
                 }
-                foreach (string group in new[] { "lists", "previews", "import" })
+                foreach (string group in new[] { "lists", "previews", "import", "folderSources" })
                     Assert.NotEqual("budgets.group." + group, Texts.T("budgets.group." + group));
             }
             // Wording rules of the project: "du", "Post", and the ellipsis directly after the word.

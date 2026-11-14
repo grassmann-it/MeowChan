@@ -283,7 +283,7 @@ internal static class ReaderThreadFindChecks
                 Require(e.Handled, "Own-bar routed key was not handled: " + key);
             }
             void Status(int selected, int total) => Require(C<TextBlock>("ReaderFindStatus").Text ==
-                Texts.T("readerFind.count", selected, total), "Actual localized count differs.");
+                Texts.Count("readerFind.count", total, selected, total), "Actual localized count differs.");
             void CheckHit(int selected, int position)
             {
                 Status(selected, 2);
@@ -474,7 +474,7 @@ internal static class ReaderThreadFindChecks
                     await page.ThreadFindTask.WaitAsync(Deadline);
                 }
                 Require(C<StackPanel>("ReaderFindBar").IsVisible
-                    && C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.count", 0, 3),
+                    && C<TextBlock>("ReaderFindStatus").Text == Texts.Count("readerFind.count", 3, 0, 3),
                     "Shell fixture did not open a fresh three-hit search.");
             }
             void CountClick(object? sender, RoutedEventArgs e) => unexpectedClicks++;
@@ -494,7 +494,7 @@ internal static class ReaderThreadFindChecks
             {
                 Run[] runs = C<TextBlock>("ReaderFindExcerpt").Inlines!.OfType<Run>().ToArray();
                 Require(reader.IsVisible && C<StackPanel>("ReaderFindBar").IsVisible
-                    && C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.count", selected, 3)
+                    && C<TextBlock>("ReaderFindStatus").Text == Texts.Count("readerFind.count", 3, selected, 3)
                     && runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", "3650",
                         Texts.T("readerFind.body"), 1 + (selected - 1) * 12, Needle.Length) + "\n"
                     && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.SemiBold

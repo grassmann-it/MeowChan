@@ -119,6 +119,7 @@ public partial class MainWindow
                 if (grid.CollectionView?.CurrentItem is BoardRow board) _boardLeadId = board.WatchId;
             };
         }
+        InitializeDownloadHeaderMenus(); // right-click on a column header (MainWindow.Columns.cs)
         ArchivePage.RemoveSelectedWatches = RemoveArchiveWatchesAsync;
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
         ArchivePage.CanRemoveWatch = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
@@ -143,7 +144,10 @@ public partial class MainWindow
         {
             if (_sessionRowsApplying) return;
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
-            if (row != null) OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
+            if (row == null) return;
+            // From the large reader (its "Thread" menu) the Downloads page behind it is not reachable: leave the reader first.
+            if (_largeReaderOpen && _gallery == null && _restoreCompleted && !WorkspaceCommandBusy) CloseLargeReader(restoreOrigin: false);
+            OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
     }
 
@@ -287,7 +291,7 @@ public partial class MainWindow
                 catch (Exception error) { failures.Add(error.Message); }
             }
             if (failures.Count > 0) ShowNotification(Texts.T("notification.error"),
-                Texts.T("selection.failed", failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
+                Texts.Count("selection.failed", frozen.Count, failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
         }
         finally { _selectionCommandRunning = false; RefreshWorkspace(); }
     }

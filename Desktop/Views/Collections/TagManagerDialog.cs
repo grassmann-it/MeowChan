@@ -25,7 +25,6 @@ namespace MeowChan;
 internal sealed class TagManagerDialog : Window
 {
     private readonly TagManagerSession _session;
-    private readonly WindowChromeBar _chrome = new() { Name = "TagManagerChrome" };
     private readonly TextBlock _intro = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _list = new() { Name = "TagManagerList" };
     private readonly ComboBox _sort = TagSortChoice.Create("TagManagerSort", TagListSort.Uses);
@@ -64,9 +63,8 @@ internal sealed class TagManagerDialog : Window
     {
         _session = session ?? throw new ArgumentNullException(nameof(session));
         Name = "TagManagerDialog";
-        Width = 520; Height = 560; MinWidth = 340; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal form-step dialog; the title stands in the title bar only (the intro stays as the header).
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -93,15 +91,8 @@ internal sealed class TagManagerDialog : Window
         _orphans.Children.Add(_orphanText); _orphans.Children.Add(orphanActions);
         body.Children.Add(_orphans);
         _delete.HorizontalAlignment = HorizontalAlignment.Left;
-        var close = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        close.Children.Add(_close);
-        var footer = new StackPanel { Spacing = 8 };
-        footer.Children.Add(_status); footer.Children.Add(close);
-        var frame = DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error));
-        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
+        var footer = DialogFooter.Build(_close, status: _status, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error)), modal: true, captionName: "TagManagerChrome");
 
         _list.SelectionChanged += OnSelection;
         _sort.SelectionChanged += OnSortChanged;
@@ -109,7 +100,12 @@ internal sealed class TagManagerDialog : Window
         _keep.Click += OnKeep; _close.Click += OnClose;
         _orphanCheck.Click += OnOrphanCheck; _orphanRemove.Click += OnOrphanRemove;
         _name.AddHandler(KeyDownEvent, OnNameKey, RoutingStrategies.Tunnel);
-        AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        // Escape first withdraws a pending delete question (Keep tag), then closes.
+        DialogEscape.Attach(this, () =>
+        {
+            if (_confirming == null) return false;
+            OnKeep(this, new RoutedEventArgs()); return true;
+        });
         Opened += OnOpened; Closed += OnClosed;
         _session.Updated += OnSessionUpdated; Texts.Changed += OnLanguageChanged;
         Refresh();
@@ -119,7 +115,7 @@ internal sealed class TagManagerDialog : Window
 
     private void OnSortChanged(object? sender, SelectionChangedEventArgs e) { if (!_refreshing) Refresh(); }
 
-    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _list.Focus(); }
+    private void OnOpened(object? sender, EventArgs e) { _list.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Refresh);
 
@@ -175,14 +171,6 @@ internal sealed class TagManagerDialog : Window
 
     private async void OnOrphanRemove(object? sender, RoutedEventArgs e) => await _session.RemoveOrphansAsync();
 
-    private void OnKey(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        if (_confirming != null) OnKeep(sender, new RoutedEventArgs());
-        else Close();
-    }
-
     /// <summary>Called when the owning page ends; never leaves a modal behind.</summary>
     internal void CloseForLifetime() { if (!_closed) Close(); }
 
@@ -196,7 +184,7 @@ internal sealed class TagManagerDialog : Window
         AutomationProperties.SetName(_name, Texts.T("tags.manage.name"));
         void Label(Button button, string key) { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         Label(_rename, "tags.manage.rename"); Label(_delete, "tags.manage.delete");
-        Label(_confirmDelete, "tags.manage.confirmDelete"); Label(_keep, "tags.manage.keep"); Label(_close, "tags.manage.close");
+        Label(_confirmDelete, "tags.manage.confirmDelete"); Label(_keep, "tags.manage.keep"); _close.Content = Texts.T("action.close"); AutomationProperties.SetName(_close, Texts.T("action.close"));
         Label(_orphanCheck, "tags.manage.orphansCheck"); Label(_orphanRemove, "tags.manage.orphansRemove");
 
         TagId? selected = Selected?.Id;
@@ -231,7 +219,7 @@ internal sealed class TagManagerDialog : Window
             : string.Join(" ", new[]
             {
                 inspection.Orphans.Count > 0 ? Texts.T("tags.manage.orphans", inspection.Orphans.Count, inspection.OrphanedFiles) : null,
-                inspection.UncheckedFiles > 0 ? Texts.T("tags.manage.orphansUnchecked", inspection.UncheckedFiles) : null
+                inspection.UncheckedFiles > 0 ? Texts.Count("tags.manage.orphansUnchecked", inspection.UncheckedFiles) : null
             }.OfType<string>());
         if (_orphanText.Text.Length == 0) _orphanText.Text = Texts.T("tags.manage.orphansNone");
         _orphanCheck.IsEnabled = ready && !_session.Inspecting && _confirming == null;
@@ -257,7 +245,7 @@ internal sealed class TagManagerDialog : Window
         _rename.Click -= OnRename; _delete.Click -= OnDelete; _confirmDelete.Click -= OnConfirmDelete;
         _keep.Click -= OnKeep; _close.Click -= OnClose;
         _orphanCheck.Click -= OnOrphanCheck; _orphanRemove.Click -= OnOrphanRemove;
-        _name.RemoveHandler(KeyDownEvent, OnNameKey); RemoveHandler(KeyDownEvent, OnKey);
+        _name.RemoveHandler(KeyDownEvent, OnNameKey);
         Opened -= OnOpened; Closed -= OnClosed;
     }
 }

@@ -160,9 +160,9 @@ public sealed class GalleryMediaActionsTests : IDisposable
     [Fact]
     public void TheCompactExportLabelNamesTheObject()
     {
-        Assert.Equal("Original…", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
+        Assert.Equal("Original", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
         Texts.SetLanguage("de");
-        Assert.Equal("Original…", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
+        Assert.Equal("Original", GalleryViewer.CompactLabelFor("GalleryExportOriginal"));
     }
 
     [Fact]

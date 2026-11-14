@@ -40,7 +40,6 @@ public sealed class PageGridStyleTests
 
     [Theory]
     [InlineData("Desktop/Views/Statistics/StatisticsPage.axaml")]
-    [InlineData("Desktop/Views/Diagnostics/DiagnosticsPage.axaml")]
     [InlineData("Desktop/Views/Archive/ArchivePage.axaml")]
     [InlineData("Desktop/Views/Plugins/PluginsPage.axaml")]
     [InlineData("Desktop/Views/Rules/RulesPage.axaml")]

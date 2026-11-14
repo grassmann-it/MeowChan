@@ -1,7 +1,22 @@
+using System;
 using System.Globalization;
+using Avalonia;
 using Avalonia.Controls;
 
 namespace MeowChan.Desktop;
+
+/// <summary>Size steps of a dialog window (modals plan MD1). Every secondary window picks one step instead of its own literals.</summary>
+public enum DialogSize
+{
+    /// <summary>Prompt or confirmation: 480 × 360, minimum 360 × 300.</summary>
+    S,
+    /// <summary>Form: 640 × 520, minimum 420 × 360.</summary>
+    M,
+    /// <summary>List with details: 760 × 640, minimum 480 × 400.</summary>
+    L,
+    /// <summary>Assistant or workbench: 980 × 720, minimum 640 × 560.</summary>
+    XL
+}
 
 /// <summary>Existing workspace table sizes, shared by XAML and preference application.</summary>
 public static class WorkspaceMetrics
@@ -19,4 +34,27 @@ public static class WorkspaceMetrics
     /// <summary>Row definitions for a window grid: the title bar row, then the given rows (for example "*" or "*,Auto").</summary>
     public static RowDefinitions TitleBarRows(string followingRows) =>
         new(TitleBarHeight.ToString(CultureInfo.InvariantCulture) + "," + followingRows);
+
+    /// <summary>Opening client size of a dialog step (dip). <see cref="DialogFit"/> still shrinks it on a small or scaled screen.</summary>
+    public static Size DialogPreferredSize(DialogSize size) => size switch
+    {
+        DialogSize.S => new(480, 360),
+        DialogSize.M => new(640, 520),
+        DialogSize.L => new(760, 640),
+        DialogSize.XL => new(980, 720),
+        _ => throw new ArgumentOutOfRangeException(nameof(size), size, null)
+    };
+
+    /// <summary>Smallest client size a dialog step may be resized to (dip): room for title bar, a usable body and the footer.</summary>
+    public static Size DialogMinimumSize(DialogSize size) => size switch
+    {
+        DialogSize.S => new(360, 300),
+        DialogSize.M => new(420, 360),
+        DialogSize.L => new(480, 400),
+        DialogSize.XL => new(640, 560),
+        _ => throw new ArgumentOutOfRangeException(nameof(size), size, null)
+    };
+
+    /// <summary>Minimum height of a dialog whose height follows its content (a short confirmation): title bar, one line, footer.</summary>
+    public const double DialogContentMinimumHeight = 200;
 }

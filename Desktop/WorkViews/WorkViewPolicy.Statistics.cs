@@ -13,6 +13,8 @@ public static partial class WorkViewPolicy
         Same("statistics.now", WorkViewPage.Statistics, WorkViewKind.Element, Required),
         Same("statistics.history", WorkViewPage.Statistics, WorkViewKind.Element, Required),
         Same("statistics.sources", WorkViewPage.Statistics, WorkViewKind.Element, Required),
+        // The way back for the header display after the setting "Off" (the same setting as the settings row): in every view.
+        Same("statistics.header-monitor", WorkViewPage.Statistics, WorkViewKind.Element, Required),
         // Destructive and rare: under More in Barebones and Simple, direct in Advanced. The confirmation question and the
         // load/save warnings are state and stay visible whenever they apply (R5).
         new("statistics.reset", WorkViewPage.Statistics, WorkViewKind.Action, Overflow, Overflow, Direct),

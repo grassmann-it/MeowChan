@@ -200,7 +200,7 @@ public partial class ArchivePage
         ReaderFindPrevious.IsEnabled = hits;
         ReaderFindNext.IsEnabled = hits;
         ReaderFindStatus.Text = result == null ? Texts.T(_threadFindStatus)
-            : Texts.T("readerFind.count", _threadFindCursor + 1, result.Hits.Count)
+            : Texts.Count("readerFind.count", result.Hits.Count, _threadFindCursor + 1, result.Hits.Count)
                 + (result.Truncation == ReaderFindTruncation.None ? "" : " · " + Texts.T("readerFind.truncated"));
         TextBlock excerpt = ReaderFindExcerpt;
         excerpt.Inlines!.Clear();

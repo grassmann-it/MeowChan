@@ -75,7 +75,7 @@ internal sealed partial class GalleryViewer
         || Commands.CommandRouter.HasOpenPopup((Control?)TopLevel.GetTopLevel(_nativeVideoOverlay) ?? _nativeVideoOverlay);
 
     private bool HasGalleryDialog => TopLevel.GetTopLevel(this) is Window host
-        && host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window));
+        && host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window) && !Views.Shortcuts.ShortcutsWindow.IsPassive(window));
 
     private bool IsGalleryWindowActive
     {
@@ -180,6 +180,7 @@ internal sealed partial class GalleryViewer
 
     private void UpdateEdgeIndicators()
     {
+        UpdateFilmstripPlacement();
         // Buttons have no native resources to Dispose. On stop/detach release their
         // parent and any tooltip popup; do not reparent them into a closing window.
         if (_viewerInteractionStopped)
@@ -375,7 +376,7 @@ internal sealed partial class GalleryViewer
         }
         else
         {
-            _contextPanel.Width = 320;
+            _contextPanel.Width = DockedContextWidth;
             _contextPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
             // Native chrome covers only the video viewport in a separate window.
@@ -490,6 +491,7 @@ internal sealed partial class GalleryViewer
         if (_controlsHot || _pointerInControls || _pointerOnControlsIndicator || wasControls) _lastOverlayActivity = now;
         if (_postHot || _pointerInPost || _pointerOnPostIndicator || wasPost) _lastPostActivity = now;
         if (!_postHot && !_pointerInPost && !_pointerOnPostIndicator) _suppressPostHoverUntilExit = false;
+        RefreshFilmstripHover();
     }
 
     private void RevealHoveredPanels()
@@ -620,8 +622,9 @@ internal sealed partial class GalleryViewer
         if (_lastRunning != _slideshow.IsRunning || _shownSlideshowStatus != CurrentSlideshowStatus) RefreshPlaybackControls();
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
-            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText,
-            Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator);
+            // The tagging mode holds the controls: its decision strip is never auto-hidden (PT3).
+            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
+            Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds);
         if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity), _controlsIdleHideMs))
         {
             if (controlHasFocus) { FocusGallerySurface(); _keyboardInteraction = false; }

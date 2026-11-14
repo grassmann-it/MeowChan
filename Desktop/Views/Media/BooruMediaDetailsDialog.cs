@@ -59,13 +59,11 @@ internal sealed class BooruMediaDetailsDialog : Window
         _isSearchAvailable = isSearchAvailable;
         Name = DialogName;
         Title = Texts.T("booru.media.detail.title", postId);
-        Width = 640; Height = 620; MinWidth = 380; MinHeight = 320;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        DialogFit.OnOpen(this);
+        // Modals plan MD2: a read-only modal details dialog on the form step (fitted to the screen). The title stands in
+        // the title bar only, and a lone Close button is left out: × at the top right and Escape close it.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
 
-        TextBlock heading = new() { Name = "BooruDetailsHeading", Text = Title, TextWrapping = TextWrapping.Wrap };
-        heading.Classes.Add("section-title");
-        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16, 4, 16, 16) };
+        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(Badges(details));
         foreach (string line in fileLines)
             body.Children.Add(new SelectableTextBlock { Text = line, TextWrapping = TextWrapping.Wrap });
@@ -86,12 +84,10 @@ internal sealed class BooruMediaDetailsDialog : Window
         body.Children.Add(_status);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
-        Button close = new() { Name = "BooruDetailsClose", Content = Texts.T("action.close"), HorizontalAlignment = HorizontalAlignment.Right };
-        close.Click += (_, _) => Close();
-        Content = WindowChrome.Frame(this, DialogFrame.Build(heading, body, close));
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; Close(); } };
-        // Like the other dialogs, start on the first action: the post page when the catalog has the post, otherwise Close.
-        Opened += (_, _) => (_initialFocus ?? close).Focus();
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, body, footer: null), modal: true);
+        DialogEscape.Attach(this);
+        // Like the other dialogs, start on the first action: the post page when the catalog has the post, otherwise the window.
+        Opened += (_, _) => (_initialFocus ?? this).Focus();
     }
 
     private Control? _initialFocus;
@@ -304,8 +300,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         _useAsSearchButton.IsEnabled = count > 0 && searchAvailable;
         if (!searchAvailable) _useAsSearchButton.IsVisible = false;
         _tagSelection.Text = count == 0 ? Texts.T("booru.media.tags.selection.none")
-            : count > BooruSourceTagSearch.MaximumTags ? Texts.T("booru.media.tags.selection.tooMany", count, BooruSourceTagSearch.MaximumTags)
-            : Texts.T("booru.media.tags.selection.count", count);
+            : count > BooruSourceTagSearch.MaximumTags ? Texts.Count("booru.media.tags.selection.tooMany", count, count, BooruSourceTagSearch.MaximumTags)
+            : Texts.Count("booru.media.tags.selection.count", count);
     }
 
     private async Task CopyTagsAsync(IReadOnlyList<string> names)
@@ -314,7 +310,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         try
         {
             await _copyText(BooruSourceTagSearch.Written(names));
-            _tagStatus.Text = Texts.T("booru.media.tags.copied", names.Count);
+            _tagStatus.Text = Texts.Count("booru.media.tags.copied", names.Count);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

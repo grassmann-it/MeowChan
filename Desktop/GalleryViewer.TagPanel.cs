@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -12,10 +13,11 @@ using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
-// The quick tag panel (PLAN-SCHNELL-TAGGEN §1.1, decision E1): a side panel that takes the slot of the post panel. It is the same
-// bordered slot (_contextPanel), so its placement (docked from 900 dip, over the picture below), the auto-hide hold of the controls
-// while it is open, the work-view policy row "gallery.post-panel" and the focus handling are shared and not copied; only the child
-// of the slot changes. Post panel and tag panel exclude each other (P switches to the post panel, Ctrl+Shift+T to the tags).
+// The quick tag panel (PLAN-SCHNELL-TAGGEN §1.1, decision E1): the Tags segment of the gallery side panel host (V2,
+// GalleryViewer.SidePanel.cs). It is the same bordered slot (_contextPanel), so its placement (docked from 900 dip, over the picture
+// below), the auto-hide hold of the controls while it is open, the work-view policy row "gallery.post-panel" and the focus handling
+// are shared and not copied; only the shown segment changes. Post and tags exclude each other (P and the Post segment switch to the
+// post, Ctrl+Shift+T and the Tags segment to the tags); the host's × closes both.
 // The viewer shows state and raises requests; everything that touches the tag store lives in the owner (IGalleryTagPanelOwner).
 internal sealed partial class GalleryViewer
 {
@@ -25,14 +27,21 @@ internal sealed partial class GalleryViewer
     private GalleryThreadTagSection? _threadSection;
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
+    // Favorite and rating of the panel's targets (PT6): the row above the field; null when the owner offers none.
+    private GalleryDecisionRow? _decisionRow;
     private IGalleryTagPanelOwner? _tagOwner;
-    private Control? _postContent;
+    // The media marked in the gallery (Shift+Page Down, E4): gallery state, kept while the panel closes and opens again.
+    private GalleryMarks? _marks;
     private bool _tagPanelOpen;
 
     /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
     internal bool IsTagPanelOpen => _tagPanelOpen;
     internal QuickTagSurface? TagSurface => _tagSurface;
     internal GalleryTagPanelController? TagPanelController => _tagController;
+    /// <summary>The favorite and rating row above the tag field; null while the panel is closed or its owner offers no decisions.</summary>
+    internal GalleryDecisionRow? DecisionRow => _decisionRow;
+    /// <summary>The media marked for one tag change; null until the tag panel was opened once.</summary>
+    internal GalleryMarks? Marks => _marks;
 
     // While the tag panel holds the slot the post context is neither built nor current.
     private bool PostContextVisible => _contextOpen && !_tagPanelOpen;
@@ -51,11 +60,13 @@ internal sealed partial class GalleryViewer
             _tagSurface?.FocusField();
             return;
         }
-        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry);
+        _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
+        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, ReadSourceTags = owner.ReadSourceTags };
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+        surface.CounterText = controller.CounterFor(entry);
+        surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
@@ -66,16 +77,30 @@ internal sealed partial class GalleryViewer
         surface.CloseRequested += CloseTagPanel;
         surface.AdvancedRequested += OnTagAdvancedRequested;
         surface.NavigationRequested += OnTagNavigationRequested;
+        surface.MarksClearRequested += OnTagMarksClearRequested;
         surface.ThreadSectionRequested += OnTagThreadSectionRequested;
         controller.Suggestions.Ready += OnTagSuggestionsReady;
+        if (controller.Decisions is { } decisions)
+        {
+            _decisionRow = new GalleryDecisionRow(TagPanelName + "Decision")
+            { FieldFocused = () => surface.Input.IsKeyboardFocusWithin, ReturnFocus = () => surface.FocusField() };
+            _decisionRow.FavoriteRequested += OnDecisionFavoriteRequested;
+            _decisionRow.RatingRequested += RequestDecisionRating;
+            surface.DecisionContent = _decisionRow;
+            surface.ExtraUndo = controller.ExtraUndo;
+            decisions.Updated += OnDecisionsUpdated;
+        }
         _tagController = controller;
         _tagSurface = surface;
+        if (_tagging != null) CoupleTaggingPanel(surface, controller); // the tagging mode's undo and stamp (PT3)
+        surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
-        _postContent ??= _contextPanel.Child;
         _tagPanelOpen = true;
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
-        _contextPanel.Child = surface;
+        RefreshDecisionRow();
+        _sidePanel.TagContent = surface;
+        _sidePanel.Segment = GallerySidePanelSegment.Tags;
         if (_contextOpen)
         {
             LayoutContext();
@@ -102,13 +127,24 @@ internal sealed partial class GalleryViewer
         _tagSurface = null; _tagController = null; _tagOwner = null;
         if (surface != null)
         {
+            UncoupleTaggingPanel(surface);
             surface.CloseRequested -= CloseTagPanel;
             surface.AdvancedRequested -= OnTagAdvancedRequested;
             surface.NavigationRequested -= OnTagNavigationRequested;
+            surface.MarksClearRequested -= OnTagMarksClearRequested;
             surface.ThreadSectionRequested -= OnTagThreadSectionRequested;
         }
         if (controller != null) controller.Suggestions.Ready -= OnTagSuggestionsReady;
-        if (_contextPanel.Child == surface) _contextPanel.Child = _postContent;
+        if (controller?.Decisions != null) controller.Decisions.Updated -= OnDecisionsUpdated;
+        if (_decisionRow != null)
+        {
+            _decisionRow.FavoriteRequested -= OnDecisionFavoriteRequested;
+            _decisionRow.RatingRequested -= RequestDecisionRating;
+            if (surface != null) { surface.ExtraUndo = null; surface.DecisionContent = null; }
+            _decisionRow = null;
+        }
+        if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
+        _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();
         surface?.Dispose();
         controller?.Dispose();
@@ -118,16 +154,11 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
-    // P: while the tag panel holds the slot the post panel takes it over (and is remembered as open); otherwise the plain toggle.
+    // P: while the tag panel holds the slot the post takes it over (and is remembered as open); otherwise the plain toggle.
     private void ToggleContext()
     {
         if (!_tagPanelOpen) { SetContextOpen(!_contextOpen); return; }
-        ReleaseTagPanel();
-        EnsureContextCurrent();
-        LayoutContext();
-        UpdateContextButton();
-        RefreshPlaybackControls();
-        ContextOpenChanged?.Invoke(true);
+        ShowPostSegment();
         FocusGallerySurface();
     }
 
@@ -142,15 +173,18 @@ internal sealed partial class GalleryViewer
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+            surface.CounterText = controller.CounterFor(entry);
+            RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
         surface.CounterText = frame.Counter;
+        surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
+        RefreshDecisionRow();
         // The field stays focused while paging: a focus lost with the replaced chips returns to it.
         if (hadFocus && !surface.IsKeyboardFocusWithin) surface.FocusField();
     }
@@ -175,9 +209,115 @@ internal sealed partial class GalleryViewer
 
     private void OnTagNavigationRequested(QuickTagNavigation navigation)
     {
-        // Marking for a batch (Shift+Page Down/Up) is the batch package's; until it is wired it moves nothing.
+        if (_tagController is { } controller && _tagSurface != null)
+        {
+            // Shift+Page Down marks the shown medium and goes on; Shift+Page Up goes back and takes the mark off the medium it reaches.
+            // The shown medium is read from the owner's position, which is current at once, so quick repeats mark each medium once.
+            if (navigation == QuickTagNavigation.MarkNext)
+            {
+                ApplyMarkResult(controller.Mark(controller.ShownEntry()));
+                Move(1);
+                return;
+            }
+            if (navigation == QuickTagNavigation.UnmarkPrevious)
+            {
+                if (controller.PreviousEntry() is not { } previous) return;
+                ApplyMarkResult(controller.Unmark(previous));
+                Move(-1);
+                return;
+            }
+        }
         int delta = GalleryTagPanelCommands.Delta(navigation);
         if (delta != 0) Move(delta);
+    }
+
+    // The counter chip's clear button: every mark goes and the panel writes to the shown medium again.
+    private void OnTagMarksClearRequested()
+    {
+        if (_tagController is not { } controller || _tagSurface is not { } surface) return;
+        if (controller.ClearMarks() == 0) return;
+        RetargetForMarks(controller, surface);
+        surface.Announce(GalleryTagPanelCommands.ClearedAnnouncement());
+        surface.FocusField();
+    }
+
+    // A mark request changed (or refused to change) the marks: the target is made again, the chips, the counter and the status say so.
+    private void ApplyMarkResult(GalleryMarkResult result)
+    {
+        if (_tagController is not { } controller || _tagSurface is not { } surface) return;
+        if (result.Changed) RetargetForMarks(controller, surface);
+        surface.Announce(GalleryTagPanelCommands.MarkAnnouncement(result));
+    }
+
+    private void RetargetForMarks(GalleryTagPanelController controller, QuickTagSurface surface)
+    {
+        GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
+        surface.Retarget(frame.Target, frame.Label);
+        // The owner's position may already be on the next medium (a move was requested): the counter names that one.
+        surface.CounterText = controller.CounterFor(controller.ShownEntry());
+        surface.MarkedCount = controller.Marks.Count;
+        ShowUnavailableReason(frame.UnavailableReason);
+        RefreshDecisionRow();
+    }
+
+    // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------
+
+    /// <summary>Shows what the panel's targets (every marked medium, else the shown one) carry now; the gallery calls it when a favorite or rating changed elsewhere too.</summary>
+    internal void RefreshDecisionRow()
+    {
+        if (_decisionRow is { } row && _tagController?.DecisionView() is { } view) row.Show(view);
+    }
+
+    private void OnDecisionsUpdated() => RefreshDecisionRow();
+
+    private void OnDecisionFavoriteRequested(bool selected) =>
+        RunDecision((decisions, targets) => decisions.SetFavoriteAsync(targets, selected));
+
+    private void RequestDecisionRating(int? value) =>
+        RunDecision((decisions, targets) => decisions.SetRatingAsync(targets, value));
+
+    /// <summary>
+    /// A rating key or button: with the tag panel open it rates the panel's targets (the marked media, else the shown one) as one undoable
+    /// step and says what it did in the status line; without the panel it rates the shown medium as before.
+    /// </summary>
+    private void RequestRating(int? value)
+    {
+        if (_entry == null) return;
+        if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }
+        RatingSetRequested?.Invoke(_entry, value);
+    }
+
+    // The targets are read when the request is made: paging or marking afterwards never redirects the write.
+    private void RunDecision(Func<GalleryDecisionSession, IReadOnlyList<GalleryEntry>, Task<GalleryDecisionStatus>> run)
+    {
+        if (_tagController is not { Decisions: { } decisions } controller || _tagSurface is not { } surface) return;
+        _ = RunDecisionAsync(surface, run(decisions, controller.DecisionTargets()));
+    }
+
+    private async Task RunDecisionAsync(QuickTagSurface surface, Task<GalleryDecisionStatus> request)
+    {
+        try
+        {
+            GalleryDecisionStatus status = await request;
+            if (!ReferenceEquals(surface, _tagSurface)) return;
+            if (status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
+            RefreshDecisionRow();
+        }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.decision")) { /* Logged and shown. */ }
+    }
+
+    // Shift+1…5 and Shift+0 also rate from an empty tag field: a typed "!" or ")" never starts a tag name. With text in the field (or its
+    // suggestion list open) the keys stay typing. Matches reads the effective bindings directly: CommandBindings.Matches leaves text fields.
+    private bool RouteDecisionKeyInField(KeyEventArgs e, QuickTagSurface surface)
+    {
+        if (_tagController?.Decisions == null || !surface.Input.IsKeyboardFocusWithin
+            || !string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen) return false;
+        for (int value = 1; value <= 5; value++)
+            if (ShortcutService.Current.Matches(e, "media.rating.set-" + value)) { RequestRating(value); e.Handled = true; return true; }
+        if (!ShortcutService.Current.Matches(e, "media.rating.clear")) return false;
+        RequestRating(null);
+        e.Handled = true;
+        return true;
     }
 
     // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
@@ -231,6 +371,7 @@ internal sealed partial class GalleryViewer
             e.Handled = true;
             return true;
         }
+        if (RouteDecisionKeyInField(e, surface)) return true;
         // The command that opened the panel closes it again, also from inside the field.
         if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
         foreach (string id in GalleryTagPanelCommands.Handled)

@@ -13,6 +13,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Import;
 using MeowChan.Tags;
@@ -36,8 +37,6 @@ internal sealed class ManualImportDialog : Window
 {
     private readonly ManualImportSession _session;
     private readonly Func<PrivateTagStoreSnapshot?> _tagSnapshot;
-    private readonly WindowChromeBar _chrome = new() { Name = "ManualImportChrome" };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, Classes = { "card-title" } };
     private readonly TextBlock _intro = new() { TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _target = new() { Name = "ManualImportTarget", TextWrapping = TextWrapping.Wrap, Classes = { "muted" } };
     private readonly TextBlock _rootsLabel = new() { TextWrapping = TextWrapping.Wrap };
@@ -92,10 +91,9 @@ internal sealed class ManualImportDialog : Window
         _sources.Read = readSourceTags;
         _target.Tag = targetFolder;
         Name = "ManualImportDialog";
-        Width = 640; Height = 720; MinWidth = 420; MinHeight = 560;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        DialogFit.OnOpen(this);
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modeless assistant on the list step (it keeps minimize and its taskbar entry), fitted to the
+        // screen; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: false);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -113,18 +111,13 @@ internal sealed class ManualImportDialog : Window
         WrapPanel switches = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _subfolders, _otherFiles } };
         Grid tagRow = _tagRow;
         tagRow.Children.Add(_tagInput); tagRow.Children.Add(_tagAdd); Grid.SetColumn(_tagAdd, 1);
-        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16) };
-        foreach (Control control in new Control[] { _heading, _intro, _target, _rootsLabel, _roots, pick, switches, _progress, _progressText,
+        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16, 0, 16, 16) };
+        foreach (Control control in new Control[] { _intro, _target, _rootsLabel, _roots, pick, switches, _progress, _progressText,
             _counts, _duplicateHint, _list, _nameLabel, _name, _tagsLabel, _tagChips, tagRow, _status })
             body.Children.Add(control);
-        StackPanel footer = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 16, 16), HorizontalAlignment = HorizontalAlignment.Right };
-        footer.Children.Add(_cancel); footer.Children.Add(_close); footer.Children.Add(_showBatch); footer.Children.Add(_import);
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
-        layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        Content = layout;
+        // The body scrolls between the title bar and the fixed footer; Import is the primary action (right-most, like Show batch).
+        Border footer = DialogFooter.Build(_import, new Control[] { _cancel, _close, _showBatch });
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, body, footer), modal: false, captionName: "ManualImportChrome");
 
         _subfolders.IsCheckedChanged += (_, _) => { if (!_syncing) _session.IncludeSubfolders = _subfolders.IsChecked == true; };
         _otherFiles.IsCheckedChanged += (_, _) => { if (!_syncing) _session.IncludeOtherFiles = _otherFiles.IsChecked == true; };
@@ -135,6 +128,12 @@ internal sealed class ManualImportDialog : Window
         TagSuggestionInput.Attach(_tagInput, () => _session.Busy ? null : _tagSnapshot(), AssignedTags, () => OnTagAdd(null, new RoutedEventArgs()), _sources);
         _tagInput.AddHandler(KeyDownEvent, OnTagKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        // Escape stops a running step; otherwise it closes (an open suggestion list takes it first, see OnKey).
+        DialogEscape.Attach(this, () =>
+        {
+            if (!_session.Busy) return false;
+            _session.Cancel(); return true;
+        });
         // The open dialog is itself a drop target: more dropped files join the selection.
         DragDrop.SetAllowDrop(this, true);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
@@ -146,7 +145,6 @@ internal sealed class ManualImportDialog : Window
 
     private void OnOpened(object? sender, EventArgs e)
     {
-        _chrome.Attach(this);
         _sources.Load();
         (_session.Roots.Count == 0 ? _addFiles : (Control)_name).Focus();
     }
@@ -229,12 +227,10 @@ internal sealed class ManualImportDialog : Window
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
+        // Escape closes an open suggestion list first; then DialogEscape stops a running step, and only then closes the dialog.
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        // Escape closes an open suggestion list first, then stops a running step, and only then closes the dialog.
-        if (TagSuggestionInput.Route(_tagInput, e) == TagFieldKey.CloseList) _tagInput.Dismiss();
-        else if (_session.Busy) _session.Cancel();
-        else Close();
+        if (TagSuggestionInput.Route(_tagInput, e) != TagFieldKey.CloseList) return;
+        e.Handled = true; _tagInput.Dismiss();
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
@@ -265,7 +261,6 @@ internal sealed class ManualImportDialog : Window
     {
         if (_closed) return;
         Title = Texts.T("import.title");
-        _heading.Text = Texts.T("import.title");
         _intro.Text = Texts.T("import.intro");
         _target.Text = Texts.T("import.target", _target.Tag as string ?? string.Empty);
         _rootsLabel.Text = _session.Roots.Count == 0 ? Texts.T("import.roots.empty") : Texts.T("import.roots", _session.Roots.Count);
@@ -280,7 +275,7 @@ internal sealed class ManualImportDialog : Window
         _tagAdd.Content = Texts.T("tags.add"); AutomationProperties.SetName(_tagAdd, Texts.T("tags.add"));
         _cancel.Content = Texts.T(_session.Stage == ManualImportStage.Importing ? "import.cancel.run" : "import.cancel.check");
         ToolTip.SetTip(_cancel, _session.Stage == ManualImportStage.Importing ? Texts.T("import.cancel.run.tip") : null);
-        _close.Content = Texts.T("import.close");
+        _close.Content = Texts.T("action.close");
         _showBatch.Content = Texts.T("import.showBatch");
 
         _syncing = true;

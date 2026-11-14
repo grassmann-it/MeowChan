@@ -30,7 +30,12 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             throw new ShortcutIssueReason("unknownKey", "Unknown key or modifier-only gesture: " + Key, Key).ToException();
         return new(key, mods);
     }
-    public string Display(ShortcutPlatform platform)
+    public string Display(ShortcutPlatform platform) =>
+        string.Join(platform == ShortcutPlatform.MacOS ? "" : "+", DisplayParts(platform));
+
+    /// <summary>The keys of <see cref="Display"/> one by one (modifiers, then the key): the keycaps of the shortcuts window.
+    /// Joined with "+" (Apple: without separator) they give exactly <see cref="Display"/>.</summary>
+    public IReadOnlyList<string> DisplayParts(ShortcutPlatform platform)
     {
         var resolved = Resolve(platform);
         if (platform == ShortcutPlatform.MacOS) return DisplayMac(resolved);
@@ -41,18 +46,20 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             "OemOpenBrackets" => "[", "OemCloseBrackets" => "]", "Back" => Texts.T("key.backspace"), _ => key
         };
         // Key names follow the interface language (German: Strg, Umschalt); the stored gesture stays unchanged.
-        string prefix = string.Join("+", Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
-            : m == "Shift" ? Texts.T("key.shift") : m));
-        return prefix.Length == 0 ? Symbol ?? key : prefix + "+" + (Symbol ?? key);
+        return Array.AsReadOnly(Modifiers.Select(m => m is "Primary" or "Control" or "Ctrl" ? Texts.T("key.ctrl")
+            : m == "Shift" ? Texts.T("key.shift") : m).Append(Symbol ?? key).ToArray());
     }
 
     // Apple's order and glyphs: ⌃ ⌥ ⇧ ⌘ directly before the key, no "+". A typed symbol such as "?" already carries
     // its Shift (⌘? and not ⇧⌘/). Function keys are marked because an Apple keyboard needs Fn for them by default.
-    private string DisplayMac(KeyGesture resolved)
+    private IReadOnlyList<string> DisplayMac(KeyGesture resolved)
     {
         KeyModifiers mods = resolved.KeyModifiers;
-        string prefix = (mods.HasFlag(KeyModifiers.Control) ? "⌃" : "") + (mods.HasFlag(KeyModifiers.Alt) ? "⌥" : "")
-            + (mods.HasFlag(KeyModifiers.Shift) && Symbol == null ? "⇧" : "") + (mods.HasFlag(KeyModifiers.Meta) ? "⌘" : "");
+        List<string> parts = new();
+        if (mods.HasFlag(KeyModifiers.Control)) parts.Add("⌃");
+        if (mods.HasFlag(KeyModifiers.Alt)) parts.Add("⌥");
+        if (mods.HasFlag(KeyModifiers.Shift) && Symbol == null) parts.Add("⇧");
+        if (mods.HasFlag(KeyModifiers.Meta)) parts.Add("⌘");
         string key = Symbol ?? Key switch
         {
             "Back" => "⌫", "Delete" => "⌦", "Enter" or "Return" => "↩", "Escape" => "⎋", "Space" => "␣", "Tab" => "⇥",
@@ -63,7 +70,8 @@ public sealed record ShortcutGesture(string Key, IReadOnlyList<string> Modifiers
             _ when Key.Length >= 2 && Key[0] == 'F' && int.TryParse(Key.AsSpan(1), out _) => Key + " (Fn)",
             _ => Key.ToUpperInvariant()
         };
-        return prefix + key;
+        parts.Add(key);
+        return parts.AsReadOnly();
     }
 }
 public sealed record ShortcutIssue(string CommandId, string Message, string? OtherCommandId = null, bool BlocksSave = true)
@@ -107,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 8;
+    public const int DefaultsRevision = 9;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -144,7 +152,7 @@ public sealed class EffectiveShortcutBindings
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
         // commands are inactive (CommandDefinition.IsAwaitingHandler), their defaults already yield like any new default.
         ["tags.quick.next"] = 6, ["tags.quick.previous"] = 6, ["tags.quick.commit-next"] = 6, ["tags.quick.mark-next"] = 6,
-        ["tags.quick.mark-previous"] = 6, ["tags.quick.undo"] = 6, ["tags.quick.thread-section"] = 6,
+        ["tags.quick.mark-previous"] = 6, ["tags.quick.undo"] = 6, ["tags.quick.thread-section"] = 6, ["tags.quick.stamp-apply"] = 6,
         ["tags.quick.suggestion-1"] = 6, ["tags.quick.suggestion-2"] = 6, ["tags.quick.suggestion-3"] = 6,
         ["tags.quick.suggestion-4"] = 6, ["tags.quick.suggestion-5"] = 6, ["tags.quick.suggestion-6"] = 6,
         ["tags.quick.suggestion-7"] = 6, ["tags.quick.suggestion-8"] = 6, ["tags.quick.suggestion-9"] = 6,
@@ -155,6 +163,33 @@ public sealed class EffectiveShortcutBindings
         // New in revision 8: the own Booru page takes the previously free Primary+6. A persisted
         // navigation.plugins=Primary+6 override therefore keeps winning over the new default.
         ["navigation.booru"] = 8,
+        // New in revision 9 (wave3: V1, V3, PT6, R8, M4 and PT3 each raised the table in their own branch; Status took 7, the Booru page 8): the video transport row
+        // (A–B loop, next frame).
+        ["video.ab-loop"] = 9, ["video.frame-step"] = 9,
+        // New in revision 9: L shows or hides the gallery filmstrip.
+        ["gallery.filmstrip-toggle"] = 9,
+        // New in revision 9 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
+        // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
+        ["media.rating.set-1"] = 9, ["media.rating.set-2"] = 9, ["media.rating.set-3"] = 9, ["media.rating.set-4"] = 9,
+        ["media.rating.set-5"] = 9, ["media.rating.clear"] = 9,
+        // New in revision 9: the reader's media sidebar (R8).
+        ["reader.sidebar.toggle"] = 9, ["reader.sidebar.previous-media"] = 9, ["reader.sidebar.next-media"] = 9,
+        // New in revision 9: the media page's focus mode (M4), Shift+F next to the favourite's F.
+        ["media.focus-mode"] = 9,
+        // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
+        // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
+        ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
+        // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
+        // yield to a saved binding of another command like every new default.
+        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9, ["tagging.remove"] = 9,
+        // PT4 (card mode) joins the same revision 9 of the tagging mode (neither is released yet): K and the card keys 1 to 5.
+        ["tags.queue.cards"] = 9, ["tags.queue.card-1"] = 9, ["tags.queue.card-2"] = 9, ["tags.queue.card-3"] = 9,
+        ["tags.queue.card-4"] = 9, ["tags.queue.card-5"] = 9,
+        // New in revision 9 (V4): turning the shown picture or video (Shift+R).
+        ["gallery.rotate"] = 9,
+        // PT7 (decision on the default key): Q puts the shown medium, or the selected media of the media page, in the tagging queue. Q is free in
+        // the contexts it is active in (media page and gallery); it yields to a saved binding of another command like every new default.
+        ["media.queue.add"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -248,6 +283,8 @@ public sealed class EffectiveShortcutBindings
             "tags.quick.previous" => Of("Primary+Up", "PageUp"),
             "tags.quick.mark-next" => Of("Primary+Shift+Down", "Shift+PageDown"),
             "tags.quick.mark-previous" => Of("Primary+Shift+Up", "Shift+PageUp"),
+            // The Apple delete key is Key.Back; forward Delete needs Fn and stays an extra (like watch.remove).
+            "tagging.remove" => Of("Primary+Back", "Delete"),
             _ => null
         };
     }

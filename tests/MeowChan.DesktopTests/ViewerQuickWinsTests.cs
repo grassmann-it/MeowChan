@@ -382,14 +382,47 @@ public sealed class ViewerQuickWinsTests : IDisposable
     public void ASavedFrameNeverOverwritesAFile()
     {
         using Profile profile = new();
-        string first = GalleryFrameFile.Path(profile.Path, "clip:one.webm", 65_432);
+        string Save(string? name, long position, string content = "x")
+        {
+            string temporary = GalleryFrameFile.TemporaryPath(profile.Path);
+            File.WriteAllText(temporary, content);
+            return GalleryFrameFile.Commit(temporary, profile.Path, name, position)!;
+        }
+        string first = Save("clip:one.webm", 65_432, "first");
         Assert.Equal(Path.Combine(profile.Path, "clip_one-1-05-432.png"), first);
-        File.WriteAllText(first, "x");
-        string second = GalleryFrameFile.Path(profile.Path, "clip:one.webm", 65_432);
+        string second = Save("clip:one.webm", 65_432, "second");
         Assert.Equal(Path.Combine(profile.Path, "clip_one-1-05-432 (2).png"), second);
-        Assert.Equal(Path.Combine(profile.Path, "frame-1-00-00-000.png"), GalleryFrameFile.Path(profile.Path, null, 3_600_000));
-        string longName = GalleryFrameFile.Path(profile.Path, new string('a', 300) + ".mp4", 0);
+        Assert.Equal("first", File.ReadAllText(first));
+        Assert.Equal(Path.Combine(profile.Path, "frame-1-00-00-000.png"), Save(null, 3_600_000));
+        string longName = Save(new string('a', 300) + ".mp4", 0);
         Assert.True(Path.GetFileName(longName).Length <= GalleryFrameFile.MaximumStemLength + 20);
+        Assert.Empty(Directory.GetFiles(profile.Path, ".meowchan-frame-*"));
+    }
+
+    // R17 (review 14.11. night): a folder that refuses the file is "could not be saved" (null, logged), not a general error.
+    [Fact]
+    public void AFolderThatRefusesTheFrameGivesNullAndLeavesNoTemporaryFile()
+    {
+        using Profile profile = new();
+        string temporary = GalleryFrameFile.TemporaryPath(profile.Path);
+        File.WriteAllText(temporary, "new");
+        string gone = Path.Combine(profile.Path, "removed-meanwhile");
+        Assert.Null(GalleryFrameFile.Commit(temporary, gone, "clip.webm", 1_000));
+        Assert.False(File.Exists(temporary));
+        Assert.False(Directory.Exists(gone));
+    }
+
+    // R16 (review 14.11. night): the name is claimed exclusively before the rename; a failed move leaves no placeholder behind.
+    [Fact]
+    public void AFailedMoveRemovesTheClaimedNameAndKeepsExistingFiles()
+    {
+        using Profile profile = new();
+        string existing = Path.Combine(profile.Path, "clip-0-01-000.png");
+        File.WriteAllText(existing, "keep");
+        string missing = GalleryFrameFile.TemporaryPath(profile.Path); // never written: the move must fail
+        Assert.Null(GalleryFrameFile.Commit(missing, profile.Path, "clip.webm", 1_000));
+        Assert.Equal("keep", File.ReadAllText(existing));
+        Assert.Equal(new[] { existing }, Directory.GetFiles(profile.Path));
     }
 
     [Fact]

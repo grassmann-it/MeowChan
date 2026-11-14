@@ -47,6 +47,9 @@ public partial class SettingsEditor
     /// <summary>One group's live state, for the work-views smoke and the tests of the page.</summary>
     internal sealed record GroupState(string Id, bool Expanded, bool Flat, int Count, int Changed, bool HasError, string? Header);
 
+    /// <summary>True while any group input differs from the loaded or saved value, or the shortcut draft was edited.</summary>
+    internal bool HasUnsavedChanges => _groupSlots?.Any(slot => ChangedCount(slot) > 0) == true;
+
     internal IReadOnlyList<GroupState> GroupStates() => (_groupSlots ?? [])
         .Select(slot => new GroupState(slot.Id, slot.Expander.IsExpanded, slot.Flat, slot.Count, ChangedCount(slot), HasGroupError(slot),
             slot.Expander.Header as string)).ToArray();

@@ -19,59 +19,21 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private sealed class FilterTagCommand(Action action) : ICommand
-    {
-        public event EventHandler? CanExecuteChanged { add { } remove { } }
-        public bool CanExecute(object? parameter) => true;
-        public void Execute(object? parameter) => action();
-    }
     /// <summary>A removable filter value; C1 styles it as <c>chip chip-filter</c>, an exclusion additionally as <c>chip-exclude</c>.</summary>
-    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false)
-    {
-        string accessible = Texts.T("archive.removeFilter", label);
-        ClosableTag tag = new()
-        {
-            Content = new TextBlock { Text = label, MaxWidth = 320, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
-            Command = new FilterTagCommand(remove), Focusable = true
-        };
-        WorkspaceChips.MarkFilter(tag, exclude);
-        ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
-        MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
-        return tag;
-    }
+    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false) =>
+        WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove);
     /// <summary>The text of a filter chip, whether it is a plain chip or a tag chip with its include/exclude toggle.</summary>
-    internal static string FilterTagLabel(ClosableTag tag) =>
-        (tag.Content as TextBlock ?? (tag.Content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault())?.Text ?? string.Empty;
+    internal static string FilterTagLabel(ClosableTag tag) => WorkspaceChips.TermChipLabel(tag);
 
     /// <summary>
     /// A tag chip with its state (S1/M2): the chip says "Tag: x" (included) or "Without tag: x" (excluded, <c>chip-exclude</c>), a small
-    /// toggle button in front of the text switches between the two, and the chip's own close mark removes the tag. The toggle is
-    /// the explicit route; switching by a click on the chip body is a follow-up the owner has not decided.
+    /// toggle button in front of the text and a click on the chip body (E4) switch between the two, and the chip's own close mark
+    /// removes the tag. The one chip model of the media page (<see cref="WorkspaceChips.CreateTermChip"/>), with its context menu.
     /// </summary>
-    internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle)
+    internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle,
+        Action? copyName = null)
     {
-        ClosableTag tag = CreateFilterTag(label, remove, exclude);
-        TextBlock text = (TextBlock)tag.Content!;
-        string name = Texts.T(exclude ? "tags.filter.toInclude" : "tags.filter.toExclude", tagName);
-        Avalonia.Controls.Shapes.Path glyph = new()
-        {
-            Width = 12, Height = 12, Stretch = Avalonia.Media.Stretch.None, StrokeThickness = 1.5, StrokeLineCap = Avalonia.Media.PenLineCap.Round,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false
-        };
-        string geometry = exclude ? WorkspaceChips.MarkMissing : "M6,2 L6,10 M2,6 L10,6";
-        glyph.AttachedToVisualTree += (_, _) => glyph.Data ??= Avalonia.Media.Geometry.Parse(geometry);
-        Button button = new()
-        {
-            Name = "MediaFilterTagToggle", Content = glyph, Width = 20, Height = 20, MinWidth = 0, MinHeight = 0, Padding = new Avalonia.Thickness(0),
-            Background = Avalonia.Media.Brushes.Transparent, BorderThickness = new Avalonia.Thickness(0),
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalContentAlignment = Avalonia.Layout.VerticalAlignment.Center
-        };
-        glyph.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, Avalonia.AvaloniaObjectExtensions.GetObservable(button, TemplatedControl.ForegroundProperty));
-        button.Click += (_, e) => { e.Handled = true; toggle(); };
-        ToolTip.SetTip(button, name); AutomationProperties.SetName(button, name);
-        tag.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4, Children = { button, text } };
+        ClosableTag tag = WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true, copyName: copyName);
         tag.Tag = id;
         return tag;
     }
@@ -130,7 +92,10 @@ public partial class ArchivePage
         for (int i = 0; i < tags.Count; i++)
         {
             var item = tags[i]; int index = i;
-            panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude"));
+            ClosableTag chip = CreateAppliedChip(item, index);
+            // An own-tag chip has the M2 chip menu (with KM2's Copy tag name); any other applied chip gets KM2's chip menu.
+            if (chip.ContextMenu == null) AttachFilterChipMenu(chip, async () => await RemoveAppliedFilter(item.Field, item.Value, index), applied: true);
+            panel.Children.Add(chip);
         }
         if (tags.Count > 0)
         {
@@ -212,18 +177,7 @@ public partial class ArchivePage
     internal async Task<bool> RemoveAppliedFilter(string field, string? value = null, int focusIndex = 0)
     {
         if (_busy || _ended || !CanRead || _appliedSearch == null) return false;
-        ArchiveSearchSpec applied = _appliedSearch.Spec;
-        ArchiveSearchSpec next = CopySearch(applied, field, value);
-        string category = DraftCategory(field);
-        long revision = _editorRevisions.GetValueOrDefault(category);
-        bool matches = DraftFieldMatches(applied, category);
-        ArchiveSearchRequest request;
-        try { request = CreateSearchRequest(next); }
-        catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
-        bool success = await LoadListAsync(NewListLoad(request, afterCommit: () =>
-        {
-            if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
-        }));
+        bool success = await SearchFromAppliedChip(CopySearch(_appliedSearch.Spec, field, value), DraftCategory(field));
         if (success)
         {
             var tags = ArchiveAppliedFilters.Children.OfType<ClosableTag>().ToArray();
@@ -231,5 +185,22 @@ public partial class ArchivePage
             else ArchiveScopedBox.Focus();
         }
         return success;
+    }
+    /// <summary>
+    /// Searches again with a changed copy of the applied definition (a removed or toggled chip). The draft category follows only
+    /// when it still showed what was applied and was not edited meanwhile; a refused definition explains itself and keeps the list.
+    /// </summary>
+    private async Task<bool> SearchFromAppliedChip(ArchiveSearchSpec next, string category)
+    {
+        ArchiveSearchSpec applied = _appliedSearch!.Spec;
+        long revision = _editorRevisions.GetValueOrDefault(category);
+        bool matches = DraftFieldMatches(applied, category);
+        ArchiveSearchRequest request;
+        try { request = CreateSearchRequest(next); }
+        catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
+        return await LoadListAsync(NewListLoad(request, afterCommit: () =>
+        {
+            if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
+        }));
     }
 }

@@ -229,12 +229,11 @@ internal static partial class MediaPageChecks
             page.FilterToTag(rpt.Tag.Value);
             // C3: type, without media tags and the tag are three chips now (the type had none before).
             Require(Untagged() == "100:100,100:-" && page.FilterChips.Children.Count == 3, "The thread tag filter must still match untagged media: " + Untagged());
-            C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             Require(withoutTags.IsChecked == false && page.ShownEntries.Count == 3 && untagged.IsVisible, "Reset did not clear without media tags.");
 
-            ComboBox mode = C<ComboBox>(page, "MediaTagMode");
+            MeowChan.Desktop.Controls.TwoWayToggle mode = C<MeowChan.Desktop.Controls.TwoWayToggle>(page, "MediaTagMode");
             MeowChan.Desktop.Controls.TagFilterPicker addTag = C<MeowChan.Desktop.Controls.TagFilterPicker>(page, "MediaTagAdd");
-            Button reset = C<Button>(page, "MediaFilterReset");
             WrapPanel chips = page.FilterChips;
             Require(page.AddableTagNames.SequenceEqual(new[] { "cute", "rpt" }) && addTag.IsEnabled, "The tag popover must offer both tags: " + string.Join(",", page.AddableTagNames));
             void Include(string name) => Require(page.AddTagFilterByName(name, include: true) == null, "Including " + name + " failed.");
@@ -243,15 +242,15 @@ internal static partial class MediaPageChecks
 
             // A thread tag reaches every file of the thread, the loose file included.
             Include("rpt");
-            Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && reset.IsEnabled, "Thread tag filter failed: " + Shown());
+            Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && page.ActiveFilterCount > 0, "Thread tag filter failed: " + Shown());
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 2, 3), "Filtered count is wrong.");
             Include("cute");
             Require(page.ShownEntries.Count == 0 && C<TextBlock>(page, "MediaEmpty").IsVisible
                 && C<TextBlock>(page, "MediaEmpty").Text == Texts.T("media.filter.noMatch"), "All-of two tags must match nothing: " + Shown());
             mode.SelectedIndex = 1;
             Require(page.ShownEntries.Count == 3 && chips.Children.Count == 3, "At-least-one must match all three: " + Shown());
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(page.ShownEntries.Count == 3 && !chips.IsVisible && !reset.IsEnabled && mode.SelectedIndex == 0, "Reset did not clear the tag filter.");
+            page.ResetFilters();
+            Require(page.ShownEntries.Count == 3 && !chips.IsVisible && page.ActiveFilterCount == 0 && mode.SelectedIndex == 0, "Reset did not clear the tag filter.");
             Exclude("cute");
             Require(Shown() == "100:100,100:-", "Excluding a media tag must hide only that file: " + Shown());
             // S1/M2: a tag chip carries its state and an explicit toggle; toggling moves the tag to the other list and filters again.
@@ -260,7 +259,7 @@ internal static partial class MediaPageChecks
             Require(page.ToggleTagFilterByName("cute") == null && page.ShownEntries.Count == 1 && !cuteChip().Classes.Contains("chip-exclude")
                 && ArchivePage.FilterTagLabel(cuteChip()) == Texts.T("tags.filter.includeChip", "cute"), "Toggling an excluded tag must include it: " + Shown());
             Require(page.ToggleTagFilterByName("cute") == null && Shown() == "100:100,100:-" && cuteChip().Classes.Contains("chip-exclude"), "Toggling back must exclude it again: " + Shown());
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // Favorites, rating, and both together.
             CheckBox favorites = C<CheckBox>(page, "MediaFavoritesOnly");
@@ -273,7 +272,7 @@ internal static partial class MediaPageChecks
             Require(Shown() == "200:200", "Rating filter failed: " + Shown());
             rating.SelectedIndex = 5;
             Require(page.ShownEntries.Count == 0, "No file is rated 5.");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // Type, name, source and board.
             ComboBox kind = C<ComboBox>(page, "MediaKindFilter"), source = C<ComboBox>(page, "MediaSourceFilter"), board = C<ComboBox>(page, "MediaBoardFilter");
@@ -285,7 +284,7 @@ internal static partial class MediaPageChecks
             name.Text = "  TWO ";
             await UntilAsync(() => Shown() == "200:200"); // TextChanged arrives after a dispatcher turn.
             // Over a large index typing waits for the last keystroke: one rebuild for a burst, results unchanged.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             page.SearchImmediateEntries = 0;
             int presented = page.PresentCount;
             name.Text = "t"; name.Text = "tw"; name.Text = "two";
@@ -298,7 +297,7 @@ internal static partial class MediaPageChecks
             page.SearchImmediateEntries = 2000;
             name.Text = "  TWO ";
             await UntilAsync(() => Shown() == "200:200");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             // A large library presents off the UI thread: the grid keeps its rows until the new ones are ready, only the newest of
             // several requests is applied, and the selection is carried over.
             page.BackgroundPresentEntries = 0;
@@ -335,7 +334,7 @@ internal static partial class MediaPageChecks
                 "A board alone must filter by its source and board.");
             source.SelectedIndex = 1;
             Require(board.SelectedIndex == 1 && board.Items[1]!.ToString() == "/g/", "Choosing the board's own source must keep the board.");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // The thread as a meta tag: the tile's thread label filters to that thread; its chip removes it.
             Button threadLink = await FindThreadLinkAsync(page, B);
@@ -394,7 +393,7 @@ internal static partial class MediaPageChecks
                 // AP-01b: a loose file is taggable as its own local occurrence; it starts without media tags (none from its thread).
                 Require(s3.TagsKnown && s3.CanEditMediaTags && s3.TagSubject is MediaTagSubject.Local && s3.MediaTags.Count == 0
                     && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A loose file must be taggable as a local file and start untagged.");
-                Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+                Require(Row(one).DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
 
                 // T2: own tags are chips beside the thread link; a chip filters by its tag (a thread tag reaches the whole thread),
                 // a second chip narrows further, and the chip in the filter row removes it again.
@@ -432,7 +431,7 @@ internal static partial class MediaPageChecks
                     "The thread tag must show as a chip as well, with its thread mark.");
                 threadTag.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Require(page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.Thread == A), "The thread tag chip must reach the whole thread.");
-                C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                page.ResetFilters();
                 Require(page.ShownEntries.Count == 3, "Reset did not clear the chip filter.");
 
                 // The tile carries the same text as a tooltip and as its automation name.
@@ -555,7 +554,7 @@ internal static partial class MediaPageChecks
                 "A media tag on one occurrence must keep the whole group, shown by the matching occurrence.");
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             Require(((await FindDuplicatesHintAsync(page)).Content as TextBlock)?.Text == Texts.T("media.tile.inThreads", 3), "The hint counts all occurrences, not only matching ones.");
-            C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // Favorite state of the group tile counts all three saved occurrences: unknown/none/some.
             MediaLibraryTile shared = page.Tiles.Single(tile => tile.IsGroup);
@@ -686,6 +685,10 @@ internal static partial class MediaPageChecks
             MediaLibraryEntry pairIn700 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "700");
             MediaLibraryEntry pairIn800 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "800");
             ClickRaise(tag);
+            // TP3: the selection bar opens the quick tag popover over the selection (tri-state, one write); "Advanced…" lists the occurrences.
+            await UntilAsync(() => page.SelectionTagPopover is { IsOpen: true, Surface: not null });
+            Require(page.SelectionTagPopover!.Surface!.Session.IsSelection && page.SelectionTagWindow == null, "The selection tag popover is not over the selection.");
+            page.SelectionTagPopover.Surface.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => page.SelectionTagWindow != null);
             MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
             await UntilAsync(() => dialog.OccurrenceBoxes.Count == 4);
@@ -784,7 +787,7 @@ internal static partial class MediaPageChecks
             ClickRaise(C<Button>(page, "MediaShuffle"));
             Require(Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]), "Shuffling must keep the shown selected tiles.");
             C<ComboBox>(page, "MediaSort").SelectedIndex = 0;
-            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == 4);
             Require(Selected().SequenceEqual(["sel-b.png", "sel-a.png"]), "A tile that dropped out must not come back selected: " + string.Join(",", Selected()));
             await UntilAsync(() => !Marked(0) && !Marked(1) && Marked(2) && Marked(3));
@@ -857,7 +860,7 @@ internal static partial class MediaPageChecks
             name.Text = "no-such-file";
             await UntilAsync(() => page.Tiles.Count == 0);
             Require(!exportAll.IsEnabled && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.reason.none"), "Export all must say why it is disabled without tiles.");
-            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == 4 && exportAll.IsEnabled);
             holding = true;
             hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1113,7 +1116,6 @@ internal static partial class MediaPageChecks
             await page.ActivateAsync().WaitAsync(Deadline);
             Require(page.Tiles.Count == 3 && page.Tiles.All(tile => tile.Entry.Kind == SavedMediaKind.Video), "Audio fixture must give three video tiles.");
             ComboBox sound = C<ComboBox>(page, "MediaSoundFilter"), kind = C<ComboBox>(page, "MediaKindFilter");
-            Button reset = C<Button>(page, "MediaFilterReset");
             TextBlock note = C<TextBlock>(page, "MediaAudioNote");
             string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Name));
 
@@ -1129,7 +1131,7 @@ internal static partial class MediaPageChecks
 
             // Mit Ton: one video, the undecidable one is counted and not shown; the type follows to Videos.
             sound.SelectedIndex = 1;
-            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && reset.IsEnabled, "With sound must show only the sound video: " + Shown());
+            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && page.ActiveFilterCount > 0, "With sound must show only the sound video: " + Shown());
             Require(note.IsVisible && note.Text == Texts.T("media.audio.unknown", 1) && page.UncheckedVideos == 1, "The undecidable video must be counted: " + note.Text);
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             sound.SelectedIndex = 2;
@@ -1144,8 +1146,8 @@ internal static partial class MediaPageChecks
             sound.SelectedIndex = 0;
             Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Sound 'egal' must show all three again.");
             sound.SelectedIndex = 2;
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && !reset.IsEnabled, "Reset must clear the sound choice.");
+            page.ResetFilters();
+            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && page.ActiveFilterCount == 0, "Reset must clear the sound choice.");
         }
         finally { page.EndLifetime(); window.Close(); }
 

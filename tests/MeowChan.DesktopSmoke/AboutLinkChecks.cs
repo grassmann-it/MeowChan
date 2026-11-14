@@ -59,7 +59,7 @@ internal static class AboutLinkChecks
         finally
         {
             if (about?.IsVisible == true)
-                about.FindControl<Button>("CloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                about.Close();
             foreach (string key in keys)
                 Environment.SetEnvironmentVariable(key, original[key]);
         }

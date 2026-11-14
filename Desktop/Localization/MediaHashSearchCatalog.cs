@@ -13,6 +13,7 @@ internal static class MediaHashSearchCatalog
         ("mediahash.scope", "One captured inventory only, not the global library. Matches are recorded SHA-256 metadata, not verification of current files. No files are opened or rehashed; nothing is downloaded.", "Nur ein erfasstes Inventar, nicht die gesamte Bibliothek. Treffer beruhen auf gespeicherten SHA-256-Metadaten, nicht auf einer Prüfung aktueller Dateien. Keine Dateien werden geöffnet oder neu gehasht; es wird nichts heruntergeladen."),
         ("mediahash.input", "Exact SHA-256 (64 ASCII hex characters)", "Exakter SHA-256 (64 ASCII-Hexzeichen)"),
         ("mediahash.search", "Search captured inventory", "Erfasstes Inventar durchsuchen"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("mediahash.close", "Close", "Schließen"),
         ("mediahash.previous", "Previous 100", "Vorherige 100"),
         ("mediahash.next", "Next 100", "Nächste 100"),

@@ -137,7 +137,7 @@ public sealed class TagSuggestionTests : IDisposable
         // The value is the exact display name: accepting it reuses the tag, it never adds the count.
         Assert.Equal(("my_tag", "my_tag (3)", "my_tag, number of uses: 3"), (row.Value, row.Label, row.Description));
         Assert.Equal(("fresh", "fresh", "fresh, not used yet"), (plain.Value, plain.Label, plain.Description));
-        Assert.Contains("13", Texts.T("tags.suggest.count", 5, TagSuggestionIndex.VisibleLimit));
+        Assert.Contains("13", Texts.Count("tags.suggest.count", 5, 5, TagSuggestionIndex.VisibleLimit));
 
         Texts.SetLanguage("de");
         Assert.Equal("my_tag, Anzahl Verwendungen: 3", TagSuggestionIndex.Present(new TagSuggestion(used.Name, used.Id, 3, TagMatchKind.Prefix)).Description);

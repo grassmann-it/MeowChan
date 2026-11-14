@@ -77,8 +77,10 @@ internal sealed class FilterSurfaceController
         Dispatcher.UIThread.Post(() =>
         {
             if (_isEnded() || !IsOpen || !surface.IsEffectivelyVisible) return;
+            // The surface's own cross (a HeaderBar end slot child) is never the first field: focus starts on content.
             surface.GetVisualDescendants().OfType<InputElement>()
-                .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible)
+                .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible
+                    && !(element is Control control && HeaderBar.GetIsEnd(control)))
                 ?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }
@@ -92,9 +94,7 @@ internal sealed class FilterSurfaceController
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        // Open dropdowns, suggestions and date editors handle their own Escape first.
-        if (e.Handled || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        Close(restoreFocus: true);
+        // Open dropdowns, suggestions and date editors handle their own Escape first (the overlay policy skips handled keys).
+        OverlayFrame.TryHandleEscape(e, () => Close(restoreFocus: true));
     }
 }

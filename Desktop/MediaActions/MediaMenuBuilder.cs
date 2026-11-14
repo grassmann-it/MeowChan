@@ -215,7 +215,8 @@ internal sealed class MediaMenuPresenter
             // A newer menu, an invalidated target or a dialog opened by the action owns the focus now.
             if (!ReferenceEquals(Menu, menu) || menu.IsOpen || !session.IsCurrent) return;
             TopLevel? top = TopLevel.GetTopLevel(origin);
-            if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
+            // The shortcuts window is modeless help, not a dialog that took the focus.
+            if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible && !Views.Shortcuts.ShortcutsWindow.IsPassive(window))) return;
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control control && !ReferenceEquals(control, menu) && control.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
             static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;

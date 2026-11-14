@@ -15,6 +15,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -51,9 +52,25 @@ public partial class SavedArchiveSearchesDialog : Window
     private SavedArchiveSearch? Selected => List.SelectedItem as SavedArchiveSearch;
     internal bool Applied { get; private set; }
 
+    /// <summary>
+    /// Minimum window height: the eight wrapped footer actions, the header and a usable body fit together in the longest of
+    /// the 12 languages (SavedSearchesFooterBudgetTests). The step's own minimum is lower.
+    /// </summary>
+    internal const double MinimumHeight = 500;
+
     internal SavedArchiveSearchesDialog(DesktopSessionHost host, ArchivePage page, ArchiveSearchSpec? initialDefinition = null)
     {
-        InitializeComponent(); WindowChrome.WrapContent(this); _host = host; _page = page; _initialDefinition = initialDefinition;
+        InitializeComponent();
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize); the
+        // footer's eight actions need a little more height than the step's minimum in the longest languages.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
+        MinHeight = Math.Max(MinHeight, MinimumHeight);
+        DialogWindow.Wrap(this, modal: true);
+        DialogFooter.Fill(this.FindControl<Border>("DialogFrameFooter")!, Button("SavedSearchApply"),
+            new Control[] { Button("SavedSearchCreate"), Button("SavedSearchRename"), Button("SavedSearchReplace"), Button("SavedSearchDelete"),
+                Button("SavedSearchReload"), Button("SavedSearchRecover"), Button("SavedSearchClose") },
+            this.FindControl<ScrollViewer>("SavedSearchStatusHost"), statusAbove: true);
+        _host = host; _page = page; _initialDefinition = initialDefinition;
         _router = new CommandRouter(this);
         AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("SavedSearchError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>
@@ -83,12 +100,18 @@ public partial class SavedArchiveSearchesDialog : Window
         KeyDown += (_, e) =>
         {
             if (_router.Route(e)) return;
-            if (e.Key == Key.Escape) { e.Handled = true; if (_edit != EditKind.None) CancelEdit(); else Close(); }
             // Enter in the name field is the keyboard form of the primary button (save or rename).
-            else if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && (_edit is EditKind.Create or EditKind.Rename)
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && (_edit is EditKind.Create or EditKind.Rename)
                 && ReferenceEquals(e.Source, NameInput) && Button("SavedSearchConfirm").IsEnabled)
             { e.Handled = true; _ = ConfirmAsync(); }
         };
+        // Escape leaves the editor first (a local cancel), then closes the dialog.
+        DialogEscape.Attach(this, tryCancelLocal: () =>
+        {
+            if (_edit == EditKind.None) return false;
+            CancelEdit();
+            return true;
+        });
         AddHandler(PointerPressedEvent, OnInitialFocusPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnInitialFocusKey, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(GotFocusEvent, OnInitialFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -302,7 +325,7 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<TextBlock>("SavedSearchConflictTitle")!.Text = Texts.T("savedSearch.conflictTitle");
         SavedArchiveSearch? current = _edit == EditKind.Create ? null : _snapshot!.Searches.FirstOrDefault(x => x.Id == _target);
         this.FindControl<TextBlock>("SavedSearchConflictCurrent")!.Text = _edit == EditKind.Create || _edit == EditKind.Recover
-            ? Texts.T("savedSearch.conflictList", _snapshot!.Searches.Count)
+            ? Texts.Count("savedSearch.conflictList", _snapshot!.Searches.Count)
             : current == null ? Texts.T("savedSearch.conflictDeleted")
             : Texts.T("savedSearch.conflictCurrent", current.Name,
                 current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported"));

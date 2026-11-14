@@ -197,7 +197,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string Title => Texts.T("nav.rules");
     public string Subtitle => Texts.T("rules.subtitle");
     public string SavedScopesLabel => Texts.T("rules.savedScopes");
-    public string ScopeCountLabel => Texts.T("rules.changedScopes", _confirmed.Rules.Count);
+    public string ScopeCountLabel => Texts.Count("rules.changedScopes", _confirmed.Rules.Count);
     public string OpenLabel => Texts.T("rules.open");
     public string NewScopeLabel => Texts.T("rules.newScope");
     public string ScopeKindLabel => Texts.T("rules.scopeKind");
@@ -226,13 +226,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string SizeOriginLabel => _preview == null ? string.Empty : Texts.T("rules.origin", FormatOrigin(_preview.SizeLimitOrigin));
 
     public MediaRuleScope ActiveScope => _draft.Scope;
-    public MediaRuleScope? ParentScope => _draft.Scope.Kind switch
-    {
-        MediaRuleScopeKind.Thread => MediaRuleScope.ForBoard(_draft.Scope.Source!, _draft.Scope.Board!),
-        MediaRuleScopeKind.Board => MediaRuleScope.ForSource(_draft.Scope.Source!),
-        MediaRuleScopeKind.Source => MediaRuleScope.Global,
-        _ => null
-    };
+    public MediaRuleScope? ParentScope => ParentOf(_draft.Scope);
     public bool CanOpenParent => IsEditable && ParentScope != null;
     public bool CanOpenTypesOrigin => IsEditable && _preview?.TypesOrigin.Scope != null;
     public bool CanOpenSizeOrigin => IsEditable && _preview?.SizeLimitOrigin.Scope != null;

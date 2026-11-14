@@ -39,14 +39,22 @@ public partial class ArchivePage
     /// and one passive restore, including date-only applies and asynchronous conversation depth changes.
     /// </summary>
     internal void ApplyReaderDisplayPreferences(int thumbnailWidth, ReaderDateStyle dateStyle, int pageSize,
-        int? conversationDepth = null)
+        int? conversationDepth = null, ReaderMediaPreferences? media = null)
     {
         int width = global::MeowChan.Desktop.ReaderDisplayPreferences.ClampThumbnailWidth(thumbnailWidth);
         ReaderDateStyle style = Enum.IsDefined(dateStyle) ? dateStyle : ReaderDateStyle.System;
         int size = Math.Clamp(pageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
         int depth = ReaderConversationTree.ClampDepth(conversationDepth ?? ReaderThreadingDepth);
+        ReaderMediaPreferences nextMedia = (media ?? _readerDisplayPreferences.Media).Clamped();
+        // The focus and hover options act on the list at once; only a changed textless setting makes the posts build their images again.
+        bool postImagesSame = nextMedia.SamePostImages(_readerDisplayPreferences.Media);
+        if (nextMedia != _readerDisplayPreferences.Media)
+        {
+            _readerDisplayPreferences.Media = nextMedia;
+            ApplyReaderMediaLive();
+        }
         if (width == ReaderThumbnailWidth && style == ReaderDateStyle && size == ReaderPageSize
-            && depth == ReaderThreadingDepth) return;
+            && depth == ReaderThreadingDepth && postImagesSame) return;
 
         DiscardStaleReaderSettingsApply();
         if (!_ended && _thread != null && _readerSettingsApply == null)
@@ -136,5 +144,6 @@ public partial class ArchivePage
     {
         ArchivePosts.SetValue(ReaderPostLayout.ThumbnailWidthProperty,
             _readerDisplayPreferences.ReaderThumbnailWidth);
+        InitializeReaderMedia();
     }
 }

@@ -231,7 +231,7 @@ internal static class BooruMediaChecks
             .Any(view => view.GetVisualDescendants().OfType<Image>().Any(image => image.Source != null)));
         Require(shell.FindControl<TextBlock>("ShellActionError")?.Text is null or "", phase + ": the shell shows an error.");
         string status = C<TextBlock>(page, "MediaStatus").Text ?? string.Empty;
-        Require(status.Contains(Texts.T("booru.media.statusCount", 3)), phase + ": the status must count the three downloaded posts: " + status);
+        Require(status.Contains(Texts.Count("booru.media.statusCount", 3)), phase + ": the status must count the three downloaded posts: " + status);
     }
 
     private static async Task SourceFilterAsync(MediaPage page, string phase)
@@ -243,7 +243,7 @@ internal static class BooruMediaChecks
         Require(page.CurrentFilter().Source == "danbooru" && page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.BooruPostId != null),
             phase + ": the Danbooru source filter must show exactly the two provider tiles: " + page.ShownEntries.Count);
         Require(source.Items.Cast<object>().Any(item => item.ToString() == "booru-media-fixture"), phase + ": chan sources keep their identifier.");
-        C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page.ResetFilters();
         Require(page.ShownEntries.Count == 3, phase + ": reset did not widen the page.");
         await Task.CompletedTask;
     }
@@ -259,11 +259,11 @@ internal static class BooruMediaChecks
         ContentControl galleryHost = shell.FindControl<ContentControl>("GalleryHost")!;
         await UntilAsync(() => galleryHost.IsVisible && galleryHost.Content is GalleryViewer);
         GalleryViewer viewer = (GalleryViewer)galleryHost.Content!;
-        await UntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "GalleryScope").Text == Texts.T("booru.media.gallery.scope", 2));
+        await UntilAsync(() => viewer.GetGalleryVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "GalleryScope").Text == Texts.Count("booru.media.gallery.scope", 2));
         GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
         await UntilAsync(() => !galleryHost.IsVisible);
         await shell.GalleryCleanupTask.WaitAsync(Deadline);
-        C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page.ResetFilters();
         Require(page.ShownEntries.Count == 3, phase + ": reset after the provider-only gallery.");
     }
 
@@ -336,8 +336,8 @@ internal static class BooruMediaChecks
         BooruMediaDetailsDialog dialog = await OpenDetailsAsync(shell, page, row, phase);
         string post = row.Entry.BooruPostId!;
         Require(dialog.Title == Texts.T("booru.media.detail.title", post) && shell.OwnedWindows.Contains(dialog), phase + ": details dialog title or owner.");
-        // The dialog starts on its first action, not nowhere (1.1.0 audit M6).
-        await UntilAsync(() => dialog.FocusManager?.GetFocusedElement() is Button { Name: "BooruOpenPost" or "BooruDetailsClose" });
+        // The dialog starts on its first action, not nowhere (1.1.0 audit M6); it has no Close button (modals plan MD2: × and Escape close it).
+        await UntilAsync(() => dialog.FocusManager?.GetFocusedElement() is Button { Name: "BooruOpenPost" });
 
         string[] Lines(string name) => dialog.GetVisualDescendants().OfType<TextBlock>().Where(text => text.Name == name).Select(text => text.Text ?? string.Empty).ToArray();
         Border Chip(string name) => dialog.GetVisualDescendants().OfType<Border>().Single(border => border.Name == name);
@@ -656,7 +656,7 @@ internal static class BooruMediaChecks
             C<Button>(dialog, "BooruCopySelectedTags").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => copied.Count == 1);
             Require(copied[0] == string.Join(' ', dialog.SelectedTagNames())
-                && dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 2) && page.Model.Search.View.Input == draft,
+                && dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2) && page.Model.Search.View.Input == draft,
                 phase + ": explicit Copy must remain available after revocation, without touching a page draft.");
             RequireNoDraftActions(opened, phase + " / old composition");
             RequireNoDraftActions(replacement, phase + " / replacement composition");
@@ -721,26 +721,26 @@ internal static class BooruMediaChecks
         await ClickAsync("BooruCopyAllTags", 1);
         Require(copied[^1] == string.Join(' ', details.Tags.Select(tag => tag.Name)) && copied[^1].Split(' ').Length == 6,
             phase + ": copy all source tags: '" + copied[^1] + "'");
-        Require(dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 6), phase + ": copy status: " + dialog.TagStatus.Text);
+        Require(dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 6), phase + ": copy status: " + dialog.TagStatus.Text);
         await ClickAsync("BooruCopyCategory:" + BooruPostClaimTagCategory.General, 2);
         Require(copied[^1] == string.Join(' ', details.Tags.Where(tag => tag.Category == BooruPostClaimTagCategory.General).Select(tag => tag.Name)) && copied[^1].Split(' ').Length == 2,
             phase + ": copy one category: '" + copied[^1] + "'");
 
         // Marked tags: one tag, then two from different categories (a valid search), via buttons and the copy shortcut.
         Mark(dialog, BooruPostClaimTagCategory.Meta, "highres");
-        Require(Named("BooruCopySelectedTags").IsEnabled && hint.Text == Texts.T("booru.media.tags.selection.count", 1), phase + ": one marked tag: " + hint.Text);
+        Require(Named("BooruCopySelectedTags").IsEnabled && hint.Text == Texts.Count("booru.media.tags.selection.count", 1), phase + ": one marked tag: " + hint.Text);
         await ClickAsync("BooruCopySelectedTags", 3);
         Require(copied[^1] == "highres", phase + ": copy one tag: '" + copied[^1] + "'");
         TagList(dialog, BooruPostClaimTagCategory.Meta).SelectedItems!.Clear();
         Mark(dialog, BooruPostClaimTagCategory.Artist, "artist_name");
         Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
         string query = string.Join(' ', dialog.SelectedTagNames());
-        Require(query.Split(' ').OrderBy(x => x).SequenceEqual(new[] { "artist_name", "main_character" }) && hint.Text == Texts.T("booru.media.tags.selection.count", 2),
+        Require(query.Split(' ').OrderBy(x => x).SequenceEqual(new[] { "artist_name", "main_character" }) && hint.Text == Texts.Count("booru.media.tags.selection.count", 2),
             phase + ": two marked tags: '" + query + "' / " + hint.Text);
         if (searchAvailable) Require(Named("BooruUseAsSearch").IsEnabled, phase + ": two marked tags must enable the real search handoff.");
         else RequireSearchAbsent(dialog, phase + " / two marked tags");
         await ClickAsync("BooruCopySelectedTags", 4);
-        Require(copied[^1] == query && dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 2),
+        Require(copied[^1] == query && dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2),
             phase + ": explicit copy of the two-tag query: '" + copied[^1] + "' / " + dialog.TagStatus.Text);
         TagList(dialog, BooruPostClaimTagCategory.Artist).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.C, KeyModifiers = KeyModifiers.Control });
         await UntilAsync(() => copied.Count >= 5);
@@ -748,7 +748,7 @@ internal static class BooruMediaChecks
 
         // A third tag cannot become a Danbooru search: stated, nothing dropped, nothing copied as a search; plain copy still works.
         Mark(dialog, BooruPostClaimTagCategory.General, "blue_sky");
-        Require(hint.Text == Texts.T("booru.media.tags.selection.tooMany", 3, 2), phase + ": three marked tags: " + hint.Text);
+        Require(hint.Text == Texts.Count("booru.media.tags.selection.tooMany", 3, 3, 2), phase + ": three marked tags: " + hint.Text);
         if (searchAvailable)
         {
             Named("BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -780,7 +780,7 @@ internal static class BooruMediaChecks
             && AutomationProperties.GetName(TagList(dialog, BooruPostClaimTagCategory.General).Items.OfType<ListBoxItem>().Single(item => (string)item.Tag! == "blue_sky")) == "blue_sky",
             phase + ": source tag chips must be dashed, marked ones solid with a 2-px outline, and keep the tag name.");
         await ClickAsync("BooruCopySelectedTags", 7);
-        Require(dialog.TagStatus.Text == Texts.T("booru.media.tags.copied", 2), phase + ": status after recovery: " + dialog.TagStatus.Text);
+        Require(dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2), phase + ": status after recovery: " + dialog.TagStatus.Text);
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": copying provider tags must never create private tags.");
         return copied;
     }
@@ -789,8 +789,14 @@ internal static class BooruMediaChecks
     {
         await SelectAsync(page, row);
         MenuItem tags = await MenuItemAsync(page, "media.tags.edit");
-        Require(!tags.IsEnabled, phase + ": own tags for downloaded provider media are not available yet and must be disabled, never silently tagged.");
+        // TP3 (plan 1.4): the entry stays enabled and the popover states the reason as text; nothing is tagged.
+        Require(tags.IsEnabled && tags.Command!.CanExecute(null), phase + ": the tag entry of downloaded provider media must stay enabled and explain itself.");
+        tags.Command!.Execute(null);
         page.MediaMenu!.Close();
+        await UntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: null });
+        Require(QuickTagPopover.Current!.BlockedReason == Texts.T("booru.media.tags.unavailable"),
+            phase + ": the popover must say why provider media cannot be tagged: " + QuickTagPopover.Current.BlockedReason);
+        QuickTagPopover.Current.Close();
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": a private tag appeared.");
         await Task.CompletedTask;
     }
@@ -809,7 +815,7 @@ internal static class BooruMediaChecks
         string[] context = viewer.GetGalleryVisualDescendants().OfType<SelectableTextBlock>().Select(text => text.Text ?? string.Empty).ToArray();
         Require(context.Contains(Texts.T("booru.rating.label") + ": " + BooruMessages.Rating(BooruPostClaimRating.General)),
             phase + ": the gallery must show the provider rating: " + string.Join(" | ", context));
-        Require(context.Any(line => line == Texts.T("booru.media.gallery.tags", post == "125" ? 6 : 1)), phase + ": the gallery must count the provider tags.");
+        Require(context.Any(line => line == Texts.Count("booru.media.gallery.tags", post == "125" ? 6 : 1)), phase + ": the gallery must count the provider tags.");
         Require(!context.Contains(Texts.T("gallery.noPost")), phase + ": a provider file is not 'a file without a post'.");
         // A window of provider posts and a chan file is a result list, never "Thread · danbooru /posts/ · <first post>".
         string scope = viewer.GetGalleryVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "GalleryScope").Text ?? string.Empty;

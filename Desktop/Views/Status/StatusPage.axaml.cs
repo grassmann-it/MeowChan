@@ -1,6 +1,7 @@
 using System;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
@@ -21,14 +22,27 @@ public partial class StatusPage : UserControl
 {
     private StatusSegment _segment = StatusSegment.Statistics;
     private bool _selecting;
+    private bool _statisticsAvailable = true;
     private bool _ended;
     private (long Active, long Waiting, int Problems)? _counts;
     private IoRates? _rates;
     private string? _strip;
+    // The diagnostics tab shows its problem count as a badge (the chip language of the filter toggles), not as text in the name.
+    private readonly TextBlock _diagnosticsLabel = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _diagnosticsBadgeText = new() { Classes = { "chip-label" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _diagnosticsBadge;
 
     public StatusPage()
     {
         InitializeComponent();
+        _diagnosticsBadge = new Border { Classes = { "chip-badge", "chip-compact" }, Child = _diagnosticsBadgeText, VerticalAlignment = VerticalAlignment.Center, IsVisible = false, IsHitTestVisible = false };
+        AutomationProperties.SetAccessibilityView(_diagnosticsBadge, AccessibilityView.Raw);
+        DiagnosticsSegmentTab.Header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { _diagnosticsLabel, _diagnosticsBadge }
+        };
         ShowSegment(_segment);
         ApplyLanguage();
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
@@ -47,7 +61,11 @@ public partial class StatusPage : UserControl
     internal ContentControl DiagnosticsHost => DiagnosticsPageHost;
     internal string StripText => StatusStrip.Text ?? string.Empty;
 
-    internal void AttachStatistics(StatisticsPage page) => StatisticsPageHost.Content = page;
+    internal void AttachStatistics(StatisticsPage page)
+    {
+        page.SetHosted(true); // the page's own title and margin would repeat this page's head
+        StatisticsPageHost.Content = page;
+    }
 
     internal void AttachDiagnostics(DiagnosticsPage page) => DiagnosticsPageHost.Content = page;
 
@@ -66,7 +84,9 @@ public partial class StatusPage : UserControl
     /// the diagnostics can be chosen.</summary>
     internal void SetStatisticsAvailable(bool available)
     {
+        _statisticsAvailable = available;
         if (StatisticsSegmentTab.IsEnabled != available) StatisticsSegmentTab.IsEnabled = available;
+        ApplyStatisticsUnavailableReason();
     }
 
     /// <summary>The counts of the session projection: active and waiting transfers, current problems (the diagnostics count).</summary>
@@ -101,16 +121,17 @@ public partial class StatusPage : UserControl
         Texts.Changed -= OnLanguageChanged;
     }
 
-    /// <summary>The status line: "Active 3 · Waiting 41 · Problems 2", followed by "↓ 2.4 MiB/s · W 1.9 MiB/s" while rates are known.</summary>
+    /// <summary>The status line: "Active 3 · Waiting 41 · Problems 2", followed by "Down 2.4 MiB/s · Write 1.9 MiB/s" (the header's words) while rates are known.</summary>
     internal static string ComposeStrip(long active, long waiting, int problems, IoRates? rate)
     {
         string counts = Texts.T("status.strip", active, waiting, problems);
         return rate is { } value
-            ? counts + " · " + Texts.T("status.strip.rates", ByteUnits.Rate(value.NetDown), ByteUnits.Rate(value.DiskWrite))
+            ? counts + " · " + Texts.T("status.strip.rates", Texts.T("stats.header.down"), ByteUnits.Rate(value.NetDown), Texts.T("stats.header.write"), ByteUnits.Rate(value.DiskWrite))
             : counts;
     }
 
-    /// <summary>The header of the diagnostics segment: its name, with the number of current problems when there are any.</summary>
+    /// <summary>The name of the diagnostics segment as text: its name, with the number of current problems when there are any
+    /// (the tab shows the count as a badge; this is its accessible name).</summary>
     internal static string DiagnosticsHeader(int problems) =>
         problems > 0 ? Texts.T("status.segment.diagnosticsCount", problems) : Texts.T("nav.diagnostics");
 
@@ -124,10 +145,24 @@ public partial class StatusPage : UserControl
         AutomationProperties.SetName(StatusStrip, text);
     }
 
+    // A segment that cannot be chosen says why: tooltip (also on the disabled tab) and help text, only while it is unavailable.
+    private void ApplyStatisticsUnavailableReason()
+    {
+        string? reason = _statisticsAvailable ? null : Texts.T("status.statisticsUnavailable");
+        ToolTip.SetTip(StatisticsSegmentTab, reason);
+        ToolTip.SetShowOnDisabled(StatisticsSegmentTab, true);
+        AutomationProperties.SetHelpText(StatisticsSegmentTab, reason);
+    }
+
     private void ApplySegmentHeaders()
     {
         StatisticsSegmentTab.Header = Texts.T("nav.statistics");
-        DiagnosticsSegmentTab.Header = DiagnosticsHeader(_counts?.Problems ?? 0);
+        int problems = _counts?.Problems ?? 0;
+        _diagnosticsLabel.Text = Texts.T("nav.diagnostics");
+        _diagnosticsBadgeText.Text = problems.ToString(System.Globalization.CultureInfo.CurrentCulture);
+        _diagnosticsBadge.IsVisible = problems > 0;
+        // The badge alone is not read as a name: the tab's accessible name is the sentence with the count.
+        AutomationProperties.SetName(DiagnosticsSegmentTab, DiagnosticsHeader(problems));
     }
 
     private void ApplyLanguage()
@@ -136,6 +171,7 @@ public partial class StatusPage : UserControl
         StatusHint.Text = Texts.T("status.hint");
         AutomationProperties.SetName(StatusSegments, Texts.T("status.segments"));
         ApplySegmentHeaders();
+        ApplyStatisticsUnavailableReason();
         _strip = null;
         RenderStrip();
     }

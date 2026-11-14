@@ -54,7 +54,7 @@ internal static class HtmlExportButtonLabelChecks
                     Texts.SetLanguage(code);
                     Require(Texts.Language == code, code + ": bundled language did not become effective.");
                     if (code is "es" or "fr" or "ru")
-                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                             code + ": HTML export command silently fell back to English; bundled pack coverage is not exercised.");
                     await SettleAsync(owner);
                     inspector.BringIntoView();
@@ -87,7 +87,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for archive export.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": archive export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await SettleAsync(host);
@@ -97,7 +97,7 @@ internal static class HtmlExportButtonLabelChecks
                 toolbar.More!.IsChecked = true;
                 await Program.WaitUntilAsync(() => results.IsEffectivelyVisible && TopLevel.GetTopLevel(results) is { IsVisible: true });
                 await SettleAsync(host);
-                string expected = Texts.T("export.resultsAction", 1);
+                string expected = Texts.Count("export.resultsAction", 1);
                 CheckButton(results, expected, code + "/results-overflow");
                 // AP7: the button opens the one Export dialog with "all matches" preselected (no one-item menu).
                 SmokeActionClick.Execute(results);
@@ -124,7 +124,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for large reader.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": large-reader export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(host, size.Width, size.Height));

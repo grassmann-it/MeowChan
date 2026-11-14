@@ -10,20 +10,25 @@
         <StackPanel Spacing="8">
             <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="{StaticResource Workspace.Space.Card}">
               <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="{StaticResource Workspace.Space.Card}">
-                <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
+                <!-- No source at all: the one empty-state pattern, with the one next step (a source comes with a plugin). -->
+                <controls:WorkspaceEmptyState x:Name="SourcesEmptyState" IsVisible="False">
+                    <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="workspace-empty-text localized" />
+                    <Button x:Name="SourcesEmptyAdd" Classes="primary" HorizontalAlignment="Center" Click="OnSourcesEmptyAddClick" />
+                </controls:WorkspaceEmptyState>
                 <plugins:PluginSelectionList x:Name="SourceCards" Classes="workspace-card-list" SelectionChanged="OnSourceSelectionChanged" KeyDown="OnSourceListKeyDown">
                     <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.Card}" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
                 </plugins:PluginSelectionList>
               </StackPanel>
               <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
                 <StackPanel Spacing="12">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <!-- Heading at the start, the way back alone at the right edge (HeaderBar end slot, Tom's rule 14.11.). -->
+                    <controls:HeaderBar>
                         <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" Focusable="True" />
-                        <Button x:Name="SourceBackButton" Grid.Column="1" HorizontalAlignment="Right" Click="OnBackClick" />
-                    </Grid>
+                        <Button x:Name="SourceBackButton" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" Click="OnBackClick" />
+                    </controls:HeaderBar>
                     <TextBlock x:Name="SourceMeta" Classes="workspace-meta" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceExperimental" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
-                    <StackPanel x:Name="SourceMediaIntegrityPanel" wv:WorkViewElement.Id="sources.detail.media-integrity" Spacing="6" IsVisible="False">
+                    <StackPanel x:Name="SourceMediaIntegrityPanel" wv:WorkViewElement.Id="sources.detail.media-integrity" Spacing="8" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
                             <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
@@ -82,7 +87,7 @@
                             <WrapPanel x:Name="SourcePluginSteps" ItemSpacing="8" LineSpacing="4" />
                             <TextBlock x:Name="SourcePluginNext" Classes="workspace-help" TextWrapping="Wrap" />
                             <TextBlock x:Name="SourcePluginShared" Classes="workspace-help" TextWrapping="Wrap" />
-                            <WrapPanel ItemSpacing="8" LineSpacing="8">
+                            <WrapPanel Classes="workspace-toolbar">
                                 <Button x:Name="SourcePluginEnabled" Click="OnSourcePluginEnabledClick" />
                                 <Button x:Name="SourcePluginCandidate" Click="OnSourcePluginCandidateClick" />
                                 <Button x:Name="SourcePluginSdk" Click="OnSourcePluginSdkClick" />

@@ -1,3 +1,4 @@
+using MeowChan.Desktop;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -63,10 +64,13 @@ public sealed partial class MediaPage
         try
         {
             RenderSourceOptions();
-            Choice? danbooru = (_sourceFilter.ItemsSource as System.Collections.IEnumerable)?.Cast<Choice>()
-                .FirstOrDefault(choice => choice.Value == BooruMediaIdentity.Source);
-            if (danbooru == null) return false;
-            _sourceFilter.SelectedItem = danbooru;
+            bool known = (_sourceFilter.ItemsSource as System.Collections.IEnumerable)?.Cast<Choice>()
+                .Any(choice => choice.Value == BooruMediaIdentity.Source) == true;
+            if (!known) return false;
+            // M2 (wave3 glue): the term set is the one truth of the filter; the navigation replaces it with source + exact thread
+            // and shows that in the section's fields (the same values SyncFilterControls would show, without the type summary).
+            _sourceFilter.SelectedItem = (_sourceFilter.ItemsSource as System.Collections.IEnumerable)!.Cast<Choice>()
+                .First(choice => choice.Value == BooruMediaIdentity.Source);
             RenderBoardOptions();
             _boardFilter.SelectedIndex = 0;
             _nameFilter.SetTextSilently(string.Empty);
@@ -77,9 +81,10 @@ public sealed partial class MediaPage
             _missing.IsChecked = false;
             _minRating.SelectedIndex = 0;
             _tagMode.SelectedIndex = 0;
-            _includeTags.Clear();
-            _excludeTags.Clear();
-            _threadFilter = (thread, Texts.T("booru.media.tile.post", postId));
+            _terms.Clear();
+            _terms.Add(MediaFilterTerm.InThread(thread));
+            _terms.Add(MediaFilterTerm.Source(BooruMediaIdentity.Source));
+            _threadTitle = Texts.T("booru.media.tile.post", postId);
             return true;
         }
         finally { _localizing = localizing; }

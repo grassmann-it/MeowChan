@@ -63,8 +63,9 @@ public sealed class GhostButtonStyleTests
         foreach (string name in new[] { "InspectorReadPosts", "InspectorGallery", "InspectorHtmlExport", "InspectorOpenFolderButton", "InspectorOpenBrowserButton" })
             Assert.Contains("ghost", Classes(name));
         Assert.DoesNotContain("ghost", Classes("InspectorCheckButton"));
-        Assert.Contains("ghost", ((string?)XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Descendants(A + "Button")
-            .Single(button => (string?)button.Attribute(X + "Name") == "CapturePostsButton").Attribute("Classes") ?? "").Split(' '));
+        // The post-capture switch left the reader bar for the Thread menu (R2): no button of that name remains.
+        Assert.DoesNotContain(XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Descendants(A + "Button"),
+            button => (string?)button.Attribute(X + "Name") == "CapturePostsButton");
     }
 
     [Fact]

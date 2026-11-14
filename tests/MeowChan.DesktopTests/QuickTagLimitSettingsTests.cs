@@ -151,12 +151,12 @@ public sealed class QuickTagLimitSettingsTests
         Config config = new()
         {
             QuickTagSuggestionCount = 12, QuickTagRecentCount = 7, QuickTagUndoDepth = 33, QuickTagNeighbourScan = 4500,
-            QuickTagFilenameTokens = 3, QuickTagSourceTagsPerMedium = 0, QuickTagMarkedMediaLimit = 1234
+            QuickTagFilenameTokens = 3, QuickTagSourceTagsPerMedium = 0, QuickTagMarkedMediaLimit = 1234, TagStampSize = 5
         };
         TagContextOptions context = QuickTagSettings.ContextOptions(config);
         Assert.Equal((12, 7, 4500, 3, 0), (context.SuggestionCount, context.RecentCount, context.NeighbourScan, context.FilenameTokens, context.SourceTagsPerMedium));
         QuickTagOptions surface = QuickTagSettings.SurfaceOptions(config);
-        Assert.Equal((33, 12), (surface.UndoDepth, surface.SuggestionCount));
+        Assert.Equal((33, 12, 1234, 5), (surface.UndoDepth, surface.SuggestionCount, surface.MarkedMediaLimit, surface.StampSize));
         Assert.Equal(7, QuickTagSettings.NewRecentList(config).Capacity);
         Assert.Equal(1234, QuickTagSettings.MarkedMediaLimit(config));
 
@@ -172,7 +172,7 @@ public sealed class QuickTagLimitSettingsTests
         TagContextOptions clamped = QuickTagSettings.ContextOptions(wild);
         Assert.Equal((18, 0, 100, 32, 200), (clamped.SuggestionCount, clamped.RecentCount, clamped.NeighbourScan, clamped.FilenameTokens, clamped.SourceTagsPerMedium));
         QuickTagOptions surfaceClamped = QuickTagSettings.SurfaceOptions(wild);
-        Assert.Equal((1, 18), (surfaceClamped.UndoDepth, surfaceClamped.SuggestionCount));
+        Assert.Equal((1, 18, 5000), (surfaceClamped.UndoDepth, surfaceClamped.SuggestionCount, surfaceClamped.MarkedMediaLimit));
         Assert.Equal(5000, QuickTagSettings.MarkedMediaLimit(wild));
         wild.QuickTagMarkedMediaLimit = int.MinValue;
         Assert.Equal(10, QuickTagSettings.MarkedMediaLimit(wild));

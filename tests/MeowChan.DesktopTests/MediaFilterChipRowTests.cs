@@ -22,10 +22,11 @@ public sealed class MediaFilterChipRowTests : IDisposable
         // In the header (visible while the surface is closed), not inside the surface built from BuildFilterRow().
         Assert.Contains("_headerBody.Children.Add(BuildFilterChipRow());", page);
         Assert.Contains("_emptyReset.IsVisible = _filterActive;", page);
-        foreach (string key in new[] { "\"tag+\"", "\"tag-\"", "\"tagMatch\"", "\"thread\"", "\"untagged\"", "\"name\"", "\"kind\"", "\"sound\"",
-            "\"source\"", "\"board\"", "\"rating\"", "\"favorites\"" })
-            Assert.Contains("new FilterChip(" + key, chips);
-        Assert.Contains("ArchivePage.CreateFilterTag(chip.Label", chips); // the archive's chip pattern, styled chip-filter
+        // M2: one chip per term of every field (MediaFilterTerm), plus the tag mode chip.
+        Assert.Contains("new FilterChip(\"tagMatch\"", chips);
+        foreach (string field in Enum.GetNames<MeowChan.Desktop.MediaFilterField>())
+            Assert.Contains("case MediaFilterField." + field, chips);
+        Assert.Contains("WorkspaceChips.CreateTermChip(chip.Label", chips); // the archive's chip pattern, styled chip-filter
         Assert.Contains("_filters.Show(label, count, count > 0 ? Texts.Count(\"media.filters.countName\", count) : label);", Source("Desktop/Views/Media/MediaPage.FilterSurface.cs"));
         Assert.Contains("_filterError.Classes.Add(\"workspace-error\");", chips);
     }

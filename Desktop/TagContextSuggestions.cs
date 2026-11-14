@@ -94,8 +94,9 @@ internal sealed record TypedTagSuggestions(IReadOnlyList<RankedTagSuggestion> Ow
 /// </summary>
 internal sealed class TagContextOptions
 {
-    /// <summary>Suggestions shown for an empty field.</summary>
-    internal const int DefaultSuggestionCount = 9, MinimumSuggestionCount = 3, MaximumSuggestionCount = 18;
+    /// <summary>Suggestions shown for an empty field: the one setting of the quick tag surface (<see cref="QuickTagOptions"/>).</summary>
+    internal const int DefaultSuggestionCount = QuickTagOptions.DefaultSuggestionCount,
+        MinimumSuggestionCount = QuickTagOptions.MinimumSuggestionCount, MaximumSuggestionCount = QuickTagOptions.MaximumSuggestionCount;
     /// <summary>Recently used tags considered; 0 switches the "recent" source off.</summary>
     internal const int DefaultRecentCount = 50, MinimumRecentCount = 0, MaximumRecentCount = 500;
     /// <summary>Neighbour media examined around the current one; the scan alternates outwards and stops at this many.</summary>
@@ -321,12 +322,25 @@ internal static class TagContextSuggestions
         TopK<RankedTagSuggestion> provided = new(Math.Max(0, sourceLimit), CompareTyped);
         if (sources != null && sourceLimit > 0)
         {
-            foreach (TagSuggestion item in sources.Match(text, null, int.MaxValue, own.Keys))
+            // A source tag without context scores 0, so matches without context keep the index's order (kind, then uses,
+            // then name: the tie-break of CompareTyped). The best sourceLimit of them plus one slot per context candidate
+            // are enough; the context candidates themselves are looked up by name below. So a keystroke never scans and
+            // copies the whole catalog (the early stop of Match), and the result is the same as an unbounded match.
+            int matchLimit = sourceLimit > int.MaxValue - found.Count ? int.MaxValue : sourceLimit + found.Count;
+            HashSet<string> seen = new(StringComparer.Ordinal);
+            foreach (TagSuggestion item in sources.Match(text, null, matchLimit, own.Keys))
             {
                 cancellation.ThrowIfCancellationRequested();
+                seen.Add(item.Name.Key);
                 if (!found.TryGetValue(item.Name.Key, out Candidate? candidate))
                     candidate = new Candidate(item.Name, null, TagSuggestionOrigin.Source, item.Uses);
                 provided.Offer(candidate.ToRanked(item.Kind));
+            }
+            foreach (Candidate candidate in found.Values)
+            {
+                cancellation.ThrowIfCancellationRequested();
+                if (seen.Contains(candidate.Name.Key) || own.Keys.Contains(candidate.Name.Key)) continue;
+                if (sources.MatchKey(text, candidate.Name.Key) is { } item) provided.Offer(candidate.ToRanked(item.Kind));
             }
         }
         return new TypedTagSuggestions(mine.ToList(), provided.ToList());

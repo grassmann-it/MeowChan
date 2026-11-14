@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -48,6 +49,14 @@ internal sealed class MediaNativeInput : IDisposable
 
     internal async Task MoveAsync(Control target, Point? point = null)
     {
+        // The gallery volume opens above the speaker when it is pointed at (plan V1): point there first, as a person does.
+        if (!target.IsEffectivelyVisible && target.Name == "GalleryVideoVolume"
+            && target.GetVisualAncestors().OfType<Control>().FirstOrDefault(control => control.Name == "GalleryVideoVolumeHost") is { } speaker)
+        {
+            await MoveAsync(speaker);
+            await Program.WaitUntilAsync(() => target.IsEffectivelyVisible && target.Bounds.Height > 0,
+                () => "The volume above the speaker did not open: " + target.Name);
+        }
         if (!target.IsEffectivelyVisible || target.Bounds.Width <= 0 || target.Bounds.Height <= 0)
             throw new InvalidOperationException("Native pointer target is not laid out/visible: " + target.Name);
         PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));

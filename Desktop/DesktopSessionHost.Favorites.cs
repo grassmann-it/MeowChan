@@ -71,6 +71,9 @@ internal sealed partial class DesktopSessionHost
         limits.ReaderGroups = Config.ReaderGroupLimit;
         limits.PostFilterRules = Config.PostFilterRuleLimit;
         limits.HiddenPosts = Config.HiddenPostLimit;
+        limits.TagQueueEntries = Config.TagQueueLimit;
+        limits.TagQueueFileBytes = (long)Config.TagQueueFileLimitMiB * 1024 * 1024;
+        limits.TagQueueHistory = Config.TagQueueHistory;
         VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
         MediaTileThumbnails.Configure(Config.ThumbnailCacheTiles);
         GalleryImageCache.Configure(Config.GalleryImageCacheMiB, Config.GalleryPreloadAhead, Config.GalleryPreloadBehind);
@@ -215,6 +218,11 @@ internal sealed partial class DesktopSessionHost
                         && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
                         directories.Add(booruDirectory);
                 }
+                // A folder source file has no folder of its own: each favorite names its virtual item folder (answered by the shadow catalog).
+                if (FolderSources.FolderSourceIdentity.TryGetRootId(group.Key, out Guid folderRoot))
+                    foreach (FavoriteEntry folderFavorite in group)
+                        if (FolderSources.FolderSourceIdentity.TryParseId(folderFavorite.Key.MediaIdentifier, out Guid folderItem))
+                            directories.Add(FolderSources.FolderSourceIdentity.VirtualDirectory(_profileLease.ProfileDirectory, folderRoot, folderItem));
                 try
                 {
                     directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath,

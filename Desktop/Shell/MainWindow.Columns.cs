@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -23,8 +24,35 @@ public partial class MainWindow
     private void OnDownloadsColumnsClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        string gridName = DownloadsTabs.SelectedIndex == 1
-            ? "BoardsDataGrid" : "ThreadsDataGrid";
+        ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
+        button.ContextMenu = menu;
+        menu.Open(button);
+    }
+
+    // A right-click on a column header of either downloads table opens the same column menu as the "Columns" button; the keyboard
+    // reaches it through that button. Rows keep their own menu (MainWindow.Selection.cs).
+    private void InitializeDownloadHeaderMenus()
+    {
+        foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+        {
+            DataGrid grid = WorkspaceControl<DataGrid>(gridName);
+            grid.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent, (_, e) =>
+            {
+                // The button is the offer of the work view: where it is hidden, the header does not bring the choice back.
+                if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
+                if ((e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() is not { } header) return;
+                e.Handled = true;
+                ContextMenu menu = BuildDownloadColumnsMenu(gridName);
+                header.ContextMenu = menu;
+                menu.Closed += (_, _) => { if (ReferenceEquals(header.ContextMenu, menu)) header.ContextMenu = null; };
+                menu.Open(header);
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        }
+    }
+
+    /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>
+    internal ContextMenu BuildDownloadColumnsMenu(string gridName)
+    {
         DataGrid grid = WorkspaceControl<DataGrid>(gridName);
         string mode = _config.WorkspaceMode;
         ContextMenu menu = new();
@@ -54,8 +82,7 @@ public partial class MainWindow
         MenuItem reset = new() { Header = Texts.T("archive.columnsReset") };
         reset.Click += async (_, _) => await ResetDownloadColumnsAsync(gridName, mode);
         menu.Items.Add(reset);
-        button.ContextMenu = menu;
-        menu.Open(button);
+        return menu;
     }
 
     private async Task SetDownloadColumnVisibleAsync(string gridName, string key, bool visible, string mode)

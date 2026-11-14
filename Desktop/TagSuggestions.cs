@@ -162,6 +162,16 @@ internal sealed class TagSuggestionIndex
         return kinds.SelectMany(list => list).Take(limit).ToArray();
     }
 
+    /// <summary>
+    /// The indexed name with comparison key <paramref name="nameKey"/> as a match for <paramref name="text"/>, exactly as
+    /// <see cref="Match"/> would list it; null when the name is not indexed or does not match. A lookup, no scan.
+    /// </summary>
+    internal TagSuggestion? MatchKey(string? text, string nameKey)
+    {
+        if (QueryKey(text) is not { } key || !_byKey.TryGetValue(nameKey, out TagSuggestion? item)) return null;
+        return Kind(item.Name.Key, key) is { } kind ? item with { Kind = kind } : null;
+    }
+
     private static TagMatchKind? Kind(string name, string key)
     {
         int at = name.IndexOf(key, StringComparison.Ordinal);

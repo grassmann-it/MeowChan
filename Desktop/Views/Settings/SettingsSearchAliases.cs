@@ -26,8 +26,25 @@ internal static class SettingsSearchAliases
         ["GalleryOverlayControls"] = "controls buttons bedienelemente steuerung",
         ["GalleryAutoHideControls"] = "hide idle auto ausblenden",
         ["GalleryOverlayPostContext"] = "post context kontext text",
+        ["GalleryFilmstrip"] = "filmstrip thumbnails strip thumbnail preview filmstreifen vorschau vorschaubilder miniaturen",
         ["VideoVolume"] = "audio sound volume lautstärke ton",
         ["RememberReadingPosition"] = "resume continue bookmark position weiterlesen lesestand",
+        ["ReadingHistoryLimit"] = "history recent threads continue resume earlier places verlauf zuletzt gelesen weiterlesen frühere stellen",
+        ["ReaderTextlessLargeImages"] = "images pictures bigger larger no text image only media bilder größer ohne text nur bild medien",
+        ["ReaderTextlessMediaWidth"] = "images pictures width bigger larger no text image only bilder breite größer ohne text nur bild",
+        ["ReaderFocusedMediaEnlarge"] = "focus focused selected active post media enlarge zoom bigger fokus markiert vergrößern medien",
+        ["ReaderFocusedMediaScalePercent"] = "focus focused selected active post media enlarge zoom percent fokus markiert vergrößern prozent",
+        ["ReaderHoverEnlarge"] = "hover pointer mouse preview zoom magnify enlarge überfahren zeiger maus vorschau vergrößern lupe",
+        ["ReaderHoverEnlargeSize"] = "hover pointer mouse preview zoom size überfahren zeiger maus vorschau größe",
+        ["ReaderHoverEnlargeDelayMs"] = "hover pointer mouse preview delay überfahren zeiger maus vorschau verzögerung",
+        ["ReaderMediaSidebar"] = "sidebar side panel column media large full height focused post leiste seitenleiste medien groß volle höhe markiert",
+        ["ReaderMediaSidebarSide"] = "sidebar side left right position leiste seitenleiste links rechts seite",
+        ["ReaderMediaSidebarWidth"] = "sidebar width splitter divider column leiste seitenleiste breite trennlinie",
+        ["ReaderMediaSidebarMinimumWidth"] = "sidebar narrow window hide collapse width leiste seitenleiste schmal fenster ausblenden breite",
+        ["ReaderInlineVideo"] = "video inline play webm mp4 movie player in place abspielen film player vor ort wiedergabe",
+        ["ReaderInlineVideoAutoplayMuted"] = "video autoplay automatic muted sound silent start automatisch stumm ton start",
+        ["ReaderInlineVideoMaxPlayers"] = "video players memory limit count instances player speicher grenze anzahl",
+        ["ReaderInlineVideoMaxFileMiB"] = "video size large file limit mib megabytes größe groß datei grenze",
         ["ShowShortcutHelp"] = "shortcuts keyboard hints tastenkürzel tastatur hilfe",
         ["DownloadPath"] = "folder directory location target ordner verzeichnis speicherort ziel pfad",
         ["RecheckTimer"] = "interval refresh poll check timer intervall prüfen aktualisieren",
@@ -48,14 +65,23 @@ internal static class SettingsSearchAliases
         ["CloseToTray"] = "tray system tray taskbar background infobereich schließen hintergrund",
         ["MinimizeToTray"] = "tray system tray taskbar background infobereich minimieren hintergrund",
         ["StatsHeaderIcons"] = "statistics header icons symbols words network disk graph statistik kopfleiste symbole wörter netz platte",
+        ["HeaderTagline"] = "tagline slogan quip fortune motto header title bar spruch kopfleiste titelleiste kopfzeile",
+        ["HeaderTaglineFixedId"] = "tagline slogan quip fortune motto fixed spruch fest",
         ["StatsHeaderGraph"] = "statistics graph network disk traffic statistik diagramm netz platte",
         ["StatsPersist"] = "statistics history save verlauf speichern statistik",
+        ["TagStampSize"] = "stamp stempel quick tagging shortcut schnell taggen kürzel tags set",
+        ["TagQueueWalkWindow"] = "walk window batch round queue durchgang runde fenster warteschlange tagging-warteschlange",
+        ["TaggingCardCount"] = "cards tinder karten kartenmodus card mode",
+        ["TaggingCardsDefault"] = "cards tinder karten kartenmodus card mode start default beginnen standard",
     };
 
     public static IReadOnlyList<string> For(string? key, string categoryId)
     {
         var result = new List<string>();
         if (key != null && ByKey.TryGetValue(key, out string? own)) result.Add(own);
+        // A setting a quick settings popover offers is also found by the popover's words.
+        if (key != null && MeowChan.Desktop.QuickSettingsSurfaces.Contains(key))
+            result.Add("popover quick settings schnelleinstellungen");
         if (key != null)
         {
             if (key.Contains("Cache", StringComparison.Ordinal)) result.Add("cache puffer zwischenspeicher speicher memory ram");
@@ -69,6 +95,8 @@ internal static class SettingsSearchAliases
             if (key.StartsWith("Import", StringComparison.Ordinal)) result.Add("import einlesen");
             if (key.StartsWith("Export", StringComparison.Ordinal)) result.Add("export ausgabe");
             if (key.Contains("Tag", StringComparison.Ordinal)) result.Add("tags labels schlagwörter");
+            if (key.StartsWith("TagQueue", StringComparison.Ordinal)) result.Add("tagging queue warteschlange vormerken tagging-warteschlange");
+            if (key.StartsWith("TaggingCard", StringComparison.Ordinal)) result.Add("cards tinder decision entscheidung karten kartenmodus card mode");
             if (key.Contains("Favorite", StringComparison.Ordinal)) result.Add("favorites favoriten");
             if (key.Contains("Bookmark", StringComparison.Ordinal)) result.Add("bookmarks lesezeichen");
             if (key.StartsWith("Stats", StringComparison.Ordinal)) result.Add("statistics graph statistik diagramm");

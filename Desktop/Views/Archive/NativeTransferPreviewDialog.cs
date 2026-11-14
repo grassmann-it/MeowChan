@@ -29,11 +29,9 @@ internal sealed class NativeTransferPreviewDialog : Window
     private readonly NativeTransferPreviewSession _session;
     private readonly Func<Task<string?>> _chooseFile;
     private readonly Func<string, string> _label;
-    private readonly WindowChromeBar _chrome = new();
     private readonly Button _choose;
     private readonly Button _cancel;
     private readonly Button _close;
-    private readonly TextBlock _heading = new() { Name = "NativeTransferPreviewHeading" };
     private readonly TextBlock _source = new() { Name = "NativeTransferPreviewSource", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _state = new() { Name = "NativeTransferPreviewState", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "NativeTransferPreviewSummary", TextWrapping = TextWrapping.Wrap };
@@ -54,12 +52,8 @@ internal sealed class NativeTransferPreviewDialog : Window
         _label = label ?? (key => Texts.T(key));
         _display = session.Current;
         Name = "NativeTransferPreviewDialog";
-        Width = 720;
-        Height = 560;
-        MinWidth = 440;
-        MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal list-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
@@ -72,51 +66,28 @@ internal sealed class NativeTransferPreviewDialog : Window
         AutomationProperties.SetLiveSetting(_state, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
 
-        _heading.Classes.Add("section-title");
         _source.Classes.Add("workspace-meta");
         _state.Classes.Add("workspace-meta");
         _summary.Classes.Add("workspace-meta");
-        // Header: title and chosen source; error strip: the local read/package error; body: inventory and
-        // inventory-only notice; footer: the polite state line above Choose/Cancel/Close.
+        // Header: the chosen source (the title is in the title bar); error strip: the local read/package error; body:
+        // inventory and inventory-only notice; footer: the polite state line above Choose/Cancel and Close right-most.
         StackPanel header = new() { Spacing = 12 };
-        header.Children.Add(_heading);
         header.Children.Add(_source);
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_summary);
         body.Children.Add(_details);
         body.Children.Add(_notice);
 
-        WrapPanel actions = new()
-        {
-            ItemSpacing = 8,
-            LineSpacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        actions.Children.Add(_choose);
-        actions.Children.Add(_cancel);
-        actions.Children.Add(_close);
-        StackPanel footerContent = new() { Spacing = 8 };
-        footerContent.Children.Add(_state);
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
+        Border footer = DialogFooter.Build(_close, new Control[] { _choose, _cancel }, _state, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error));
-        layout.Children.Add(frame);
-        Grid.SetRow(frame, 1);
-        Content = layout;
-
-        Opened += (_, _) => _chrome.Attach(this);
         Closed += (_, _) => _ = TerminateAsync();
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first cancels a running read, then closes.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_cancel.IsEnabled) OnCancel();
-            else Close();
-        }, RoutingStrategies.Tunnel);
+            if (!_cancel.IsEnabled) return false;
+            OnCancel(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         IsLanguageSubscribedForTests = true;
         ApplyLabels();
@@ -261,7 +232,6 @@ internal sealed class NativeTransferPreviewDialog : Window
         _display = snapshot;
         RefreshControls();
         Title = Label("transfer.preview.title");
-        _heading.Text = Label("transfer.preview.heading");
         _source.Text = _fileName == null ? Label("transfer.preview.noSource") : Label("transfer.preview.source", _fileName);
         _state.Text = Label(IsChoosing ? "transfer.preview.choosing" : StateKey(snapshot));
         _notice.Text = snapshot.CleanupRetained

@@ -104,6 +104,7 @@ internal static class SettingsSearchChecks
             {
                 ("bandbrite", "Bandbreite", "SettingsDownloadsPage"), ("bandwidth", "Bandbreite", "SettingsDownloadsPage"),
                 ("dark mode", "Farbschema", "SettingsInterfacePage"), ("speicher", "", "SettingsWorkerBudgetsPage"),
+                ("stempel", "Stempel", "SettingsReadingMediaPage"), ("kartenmodus", "Kartenmodus", "SettingsReadingMediaPage"),
             })
             {
                 box.Focus();

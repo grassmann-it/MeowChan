@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -54,6 +55,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_filters, "media.filter.toggle");
         WorkViewElement.SetId(_sort, "media.sort");
         WorkViewElement.SetId(_more, "media.toolbar.more");
+        WorkViewElement.SetId(_focus, "media.toolbar.focus");
         WorkViewElement.SetId(_refresh, "media.toolbar.refresh");
         WorkViewElement.SetId(_shuffle, "media.toolbar.shuffle");
         WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
@@ -72,6 +74,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_withoutMediaTags, "media.filter.without-media-tags");
         WorkViewElement.SetId(_tagMode, "media.filter.tag-mode");
         WorkViewElement.SetId(_moreFilters, "media.filter.more");
+        WorkViewElement.SetId(_filterAdd, "media.filter.add"); // M2: "+ Filter" behind the chips, shown with the row
         WorkViewElement.SetId(_untaggedLink, "media.status.untagged");
         WorkViewElement.SetId(_selectionText, "media.selection.status");
         WorkViewElement.SetId(_selGallery, "media.selection.gallery");
@@ -79,6 +82,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_selMore, "media.selection.more");
         WorkViewElement.SetId(_selTag, "media.selection.tag");
         WorkViewElement.SetId(_selExport, "media.selection.export");
+        WorkViewElement.SetId(_selQueue, "media.selection.queue");
         ((MenuFlyout)_more.Flyout!).Opening += (_, _) =>
         {
             // Availability may change without a view switch. Keep the count and menu in the same projection.
@@ -105,14 +109,15 @@ public sealed partial class MediaPage
     // Which filter fields hold a value other than the default: a view never hides them (R6).
     private bool FieldActive(Control field) => WorkViewElement.GetId(field) switch
     {
-        "media.filter.source" => _sourceFilter.SelectedItem is Choice { Value: not null },
-        "media.filter.board" => _boardFilter.SelectedItem is BoardChoice { Board: not null },
-        "media.filter.rating" => _minRating.SelectedIndex > 0,
-        "media.filter.tags" => _includeTags.Count + _excludeTags.Count > 0,
-        "media.filter.sound" => SoundFilterActive,
-        "media.filter.without-media-tags" => _withoutMediaTags.IsChecked == true,
-        "media.filter.tag-mode" => _tagMode.SelectedIndex > 0,
-        "media.filter.missing" => _missing.IsChecked == true,
+        "media.filter.kind" => HasField(MediaFilterField.Type),
+        "media.filter.source" => HasField(MediaFilterField.Source),
+        "media.filter.board" => HasField(MediaFilterField.Board),
+        "media.filter.rating" => HasField(MediaFilterField.Rating),
+        "media.filter.tags" => HasField(MediaFilterField.Tag),
+        "media.filter.sound" => HasField(MediaFilterField.Sound),
+        "media.filter.without-media-tags" => HasField(MediaFilterField.Untagged),
+        "media.filter.tag-mode" => TagModeNeeded,
+        "media.filter.missing" => HasField(MediaFilterField.Missing),
         _ => false
     };
 
@@ -122,6 +127,9 @@ public sealed partial class MediaPage
         _soundFilter, _withoutMediaTags, _tagMode, _missing
     };
 
+    // M5: the "all | any" switch matters from two included tags on (and while it is set to "any", so it can be set back).
+    private bool TagModeNeeded => TagTerms(false).Count() > 1 || _tagMode.SelectedIndex > 0;
+
     private void RefreshWorkView()
     {
         if (!_workViewRegistered || _lifetime.IsCancellationRequested) return;
@@ -130,6 +138,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_nameFilter, view);
         WorkViewGate.Apply(_filters, view);
         WorkViewGate.Apply(_sort, view);
+        WorkViewGate.Apply(_focus, view);
         WorkViewGate.Apply(_refresh, view);
         WorkViewGate.Apply(_shuffle, view, stateVisible: Sort == MediaLibrarySort.Random);
         WorkViewGate.Apply(_exportAll, view);
@@ -141,23 +150,25 @@ public sealed partial class MediaPage
         bool opened = _moreFilters.IsChecked == true, held = false;
         foreach (Control field in FilterFields())
         {
-            WorkViewGate.Apply(field, view, nonDefaultState: opened || FieldActive(field));
+            WorkViewGate.Apply(field, view, stateVisible: field != _tagMode || TagModeNeeded, nonDefaultState: opened || FieldActive(field));
             held |= WorkViewGate.HiddenByView(field);
         }
         _moreFilters.IsVisible = held || opened;
+        WorkViewGate.Apply(_filterAdd, view, stateVisible: ActiveFilterCount > 0); // shown with the chip row
         AutomationProperties.SetName(_moreFilters, Texts.T("workview.moreFilters"));
         // UpdateUntaggedLink owns the link's state; the view only re-applies what the page last asked for.
         WorkViewGate.Apply(_untaggedLink, view, WorkViewElement.GetStateVisible(_untaggedLink));
         // Selection bar: the row itself is state (something is selected), so its More needs no state of its own.
         WorkViewGate.Apply(_selTag, view);
         WorkViewGate.Apply(_selExport, view);
+        WorkViewGate.Apply(_selQueue, view);
         UpdateMore(_selMore, SelectionOverflow());
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_refresh, _shuffle, _exportAll, _manageRatings, _booruOpen);
+    private List<Control> HeaderOverflow() => Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen);
 
-    private List<Control> SelectionOverflow() => Overflowed(_selTag, _selExport);
+    private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 
     private static List<Control> Overflowed(params Control[] controls) => controls.Where(WorkViewGate.HiddenByView)
         .OrderBy(control => WorkViewPolicy.Get(WorkViewElement.GetId(control)!).OverflowOrder).ToList();

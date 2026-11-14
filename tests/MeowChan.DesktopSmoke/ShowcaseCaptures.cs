@@ -124,7 +124,7 @@ internal static class ShowcaseCaptures
         licenseSearch.Text = "Feather";
         await Program.WaitUntilAsync(() => about.FindControl<TextBox>("LicenseFullText")!.Text?.Contains("Cole Bemis") == true);
         await CaptureAsync(about, "v0.9.0-about-licenses.png");
-        Click(about.FindControl<Button>("CloseButton")!);
+        about.Close();
         Console.WriteLine("SHOWCASE final UI scenes captured: downloads, gallery/post context/favorite, reader and replies, archive/media, HTML export, favorites/original export, settings, rules, About/support/credits/offline licenses.");
     }
 
@@ -268,7 +268,7 @@ internal static class ShowcaseCaptures
                 || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)
                 || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
                 || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled
-                || !page.FindControl<CheckBox>("ReaderFollowLive")!.IsEffectivelyVisible)
+                || !page.FindControl<Control>("ReaderStatusLine")!.IsEffectivelyVisible)
             { previousImage = null; return false; }
             Point? origin = first.Thumbnail.TranslatePoint(default, reader);
             if (origin == null) return false;

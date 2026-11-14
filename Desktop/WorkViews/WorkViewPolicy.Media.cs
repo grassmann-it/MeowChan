@@ -18,6 +18,9 @@ public static partial class WorkViewPolicy
         Same("media.sort", WorkViewPage.Media, WorkViewKind.Element, Required),
         // The "More" (⋯) button itself: shown whenever the view keeps something under it.
         Same("media.toolbar.more", WorkViewPage.Media, WorkViewKind.Element, Required),
+        // M4: the focus mode (⤢) hides the header rows above the grid; Barebones keeps it under More, from Simple it is a button of the
+        // header. The shortcut (Shift+F) is the catalog's in every view, so the entry under More forwards to the same command.
+        new("media.toolbar.focus", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.focus-mode", OverflowOrder: 5),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
         // The existing Booru workbench is optional; when available its launcher is appended to this same More surface.
@@ -42,6 +45,9 @@ public static partial class WorkViewPolicy
         // Showing captured but missing files is a maintenance view: under "More filters" until Advanced; switched on it is a state
         // (an active filter with its chip) and stays shown in every view (R6).
         new("media.filter.missing", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
+        // M2: "+ Filter" at the end of the chip row opens the picker over every field. It shows with the row (while a filter is
+        // active) in every view: it sits beside the chips, which no view reduces (R4/R5).
+        Same("media.filter.add", WorkViewPage.Media, WorkViewKind.Element, Direct),
         // The toggle that opens the fields a view keeps back; shown while any is held back or while it is open.
         Same("media.filter.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         // The "N without media tags" count is derived information; Barebones leaves it out (its filter is under More filters).
@@ -53,6 +59,7 @@ public static partial class WorkViewPolicy
         Same("media.selection.clear", WorkViewPage.Media, WorkViewKind.Action, Required),
         Same("media.selection.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         new("media.selection.tag", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
+        new("media.selection.queue", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 15),
         new("media.selection.export", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),
     ];
 }

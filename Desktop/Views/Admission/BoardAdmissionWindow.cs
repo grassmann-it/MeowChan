@@ -8,6 +8,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Data;
 using Avalonia.Controls.Primitives;
@@ -65,6 +66,12 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         public string ResetLabel => Texts.T("wizard.resetChoice");
         public string ResetName => Texts.T("wizard.resetChoiceForThread", Title);
         public string ResetHint => Texts.T("wizard.resetChoiceHint");
+        // "Use rules again" belongs to a thread with an individual choice of its own; on a row the text rules (or the
+        // defaults) decide there is nothing to take back. The control keeps its place, only quiet and out of reach, so the
+        // list does not jump when a choice is made or reset.
+        public bool ShowReset => _reasonKey == "wizard.reason.manual";
+        public double ResetOpacity => ShowReset ? 1 : 0;
+        public AccessibilityView ResetAccessibility => ShowReset ? AccessibilityView.Default : AccessibilityView.Raw;
         public void RefreshTexts() => PropertyChanged?.Invoke(this, new(string.Empty));
         public event PropertyChangedEventHandler? PropertyChanged;
         public void Update(BoardAdmissionDecision decision)
@@ -96,17 +103,23 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
     {
         _preview = preview;
         _view = view;
-        Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
-        MeowChan.Desktop.DialogFit.OnOpen(this);
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        // Shared dialog frame: title and task stay fixed, the rules help and board tabs scroll,
+        Title = Texts.T("wizard.title");
+        // Modals plan MD3: a modal assistant on the XL step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.XL, modal: true);
+        // Shared dialog frame: the task stays fixed (the title stands in the title bar only), the rules help and board tabs scroll,
         // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next
         // to their Retry, so the frame's error strip is an empty slot.
         var intro = new StackPanel { Spacing = 8 };
-        intro.Children.Add(Localized(new TextBlock { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap }, c => c.Text = Texts.T("wizard.title")));
-        intro.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro")));
+        // No heading of its own: the window's title bar already names the dialog (UX round 3). HB2: the order in which rules and
+        // choices decide a thread is a help popover beside the introduction (it was a folded expander).
+        var introRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        var introText = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro"));
+        var selectionHelp = new HelpButton { Name = "BoardAdmissionHelpButton", HelpKey = "help.admissionRules", VerticalAlignment = VerticalAlignment.Top };
+        Grid.SetColumn(selectionHelp, 1);
+        introRow.Children.Add(introText);
+        introRow.Children.Add(selectionHelp);
+        intro.Children.Add(introRow);
         var body = new StackPanel { Spacing = 12 };
-        body.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
         var tabs = new TabControl { Name = "BoardAdmissionTabs" };
         var items = new List<TabItem>();
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
@@ -183,7 +196,6 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             AutomationProperties.SetName(c, Texts.T("wizard.directFuture"));
         });
         footer.Children.Add(_direct);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = Localized(new Button { Name = "BoardAdmissionCancel" }, c =>
         {
             c.Content = Texts.T("wizard.cancel");
@@ -196,10 +208,11 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             AutomationProperties.SetName(c, Texts.T("wizard.apply"));
         });
         _apply.Classes.Add("primary"); _apply.Click += (_, _) => Accept();
-        buttons.Children.Add(cancel); buttons.Children.Add(_apply);
-        footer.Children.Add(buttons);
-        Content = MeowChan.Desktop.WindowChrome.Frame(this, DialogFrame.Build(intro,
-            new Border { Child = body, Classes = { "workspace-dialog-body" } }, footer, DialogFrame.ErrorStrip(new TextBlock())));
+        // Apply is the primary action right-most; the joint total and the direct-future choice keep the full width above.
+        MeowChan.Desktop.Controls.DialogWindow.Frame(this, DialogFrame.Build(intro,
+            new Border { Child = body, Classes = { "workspace-dialog-body" } },
+            MeowChan.Desktop.Controls.DialogFooter.Build(_apply, new Control[] { cancel }, footer, statusAbove: true),
+            DialogFrame.ErrorStrip(new TextBlock())), modal: true);
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Texts.Changed += OnTextsChanged;
         ApplyTexts();
@@ -208,9 +221,10 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         KeyDown += (_, e) =>
         {
             if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
-            if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); }
-            else MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
+            if (e.Key != Avalonia.Input.Key.Escape) MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
         };
+        // Escape is the fixed dismissal of the dialog policy, never while a shortcut is being recorded.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, tryCancelLocal: () => MeowChan.Desktop.Commands.ShortcutService.IsCapturing);
         Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
     }
     private T Localized<T>(T control, Action<T> update) where T : Control
@@ -304,10 +318,19 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         reset.Bind(ContentControl.ContentProperty, new Binding(nameof(PreviewRow.ResetLabel)));
         reset.Bind(AutomationProperties.NameProperty, new Binding(nameof(PreviewRow.ResetName)));
         reset.Bind(AutomationProperties.HelpTextProperty, new Binding(nameof(PreviewRow.ResetHint)));
+        reset.Bind(Visual.OpacityProperty, new Binding(nameof(PreviewRow.ResetOpacity)));
+        reset.Bind(InputElement.IsHitTestVisibleProperty, new Binding(nameof(PreviewRow.ShowReset)));
+        reset.Bind(InputElement.FocusableProperty, new Binding(nameof(PreviewRow.ShowReset)));
+        reset.Bind(AutomationProperties.AccessibilityViewProperty, new Binding(nameof(PreviewRow.ResetAccessibility)));
         // Initialize the tooltip at materialization time. The richer Name/HelpText
         // bindings remain owned by the row; the adapter only owns the tooltip.
         MeowChan.Desktop.Commands.CommandBindings.BindExisting(reset, "admission.reset-choice", preserveHelp: true);
-        reset.Click += (_, _) => row.Reset();
+        reset.Click += (_, _) =>
+        {
+            // The button goes quiet once the choice is gone: keyboard focus moves to the thread's own checkbox first.
+            if (reset.IsKeyboardFocusWithin) include.Focus(Avalonia.Input.NavigationMethod.Tab);
+            row.Reset();
+        };
         Grid.SetColumn(reset, 1); decision.Children.Add(reset);
         panel.Children.Add(include); panel.Children.Add(decision);
         if (!string.IsNullOrWhiteSpace(row.OpeningPost)) panel.Children.Add(new TextBlock

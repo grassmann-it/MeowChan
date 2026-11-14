@@ -179,6 +179,9 @@ internal static class FilenameSearchHostLifetimeChecks
             foreach (string name in new[] { "ReaderFindOpen", "ArchiveReadPosts", "ArchiveCloseReader",
                 "ArchiveReaderFullscreen", "ArchiveOpenGallery" })
                 Dispatch(f.C<Button>(name));
+            // R2: the Thread menu's entries run through the same guards (none enabled while the filename search is open).
+            Require(f.Page.BuildReaderThreadMenu().Items.OfType<MenuItem>().All(item => !item.IsEnabled),
+                "A Thread menu entry stayed enabled behind the filename search.");
             f.C<Button>("ArchiveResultsGallery").Command?.Execute(null);
             f.DispatchSavedSearch(saveCurrent: false);
             f.DispatchSavedSearch(saveCurrent: true);

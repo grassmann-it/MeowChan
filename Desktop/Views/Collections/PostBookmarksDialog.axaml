@@ -1,6 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MeowChan.PostBookmarksDialog" Width="680" Height="620" MinWidth="360" MinHeight="380"
-        WindowStartupLocation="CenterOwner">
+        x:Class="MeowChan.PostBookmarksDialog">
     <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer. -->
     <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
@@ -27,6 +26,7 @@
                 <TextBox x:Name="Note" MinHeight="96" MaxHeight="240" AcceptsReturn="True" TextWrapping="Wrap" ScrollViewer.VerticalScrollBarVisibility="Auto" />
             </StackPanel>
         </ScrollViewer>
+        <!-- The footer content is filled in code (DialogFooter.Fill): status above, Reload and Close, Save primary right-most. -->
         <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
             <StackPanel Spacing="8">
                 <ScrollViewer x:Name="StatusHost" MaxHeight="96" HorizontalScrollBarVisibility="Disabled">
@@ -34,8 +34,8 @@
                 </ScrollViewer>
                 <WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8">
                     <Button x:Name="Reload" />
-                    <Button x:Name="Save" Classes="primary" />
                     <Button x:Name="Cancel" />
+                    <Button x:Name="Save" Classes="primary" />
                 </WrapPanel>
             </StackPanel>
         </Border>

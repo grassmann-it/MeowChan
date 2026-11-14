@@ -576,6 +576,9 @@
         <CornerRadius x:Key="MenuFlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+        <!-- HB1: no tooltip is wider than 360 dip (HelpPopover.MaxContentWidth): longer text wraps (style "ToolTip TextBlock" below). -->
+        <x:Double x:Key="ToolTipMaxWidth">360</x:Double>
+        <Thickness x:Key="ToolTipPadding">8,6</Thickness>
         <CornerRadius x:Key="NotificationCardCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ComboBoxPopupBoxCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="AutoCompleteBoxPopupCornerRadius">8</CornerRadius>
@@ -648,6 +651,9 @@
         <x:Double x:Key="Workspace.Size.IconCaption">10</x:Double>
         <!-- ControlCompact 24: inline buttons inside content (reader post number and quote buttons, pager buttons); same height as a Chip. -->
         <x:Double x:Key="Workspace.Size.ControlCompact">24</x:Double>
+        <!-- Card (PT4, card mode of the tagging mode): the big decision targets under the picture, 48 high and at least 120 wide. -->
+        <x:Double x:Key="Workspace.Size.Card">48</x:Double>
+        <x:Double x:Key="Workspace.Size.CardWidth">120</x:Double>
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
         <Thickness x:Key="Workspace.Inset.EmptyState">28</Thickness>
@@ -659,8 +665,8 @@
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Page margin of every work view (Downloads, Sources, Plugins, Diagnostics, Statistics, Media, Archive). -->
         <Thickness x:Key="Workspace.Inset.Page">12</Thickness>
-        <!-- List cards (Sources list, Plugins list): inner spacing and the start-edge selection bar (LW-06). -->
-        <Thickness x:Key="Workspace.Inset.ListCard">14</Thickness>
+        <!-- List cards (Sources list, Plugins list): inner spacing (on the 12 dip grid, one value for both lists) and the start-edge selection bar (LW-06). -->
+        <Thickness x:Key="Workspace.Inset.ListCard">12</Thickness>
         <Thickness x:Key="Workspace.ListCard.SelectionBar">3,0,0,0</Thickness>
         <!-- Native keyboard-only focus decoration; it overlays rather than moves
              content, and remains separate from selected/error border state.
@@ -723,6 +729,16 @@
         <Setter Property="Theme" Value="{DynamicResource SolidButton}" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.OnAccent}" />
         <Setter Property="FontWeight" Value="SemiBold" /><Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <!-- Card action (PT4): one of the big decision cards of the card mode. Colours stay those of every button (Raised fill, ControlBorder
+         outline, Text label; hover, pressed, disabled and the focus ring come from the shared button styles), so Light and Dark need no
+         extra pair; only the size and the centred two-line content are its own. -->
+    <Style Selector="Button.card-action">
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Card}" />
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.CardWidth}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <Style Selector="Button.subtle"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="Button.danger"><Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /></Style>
@@ -1003,6 +1019,33 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- M5: the two-way switch (TwoWayToggle, "all | any"): two touching buttons with the frame, height and corners of the combo box; on = accent surface. -->
+    <Style Selector="ToggleButton.segment">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.segment-first"><Setter Property="CornerRadius" Value="5,0,0,5" /></Style>
+    <Style Selector="ToggleButton.segment-last"><Setter Property="CornerRadius" Value="0,5,5,0" /><Setter Property="Margin" Value="-1,0,0,0" /></Style>
+    <Style Selector="ToggleButton.segment:checked"><Setter Property="ZIndex" Value="1" /></Style>
+    <Style Selector="ToggleButton.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <!-- Media controls and gallery overflow rows reserve a 1-px edge (transparent at rest, the padding gives it back): ControlBorder on hover,
          the accent when pressed or checked (UX review 2026-11-13; the fill alone was 1.37:1 / 1.38:1). -->
     <Style Selector="Button.media-control, ToggleButton.media-control">
@@ -1017,6 +1060,18 @@
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <!-- Right-click tag popover (QuickTagPopover): the flyout frame in the overlay tokens. Width and padding are set by the popover itself. -->
+    <Style Selector="FlyoutPresenter.quick-tag-popover">
+        <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="400" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <!-- Quick settings popover (R7): the in-window overlay look; the surface brings its own 16 dip inset and its width (360). -->
+    <Style Selector="FlyoutPresenter.quick-settings">
+        <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="400" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
@@ -1186,6 +1241,19 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
+    <!-- A key of a shortcut (KeyCapText, shortcuts window): one cap per key, 22 high, control radius, light and dark from tokens. -->
+    <Style Selector="Border.keycap">
+        <Setter Property="Height" Value="22" /><Setter Property="MinWidth" Value="22" /><Setter Property="Padding" Value="4,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="Border.keycap > TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
     <!-- A badge that marks a deviation (Sources list: "Experimental"). The tone is an addition: the word says it too. -->
     <Style Selector="Border.chip-badge.chip-warning">
         <Setter Property="Background" Value="{DynamicResource Workspace.WarningSurface}" />
@@ -1265,6 +1333,30 @@
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- HB1 tooltips: a long text wraps inside the 360 dip tooltip (ToolTipMaxWidth above) instead of running off as one line; a text
+         may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
+    <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
+    <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the help-circle icon centred, the subtle outline
+         and the shared focus ring. Never text, never a glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
+    <Style Selector="Button.help-round">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- HB1 HelpPopover: a flyout with 12 dip inset, the control outline and the overlay radius; the column inside is 360 dip at most. -->
+    <Style Selector="FlyoutPresenter.help-popover">
+        <Setter Property="Padding" Value="12" /><Setter Property="MaxWidth" Value="384" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Group}" />
+    </Style>
+    <Style Selector="Border.help-popover-dot">
+        <Setter Property="Width" Value="4" /><Setter Property="Height" Value="4" /><Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Muted}" /><Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="0,7,0,0" /><Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <!-- Drawn glyph icons (WorkspaceIcons.cs): 16 dip grid, stroke weight 1.5 (glyph-thin 1, glyph-heavy 2; no other weights), round
          caps. The stroke follows the foreground of the owner in code, so a disabled button greys its icon like its text. -->

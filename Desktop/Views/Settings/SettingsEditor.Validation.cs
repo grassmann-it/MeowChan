@@ -142,6 +142,7 @@ public partial class SettingsEditor
     public string PostBookmarkLimitHelp => FieldHelp(nameof(PostBookmarkLimitInput), Texts.T("settings.unitCount") + ". " + PostBookmarkLimitHint);
     public string SavedSearchLimitHelp => FieldHelp(nameof(SavedSearchLimitInput), Texts.T("settings.unitCount") + ". " + SavedSearchLimitHint);
     public string ReaderGroupLimitHelp => FieldHelp(nameof(ReaderGroupLimitInput), Texts.T("settings.unitCount") + ". " + ReaderGroupLimitHint);
+    public string ProfileRegistryLimitHelp => FieldHelp(nameof(ProfileRegistryLimitInput), Texts.T("settings.unitCount") + ". " + ProfileRegistryLimitHint);
     public string SourcesWatchPreviewRowsHelp => FieldHelp(nameof(SourcesWatchPreviewRowsInput), Texts.T("settings.unitCount") + ". " + SourcesWatchPreviewRowsHint);
     public string ExportConfirmFilesHelp => FieldHelp(nameof(ExportConfirmFilesInput), Texts.T("settings.unitCount") + ". " + ExportConfirmFilesHint);
     public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
@@ -172,10 +173,12 @@ public partial class SettingsEditor
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(BooruRetryAfterCooldownHoursHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
-            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
+            nameof(ProfileRegistryLimitHelp),
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(FolderSourceMaxFilesHelp), nameof(FolderSourceMaxRootsHelp), nameof(FolderSourceHashParallelismHelp), nameof(FolderSourceHashMaxFileGiBHelp), nameof(FolderSourceRescanMinutesHelp), nameof(FolderSourceCatalogLimitMiBHelp), nameof(FolderSourceGalleryHashWindowHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
+        NotifyTagQueueHelpChanged();
         NotifyViewerHelpChanged();
         NotifyQuickTagHelpChanged();
         NotifyLimitsHelpChanged();
@@ -233,6 +236,8 @@ public partial class SettingsEditor
             Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum, true);
         yield return (ReaderGroupLimitInput, ReaderGroupLimit, ReaderGroupLimitLabel, Texts.T("settings.unitCount"),
             Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum, true);
+        yield return (ProfileRegistryLimitInput, ProfileRegistryLimit, ProfileRegistryLimitLabel, Texts.T("settings.unitCount"),
+            Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum, true);
         yield return (SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows, SourcesWatchPreviewRowsLabel, Texts.T("settings.unitCount"),
             Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum, true);
         yield return (ExportConfirmFilesInput, ExportConfirmFiles, ExportConfirmFilesLabel, Texts.T("settings.unitCount"),
@@ -271,6 +276,20 @@ public partial class SettingsEditor
             Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum, true);
         yield return (ImportMaxBatchesInput, ImportMaxBatches, ImportMaxBatchesLabel, Texts.T("settings.unitCount"),
             Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum, true);
+        yield return (FolderSourceMaxFilesInput, FolderSourceMaxFiles, FolderSourceMaxFilesLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum, true);
+        yield return (FolderSourceMaxRootsInput, FolderSourceMaxRoots, FolderSourceMaxRootsLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum, true);
+        yield return (FolderSourceHashParallelismInput, FolderSourceHashParallelism, FolderSourceHashParallelismLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum, true);
+        yield return (FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB, FolderSourceHashMaxFileGiBLabel, Texts.T("settings.unitGiB"),
+            Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum, true);
+        yield return (FolderSourceRescanMinutesInput, FolderSourceRescanMinutes, FolderSourceRescanMinutesLabel, Texts.T("settings.unitMinutes"),
+            Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum, true);
+        yield return (FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum, true);
+        yield return (FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow, FolderSourceGalleryHashWindowLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum, true);
         yield return (MediaIndexMaxEntriesInput, MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Texts.T("settings.unitCount"),
             Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum, true);
         yield return (MediaIndexMaxThreadsInput, MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Texts.T("settings.unitCount"),
@@ -279,6 +298,7 @@ public partial class SettingsEditor
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
+        foreach (var field in TagQueueNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;
         foreach (var field in LimitsNumericFields()) yield return field;

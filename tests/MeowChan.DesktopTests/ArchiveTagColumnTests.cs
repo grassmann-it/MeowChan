@@ -49,6 +49,7 @@ public sealed class ArchiveTagColumnTests : IDisposable
     public void OtherColumnDefaultsAndTheMediaGridAreUnchanged()
     {
         string[] keys = ["identity", "title", "posts", "media", "source", "work", "lastCapture"];
+        Assert.True(ArchivePage.DefaultColumnVisible(Table, "Barebones", "favorite"));
         Assert.Equal(new[] { true, true, true, true }, keys.Take(4).Select(key => ArchivePage.DefaultColumnVisible(Table, "Barebones", key)));
         Assert.Equal(new[] { false, false, false }, keys.Skip(4).Select(key => ArchivePage.DefaultColumnVisible(Table, "Barebones", key)));
         Assert.Equal(new[] { true, true, true, true, true, false, false }, keys.Select(key => ArchivePage.DefaultColumnVisible(Table, "Simple", key)));
@@ -93,13 +94,15 @@ public sealed class ArchiveTagColumnTests : IDisposable
         string table = xaml[xaml.IndexOf("x:Name=\"ArchiveThreadTable\"", StringComparison.Ordinal)..];
         table = table[..table.IndexOf("</DataGrid.Columns>", StringComparison.Ordinal)];
         // The last column of the table is the tag column, bound to the row's display text and tooltip.
-        string lastColumn = table[table.LastIndexOf("<DataGridTemplateColumn ", StringComparison.Ordinal)..];
+        // The favourite column (A2) follows it by key; the tag column is the last one before it.
+        string beforeFavorite = table[..table.LastIndexOf("<!-- A2:", StringComparison.Ordinal)];
+        string lastColumn = beforeFavorite[beforeFavorite.LastIndexOf("<DataGridTemplateColumn ", StringComparison.Ordinal)..];
         Assert.Contains("Header=\"Tags\"", lastColumn);
         Assert.Contains("Text=\"{Binding TagColumnText}\"", lastColumn);
         Assert.Contains("ToolTip.Tip=\"{Binding TagColumnTip}\"", lastColumn);
         string preferences = Source("Desktop/Views/Archive/ArchivePage.ViewPreferences.cs");
-        Assert.Contains("\"lastCapture\", \"tags\"];", preferences);
-        Assert.Contains("[150, 0, 65, 80, 90, 110, 145, 170];", preferences);
+        Assert.Contains("\"lastCapture\", \"tags\", \"favorite\"];", preferences);
+        Assert.Contains("[150, 0, 70, 120, 90, 110, 145, 170, 48];", preferences);
         Assert.Contains("CustomSortComparer = ArchiveThreadRow.TagColumnComparer.Instance", Source("Desktop/Views/Archive/ArchivePage.Tags.cs"));
         // Rows follow every published tag view in place; no reload of the list is involved.
         string tags = Source("Desktop/Views/Archive/ArchivePage.Tags.cs");

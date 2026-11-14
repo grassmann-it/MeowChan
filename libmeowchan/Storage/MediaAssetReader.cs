@@ -180,7 +180,10 @@ public static class MediaAssetReader
     public static Task<MediaAssetSnapshot> OpenAsync(string threadDirectory, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadDirectory);
-        return MediaStore.ReadAssetSnapshotAsync(Path.GetFullPath(threadDirectory), cancellationToken);
+        string directory = Path.GetFullPath(threadDirectory);
+        // A folder source item has no manifest file: its catalog answers (and nothing is read from or written to a folder).
+        if (VirtualMediaManifests.TryOpen(directory, cancellationToken, out Task<MediaAssetSnapshot> virtualManifest)) return virtualManifest;
+        return MediaStore.ReadAssetSnapshotAsync(directory, cancellationToken);
     }
 }
 

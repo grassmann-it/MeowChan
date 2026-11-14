@@ -88,15 +88,21 @@ internal static partial class DialogFrameChecks
     private static async Task VerifyFrameCoreAsync(Control root, string label, string? capture)
     {
         await Settle();
-        Control header = Part<Control>(root, DialogFrame.HeaderName, label);
+        // Modals plan MD1: the header is only there for a real subtitle (the title stands in the title bar only), and a
+        // dialog whose only way out is Close may leave the footer to × in the title bar. Present parts keep the contract.
+        Control? header = Find<Control>(root, DialogFrame.HeaderName);
         ScrollViewer body = Part<ScrollViewer>(root, DialogFrame.BodyName, label);
-        Control footer = Part<Control>(root, DialogFrame.FooterName, label);
+        Control? footer = Find<Control>(root, DialogFrame.FooterName);
         Control? strip = Find<Control>(root, DialogFrame.ErrorStripName);
-        Require(!IsInside(header, body) && !IsInside(footer, body), label + ": header/footer must not scroll with the body.");
+        Require((header == null || !IsInside(header, body)) && (footer == null || !IsInside(footer, body)),
+            label + ": header/footer must not scroll with the body.");
         Require(strip == null || !IsInside(strip, body), label + ": error strip must not scroll with the body.");
-        Rect h = BoundsIn(header, root), b = BoundsIn(body, root), f = BoundsIn(footer, root);
-        Require(header.IsEffectivelyVisible && h.Height > 0, label + ": header not visible " + h);
-        Require(footer.IsEffectivelyVisible && f.Height > 0, label + ": footer not visible " + f);
+        Rect b = BoundsIn(body, root);
+        Rect h = header == null ? new Rect(b.X, b.Top, b.Width, 0) : BoundsIn(header, root);
+        Rect f = footer == null ? new Rect(b.X, b.Bottom, b.Width, 0) : BoundsIn(footer, root);
+        if (header == null && strip is { IsEffectivelyVisible: true }) h = new Rect(b.X, BoundsIn(strip, root).Top, b.Width, 0);
+        Require(header == null || header.IsEffectivelyVisible && h.Height > 0, label + ": header not visible " + h);
+        Require(footer == null || footer.IsEffectivelyVisible && f.Height > 0, label + ": footer not visible " + f);
         Require(h.Bottom <= b.Top + 0.5, label + ": header overlaps body " + h + " / " + b);
         Require(b.Bottom <= f.Top + 0.5, label + ": body overlaps footer " + b + " / " + f);
         Require(f.Bottom <= root.Bounds.Height + 0.5, label + ": footer clipped by dialog " + f + " / " + root.Bounds);
@@ -111,7 +117,7 @@ internal static partial class DialogFrameChecks
             Vector start = body.Offset;
             body.Offset = new Vector(start.X, body.Extent.Height - body.Viewport.Height);
             await Settle();
-            Rect h2 = BoundsIn(header, root), f2 = BoundsIn(footer, root);
+            Rect h2 = header == null ? h : BoundsIn(header, root), f2 = footer == null ? f : BoundsIn(footer, root);
             Require(Same(h, h2) && Same(f, f2), label + ": header/footer moved while scrolling " + h + "->" + h2 + ", " + f + "->" + f2);
             body.Offset = start;
             await Settle();

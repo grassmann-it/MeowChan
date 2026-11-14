@@ -28,9 +28,9 @@ public partial class SourcesPage
         {
             if (_ended) return;
             RenderDetails();
-            if (_narrow && _showDetails) FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
-            else if (_selectedId is { } id && _sourceCards.TryGetValue(id, out var card)) FocusSourceControlAfterLayout(card.Control);
+            FocusSelectedSource();
         };
+        SourcePluginManagement.FocusSourceCard = FocusSelectedSource;
         SourcePluginManagement.OpenSourceWatches = SelectSource;
         AutomationProperties.SetName(this.FindControl<SelectionList>("SourceCards")!, Texts.T("plugins.sources"));
         AddHandler(KeyDownEvent, (_, e) =>
@@ -38,6 +38,15 @@ public partial class SourcesPage
             if (e.Handled || e.Key != Key.Escape || IsBusy || SourcePluginManagement.ShowingSourcePluginDetails) return;
             if (_narrow && _showDetails) { OnBackClick(this, new RoutedEventArgs()); e.Handled = true; }
         }, RoutingStrategies.Bubble);
+    }
+
+    /// <summary>Focus lands on the detail heading when only the detail shows (narrow), else on the selected source's card; false when there is none.</summary>
+    private bool FocusSelectedSource()
+    {
+        if (_ended) return false;
+        if (_narrow && _showDetails) { FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!); return true; }
+        if (_selectedId is { } id && _sourceCards.TryGetValue(id, out var card)) { FocusSourceControlAfterLayout(card.Control); return true; }
+        return false;
     }
 
     internal bool TryDismissMergedLayer()

@@ -27,7 +27,7 @@ internal static class MediaLibraryStateText
     internal static string Compact(MediaLibraryEntryState state, bool grouped = false)
     {
         List<string> parts = new();
-        if (state.Favorite == MediaLibraryFlag.Yes && !grouped) parts.Add("★");
+        if (state.Favorite == MediaLibraryFlag.Yes && !grouped) parts.Add(Texts.T("command.gallery.favorite.compact")); // a word, not a glyph: the drawn star is the tile's own toggle
         if (state.UserRating is int rating) parts.Add(rating.ToString(Texts.Culture) + "/5");
         return string.Join(" · ", parts);
     }

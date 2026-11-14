@@ -105,7 +105,7 @@ public partial class ArchivePage
                 _ => null
             };
             if (featureId != null && ResultActionStale(button.Name + "#feature", null))
-                CommandBindings.Apply(button, featureId, iconWithLabel: button.Name == "ArchivePostBookmarks");
+                CommandBindings.Apply(button, featureId, iconWithLabel: true); // Reader groups and Post bookmarks both carry their catalog icon now.
             string? reason = button.Name switch
             {
                 "ArchiveResultsGallery" or "ArchiveResultsExport" when !ResultActionsReady => Texts.T("archive.command.busy"),

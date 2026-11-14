@@ -86,11 +86,10 @@ internal static class ReaderReturnChecks
             await catalog.CaptureAsync(Snapshot(b, 5));
             await page.CheckReaderUpdatesAsync();
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
-            CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
             Require(show.IsVisible, "Gallery fixture did not create B's pending live update.");
-            follow.IsChecked = true;
+            await page.SetFollowLiveAsync(true);
             restoreGallery();
-            Require(page.CurrentThread?.Summary.Id == a && !show.IsVisible && follow.IsChecked != true,
+            Require(page.CurrentThread?.Summary.Id == a && !show.IsVisible && !page.FollowLive,
                 "Gallery return retained another thread's pending update or live-follow state.");
             await page.CheckReaderUpdatesAsync();
             Require(!show.IsVisible, "Unchanged origin poll resurrected another thread's pending update.");

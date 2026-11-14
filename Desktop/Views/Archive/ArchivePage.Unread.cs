@@ -12,8 +12,8 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// Reader idea I3: the reading mark as a visible object. A thin accent line with "N new posts since last time" sits at the
-// top of the first post after the last one read, and the reader toolbar offers "Back to last read" once the view has
+// Reader idea I3: the reading mark as a visible object. A thin accent line with "N new posts since last time" sits in its own
+// row between the last post read and the first one after it (never inside a card), and the reader toolbar offers "Back to last read" once the view has
 // scrolled past it. The mark comes from the existing reading-position anchor (Continue reading) or from a manual
 // "Show new posts"; nothing new is stored, and a thread opened from the list starts without one.
 public partial class ArchivePage
@@ -74,14 +74,12 @@ public partial class ArchivePage
         if (list.ContainerFromIndex(index) is Control container)
         {
             if (container.TranslatePoint(default, list)?.Y is not { } top) return false; // Not laid out yet.
-            // It is past once the line itself (its first rows) has scrolled out, or the whole post has.
-            return top < -UnreadLineHeight || top + container.Bounds.Height <= 0;
+            // It is past once the line itself (it sits above the card, ReaderUnreadLineHost.Air clear of it) has scrolled out, or the whole post has.
+            return top < ReaderUnreadLineHost.Air || top + container.Bounds.Height <= 0;
         }
         // Not realized: the panel realizes one contiguous range, so the post is above it (past) or below it.
         return list.ItemsPanelRoot is VirtualizingStackPanel { FirstRealizedIndex: >= 0 and var firstRealized } && index < firstRealized;
     }
-
-    private const double UnreadLineHeight = 28;
 
     private void UpdateUnreadReturn()
     {

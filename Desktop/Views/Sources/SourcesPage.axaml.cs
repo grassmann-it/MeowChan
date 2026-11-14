@@ -22,7 +22,7 @@ public partial class SourcesPage : UserControl
 {
     private readonly Func<DiagnosticTarget, bool>? _openWatch;
     private readonly Action<string>? _editRules;
-    private readonly Action? _openDiagnostics;
+    private readonly Action<string>? _openDiagnostics;
     private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
     private IReadOnlyList<SourceListRow> _rows = Array.Empty<SourceListRow>();
@@ -51,10 +51,11 @@ public partial class SourcesPage : UserControl
         InitializeComponent(); InitializeContextMenus(); InitializeMergedSources();
     }
 
+    /// <param name="openDiagnostics">Opens Status › Diagnostics with the source filter preset to the canonical id of the source.</param>
     /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
     /// <param name="openDownloads">Goes to Downloads for the watches beyond the preview. Downloads has no per-source filter, so none is applied.</param>
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action addToDownloads, Action openDownloads) : this()
+        Action<string> openDiagnostics, Action addToDownloads, Action openDownloads) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
@@ -78,6 +79,7 @@ public partial class SourcesPage : UserControl
         if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
         SourcePluginManagement.SetSourceCount(_rows.Count, _rows.Count(row => row.IsActive));
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
+        this.FindControl<Desktop.Controls.WorkspaceEmptyState>("SourcesEmptyState")!.IsVisible = _rows.Count == 0;
         SelectionList cards = this.FindControl<SelectionList>("SourceCards")!;
         _projectingSources = true;
         try
@@ -98,7 +100,7 @@ public partial class SourcesPage : UserControl
                     StackPanel labels = new StackPanel { Spacing = 4 };
                     labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation);
                     SelectionListItem select = new PluginSelectionItem { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(12) };
+                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
                     select.Classes.Add("workspace-list-card");
                     string sourceId = row.Id;
                     select.PointerReleased += (_, args) =>
@@ -206,13 +208,18 @@ public partial class SourcesPage : UserControl
         ToolTip.SetTip(addToDownloads, Texts.T("sources.addInDownloadsHint")
             + (CommandCatalog.ShortcutDisplay("input.focus-url") is string shortcut ? " (" + shortcut + ")" : string.Empty));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
+        Button emptyAdd = this.FindControl<Button>("SourcesEmptyAdd")!;
+        emptyAdd.Content = PluginsPage.IconAndLabel("plus", Texts.T("plugins.add")); AutomationProperties.SetName(emptyAdd, Texts.T("plugins.add")); ToolTip.SetTip(emptyAdd, Texts.T("plugins.add.help"));
         if (row == null) return;
         RenderSourcePluginBlock();
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         RenderSourceMediaIntegrity(row);
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
-        CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website", row.Address));
+        // The address is in the card and under "Technical details"; the label stays one short verb phrase, the address is the hover and the help text.
+        CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website"));
+        ToolTip.SetTip(website, row.Address + (CommandCatalog.ShortcutDisplay("location.open-source") is string websiteShortcut ? " · " + websiteShortcut : string.Empty));
+        AutomationProperties.SetHelpText(website, row.Address);
         website.IsEnabled = !IsBusy;
         this.FindControl<TextBlock>("SourceHosts")!.Text = Texts.T("sources.hosts", row.Descriptor.SupportedHosts.Count > 0
             ? string.Join(", ", row.Descriptor.SupportedHosts) : Texts.T("sources.unspecified"));
@@ -251,7 +258,7 @@ public partial class SourcesPage : UserControl
         watchList.IsVisible = shownWatches.Count > 0;
         Button allWatches = this.FindControl<Button>("SourceAllWatchesButton")!;
         allWatches.IsVisible = row.Watches.Count > shownWatches.Count;
-        allWatches.Content = Texts.T("sources.showAll", row.Watches.Count);
+        CommandBindings.ApplyLabeled(allWatches, "navigation.downloads", Texts.T("sources.showAll", row.Watches.Count));
         allWatches.IsEnabled = _available && !IsBusy && _openDownloads != null;
         foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
             this.FindControl<Button>(name)!.IsEnabled = _available && !IsBusy;
@@ -365,6 +372,7 @@ public partial class SourcesPage : UserControl
         e.Handled = true;
         OnOpenWatchClick(sender, e);
     }
+    private async void OnSourcesEmptyAddClick(object? sender, RoutedEventArgs e) { if (!IsBusy) await SourcePluginManagement.AddPluginAsync(); }
     private void OnAllWatchesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDownloads?.Invoke(); }
     private void OnPluginClick(object? sender, RoutedEventArgs e)
     {
@@ -410,7 +418,7 @@ public partial class SourcesPage : UserControl
         try { await ExternalLauncher.OpenAsync(row.Address); }
         catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
-    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDiagnostics?.Invoke(); }
+    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _openDiagnostics?.Invoke(row.Id); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
         if (!_available || IsBusy || SelectedWatch == null) return;

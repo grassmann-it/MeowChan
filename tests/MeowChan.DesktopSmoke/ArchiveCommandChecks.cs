@@ -55,9 +55,9 @@ internal static class ArchiveCommandChecks
             Require(Find("thread.details").Command?.CanExecute(null) == true, "Archive without watch has no local metadata details.");
             Require(menu.Items.OfType<MenuItem>().Any(item => Equals(item.Header, Texts.T("archive.command.unavailable")) && item.IsEnabled),
                 "Unavailable archive commands have no keyboard-accessible explanation.");
-            Require(Equals(Find("export.open-html-dialog").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("export.open-html-dialog"), 2)) &&
-                Equals(Find("watch.check").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.check"), 1)) &&
-                Equals(Find("watch.remove").Header, Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.remove"), 0)),
+            Require(Equals(Find("export.open-html-dialog").Header, Texts.Count("archive.command.batchCount", 2, CommandCatalog.Label("export.open-html-dialog"), 2)) &&
+                Equals(Find("watch.check").Header, Texts.Count("archive.command.batchCount", 1, CommandCatalog.Label("watch.check"), 1)) &&
+                Equals(Find("watch.remove").Header, Texts.Count("archive.command.batchCount", 0, CommandCatalog.Label("watch.remove"), 0)),
                 "Archive actions do not show their distinct eligible target counts.");
             Require(Find("gallery.open").Header!.ToString()!.Contains(rows[0].Summary.Id.Thread!) &&
                 AutomationProperties.GetName(Find("gallery.open")) == Find("gallery.open").Header!.ToString(),
@@ -71,7 +71,7 @@ internal static class ArchiveCommandChecks
             checkedIds = Array.Empty<ResourceId>();
             Find("watch.check").Command!.Execute(null);
             Require(checkedIds.Length == 0 && Equals(Find("watch.check").Header,
-                Texts.T("archive.command.batchCount", CommandCatalog.Label("watch.check"), 0)),
+                Texts.Count("archive.command.batchCount", 0, CommandCatalog.Label("watch.check"), 0)),
                 "Changing eligibility did not update the count or admitted a target outside the frozen selection.");
             await ArchiveMenuLayoutChecks.CheckBoundsAsync(menu, "en-live-eligibility");
             // A language refresh replaces row instances. The open menu must keep

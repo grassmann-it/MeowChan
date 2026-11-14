@@ -35,12 +35,16 @@ public partial class AboutWindow : Window
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
         WindowChrome.Apply(this);
-        DialogFit.OnOpen(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: true);
+        AppCaption.Kind = MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         // Documentation/credits pair: both cats side by side in either theme; only the window icon follows the theme.
         ThemeLogo.ShowPair(CatLogo, CatLogoDark);
-        Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
+        Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
+        // Modals plan MD2: no lone Close button; × in the title bar and Escape (the dialog policy) close it.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this);
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _version = informationalVersion?.Split('+', 2)[0] ?? assembly.GetName().Version?.ToString() ?? Texts.T("about.unknownVersion");
@@ -96,7 +100,6 @@ public partial class AboutWindow : Window
         AutomationProperties.SetName(LicenseFullText, Texts.T("about.licenseText"));
         LicenseMetadataExpander.Header = Texts.T("about.sources");
         LicenseHintText.Text = _legal.Error is null ? Texts.T("about.licenseHint") : Texts.T("about.licenseReadFailed", _legal.Error);
-        CloseButton.Content = Texts.T("action.close");
         LinkErrorText.Text = _actionError?.Render() ?? string.Empty;
         UpdateSelection();
         RefreshUpdates();
@@ -259,6 +262,4 @@ public partial class AboutWindow : Window
         catch (Exception error) { Log.Warning(error, "Could not skip update."); _updateActionFailed = true; }
         if (!_closed) RefreshUpdates();
     }
-
-    private void OnCloseButtonClick(object? sender, RoutedEventArgs e) => Close();
 }

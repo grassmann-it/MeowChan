@@ -46,7 +46,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public int MissingMedia => Snapshot.Work?.MissingMedia ?? Math.Max(0, SelectedMedia - CompletedMedia);
     public int MediaErrorCount => Snapshot.Work?.Media.Count(item => item.Status is MeowChan.Persistence.MediaWorkStatus.NeedsIntervention or MeowChan.Persistence.MediaWorkStatus.Expired)
         ?? Snapshot.MediaFailures.Count;
-    public string MissingMediaText => Texts.T("work.missingAndErrors", MissingMedia, MediaErrorCount);
+    public string MissingMediaText => Texts.Count("work.missingAndErrors", MediaErrorCount, MissingMedia, MediaErrorCount);
     public DateTimeOffset? EarliestRetry => Snapshot.Work?.NextDueAt;
     public string EarliestRetryText => EarliestRetry?.ToLocalTime().ToString("g", Texts.Culture) ?? "—";
     public string ExceptionHint { get; private set; } = string.Empty;
@@ -80,7 +80,6 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     /// <summary>The next step for this row is the retry command (the generic "needs a retry" state).</summary>
     public bool NeedsIntervention { get; private set; }
     public bool IsHighPriority { get; private set; }
-    public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
     public string PriorityDescription => IsHighPriority
         ? Texts.T("priority.rowDescription") : string.Empty;
 
@@ -90,7 +89,6 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (IsHighPriority == high) return;
         IsHighPriority = high;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsHighPriority)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityBadge)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityDescription)));
     }
 

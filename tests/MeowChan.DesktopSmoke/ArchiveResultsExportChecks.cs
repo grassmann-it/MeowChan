@@ -54,11 +54,11 @@ internal static class ArchiveResultsExportChecks
         await page.OpenExportForAllResultsAsync(origin);
         window.UpdateLayout();
         TextBlock fixedScope = page.FindControl<TextBlock>("ArchiveExportFixedScope")!;
-        Check(fixedScope.IsEffectivelyVisible && fixedScope.Bounds.Height > 0 && fixedScope.Text == Texts.T("export.resultsFrozen", 60),
+        Check(fixedScope.IsEffectivelyVisible && fixedScope.Bounds.Height > 0 && fixedScope.Text == Texts.Count("export.resultsFrozen", 60),
             "The fixed target count scrolled out of the export dialog.");
         Program.CaptureWindow(window, "smoke-all-results-export-ready.png");
         string frozen = Summary();
-        Check(frozen.StartsWith(Texts.T("export.resultsFrozen", 60), StringComparison.Ordinal)
+        Check(frozen.StartsWith(Texts.Count("export.resultsFrozen", 60), StringComparison.Ordinal)
             && frozen.Split('\n').Length == 61, "All-results export did not resolve the real filtered 60 targets across pages.");
         work.Clear();
         await catalog.CaptureAsync(Snapshot(0, "late content after dialog"));
@@ -112,7 +112,7 @@ internal static class ArchiveResultsExportChecks
         page.FindControl<ComboBox>("ArchiveWorkFilter")!.SelectedIndex = 0;
         await page.ApplySearchAsync();
         await page.OpenExportForAllResultsAsync(origin);
-        Check(Summary().StartsWith(Texts.T("export.resultsFrozen", 1), StringComparison.Ordinal), "Singleton all-results export lost its fixed count.");
+        Check(Summary().StartsWith(Texts.Count("export.resultsFrozen", 1), StringComparison.Ordinal), "Singleton all-results export lost its fixed count.");
         await catalog.DeleteThreadsAsync(new[] { new ResourceId("exportfixture", "a", "0") });
         output = Path.Combine(root, "removed-target");
         page.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
@@ -143,7 +143,7 @@ internal static class ArchiveResultsExportChecks
             "The Export dialog did not offer format and scope for a single result thread.");
         scope.SelectedIndex = 1;
         await Program.WaitUntilAsync(() => page.CurrentExportScope == ArchivePage.ExportScope.AllResults && start.IsEnabled);
-        Check(summary().StartsWith(Texts.T("export.resultsFrozen", 60), StringComparison.Ordinal) && scope.IsVisible,
+        Check(summary().StartsWith(Texts.Count("export.resultsFrozen", 60), StringComparison.Ordinal) && scope.IsVisible,
             "Switching to all matches did not resolve the 60 filtered targets in the open dialog.");
         format.SelectedIndex = 1;
         await Program.WaitUntilAsync(() => page.CurrentExportFormat == ArchivePage.ExportFormat.LinkList

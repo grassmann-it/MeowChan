@@ -97,9 +97,9 @@ internal static class SourcesChecks
                 "The Downloads field did not use the shared admission/reporting path for a link entered after the Sources hand-off: report=\"" + report.Text + "\" input=\"" + downloadsInput.Text + "\".");
             downloadsInput.Text = string.Empty;
         }
-        string? editedSource = null;
+        string? editedSource = null, diagnosticsSource = null;
         int handoffs = 0, showAll = 0;
-        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, () => { }, () => handoffs++, () => showAll++);
+        SourcesPage page = new SourcesPage(_ => false, source => editedSource = source, source => diagnosticsSource = source, () => handoffs++, () => showAll++);
         host.Content = page;
         DesktopThreadEntry thread = SnapshotFixtures.Thread(991, "123", "Source fixture") with
         {
@@ -163,8 +163,9 @@ internal static class SourcesChecks
                     Require(page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureAvailable"),
                         "Capture support and initialized session availability were not shown.");
                     RequireIconLabel(page.FindControl<Button>("SourceBackButton")!, MeowChan.Desktop.Commands.CommandCatalog.Label("sources.back"));
-                    RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!,
-                        Texts.T("sources.website", "https://boards.4chan.org/"));
+                    RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!, Texts.T("sources.website"));
+                    Require(ToolTip.GetTip(page.FindControl<Button>("SourceWebsiteButton")!)?.ToString()?.Contains("https://boards.4chan.org/") == true,
+                        "The website button lost the address as its tooltip.");
                     RequireIconLabel(page.FindControl<Button>("SourceRulesButton")!, Texts.T("sources.rules"));
                     RequireIconLabel(page.FindControl<Button>("SourceDiagnosticsButton")!, Texts.T("sources.diagnostics"));
                     RequireIconLabel(page.FindControl<Button>("SourceAddToDownloadsButton")!, Texts.T("sources.addInDownloads"));
@@ -175,6 +176,8 @@ internal static class SourcesChecks
                     if (mode == "Simple") await CaptureBothThemesAsync(window, $"smoke-sources-{mode.ToLowerInvariant()}-{language}");
                     page.FindControl<Button>("SourceRulesButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(editedSource == "4chan", "Source rules targeted a display label instead of canonical source identity.");
+                    page.FindControl<Button>("SourceDiagnosticsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(diagnosticsSource == "4chan", "The Diagnostics button did not pass the canonical source id to Status › Diagnostics.");
                     int handoffsBefore = handoffs;
                     page.FindControl<Button>("SourceAddToDownloadsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     Require(handoffs == handoffsBefore + 1, "The add-in-Downloads button did not hand over to Downloads exactly once.");
@@ -497,8 +500,7 @@ internal static class SourcesChecks
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Require(list.ItemsSource!.Cast<SourceWatchRow>().Count() == shown && all.IsVisible == link,
                     $"Watch preview setting {setting} showed {list.ItemsSource!.Cast<SourceWatchRow>().Count()} rows (expected {shown}, link {link}).");
-                if (link) Require((all.Content as string) == Texts.T("sources.showAll", 5),
-                    "The show-all link did not name the number of watches: " + all.Content);
+                if (link) RequireIconLabel(all, Texts.T("sources.showAll", 5));
             }
             page.GetWatchPreviewRows = () => 3;
             page.Refresh(providers, many, true);

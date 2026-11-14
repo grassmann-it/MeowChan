@@ -89,7 +89,7 @@ public sealed class ReaderWorkViewTests
             ("reader.toolbar.view", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.export", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.fullscreen", Presence.Overflow, Presence.Overflow, Presence.Direct),
-            ("reader.toolbar.capture", Presence.Overflow, Presence.Overflow, Presence.Direct),
+            ("reader.toolbar.thread", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.sort", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.media.layout", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.favorites-filter", Presence.Overflow, Presence.Direct, Presence.Direct),
@@ -118,8 +118,9 @@ public sealed class ReaderWorkViewTests
         }
     }
 
-    // The single declarative keep-visible order (owner, 14.11.): OverflowOrder follows it, HTML export outranks full screen
-    // and View, the rarely used history return and post-capture switch go first; Required items are not in it (never move).
+    // The single declarative keep-visible order (owner, 14.11.): OverflowOrder follows it, HTML export outranks full screen,
+    // View and Thread, the rarely used history return goes first; Required items are not in it (never move). The post-capture
+    // switch left the bar for the Thread menu (R2), so no "capture" tool exists any more.
     [Fact]
     public void ToolbarKeepVisibleOrderIsTheOverflowOrderAndPutsExportBeforeTheRarelyUsedActions()
     {
@@ -132,9 +133,11 @@ public sealed class ReaderWorkViewTests
         Assert.All(tools, entry => Assert.True(entry.OverflowOrder > 0, entry.Id));
         int Rank(string id) => order.ToList().IndexOf(id);
         Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export"], order.Take(5));
-        foreach (string later in new[] { "reader.toolbar.fullscreen", "reader.toolbar.view", "reader.toolbar.history-back", "reader.toolbar.capture" })
+        foreach (string later in new[] { "reader.toolbar.fullscreen", "reader.toolbar.view", "reader.toolbar.thread", "reader.toolbar.history-back" })
             Assert.True(Rank("reader.toolbar.export") < Rank(later), later);
-        Assert.Equal("reader.toolbar.capture", order[^1]);
+        Assert.True(Rank("reader.toolbar.view") < Rank("reader.toolbar.thread"));
+        Assert.Equal("reader.toolbar.history-back", order[^1]);
+        Assert.DoesNotContain("reader.toolbar.capture", order);
         // Required tool rows never take part in the width race.
         Assert.All(ReaderRows().Where(entry => entry.Id.StartsWith("reader.toolbar.", StringComparison.Ordinal) && !tools.Contains(entry)),
             entry => Assert.All(WorkViewSetting.All, view => Assert.Equal(OverflowMode.Never, WorkViewPresenter.ToolBarMode(entry.For(view)))));
@@ -149,9 +152,9 @@ public sealed class ReaderWorkViewTests
         ("ArchiveCurrentThreadFavorite", "reader.toolbar.thread-favorite", 46),
         ("ReaderTagsOpen", "reader.toolbar.tags", 92), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
         ("ReaderFindOpen", "reader.toolbar.find", 150), ("ReaderViewOpen", "reader.toolbar.view", 92),
-        ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ArchiveReaderFullscreen", "reader.toolbar.fullscreen", 128),
-        ("ArchiveHistoryBack", "reader.toolbar.history-back", 170), ("ExportArchiveButton", "reader.toolbar.export", 172),
-        ("CapturePostsButton", "reader.toolbar.capture", 176)
+        ("ReaderThreadOpen", "reader.toolbar.thread", 104),
+        ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ExportArchiveButton", "reader.toolbar.export", 172),
+        ("ArchiveReaderFullscreen", "reader.toolbar.fullscreen", 128), ("ArchiveHistoryBack", "reader.toolbar.history-back", 170)
     ];
 
     private static string[] MovedAt(double available)
@@ -172,7 +175,7 @@ public sealed class ReaderWorkViewTests
         string[] moved = MovedAt(available);
         Assert.DoesNotContain("ExportArchiveButton", moved);
         Assert.NotEmpty(moved); // the room really ends before the tail
-        Assert.All(moved, name => Assert.Contains(name, new[] { "ArchiveReaderFullscreen", "ReaderViewOpen", "ArchiveHistoryBack", "CapturePostsButton" }));
+        Assert.All(moved, name => Assert.Contains(name, new[] { "ArchiveReaderFullscreen", "ReaderViewOpen", "ReaderThreadOpen", "ArchiveHistoryBack" }));
     }
 
     // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar.

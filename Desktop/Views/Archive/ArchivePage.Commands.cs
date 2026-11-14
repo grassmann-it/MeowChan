@@ -59,19 +59,15 @@ public partial class ArchivePage
     {
         if (IsFilenameSearchOpen) return;
         if (TopLevel.GetTopLevel(this) is not Window owner) { Message(content); return; }
-        Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 280,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        // Modals plan MD2: a read-only modal details dialog on the prompt step. The title stands in the title bar only,
+        // and a lone Close button is left out: × at the top right and Escape close it.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(title, DialogSize.S, modal: true);
         TextBox details = new() { Text = content, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
-        TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap };
-        heading.Classes.Add("section-title");
-        Button close = new() { Content = Texts.T("action.close"), MinWidth = 96, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
         Border body = new() { Child = details }; body.Classes.Add("workspace-dialog-body");
-        Border footer = new() { Child = close }; footer.Classes.Add("workspace-dialog-footer");
         // Read-only metadata has no failure path of its own, so the frame carries no error strip.
-        Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, footer);
-        close.Click += (_, _) => dialog.Close();
-        dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; dialog.Close(); } };
-        dialog.Content = WindowChrome.Frame(dialog, layout, WindowChromeKind.Dialog);
+        Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header: null, body, footer: null);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, layout, modal: true);
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog);
         await dialog.ShowDialog(owner);
     }
 
@@ -123,11 +119,12 @@ public partial class ArchivePage
         List<MenuItem> commands = new();
         List<Func<string?>> disabledReasons = new();
         bool Ready() => _available && !_ended && !_busy && !IsReaderDialogOpen;
+        static string BatchLabel(string action, int targets) => Texts.Count("archive.command.batchCount", targets, action, targets);
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
             Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
         {
             MenuItem? item = null;
-            string Label() => count != null ? Texts.T("archive.command.batchCount", actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
+            string Label() => count != null ? BatchLabel(actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
                 : leadAction ? Texts.T("archive.command.leadTarget", actionLabel?.Invoke() ?? CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
                 : actionLabel?.Invoke() ?? CommandCatalog.Label(id);
             void UpdateLabel()
@@ -197,7 +194,7 @@ public partial class ArchivePage
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
         if (ids.Length > 1)
         {
-            string count = Texts.T("archive.command.selectionCount", ids.Length);
+            string count = Texts.Count("archive.command.selectionCount", ids.Length);
             menu.Items.Add(new Separator());
             // Keep the explanatory prose compact even when the menu theme adds
             // the shared shortcut column to this shortcut-free row.

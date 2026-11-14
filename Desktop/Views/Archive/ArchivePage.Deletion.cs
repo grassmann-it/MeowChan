@@ -14,11 +14,14 @@ public partial class ArchivePage
         CancelMediaLoad(); ClosePreview();
         _mediaMenuPresenter.Invalidate();
         CloseThreadFind();
+        // R10: an inline player holds a verified read handle of the file; it is closed before the deletion goes on.
+        Task videos = ReleaseInlineVideos();
         _thread = null; _selectedThread = null;
         _assets = System.Array.Empty<MeowChan.Desktop.ArchiveAssetRow>();
         _showReader = false; _busy = false;
         RenderThread(); UpdateLayoutMode();
         try { await MediaLoadTask; }
         catch (System.OperationCanceledException) { }
+        await videos;
     }
 }

@@ -19,6 +19,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -85,11 +86,14 @@ public partial class ReaderGroupsDialog : Window
         private readonly string? _key;
         private readonly string? _raw;
         private readonly object?[] _arguments;
-        private PresentationText(string? key, string? raw, object?[] arguments)
-        { _key = key; _raw = raw; _arguments = (object?[])arguments.Clone(); }
+        private readonly long? _count;
+        private PresentationText(string? key, string? raw, object?[] arguments, long? count = null)
+        { _key = key; _raw = raw; _arguments = (object?[])arguments.Clone(); _count = count; }
         internal static PresentationText Localized(string key, params object?[] arguments) => new(key, null, arguments);
+        /// <summary>A text whose plural form follows <paramref name="count"/>; {0} is the count unless arguments are given.</summary>
+        internal static PresentationText Counted(string key, long count, params object?[] arguments) => new(key, null, arguments, count);
         internal static PresentationText Raw(string raw) => new(null, raw, Array.Empty<object?>());
-        internal string Render() => _key == null ? _raw! : Texts.T(_key, _arguments);
+        internal string Render() => _key == null ? _raw! : _count is { } count ? Texts.Count(_key, count, _arguments) : Texts.T(_key, _arguments);
     }
     // Only explicit host provenance is localized; legacy/raw text is never inferred from its contents.
     internal static PresentationText OriginNoticePresentation(ReaderGroupsDialogOrigin? origin) =>
@@ -107,8 +111,9 @@ public partial class ReaderGroupsDialog : Window
     {
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
-        WindowChrome.WrapContent(this);
-        DialogFit.OnOpen(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
+        DialogWindow.Wrap(this, modal: true);
         C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => RowText(row));
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
             C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => RowText(row));
@@ -130,9 +135,9 @@ public partial class ReaderGroupsDialog : Window
         _reload.Click += async (_, _) => { if (await DiscardAsync()) await LoadAsync(); };
         _recover.Click += async (_, _) => await RecoverAsync();
         _close.Click += async (_, _) => await RequestCloseAsync();
-        C<WrapPanel>("GroupFooter").Children.Add(_reload);
-        C<WrapPanel>("GroupFooter").Children.Add(_recover);
-        C<WrapPanel>("GroupFooter").Children.Add(_close);
+        // Save is the primary action right-most; Close stays left of it, the others before.
+        DialogFooter.Fill(C<Border>("DialogFrameFooter"), _buttons["reader-groups.save"],
+            new Control[] { _reload, _recover, _buttons["reader-groups.read"], _close });
         C<ListBox>("Groups").SelectionChanged += async (_, _) => await ChangeGroupAsync();
         C<TextBox>("GroupName").TextChanged += (_, _) =>
         {
@@ -149,18 +154,15 @@ public partial class ReaderGroupsDialog : Window
             RefreshActions();
         };
         C<TextBox>("GroupSearch").TextChanged += async (_, _) => await SearchAsync();
-        AddHandler(KeyDownEvent, (_, e) =>
+        AddHandler(KeyDownEvent, (_, e) => _router.Route(e), RoutingStrategies.Bubble);
+        // Fixed dismissal only, independent of all freely assigned application gestures (the dialog policy): the open
+        // candidate list is dismissed first, then the dialog asks to close.
+        DialogEscape.Attach(this, tryCancelLocal: () =>
         {
-            if (_router.Route(e)) return;
-            // Fixed dismissal only; all configurable app actions use the central router.
-            if (!e.Handled && e.Key == Key.Escape)
-            {
-                e.Handled = true;
-                if (C<ListBox>("GroupCandidates").IsVisible && C<ListBox>("GroupCandidates").ItemCount > 0)
-                { C<ListBox>("GroupCandidates").IsVisible = false; C<TextBox>("GroupSearch").Focus(); }
-                else _ = RequestCloseAsync();
-            }
-        }, RoutingStrategies.Bubble);
+            if (!C<ListBox>("GroupCandidates").IsVisible || C<ListBox>("GroupCandidates").ItemCount == 0) return false;
+            C<ListBox>("GroupCandidates").IsVisible = false; C<TextBox>("GroupSearch").Focus();
+            return true;
+        }, close: () => _ = RequestCloseAsync());
         Closing += (_, e) =>
         {
             if (_allowClose) return;
@@ -288,7 +290,7 @@ public partial class ReaderGroupsDialog : Window
                 ResourceId[] additions = _candidateSelectionOrder.ToArray();
                 int added = additions.Except(group!.Members).Count(); _draft!.Add(group.Id, additions);
                 ShowMessage(added == 0 ? PresentationText.Localized("readerGroups.alreadyMembers")
-                    : PresentationText.Localized("readerGroups.added", added));
+                    : PresentationText.Counted("readerGroups.added", added));
                 Render(additions.LastOrDefault()); C<ListBox>("GroupMembers").Focus(); break;
             case "reader-groups.remove-member":
                 int index = group!.Members.ToList().IndexOf(SelectedMember!); _draft!.Remove(group.Id, SelectedMember!);
@@ -399,7 +401,7 @@ public partial class ReaderGroupsDialog : Window
             ResourceId[] available = members.Where(item => item.HasLocalPosts).Select(item => item.Id).ToArray();
             string detail = string.Join("\n", missing.Select(item => Identity(item.Id)));
             if (available.Length == 0) { ShowMessage(PresentationText.Localized("readerGroups.noReadable", detail)); return; }
-            if (missing.Length > 0 && !await ConfirmAsync(PresentationText.Localized("readerGroups.missingMembers", missing.Length, detail),
+            if (missing.Length > 0 && !await ConfirmAsync(PresentationText.Counted("readerGroups.missingMembers", missing.Length, missing.Length, detail),
                 PresentationText.Localized("readerGroups.readAvailable"))) return;
             if (_closed) return;
             ReaderGroupsDialogOrigin origin = new(group.Id, SelectedMember, C<ScrollViewer>("GroupEditorScroll").Offset,
@@ -526,7 +528,7 @@ public partial class ReaderGroupsDialog : Window
             _candidateItems = page.Items;
             C<ListBox>("GroupCandidates").ItemsSource = _candidateItems.Select(Member).ToArray();
             C<ListBox>("GroupCandidates").IsVisible = true;
-            _searchStatus = PresentationText.Localized(page.HasMore || text.Length == 0
+            _searchStatus = PresentationText.Counted(page.HasMore || text.Length == 0
                 ? "readerGroups.matchesNarrow" : "readerGroups.matches", page.Items.Count);
             RenderPresentation();
             RefreshActions();
@@ -558,8 +560,8 @@ internal static class ReaderGroupsPrompt
     internal static async Task<bool> ShowAsync(Window owner, ReaderGroupsDialog.PresentationText message,
         ReaderGroupsDialog.PresentationText accept, ReaderGroupsDialog.PresentationText cancel)
     {
-        Window prompt = new() { Title = Texts.T("readerGroups.title"), Width = 500, MaxWidth = Math.Max(400, owner.Bounds.Width), Height = 300,
-            MinHeight = 260, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
+        // Modals plan MD1: a small modal confirmation whose height follows the message.
+        Window prompt = DialogWindow.Create(Texts.T("readerGroups.title"), DialogSize.S, modal: true, heightToContent: true);
         bool closed = false;
         // Invalidate before dispatch: a queued click cannot approve old-language prose.
         using LanguageLifetime language = new(() =>
@@ -569,17 +571,12 @@ internal static class ReaderGroupsPrompt
         yes.Click += (_, _) => prompt.Close(language.IsCurrent);
         no.Click += (_, _) => prompt.Close(false);
         prompt.Closed += (_, _) => closed = true;
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(no); actions.Children.Add(yes);
-        Grid content = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
-        content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
-        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid.SetRow(footer, 1); content.Children.Add(footer);
-        prompt.Content = WindowChrome.Frame(prompt, content, WindowChromeKind.Dialog);
+        TextBlock text = new() { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 16) };
+        // The title stands in the title bar only; accept is the primary action right-most, cancel stays the default focus.
+        DialogWindow.Frame(prompt, DialogFrame.Build(header: null, text, DialogFooter.Build(yes, new Control[] { no })), modal: true);
         prompt.Opened += (_, _) => no.Focus();
         // Fixed dialog dismissal, independent of all freely assigned application gestures.
-        prompt.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; prompt.Close(false); } };
+        DialogEscape.Attach(prompt, close: () => prompt.Close(false));
         try
         {
             if (!language.IsCurrent) return false;

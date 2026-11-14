@@ -15,6 +15,7 @@ internal static class StatusCatalog
         ("status.segments", "Status sections", "Bereiche der Statusseite"),
         ("status.segment.diagnosticsCount", "Diagnostics ({0})", "Diagnose ({0})"),
         ("status.strip", "Active {0} · Waiting {1} · Problems {2}", "Aktiv {0} · Wartend {1} · Probleme {2}"),
-        ("status.strip.rates", "↓ {0} · W {1}", "↓ {0} · S {1}"),
+        ("status.strip.rates", "{0} {1} · {2} {3}", "{0} {1} · {2} {3}"),
+        ("status.statisticsUnavailable", "Statistics are available as soon as the session is restored.", "Die Statistik ist verfügbar, sobald die Sitzung wiederhergestellt ist."),
     ];
 }
