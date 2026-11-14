@@ -193,6 +193,34 @@ public sealed class BooruProducerLifecycleTests
         Assert.Equal(BooruProducerPhase.Stopped, lifecycle.Phase);
     }
 
+    [Fact]
+    public async Task StopJoinsRecoveryCleanupWithoutReleasingTheCountedUseEarly()
+    {
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        BooruProducerLifecycle lifecycle = new(profile.Lease.Admission);
+        lifecycle.Open();
+        BooruProducerUse use = lifecycle.TryEnter()!;
+        lifecycle.BeginTransition();
+        Task cut = lifecycle.CutAndDrainAsync();
+
+        // Recovery owns the terminal cleanup immediately; StopAsync must join that same task rather than start a
+        // second release of the generation. The counted use keeps both cleanup and the profile admission pending.
+        lifecycle.RequireRecovery();
+        profile.Lease.Admission.BeginShutdown();
+        Task profileDrained = profile.Lease.Admission.DrainAsync();
+        Assert.False(profileDrained.IsCompleted);
+        Task stopping = lifecycle.StopAsync();
+        Assert.False(stopping.IsCompleted);
+
+        use.Dispose();
+        await cut.WaitAsync(TestWait.Timeout);
+        await stopping.WaitAsync(TestWait.Timeout);
+        await profileDrained.WaitAsync(TestWait.Timeout);
+        profile.Lease.Admission.CompleteShutdown();
+        Assert.Equal(ProfileAdmissionPhase.Stopped, profile.Lease.Admission.Phase);
+    }
+
     private static async Task<bool> WaitCancelled(CancellationToken token)
     {
         await TestWait.UntilAsync(() => token.IsCancellationRequested, "cancelled");

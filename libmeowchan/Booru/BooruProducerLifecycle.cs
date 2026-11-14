@@ -176,7 +176,7 @@ internal sealed class BooruProducerLifecycle
             // A failed cancellation callback belongs to this cut and must be observed by its caller. Do not issue a
             // second cancellation from RequireRecovery/Stop: CancellationTokenSource cancellation callbacks are not
             // required to be idempotent, and a second call could create an unobserved failure.
-            cancelled = _cutCancellation ??= _cut is null ? Task.CompletedTask : CancelAsync(_cut);
+            cancelled = EnsureCutCancellationLocked();
         }
         // The state above is already synchronous for every caller; callbacks of the cut run asynchronously so that
         // no check continuation executes on the participant's thread.
@@ -231,17 +231,19 @@ internal sealed class BooruProducerLifecycle
         RaiseChanged();
     }
 
-    /// <summary>Synchronous terminal mark of the session stop: nothing new starts, running uses are cancelled.</summary>
+    /// <summary>
+    /// Synchronous terminal fence of the session stop: nothing new starts, the generation is closed and running uses
+    /// are cancelled. Its admission remains owned until the explicit <see cref="StopAsync"/> joins the terminal drain.
+    /// </summary>
     internal void BeginStop()
     {
-        TerminalRelease? release;
         lock (_sync)
         {
             if (_phase == BooruProducerPhase.Stopped && _epoch is null) return;
             _phase = BooruProducerPhase.Stopped;
-            release = PrepareTerminalReleaseLocked();
+            _epoch?.Close();
+            EnsureCutCancellationLocked();
         }
-        StartTerminalRelease(release);
         RaiseChanged();
     }
 
@@ -249,8 +251,16 @@ internal sealed class BooruProducerLifecycle
     internal async Task StopAsync()
     {
         BeginStop();
+        TerminalRelease? releaseToStart;
         Task release;
-        lock (_sync) release = _terminalReleaseTask ?? Task.CompletedTask;
+        lock (_sync)
+        {
+            // Recovery may already own this task. Stop joins it instead of starting a second cleanup or disposing
+            // the same generation twice. A normal stop creates the task only now, after BeginStop's fence.
+            releaseToStart = PrepareTerminalReleaseLocked();
+            release = _terminalReleaseTask ?? Task.CompletedTask;
+        }
+        StartTerminalRelease(releaseToStart);
         await release.ConfigureAwait(false);
     }
 
@@ -261,7 +271,7 @@ internal sealed class BooruProducerLifecycle
     private TerminalRelease? PrepareTerminalReleaseLocked()
     {
         if (_epoch is null || _terminalReleaseTask is not null) return null;
-        Task cancellation = _cutCancellation ??= _cut is null ? Task.CompletedTask : CancelAsync(_cut);
+        Task cancellation = EnsureCutCancellationLocked();
         TaskCompletionSource completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         _terminalReleaseTask = completion.Task;
         return new TerminalRelease(_epoch, _epoch.Close(), cancellation, completion);
@@ -271,10 +281,9 @@ internal sealed class BooruProducerLifecycle
     {
         if (release is null) return;
         _ = CompleteTerminalReleaseAsync(release);
-        // RequireRecovery and BeginStop are synchronous fences. Keep a fault observable for callers that do not
-        // immediately await StopAsync; the terminal phase remains fail-closed rather than turning this into success.
-        _ = release.Completion.Task.ContinueWith(static completed => _ = completed.Exception,
-            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        // Detached recovery cleanup must remain observable for callers that do not immediately await StopAsync; the
+        // terminal phase remains fail-closed rather than turning a cleanup fault into success.
+        ObserveFault(release.Completion.Task);
     }
 
     private async Task CompleteTerminalReleaseAsync(TerminalRelease release)
@@ -325,6 +334,21 @@ internal sealed class BooruProducerLifecycle
 
     private sealed record TerminalRelease(ProfileProducerEpoch Epoch, Task Drain, Task Cancellation,
         TaskCompletionSource Completion);
+
+    private Task EnsureCutCancellationLocked()
+    {
+        if (_cutCancellation is not null) return _cutCancellation;
+        Task cancellation = _cut is null ? Task.CompletedTask : CancelAsync(_cut);
+        _cutCancellation = cancellation;
+        // BeginStop is intentionally a synchronous fence and has no task to return. Observe a callback failure even
+        // during the interval before its owner calls StopAsync; that call still awaits this exact task and preserves
+        // the original fault.
+        ObserveFault(cancellation);
+        return cancellation;
+    }
+
+    private static void ObserveFault(Task task) => _ = task.ContinueWith(static completed => _ = completed.Exception,
+        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
     internal bool IsCurrentGeneration(long generation)
     {
