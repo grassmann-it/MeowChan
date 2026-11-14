@@ -45,7 +45,7 @@ internal static class StatisticsReadabilityChecks
                     host.UpdateLayout();
                     return first.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("123") == true)
                         && first.Header is Grid { Bounds.Width: > 0 };
-                }, () => $"expanded={first.IsExpanded}; header={first.Header is Grid expandedHeader ? expandedHeader.Bounds.ToString() : "<missing>"}");
+                }, () => $"expanded={first.IsExpanded}; header={(first.Header is Grid expandedHeader ? expandedHeader.Bounds.ToString() : "<missing>")}");
                 Require(first.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text?.Contains("123") == true), "Expanded requests disappeared.");
                 Grid header = (Grid)first.Header!;
                 Require(header.Bounds.Width <= host.ClientSize.Width && header.Bounds.Width > 0, "Compact row extends past the viewport.");
