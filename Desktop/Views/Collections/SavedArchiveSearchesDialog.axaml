@@ -1,9 +1,9 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="MeowChan.SavedArchiveSearchesDialog" Width="650" Height="510" MinWidth="480" MinHeight="500"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+        x:Class="MeowChan.SavedArchiveSearchesDialog">
     <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer.
-         The footer wraps its eight actions; the minimum size is sized so that, in the longest of the 12 languages, header,
-         error strip (or status), wrapped footer and a usable body fit together (SavedSearchesFooterBudgetTests). -->
+         The footer wraps its eight actions (filled in code by DialogFooter.Fill, Apply primary right-most); the minimum size
+         (SavedArchiveSearchesDialog.MinimumHeight) is sized so that, in the longest of the 12 languages, header, error strip
+         (or status), wrapped footer and a usable body fit together (SavedSearchesFooterBudgetTests). -->
     <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
             <TextBlock x:Name="SavedSearchHint" TextWrapping="Wrap" />

@@ -29,7 +29,9 @@ public partial class ExperimentalActivationDialog : Window
     {
         _original = _next = target; _activate = activate;
         AvaloniaXamlLoader.Load(this);
-        WindowChrome.WrapContent(this, WindowChromeKind.Dialog);
+        // Modals plan MD3: a modal dialog on the M step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.M, modal: true);
+        MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: true);
         C<Button>("ActivationCancel").Click += (_, _) => Dismiss();
         C<Button>("ActivationConfirm").Click += async (_, _) => await ActivateAsync();
         // A queued initial error reveal must not override a newer user scroll,
@@ -42,12 +44,8 @@ public partial class ExperimentalActivationDialog : Window
         {
             if (e.Property == IsVisibleProperty && !IsVisible) _statusRevealRevision++;
         };
-        KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (!_busy) Dismiss();
-        };
+        // Escape dismisses like Cancel, never while the activation is being saved (the dialog policy).
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _busy, close: Dismiss);
         // A persisted Enable cannot be rolled back by closing the window during Save.
         Closing += (_, e) => { if (_busy) e.Cancel = true; };
         Opened += (_, _) =>

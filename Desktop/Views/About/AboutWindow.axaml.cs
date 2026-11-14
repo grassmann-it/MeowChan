@@ -35,7 +35,9 @@ public partial class AboutWindow : Window
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
         WindowChrome.Apply(this);
-        DialogFit.OnOpen(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: true);
+        AppCaption.Kind = MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         // Documentation/credits pair: both cats side by side in either theme; only the window icon follows the theme.

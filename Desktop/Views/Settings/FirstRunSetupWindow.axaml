@@ -2,8 +2,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:desktop="clr-namespace:MeowChan.Desktop"
         x:Class="MeowChan.Desktop.FirstRunSetupWindow"
-        Width="720" Height="700" MinWidth="440" MinHeight="400"
-        WindowStartupLocation="CenterOwner"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}" Foreground="{DynamicResource Workspace.Text}">
     <Window.Styles>
@@ -15,11 +13,8 @@
              No inner Tab cycle: the window cycle keeps the caption buttons reachable. -->
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
             <Border x:Name="DialogFrameHeader" Padding="20,16,20,8">
-                <StackPanel Spacing="6">
-                    <!-- The welcome heading stays one step above the 16 dip dialog headings: Title (20), the nearest scale step to the former 23. -->
-                    <TextBlock x:Name="SetupHeading" Classes="page-title" FontSize="{StaticResource Workspace.Text.Title}" />
-                    <TextBlock x:Name="SetupIntroduction" Classes="workspace-help" />
-                </StackPanel>
+                <!-- Modals plan MD3: the title stands in the title bar only; the header keeps the introduction. -->
+                <TextBlock x:Name="SetupIntroduction" Classes="workspace-help" />
             </Border>
             <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="20,0,20,8">
                 <Border.IsVisible>

@@ -111,8 +111,9 @@ public partial class ReaderGroupsDialog : Window
     {
         _host = host; _origin = origin;
         AvaloniaXamlLoader.Load(this);
-        WindowChrome.WrapContent(this);
-        DialogFit.OnOpen(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
+        DialogWindow.Wrap(this, modal: true);
         C<ListBox>("Groups").ItemTemplate = new FuncDataTemplate<GroupRow>((row, _) => RowText(row));
         foreach (string list in new[] { "GroupMembers", "GroupCandidates" })
             C<ListBox>(list).ItemTemplate = new FuncDataTemplate<MemberRow>((row, _) => RowText(row));
@@ -134,9 +135,9 @@ public partial class ReaderGroupsDialog : Window
         _reload.Click += async (_, _) => { if (await DiscardAsync()) await LoadAsync(); };
         _recover.Click += async (_, _) => await RecoverAsync();
         _close.Click += async (_, _) => await RequestCloseAsync();
-        C<WrapPanel>("GroupFooter").Children.Add(_reload);
-        C<WrapPanel>("GroupFooter").Children.Add(_recover);
-        C<WrapPanel>("GroupFooter").Children.Add(_close);
+        // Save is the primary action right-most; Close stays left of it, the others before.
+        DialogFooter.Fill(C<Border>("DialogFrameFooter"), _buttons["reader-groups.save"],
+            new Control[] { _reload, _recover, _buttons["reader-groups.read"], _close });
         C<ListBox>("Groups").SelectionChanged += async (_, _) => await ChangeGroupAsync();
         C<TextBox>("GroupName").TextChanged += (_, _) =>
         {
@@ -153,18 +154,15 @@ public partial class ReaderGroupsDialog : Window
             RefreshActions();
         };
         C<TextBox>("GroupSearch").TextChanged += async (_, _) => await SearchAsync();
-        AddHandler(KeyDownEvent, (_, e) =>
+        AddHandler(KeyDownEvent, (_, e) => _router.Route(e), RoutingStrategies.Bubble);
+        // Fixed dismissal only, independent of all freely assigned application gestures (the dialog policy): the open
+        // candidate list is dismissed first, then the dialog asks to close.
+        DialogEscape.Attach(this, tryCancelLocal: () =>
         {
-            if (_router.Route(e)) return;
-            // Fixed dismissal only; all configurable app actions use the central router.
-            if (!e.Handled && e.Key == Key.Escape)
-            {
-                e.Handled = true;
-                if (C<ListBox>("GroupCandidates").IsVisible && C<ListBox>("GroupCandidates").ItemCount > 0)
-                { C<ListBox>("GroupCandidates").IsVisible = false; C<TextBox>("GroupSearch").Focus(); }
-                else _ = RequestCloseAsync();
-            }
-        }, RoutingStrategies.Bubble);
+            if (!C<ListBox>("GroupCandidates").IsVisible || C<ListBox>("GroupCandidates").ItemCount == 0) return false;
+            C<ListBox>("GroupCandidates").IsVisible = false; C<TextBox>("GroupSearch").Focus();
+            return true;
+        }, close: () => _ = RequestCloseAsync());
         Closing += (_, e) =>
         {
             if (_allowClose) return;

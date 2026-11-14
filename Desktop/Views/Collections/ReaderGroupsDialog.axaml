@@ -1,7 +1,8 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
-        x:Class="MeowChan.ReaderGroupsDialog" Width="720" Height="620" MinWidth="480" MinHeight="480"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-  <Grid Margin="16" RowDefinitions="Auto,*,Auto" RowSpacing="12">
+        x:Class="MeowChan.ReaderGroupsDialog">
+  <!-- Modals plan MD3: the content keeps its 16 dip inset in its own grid; the footer spans the window width like every dialog footer. -->
+  <Grid RowDefinitions="*,Auto" KeyboardNavigation.TabNavigation="Cycle">
+  <Grid Margin="16" RowDefinitions="Auto,*" RowSpacing="12">
     <ScrollViewer MaxHeight="96" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="GroupMessage" TextWrapping="Wrap" /></ScrollViewer>
     <Grid x:Name="GroupWorkspace" Grid.Row="1" ColumnDefinitions="220,*" ColumnSpacing="12" RowSpacing="12">
       <Grid x:Name="GroupListPane" RowDefinitions="*,Auto" RowSpacing="8">
@@ -24,7 +25,8 @@
         </StackPanel>
       </ScrollViewer>
     </Grid>
-    <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="-16,0,-16,-16">
+  </Grid>
+    <Border x:Name="DialogFrameFooter" Grid.Row="1" Classes="workspace-dialog-footer">
       <WrapPanel x:Name="GroupFooter" HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="8" />
     </Border>
   </Grid>

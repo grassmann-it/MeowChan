@@ -42,7 +42,9 @@ internal partial class FirstRunSetupWindow : Window
     {
         InitializeComponent();
         WindowChrome.Apply(this);
-        MeowChan.Desktop.DialogFit.OnOpen(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: true);
+        AppCaption.Kind = MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true);
         AppCaption.Attach(this);
         ThemeLogo.Follow(this);
         _baseline = baseline.Clone();
@@ -59,14 +61,15 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationValidator.Shared.CleanupFailed += OnCleanupFailure;
         Opened += (_, _) => { if (!_closed && !_hasAction) SetupFolderInput.Focus(); };
         KeyDown += OnWindowKeyDown;
+        // Escape is the keyboard form of Later and never commits; it is ignored while an admitted write runs.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _committing, close: () => { if (!_closed) Close(); });
     }
 
     // Escape never commits and is ignored while an admitted write runs; Enter in an input accepts only when idle.
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.KeyModifiers != KeyModifiers.None || _closed) return;
-        if (e.Key == Key.Escape && !_committing) { e.Handled = true; Close(); }
-        else if (e.Key == Key.Enter && e.Source is TextBox && !_busy && !_accepting
+        if (e.Key == Key.Enter && e.Source is TextBox && !_busy && !_accepting
             && _result.Outcome != FirstRunSetupOutcome.Completed) { e.Handled = true; OnAcceptClick(this, new RoutedEventArgs()); }
     }
 
@@ -139,7 +142,7 @@ internal partial class FirstRunSetupWindow : Window
 
     private void RefreshLabels()
     {
-        Title = SetupHeading.Text = Texts.T("setup.title");
+        Title = Texts.T("setup.title");
         SetupIntroduction.Text = Texts.T("setup.intro");
         SetupFolderLabel.Text = Texts.T("settings.downloadPath");
         SetupBandwidthLabel.Text = Texts.T("setup.bandwidth");

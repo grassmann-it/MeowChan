@@ -59,8 +59,11 @@ internal partial class PostBookmarksDialog : Window
     internal PostBookmarksDialog(DesktopSessionHost owner, Func<PostBookmarkKey, CancellationToken, Task<bool>> open)
     {
         AvaloniaXamlLoader.Load(this);
-        // Also shown modeless (bookmark list beside the reader), so it keeps minimize.
-        WindowChrome.WrapContent(this);
+        // Also shown modeless (bookmark list beside the reader), so it keeps minimize (modals plan MD3: L step, factory caption).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: false);
+        MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: false);
+        MeowChan.Desktop.Controls.DialogFooter.Fill(this.FindControl<Border>("DialogFrameFooter")!, B("Save"),
+            new Control[] { B("Reload"), B("Cancel") }, this.FindControl<ScrollViewer>("StatusHost"), statusAbove: true);
         _owner = owner; _open = open;
         Title = Texts.T("bookmarks.title");
         Texts.Changed += OnLanguageChanged;
@@ -110,13 +113,9 @@ internal partial class PostBookmarksDialog : Window
         Register("post-bookmarks.save", () => CanSave, SaveAsync);
         Register("post-bookmarks.remove", () => CanRemove, RemoveAsync);
         Register("post-bookmarks.open-target", () => CanOpen, OpenAsync);
-        KeyDown += async (_, e) =>
-        {
-            _router.Route(e);
-            // Bubble handler lets native text/IME handling consume Escape first.
-            if (!e.Handled && e.Key == Key.Escape && !_busy && !_confirming)
-            { e.Handled = true; await RequestCloseAsync(); }
-        };
+        KeyDown += (_, e) => _router.Route(e);
+        // Bubble handler lets native text/IME handling consume Escape first; never while busy or asking (the dialog policy).
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _busy || _confirming, close: () => _ = RequestCloseAsync());
         Opened += (_, _) => { if (_key != null) NoteInput.Focus(); else List.Focus(); };
         Refresh();
     }

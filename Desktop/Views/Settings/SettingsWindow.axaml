@@ -3,7 +3,6 @@
         xmlns:local="clr-namespace:MeowChan" xmlns:desktop="clr-namespace:MeowChan.Desktop"
         x:Class="MeowChan.SettingsWindow" x:DataType="local:SettingsEditor"
         Title="{Binding SettingsTitle}"
-        Width="940" Height="760" MinWidth="480" MinHeight="480" WindowStartupLocation="CenterOwner"
         WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}" Foreground="{DynamicResource Workspace.Text}">
     <Grid RowDefinitions="Auto,*" Background="{DynamicResource Workspace.Background}">
