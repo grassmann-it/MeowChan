@@ -18,6 +18,10 @@
                 <plugins:PluginSelectionList x:Name="SourceCards" Classes="workspace-card-list" SelectionChanged="OnSourceSelectionChanged" KeyDown="OnSourceListKeyDown">
                     <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.Card}" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
                 </plugins:PluginSelectionList>
+                <!-- Read-only media folders are no longer a section here (Settings › Storage and limits, 14.11.2026): one quiet pointer for people who look for them. -->
+                <Button x:Name="SourcesMediaFoldersLink" Classes="subtle" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" IsVisible="False" Click="OnMediaFoldersLinkClick">
+                    <TextBlock Tag="sources.mediaFoldersLink" Classes="workspace-help localized" TextWrapping="Wrap" />
+                </Button>
               </StackPanel>
               <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
                 <StackPanel Spacing="{StaticResource Workspace.Space.12}">

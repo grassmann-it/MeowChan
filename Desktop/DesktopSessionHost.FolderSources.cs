@@ -8,10 +8,10 @@ using MeowChan.FolderSources;
 
 namespace MeowChan.Desktop;
 
-/// <summary>One folder source as the Sources page shows it: the root, its counts and whether it is being scanned right now.</summary>
+/// <summary>One folder source as the media folders group of Settings shows it: the root, its counts and whether it is being scanned right now.</summary>
 internal sealed record FolderSourceView(FolderSourceRoot Root, FolderSourceCounts Counts, bool Scanning);
 
-/// <summary>What the folder sources are doing right now (status line, Sources page).</summary>
+/// <summary>What the folder sources are doing right now (status line, Settings).</summary>
 internal sealed record FolderSourceActivity(Guid? ScanningRoot, FolderSourceScanProgress? ScanProgress, FolderSourceHashStatus Hashing,
     int Files, int Hashed);
 

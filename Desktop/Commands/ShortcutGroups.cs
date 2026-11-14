@@ -60,7 +60,7 @@ public static class ShortcutGroups
             "reader" or "large-reader" => Reader,
             "gallery" => Gallery,
             "settings" => Settings,
-            // The merged pages (goal): plugin commands run on Sources & Plugins, diagnostics and statistics on the Status page.
+            // The merged pages (goal): plugin commands run on the Plugins page, diagnostics and statistics on the Status page.
             "plugins" when Pages.Contains("sources", StringComparer.Ordinal) => "sources",
             "diagnostics" or "statistics" when Pages.Contains("status", StringComparer.Ordinal) => "status",
             _ when Pages.Contains(executionContext, StringComparer.Ordinal) => executionContext,

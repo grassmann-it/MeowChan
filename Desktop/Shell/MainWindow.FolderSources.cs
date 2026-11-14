@@ -12,7 +12,7 @@ using MeowChan.Gallery;
 namespace MeowChan;
 
 // PR2/PR3 (read-only folder sources): the window's side. New files and new digests reach the media page as an index rebuild
-// (at most every MediaRebuildInterval while hashing runs), and the Sources page refreshes its folder list.
+// (at most every MediaRebuildInterval while hashing runs), and the media folders group of the settings page refreshes its folder list.
 public partial class MainWindow
 {
     /// <summary>Fixed: at most this often does folder hashing rebuild the shown media index.</summary>
@@ -45,7 +45,7 @@ public partial class MainWindow
     private void OnFolderSourcesChanged() => Dispatcher.UIThread.Post(() =>
     {
         if (_isClosing) return;
-        _sourcesPage?.RefreshFolderSources();
+        _settingsEditor?.RefreshFolderSources();
         QueueFolderMediaRebuild();
     });
 

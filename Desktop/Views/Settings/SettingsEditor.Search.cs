@@ -527,6 +527,8 @@ public partial class SettingsEditor
         bool firstHeading = pageRoot;
         foreach (Control child in panel.Children.ToArray())
         {
+            // The media folder list is a live view of the host (names, paths, counts), not a setting: its heading is the entry.
+            if (child.Name == "MediaFoldersHost") continue;
             if (child is TextBlock heading && IsSearchHeading(heading))
             {
                 string text = heading.Text ?? string.Empty;
@@ -535,7 +537,7 @@ public partial class SettingsEditor
                 firstHeading = false;
                 if (!pageHeading) group = pageTitle + " › " + text;
                 last = new SearchEntryBuilder { Element = heading, CategoryId = categoryId, Expanders = expanders, Label = text,
-                    Group = pageHeading ? SettingsTitle : pageTitle };
+                    Group = pageHeading ? SettingsTitle : pageTitle, Key = heading.Name == "LimitsFolderSourcesHeading" ? "FolderSourceLimits" : null };
                 output.Add(last);
                 continue;
             }

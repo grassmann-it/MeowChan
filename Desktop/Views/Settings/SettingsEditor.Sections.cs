@@ -46,6 +46,7 @@ public partial class SettingsEditor
             button.IsChecked = selected;
         }
         if (id == "settings.workviews") EnsureWorkViewOverview();
+        if (id == "settings.worker-budgets") EnsureMediaFolders();
         // A regular category entry is not WV12 Details: leave no stale diff, page or text restriction behind.
         if (id == "settings.workviews" && resetWorkViewOverview) _workViewOverview?.SetDifferenceFilter(null);
         if (changed) SettingsScrollViewer.Offset = default;

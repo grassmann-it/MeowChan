@@ -13,7 +13,7 @@ using Ursa.Controls;
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>
-/// Evidence only: the merged Sources & Plugins page over the passive UX fixture at 1440 x 920, 900 x 760 and 860 x 760 (one pane), Dark and Light, EN and DE, so its look
+/// Evidence only: the merged Plugins page over the passive UX fixture at 1440 x 920, 900 x 760 and 860 x 760 (one pane), Dark and Light, EN and DE, so its look
 /// can be compared with the Sources page (smoke-sources-wide-*). Nothing is compiled, described, started or probed; the checks are
 /// limited to passive presentation, dropdown/layer navigation and the selected plugin's visible state action.
 /// </summary>

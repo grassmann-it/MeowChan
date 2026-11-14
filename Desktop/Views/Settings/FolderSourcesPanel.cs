@@ -14,7 +14,7 @@ using MeowChan.FolderSources;
 
 namespace MeowChan.Desktop;
 
-/// <summary>What the folder section of the Sources page needs from the host.</summary>
+/// <summary>What the media folders group of the settings page needs from the host.</summary>
 internal sealed record FolderSourcePanelServices(
     Func<IReadOnlyList<FolderSourceView>> List,
     Func<FolderSourceActivity> Activity,
@@ -26,15 +26,15 @@ internal sealed record FolderSourcePanelServices(
     Action<bool> SetPaused);
 
 /// <summary>
-/// The "Folders" section of the Sources page (PR3): every read-only folder source with its counts, Rescan, Rename and Remove
-/// (asked inline: the folder and its files stay untouched), "Add folder…", and one line about scanning and hashing with a
-/// pause switch for background hashing. Nothing here touches the folders; the host only lists and reads them.
+/// The list of the "Media folders" group in Settings › Storage and limits (PR3; it was a section of the Sources page until
+/// 14.11.2026): every read-only folder source with its counts, Rescan, Rename and Remove (asked inline: the folder and its
+/// files stay untouched), "Add folder…", and one line about scanning and hashing with a pause switch for background hashing.
+/// The heading and the explanation belong to the settings page (they are found by its search). Nothing here touches the
+/// folders; the host only lists and reads them.
 /// </summary>
 internal sealed class FolderSourcesPanel : UserControl
 {
     private readonly FolderSourcePanelServices _services;
-    private readonly TextBlock _title = new() { Name = "FolderSourcesTitle" };
-    private readonly TextBlock _help = new() { Name = "FolderSourcesHelp", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Name = "FolderSourcesStatus", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _blocked = new() { Name = "FolderSourcesBlocked", TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _empty = new() { Name = "FolderSourcesEmpty", TextWrapping = TextWrapping.Wrap };
@@ -59,8 +59,6 @@ internal sealed class FolderSourcesPanel : UserControl
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         Name = "FolderSourcesPanel";
-        _title.Classes.Add("section-title");
-        _help.Classes.Add("workspace-help");
         _status.Classes.Add("workspace-meta");
         _blocked.Classes.Add("workspace-error");
         _empty.Classes.Add("muted");
@@ -70,12 +68,7 @@ internal sealed class FolderSourcesPanel : UserControl
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         WrapPanel toolbar = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _add, _pause } };
         toolbar.Classes.Add("workspace-toolbar");
-        Border section = new()
-        {
-            Child = new StackPanel { Spacing = 8, Children = { _title, _help, _blocked, _status, _rows, _empty, toolbar, _error } }
-        };
-        section.Classes.Add("workspace-section");
-        Content = section;
+        Content = new StackPanel { Spacing = 8, Children = { _blocked, _status, _rows, _empty, toolbar, _error } };
         _add.Click += async (_, _) => await AddAsync();
         _pause.Click += (_, _) =>
         {
@@ -124,8 +117,6 @@ internal sealed class FolderSourcesPanel : UserControl
 
     private void Render()
     {
-        _title.Text = Texts.T("folderSource.section.title");
-        _help.Text = Texts.T("folderSource.section.help");
         _add.Content = Texts.T("folderSource.section.add");
         AutomationProperties.SetName(_add, Texts.T("folderSource.section.add"));
         _blocked.IsVisible = _blockedError != FolderSourceError.None;

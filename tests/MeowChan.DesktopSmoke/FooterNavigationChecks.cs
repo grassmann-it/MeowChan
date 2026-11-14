@@ -150,7 +150,7 @@ internal static class FooterNavigationChecks
 
     private static string DestinationLabel(string name, string language) => (name, language) switch
     {
-        ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Tagging", "de") => "Taggen", ("Rules", "de") => "Regeln", ("Sources", "de") => "Quellen",
+        ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Tagging", "de") => "Taggen", ("Rules", "de") => "Regeln", ("Sources", _) => "Plugins", // the merged page is plain "Plugins" in both languages (14.11.2026)
         ("Settings", "de") => "Einstellungen", _ => name
     };
 

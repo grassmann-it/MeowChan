@@ -12,7 +12,7 @@ namespace MeowChan.Desktop.Commands;
 public static class MainPageOrder
 {
     private const string Prefix = "navigation.";
-    /// <summary>Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status. Tagging sits behind Media and has no
+    /// <summary>Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status. Tagging sits behind Media and has no
     /// default digit (see <see cref="Digit"/>): it is a footer, flyout and ⋯ page, not one of the numbered ones.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> Groups { get; } = Array.AsReadOnly(new IReadOnlyList<string>[]
     {

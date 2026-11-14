@@ -11,8 +11,8 @@ using MeowChan.Interfaces;
 namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_FOLDER_SOURCE_ONLY. PR2/PR3 (read-only folder sources) in a real second shell over a private
-// fixture profile: Sources › Folders › "Add folder…" refuses the download folder, adds a fixture folder and scans it; the Media
-// page shows its three files under "Folders" without hashing them; the gallery opens an unhashed file (hashed on view) and
+// fixture profile: Settings › Storage and limits › Media folders › "Add folder…" (moved from the Plugins page 14.11.2026) refuses the download folder, adds a fixture folder and scans it; the Media
+// page shows its three files under "Folders" (its source label) without hashing them; the gallery opens an unhashed file (hashed on view) and
 // favorites it; "Remove…" asks inline and removes the source. The fixture folder is byte- and timestamp-identical afterwards.
 // Managed input only, no OS folder picker.
 internal static class FolderSourceChecks
@@ -55,12 +55,10 @@ internal static class FolderSourceChecks
         try
         {
             await UntilAsync(() => host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
-            shell.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Sources
-                && shell.FindControl<ContentControl>("SourcesPageHost")!.Content is SourcesPage { FolderSourcesSection: not null });
-            SourcesPage sources = (SourcesPage)shell.FindControl<ContentControl>("SourcesPageHost")!.Content!;
-            FolderSourcesPanel panel = sources.FolderSourcesSection!;
+            await OpenMediaFoldersAsync(shell);
+            FolderSourcesPanel panel = shell.SettingsEditor.FolderSourcesSection!;
             await UntilAsync(() => panel.IsVisible && panel.AddButton.IsEnabled);
+            Require(shell.SettingsEditor.FindControl<TextBlock>("MediaFoldersHeading")!.Text == Texts.T("folderSource.section.title"), "The Media folders heading is missing.");
 
             // "Add folder…" with the download folder is refused with its own sentence; the fixture folder is added.
             string? refusal = null;
@@ -83,7 +81,7 @@ internal static class FolderSourceChecks
             FolderSourceRoot root = host.ListFolderSources().Single().Root;
             string id = FolderSourceIdentity.Format(root.Id);
             await UntilAsync(() => panel.Rows.Children.Count == 1 && Find<TextBlock>(panel, "FolderSourceCounts_" + id)?.Text == Texts.T("folderSource.row.counts", "3", "0", "0"));
-            Program.CaptureWindow(shell, "smoke-folder-source-sources.png");
+            Program.CaptureWindow(shell, "smoke-folder-source-settings.png");
 
             // The Media page lists the three files as unhashed folder tiles of this source.
             shell.FindControl<MenuItem>("MediaMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -108,8 +106,8 @@ internal static class FolderSourceChecks
             await UntilAsync(() => !galleryHost.IsVisible);
 
             // "Remove…" asks inline; confirming removes the source and keeps the favorite.
-            shell.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-            await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Sources && Find<Button>(panel, "FolderSourceRemove_" + id) != null);
+            await OpenMediaFoldersAsync(shell);
+            await UntilAsync(() => Find<Button>(panel, "FolderSourceRemove_" + id) != null);
             Find<Button>(panel, "FolderSourceRemove_" + id)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => Find<Button>(panel, "FolderSourceRemoveConfirm") != null);
             Require(Find<TextBlock>(panel, "FolderSourceRemoveAsk")?.Text == Texts.T("folderSource.remove.ask", "my photos"), "Remove does not ask with the folder's name.");
@@ -123,6 +121,15 @@ internal static class FolderSourceChecks
             await SmokeCleanup.RunAsync(failure, () => CloseAsync(host, shell),
                 exception => Console.Error.WriteLine("SMOKE cleanup failed in FolderSourceChecks: " + exception));
         }
+    }
+
+    // The Settings page on its Storage and limits category, where the Media folders group lives.
+    private static async Task OpenMediaFoldersAsync(MainWindow shell)
+    {
+        shell.FindControl<Button>("SettingsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Settings);
+        await SettingsSectionChecks.OpenAsync(shell.SettingsEditor, "settings.worker-budgets");
+        await UntilAsync(() => shell.SettingsEditor.FolderSourcesSection is { IsEffectivelyVisible: true });
     }
 
     private static T? Find<T>(Control root, string name) where T : Control =>

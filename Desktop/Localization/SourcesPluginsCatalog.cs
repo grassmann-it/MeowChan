@@ -1,15 +1,16 @@
 namespace MeowChan.Desktop.Localization;
 
-/// <summary>Merged Sources & Plugins surface. Parent registers these entries after the parallel localization work.</summary>
+/// <summary>The merged Plugins page (sources, image filters, all plugins). Its footer label is plain "Plugins" (Tom, 14.11.); the command ids stay navigation.sources/navigation.plugins.</summary>
 internal static class SourcesPluginsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
-        ("nav.sources", "Sources & Plugins", "Quellen & Plugins"),
-        ("command.navigation.sources", "Sources & Plugins", "Quellen & Plugins"),
+        ("nav.sources", "Plugins", "Plugins"),
+        ("command.navigation.sources", "Plugins", "Plugins"),
         ("command.navigation.plugins", "Show all plugins", "Alle Plugins anzeigen"),
         ("sources.show", "Show", "Anzeigen"),
         ("sources.subtitle", "Websites, what you watch there and the plugins behind them. Status describes this session, not website availability.", "Websites, was du dort beobachtest, und die Plugins dahinter. Der Status beschreibt diese Sitzung, nicht die Erreichbarkeit der Websites."),
+        ("sources.mediaFoldersLink", "Media folders are in Settings › Storage and limits", "Medienordner stehen unter Einstellungen › Speicher und Grenzen"),
         ("sources.pluginDetails", "Plugin details", "Plugin-Details"),
         ("sources.pluginSummary", "Plugin: {0} · {1}", "Plugin: {0} · {1}"),
         ("sources.backToSource", "Back to source", "Zurück zur Quelle"),

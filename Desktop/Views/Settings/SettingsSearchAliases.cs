@@ -46,6 +46,7 @@ internal static class SettingsSearchAliases
         ["ReaderInlineVideoAutoplayMuted"] = "video autoplay automatic muted sound silent start automatisch stumm ton start",
         ["ReaderInlineVideoMaxPlayers"] = "video players memory limit count instances player speicher grenze anzahl",
         ["ReaderInlineVideoMaxFileMiB"] = "video size large file limit mib megabytes größe groß datei grenze",
+        ["MediaFolders"] = "folder folders directory directories library local files scan rescan hashing add folder ordner medienordner verzeichnis verzeichnisse bibliothek lokale dateien durchsuchen hinzufügen",
         ["ShowShortcutHelp"] = "shortcuts keyboard hints tastenkürzel tastatur hilfe",
         ["DownloadPath"] = "folder directory location target ordner verzeichnis speicherort ziel pfad",
         ["RecheckTimer"] = "interval refresh poll check timer intervall prüfen aktualisieren",
@@ -94,6 +95,7 @@ internal static class SettingsSearchAliases
                 result.Add("limit limits maximum budget quota grenze grenzen höchstens");
             if (key.Contains("Heap", StringComparison.Ordinal) || key.Contains("Workers", StringComparison.Ordinal))
                 result.Add("memory ram performance process worker arbeitsspeicher prozess");
+            if (key.StartsWith("FolderSource", StringComparison.Ordinal)) result.Add("folder folders media folders directory scan hashing ordner medienordner verzeichnis durchsuchen");
             if (key.StartsWith("Import", StringComparison.Ordinal)) result.Add("import einlesen");
             if (key.StartsWith("Export", StringComparison.Ordinal)) result.Add("export ausgabe");
             if (key.Contains("Tag", StringComparison.Ordinal)) result.Add("tags labels schlagwörter");

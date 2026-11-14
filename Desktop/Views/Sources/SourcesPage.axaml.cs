@@ -43,6 +43,14 @@ public partial class SourcesPage : UserControl
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
     /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
     internal Func<int>? GetWatchPreviewRows { get; set; }
+    private Action? _openMediaFolders;
+    /// <summary>Opens Settings at the media folders group; set by the shell. While it is null the pointer under the source list stays hidden.</summary>
+    internal Action? OpenMediaFolders
+    {
+        get => _openMediaFolders;
+        set { _openMediaFolders = value; this.FindControl<Button>("SourcesMediaFoldersLink")!.IsVisible = value != null; }
+    }
+    private void OnMediaFoldersLinkClick(object? sender, RoutedEventArgs e) => _openMediaFolders?.Invoke();
     internal bool IsBusy => _busy || SourcePluginManagement.IsBusy;
     internal event EventHandler? BusyChanged;
 
@@ -208,6 +216,7 @@ public partial class SourcesPage : UserControl
         ToolTip.SetTip(addToDownloads, Texts.T("sources.addInDownloadsHint")
             + (CommandCatalog.ShortcutDisplay("input.focus-url") is string shortcut ? " (" + shortcut + ")" : string.Empty));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
+        AutomationProperties.SetName(this.FindControl<Button>("SourcesMediaFoldersLink")!, Texts.T("sources.mediaFoldersLink"));
         Button emptyAdd = this.FindControl<Button>("SourcesEmptyAdd")!;
         emptyAdd.Content = PluginsPage.IconAndLabel("plus", Texts.T("plugins.add")); AutomationProperties.SetName(emptyAdd, Texts.T("plugins.add")); ToolTip.SetTip(emptyAdd, Texts.T("plugins.add.help"));
         if (row == null) return;

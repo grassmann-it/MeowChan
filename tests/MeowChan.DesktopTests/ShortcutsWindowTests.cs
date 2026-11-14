@@ -28,7 +28,7 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Equal(ShortcutsWindowToggle.Open, ShortcutsWindow.ToggleDecision(open: false));
         Assert.Equal(ShortcutsWindowToggle.Close, ShortcutsWindow.ToggleDecision(open: true));
         Assert.Equal(ShortcutGroups.Reader, ShortcutHelpContext.AreaFor("Archive", largeReaderOpen: true));
-        // The workspace pages of the merged shell (Sources & Plugins, Status with its two segments, the Booru page).
+        // The workspace pages of the merged shell (Plugins, Status with its two segments, the Booru page).
         foreach (string page in new[] { "Downloads", "Archive", "Media", "Booru", "Rules", "Sources", "Status", "Settings" })
             Assert.Equal(page.ToLowerInvariant(), ShortcutHelpContext.AreaFor(page, largeReaderOpen: false));
         Assert.Null(ShortcutHelpContext.AreaFor("About", largeReaderOpen: false));

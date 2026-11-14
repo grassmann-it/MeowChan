@@ -68,7 +68,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             // built-in registration, rather than skipping their old rows or accepting arbitrary non-empty titles.
             (string english, string german) = entry.Key switch
             {
-                "command.navigation.sources" => ("Sources & Plugins", "Quellen & Plugins"),
+                "command.navigation.sources" => ("Plugins", "Plugins"),
                 "command.navigation.plugins" => ("Show all plugins", "Alle Plugins anzeigen"),
                 _ => (entry.English, entry.German)
             };
@@ -89,9 +89,8 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.continue-reading", "Continue reading", "Weiterlesen", "Continuar leyendo", "Continuer la lecture", "Продолжить чтение"),
             ("navigation.archive", "Archive", "Archiv", "Archivo", "Archives", "Архив"),
             ("navigation.rules", "Rules", "Regeln", "Reglas", "Règles", "Правила"),
-            // EN/DE use the WP titles; exact ES/FR/RU expectations still describe the delivered packs.
-            // Parent coordinates those packs and their new wording; do not weaken their exact label checks here.
-            ("navigation.sources", "Sources & Plugins", "Quellen & Plugins", "Fuentes y complementos", "Sources et extensions", "Источники и плагины"),
+            // The merged page is plain "Plugins" again (Tom, 14.11.2026): the pack labels equal their nav.plugins words.
+            ("navigation.sources", "Plugins", "Plugins", "Complementos", "Extensions", "Плагины"),
             ("navigation.diagnostics", "Diagnostics", "Diagnose", "Diagnóstico", "Diagnostics", "Диагностика"),
             ("navigation.status", "Status", "Status", "Estado", "État", "Состояние"),
             ("navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "Mostrar todos los complementos", "Afficher toutes les extensions", "Показать все плагины"),

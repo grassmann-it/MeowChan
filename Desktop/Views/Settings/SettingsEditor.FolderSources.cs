@@ -3,7 +3,7 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// PR2/PR3 (read-only folder sources): their limits in "Storage and limits". Every limit is a setting with default, minimum and
+// PR2/PR3 (read-only folder sources): their limits in "Storage and limits", group "Media folder limits" (the list is the group above it). Every limit is a setting with default, minimum and
 // maximum (Config.FolderSource*); the catalog keeps fixed ceilings of 2,000,000 items and 1,024 characters per path.
 public partial class SettingsEditor
 {
@@ -52,6 +52,7 @@ public partial class SettingsEditor
     private static IEnumerable<string> FolderSourceTextProperties()
     {
         yield return nameof(FolderSourcesGroupLabel);
+        yield return nameof(MediaFoldersLabel); yield return nameof(MediaFoldersHelp); yield return nameof(MediaFoldersLimitsHint);
         yield return nameof(FolderSourceBackgroundHashingLabel);
         yield return nameof(FolderSourceBackgroundHashingHint);
         yield return nameof(FolderSourceMaxFilesLabel); yield return nameof(FolderSourceMaxFilesHint); yield return nameof(FolderSourceMaxFilesHelp);

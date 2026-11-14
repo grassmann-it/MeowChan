@@ -1,6 +1,6 @@
 namespace MeowChan.Desktop.Localization;
 
-// Read-only folder sources (PLAN-POWER-TAGGEN PR2/PR3, E3): the "Folders" section of the Sources page, the add/rename dialog,
+// Read-only folder sources (PLAN-POWER-TAGGEN PR2/PR3, E3): the "Media folders" group of Settings › Storage and limits (it was a section of the Sources page until 14.11.2026), the add/rename dialog,
 // the media page labels and the limits in "Storage and limits". Prefixes reserved for this catalog: folderSource.*,
 // budgets.folderSource*, budgets.group.folderSources. No text names a count with a noun, so no plural variants are needed.
 internal static class FolderSourceTexts
@@ -12,9 +12,11 @@ internal static class FolderSourceTexts
         ("folderSource.media.unknown", "unknown", "unbekannt"),
         ("folderSource.selection.hashing", "Reading folder files before tagging: {0}", "Ordnerdateien werden vor dem Taggen gelesen: {0}"),
 
-        ("folderSource.section.title", "Folders", "Ordner"),
+        ("folderSource.section.title", "Media folders", "Medienordner"),
         ("folderSource.section.help", "Show the media of a folder of your own here without copying it. MeowChan only reads the folder; it never writes, moves or renames anything in it. What MeowChan learns about the files (tags, favorites, ratings) stays in this profile.",
             "Zeige die Medien eines eigenen Ordners hier an, ohne sie zu kopieren. MeowChan liest den Ordner nur; es schreibt, verschiebt oder benennt darin nie etwas um. Was MeowChan über die Dateien weiß (Tags, Favoriten, Bewertungen), bleibt in diesem Profil."),
+        ("folderSource.section.limitsHint", "Limits for these folders (files in total, number of folders, reading) are in the group “Media folder limits” below.",
+            "Grenzen für diese Ordner (Dateien insgesamt, Anzahl der Ordner, Lesen) stehen unten in der Gruppe „Grenzen der Medienordner“."),
         ("folderSource.section.add", "Add folder…", "Ordner hinzufügen…"),
         ("folderSource.section.pause", "Pause reading", "Lesen pausieren"),
         ("folderSource.section.resume", "Resume reading", "Lesen fortsetzen"),
@@ -69,7 +71,7 @@ internal static class FolderSourceTexts
             "Der Ordnerkatalog konnte gerade nicht gelesen oder geschrieben werden, zum Beispiel weil der Datenträger voll oder ausgelastet ist. Versuche es erneut; Details stehen in der Logdatei."),
         ("folderSource.error.unexpected", "The folder could not be checked or saved. Details are in the log file.", "Der Ordner konnte nicht geprüft oder gespeichert werden. Details stehen in der Logdatei."),
 
-        ("budgets.group.folderSources", "Folders", "Ordner"),
+        ("budgets.group.folderSources", "Media folder limits", "Grenzen der Medienordner"),
         ("budgets.folderSourceFiles", "Folders: files in total", "Ordner: Dateien insgesamt"),
         ("budgets.folderSourceFilesHint", "How many files of all added folders MeowChan shows. Lowering the limit keeps every file; looking through a folder only adds no more. Allowed: 1000 to 2000000.",
             "Wie viele Dateien aller hinzugefügten Ordner MeowChan zeigt. Eine niedrigere Grenze behält jede Datei; beim Durchsehen kommen nur keine weiteren hinzu. Erlaubt: 1000 bis 2000000."),

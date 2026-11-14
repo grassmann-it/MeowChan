@@ -32,6 +32,9 @@ internal static class SettingsFieldId
     internal const string ReaderInlineVideoMaxPlayers = nameof(ReaderInlineVideoMaxPlayers);
     internal const string ReaderInlineVideoMaxFileMiB = nameof(ReaderInlineVideoMaxFileMiB);
 
+    /// <summary>The "Media folders" group of Storage and limits (a group, not an input: the Plugins page links to it).</summary>
+    internal const string MediaFolders = nameof(MediaFolders);
+
     /// <summary>The suffix of an input control's name on the settings page.</summary>
     internal const string InputSuffix = "Input";
 

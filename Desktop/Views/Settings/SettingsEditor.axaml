@@ -734,6 +734,14 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ReserveHint}" Classes="workspace-help" />
+                    <!-- Media folders (read-only folder sources, moved here from the Plugins page 14.11.2026): heading and explanation are the
+                         search entry "MediaFolders"; the list below is built by the shell's folder services (SettingsEditor.MediaFolders.cs). -->
+                    <StackPanel x:Name="MediaFolders" Spacing="{StaticResource Workspace.Space.4}" Margin="0,8,0,0">
+                        <TextBlock x:Name="MediaFoldersHeading" Text="{Binding MediaFoldersLabel}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding MediaFoldersHelp}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding MediaFoldersLimitsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ContentControl x:Name="MediaFoldersHost" HorizontalContentAlignment="Stretch" />
                     <Expander x:Name="SettingsLimitsGroup" wv:WorkViewElement.Id="settings.group.limits" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsLimitsBody" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0">
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

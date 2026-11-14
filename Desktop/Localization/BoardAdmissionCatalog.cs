@@ -19,7 +19,7 @@ internal static class BoardAdmissionCatalog
         ("activation.saving", "Saving activation and permission… Closing is available after saving completes.", "Aktivierung und Freigabe werden gespeichert… Schließen ist nach dem Speichern wieder möglich."),
         ("activation.failed", "{0}: activation and permission did not both complete. These URLs were not added. {1}", "{0}: Aktivierung und Freigabe wurden nicht beide abgeschlossen. Diese URLs wurden nicht aufgenommen. {1}"),
         ("activation.actualState", "Saved activation: {0} · Running source: {1} · Saved permission: {2} · Permission in effect: {3}", "Aktivierung gespeichert: {0} · Quelle läuft: {1} · Freigabe gespeichert: {2} · Freigabe wirksam: {3}"),
-        ("activation.stateUnknown", "The current saved state could not be determined. Check Sources and Plugins before trying again.", "Der aktuelle gespeicherte Zustand konnte nicht ermittelt werden. Vor einem neuen Versuch Quellen und Plugins prüfen."),
+        ("activation.stateUnknown", "The current saved state could not be determined. Check Plugins before trying again.", "Der aktuelle gespeicherte Zustand konnte nicht ermittelt werden. Vor einem neuen Versuch Plugins prüfen."),
         ("activation.retryGrant", "Retry permission", "Freigabe erneut speichern"),
         ("activation.retryEnable", "Retry activation and permission", "Aktivierung und Freigabe erneut versuchen"),
         ("activation.retryHint", "Retry explicitly to complete this operation. Closing keeps the actual saved state shown above; it does not undo activation.", "Wiederholen schließt diesen Vorgang ausdrücklich ab. Schließen erhält den oben angezeigten gespeicherten Zustand und nimmt keine Aktivierung zurück."),

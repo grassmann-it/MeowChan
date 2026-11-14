@@ -183,7 +183,7 @@ public sealed class SourcesPluginsMergeTests
             Assert.False(string.IsNullOrWhiteSpace(entry.English)); Assert.False(string.IsNullOrWhiteSpace(entry.German));
             Assert.Equal(entry.English.Count(c => c == '{'), entry.German.Count(c => c == '{'));
         }
-        Assert.Contains(SourcesPluginsCatalog.Entries, entry => entry.Key == "nav.sources" && entry.German == "Quellen & Plugins");
+        Assert.Contains(SourcesPluginsCatalog.Entries, entry => entry.Key == "nav.sources" && entry.English == "Plugins" && entry.German == "Plugins");
     }
 
     private static SourceDescription Source(string id, string name) => new(id, name, new Uri("https://fixture.invalid/"),

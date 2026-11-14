@@ -209,7 +209,7 @@ public partial class MainWindow
 
     /// <summary>
     /// Pages whose control trees are built after the shell's first frame. No gate offers any of them
-    /// before the shell is interactive: Status, Rules, Sources & Plugins stay behind
+    /// before the shell is interactive: Status, Rules, Plugins stay behind
     /// <c>navigationReady</c>/<c>diagnosticsReady</c>, and the early Settings choice reaches its page only
     /// through <see cref="NavigateWorkspace"/>, which builds it first. Keeping them out of the constructor
     /// takes their construction off the path to the first frame.
@@ -221,6 +221,7 @@ public partial class MainWindow
             case 0:
                 _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
                 _settingsEditor.Updates = _session.Updates;
+                _settingsEditor.FolderSources = CreateFolderSourceServices();
                 _settingsEditor.BusyChanged += OnSettingsBusyChanged;
                 // The page is built after the first frame: it starts in the window's view and follows every later change (WV8).
                 _settingsEditor.ApplyWorkView(_workViews.Current, viewChanged: true);
@@ -257,7 +258,8 @@ public partial class MainWindow
                 }, sourceId => ShowStatus(StatusSegment.Diagnostics, sourceId), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
                 {
                     GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows,
-                    FolderSources = CreateFolderSourceServices()
+                    // The media folders live in Settings › Storage and limits since 14.11.2026; a hint under the source list leads there.
+                    OpenMediaFolders = () => ShowSettingsAt(SettingsFieldId.MediaFolders)
                 };
                 _sourcesPage.BusyChanged += OnSettingsBusyChanged;
                 _sourcesPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
@@ -466,7 +468,7 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
-            // Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status | More, Settings):
+            // Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status | More, Settings):
             // the separator behind a group is shown while that group has a visible button, so no two separators meet and
             // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
             Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
