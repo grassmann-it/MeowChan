@@ -30,6 +30,7 @@ public partial class SettingsEditor
         yield return ("settings.updates", SettingsUpdatesPage);
         yield return ("settings.notifications", SettingsNotificationsSection);
         yield return ("settings.behavior", SettingsBehaviorPage);
+        yield return ("settings.workviews", SettingsWorkViewsPage);
         yield return ("settings.shortcuts", ShortcutsEditor);
     }
 
@@ -44,6 +45,7 @@ public partial class SettingsEditor
             bool selected = Equals(button.Tag, id);
             button.IsChecked = selected;
         }
+        if (id == "settings.workviews") EnsureWorkViewOverview();
         if (changed) SettingsScrollViewer.Offset = default;
     }
 
@@ -185,6 +187,7 @@ public partial class SettingsEditor
         };
         AddOptional("settings.notifications", "SettingsNotificationsHeading");
         sections.Add(new("settings.behavior", BehaviorTitle, () => SettingsBehaviorHeading, () => SelectCategory("settings.behavior")));
+        sections.Add(new("settings.workviews", WorkViewsTitle, () => SettingsWorkViewsHeading, () => SelectCategory("settings.workviews")));
         AddOptional("settings.shortcuts", "ShortcutsEditor");
         _sectionNavigation.SetSections(sections);
         SettingsSections.Refresh();

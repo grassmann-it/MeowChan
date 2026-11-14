@@ -87,6 +87,7 @@ public partial class SettingsEditor
     {
         if (_isClosed) return;
         _currentWorkView = view;
+        _workViewOverview?.SetActiveView(view);
         if (_groupSlots == null) return;
         bool structure = false;
         foreach (GroupSlot slot in _groupSlots)

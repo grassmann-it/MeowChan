@@ -477,6 +477,8 @@ public partial class SettingsEditor
         var result = new List<SearchEntryBuilder>();
         foreach ((string id, Control page) in CategoryPages())
         {
+            // The overview filters are not Config fields, even after its table has been built.
+            if (id == "settings.workviews") continue;
             if (page is ShortcutEditor)
             {
                 string title = Texts.T("shortcuts.title");

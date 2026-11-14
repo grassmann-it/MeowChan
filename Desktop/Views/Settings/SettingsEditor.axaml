@@ -63,6 +63,7 @@
         <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="20,12,20,12" MaxWidth="1088" HorizontalAlignment="Center">
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+            <Button x:Name="SettingsMoreButton" Classes="ghost" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
             <Button x:Name="ResetAllSettingsButton" Classes="ghost" Content="{Binding ResetAllLabel}" AutomationProperties.Name="{Binding ResetAllLabel}" Click="OnResetAllClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
             <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" />
         </StackPanel>
@@ -109,6 +110,10 @@
                     </Border>
                     <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
                         <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
+                    <CheckBox x:Name="ShrinkWindowForBarebonesInput" IsChecked="{Binding ShrinkWindowForBarebones, Mode=TwoWay}" AutomationProperties.Name="{Binding ShrinkWindowForBarebonesLabel}" AutomationProperties.HelpText="{Binding ShrinkWindowForBarebonesHint}">
+                        <TextBlock Text="{Binding ShrinkWindowForBarebonesLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding ShrinkWindowForBarebonesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <StackPanel VerticalAlignment="Center" Spacing="4">
@@ -719,6 +724,38 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding MediaIndexMaxThreadsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ArchiveTagFilterTagsPerListFieldLabel" Text="{Binding ArchiveTagFilterTagsPerListLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="ArchiveTagFilterTagsPerListInput" Value="{Binding ArchiveTagFilterTagsPerList, Mode=TwoWay}" Minimum="{Binding ArchiveTagFilterTagsPerListMinimum}" Maximum="{Binding ArchiveTagFilterTagsPerListMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ArchiveTagFilterTagsPerListFieldLabel}" AutomationProperties.Name="{Binding ArchiveTagFilterTagsPerListLabel}" AutomationProperties.HelpText="{Binding ArchiveTagFilterTagsPerListHelp}" />
+                            <TextBlock x:Name="ArchiveTagFilterTagsPerListInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ArchiveTagFilterTagsPerListHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="UrlTextExportLimitMiBFieldLabel" Text="{Binding UrlTextExportLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="UrlTextExportLimitMiBInput" Value="{Binding UrlTextExportLimitMiB, Mode=TwoWay}" Minimum="{Binding UrlTextExportLimitMiBMinimum}" Maximum="{Binding UrlTextExportLimitMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=UrlTextExportLimitMiBFieldLabel}" AutomationProperties.Name="{Binding UrlTextExportLimitMiBLabel}" AutomationProperties.HelpText="{Binding UrlTextExportLimitMiBHelp}" />
+                            <TextBlock x:Name="UrlTextExportLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding UrlTextExportLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="SlashTagSuggestionCountFieldLabel" Text="{Binding SlashTagSuggestionCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="SlashTagSuggestionCountInput" Value="{Binding SlashTagSuggestionCount, Mode=TwoWay}" Minimum="{Binding SlashTagSuggestionCountMinimum}" Maximum="{Binding SlashTagSuggestionCountMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=SlashTagSuggestionCountFieldLabel}" AutomationProperties.Name="{Binding SlashTagSuggestionCountLabel}" AutomationProperties.HelpText="{Binding SlashTagSuggestionCountHelp}" />
+                            <TextBlock x:Name="SlashTagSuggestionCountInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding SlashTagSuggestionCountHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="VideoScrubCacheLimitMiBFieldLabel" Text="{Binding VideoScrubCacheLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="VideoScrubCacheLimitMiBInput" Value="{Binding VideoScrubCacheLimitMiB, Mode=TwoWay}" Minimum="{Binding VideoScrubCacheLimitMiBMinimum}" Maximum="{Binding VideoScrubCacheLimitMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=VideoScrubCacheLimitMiBFieldLabel}" AutomationProperties.Name="{Binding VideoScrubCacheLimitMiBLabel}" AutomationProperties.HelpText="{Binding VideoScrubCacheLimitMiBHelp}" />
+                            <TextBlock x:Name="VideoScrubCacheLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding VideoScrubCacheLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="LimitsQuickTagHeading" Text="{Binding QuickTagGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="QuickTagSuggestionCountFieldLabel" Text="{Binding QuickTagSuggestionCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
@@ -933,6 +970,10 @@
                         <TextBlock Text="{Binding SupportedSources}" Classes="workspace-help" VerticalAlignment="Center" />
                         <Button x:Name="AboutSettingsButton" Grid.Column="1" Click="OnAboutButtonClick" />
                     </Grid>
+                </StackPanel>
+                <StackPanel x:Name="SettingsWorkViewsPage" Spacing="8" IsVisible="False" IsEnabled="{Binding IsEditable}">
+                    <TextBlock x:Name="SettingsWorkViewsHeading" Text="{Binding WorkViewsTitle}" Classes="section-title" TextWrapping="Wrap" />
+                    <ContentControl x:Name="SettingsWorkViewOverviewHost" HorizontalContentAlignment="Stretch" />
                 </StackPanel>
                 <commands:ShortcutEditor x:Name="ShortcutsEditor" IsVisible="False" IsEnabled="{Binding IsEditable}" />
                 <controls:WorkspaceBanner x:Name="SettingsErrorBanner" wv:WorkViewElement.Id="settings.error.banner" Type="Error" IsVisible="{Binding HasError}"><StackPanel Spacing="6">

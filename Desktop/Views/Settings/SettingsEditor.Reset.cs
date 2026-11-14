@@ -196,6 +196,7 @@ public partial class SettingsEditor
         SelectedLanguage = LanguageChoices.FirstOrDefault(item => string.Equals(item.Code, defaults.Language, StringComparison.OrdinalIgnoreCase));
         SelectedWorkspaceMode = Choice(WorkspaceChoices, defaults.WorkspaceMode);
         CompactDensity = defaults.CompactDensity;
+        ShrinkWindowForBarebones = defaults.ShrinkWindowForBarebones;
     }
 
     private void ResetReadingMediaDraft()
@@ -281,6 +282,7 @@ public partial class SettingsEditor
         PostFilterRuleLimit = defaults.PostFilterRuleLimit;
         HiddenPostLimit = defaults.HiddenPostLimit;
         LoadQuickTagDraft(defaults);
+        LoadLimitNumbersDraft(defaults);
 
         ResetNumber(ReserveInput, defaults.MinimumFreeSpaceGiB);
         ResetNumber(ProductionWorkersInput, defaults.PluginMaximumProductionWorkers);
@@ -354,6 +356,7 @@ public partial class SettingsEditor
         MinimizeToTray = defaults.MinimizeToTray;
         CloseToTray = defaults.CloseToTray;
         LoadStatisticsDraft(defaults);
+        StatsHeaderIcons = defaults.StatsHeaderIcons;
         RefreshStatsHeaderGraphChoices(defaults.StatsHeaderGraph);
     }
 

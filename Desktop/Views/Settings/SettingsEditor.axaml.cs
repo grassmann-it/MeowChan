@@ -185,6 +185,7 @@ namespace MeowChan
             set
             {
                 SetField(ref _isAvailable, value, nameof(IsAvailable));
+                if (!value) _settingsExportCancellation?.Cancel();
                 if (!_isClosed)
                 {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
@@ -289,6 +290,7 @@ namespace MeowChan
             LoadReaderDraft(config);
             LoadViewerDraft(config);
             LoadQuickTagDraft(config);
+            LoadLimitsDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -788,6 +790,8 @@ namespace MeowChan
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
             EndResetLifetime();
+            EndSettingsTransferLifetime();
+            EndWorkViewOverviewLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
@@ -885,6 +889,7 @@ namespace MeowChan
             LoadReaderDraft(_config);
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
+            LoadLimitsDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1034,6 +1039,9 @@ namespace MeowChan
                 RaiseReaderTextsChanged();
                 RaiseViewerTextsChanged();
                 RaiseQuickTagTextsChanged();
+                RaiseLimitsTextsChanged();
+                RaiseTransferTextsChanged();
+                RefreshWorkViewOverviewTexts();
                 RaiseResetTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
@@ -1054,6 +1062,7 @@ namespace MeowChan
 
         private void ApplyCommandIcons()
         {
+            MeowChan.Desktop.WorkViews.WorkViewMoreSurface.Apply(SettingsMoreButton, SettingsMoreLabel);
             CommandBindings.ApplyLabeled(BrowseButton, "settings.browse-folder", BrowseLabel);
             CommandBindings.ApplyLabeled(AboutSettingsButton, "navigation.about", AboutLabel);
             CommandBindings.ApplyLabeled(CancelSettingsButton, "settings.discard", CancelLabel);
@@ -1304,6 +1313,7 @@ namespace MeowChan
                 ApplyReaderDraft(candidate);
                 ApplyViewerDraft(candidate);
                 ApplyQuickTagDraft(candidate);
+                ApplyLimitsDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1425,6 +1435,7 @@ namespace MeowChan
             LoadReaderDraft(_config);
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
+            LoadLimitsDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
