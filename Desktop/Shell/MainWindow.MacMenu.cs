@@ -99,6 +99,8 @@ public partial class MainWindow
             case "navigation.about": WorkspaceControl<MenuItem>("AboutMenuItem").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); return;
             case "app.quit": _ = CloseApplicationAsync(); return;
             case "navigation.continue-reading": _ = ResumeLastReadingAsync(); return;
+            // No default gesture: runs directly, like the app-menu entry (a gesture the user assigns reaches the router).
+            case "workspace.view-cycle": _ = CycleWorkViewAsync(); return;
         }
         foreach (string id in node.Commands)
             if (PressMenuGesture(id)) return;

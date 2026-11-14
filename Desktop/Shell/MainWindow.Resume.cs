@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -80,11 +81,15 @@ public partial class MainWindow
 
     private void RefreshReadingResumePresentation()
     {
-        if (this.FindControl<Button>("ContinueReadingButton") is not Button button) return;
+        // The button joins the policy in InitializeReadingResume; before that nothing can be shown anyway.
+        if (this.FindControl<Button>("ContinueReadingButton") is not Button button || WorkViewElement.GetId(button) == null) return;
         bool visible = _config.RememberReadingPosition && _readingResumeState == ReadingResumeState.Present
             && !ReadingResumeContextVisible;
-        bool transferFocus = button.IsKeyboardFocusWithin && !visible;
-        button.IsVisible = visible;
+        // The policy owns the view part of the visibility (a neutral row today); the state part is the reading position.
+        WorkView view = ConfiguredWorkView;
+        bool shown = visible && WorkViewGate.Visible(button, view);
+        bool transferFocus = button.IsKeyboardFocusWithin && !shown;
+        WorkViewGate.Apply(button, view, visible);
         button.IsEnabled = CanResumeReading;
         if (_resumeReadingMenu != null) _resumeReadingMenu.IsEnabled = CanResumeReading;
         if (transferFocus)
@@ -111,6 +116,7 @@ public partial class MainWindow
         ArchivePage.ReadingPositionCaptureAllowed = () => !_isClosing && !_readingPositionForgetPending
             && _config.RememberReadingPosition;
         ArchivePage.ConsciousReadingPositionChanged += SaveConsciousReadingPosition;
+        WorkViewElement.SetId(ContinueReadingButton, "shell.header.continue-reading");
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
         // First entry of the tools group, directly behind the page group's separator.

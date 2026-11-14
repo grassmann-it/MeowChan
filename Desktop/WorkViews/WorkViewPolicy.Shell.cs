@@ -19,6 +19,21 @@ public static partial class WorkViewPolicy
         Same("shell.header.net-graph", WorkViewPage.Shell, WorkViewKind.Derived, Direct),
         new("shell.header.disk-graph", WorkViewPage.Shell, WorkViewKind.Derived, Hidden, Hidden, Direct,
             Alternative: "shell.footer.statistics"),
+        // Header elements (plan §1.1). Neutral rows: the tagline, the graph block (values included) and the title-bar buttons are the
+        // same in every view. The header graph's own layout (setting and window width) never reads a work view; these rows only
+        // register the elements so that a later change of one row is a single edit (WorkViewGate.Apply is already wired).
+        Same("shell.header.tagline", WorkViewPage.Shell, WorkViewKind.Element, Direct),
+        Same("shell.header.graph", WorkViewPage.Shell, WorkViewKind.Element, Required),
+        Same("shell.header.fullscreen", WorkViewPage.Shell, WorkViewKind.Action, Direct, "window.fullscreen"),
+        Same("shell.header.theme", WorkViewPage.Shell, WorkViewKind.Action, Direct, "appearance.theme"),
+        // "Continue reading" shows only while a reading position exists (state); the view does not reduce it. The plan's
+        // "K in Barebones" is not applied: the AP13 header-book smokes require the action in every view.
+        Same("shell.header.continue-reading", WorkViewPage.Shell, WorkViewKind.Action, Direct, "navigation.continue-reading"),
+        // R3/R8: the app menu is complete in every view; the view radio group, the cycle command, theme and fullscreen live there.
+        Same("shell.appmenu.view-group", WorkViewPage.Shell, WorkViewKind.Element, Required, safety: true),
+        Same("shell.appmenu.view-cycle", WorkViewPage.Shell, WorkViewKind.Action, Required, "workspace.view-cycle", safety: true),
+        Same("shell.appmenu.theme", WorkViewPage.Shell, WorkViewKind.Action, Required, "appearance.theme"),
+        Same("shell.appmenu.fullscreen", WorkViewPage.Shell, WorkViewKind.Action, Required, "window.fullscreen"),
         // Footer destinations: Downloads, Settings and Tools ("More") always; the rest direct by view, else in Tools.
         Same("shell.footer.downloads", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.downloads"),
         Same("shell.footer.settings", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.settings"),

@@ -10,7 +10,7 @@ public sealed class MacMenuModelTests
     // Shortcut display strings are localized; the language is process-global, so run serially with the other language tests, in English.
     public MacMenuModelTests() => Texts.SetLanguage("en");
 
-    private static readonly string[] Direct = { "navigation.about", "app.quit", "navigation.continue-reading" };
+    private static readonly string[] Direct = { "navigation.about", "app.quit", "navigation.continue-reading", "workspace.view-cycle" };
     private static readonly EffectiveShortcutBindings Mac = EffectiveShortcutBindings.Build(null, ShortcutPlatform.MacOS);
 
     private static IEnumerable<MacMenuNode> Entries(IEnumerable<MacMenuNode> nodes) => nodes.SelectMany(node =>

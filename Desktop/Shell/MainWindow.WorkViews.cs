@@ -21,6 +21,19 @@ public partial class MainWindow
         WorkViewElement.SetId(WorkspaceModeComboBox, "shell.footer.view-switch");
         WorkViewElement.SetId(PauseButton, "shell.header.pause");
         WorkViewElement.SetId(WorkspaceMenuItem, "shell.header.app-menu");
+        // Header elements with neutral rows: registered so the policy names every one of them. The graph's layout reads the
+        // setting and the window width only, never a work view.
+        WorkViewElement.SetId(WorkspaceSubtitle, "shell.header.tagline");
+        WorkViewElement.SetId(TransferSpeed, "shell.header.graph");
+        WorkViewElement.SetId(FullscreenButton, "shell.header.fullscreen");
+        WorkViewElement.SetId(ThemeToggleButton, "shell.header.theme");
+        InitializeWorkViewMenu();
+        // R13 and the reading action follow a view change at once; the first view needs neither.
+        _workViews.Changed += (_, view) =>
+        {
+            ApplyDownloadsSections(view, viewChanged: true);
+            RefreshReadingResumePresentation();
+        };
     }
 
     // view-barebones|view-simple|view-advanced are for density only (margins, spacing), never for what is shown;
@@ -30,5 +43,7 @@ public partial class MainWindow
         Classes.Set("workspace-advanced", view == WorkView.Advanced);
         foreach (WorkView candidate in WorkViewSetting.All)
             Classes.Set(candidate.StyleClass(), candidate == view);
+        ApplyHeaderWorkView(view);
+        RefreshWorkViewMenu();
     }
 }

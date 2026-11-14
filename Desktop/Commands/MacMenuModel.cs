@@ -54,7 +54,8 @@ public static class MacMenuModel
             })
         }),
         new MacTopMenu("macmenu.view", "view", MainPageOrder.CommandIds.Select(MacMenuNode.Command)
-            .Append(MacMenuNode.Separator).Append(MacMenuNode.Command("window.fullscreen")).ToArray()),
+            .Append(MacMenuNode.Separator).Append(MacMenuNode.Command("workspace.view-cycle"))
+            .Append(MacMenuNode.Command("window.fullscreen")).ToArray()),
         new MacTopMenu("macmenu.go", "go", new[]
         {
             MacMenuNode.Resolving("macmenu.back", "media.return", "reader.history-back", "gallery.return"),

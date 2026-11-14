@@ -283,6 +283,7 @@ public partial class MainWindow : Window
         }
         WorkspaceModeComboBox.IsEnabled = navigationReady;
         ThemeToggleButton.IsEnabled = navigationReady;
+        RefreshWorkViewMenu();
         RefreshDiagnosticPage();
         RefreshSourcesPage();
         RefreshWorkspace();

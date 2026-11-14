@@ -891,5 +891,6 @@ public partial class MainWindow
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
                 if (item.Tag is string tag && MainPageOrder.CommandIds.FirstOrDefault(id => MainPageOrder.Tag(id) == tag) is { } navigationId)
                     CommandBindings.Apply(item, navigationId);
+        RefreshWorkViewMenu();
     }
 }
