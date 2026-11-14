@@ -63,10 +63,12 @@ internal static class DesktopLog
 
     private static int FindHttpStart(string text, int start)
     {
-        if (start >= text.Length) return -1;
-        int http = text.IndexOf("http://", start, StringComparison.OrdinalIgnoreCase);
-        int https = text.IndexOf("https://", start, StringComparison.OrdinalIgnoreCase);
-        return http < 0 ? https : https < 0 ? http : Math.Min(http, https);
+        // A pair of IndexOf calls would rescan the entire suffix for an absent scheme
+        // on every URL (quadratic for a line containing only http or only https).
+        // Advance one cursor and inspect at most the fixed scheme length per character.
+        for (int index = start; index < text.Length; index++)
+            if (text[index] is 'h' or 'H' && IsHttpStartAt(text, index)) return index;
+        return -1;
     }
 
     private static int FindHttpTokenEnd(string text, int start)

@@ -36,6 +36,20 @@ public sealed class CredentialCanaryRedactionReviewTests : IDisposable
         Assert.DoesNotContain(canaries.Secret, output);
     }
 
+    [Theory]
+    [InlineData("http")]
+    [InlineData("https")]
+    [InlineData("HTTP")]
+    public void LongSingleSchemePrefixIsUnchangedAndFinalRelevantUrlIsStillRedacted(string scheme)
+    {
+        // A single-scheme run also exercises the absent-other-scheme search path.
+        // No timing assertion: algorithmic bounds must not depend on machine load.
+        string prefix = string.Concat(Enumerable.Repeat($"{scheme}://foreign.invalid/path ", 2048));
+        Assert.Equal(prefix, DesktopLog.RedactText(prefix));
+        string input = prefix + $"{scheme}://danbooru.donmai.us/posts?api_key=CANARY-SUFFIX\nnext line";
+        Assert.Equal(prefix + "[Danbooru address]\nnext line", DesktopLog.RedactText(input));
+    }
+
     [Fact]
     public void LineRemainderIsConsumedOnlyAfterAnActualDanbooruAuthority()
     {
