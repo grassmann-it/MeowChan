@@ -22,6 +22,16 @@ internal interface IGalleryTagPanelOwner
 {
     /// <summary>A target frozen to exactly this entry (the same resolver as the full dialog), or null with the reason the medium cannot be tagged.</summary>
     IQuickTagTarget? OpenTarget(GalleryEntry entry, out string? unavailableReason);
+    /// <summary>
+    /// The exact tag subject of an entry (the same resolver as <see cref="OpenTarget"/>), or null with the reason it cannot be
+    /// tagged: marking needs it, and a medium without one is refused with that reason.
+    /// </summary>
+    MediaTagSubject? SubjectOf(GalleryEntry entry, out string? unavailableReason);
+    /// <summary>
+    /// A target over exactly these subjects (the marked media): one session whose chips are tri-state and whose writes cover all of
+    /// them at once. Null with the reason when the tag index is unavailable.
+    /// </summary>
+    IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason);
     /// <summary>The list the gallery walks (read on the UI thread only; the panel copies what it needs).</summary>
     IReadOnlyList<GalleryEntry> Entries { get; }
     GalleryTagPanelPosition? Position { get; }
@@ -36,15 +46,24 @@ internal interface IGalleryTagPanelOwner
     void OpenAdvanced(GalleryEntry entry);
 }
 
+/// <summary>What a mark request did: the outcome, the medium's file name, how many media are marked now and, for a refusal, why.</summary>
+internal sealed record GalleryMarkResult(GalleryMarkOutcome Outcome, string Label, int Count, int Limit, string? Reason = null)
+{
+    /// <summary>True when the set of marks changed (the target must be made again).</summary>
+    internal bool Changed => Outcome is GalleryMarkOutcome.Marked or GalleryMarkOutcome.Unmarked;
+}
+
 /// <summary>What the surface shows for one medium: the frozen target, the file name, the counter text and, for a medium that cannot be tagged, the reason.</summary>
 internal sealed record GalleryTagPanelFrame(IQuickTagTarget Target, string Label, string? Counter, string? UnavailableReason);
 
 /// <summary>The commands the gallery tag panel handles and how a command maps onto a key action of the surface.</summary>
 internal static class GalleryTagPanelCommands
 {
-    /// <summary>Handled here. Marking (Shift+Page Down/Up) is the batch package's; those ids stay unwired.</summary>
+    /// <summary>Handled here, and so the ids <see cref="QuickTagCommands"/> counts as wired: paging, commit and next, marking
+    /// (Shift+Page Down/Up, TP4), the thread section, undo and the nine suggestion toggles.</summary>
     internal static IReadOnlyList<string> Handled { get; } = Array.AsReadOnly(
-        new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.ThreadSection, QuickTagCommands.Undo }
+        new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious,
+            QuickTagCommands.ThreadSection, QuickTagCommands.Undo }
             .Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray());
 
     /// <summary>The surface action of a handled command; null for any other id.</summary>
@@ -55,6 +74,8 @@ internal static class GalleryTagPanelCommands
             case QuickTagCommands.Next: return new(QuickTagKeyAction.Next);
             case QuickTagCommands.Previous: return new(QuickTagKeyAction.Previous);
             case QuickTagCommands.CommitNext: return new(QuickTagKeyAction.CommitAndNext);
+            case QuickTagCommands.MarkNext: return new(QuickTagKeyAction.MarkNext);
+            case QuickTagCommands.MarkPrevious: return new(QuickTagKeyAction.UnmarkPrevious);
             case QuickTagCommands.ThreadSection: return new(QuickTagKeyAction.ThreadSection);
             case QuickTagCommands.Undo: return new(QuickTagKeyAction.Undo);
         }
@@ -63,18 +84,44 @@ internal static class GalleryTagPanelCommands
         return null;
     }
 
-    /// <summary>How far a navigation request moves the gallery: +1 / -1; 0 for marking, which the batch package wires.</summary>
+    /// <summary>How far a navigation request moves the gallery: +1 / -1; marking moves like paging (down, then up) and also changes the marks.</summary>
     internal static int Delta(QuickTagNavigation navigation) => navigation switch
     {
-        QuickTagNavigation.Next => 1,
-        QuickTagNavigation.Previous => -1,
+        QuickTagNavigation.Next or QuickTagNavigation.MarkNext => 1,
+        QuickTagNavigation.Previous or QuickTagNavigation.UnmarkPrevious => -1,
         _ => 0
     };
 
-    /// <summary>"Medium 4 of 27" for the counter chip and the live region; null without a position.</summary>
-    internal static string? CounterText(GalleryTagPanelPosition? position) => position is not { } value ? null
-        : Texts.T(value.More ? "tags.quick.gallery.positionMore" : "tags.quick.gallery.position",
+    /// <summary>"Medium 4 of 27" for the counter chip and the live region; with <paramref name="marked"/> "Medium 4 of 27 · marked".
+    /// Null without a position.</summary>
+    internal static string? CounterText(GalleryTagPanelPosition? position, bool marked = false)
+    {
+        if (position is not { } value) return null;
+        string text = Texts.T(value.More ? "tags.quick.gallery.positionMore" : "tags.quick.gallery.position",
             value.Number.ToString(Texts.Culture), value.Count.ToString(Texts.Culture));
+        return marked ? Texts.T("tags.quick.marked.counter", text) : text;
+    }
+
+    /// <summary>What the polite status line says after a mark request; null when nothing changed and nothing needs saying.</summary>
+    internal static string? MarkAnnouncement(GalleryMarkResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        string total = result.Count.ToString(Texts.Culture);
+        return result.Outcome switch
+        {
+            GalleryMarkOutcome.Marked => Texts.T("tags.quick.marked.announce.added", result.Label, total),
+            GalleryMarkOutcome.Unmarked => Texts.T("tags.quick.marked.announce.removed", result.Label, total),
+            GalleryMarkOutcome.AlreadyMarked => Texts.T("tags.quick.marked.announce.already", result.Label, total),
+            GalleryMarkOutcome.LimitReached => Texts.T("tags.quick.marked.announce.limit", result.Limit),
+            GalleryMarkOutcome.Unavailable => Texts.T("tags.quick.marked.announce.unavailable", result.Label, result.Reason ?? string.Empty),
+            _ => null
+        };
+    }
+
+    internal static string ClearedAnnouncement() => Texts.T("tags.quick.marked.announce.cleared");
+
+    /// <summary>The label of a selection target: "3 media files".</summary>
+    internal static string SelectionLabel(int count) => Texts.Count("tags.quick.files", count);
 
     internal static string LabelOf(GalleryEntry entry) =>
         entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName ?? Path.GetFileName(entry.Asset.Path);
@@ -107,33 +154,42 @@ internal sealed class GalleryTagUnavailableTarget : IQuickTagTarget
 /// The panel's model without UI: the quick tag session over a target per shown medium, the context suggestions with their
 /// off-thread warm-up, the neighbour list, and the session-wide recent list fed by every accepted change. A medium switch is
 /// <see cref="Frame"/>: a new frozen target (the undo stack stays), the file name and counter, and a new context.
-/// Disposing it (the panel closed) cancels every background step.
+/// With marks (E4, <see cref="Marks"/>) the target is one selection over the marked media instead, for every shown medium; it is made
+/// again only when the marks change, and every step keeps the exact subjects it wrote, so an undo does not follow later marks.
+/// Disposing it (the panel closed) cancels every background step; the marks belong to the gallery and stay.
 /// </summary>
 internal sealed class GalleryTagPanelController : IDisposable
 {
     private readonly IGalleryTagPanelOwner _owner;
+    private IQuickTagTarget? _selection;
+    private int _selectionRevision = -1;
     private GalleryTagNeighbourSubjects? _neighbours;
     private CancellationTokenSource? _fill;
     private bool _disposed;
 
-    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry)
+    private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks)
     {
         _owner = owner;
         Entry = entry;
+        Marks = marks;
         Suggestions = new GalleryTagPanelSuggestions(owner.ContextOptions) { Recent = () => owner.Recent.Snapshot() };
         IQuickTagTarget target = Resolve(entry, out string? reason);
         UnavailableReason = reason;
-        Session = new QuickTagSession(target, owner.Options.UndoDepth) { Label = GalleryTagPanelCommands.LabelOf(entry) };
+        Session = new QuickTagSession(target, owner.Options.UndoDepth)
+        { Label = marks.Count > 0 ? GalleryTagPanelCommands.SelectionLabel(marks.Count) : GalleryTagPanelCommands.LabelOf(entry) };
         Session.Applied += OnApplied;
         Suggestions.Context = Context(entry);
     }
 
-    /// <summary>Creates the controller for the entry the panel opens on and starts warming the suggestion index for the current snapshot.</summary>
-    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry)
+    /// <summary>
+    /// Creates the controller for the entry the panel opens on and starts warming the suggestion index for the current snapshot.
+    /// <paramref name="marks"/> is the gallery's mark set (kept across panel openings); null starts an empty one.
+    /// </summary>
+    internal static GalleryTagPanelController Create(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks? marks = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentNullException.ThrowIfNull(entry);
-        GalleryTagPanelController controller = new(owner, entry);
+        GalleryTagPanelController controller = new(owner, entry, marks ?? new GalleryMarks(owner.Options.MarkedMediaLimit));
         // Off the UI thread, before the first strip is asked for: the surface then finds the index warm or answers from the cold path.
         if (controller.Session.Snapshot is { } snapshot) controller.Suggestions.Warm(snapshot);
         return controller;
@@ -143,12 +199,73 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal GalleryTagPanelSuggestions Suggestions { get; }
     internal GalleryEntry Entry { get; private set; }
     internal string? UnavailableReason { get; private set; }
+    /// <summary>The media marked for one tag change. While it has any, the session writes to them all, whichever medium is shown.</summary>
+    internal GalleryMarks Marks { get; }
 
     private IQuickTagTarget Resolve(GalleryEntry entry, out string? reason)
     {
+        if (Marks.Count > 0) return Selection(out reason);
         IQuickTagTarget? target = _owner.OpenTarget(entry, out reason);
         return target ?? new GalleryTagUnavailableTarget(reason);
     }
+
+    // One target per marks revision: paging through the gallery does not make it again (only reloads its snapshot).
+    private IQuickTagTarget Selection(out string? reason)
+    {
+        reason = null;
+        if (_selection != null && _selectionRevision == Marks.Revision)
+        {
+            _selection.Reload();
+            return _selection;
+        }
+        _selection = null;
+        IQuickTagTarget? target = _owner.OpenSelectionTarget(Marks.Snapshot(), out reason);
+        if (target == null) return new GalleryTagUnavailableTarget(reason);
+        _selectionRevision = Marks.Revision;
+        return _selection = target;
+    }
+
+    /// <summary>The medium the gallery shows now: the owner's position is current as soon as a move is requested, before the picture changes.</summary>
+    internal GalleryEntry ShownEntry() => EntryAt(_owner.Position is { } position ? position.Number - 1 : -1) ?? Entry;
+
+    /// <summary>The medium before the shown one, or null at the start of the list.</summary>
+    internal GalleryEntry? PreviousEntry() => EntryAt(_owner.Position is { } position ? position.Number - 2 : -1);
+
+    private GalleryEntry? EntryAt(int index)
+    {
+        IReadOnlyList<GalleryEntry> entries = _owner.Entries;
+        return index >= 0 && index < entries.Count ? entries[index] : null;
+    }
+
+    /// <summary>True when the entry's own tag subject is marked.</summary>
+    internal bool IsMarked(GalleryEntry entry) =>
+        Marks.Count > 0 && _owner.SubjectOf(entry, out _) is { } subject && Marks.IsMarked(subject);
+
+    /// <summary>Marks the medium (Shift+Page Down). A medium that cannot be tagged is refused with the reason; marking is never a guess.</summary>
+    internal GalleryMarkResult Mark(GalleryEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        Marks.Limit = _owner.Options.MarkedMediaLimit; // the setting may have changed since the panel opened
+        string label = GalleryTagPanelCommands.LabelOf(entry);
+        if (_owner.SubjectOf(entry, out string? reason) is not { } subject)
+            return new GalleryMarkResult(GalleryMarkOutcome.Unavailable, label, Marks.Count, Marks.Limit, reason);
+        return new GalleryMarkResult(Marks.Mark(subject), label, Marks.Count, Marks.Limit);
+    }
+
+    /// <summary>Takes the mark off the medium (Shift+Page Up on the one it goes back to).</summary>
+    internal GalleryMarkResult Unmark(GalleryEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        string label = GalleryTagPanelCommands.LabelOf(entry);
+        GalleryMarkOutcome outcome = _owner.SubjectOf(entry, out _) is { } subject ? Marks.Unmark(subject) : GalleryMarkOutcome.NotMarked;
+        return new GalleryMarkResult(outcome, label, Marks.Count, Marks.Limit);
+    }
+
+    /// <summary>Removes every mark; the panel then writes to the shown medium again. Returns how many there were.</summary>
+    internal int ClearMarks() => Marks.Clear();
+
+    /// <summary>The counter chip's text for <paramref name="entry"/>: position, with "marked" when this medium is.</summary>
+    internal string? CounterFor(GalleryEntry entry) => GalleryTagPanelCommands.CounterText(_owner.Position, IsMarked(entry));
 
     /// <summary>
     /// Moves the panel to <paramref name="entry"/>: a fresh target frozen to exactly that entry, the session's medium name and the
@@ -161,10 +278,10 @@ internal sealed class GalleryTagPanelController : IDisposable
         Entry = entry;
         IQuickTagTarget target = Resolve(entry, out string? reason);
         UnavailableReason = reason;
-        string label = GalleryTagPanelCommands.LabelOf(entry);
+        string label = Marks.Count > 0 ? GalleryTagPanelCommands.SelectionLabel(Marks.Count) : GalleryTagPanelCommands.LabelOf(entry);
         Session.Label = label;
         Suggestions.Context = Context(entry);
-        return new GalleryTagPanelFrame(target, label, GalleryTagPanelCommands.CounterText(_owner.Position), reason);
+        return new GalleryTagPanelFrame(target, label, CounterFor(entry), reason);
     }
 
     /// <summary>What is known about the medium: thread, bytes, file name, subject, neighbours of the list, session-recent tags.</summary>

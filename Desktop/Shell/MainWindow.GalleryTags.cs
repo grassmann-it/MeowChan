@@ -53,6 +53,29 @@ public partial class MainWindow
                 window._session.DefineAndSetMediaSubjectTagAsync, window._session.SetMediaSubjectTagAsync));
         }
 
+        public MediaTagSubject? SubjectOf(GalleryEntry entry, out string? unavailableReason)
+        {
+            MediaTagSubject? subject = MediaTagSubjects.Of(entry, out GalleryMediaTagUnavailable reason);
+            unavailableReason = subject == null ? MediaMenuReasons.Tags(reason, BooruMediaIdentity.IsBooruThread(entry.Key.Thread)) : null;
+            return subject;
+        }
+
+        // The marked media as one selection: one admitted write for all of them, bound to the revision the panel shows (the same
+        // services as "Tag the selection" on the media page).
+        public IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason)
+        {
+            PrivateTagLoadSnapshot loaded = window._session.GetPublishedPrivateTagSnapshot();
+            if (loaded.State != PrivateTagLoadState.Ready || loaded.Snapshot == null)
+            {
+                unavailableReason = Texts.T("tags.unavailable");
+                return null;
+            }
+            unavailableReason = null;
+            return QuickTagTarget.For(MediaSelectionTagSession.ForSubjects(subjects, window._session.GetPublishedPrivateTagSnapshot,
+                (name, many, revision, token) => window._session.DefineAndSetMediaSubjectTagsAsync(name, many, revision, token),
+                (tag, many, assigned, revision, token) => window._session.SetMediaSubjectTagsAsync(tag, many, assigned, revision, token)));
+        }
+
         public IReadOnlyList<GalleryEntry> Entries => window._galleryEntries;
 
         public GalleryTagPanelPosition? Position => window._galleryIndex >= 0 && window._galleryIndex < window._galleryEntries.Count
@@ -61,7 +84,7 @@ public partial class MainWindow
 
         public TagRecentList Recent => window.QuickTagRecent;
 
-        // New panels use the saved profile limits; an open panel retains its undo history and current operation.
+        // New panels use the saved profile limits (TP5, MarkedMediaLimit included); an open panel retains its undo history and current operation.
         public QuickTagOptions Options => QuickTagSettings.SurfaceOptions(window._config);
         public TagContextOptions ContextOptions => QuickTagSettings.ContextOptions(window._config);
 

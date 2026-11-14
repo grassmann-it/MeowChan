@@ -31,13 +31,20 @@ public static class QuickTagCommands
         new[] { Next, Previous, CommitNext, MarkNext, MarkPrevious, ThreadSection, Undo }
             .Concat(Enumerable.Range(1, SuggestionCount).Select(Suggestion)).ToArray());
 
-    /// <summary>Ids whose handler is wired. The package that wires one (TP2 panel, TP3 popover) adds it here: the command then
-    /// counts as implemented, its default gesture becomes active and the gallery help lists it.</summary>
+    /// <summary>Ids whose handler is wired. The package that wires one (TP2 panel, TP4 marking, TP3 popover) adds it here: the command
+    /// then counts as implemented, its default gesture becomes active and the gallery help lists it.</summary>
     // TP2 wired the gallery panel: paging, commit-and-next, the thread section, undo and the nine toggles (GalleryTagPanelCommands.Handled).
-    // Still unwired: the batch marking (mark-next, mark-previous) of the marking package, and the popover of TP3 for the other contexts.
-    private static readonly string[] Wired = new[] { Next, Previous, CommitNext, ThreadSection, Undo }
+    // TP4 wired the marking (mark-next, mark-previous): GalleryViewer.OnTagNavigationRequested marks or unmarks and moves.
+    private static readonly string[] Wired = new[] { Next, Previous, CommitNext, MarkNext, MarkPrevious, ThreadSection, Undo }
         .Concat(Enumerable.Range(1, SuggestionCount).Select(Suggestion)).ToArray();
 
+    /// <summary>Ids of <paramref name="all"/> that are not in <paramref name="wired"/>: registered, but without a handler.</summary>
+    internal static IReadOnlySet<string> Unwired(IEnumerable<string> all, IEnumerable<string> wired) =>
+        new HashSet<string>(all.Except(wired, StringComparer.Ordinal), StringComparer.Ordinal);
+
+    /// <summary>The ids that count as wired.</summary>
+    internal static IReadOnlyList<string> WiredIds => Array.AsReadOnly(Wired);
+
     /// <summary>Registered commands whose handler is not wired yet.</summary>
-    public static IReadOnlySet<string> AwaitingHandler { get; } = new HashSet<string>(All.Except(Wired), StringComparer.Ordinal);
+    public static IReadOnlySet<string> AwaitingHandler { get; } = Unwired(All, Wired);
 }

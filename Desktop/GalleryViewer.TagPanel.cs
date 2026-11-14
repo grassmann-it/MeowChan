@@ -27,12 +27,16 @@ internal sealed partial class GalleryViewer
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
     private IGalleryTagPanelOwner? _tagOwner;
+    // The media marked in the gallery (Shift+Page Down, E4): gallery state, kept while the panel closes and opens again.
+    private GalleryMarks? _marks;
     private bool _tagPanelOpen;
 
     /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
     internal bool IsTagPanelOpen => _tagPanelOpen;
     internal QuickTagSurface? TagSurface => _tagSurface;
     internal GalleryTagPanelController? TagPanelController => _tagController;
+    /// <summary>The media marked for one tag change; null until the tag panel was opened once.</summary>
+    internal GalleryMarks? Marks => _marks;
 
     // While the tag panel holds the slot the post context is neither built nor current.
     private bool PostContextVisible => _contextOpen && !_tagPanelOpen;
@@ -51,11 +55,13 @@ internal sealed partial class GalleryViewer
             _tagSurface?.FocusField();
             return;
         }
-        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry);
+        _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
+        GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, ReadSourceTags = owner.ReadSourceTags };
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+        surface.CounterText = controller.CounterFor(entry);
+        surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
@@ -66,6 +72,7 @@ internal sealed partial class GalleryViewer
         surface.CloseRequested += CloseTagPanel;
         surface.AdvancedRequested += OnTagAdvancedRequested;
         surface.NavigationRequested += OnTagNavigationRequested;
+        surface.MarksClearRequested += OnTagMarksClearRequested;
         surface.ThreadSectionRequested += OnTagThreadSectionRequested;
         controller.Suggestions.Ready += OnTagSuggestionsReady;
         _tagController = controller;
@@ -106,6 +113,7 @@ internal sealed partial class GalleryViewer
             surface.CloseRequested -= CloseTagPanel;
             surface.AdvancedRequested -= OnTagAdvancedRequested;
             surface.NavigationRequested -= OnTagNavigationRequested;
+            surface.MarksClearRequested -= OnTagMarksClearRequested;
             surface.ThreadSectionRequested -= OnTagThreadSectionRequested;
         }
         if (controller != null) controller.Suggestions.Ready -= OnTagSuggestionsReady;
@@ -139,13 +147,14 @@ internal sealed partial class GalleryViewer
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            surface.CounterText = GalleryTagPanelCommands.CounterText(owner.Position);
+            surface.CounterText = controller.CounterFor(entry);
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
         surface.CounterText = frame.Counter;
+        surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
         // The field stays focused while paging: a focus lost with the replaced chips returns to it.
@@ -172,9 +181,54 @@ internal sealed partial class GalleryViewer
 
     private void OnTagNavigationRequested(QuickTagNavigation navigation)
     {
-        // Marking for a batch (Shift+Page Down/Up) is the batch package's; until it is wired it moves nothing.
+        if (_tagController is { } controller && _tagSurface != null)
+        {
+            // Shift+Page Down marks the shown medium and goes on; Shift+Page Up goes back and takes the mark off the medium it reaches.
+            // The shown medium is read from the owner's position, which is current at once, so quick repeats mark each medium once.
+            if (navigation == QuickTagNavigation.MarkNext)
+            {
+                ApplyMarkResult(controller.Mark(controller.ShownEntry()));
+                Move(1);
+                return;
+            }
+            if (navigation == QuickTagNavigation.UnmarkPrevious)
+            {
+                if (controller.PreviousEntry() is not { } previous) return;
+                ApplyMarkResult(controller.Unmark(previous));
+                Move(-1);
+                return;
+            }
+        }
         int delta = GalleryTagPanelCommands.Delta(navigation);
         if (delta != 0) Move(delta);
+    }
+
+    // The counter chip's clear button: every mark goes and the panel writes to the shown medium again.
+    private void OnTagMarksClearRequested()
+    {
+        if (_tagController is not { } controller || _tagSurface is not { } surface) return;
+        if (controller.ClearMarks() == 0) return;
+        RetargetForMarks(controller, surface);
+        surface.Announce(GalleryTagPanelCommands.ClearedAnnouncement());
+        surface.FocusField();
+    }
+
+    // A mark request changed (or refused to change) the marks: the target is made again, the chips, the counter and the status say so.
+    private void ApplyMarkResult(GalleryMarkResult result)
+    {
+        if (_tagController is not { } controller || _tagSurface is not { } surface) return;
+        if (result.Changed) RetargetForMarks(controller, surface);
+        surface.Announce(GalleryTagPanelCommands.MarkAnnouncement(result));
+    }
+
+    private void RetargetForMarks(GalleryTagPanelController controller, QuickTagSurface surface)
+    {
+        GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
+        surface.Retarget(frame.Target, frame.Label);
+        // The owner's position may already be on the next medium (a move was requested): the counter names that one.
+        surface.CounterText = controller.CounterFor(controller.ShownEntry());
+        surface.MarkedCount = controller.Marks.Count;
+        ShowUnavailableReason(frame.UnavailableReason);
     }
 
     // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.

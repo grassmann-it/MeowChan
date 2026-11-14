@@ -194,6 +194,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly SourceTagSuggestions _sourceTags = new();
     private readonly Border _counter;
     private readonly TextBlock _counterLabel;
+    // Gallery marking (E4): "3 marked" with a button that clears the marks; shown below the field while the host has marks.
+    private readonly Border _markedBadge;
+    private readonly TextBlock _markedLabel;
+    private readonly Button _markedClear = new() { Classes = { "subtle" } };
+    private readonly StackPanel _markBar;
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
     private readonly IdentitySuggestionBox _input = new();
@@ -217,6 +222,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IReadOnlyList<QuickTagSuggestion> _shown = Array.Empty<QuickTagSuggestion>();
     private string _targetLabel = string.Empty;
     private string? _counterText;
+    private int _markedCount;
+    // A short host notice (a mark was set or refused) in the polite status line; it gives way to the next step's status.
+    private string? _notice;
+    private QuickTagStatus? _noticeBase;
     private bool _compact;
     private bool _attached;
     private bool _disposed;
@@ -234,11 +243,18 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
         _undo.Name = _name + "Undo"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
+        _markedClear.Name = _name + "MarkedClear";
 
         _counter = WorkspaceChips.CreateBadge(_name + "Counter", string.Empty, compact: true);
         _counterLabel = (TextBlock)_counter.Child!;
         _counter.IsVisible = false;
         _counter.VerticalAlignment = VerticalAlignment.Center;
+
+        _markedBadge = WorkspaceChips.CreateBadge(_name + "Marked", string.Empty, compact: true);
+        _markedLabel = (TextBlock)_markedBadge.Child!;
+        _markedBadge.VerticalAlignment = VerticalAlignment.Center;
+        AutomationProperties.SetLiveSetting(_markedBadge, AutomationLiveSetting.Polite);
+        _markBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = false, Name = _name + "MarkBar", Children = { _markedBadge, _markedClear } };
 
         // Header: counter and title on the left, the close button alone at the right edge (owner rule 14.11.), 24 dip apart at least.
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,24,Auto"), ColumnSpacing = 0, Name = _name + "Header" };
@@ -269,7 +285,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 12 };
         layout.Children.Add(header);
-        layout.Children.Add(_input); Grid.SetRow(_input, 1);
+        // The field with the marks bar under it (a single row, so a hidden bar leaves no gap).
+        StackPanel fieldArea = new() { Spacing = 8, Children = { _input, _markBar }, Name = _name + "Field" };
+        layout.Children.Add(fieldArea); Grid.SetRow(fieldArea, 1);
         layout.Children.Add(scroll); Grid.SetRow(scroll, 2);
         layout.Children.Add(_status); Grid.SetRow(_status, 3);
         layout.Children.Add(actions); Grid.SetRow(actions, 4);
@@ -282,6 +300,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _strip.PropertyChanged += OnStripPropertyChanged;
         _close.Click += OnClose;
+        _markedClear.Click += OnMarkedClear;
         _undo.Click += OnUndo;
         _advanced.Click += OnAdvanced;
         _more.Click += OnMore;
@@ -329,6 +348,28 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         set { _counterText = value; RefreshTexts(); }
     }
 
+    /// <summary>How many media the host has marked ("3 marked" with a clear button under the field); 0 hides the bar.</summary>
+    internal int MarkedCount
+    {
+        get => _markedCount;
+        set { value = Math.Max(0, value); if (_markedCount == value) return; _markedCount = value; RefreshTexts(); }
+    }
+
+    internal Border MarkedBadge => _markedBadge;
+    internal StackPanel MarkBar => _markBar;
+    internal Button MarkedClearButton => _markedClear;
+
+    /// <summary>
+    /// Says <paramref name="text"/> once in the polite status line (a medium was marked, unmarked or refused). The next accepted
+    /// tag change, undo or error replaces it, and an error of the session is never hidden by it.
+    /// </summary>
+    internal void Announce(string? text)
+    {
+        _notice = string.IsNullOrWhiteSpace(text) ? null : text;
+        _noticeBase = _session.Status;
+        RefreshTexts();
+    }
+
     /// <summary>The ranked suggestions of the strip; the most used own tags until the host passes the context source.</summary>
     internal IQuickTagSuggestionSource Suggestions
     {
@@ -362,6 +403,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal bool FocusOnAttach { get; set; } = true;
 
     internal event Action? CloseRequested;
+    /// <summary>The marks button was pressed: the host clears its marks and retargets the surface.</summary>
+    internal event Action? MarksClearRequested;
     internal event Action? AdvancedRequested;
     internal event Action<QuickTagNavigation>? NavigationRequested;
     /// <summary>Ctrl+T while navigation is on: the panel opens or focuses its thread tags section.</summary>
@@ -497,7 +540,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _assignedEmpty.IsVisible = _assignedChips.Count == 0;
 
         QuickTagStatus status = _session.Status;
-        _status.Text = status.Text;
+        bool noticed = _notice != null && !status.IsError && ReferenceEquals(_noticeBase, status);
+        if (!noticed) _notice = null;
+        _markBar.IsVisible = _markedCount > 0;
+        _markedLabel.Text = _markedCount > 0 ? Texts.T("tags.quick.marked", _markedCount.ToString(Texts.Culture)) : string.Empty;
+        AutomationProperties.SetName(_markedBadge, _markedLabel.Text);
+        _status.Text = noticed ? _notice! : status.Text;
         _status.IsVisible = _status.Text.Length > 0;
         _status.Classes.Set("workspace-error", status.IsError);
         _status.Classes.Set("workspace-help", !status.IsError);
@@ -526,6 +574,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetName(_strip, Texts.T("tags.quick.suggestions"));
         AutomationProperties.SetHelpText(_strip, Texts.T("tags.quick.suggestions.help"));
         _stripEmpty.Text = Texts.T("tags.quick.suggestions.empty");
+        _markedClear.Content = Texts.T("tags.quick.marked.clear");
+        AutomationProperties.SetName(_markedClear, Texts.T("tags.quick.marked.clearName"));
+        ToolTip.SetTip(_markedClear, Texts.T("tags.quick.marked.clearName"));
         _more.Content = Texts.T("tags.quick.more");
         AutomationProperties.SetName(_more, Texts.T("tags.quick.moreName"));
         ToolTip.SetTip(_more, Texts.T("tags.quick.moreName"));
@@ -641,6 +692,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     internal Task UndoAsync() => Guard(() => _session.UndoAsync(), "tags.quick.undo");
 
+    private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
     private void OnAdvanced(object? sender, RoutedEventArgs e) => AdvancedRequested?.Invoke();
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
     private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
@@ -837,7 +889,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _disposed = true;
         _input.EndSuggestions();
         _sourceTags.End();
-        _close.Click -= OnClose; _undo.Click -= OnUndo; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;
+        _close.Click -= OnClose; _markedClear.Click -= OnMarkedClear; _undo.Click -= OnUndo; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;
         foreach (SuggestionChip chip in _suggestionChips) chip.Button.Click -= OnSuggestionClick;
         foreach (AssignedChip chip in _assignedChips) { chip.Button.Click -= OnAssignedClick; chip.Remove.Click -= OnRemoveClick; }
         _strip.PropertyChanged -= OnStripPropertyChanged;
@@ -846,7 +898,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         SizeChanged -= OnSizeChanged;
         AttachedToVisualTree -= OnAttached;
         DetachedFromVisualTree -= OnDetached;
-        CloseRequested = null; AdvancedRequested = null; NavigationRequested = null; ThreadSectionRequested = null;
+        CloseRequested = null; AdvancedRequested = null; NavigationRequested = null; ThreadSectionRequested = null; MarksClearRequested = null;
     }
 
     // ---- chips --------------------------------------------------------------------------------------------------------
