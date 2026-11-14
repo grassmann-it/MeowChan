@@ -380,6 +380,34 @@
                                 </Grid>
                                 <TextBlock Text="{Binding ReaderMediaSidebarMinimumWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderInlineVideoInput" Content="{Binding ReaderInlineVideoLabel}" IsChecked="{Binding ReaderInlineVideo, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderInlineVideoHint}" />
+                                <TextBlock Text="{Binding ReaderInlineVideoHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderInlineVideoAutoplayMutedInput" Content="{Binding ReaderInlineVideoAutoplayMutedLabel}" IsChecked="{Binding ReaderInlineVideoAutoplayMuted, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderInlineVideoAutoplayMutedHint}" />
+                                <TextBlock Text="{Binding ReaderInlineVideoAutoplayMutedHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderInlineVideoMaxPlayersFieldLabel" Text="{Binding ReaderInlineVideoMaxPlayersLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderInlineVideoMaxPlayersInput" Value="{Binding ReaderInlineVideoMaxPlayers, Mode=TwoWay}" Minimum="{Binding ReaderInlineVideoMaxPlayersMinimum}" Maximum="{Binding ReaderInlineVideoMaxPlayersMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderInlineVideoMaxPlayersFieldLabel}" AutomationProperties.Name="{Binding ReaderInlineVideoMaxPlayersLabel}" AutomationProperties.HelpText="{Binding ReaderInlineVideoMaxPlayersHelp}" />
+                                        <TextBlock x:Name="ReaderInlineVideoMaxPlayersInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderInlineVideoMaxPlayersHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderInlineVideoMaxFileMiBFieldLabel" Text="{Binding ReaderInlineVideoMaxFileMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderInlineVideoMaxFileMiBInput" Value="{Binding ReaderInlineVideoMaxFileMiB, Mode=TwoWay}" Minimum="{Binding ReaderInlineVideoMaxFileMiBMinimum}" Maximum="{Binding ReaderInlineVideoMaxFileMiBMaximum}" Increment="64" AutomationProperties.LabeledBy="{Binding ElementName=ReaderInlineVideoMaxFileMiBFieldLabel}" AutomationProperties.Name="{Binding ReaderInlineVideoMaxFileMiBLabel}" AutomationProperties.HelpText="{Binding ReaderInlineVideoMaxFileMiBHelp}" />
+                                        <TextBlock x:Name="ReaderInlineVideoMaxFileMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderInlineVideoMaxFileMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />

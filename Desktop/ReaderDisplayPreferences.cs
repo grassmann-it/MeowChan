@@ -134,6 +134,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
     /// <summary>Below this reader width the sidebar gives way to the posts (it stays chosen and returns when the reader is wider).</summary>
     internal int SidebarMinimumReaderWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
+    /// <summary>Inline video (R10): off by default; acts live (no post is rebuilt).</summary>
+    internal ReaderInlineVideoOptions Video { get; init; } = ReaderInlineVideoOptions.Default;
 
     internal static ReaderMediaPreferences From(Config config) => new(config.ReaderTextlessLargeImages, config.ReaderTextlessMediaWidth,
         config.ReaderFocusedMediaEnlarge, config.ReaderFocusedMediaScalePercent, config.ReaderHoverEnlarge, config.ReaderHoverEnlargeSize,
@@ -142,7 +144,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         Sidebar = config.ReaderMediaSidebar,
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
         SidebarWidth = config.ReaderMediaSidebarWidth,
-        SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth
+        SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth,
+        Video = ReaderInlineVideoOptions.From(config)
     };
 
     internal ReaderMediaPreferences Clamped() => this with
@@ -153,7 +156,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         HoverDelayMs = Math.Clamp(HoverDelayMs, ReaderDisplayPreferences.HoverEnlargeDelayMinimum, ReaderDisplayPreferences.HoverEnlargeDelayMaximum),
         SidebarWidth = Math.Clamp(SidebarWidth, ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum),
         SidebarMinimumReaderWidth = Math.Clamp(SidebarMinimumReaderWidth, ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,
-            ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum)
+            ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum),
+        Video = Video.Clamped()
     };
 
     /// <summary>What changes the posts' own images (and so rebuilds them): the focus and hover options act live.</summary>

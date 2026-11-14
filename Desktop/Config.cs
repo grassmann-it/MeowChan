@@ -484,6 +484,18 @@ namespace MeowChan
         internal const int ReaderMediaSidebarMinimumWidthDefault = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
         internal const int ReaderMediaSidebarMinimumWidthMinimum = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum;
         internal const int ReaderMediaSidebarMinimumWidthMaximum = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum;
+        // Inline video in the reader (R10): off unless chosen; then a click or Enter plays a video in its post or in the media sidebar.
+        // Autoplay (muted) is a second opt-in. The number of live players and the largest file played inline are limits.
+        public bool ReaderInlineVideo { get; set; } = false;
+        public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
+        public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
+        internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
+        internal const int ReaderInlineVideoMaxPlayersMinimum = ReaderInlineVideoOptions.MaxPlayersMinimum;
+        internal const int ReaderInlineVideoMaxPlayersMaximum = ReaderInlineVideoOptions.MaxPlayersMaximum;
+        public int ReaderInlineVideoMaxFileMiB { get; set; } = ReaderInlineVideoMaxFileMiBDefault;
+        internal const int ReaderInlineVideoMaxFileMiBDefault = ReaderInlineVideoOptions.MaxFileMiBDefault;
+        internal const int ReaderInlineVideoMaxFileMiBMinimum = ReaderInlineVideoOptions.MaxFileMiBMinimum;
+        internal const int ReaderInlineVideoMaxFileMiBMaximum = ReaderInlineVideoOptions.MaxFileMiBMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -738,6 +750,8 @@ namespace MeowChan
             ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
             ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
             ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
+            ReaderInlineVideoMaxPlayers = Math.Clamp(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersMinimum, ReaderInlineVideoMaxPlayersMaximum);
+            ReaderInlineVideoMaxFileMiB = Math.Clamp(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBMinimum, ReaderInlineVideoMaxFileMiBMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
@@ -1319,6 +1333,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarWidth), "ReaderMediaSidebarWidth is outside its supported range.");
             if (ReaderMediaSidebarMinimumWidth is < ReaderMediaSidebarMinimumWidthMinimum or > ReaderMediaSidebarMinimumWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarMinimumWidth), "ReaderMediaSidebarMinimumWidth is outside its supported range.");
+            if (ReaderInlineVideoMaxPlayers is < ReaderInlineVideoMaxPlayersMinimum or > ReaderInlineVideoMaxPlayersMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxPlayers), "ReaderInlineVideoMaxPlayers is outside its supported range.");
+            if (ReaderInlineVideoMaxFileMiB is < ReaderInlineVideoMaxFileMiBMinimum or > ReaderInlineVideoMaxFileMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxFileMiB), "ReaderInlineVideoMaxFileMiB is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
@@ -1525,6 +1543,10 @@ namespace MeowChan
                 ReaderMediaSidebarSide = ReaderMediaSidebarSide,
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
+                ReaderInlineVideo = ReaderInlineVideo,
+                ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
+                ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
+                ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
@@ -1740,6 +1762,10 @@ namespace MeowChan
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
+            ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
+            ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
@@ -1918,6 +1944,10 @@ namespace MeowChan
             ReaderMediaSidebarSide = source.ReaderMediaSidebarSide;
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
+            ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
+            ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
+            ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
