@@ -113,8 +113,8 @@ public sealed class StatisticsReadabilityTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Network, days: 7")]
-    [InlineData("de", "Netz, Tage: 7")]
+    [InlineData("en", "Network, 7 days")]
+    [InlineData("de", "Netz, 7 Tage")]
     public void CompactRowDetailsKeepEveryHiddenCounterAndTheRealRetention(string language, string retention)
     {
         Texts.SetLanguage(language);
@@ -132,6 +132,93 @@ public sealed class StatisticsReadabilityTests : IDisposable
         Assert.Equal(0, changes);
         row.Update(text, 8);
         Assert.Equal(1, changes);
+    }
+
+    // The kept days are a count: one day, many days, and the languages with more forms pick theirs.
+    [Theory]
+    [InlineData("en", 1, "Network, 1 day")]
+    [InlineData("en", 30, "Network, 30 days")]
+    [InlineData("de", 1, "Netz, 1 Tag")]
+    [InlineData("de", 30, "Netz, 30 Tage")]
+    [InlineData("ru", 1, "Сеть, 1 день")]
+    [InlineData("ru", 3, "Сеть, 3 дня")]
+    [InlineData("ru", 30, "Сеть, 30 дней")]
+    [InlineData("cs", 1, "Síť, 1 den")]
+    [InlineData("cs", 3, "Síť, 3 dny")]
+    [InlineData("cs", 30, "Síť, 30 dnů")]
+    [InlineData("pl", 1, "Sieć, 1 dzień")]
+    [InlineData("pl", 30, "Sieć, 30 dni")]
+    [InlineData("fr", 1, "Réseau, 1 jour")]
+    [InlineData("es", 1, "Red, 1 día")]
+    [InlineData("it", 1, "Rete, 1 giorno")]
+    [InlineData("pt-BR", 1, "Rede, 1 dia")]
+    [InlineData("ja", 30, "ネットワーク、30日分")]
+    [InlineData("ko", 1, "네트워크, 1일")]
+    [InlineData("zh-Hans", 30, "网络，30 天")]
+    public void TheRetentionColumnNamesItsDaysInTheRightForm(string language, int days, string expected)
+    {
+        Texts.SetLanguage(language);
+        Assert.Equal(expected, Texts.Count("stats.col.retained", days));
+    }
+
+    // An error count leads to the diagnostics only where there is somewhere to go: a counted error on a source the diagnostics
+    // know by id, or the total. The collective rows (other, local files, unknown) are no source id.
+    [Theory]
+    [InlineData("4chan", false, 3, true)]
+    [InlineData("4chan", false, 0, false)]
+    [InlineData("", true, 3, true)]
+    [InlineData("", true, 0, false)]
+    [InlineData("other", false, 3, false)]
+    [InlineData("local", false, 3, false)]
+    [InlineData("unknown", false, 3, false)]
+    public void TheErrorCountOpensTheDiagnosticsOnlyForASourceOrTheTotal(string key, bool total, long errors, bool canOpen)
+    {
+        Texts.SetLanguage("en");
+        StatisticsRow row = new(new IoStatsRowText(key, total, total ? "Total" : "Name", "0 B/s", "0 B", "0 B", "0 B", "0 B", "0 B", "0", errors.ToString(), errors));
+        Assert.Equal(canOpen, row.CanOpenDiagnostics);
+        Assert.Equal(total ? null : key, row.DiagnosticsSourceId);
+        Assert.Equal(total ? "Show all errors in Diagnostics" : "Show the errors of Name in Diagnostics", row.ErrorsLinkText);
+    }
+
+    [Fact]
+    public void TheErrorLinkAppearsAndGoesWhenTheCountChangesAndFollowsTheLanguage()
+    {
+        Texts.SetLanguage("en");
+        IoStatsRowText none = new("4chan", false, "4chan", "0 B/s", "0 B", "0 B", "0 B", "0 B", "0 B", "0", "0");
+        StatisticsRow row = new(none);
+        List<string?> changed = [];
+        row.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        row.Update(none with { Errors = "2", ErrorCount = 2 });
+        Assert.True(row.CanOpenDiagnostics);
+        Assert.Contains(nameof(StatisticsRow.CanOpenDiagnostics), changed);
+        changed.Clear();
+        row.Update(none with { Errors = "3", ErrorCount = 3 });
+        Assert.DoesNotContain(nameof(StatisticsRow.CanOpenDiagnostics), changed); // already true: nothing to announce
+        Texts.SetLanguage("de");
+        row.Update(none with { Errors = "3", ErrorCount = 3 });
+        Assert.Equal("Fehler von 4chan in der Diagnose zeigen", row.ErrorsLinkText);
+        row.Update(none);
+        Assert.False(row.CanOpenDiagnostics);
+    }
+
+    [Fact]
+    public void TheStatisticsPageHasNoActivityLineNoHeaderNoteAndResetSitsInTheHistoryBar()
+    {
+        XDocument page = Markup("Desktop/Views/Statistics/StatisticsPage.axaml");
+        Assert.DoesNotContain(page.Descendants(), e => (string?)e.Attribute(X + "Name") is "ActivityText" or "HistoryNote");
+        // Reset is a control of the history bar, not of the page head: the right edge of the head is for Back and Close.
+        XElement reset = Named(page, "ResetStatisticsButton");
+        static string? WorkViewId(XElement e) => e.Attributes().FirstOrDefault(a => a.Name.LocalName == "WorkViewElement.Id")?.Value;
+        XElement bar = reset.Ancestors().First(e => e.Name.LocalName == "Grid" && WorkViewId(e) != null);
+        Assert.Equal("statistics.history", WorkViewId(bar));
+        Assert.Contains(bar.Descendants(), e => (string?)e.Attribute(X + "Name") == "PeakSlot");
+        // Hosted in the Status page the head (title, subtitle) goes and the margin is the page's: both are named for SetHosted.
+        Assert.Contains(Named(page, "StatisticsHeader").Descendants(), e => (string?)e.Attribute(X + "Name") == "StatisticsTitle");
+        Named(page, "StatisticsContent");
+        // The upload figure and the axes of all three graphs.
+        foreach (string name in new[] { "NetUpCaption", "NetUpValue", "ScaleTop", "ScaleHalf", "HistoryStart", "HistoryEnd", "WriteScaleTop", "WriteScaleHalf",
+                     "WriteHistoryStart", "WriteHistoryEnd", "ReadScaleTop", "ReadScaleHalf", "ReadHistoryStart", "ReadHistoryEnd" })
+            Named(page, name);
     }
 
     [Fact]
@@ -154,7 +241,7 @@ public sealed class StatisticsReadabilityTests : IDisposable
         XElement slot = Named(page, "PeakSlot");
         XElement peak = Named(page, "PeakText");
 
-        Assert.Equal("1", (string?)slot.Attribute("Grid.Column"));
+        Assert.Equal("2", (string?)slot.Attribute("Grid.Column")); // left of it: the title and, in the same bar, Reset
         Assert.Null(slot.Attribute("IsVisible"));
         Assert.Equal("False", (string?)slot.Attribute("IsHitTestVisible"));
         // The peak belongs to the scrolling history header, not to the overlaid result toast.

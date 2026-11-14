@@ -306,9 +306,9 @@ public sealed class StatsHeaderGraphTests : IDisposable
             }
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Each graph has its own scale. In the header, download and read are drawn solid with a filled area, upload and write dashed.", Texts.T("stats.headerGraph.hint"));
         Texts.SetLanguage("de");
-        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz und Datenträger mit je einem eigenen Graphen, in jeder Ansicht. Nebeneinander braucht ein breites Fenster; schmale Fenster lassen die Graphen weg und behalten die Werte.", Texts.T("stats.headerGraph.hint"));
+        Assert.Equal("Legt fest, was die Kopfleiste zeigt. Automatisch: Netz und Datenträger mit je einem eigenen Graphen, in jeder Ansicht. Nebeneinander braucht ein breites Fenster; schmale Fenster lassen die Graphen weg und behalten die Werte. Jeder Graph hat seine eigene Skala. In der Kopfleiste sind Download und Lesen durchgezogen mit gefüllter Fläche gezeichnet, Upload und Schreiben gestrichelt.", Texts.T("stats.headerGraph.hint"));
         Assert.Equal("Graph in der Kopfleiste", Texts.T("stats.headerGraph.label"));
     }
 
@@ -316,7 +316,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     public void TheGraphTextsAndRetainedStatisticsLabelsResolveWithTheirPlaceholders()
     {
         string[] languages = ["en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl"];
-        (string Key, int Placeholders)[] keys = [("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.history.note", 0),
+        (string Key, int Placeholders)[] keys = [("stats.graph.page.name", 3), ("stats.scale", 1), ("stats.metric.netUp", 0), ("stats.sources.title", 0),
             ("stats.peak", 1), ("stats.legend.net", 0), ("stats.legend.disk", 0)];
         foreach (string language in languages)
         {

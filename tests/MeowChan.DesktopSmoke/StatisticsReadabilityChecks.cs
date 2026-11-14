@@ -137,12 +137,12 @@ internal static class StatisticsReadabilityChecks
     private static string LayoutDetails(StatisticsPage page, Window host)
     {
         TextBlock title = page.FindControl<TextBlock>("HistoryTitle")!;
-        TextBlock note = page.FindControl<TextBlock>("HistoryNote")!;
+        Control actions = page.FindControl<Control>("StatisticsActions")!;
         Control peakSlot = page.FindControl<Control>("PeakSlot")!;
         TextBlock peak = page.FindControl<TextBlock>("PeakText")!;
         ScrollViewer scroll = page.FindControl<ScrollViewer>("StatisticsScroll")!;
         return $"origin={page.Graph.TranslatePoint(default, host)}; graph={page.Graph.Bounds}; scroll={scroll.Offset}; "
-            + $"title={title.Bounds}; note={note.Bounds}; peakSlot={peakSlot.Bounds}; peakVisible={peak.IsVisible}; "
+            + $"title={title.Bounds}; actions={actions.Bounds}; peakSlot={peakSlot.Bounds}; peakVisible={peak.IsVisible}; "
             + $"peakText=<{peak.Text}>; traffic={page.Graph.HasTraffic}; trafficPeak={page.Graph.TrafficPeak}; rows={page.Rows.Count}";
     }
 
