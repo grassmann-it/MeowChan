@@ -29,6 +29,11 @@ internal static class Program
         }
         catch (Exception exception)
         {
+            // Type names only: enough to distinguish missing runtime dependencies
+            // from lifecycle failures without leaking profile paths or exception text.
+            string initializer = exception is TypeInitializationException typeError
+                ? typeError.TypeName ?? "unknown" : "none";
+            Console.Error.WriteLine($"Core probe failure: initializer={initializer}; cause={exception.GetBaseException().GetType().FullName}");
             return WriteResult(started: false, exceptionType: exception.GetType().FullName, exitCode: 1);
         }
     }
