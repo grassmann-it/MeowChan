@@ -30,6 +30,149 @@ public sealed class VideoPosterCacheTests
     }
 
     [Fact]
+    public async Task WarmVerifiedPosterDoesNotWaitForTheNativeGate()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        byte[] png = Png(80, 60);
+        string cached = Path.Combine(cache, asset.Sha256.ToLowerInvariant() + ".png");
+        await File.WriteAllBytesAsync(cached, png);
+        int decodeCalls = 0;
+        VideoPosterCacheTestSeam seam = new()
+        {
+            Decoder = (_, _) =>
+            {
+                Interlocked.Increment(ref decodeCalls);
+                throw new InvalidOperationException("A warm hit must not enter the decoder.");
+            }
+        };
+
+        SemaphoreSlim gate = VideoPosterCache.NativeDecodeGate;
+        await gate.WaitAsync();
+        try
+        {
+            byte[]? result = await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+                testSeam: seam).WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Equal(png, result);
+            Assert.Equal(0, decodeCalls);
+        }
+        finally { gate.Release(); }
+    }
+
+    [Fact]
+    public async Task CancellationWhileWaitingForTheNativeGateDoesNotStartDecoderWork()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        int decodeCalls = 0;
+        TaskCompletionSource<Task> waitStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoPosterCacheTestSeam seam = new()
+        {
+            NativeGateWaitStarted = wait => waitStarted.TrySetResult(wait),
+            Decoder = async (verified, token) =>
+            {
+                await using (verified)
+                {
+                    Interlocked.Increment(ref decodeCalls);
+                    token.ThrowIfCancellationRequested();
+                    return Png(80, 60);
+                }
+            }
+        };
+
+        SemaphoreSlim gate = VideoPosterCache.NativeDecodeGate;
+        await gate.WaitAsync();
+        try
+        {
+            using CancellationTokenSource canceled = new();
+            Task<byte[]?> request = VideoPosterCache.GetPngAsync(manifest, asset, cache, canceled.Token,
+                testSeam: seam);
+            Task gateWait = await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(gateWait.IsCompleted);
+            canceled.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await gateWait);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request);
+            Assert.Equal(0, decodeCalls);
+        }
+        finally { gate.Release(); }
+    }
+
+    [Fact]
+    public async Task OriginalChangedWhileWaitingCannotAuthorizeAStalePoster()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        string cached = Path.Combine(cache, asset.Sha256.ToLowerInvariant() + ".png");
+        byte[] png = Png(80, 60);
+        int decodeCalls = 0;
+        TaskCompletionSource<Task> waitStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoPosterCacheTestSeam seam = new()
+        {
+            NativeGateWaitStarted = wait => waitStarted.TrySetResult(wait),
+            Decoder = async (verified, token) =>
+            {
+                await using (verified)
+                {
+                    Interlocked.Increment(ref decodeCalls);
+                    token.ThrowIfCancellationRequested();
+                    return png;
+                }
+            }
+        };
+
+        SemaphoreSlim gate = VideoPosterCache.NativeDecodeGate;
+        await gate.WaitAsync();
+        bool released = false;
+        try
+        {
+            Task<byte[]?> request = VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+                testSeam: seam);
+            Task gateWait = await waitStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.False(gateWait.IsCompleted);
+            // The cache file appears while the request is actually waiting. It is stale once the recorded original changes.
+            await File.WriteAllBytesAsync(cached, png);
+            string replacement = asset.Path + ".replacement";
+            await File.WriteAllBytesAsync(replacement, new byte[] { 9, 8, 7, 6 });
+            File.Move(replacement, asset.Path, overwrite: true);
+            gate.Release(); released = true;
+            Assert.Null(await request.WaitAsync(TimeSpan.FromSeconds(2)));
+            Assert.Equal(0, decodeCalls);
+            Assert.Equal(png, await File.ReadAllBytesAsync(cached));
+        }
+        finally { if (!released) gate.Release(); }
+    }
+
+    [Fact]
+    public async Task ColdPosterStillUsesTheDecoderAndPublishesTheVerifiedResult()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache"); Directory.CreateDirectory(cache);
+        byte[] png = Png(80, 60);
+        int decodeCalls = 0;
+        VideoPosterCacheTestSeam seam = new()
+        {
+            Decoder = async (verified, token) =>
+            {
+                await using (verified)
+                {
+                    Interlocked.Increment(ref decodeCalls);
+                    token.ThrowIfCancellationRequested();
+                    return png;
+                }
+            }
+        };
+
+        Assert.Equal(png, await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+            testSeam: seam));
+        Assert.Equal(1, decodeCalls);
+        Assert.Equal(png, await File.ReadAllBytesAsync(Path.Combine(cache, asset.Sha256.ToLowerInvariant() + ".png")));
+    }
+
+    [Fact]
     public async Task CancellationDoesNotPoisonPersistentCacheOrAdmitDecoderWork()
     {
         using TempDirectory temp = new();

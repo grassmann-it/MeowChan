@@ -14,6 +14,13 @@ using MeowChan.Diagnostics;
 namespace MeowChan.Desktop;
 
 /// <summary>Disposable derived PNGs keyed by verified video content. Never fetches source URLs or changes originals.</summary>
+internal sealed class VideoPosterCacheTestSeam
+{
+    // These hooks are supplied only by deterministic tests. Production callers leave the seam null.
+    internal Action<Task>? NativeGateWaitStarted { get; init; }
+    internal Func<Stream, CancellationToken, Task<byte[]>>? Decoder { get; init; }
+}
+
 internal static class VideoPosterCache
 {
     internal const int MaximumPngBytes = 4 * 1024 * 1024;
@@ -68,7 +75,8 @@ internal static class VideoPosterCache
 
     // Kept independent of Avalonia initialization so native decoder/cache acceptance can run without any display.
     internal static async Task<byte[]?> GetPngAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
-        string cacheDirectory, CancellationToken token, VerifiedFileMemo? verifiedFiles = null)
+        string cacheDirectory, CancellationToken token, VerifiedFileMemo? verifiedFiles = null,
+        VideoPosterCacheTestSeam? testSeam = null)
     {
         token.ThrowIfCancellationRequested();
         if (manifest.FindById(asset.AssetId) != asset) return null;
@@ -90,35 +98,64 @@ internal static class VideoPosterCache
             {
                 using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
                 bounded.CancelAfter(TimeSpan.FromSeconds(12));
+                // A caller without a shared memo still gets a per-request identity memo. It avoids hashing the same
+                // original again when the gate wait or native decode itself did not change it; a changed identity
+                // necessarily falls back to the full verification in MediaAssetSnapshot.
+                VerifiedFileMemo verificationMemo = verifiedFiles ?? new VerifiedFileMemo(capacity: 1);
+
+                // Read the derived file before waiting for native work. A warm hit still needs a complete original
+                // verification, but neither that potentially long hash nor the cache hit needs the native gate.
+                byte[]? cached;
+                using (PerformanceDiagnostics.Measure("gallery.poster.cache-read", request, asset: asset.AssetId))
+                    cached = await ReadAsync(path, bounded.Token).ConfigureAwait(false);
+                if (cached != null)
+                {
+                    await VerifyOriginalAsync(manifest, asset, verificationMemo, bounded.Token, request);
+                    PerformanceDiagnostics.Record("gallery.poster", "verified-hit", request, asset: asset.AssetId);
+                    return cached;
+                }
+
+                // This first verification is intentionally outside NativeDecodeGate. It prevents a cold poster's
+                // large checksum from holding up an already-running native session (or being held behind one).
+                await VerifyOriginalAsync(manifest, asset, verificationMemo, bounded.Token, request);
+
                 using (PerformanceDiagnostics.Measure("gallery.poster.queue-wait", request, asset: asset.AssetId))
-                    await Gate.WaitAsync(bounded.Token).ConfigureAwait(false);
+                {
+                    Task gateWait = Gate.WaitAsync(bounded.Token);
+                    testSeam?.NativeGateWaitStarted?.Invoke(gateWait);
+                    await gateWait.ConfigureAwait(false);
+                }
                 try
                 {
                     bounded.Token.ThrowIfCancellationRequested();
-                    // Even a cache hit requires the recorded original to be present and fully verified; a caller that keeps a memory of
-                    // verified files (the media page's tiles) does not hash a video again that is unchanged since it was verified.
-                    Stream? video;
-                    using (PerformanceDiagnostics.Measure("gallery.poster.verify", request, asset: asset.AssetId))
-                        video = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, verifiedFiles, bounded.Token).ConfigureAwait(false);
-                    PerformanceDiagnostics.Record("gallery.poster.verified-bytes", request: request, asset: asset.AssetId, value: asset.Length);
+                    // Another poster may have filled the cache while this request waited. Re-check it before
+                    // entering native decode, but verify again after the wait so an original changed or removed
+                    // during the wait can never authorize the old derived bytes.
+                    using (PerformanceDiagnostics.Measure("gallery.poster.cache-read", request, asset: asset.AssetId))
+                        cached = await ReadAsync(path, bounded.Token).ConfigureAwait(false);
+                    if (cached != null)
+                    {
+                        await VerifyOriginalAsync(manifest, asset, verificationMemo, bounded.Token, request);
+                        PerformanceDiagnostics.Record("gallery.poster", "verified-hit", request, asset: asset.AssetId);
+                        return cached;
+                    }
+
+                    Stream? video = await OpenVerifiedOriginalAsync(manifest, asset, verificationMemo, bounded.Token, request);
                     byte[] png;
                     try
                     {
-                        byte[]? cached;
-                        using (PerformanceDiagnostics.Measure("gallery.poster.cache-read", request, asset: asset.AssetId))
-                            cached = await ReadAsync(path, bounded.Token).ConfigureAwait(false);
-                        if (cached != null)
-                        {
-                            PerformanceDiagnostics.Record("gallery.poster", "verified-hit", request, asset: asset.AssetId);
-                            return cached;
-                        }
                         Stream ownedVideo = video;
                         video = null; // Decoder owns the verified handle through native release, including failures.
                         using (PerformanceDiagnostics.Measure("gallery.poster.decode", request, asset: asset.AssetId))
-                            png = await VideoPosterDecoder.DecodeAsync(ownedVideo, bounded.Token).ConfigureAwait(false);
+                            png = await (testSeam?.Decoder ?? VideoPosterDecoder.DecodeAsync)(ownedVideo, bounded.Token)
+                                .ConfigureAwait(false);
                     }
                     finally { if (video != null) await video.DisposeAsync().ConfigureAwait(false); }
                     if (!Valid(png)) throw new InvalidDataException("The video poster exceeds its safe limits.");
+
+                    // The decoder held a verified stream, but the path may have been replaced while native work
+                    // was running. Do not publish or return that frame until the original is verified once more.
+                    await VerifyOriginalAsync(manifest, asset, verificationMemo, bounded.Token, request);
                     bounded.Token.ThrowIfCancellationRequested();
                     Directory.CreateDirectory(directory);
                     Trim(directory, png.Length);
@@ -159,6 +196,25 @@ internal static class VideoPosterCache
         try { return await operation.WaitAsync(TimeSpan.FromSeconds(14), token).ConfigureAwait(false); }
         catch (TimeoutException) { PerformanceDiagnostics.Record("gallery.poster", "caller-timeout", request, asset: asset.AssetId); _ = operation.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted); return null; }
         catch (OperationCanceledException) { _ = operation.ContinueWith(task => _ = task.Exception, TaskContinuationOptions.OnlyOnFaulted); throw; }
+    }
+
+    private static async Task<Stream> OpenVerifiedOriginalAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
+        VerifiedFileMemo verificationMemo, CancellationToken token, long request)
+    {
+        using (PerformanceDiagnostics.Measure("gallery.poster.verify", request, asset: asset.AssetId))
+        {
+            Stream video = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, verificationMemo, token)
+                .ConfigureAwait(false);
+            PerformanceDiagnostics.Record("gallery.poster.verified-bytes", request: request, asset: asset.AssetId, value: asset.Length);
+            return video;
+        }
+    }
+
+    private static async Task VerifyOriginalAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
+        VerifiedFileMemo verificationMemo, CancellationToken token, long request)
+    {
+        await using Stream verified = await OpenVerifiedOriginalAsync(manifest, asset, verificationMemo, token, request)
+            .ConfigureAwait(false);
     }
 
     private static async Task<byte[]?> ReadAsync(string path, CancellationToken token)
