@@ -90,7 +90,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.tools-menu", "More", "Mehr", "Más", "Plus", "Ещё"),
             ("navigation.app-menu", "App menu", "Appmenü", "Menú de la aplicación", "Menu de l’application", "Меню приложения"),
             ("settings.browse-folder", "Browse…", "Durchsuchen…", "Examinar…", "Parcourir…", "Обзор…"),
-            ("settings.discard", "Discard draft", "Entwurf verwerfen", "Descartar borrador", "Annuler le brouillon", "Отменить черновик"),
+            ("settings.discard", "Discard draft", "Entwurf verwerfen", "Descartar borrador", "Annuler le brouillon", "Отбросить черновик"),
             ("settings.save", "Save", "Speichern", "Guardar", "Enregistrer", "Сохранить"),
             ("sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "Navegar por las secciones", "Naviguer dans les sections", "Перейти к разделам"),
             ("sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "Ir a la sección seleccionada", "Accéder à la section sélectionnée", "Перейти к выбранному разделу"),
