@@ -107,7 +107,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 7;
+    public const int DefaultsRevision = 8;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -152,6 +152,9 @@ public sealed class EffectiveShortcutBindings
         // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
         // keep any binding the user saved for them.
         ["navigation.status"] = 7,
+        // New in revision 8: the own Booru page takes the previously free Primary+6. A persisted
+        // navigation.plugins=Primary+6 override therefore keeps winning over the new default.
+        ["navigation.booru"] = 8,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

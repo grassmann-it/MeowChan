@@ -41,7 +41,7 @@ public enum WorkViewKind
 /// <summary>The pages the policy is split by; each has its own partial file WorkViewPolicy.&lt;Page&gt;.cs.</summary>
 /// Status is the container of the Diagnostics and Statistics segments: it owns only its own rows (the status line and the
 /// segment bar); each segment keeps its page and rows.
-public enum WorkViewPage { Shell, Downloads, Archive, Reader, Gallery, Media, Rules, Sources, Diagnostics, Statistics, Settings, Dialogs, Status }
+public enum WorkViewPage { Shell, Downloads, Archive, Reader, Gallery, Media, Booru, Rules, Sources, Diagnostics, Statistics, Settings, Dialogs, Status }
 
 /// <summary>
 /// One row of the work-view matrix. <paramref name="Alternative"/> is required where any view is <see cref="Presence.Hidden"/>
@@ -72,7 +72,7 @@ public static partial class WorkViewPolicy
     // Methods, not static fields: partial files have no defined field initialization order.
     private static readonly Lazy<WorkViewEntry[]> AllEntries = new(() =>
         ShellEntries().Concat(DownloadsEntries()).Concat(ArchiveEntries()).Concat(ReaderEntries()).Concat(GalleryEntries())
-            .Concat(MediaEntries()).Concat(RulesEntries()).Concat(SourcesEntries()).Concat(PluginsEntries())
+            .Concat(MediaEntries()).Concat(BooruEntries()).Concat(RulesEntries()).Concat(SourcesEntries()).Concat(PluginsEntries())
             .Concat(DiagnosticsEntries()).Concat(StatisticsEntries()).Concat(SettingsEntries()).Concat(DialogsEntries())
             .Concat(StatusEntries()).ToArray());
 

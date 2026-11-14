@@ -11,7 +11,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     private static readonly string[] Pages = MainPageOrder.CommandIds.ToArray();
     // Pages whose digit changed with the footer-order renumbering (Downloads and Archive kept theirs).
     public static IEnumerable<object[]> RenumberedPages() =>
-        new[] { "navigation.media", "navigation.rules", "navigation.sources", "navigation.status" }.Select(id => new object[] { id });
+        new[] { "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status" }.Select(id => new object[] { id });
     public static IEnumerable<object[]> RenumberedPagesAndOwners() =>
         from page in RenumberedPages() from owner in new[] { "navigation.archive", "thread.read", "gallery.fit", "input.focus-search" }
         select new object[] { page[0], owner };

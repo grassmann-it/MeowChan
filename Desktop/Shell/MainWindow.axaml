@@ -99,6 +99,7 @@
                             <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <MenuItem x:Name="BooruMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" Click="OnBooruNavigationClick" />
                             <Separator x:Name="PagesGroupSeparatorWork" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
@@ -477,6 +478,7 @@
         <ContentControl Grid.Row="2" x:Name="RulesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="ArchivePageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="MediaPageHost" IsVisible="False" />
+        <ContentControl Grid.Row="2" x:Name="BooruPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
@@ -489,7 +491,7 @@
             </Grid>
         </Border>
         <Border x:Name="WorkspaceNavigation" Grid.Row="3" Classes="shell-bar" BorderThickness="0,1,0,0" Padding="12,5">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
             <StackPanel x:Name="WorkspaceNavigationButtons" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="5">
                 <Button x:Name="DownloadsNavigationButton" Classes="nav selected" Click="OnDownloadsNavigationClick">
                     <StackPanel Orientation="Horizontal" Spacing="9">
@@ -499,7 +501,8 @@
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
                 <Button x:Name="MediaNavigationButton" Classes="nav localized" Tag="nav.media" Content="Media" Click="OnMediaNavigationClick" />
-                <!-- Footer groups: Downloads, Archive, Media | Rules, Sources, Plugins | Status | More, Settings.
+                <Button x:Name="BooruNavigationButton" Classes="nav localized" Tag="nav.booru" Content="Booru" Click="OnBooruNavigationClick" />
+                <!-- Footer groups: Downloads, Archive, Media, Booru | Rules, Sources, Plugins | Status | More, Settings.
                      UpdatePageNavigation shows a separator only between two groups that both have a visible button. -->
                 <Border x:Name="FooterSeparatorWork" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
@@ -518,6 +521,7 @@
                         <MenuFlyout>
                             <MenuItem Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <MenuItem x:Name="BooruMoreMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" IsVisible="False" Click="OnBooruNavigationClick" />
                             <Separator Tag="nav.group-separator.0" />
                             <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
@@ -538,6 +542,11 @@
                 <ComboBoxItem x:Name="SimpleModeItem" Tag="Simple" Content="Simple" />
                 <ComboBoxItem x:Name="AdvancedModeItem" Tag="Advanced" Content="Advanced" />
             </ComboBox>
+            <CheckBox x:Name="ShowBooruToolsToggle" Grid.Column="2" IsVisible="False" VerticalAlignment="Center"
+                      Checked="OnBooruToolsToggleChanged" Unchecked="OnBooruToolsToggleChanged"
+                      ToolTip.Tip="Show or hide Booru pages and actions.">
+                <TextBlock x:Name="ShowBooruToolsLabel" Tag="workview.booru.show" Classes="localized" Text="Show Booru" />
+            </CheckBox>
             </Grid>
         </Border>
         <ContentControl x:Name="ReaderHost" Grid.Row="1" Grid.RowSpan="3" IsVisible="False" Background="{DynamicResource Workspace.Background}" />

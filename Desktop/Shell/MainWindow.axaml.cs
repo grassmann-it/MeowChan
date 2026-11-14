@@ -262,6 +262,7 @@ public partial class MainWindow : Window
         ArchiveNavigationButton.IsEnabled = earlyPages;
         // Media reads the catalog and media folders like Archive, but its index build waits for a ready session.
         MediaNavigationButton.IsEnabled = navigationReady;
+        BooruNavigationButton.IsEnabled = navigationReady && CanOpenBooru;
         if (_mediaPage != null) _mediaPage.IsAvailable = ready;
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;

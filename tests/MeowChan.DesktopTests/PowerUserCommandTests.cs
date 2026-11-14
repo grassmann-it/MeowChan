@@ -9,6 +9,7 @@ public sealed class PowerUserCommandTests
     [InlineData("navigation.downloads", "1")]
     [InlineData("navigation.archive", "2")]
     [InlineData("navigation.media", "3")]
+    [InlineData("navigation.booru", "6")]
     [InlineData("navigation.rules", "4")]
     [InlineData("navigation.sources", "5")]
     [InlineData("navigation.plugins", null)]
@@ -40,19 +41,20 @@ public sealed class PowerUserCommandTests
     [InlineData(ShortcutPlatform.Linux)]
     [InlineData(ShortcutPlatform.Windows)]
     [InlineData(ShortcutPlatform.MacOS)]
-    public void ASavedPluginShortcutKeepsTheFreeSlotAndRoutesToTheMergedSourcesPage(ShortcutPlatform platform)
+    public void ASavedPluginShortcutKeepsItsSlotAndYieldsTheNewBooruDefault(ShortcutPlatform platform)
     {
         var gesture = ShortcutGesture.Parse("Primary+6");
         var defaults = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(defaults.For("navigation.plugins"));
-        Assert.All(MainPageOrder.CommandIds, id => Assert.DoesNotContain(defaults.For(id),
-            candidate => EffectiveShortcutBindings.Equivalent(gesture, candidate, platform)));
+        Assert.Contains(defaults.For("navigation.booru"), candidate =>
+            EffectiveShortcutBindings.Equivalent(gesture, candidate, platform));
 
         var section = new ShortcutBindingsSection().Set("navigation.plugins", [gesture]);
         string before = section.Raw.GetRawText();
         var saved = EffectiveShortcutBindings.Build(section, platform);
         Assert.True(EffectiveShortcutBindings.Equivalent(gesture, Assert.Single(saved.For("navigation.plugins")), platform));
-        Assert.Empty(saved.Issues);
+        Assert.Contains(saved.Issues, issue => issue.CommandId == "navigation.booru"
+            && issue.OtherCommandId == "navigation.plugins" && issue.Reason?.Code == "defaultYields");
         Assert.Equal(before, section.Raw.GetRawText());
         Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
         Assert.DoesNotContain("navigation.plugins", MainPageOrder.CommandIds);

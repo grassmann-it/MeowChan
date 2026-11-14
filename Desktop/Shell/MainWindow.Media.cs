@@ -74,6 +74,7 @@ public partial class MainWindow
         _mediaPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         _workViews.Changed += (_, view) => _mediaPage?.ApplyWorkView(view, viewChanged: true);
         MediaPageHost.Content = _mediaPage;
+        AttachBooruOverflow(_mediaPage);
     }
 
     // Passive in-memory views only; an unavailable store stays null so a filter needing it is refused.

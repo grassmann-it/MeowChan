@@ -12,7 +12,20 @@ public partial class MainWindow
 {
     private void InitializeBooruMedia()
     {
-        _mediaPage?.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench);
+        if (_mediaPage is { } page) AttachBooruOverflow(page);
+    }
+
+    // Called at MediaPage's actual creation point and kept idempotent for the late Booru
+    // composition hook. No MediaPage implementation or toolbar layout is changed here.
+    private void AttachBooruOverflow(MediaPage page) =>
+        page.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench);
+
+    private void ConfigureBooruMediaLinks(BooruPage page) => ConfigureBooruMediaLinks(page.View);
+
+    private void ConfigureBooruMediaLinks(BooruWorkbenchView view)
+    {
+        view.ShowInMedia = ShowBooruPostInMediaAsync;
+        view.IsPostSavedInMedia = IsSavedBooruPost;
     }
 
     private void ConfigureBooruMediaLinks(BooruWorkbenchWindow window)

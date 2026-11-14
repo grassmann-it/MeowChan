@@ -17,7 +17,7 @@ public sealed class StatusNavigationTests : IDisposable
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] Earlier =
-        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources"];
+        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources"];
 
     public StatusNavigationTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }

@@ -823,6 +823,7 @@ public partial class MainWindow
         {
             foreach (string id in MainPageOrder.CommandIds)
             {
+                if (id == "navigation.booru" && !CanOpenBooru) continue;
                 if (!CommandBindings.Matches(e, id)) continue;
                 WorkspacePage page = PageFor(id);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);

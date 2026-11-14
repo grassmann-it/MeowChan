@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -58,9 +59,20 @@ internal sealed class BooruPage : UserControl, IDisposable
         if (!_disposed) _view.ShowQuery(query);
     }
 
+    /// <summary>Applies the owning shell's work-view contract without replacing the workbench tree.</summary>
+    internal void ApplyWorkView(WorkView view, bool viewChanged)
+    {
+        if (!_disposed) _view.ApplyWorkView(view, viewChanged);
+    }
+
     internal void AddTagToSearch(string tag)
     {
         if (!_disposed) _view.AddTagToSearch(tag);
+    }
+
+    internal void FocusSearchInput()
+    {
+        if (!_disposed) _view.FocusSearchInput();
     }
 
     internal bool TryClearQuery() => !_disposed && _view.TryClearQuery();
