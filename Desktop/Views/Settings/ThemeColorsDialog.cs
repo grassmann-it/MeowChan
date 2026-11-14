@@ -57,7 +57,7 @@ internal sealed class ThemeColorsDialog : Window
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _commit = commit ?? throw new ArgumentNullException(nameof(commit));
-        if (applyLive != null) _trial = new ThemeTrialSession(model, applyLive);
+        if (applyLive != null) _trial = new ThemeTrialSession(model, applyLive, ScheduleTrialApply);
         _theme = initialVariant;
         Name = "ThemeColorsDialog";
         DialogWindow.Configure(this, DialogSize.XL, modal: true);
@@ -185,6 +185,15 @@ internal sealed class ThemeColorsDialog : Window
     private void OnColorChosen(ThemeColorRow row, Color color) => _model.SetRole(_theme, row.Role.Id, color);
 
     private void OnResetRequested(ThemeColorRow row) => _model.ResetRole(_theme, row.Role.Id);
+
+    // M4: one timer per interval of the trial session; it runs on the UI thread and the session cancels it when the switch goes off or the dialog closes.
+    private static Action ScheduleTrialApply(Action callback)
+    {
+        DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(ThemeTrialSession.CoalesceMilliseconds) };
+        timer.Tick += (_, _) => { timer.Stop(); callback(); };
+        timer.Start();
+        return timer.Stop;
+    }
 
     private void OnModelChanged(object? sender, EventArgs e)
     {

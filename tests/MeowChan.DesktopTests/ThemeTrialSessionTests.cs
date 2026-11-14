@@ -108,6 +108,160 @@ public sealed class ThemeTrialSessionTests
         Assert.Same(applied, live[^1]); // the last thing on the window is what was saved
     }
 
+    // ---- M4: applies are coalesced while drafts keep changing ----
+
+    // A scheduler by hand: Fire() ends the current interval, like the dialog's timer would after 120 ms.
+    private sealed class Clock
+    {
+        private Action? _callback;
+        public int Armed { get; private set; }
+        public int Cancelled { get; private set; }
+        public bool IsArmed => _callback != null;
+        public Action Schedule(Action callback)
+        {
+            Armed++;
+            _callback = callback;
+            return () => { if (_callback == callback) { _callback = null; Cancelled++; } };
+        }
+        public void Fire() { Action? callback = _callback; _callback = null; callback?.Invoke(); }
+    }
+
+    private static (ThemeTrialSession Session, List<ThemeColorOverrides> Live, Clock Clock) Coalescing(ThemeConfiguratorModel model)
+    {
+        List<ThemeColorOverrides> live = [];
+        Clock clock = new();
+        return (new ThemeTrialSession(model, live.Add, clock.Schedule), live, clock);
+    }
+
+    [Fact]
+    public void ADragThatChangesTheDraftManyTimesAppliesOncePerIntervalAndTheLastDraftArrives()
+    {
+        ThemeConfiguratorModel model = Model();
+        (ThemeTrialSession session, List<ThemeColorOverrides> live, Clock clock) = Coalescing(model);
+        session.SetOn(true);
+        Assert.Single(live); // switching on shows the draft at once
+        clock.Fire();
+        // The first change after a quiet interval applies at once.
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        session.DraftChanged();
+        Assert.Equal(2, live.Count);
+        // Forty slider ticks inside the interval apply nothing yet.
+        for (int tick = 0; tick < 40; tick++)
+        {
+            model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C(tick % 2 == 0 ? "#1D5E3A" : "#1E5F3B"));
+            session.DraftChanged();
+        }
+        Assert.Equal(2, live.Count);
+        Assert.True(session.HasPending);
+        ThemeColorOverrides newest = model.Draft;
+        clock.Fire(); // the interval ends: one apply with the newest draft
+        Assert.Equal(3, live.Count);
+        Assert.Same(newest, live[^1]);
+        Assert.False(session.HasPending);
+        clock.Fire(); // a quiet interval: nothing more
+        Assert.Equal(3, live.Count);
+        Assert.False(clock.IsArmed);
+    }
+
+    [Fact]
+    public void AChangeAfterAQuietIntervalAppliesImmediatelyAgain()
+    {
+        ThemeConfiguratorModel model = Model();
+        (ThemeTrialSession session, List<ThemeColorOverrides> live, Clock clock) = Coalescing(model);
+        session.SetOn(true);
+        clock.Fire();
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#6DC793"));
+        session.DraftChanged();
+        clock.Fire();
+        Assert.False(clock.IsArmed);
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#70C896"));
+        session.DraftChanged();
+        Assert.Same(model.Draft, live[^1]);
+        Assert.True(clock.IsArmed);
+    }
+
+    [Fact]
+    public void SwitchingOffAndClosingDropWhatWaitsAndPutTheSavedColoursBackAtOnce()
+    {
+        ThemeColorOverrides saved = ThemeColorOverrides.Empty.WithRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#6DC793"));
+        ThemeConfiguratorModel model = Model(saved);
+        (ThemeTrialSession session, List<ThemeColorOverrides> live, Clock clock) = Coalescing(model);
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        session.SetOn(true);
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1D5E3A"));
+        session.DraftChanged();
+        Assert.True(session.HasPending);
+        session.SetOn(false);
+        Assert.Same(saved, live[^1]); // restored without waiting for the interval
+        Assert.False(session.HasPending);
+        Assert.False(clock.IsArmed);
+        int calls = live.Count;
+        clock.Fire();
+        Assert.Equal(calls, live.Count); // the dropped change never arrives later
+
+        session.SetOn(true);
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1E5F3B"));
+        session.DraftChanged();
+        session.Close(); // Cancel, Escape, the cross and the owner closing
+        Assert.Same(saved, live[^1]);
+        Assert.False(clock.IsArmed);
+        calls = live.Count;
+        clock.Fire();
+        Assert.Equal(calls, live.Count);
+        session.DraftChanged(); // a change after closing does nothing
+        Assert.Equal(calls, live.Count);
+        Assert.False(clock.IsArmed);
+    }
+
+    [Fact]
+    public void ARefusedNewestDraftWaitingAtTheEndOfTheIntervalLeavesTheLastAcceptedOneOnTheWindow()
+    {
+        ThemeConfiguratorModel model = Model();
+        (ThemeTrialSession session, List<ThemeColorOverrides> live, Clock clock) = Coalescing(model);
+        session.SetOn(true);
+        clock.Fire();
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        session.DraftChanged();
+        ThemeColorOverrides accepted = model.Draft;
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Text, WeakText(model));
+        Assert.NotNull(model.Block);
+        session.DraftChanged();
+        clock.Fire();
+        Assert.Same(accepted, live[^1]);
+        Assert.DoesNotContain(live, shown => shown.Equals(model.Draft));
+        Assert.False(clock.IsArmed);
+    }
+
+    [Fact]
+    public void ApplyAfterACoalescedChangeLeavesTheWindowToTheCommitAndNothingArrivesLater()
+    {
+        ThemeConfiguratorModel model = Model();
+        (ThemeTrialSession session, List<ThemeColorOverrides> live, Clock clock) = Coalescing(model);
+        session.SetOn(true);
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        session.DraftChanged(); // waits: the interval of switching on is still running
+        ThemeColorOverrides applied = model.Draft;
+        model.MarkSaved(applied);
+        session.DraftChanged();
+        session.Close();
+        // The waiting change is dropped: the commit of Apply puts the saved colours on the window itself (ThemeRuntime.ApplyOverrides), the trial adds nothing.
+        Assert.DoesNotContain(live, shown => shown.Equals(applied));
+        Assert.False(clock.IsArmed);
+        int calls = live.Count;
+        clock.Fire();
+        Assert.Equal(calls, live.Count);
+    }
+
+    [Fact]
+    public void TheDialogCoalescesWithATimerOfTheSessionsIntervalAndTheIntervalIsAFewHundredthsOfASecond()
+    {
+        string dialog = File.ReadAllText(Root("Desktop/Views/Settings/ThemeColorsDialog.cs"));
+        Assert.Contains("new ThemeTrialSession(model, applyLive, ScheduleTrialApply)", dialog);
+        Assert.Contains("DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(ThemeTrialSession.CoalesceMilliseconds) };", dialog);
+        Assert.Contains("return timer.Stop;", dialog);
+        Assert.InRange(ThemeTrialSession.CoalesceMilliseconds, 100, 150);
+    }
+
     [Fact]
     public void TheDialogForwardsTheSwitchTheDraftAndEveryWayOfClosingAndTheEditorUsesTheRuntime()
     {
