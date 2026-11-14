@@ -101,6 +101,7 @@ public sealed class BooruCrossLinkExactFilterTests
     [InlineData("building")]
     [InlineData("selection identity")]
     [InlineData("user interaction")]
+    [InlineData("debounced filter input")]
     [InlineData("new return")]
     [InlineData("dispose")]
     public async Task CapturedNavigationGuardRejectsLateContinuation(string change)
@@ -137,6 +138,7 @@ public sealed class BooruCrossLinkExactFilterTests
             case "building": Set(page, "_building", building); break;
             case "selection identity": Set(page, "_selectionStamp", 1L); break;
             case "user interaction": page.EndPendingReturn(); break;
+            case "debounced filter input": Call(page, "NoteBooruHandoffInteraction"); break;
             case "new return": Set(page, "_returnRun", new object()); break;
             case "dispose": lifetime.Cancel(); break; // EndLifetime's revocation signal, no UI cleanup on an uninitialised page.
             default: throw new ArgumentException(change);

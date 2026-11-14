@@ -94,7 +94,9 @@ public sealed partial class MediaPage
         int generation = PresentCount + (awaitingPresent && _presentPending ? 1 : 0);
         int requested = PresentRunCount;
         long selection = _selectionStamp;
+        long interaction = _booruHandoffInteractionRevision;
         return () => !_lifetime.IsCancellationRequested && ReferenceEquals(_returnRun, run)
+            && interaction == _booruHandoffInteractionRevision
             && ReferenceEquals(snapshot, _snapshot) && ReferenceEquals(presentIndex, _presentIndex)
             && ReferenceEquals(build, BuildTask) && _building == null
             && ReferenceEquals(present, PresentTask) && PresentCount == generation && PresentRunCount == requested
