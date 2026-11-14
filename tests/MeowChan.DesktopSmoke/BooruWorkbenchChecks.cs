@@ -54,10 +54,11 @@ internal static partial class BooruWorkbenchChecks
             Require(Text(window).Contains("adds no rating filter") || Text(window).Contains("no rating filter"),
                 "The no-rating-filter note is missing.");
             Require(!Text(window).Contains("18+"), "An 18+ notice appeared.");
-            // M10 / M5: the window title is a level-1 heading for screen readers, and the window fits the screen it opened on.
-            Require(window.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Classes.Contains("page-title")
-                    && AutomationProperties.GetHeadingLevel(block) == 1),
-                "The window title is not a level-1 heading.");
+            // M10 / M5 (modals plan MD3): the window title stands in the title bar only and is the window's accessible name, the body
+            // does not repeat it, and the window fits the screen it opened on.
+            Require(!string.IsNullOrEmpty(window.Title) && !window.GetVisualDescendants().OfType<TextBlock>().Any(block => block.Text == window.Title
+                    && block.Classes.Contains("page-title")),
+                "The window title is missing or repeated in the body.");
             if (window.Screens.ScreenFromWindow(window) is { } screen)
                 Require(window.Bounds.Height * window.RenderScaling <= screen.WorkingArea.Height + 1
                     && window.Bounds.Width * window.RenderScaling <= screen.WorkingArea.Width + 1,

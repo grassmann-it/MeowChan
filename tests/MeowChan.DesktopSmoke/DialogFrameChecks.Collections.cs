@@ -169,7 +169,7 @@ internal static partial class DialogFrameChecks
 
     private static async Task<(SavedArchiveSearchesDialog Dialog, Task Closed)> OpenSavedSearchesAsync(Window window, ArchivePage page, DesktopSessionHost host)
     {
-        var dialog = new SavedArchiveSearchesDialog(host, page) { Width = 650, Height = 510 };
+        var dialog = new SavedArchiveSearchesDialog(host, page);
         Task closed = dialog.ShowDialog(window);
         await Program.WaitUntilAsync(() => dialog.IsVisible && dialog.FindControl<Button>("SavedSearchReload")!.IsEnabled);
         return (dialog, closed);

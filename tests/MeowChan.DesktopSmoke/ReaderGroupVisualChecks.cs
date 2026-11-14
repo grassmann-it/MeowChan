@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
@@ -47,7 +48,7 @@ internal static class ReaderGroupVisualChecks
                 ListBox groups = dialog.FindControl<ListBox>("Groups")!;
                 groups.BringIntoView(); groups.Focus(NavigationMethod.Tab);
                 await SettleAsync(dialog);
-                Button[] footer = dialog.FindControl<WrapPanel>("GroupFooter")!.Children.OfType<Button>().Where(button => button.IsVisible).ToArray();
+                Button[] footer = dialog.GetVisualDescendants().OfType<WrapPanel>().Single(panel => panel.Name == DialogFooter.ActionsName).Children.OfType<Button>().Where(button => button.IsVisible).ToArray();
                 Require(footer.Length >= 4, "Manager lost persistent save/read/reload/close actions.");
                 Capture(dialog, scenario, "manager", new Control[] { groups, dialog.FindControl<TextBlock>("GroupMessage")! }.Concat(footer).ToArray());
 
@@ -258,7 +259,7 @@ internal static class ReaderGroupVisualChecks
         Require(geometry.All(item => item.fullyVisible), stem + ": a required control is clipped; inspect PNG/JSON.");
         Require(geometry.All(item => item.labels == null || item.labels.All(label => label.fits)),
             stem + ": a required button label is clipped; inspect PNG/JSON.");
-        Button[] footerButtons = controls.OfType<Button>().Where(button => button.Parent is WrapPanel { Name: "GroupFooter" }).ToArray();
+        Button[] footerButtons = controls.OfType<Button>().Where(button => button.Parent is WrapPanel { Name: DialogFooter.ActionsName }).ToArray();
         for (int left = 0; left < footerButtons.Length; left++)
         for (int right = left + 1; right < footerButtons.Length; right++)
         {

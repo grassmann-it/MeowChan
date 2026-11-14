@@ -176,7 +176,7 @@ internal static partial class SavedArchiveSearchChecks
             }
             async Task<(SavedArchiveSearchesDialog Dialog, Task Closed)> OpenManagerAsync()
             {
-                var candidate = new SavedArchiveSearchesDialog(owner.SessionHost, tested) { Width = 650, Height = 510 };
+                var candidate = new SavedArchiveSearchesDialog(owner.SessionHost, tested);
                 Task completion = candidate.ShowDialog(window);
                 await Program.WaitUntilAsync(() => candidate.IsVisible && Control<Button>(candidate, "SavedSearchReload").IsEnabled);
                 Select(candidate, Names[0], log);
