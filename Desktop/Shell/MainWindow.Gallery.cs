@@ -204,6 +204,8 @@ public partial class MainWindow
         GalleryViewer preferenceOwner = _gallery;
         _gallery.ContextOpenChanged += open =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(open, null); };
+        _gallery.PanelWidthChanged += width =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPanelWidth(width); };
         _gallery.VideoVolumeChanged += volume =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
         _gallery.PlaybackPreferencesChanged += preferences =>
