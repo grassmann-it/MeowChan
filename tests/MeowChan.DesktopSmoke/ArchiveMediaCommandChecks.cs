@@ -66,6 +66,11 @@ internal static class ArchiveMediaCommandChecks
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
                 "Saved inline media has no available shared rating action.");
+            // TP3 (E5): one tag entry, "Tag…", which opens the quick tag popover on the attachment (the dialog is "Advanced…" inside it).
+            MenuItem tag = commands.Single(item => (string)item.Tag! == "media.tags.edit");
+            Require(Equals(tag.Header, Texts.T("media.tags.edit")) && Texts.T("media.tags.edit") == CommandCatalog.Label("media.tags.edit")
+                && tag.Command?.CanExecute(tag.CommandParameter) == true && page.TagPopoverAsync != null,
+                "The inline media menu's tag entry is not the one popover action.");
             commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");

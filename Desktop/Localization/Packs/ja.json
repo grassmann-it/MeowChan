@@ -2623,7 +2623,7 @@
     "media.group.favorite.some": "お気に入り: 一部",
     "media.group.favorite.none": "お気に入り: なし",
     "media.group.favorite.unknown": "お気に入り: 不明",
-    "media.tags.edit": "メディアタグを編集…",
+    "media.tags.edit": "タグ付け…",
     "media.state.favorite": "お気に入り: {0}",
     "media.state.rating": "あなたの評価: {0}",
     "media.state.mediaTags": "メディアタグ: {0}",

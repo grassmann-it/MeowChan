@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
@@ -24,6 +25,12 @@ public partial class ArchivePage
     internal Func<GalleryEntry, bool>? IsArchiveFavorite { get; set; }
     internal Func<GalleryEntry, Task>? ToggleArchiveFavoriteAsync { get; set; }
     internal Func<GalleryEntry, Task>? EditArchiveMediaTagsAsync { get; set; }
+    /// <summary>
+    /// Opens the quick tag popover (the shell owns the tag session) for one file: the exact entry, the tile or attachment it opened
+    /// on, the context of the suggestions and the page guard. Completes when the popover closed. Null opens the tag dialog of
+    /// <see cref="EditArchiveMediaTagsAsync"/> instead.
+    /// </summary>
+    internal Func<GalleryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
     /// <summary>Copies a saved file's path to the clipboard and says so; supplied by the shell.</summary>
     internal Func<string, Task>? CopyFilePathAsync { get; set; }
     private readonly Dictionary<FavoriteAssetKey, string> _favoriteErrors = new();
@@ -199,6 +206,7 @@ public partial class ArchivePage
         MediaTagSubjects.Of(target, out GalleryMediaTagUnavailable tagReason);
         bool taggable = tagEntry != null;
         bool? favorite = target == null || IsArchiveFavorite == null ? null : IsArchiveFavorite(target);
+        string? tagsBlocked = taggable ? null : MediaMenuReasons.Tags(tagReason, ambiguous: ambiguousTagTarget);
         MediaMenuFacts facts = new(surface, target == null ? null : severalPosts ? MediaMenuTarget.OfFile(target) : MediaMenuTarget.Of(target))
         {
             Present = target != null,
@@ -208,8 +216,9 @@ public partial class ArchivePage
             FavoriteWired = ToggleArchiveFavoriteAsync != null,
             RatingWired = EditMediaRatingAsync != null,
             RatingBlocked = _mediaRatingError,
-            TagsWired = EditArchiveMediaTagsAsync != null,
-            TagsBlocked = taggable ? null : MediaMenuReasons.Tags(tagReason, ambiguous: ambiguousTagTarget),
+            TagsWired = EditArchiveMediaTagsAsync != null || TagPopoverAsync != null,
+            TagsBlocked = tagsBlocked,
+            TagsBlockedExplained = true,
             FolderWired = _openFolder != null,
             CopyPathWired = CopyFilePathAsync != null,
             Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None
@@ -219,6 +228,8 @@ public partial class ArchivePage
         // open filename search retires it; a mere filter change keeps the frozen visible sequence it was built from.
         MediaMenuSession session = new(surface, model.Target, () => !_ended && _available && !IsFilenameSearchOpen
             && ReferenceEquals(_thread, thread) && _selectedThread == threadId);
+        // The popover outlives the menu session (a tag write invalidates the menu on purpose); it lives while this thread is on screen.
+        bool PopoverCurrent() => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId;
         Task Run(Func<Task> action) => RunArchiveMenuActionAsync(action, session, reportError);
         Dictionary<MediaMenuAction, Func<Task>> handlers = new()
         {
@@ -229,7 +240,18 @@ public partial class ArchivePage
             },
             [MediaMenuAction.Favorite] = async () => { if (target != null) await ToggleArchiveMediaFavoriteAsync(target); },
             [MediaMenuAction.Rating] = async () => { if (target != null && EditMediaRatingAsync != null) await EditMediaRatingAsync(target); },
-            [MediaMenuAction.Tags] = async () => { if (tagEntry != null && EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry); },
+            [MediaMenuAction.Tags] = async () =>
+            {
+                // A file that cannot be tagged gets the reason as text in the popover; a taggable one the tag popover on its tile.
+                if (tagEntry == null)
+                {
+                    QuickTagPopover.OpenBlocked(origin, target?.Asset.OriginalFileName ?? attachment?.Label ?? string.Empty,
+                        tagsBlocked ?? MediaMenuReasons.Unavailable, new QuickTagPopoverOptions { IsCurrent = PopoverCurrent });
+                }
+                else if (TagPopoverAsync != null)
+                    await TagPopoverAsync(tagEntry, origin, QuickTagContextSource.ContextOf(tagEntry, galleryEntries, thread.Summary.Title), PopoverCurrent);
+                else if (EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry);
+            },
             [MediaMenuAction.Export] = async () =>
             {
                 if (target != null) await OpenOriginalExportAsync(new[] { FavoriteExportAsset.From(threadId, target.Manifest, target.Asset) }, origin);

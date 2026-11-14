@@ -40,6 +40,7 @@ public partial class MainWindow
             EditThreadRules = entry => EditFrozenRules(entry.Thread),
             EditTags = EditMediaLibraryTagsAsync,
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
+            TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             ReadUserData = ReadMediaLibraryUserData,
             ReadBooruCatalog = _session.ReadBooruCatalog,
@@ -214,13 +215,13 @@ public partial class MainWindow
         EditMediaLibraryTagsForMenuAsync(entry, () => true);
 
     private async Task EditMediaLibraryTagsForMenuAsync(MediaLibraryEntry indexed, Func<bool> presentationCurrent,
-        GalleryEntry? alreadyResolved = null)
+        GalleryEntry? alreadyResolved = null, Control? returnTo = null)
     {
         Func<bool> hostCurrent = CaptureMediaPageMenuGuard();
         bool Current() => hostCurrent() && presentationCurrent();
         if (!Current() || _mediaTagDialogOpen) return;
         _mediaTagDialogOpen = true;
-        Control? origin = FocusManager?.GetFocusedElement() as Control;
+        Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
         try
         {
             GalleryEntry? match = alreadyResolved ?? await MediaMenuIdentity.ResolveAsync(indexed,

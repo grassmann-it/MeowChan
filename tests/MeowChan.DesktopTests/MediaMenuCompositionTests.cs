@@ -132,6 +132,25 @@ public sealed class MediaMenuCompositionTests : IDisposable
     }
 
     [Fact]
+    public void ABlockedTagTargetStaysEnabledWhenThePopoverExplainsItAndAGoneFileStaysDisabled()
+    {
+        string reason = Texts.T("booru.media.tags.unavailable");
+        foreach (MediaMenuSurface surface in All)
+        {
+            MediaMenuItemModel explained = MediaMenuComposition.Compose(Full(surface) with { TagsBlocked = reason, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.True(explained.Available, surface.ToString());
+            Assert.Equal(CommandCatalog.Label("media.tags.edit"), explained.Label);
+            MediaMenuItemModel gone = MediaMenuComposition.Compose(Full(surface) with { Present = false, TagsBlocked = reason, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.False(gone.Available, surface.ToString());
+            MediaMenuItemModel unwired = MediaMenuComposition.Compose(Full(surface) with { TagsWired = false, TagsBlockedExplained = true })
+                .Items.Single(item => item.Action == MediaMenuAction.Tags);
+            Assert.False(unwired.Available, surface.ToString());
+        }
+    }
+
+    [Fact]
     public void ProviderPostActionsExistOnlyForDanbooruMediaAndNeverGuessAnAddress()
     {
         foreach (MediaMenuSurface surface in All)

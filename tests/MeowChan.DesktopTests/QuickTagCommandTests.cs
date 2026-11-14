@@ -120,6 +120,12 @@ public sealed class QuickTagCommandTests
             Assert.Equal(new[] { "gallery", "media", "reader", "archive" }, CommandCatalog.Get(id).ExecutionContexts);
     }
 
+    private static readonly string[] PanelCommands =
+    {
+        QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.MarkNext,
+        QuickTagCommands.MarkPrevious, QuickTagCommands.ThreadSection
+    };
+
     [Fact]
     public void EveryQuickTagCommandIsWiredNowAndTheMarkingKeysAreActiveWithoutIssues()
     {
@@ -142,6 +148,23 @@ public sealed class QuickTagCommandTests
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Z, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Undo));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.PageDown, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkNext));
         Assert.True(linux.Matches(new KeyEventArgs { Key = Key.PageUp, KeyModifiers = KeyModifiers.Shift }, QuickTagCommands.MarkPrevious));
+    }
+
+    [Fact]
+    public void UndoAndTheNineSuggestionTogglesAreWiredByThePopoverAndActiveWithTheirDefaults()
+    {
+        string[] wired = new[] { QuickTagCommands.Undo }.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray();
+        Assert.Equal(QuickTagCommands.All.Count - PanelCommands.Length, wired.Length);
+        foreach (string id in wired)
+        {
+            Assert.DoesNotContain(id, QuickTagCommands.AwaitingHandler);
+            Assert.True(CommandCatalog.Get(id).IsImplemented, id);
+        }
+        var linux = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
+        Assert.True(linux.Matches(new KeyEventArgs { Key = Key.Z, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Undo));
+        for (int n = 1; n <= QuickTagCommands.SuggestionCount; n++)
+            Assert.True(linux.Matches(new KeyEventArgs { Key = Key.D0 + n, KeyModifiers = KeyModifiers.Alt }, QuickTagCommands.Suggestion(n)), n.ToString());
+        Assert.False(linux.Matches(new KeyEventArgs { Key = Key.D1, KeyModifiers = KeyModifiers.Control }, QuickTagCommands.Suggestion(1)));
     }
 
     [Fact]

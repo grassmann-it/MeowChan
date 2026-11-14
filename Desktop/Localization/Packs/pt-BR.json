@@ -2557,7 +2557,7 @@
     "media.group.favorite.some": "Favorito: alguns",
     "media.group.favorite.none": "Favorito: nenhum",
     "media.group.favorite.unknown": "Favorito: desconhecido",
-    "media.tags.edit": "Editar tags de mídia…",
+    "media.tags.edit": "Marcar com tags…",
     "media.state.favorite": "Favorito: {0}",
     "media.state.rating": "Sua avaliação: {0}",
     "media.state.mediaTags": "Tags de mídia: {0}",

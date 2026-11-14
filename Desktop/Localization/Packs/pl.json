@@ -2570,7 +2570,7 @@
     "media.group.favorite.some": "Ulubione: niektóre",
     "media.group.favorite.none": "Ulubione: żadne",
     "media.group.favorite.unknown": "Ulubione: nieznane",
-    "media.tags.edit": "Edytuj tagi mediów…",
+    "media.tags.edit": "Taguj…",
     "media.state.favorite": "Ulubione: {0}",
     "media.state.rating": "Twoja ocena: {0}",
     "media.state.mediaTags": "Tagi mediów: {0}",

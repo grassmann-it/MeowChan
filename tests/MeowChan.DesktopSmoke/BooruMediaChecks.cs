@@ -537,8 +537,14 @@ internal static class BooruMediaChecks
     {
         await SelectAsync(page, row);
         MenuItem tags = await MenuItemAsync(page, "media.tags.edit");
-        Require(!tags.IsEnabled, phase + ": own tags for downloaded provider media are not available yet and must be disabled, never silently tagged.");
+        // TP3 (plan 1.4): the entry stays enabled and the popover states the reason as text; nothing is tagged.
+        Require(tags.IsEnabled && tags.Command!.CanExecute(null), phase + ": the tag entry of downloaded provider media must stay enabled and explain itself.");
+        tags.Command!.Execute(null);
         page.MediaMenu!.Close();
+        await UntilAsync(() => QuickTagPopover.Current is { IsOpen: true, Surface: null });
+        Require(QuickTagPopover.Current!.BlockedReason == Texts.T("booru.media.tags.unavailable"),
+            phase + ": the popover must say why provider media cannot be tagged: " + QuickTagPopover.Current.BlockedReason);
+        QuickTagPopover.Current.Close();
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": a private tag appeared.");
         await Task.CompletedTask;
     }

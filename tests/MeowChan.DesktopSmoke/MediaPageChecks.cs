@@ -686,6 +686,10 @@ internal static partial class MediaPageChecks
             MediaLibraryEntry pairIn700 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "700");
             MediaLibraryEntry pairIn800 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "800");
             ClickRaise(tag);
+            // TP3: the selection bar opens the quick tag popover over the selection (tri-state, one write); "Advanced…" lists the occurrences.
+            await UntilAsync(() => page.SelectionTagPopover is { IsOpen: true, Surface: not null });
+            Require(page.SelectionTagPopover!.Surface!.Session.IsSelection && page.SelectionTagWindow == null, "The selection tag popover is not over the selection.");
+            page.SelectionTagPopover.Surface.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => page.SelectionTagWindow != null);
             MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
             await UntilAsync(() => dialog.OccurrenceBoxes.Count == 4);

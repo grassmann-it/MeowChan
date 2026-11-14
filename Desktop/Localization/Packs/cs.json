@@ -2567,7 +2567,7 @@
     "media.group.favorite.some": "Oblíbené: některé",
     "media.group.favorite.none": "Oblíbené: žádné",
     "media.group.favorite.unknown": "Oblíbené: neznámé",
-    "media.tags.edit": "Upravit štítky médií…",
+    "media.tags.edit": "Označit štítkem…",
     "media.state.favorite": "Oblíbené: {0}",
     "media.state.rating": "Vaše hodnocení: {0}",
     "media.state.mediaTags": "Štítky média: {0}",

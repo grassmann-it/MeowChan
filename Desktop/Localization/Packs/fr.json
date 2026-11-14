@@ -2799,7 +2799,7 @@
     "media.group.favorite.some": "Favori : certains",
     "media.group.favorite.none": "Favori : aucun",
     "media.group.favorite.unknown": "Favori : inconnu",
-    "media.tags.edit": "Modifier les étiquettes du média…",
+    "media.tags.edit": "Étiqueter…",
     "media.state.favorite": "Favori : {0}",
     "media.state.rating": "Votre évaluation : {0}",
     "media.state.mediaTags": "Étiquettes du média : {0}",

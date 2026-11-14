@@ -7,8 +7,10 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -38,6 +40,9 @@ public sealed partial class MediaPage
     /// <summary>Shows the export dialog for the frozen originals, the number of tiles that had none to offer and the label of what is exported.</summary>
     internal Func<IReadOnlyList<FavoriteExportAsset>, int, string, Task>? ExportOriginals { get; set; }
     internal Window? SelectionTagWindow => _selectionTag;
+    private QuickTagPopover? _selectionTagPopover;
+    /// <summary>The quick tag popover of the selection while it is open ("Advanced…" in it opens <see cref="SelectionTagWindow"/>).</summary>
+    internal QuickTagPopover? SelectionTagPopover => _selectionTagPopover;
 
     /// <summary>The selected tiles in page order. Selected tiles are always among the shown ones.</summary>
     internal IReadOnlyList<MediaLibraryTile> SelectedTiles => MediaLibrarySelection.Pick(_tiles, _grid.Selection.SelectedIndexes);
@@ -207,8 +212,58 @@ public sealed partial class MediaPage
         }
     }
 
+    /// <summary>
+    /// Tags the selection in the quick tag popover (tri-state chips over every occurrence of the chosen tiles, one write per change).
+    /// It opens on <paramref name="anchor"/> (the tile of the menu), by default on the selection bar's button. "Advanced…" opens the
+    /// full dialog (<see cref="TagSelectionDialogAsync"/>) to pick occurrences.
+    /// </summary>
+    internal async Task TagSelectionAsync(Control? anchor = null)
+    {
+        if (!_selTag.IsEnabled || TagServices is not { } services) return;
+        IReadOnlyList<MediaLibraryTile> tiles = SelectedTiles;
+        if (tiles.Count == 0) return;
+        static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
+        Control host = Usable(anchor) ? anchor! : Usable(_selTag) ? _selTag : _grid;
+        MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
+        QuickTagSession quick = new(QuickTagTarget.For(session));
+        MediaLibraryTileRow? lead = SelectedRow;
+        TagContext context = QuickTagContextSource.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
+        Control? origin = null;
+        try
+        {
+            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), new QuickTagPopoverOptions
+            {
+                Suggestions = new QuickTagContextSource(context),
+                ReadSourceTags = ReadBooruCatalog,
+                IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
+                RestoreFocus = false
+            });
+            origin = popover.Origin;
+            _selectionTagPopover = popover;
+            reason = await popover.Result;
+        }
+        finally
+        {
+            _selectionTagPopover = null;
+            _selectionBusy = false;
+            if (!_lifetime.IsCancellationRequested)
+            {
+                // The new tags show at once in filters and details; the tiles are rebuilt, so the focus is placed again.
+                if (session.Changed) RefreshUserData();
+                UpdateSelectionBar();
+                if (reason != QuickTagPopoverCloseReason.Advanced) RestoreMediaMenuActionFocus(origin, () => !OwnedWindowOpen());
+            }
+        }
+        if (reason == QuickTagPopoverCloseReason.Advanced && !_lifetime.IsCancellationRequested) await TagSelectionDialogAsync();
+    }
+
+    private bool OwnedWindowOpen() => (_owner ?? TopLevel.GetTopLevel(this) as Window)?.OwnedWindows.Any(window => window.IsVisible) == true;
+
     /// <summary>Adds or removes an own tag on the occurrences of the selection; the dialog lists them and tags all by default.</summary>
-    internal async Task TagSelectionAsync()
+    internal async Task TagSelectionDialogAsync()
     {
         if (!_selTag.IsEnabled || TagServices is not { } services) return;
         if ((_owner ?? TopLevel.GetTopLevel(this) as Window) is not { } owner) return;

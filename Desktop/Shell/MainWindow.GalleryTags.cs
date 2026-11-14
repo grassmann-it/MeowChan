@@ -118,12 +118,12 @@ public partial class MainWindow
         _gallery.SetMediaTags(loaded.Snapshot.TagsOf(target).Select(tag => tag.Name.Display).ToArray());
     }
 
-    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry)
+    private async Task EditGalleryMediaTagsAsync(GalleryEntry entry, Control? returnTo = null)
     {
         if (_isClosing || _galleryTagDialogOpen) return;
         MediaTagSubject? target = MediaTagSubjects.Of(entry, out _);
         if (target == null) { RefreshGalleryMediaTags(); return; }
-        Control? origin = FocusManager?.GetFocusedElement() as Control;
+        Control? origin = returnTo ?? FocusManager?.GetFocusedElement() as Control;
         _galleryTagDialogOpen = true;
         try
         {

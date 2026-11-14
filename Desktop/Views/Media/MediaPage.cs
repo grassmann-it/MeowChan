@@ -105,6 +105,12 @@ public sealed partial class MediaPage : UserControl
     /// <summary>Copies a provider post address to the clipboard; the default uses this page's clipboard.</summary>
     internal Func<Uri, Task>? CopyProviderPage { get; set; }
     internal Func<MediaLibraryEntry, Func<bool>, Task>? EditTagsForMenuAsync { get; set; }
+    /// <summary>
+    /// Opens the quick tag popover (the shell resolves the exact file and owns the tag session) on the given anchor for one entry:
+    /// the entry, the tile it opened on, the context of the suggestions and the page's guard. Completes when the popover closed.
+    /// Null falls back to the tag dialog of <see cref="EditTagsForMenuAsync"/>.
+    /// </summary>
+    internal Func<MediaLibraryEntry, Control, TagContext, Func<bool>, Task>? TagPopoverAsync { get; set; }
     /// <summary>Opens the manager of saved ratings (the shell's dialog); the page re-reads ratings when the dialog has closed.</summary>
     internal Func<Task>? ManageMediaRatingsAsync
     {
@@ -765,11 +771,38 @@ public sealed partial class MediaPage : UserControl
     {
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) return;
         if (_grid.Selection.Count > 1) { await TagSelectionAsync(); return; }
-        if (SelectedRow is not { } row || row.State?.CanEditMediaTags != true) return;
+        if (SelectedRow is not { } row) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryEntry entry = row.Entry;
-        if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, Current);
-        else await ExecuteMediaActionAsync("media.tags.edit", entry, Current);
+        Control anchor = _grid.ContainerFromItem(row) ?? _grid;
+        await OpenTagsAsync(entry, row, anchor, Current);
+    }
+
+    /// <summary>Why the tile cannot be tagged (null when it can): unknown tag index, a provider medium, no bound version.</summary>
+    private static string? TagsBlockedReason(MediaLibraryEntry entry, MediaLibraryEntryState? state) =>
+        state?.CanEditMediaTags == true ? null : state == null || !state.TagsKnown ? MediaMenuReasons.TagsUnknown
+            : MediaMenuReasons.Tags(entry.AttachmentRevisionKey == null && entry.LocalSlot == null
+                ? GalleryMediaTagUnavailable.NoPostVersion : GalleryMediaTagUnavailable.InvalidIdentity,
+                providerMedia: entry.BooruPostId != null);
+
+    /// <summary>
+    /// "Tag…" of one tile (menu, shortcut): the quick tag popover on the tile, or the reason as text when the tile cannot be tagged.
+    /// Without a popover host the tag dialog opens as before.
+    /// </summary>
+    private async Task OpenTagsAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current)
+    {
+        if (TagsBlockedReason(entry, row.State) is { } blocked)
+        {
+            QuickTagPopover.OpenBlocked(anchor, entry.Name ?? string.Empty, blocked, new QuickTagPopoverOptions { IsCurrent = current });
+            return;
+        }
+        if (TagPopoverAsync is { } popover)
+        {
+            await popover(entry, anchor, QuickTagContextSource.ContextOf(entry, _shown, row.Index), current);
+            return;
+        }
+        if (EditTagsForMenuAsync != null) await EditTagsForMenuAsync(entry, current);
+        else await ExecuteMediaActionAsync("media.tags.edit", entry, current);
     }
 
     private static readonly string[] MediaShortcutCommands = { "media.rating.edit", "media.details", "media.export-original", "media.show-in-folder" };
@@ -924,11 +957,9 @@ public sealed partial class MediaPage : UserControl
             FavoriteWired = hostActions,
             RatingWired = hostActions,
             RatingKnown = state?.RatingKnown == true,
-            TagsWired = EditTagsForMenuAsync != null || hostActions,
-            TagsBlocked = state?.CanEditMediaTags == true ? null : state == null || !state.TagsKnown ? MediaMenuReasons.TagsUnknown
-                : MediaMenuReasons.Tags(entry.AttachmentRevisionKey == null && entry.LocalSlot == null
-                    ? GalleryMediaTagUnavailable.NoPostVersion : GalleryMediaTagUnavailable.InvalidIdentity,
-                    providerMedia: entry.BooruPostId != null),
+            TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
+            TagsBlocked = TagsBlockedReason(entry, state),
+            TagsBlockedExplained = true,
             ExportWired = hostActions,
             FolderWired = hostActions,
             CopyPathWired = hostActions,
@@ -946,8 +977,7 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Open] = () => OpenMediaMenuAsync(entry, galleryWindow, galleryStart, Current),
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
             [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
-            [MediaMenuAction.Tags] = () => EditTagsForMenuAsync != null
-                ? EditTagsForMenuAsync(entry, Current) : ExecuteMediaActionAsync("media.tags.edit", entry, Current),
+            [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
             [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),

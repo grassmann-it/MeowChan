@@ -86,6 +86,9 @@ internal sealed class TagContextIndex
     /// <summary>Total entries of all lookups; a rough size for tests and budgets, not a memory measurement.</summary>
     internal int ApproximateEntries { get; }
 
+    /// <summary>True when the index of this snapshot is already built, so <see cref="For"/> returns at once (a UI thread asks before it would build).</summary>
+    internal static bool IsBuilt(PrivateTagStoreSnapshot snapshot) => Cache.TryGetValue(snapshot, out _);
+
     /// <summary>The index of a snapshot, built once. The build is O(assignments) and may run on any thread.</summary>
     internal static TagContextIndex For(PrivateTagStoreSnapshot snapshot, CancellationToken cancellation = default)
     {

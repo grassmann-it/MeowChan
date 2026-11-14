@@ -2803,7 +2803,7 @@
     "media.group.favorite.some": "Избранное: некоторые",
     "media.group.favorite.none": "Избранное: нет",
     "media.group.favorite.unknown": "Избранное: неизвестно",
-    "media.tags.edit": "Изменить теги медиа…",
+    "media.tags.edit": "Добавить тег…",
     "media.state.favorite": "Избранное: {0}",
     "media.state.rating": "Ваша оценка: {0}",
     "media.state.mediaTags": "Теги медиа: {0}",

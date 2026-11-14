@@ -2623,7 +2623,7 @@
     "media.group.favorite.some": "收藏：部分",
     "media.group.favorite.none": "收藏：无",
     "media.group.favorite.unknown": "收藏：未知",
-    "media.tags.edit": "编辑媒体标签…",
+    "media.tags.edit": "添加标签…",
     "media.state.favorite": "收藏：{0}",
     "media.state.rating": "你的评分：{0}",
     "media.state.mediaTags": "媒体标签：{0}",

@@ -1023,6 +1023,12 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
+    <!-- Right-click tag popover (QuickTagPopover): the flyout frame in the overlay tokens. Width and padding are set by the popover itself. -->
+    <Style Selector="FlyoutPresenter.quick-tag-popover">
+        <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="400" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
     <!-- Quick settings popover (R7): the in-window overlay look; the surface brings its own 16 dip inset and its width (360). -->
     <Style Selector="FlyoutPresenter.quick-settings">
         <Setter Property="Padding" Value="0" /><Setter Property="MinWidth" Value="0" /><Setter Property="MaxWidth" Value="400" />

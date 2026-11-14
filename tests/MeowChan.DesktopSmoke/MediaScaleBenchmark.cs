@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Diagnostics;
 using MeowChan.Gallery;
@@ -197,6 +198,9 @@ internal static class MediaScaleBenchmark
         {
             Stopwatch watch = Stopwatch.StartNew();
             double sync = Sync(() => PointerClick(edit));
+            // TP3: the menu entry opens the quick tag popover; the measured dialog is its "Advanced…".
+            await UntilAsync(() => window.MediaPageTagPopover is { IsOpen: true, Surface: not null }, Long, "tag popover");
+            window.MediaPageTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.MediaPageTagWindow?.IsVisible == true, Long, "tag dialog");
             dialog = window.MediaPageTagWindow!;
             double visible = watch.Elapsed.TotalMilliseconds;

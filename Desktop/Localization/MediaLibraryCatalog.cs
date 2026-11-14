@@ -142,7 +142,7 @@ internal static class MediaLibraryCatalog
         ("media.group.favorite.some", "Favorite: some", "Favorit: einige"),
         ("media.group.favorite.none", "Favorite: none", "Favorit: keine"),
         ("media.group.favorite.unknown", "Favorite: unknown", "Favorit: unbekannt"),
-        ("media.tags.edit", "Edit media tags…", "Medientags bearbeiten…"),
+        ("media.tags.edit", "Tag…", "Tag…"),
         ("media.state.favorite", "Favorite: {0}", "Favorit: {0}"),
         ("media.state.rating", "Your rating: {0}", "Deine Bewertung: {0}"),
         ("media.state.mediaTags", "Media tags: {0}", "Medientags: {0}"),

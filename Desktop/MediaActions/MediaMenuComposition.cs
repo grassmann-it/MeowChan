@@ -92,6 +92,11 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     internal bool TagsWired { get; init; } = true;
     /// <summary>Null when the target can be tagged; otherwise the localized reason it cannot (see <see cref="MediaMenuReasons.Tags"/>).</summary>
     internal string? TagsBlocked { get; init; }
+    /// <summary>
+    /// True on a surface whose "Tag…" opens the quick tag popover: a target that cannot be tagged keeps the entry enabled and the
+    /// popover states <see cref="TagsBlocked"/> as text (plan §1.4) instead of a disabled entry with a tooltip.
+    /// </summary>
+    internal bool TagsBlockedExplained { get; init; }
     internal bool ExportWired { get; init; } = true;
     internal bool FolderWired { get; init; } = true;
     internal bool CopyPathWired { get; init; } = true;
@@ -189,7 +194,7 @@ internal static class MediaMenuComposition
             facts.Present && facts.RatingWired && facts.RatingKnown && facts.RatingBlocked == null,
             NeedsFile() ?? facts.RatingBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Tags, "media.tags.edit", CommandCatalog.Label("media.tags.edit"),
-            facts.Present && facts.TagsWired && facts.TagsBlocked == null,
+            facts.Present && facts.TagsWired && (facts.TagsBlocked == null || facts.TagsBlockedExplained),
             NeedsFile() ?? facts.TagsBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Export, "media.export-original", CommandCatalog.Label("media.export-original"),
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);

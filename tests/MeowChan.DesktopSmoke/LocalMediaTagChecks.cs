@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -108,6 +109,9 @@ internal static class LocalMediaTagChecks
         Require(edit.IsEnabled && edit.Command!.CanExecute(null), "A loose legacy file must offer an enabled media-tag action.");
         edit.Command!.Execute(null);
         page.ArchiveMediaMenu!.Close();
+        // TP3 (E5): the entry opens the tag popover; the dialog is "Advanced…" inside it.
+        await UntilAsync(() => shell.ArchiveTagPopover is { IsOpen: true, Surface: not null });
+        shell.ArchiveTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
         MediaTagDialog dialog = shell.GalleryMediaTagWindow!;
         Require(dialog.Session.IsLocal && shell.OwnedWindows.Contains(dialog), "The dialog is not a local-file tag dialog owned by the shell.");

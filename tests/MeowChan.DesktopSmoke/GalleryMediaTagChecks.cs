@@ -231,7 +231,8 @@ internal static class GalleryMediaTagChecks
             PrivateTagCommit threadTag = await session.DefinePrivateTagAsync("thread_only");
             await session.SetThreadTagAsync(threadTag.Tag, Resource, true);
 
-            async Task<MediaTagDialog> OpenAsync(Control origin)
+            // TP3 (E5): the context menu's "Tag…" opens the quick tag popover on the tile; the full dialog is "Advanced…" inside it.
+            async Task<QuickTagPopover> OpenPopoverAsync(Control origin)
             {
                 origin.Focus();
                 origin.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
@@ -240,9 +241,21 @@ internal static class GalleryMediaTagChecks
                     .Single(item => item.Tag as string == "media.tags.edit");
                 Require(edit.IsEnabled && edit.Command!.CanExecute(null), "Bound archive image has no enabled media-tag action.");
                 Require(Equals(edit.Header, Texts.T("media.tags.edit")), "Media-tag action is not localized.");
+                Require(!page.ArchiveMediaMenu.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.tags.dialog"),
+                    "The menu must offer one tag entry, not a second one for the dialog.");
                 // Execute the actual menu command, then retire its popup as a native click does.
                 edit.Command!.Execute(null);
                 page.ArchiveMediaMenu.Close();
+                await UntilAsync(() => shell.ArchiveTagPopover is { IsOpen: true });
+                QuickTagPopover popover = shell.ArchiveTagPopover!;
+                Require(popover.Surface != null && ReferenceEquals(popover.Anchor, origin) && shell.GalleryMediaTagWindow == null,
+                    "The archive tag popover is not anchored at the tile or a dialog opened instead.");
+                return popover;
+            }
+            async Task<MediaTagDialog> OpenAsync(Control origin)
+            {
+                QuickTagPopover popover = await OpenPopoverAsync(origin);
+                popover.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
                 MediaTagDialog dialog = shell.GalleryMediaTagWindow!;
                 Require(dialog.Session.Target == target && shell.OwnedWindows.Contains(dialog),
@@ -261,6 +274,17 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => (inline = page.FindControl<ListBox>("ArchivePosts")!.GetVisualDescendants().OfType<ArchiveAttachmentView>()
                 .FirstOrDefault(view => view.IsEffectivelyVisible)) != null);
             await ArchiveMediaCommandChecks.RunAsync(page, inline!);
+            // The popover itself: add a tag, see the store change and the strip repaint, undo it, close with Escape; focus returns to the tile.
+            QuickTagPopover quick = await OpenPopoverAsync(inline!);
+            await quick.Surface!.Session.AddAsync("popover_tag").WaitAsync(Deadline);
+            Require(session.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "popover_tag" }),
+                "The tag popover did not write the tag to the exact media version.");
+            await quick.Surface.Session.UndoAsync().WaitAsync(Deadline);
+            Require(session.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Count == 0, "Undo in the tag popover did not take the tag off again.");
+            Program.CaptureWindow(shell, "smoke-archive-media-tag-popover.png");
+            quick.Surface.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await UntilAsync(() => shell.ArchiveTagPopover == null);
+            Require(await quick.Result == QuickTagPopoverCloseReason.Closed, "Escape did not close the tag popover.");
             MediaTagDialog first = await OpenAsync(inline!);
             first.Input.Text = "archive_image";
             first.AddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -299,6 +323,8 @@ internal static class GalleryMediaTagChecks
             Require(looseEdit.IsEnabled && looseEdit.Command!.CanExecute(null), "A loose archive file must offer media tags as a local file.");
             looseEdit.Command!.Execute(null);
             page.ArchiveMediaMenu.Close();
+            await UntilAsync(() => shell.ArchiveTagPopover is { IsOpen: true });
+            shell.ArchiveTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => shell.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog looseDialog = shell.GalleryMediaTagWindow!;
             Require(looseDialog.Session.IsLocal && looseDialog.Session.Target == null, "The loose file must get a local, not a bound or guessed target.");
@@ -310,7 +336,7 @@ internal static class GalleryMediaTagChecks
             Require(afterLoose.LocalAssignments.Count == 1 && afterLoose.TagsOf(looseThread).Count == 0
                 && afterLoose.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "archive_image" }),
                 "Tagging the loose file changed thread or bound tags, or did not store one local assignment.");
-            Console.WriteLine("SMOKE archive media tags [en]: inline image -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; loose file tagged as a local occurrence; no gallery opened.");
+            Console.WriteLine("SMOKE archive media tags [en]: inline image -> right-click Tag… -> tag popover (add, undo, Esc) -> Advanced… -> real tag dialog -> host/store; thread tags unchanged; table and tile menus reopen the same media tags; loose file tagged as a local occurrence; no gallery opened.");
         }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
