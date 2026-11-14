@@ -20,11 +20,14 @@ internal static class QuickTagSettings
             config.QuickTagFilenameTokens, config.QuickTagSourceTagsPerMedium, config.SlashTagSuggestionCount);
     }
 
-    /// <summary>The surface limits: suggestion chips shown and undo steps (pass to <see cref="Controls.QuickTagSurface"/>).</summary>
+    /// <summary>The surface limits: suggestion chips shown, undo steps and media the gallery can mark (pass to <see cref="Controls.QuickTagSurface"/>).</summary>
     internal static QuickTagOptions SurfaceOptions(Config config)
     {
         ArgumentNullException.ThrowIfNull(config);
-        return new QuickTagOptions { UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount }.Normalized();
+        return new QuickTagOptions
+        {
+            UndoDepth = config.QuickTagUndoDepth, SuggestionCount = config.QuickTagSuggestionCount, MarkedMediaLimit = MarkedMediaLimit(config)
+        }.Normalized();
     }
 
     /// <summary>A recently used list of the configured size (0 keeps nothing, which switches the source off).</summary>
