@@ -107,7 +107,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 7;
+    public const int DefaultsRevision = 8;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -152,14 +152,15 @@ public sealed class EffectiveShortcutBindings
         // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
         // keep any binding the user saved for them.
         ["navigation.status"] = 7,
-        // New in revision 7: the video transport row (A–B loop, next frame).
-        ["video.ab-loop"] = 7, ["video.frame-step"] = 7,
-        // New in revision 7: L shows or hides the gallery filmstrip.
-        ["gallery.filmstrip-toggle"] = 7,
-        // New in revision 7 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
+        // New in revision 8 (wave3: V1, V3 and PT6 each raised the table after Status took revision 7): the video transport row
+        // (A–B loop, next frame).
+        ["video.ab-loop"] = 8, ["video.frame-step"] = 8,
+        // New in revision 8: L shows or hides the gallery filmstrip.
+        ["gallery.filmstrip-toggle"] = 8,
+        // New in revision 8 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
         // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
-        ["media.rating.set-1"] = 7, ["media.rating.set-2"] = 7, ["media.rating.set-3"] = 7, ["media.rating.set-4"] = 7,
-        ["media.rating.set-5"] = 7, ["media.rating.clear"] = 7,
+        ["media.rating.set-1"] = 8, ["media.rating.set-2"] = 8, ["media.rating.set-3"] = 8, ["media.rating.set-4"] = 8,
+        ["media.rating.set-5"] = 8, ["media.rating.clear"] = 8,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
