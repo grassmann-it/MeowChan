@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Styling;
 using MeowChan.Desktop.Stats;
 
 namespace MeowChan.Desktop.Controls;
@@ -72,6 +74,44 @@ internal static class IoGraphGeometry
     }
 }
 
+/// <summary>
+/// One bounded cache per graph. Pens retain the live brushes: taking immutable brush snapshots here would hide in-place
+/// colour/opacity/gradient changes. The control's existing AffectsRender subscriptions still invalidate those changes.
+/// Only the dash pattern is copied, so neither graphs nor callers share a mutable dash style.
+/// </summary>
+internal sealed class IoGraphPenCache
+{
+    private (Pen Baseline, Pen Primary, Pen Secondary, Pen? Guide)? _pens;
+    private ImmutableDashStyle? _dashes;
+    private ThemeVariant? _theme;
+
+    internal void Invalidate() => _pens = null;
+
+    internal (Pen Baseline, Pen Primary, Pen Secondary, Pen? Guide) Get(
+        IBrush? stroke, IBrush? secondaryStroke, IBrush? guideStroke, double thickness,
+        IReadOnlyList<double> dashes, ThemeVariant? theme)
+    {
+        if (_pens is { } pens && ReferenceEquals(pens.Baseline.Brush, stroke)
+            && ReferenceEquals(pens.Secondary.Brush, secondaryStroke) && ReferenceEquals(pens.Guide?.Brush, guideStroke)
+            && pens.Primary.Thickness.Equals(thickness) && Equals(_theme, theme) && SameDashes(dashes))
+            return pens;
+
+        _dashes = new ImmutableDashStyle(dashes, 0);
+        _theme = theme;
+        _pens = (new Pen(stroke, 1), new Pen(stroke, thickness), new Pen(secondaryStroke, thickness, _dashes),
+            guideStroke is null ? null : new Pen(guideStroke, 0.5));
+        return _pens.Value;
+    }
+
+    private bool SameDashes(IReadOnlyList<double> dashes)
+    {
+        if (_dashes is null || _dashes.Dashes.Count != dashes.Count) return false;
+        for (int i = 0; i < dashes.Count; i++)
+            if (!_dashes.Dashes[i].Equals(dashes[i])) return false;
+        return true;
+    }
+}
+
 public enum IoGraphSource
 {
     /// <summary>Network download only.</summary>
@@ -120,6 +160,7 @@ public sealed class IoGraph : Control
     private StreamGeometry? _area, _line, _secondaryLine;
     private Size _geometrySize;
     private bool _geometryDirty = true;
+    private readonly IoGraphPenCache _penCache = new();
 
     static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, SecondaryStrokeProperty, DiskStrokeProperty, GuideStrokeProperty,
         SourceProperty, LineThicknessProperty);
@@ -151,6 +192,8 @@ public sealed class IoGraph : Control
     internal int SecondarySampleCount => _secondary.Length;
     internal int WindowIntervals => Math.Max(0, _capacity - 1);
     internal IBrush? EffectiveSecondaryStroke => SecondaryStroke ?? DiskStroke ?? Stroke;
+    internal (Pen Baseline, Pen Primary, Pen Secondary, Pen? Guide) RenderPens =>
+        _penCache.Get(Stroke, EffectiveSecondaryStroke, GuideStroke, LineThickness, SecondaryDashes, ActualThemeVariant);
 
     internal void SetSeries(IoSeries series)
     {
@@ -190,6 +233,9 @@ public sealed class IoGraph : Control
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == StrokeProperty || change.Property == SecondaryStrokeProperty || change.Property == DiskStrokeProperty
+            || change.Property == GuideStrokeProperty || change.Property == LineThicknessProperty || change.Property == ActualThemeVariantProperty)
+            _penCache.Invalidate();
         if (change.Property == SourceProperty)
         {
             _tracked = 0; _values = []; _secondary = []; _idle = true;
@@ -217,21 +263,21 @@ public sealed class IoGraph : Control
         if (Bounds.Width <= 2 || Bounds.Height <= 2) return;
         double bottom = Bounds.Height - 1, width = Bounds.Width - 2, height = Bounds.Height - 3;
 
-        if (GuideStroke is { } guide)
+        var pens = RenderPens;
+        if (pens.Guide is { } guidePen)
         {
-            Pen guidePen = new(guide, 0.5);
             context.DrawLine(guidePen, new Point(1, bottom - 0.5 * height), new Point(width + 1, bottom - 0.5 * height));
             context.DrawLine(guidePen, new Point(1, bottom - height), new Point(width + 1, bottom - height));
         }
         using (context.PushOpacity(_idle ? 0.55 : 0.35))
-            context.DrawLine(new Pen(Stroke, 1), new Point(1, bottom), new Point(width + 1, bottom));
+            context.DrawLine(pens.Baseline, new Point(1, bottom), new Point(width + 1, bottom));
         if (_idle || (_values.Length < 2 && _secondary.Length < 2)) return;
         if (_geometryDirty || _geometrySize != Bounds.Size) BuildGeometry(bottom); // cached until new samples, a new source or a new size
         if (_area is { } area) context.DrawGeometry(Fill, null, area);
-        if (_line is { } line) context.DrawGeometry(null, new Pen(Stroke, LineThickness), line);
+        if (_line is { } line) context.DrawGeometry(null, pens.Primary, line);
         // The secondary direction lies over the primary: where both curves meet, the gaps of the dashes keep the solid line visible.
         if (_secondaryLine is { } secondaryLine)
-            context.DrawGeometry(null, new Pen(EffectiveSecondaryStroke, LineThickness, new DashStyle(SecondaryDashes, 0)), secondaryLine);
+            context.DrawGeometry(null, pens.Secondary, secondaryLine);
     }
 
     private void BuildGeometry(double bottom)
