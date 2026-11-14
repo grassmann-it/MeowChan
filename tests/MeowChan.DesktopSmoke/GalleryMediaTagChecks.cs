@@ -101,21 +101,28 @@ internal static class GalleryMediaTagChecks
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
             // PT6: the favorite and rating row sits above the field; Shift+4 in the empty field rates the shown medium, the row and the status line
             // say so, and the panel's undo key takes the rating back (the newest step of the tag and decision stacks goes first).
+            // The clear button leaves the gallery on the unbound next medium, whose tag field is disabled (it has no tag target), so the
+            // empty-field rating key is tried on the bound medium again.
+            viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
+            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
             Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
                 "The row does not show an unrated medium: " + decisions.Summary.Text);
             marking.FocusField();
+            // Focusing the field offers the saved tags in a list for a moment, and an open list keeps the digit keys for itself (typing or
+            // choosing); the smoke closes it first, like a user who dismisses the list before rating.
+            marking.Input.Dismiss();
+            await UntilAsync(() => !marking.Input.IsDropDownOpen);
             KeyEventArgs rate = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.D4, KeyModifiers = KeyModifiers.Shift };
             marking.Input.RaiseEvent(rate);
-            await UntilAsync(() => decisions.View.Rating == 4);
+            // The row shows the rating a moment before the decision's sentence reaches the status line, so wait for both.
+            await UntilAsync(() => decisions.View.Rating == 4 && marking.Status.Text == Texts.T("gallery.decision.status.ratingSaved", 4));
             Require(rate.Handled && decisions.StarButtons[3].IsChecked == true && marking.Status.Text == Texts.T("gallery.decision.status.ratingSaved", 4)
                 && string.IsNullOrEmpty(marking.Input.Text), "Shift+4 in the empty field did not rate the shown medium: " + marking.Status.Text);
             Program.CaptureWindow(window, "smoke-gallery-decision-row.png");
             Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Undo)), "The undo key did not reach the decision stack.");
             await UntilAsync(() => decisions.View.Rating == null);
             Require(decisions.StarButtons.All(star => star.IsChecked != true), "The undo left a star checked.");
-            viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
-            await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey);
             viewer.TagSurface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => window.GalleryMediaTagWindow?.IsVisible == true);
             MediaTagDialog dialog = window.GalleryMediaTagWindow!;
