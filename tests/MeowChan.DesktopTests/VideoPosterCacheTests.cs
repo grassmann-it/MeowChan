@@ -227,7 +227,7 @@ public sealed class VideoPosterCacheTests
             }
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => VideoPosterCache.GetPngAsync(
+        Assert.Null(await VideoPosterCache.GetPngAsync(
             manifest, asset, cache, CancellationToken.None, testSeam: canceledDecoder));
 
         byte[] png = Png(80, 60);

@@ -19,6 +19,8 @@ internal sealed class VideoPosterCacheTestSeam
     // These hooks are supplied only by deterministic tests. Production callers leave the seam null.
     internal Action<Task>? NativeGateWaitStarted { get; init; }
     internal Func<Stream, CancellationToken, Task<byte[]>>? Decoder { get; init; }
+    // Tests may shorten the watchdog; production keeps the fixed 12-second bound.
+    internal TimeSpan? BoundedTimeout { get; init; }
 }
 
 internal static class VideoPosterCache
@@ -97,7 +99,7 @@ internal static class VideoPosterCache
             try
             {
                 using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
-                bounded.CancelAfter(TimeSpan.FromSeconds(12));
+                bounded.CancelAfter(testSeam?.BoundedTimeout ?? TimeSpan.FromSeconds(12));
                 // A caller without a shared memo still gets a per-request identity memo. It avoids hashing the same
                 // original again when the gate wait or native decode itself did not change it; a changed identity
                 // necessarily falls back to the full verification in MediaAssetSnapshot.
@@ -181,7 +183,10 @@ internal static class VideoPosterCache
             catch (OperationCanceledException)
             {
                 PerformanceDiagnostics.Record("gallery.poster", "canceled", request, asset: asset.AssetId);
-                throw;
+                // Caller cancellation remains observable. Internal watchdog/decoder cancellation is a safe
+                // missing-poster result and must not enter the persistent negative cache below.
+                if (token.IsCancellationRequested) throw;
+                return null;
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
