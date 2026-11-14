@@ -10,7 +10,7 @@ internal static class GalleryLayoutCatalog
         ("settings.galleryLayoutResetDone", "The gallery layout of both modes returns to the defaults of the work view when you save.", "Das Galerie-Layout beider Modi kehrt beim Speichern zum Standard der Ansicht zurück."),
         // GL3: the layout menu (the "Layout" button beside "More" and the right click on free dock area).
         ("gallery.layout.button", "Layout", "Layout"),
-        ("gallery.layout.help", "Choose which blocks the gallery shows: filmstrip, tools, info line and hints.", "Wählen Sie, welche Blöcke die Galerie zeigt: Filmstreifen, Werkzeuge, Infozeile und Hinweise."),
+        ("gallery.layout.help", "Choose which blocks the gallery shows: filmstrip, tools, info line and hints.", "Wähle, welche Blöcke die Galerie zeigt: Filmstreifen, Werkzeuge, Infozeile und Hinweise."),
         ("gallery.layout.mode", "Layout for the mode: {0}", "Layout für den Modus: {0}"),
         ("gallery.layout.filmstrip", "Filmstrip", "Filmstreifen"),
         ("gallery.layout.filmstripTop", "Filmstrip at the top", "Filmstreifen oben"),
@@ -27,11 +27,11 @@ internal static class GalleryLayoutCatalog
         ("gallery.layout.hintsHelp", "Start sentence, slideshow status and notes. Reasons for a pause and errors always stay.", "Start-Satz, Diashow-Status und Hinweise. Pausengründe und Fehler bleiben immer."),
         ("gallery.layout.hintOwn", "Your choice", "Eigene Wahl"),
         ("gallery.layout.hintView", "Default of the work view", "Standard der Arbeitsansicht"),
-        ("gallery.layout.whyFocus", "The tools are hidden. Show them again to change the layout.", "Die Werkzeuge sind ausgeblendet. Blenden Sie sie wieder ein, um das Layout zu ändern."),
+        ("gallery.layout.whyFocus", "The tools are hidden. Show them again to change the layout.", "Die Werkzeuge sind ausgeblendet. Blende sie wieder ein, um das Layout zu ändern."),
         ("gallery.layout.whyLow", "The window is too low for the filmstrip.", "Das Fenster ist zu niedrig für den Filmstreifen."),
         ("gallery.layout.whyTag", "The Tag mode has its own controls instead of the tools.", "Der Modus Taggen hat eigene Bedienelemente statt der Werkzeuge."),
         ("gallery.layout.whyPanel", "The tag panel says these sentences itself.", "Das Tag-Panel sagt diese Sätze selbst."),
-        ("gallery.layout.whyFilmstripOff", "Turn the filmstrip on first.", "Schalten Sie zuerst den Filmstreifen ein."),
+        ("gallery.layout.whyFilmstripOff", "Turn the filmstrip on first.", "Schalte zuerst den Filmstreifen ein."),
         ("gallery.layout.whyDefault", "Already the default of the work view.", "Bereits der Standard der Arbeitsansicht."),
     };
 }
