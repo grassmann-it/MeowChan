@@ -30,6 +30,8 @@ internal static class ReaderSettingsCatalog
         ("settings.limits.hiddenPosts.hint", "Lowering the limit preserves existing hidden posts and only stops growth.", "Eine niedrigere Grenze erhält bereits ausgeblendete Posts und stoppt nur das Wachstum."),
         ("settings.reader.historyLimit", "Reading history entries", "Einträge im Leseverlauf"),
         ("settings.reader.historyLimit.hint", "How many threads the reading history keeps, one place per thread. Right-click “Continue reading” to open one.", "Wie viele Threads der Leseverlauf behält, je Thread eine Stelle. Rechtsklick auf „Weiterlesen“ öffnet eine davon."),
+        ("settings.reader.historyMenuEntries", "Threads in the Continue reading menu", "Threads im Weiterlesen-Menü"),
+        ("settings.reader.historyMenuEntries.hint", "How many of the most recent threads the right-click menu of “Continue reading” lists, never more than the history keeps. “Show full history…” in that menu lists all of them.", "Wie viele der zuletzt gelesenen Threads das Rechtsklick-Menü von „Weiterlesen“ aufführt, nie mehr als der Leseverlauf behält. „Ganzen Verlauf zeigen…“ in diesem Menü listet alle auf."),
         ("settings.reader.textlessLarge", "Larger images in posts without text", "Größere Bilder in Posts ohne Text"),
         ("settings.reader.textlessLarge.hint", "A post with no text of its own shows its image at the width below instead of the preview width. Also in the reader’s View menu.", "Ein Post ohne eigenen Text zeigt sein Bild in der Breite unten statt in der Vorschaubreite. Auch im Ansicht-Menü des Readers."),
         ("settings.reader.textlessWidth", "Image width in posts without text (px)", "Bildbreite in Posts ohne Text (px)"),

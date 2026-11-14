@@ -136,6 +136,18 @@ public partial class ArchivePage
             leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
         Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
+        // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
+        if (ids.Length == 1 && ReadingPlaceFor?.Invoke(lead.Summary.Id) is { } readingPlace && ResumeReadingPlace is { } resumeReading)
+        {
+            MenuItem continueItem = CommandBindings.CreateMenuItem("navigation.continue-reading", () => _ = resumeReading(readingPlace), Ready,
+                () => Ready() ? null : Texts.T("archive.command.busy"), () => Texts.T("resume.thread.action", readingPlace.PostId), showShortcut: false);
+            continueItem.Tag = "navigation.continue-reading";
+            string continueTip = ReadingHistoryMenu.EntryTip(readingPlace);
+            ToolTip.SetTip(continueItem, continueTip);
+            AutomationProperties.SetHelpText(continueItem, continueTip);
+            commands.Add(continueItem);
+            menu.Items.Add(continueItem);
+        }
         Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
         if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);

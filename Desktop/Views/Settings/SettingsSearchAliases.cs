@@ -35,6 +35,7 @@ internal static class SettingsSearchAliases
         ["VideoVolume"] = "audio sound volume lautstärke ton",
         ["RememberReadingPosition"] = "resume continue bookmark position weiterlesen lesestand",
         ["ReadingHistoryLimit"] = "history recent threads continue resume earlier places verlauf zuletzt gelesen weiterlesen frühere stellen",
+        ["ReadingHistoryMenuEntries"] = "history menu recent threads continue resume right-click list verlauf menü zuletzt gelesen weiterlesen rechtsklick",
         ["ReaderTextlessLargeImages"] = "images pictures bigger larger no text image only media bilder größer ohne text nur bild medien",
         ["ReaderTextlessMediaWidth"] = "images pictures width bigger larger no text image only bilder breite größer ohne text nur bild",
         ["ReaderFocusedMediaEnlarge"] = "focus focused selected active post media enlarge zoom bigger fokus markiert vergrößern medien",

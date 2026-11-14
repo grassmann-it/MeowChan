@@ -673,6 +673,14 @@
                                 </StackPanel>
                             </Grid>
                             <TextBlock Text="{Binding ReadingHistoryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                <TextBlock x:Name="ReadingHistoryMenuEntriesFieldLabel" Text="{Binding ReadingHistoryMenuEntriesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                    <desktop:SettingsNumberInput x:Name="ReadingHistoryMenuEntriesInput" Value="{Binding ReadingHistoryMenuEntries, Mode=TwoWay}" Minimum="{Binding ReadingHistoryMenuEntriesMinimum}" Maximum="{Binding ReadingHistoryMenuEntriesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReadingHistoryMenuEntriesFieldLabel}" AutomationProperties.Name="{Binding ReadingHistoryMenuEntriesLabel}" AutomationProperties.HelpText="{Binding ReadingHistoryMenuEntriesHelp}" />
+                                    <TextBlock x:Name="ReadingHistoryMenuEntriesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding ReadingHistoryMenuEntriesHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
                     <!-- Focus mode of the media page: whether it also hides the application header (hover strip at the top edge shows it again). -->

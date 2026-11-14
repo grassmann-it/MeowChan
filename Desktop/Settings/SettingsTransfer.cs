@@ -200,6 +200,7 @@ public static class SettingsTransfer
             ReaderTextlessLargeImages = source.ReaderTextlessLargeImages,
             ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth,
             ReadingHistoryLimit = source.ReadingHistoryLimit,
+            ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries,
             TagQueueConfirmAbove = source.TagQueueConfirmAbove,
             MediaTagListTop = source.MediaTagListTop,
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB,

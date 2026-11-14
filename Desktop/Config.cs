@@ -479,6 +479,11 @@ namespace MeowChan
         internal const int ReadingHistoryLimitDefault = ReaderDisplayPreferences.ReadingHistoryLimitDefault;
         internal const int ReadingHistoryLimitMinimum = ReaderDisplayPreferences.ReadingHistoryLimitMinimum;
         internal const int ReadingHistoryLimitMaximum = ReaderDisplayPreferences.ReadingHistoryLimitMaximum;
+        // RH1: threads listed by the right-click menu of "Continue reading" (never more than the history keeps).
+        public int ReadingHistoryMenuEntries { get; set; } = ReadingHistoryMenuEntriesDefault;
+        internal const int ReadingHistoryMenuEntriesDefault = ReaderDisplayPreferences.ReadingHistoryMenuEntriesDefault;
+        internal const int ReadingHistoryMenuEntriesMinimum = ReaderDisplayPreferences.ReadingHistoryMenuEntriesMinimum;
+        internal const int ReadingHistoryMenuEntriesMaximum = ReaderDisplayPreferences.ReadingHistoryMenuEntriesMaximum;
         public int ReaderTextlessMediaWidth { get; set; } = ReaderTextlessMediaWidthDefault;
         internal const int ReaderTextlessMediaWidthDefault = ReaderDisplayPreferences.TextlessMediaWidthDefault;
         internal const int ReaderTextlessMediaWidthMinimum = ReaderDisplayPreferences.TextlessMediaWidthMinimum;
@@ -848,6 +853,7 @@ namespace MeowChan
             ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
             ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
+            ReadingHistoryMenuEntries = Math.Clamp(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesMinimum, ReadingHistoryMenuEntriesMaximum);
             ReaderTextlessMediaWidth = Math.Clamp(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthMinimum, ReaderTextlessMediaWidthMaximum);
             ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
             ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
@@ -1502,6 +1508,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
             if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReadingHistoryLimit), "ReadingHistoryLimit is outside its supported range.");
+            if (ReadingHistoryMenuEntries is < ReadingHistoryMenuEntriesMinimum or > ReadingHistoryMenuEntriesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReadingHistoryMenuEntries), "ReadingHistoryMenuEntries is outside its supported range.");
             if (ReaderTextlessMediaWidth is < ReaderTextlessMediaWidthMinimum or > ReaderTextlessMediaWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderTextlessMediaWidth), "ReaderTextlessMediaWidth is outside its supported range.");
             if (ReaderHoverEnlargeSize is < ReaderHoverEnlargeSizeMinimum or > ReaderHoverEnlargeSizeMaximum)
@@ -1731,6 +1739,7 @@ namespace MeowChan
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
+                ReadingHistoryMenuEntries = ReadingHistoryMenuEntries,
                 ReaderTextlessMediaWidth = ReaderTextlessMediaWidth,
                 ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
                 ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
@@ -1974,6 +1983,7 @@ namespace MeowChan
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
             ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
@@ -2185,6 +2195,7 @@ namespace MeowChan
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
             ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;

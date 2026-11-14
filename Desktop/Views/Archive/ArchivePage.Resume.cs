@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
@@ -17,6 +18,10 @@ public partial class ArchivePage
 {
     internal event Action<LocalReadingPosition>? ConsciousReadingPositionChanged;
     internal Func<bool>? ReadingPositionCaptureAllowed { get; set; }
+    /// <summary>The saved reading place of a thread (RH1), for the "Continue reading" entry of the thread menu; null without one.</summary>
+    internal Func<ResourceId, LocalReadingPosition?>? ReadingPlaceFor { get; set; }
+    /// <summary>Opens a saved reading place (the shell's one resume path).</summary>
+    internal Func<LocalReadingPosition, Task>? ResumeReadingPlace { get; set; }
     private bool _resumingPosition;
     private int _readingInputEpoch;
     private int? _pendingReadingInputEpoch;
@@ -91,6 +96,13 @@ public partial class ArchivePage
             anchor.Thread.Thread, anchor.PostId, anchor.Top, anchor.SelectedPostId, title));
     }
 
+    private static IReadOnlyList<string> PostIdsOf(ArchivedThreadView view)
+    {
+        List<string> ids = new(view.PostCount);
+        for (int offset = 0; offset < view.PostCount; offset += 500) ids.AddRange(view.GetPosts(offset, 500).Select(post => post.PostId));
+        return ids;
+    }
+
     internal void ShowReadingPositionMessage(string message, bool error = false)
     {
         Message(message, error);
@@ -116,14 +128,18 @@ public partial class ArchivePage
             }
             int index = view.FindPostIndex(position.PostId);
             bool fallback = index < 0;
-            string postId = fallback ? view.GetPosts(0, 1).First().PostId : position.PostId;
+            // A post that was never captured (or is gone) resolves to the next one that exists, not to the top of the thread.
+            if (fallback) index = ReadingJump.Resolve(PostIdsOf(view), position.PostId).Index;
+            string postId = view.GetPosts(index, 1).First().PostId;
             // The saved anchor is the reading mark: the posts after it have not been read since.
             if (!fallback) _unreadMark = (position.ThreadId, LastReadOf(view, position));
-            ShowCapturedView(view, fallback ? 0 : index / PageSize * PageSize, postId);
-            if (!fallback) await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.
+            ShowCapturedView(view, index / PageSize * PageSize, postId);
+            await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.
             OpenReaderRequested?.Invoke(null);
             await RestoreReaderAnchorAsync(new ReaderAnchor(position.ThreadId, postId,
                 fallback ? 0 : position.Top, fallback ? postId : position.SelectedPostId));
+            // The landing post is marked briefly, as after a quote or bookmark jump.
+            _ = FlashPostAsync(postId);
             ShowReadingPositionMessage(fallback ? Texts.T("resume.fallback") : string.Empty);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }

@@ -64,7 +64,10 @@ public static class CommandCatalog
         new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.remove", "bookmarks.remove", "Remove bookmark…", "Lesezeichen entfernen…", "x", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", null, CommandScope.Application, new[] { "footer" }),
-        new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", "Primary+Shift+R", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
+        // RH1: the one command of "continue reading" with one icon (book-open). The header button, the app menu entry, the reading history
+        // menu and window, and the archive list's thread menu all run it, each with the label of its place; only the shortcut is the last place's.
+        new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", "Primary+Shift+R", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard", "header-reading-menu", "reading-history-window", "archive-thread-menu" }),
+        new("navigation.reading-history", "resume.history.showAll", "Show full history…", "Ganzen Verlauf zeigen…", "list", null, CommandScope.Application, new[] { "header-reading-menu", "app-menu" }),
         new("import.open", "import.menu", "Import files…", "Dateien importieren…", "download-cloud", "Primary+Shift+I", CommandScope.Application, new[] { "app-menu", "workspace-keyboard" }),
         // PR1 (profiles): the "⋯ › Profile" submenu. No default gestures; each opens or starts a window of its own.
         new("profile.new", "command.profile.new", "New profile…", "Neues Profil…", "plus-circle", null, CommandScope.Application, new[] { "app-menu" }),

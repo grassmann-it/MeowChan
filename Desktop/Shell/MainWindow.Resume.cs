@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -17,11 +18,13 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private MenuItem? _resumeReadingMenu;
-    // R5: the recent reading places, one per thread. Right-click on the book button and the "Reading history" submenu list them.
+    // R5/RH1: the recent reading places, one per thread. Right-click or the menu key on the book button and the "Reading history"
+    // submenu list them (ReadingHistoryMenu); both read the snapshot below, which every save, forget and opening refreshes.
     private MenuItem? _readingHistoryMenu;
-    private ContextMenu? _readingHistoryContext;
-    private int _readingHistoryRevision;
-    private const int ReadingHistoryTitleDisplayLength = 60;
+    private ContextMenuHost? _readingHistoryHost;
+    private IReadOnlyList<LocalReadingHistoryEntry> _readingHistorySnapshot = Array.Empty<LocalReadingHistoryEntry>();
+    private int _readingHistorySnapshotRevision;
+    private bool _readingHistorySnapshotLoaded;
     private Task _readingPositionSave = Task.CompletedTask;
     private Task _readingPositionWrite = Task.CompletedTask;
     private LocalReadingPosition? _submittedReadingPosition;
@@ -84,6 +87,7 @@ public partial class MainWindow
             || generation != _session.ReadingPositionGeneration || !_config.RememberReadingPosition) return;
         _readingResumeState = state;
         RefreshReadingResumePresentation();
+        _ = RefreshReadingHistorySnapshotAsync();
     }
 
     private void RefreshReadingResumePresentation()
@@ -128,6 +132,14 @@ public partial class MainWindow
         ArchivePage.ReadingPositionCaptureAllowed = () => !_isClosing && !_readingPositionForgetPending
             && _config.RememberReadingPosition;
         ArchivePage.ConsciousReadingPositionChanged += SaveConsciousReadingPosition;
+        // The archive list's thread menu offers "Continue reading at post No. n" for a thread that has a saved place (RH1).
+        ArchivePage.ReadingPlaceFor = thread =>
+        {
+            if (!_config.RememberReadingPosition) return null;
+            _ = RefreshReadingHistorySnapshotAsync(); // Current for the next opening of a menu.
+            return _readingHistorySnapshot.FirstOrDefault(entry => entry.Position.ThreadId == thread)?.Position;
+        };
+        ArchivePage.ResumeReadingPlace = place => ResumeReadingPlaceAsync(place);
         WorkViewElement.SetId(ContinueReadingButton, "shell.header.continue-reading");
         _resumeReadingMenu = new MenuItem();
         _resumeReadingMenu.Click += async (_, _) => await ResumeLastReadingAsync();
@@ -147,6 +159,9 @@ public partial class MainWindow
             () => Texts.T("resume.actionHint"), iconOnly: true);
         string help = CommandBindings.Tooltip("navigation.continue-reading") + " · " + Texts.T("resume.actionHint")
             + " " + Texts.T("resume.history.hint");
+        // The tooltip names the thread and the post the button continues at (the newest place of the history).
+        if (_readingHistorySnapshot.Count > 0 && _config.RememberReadingPosition)
+            help += "\n" + ReadingHistoryMenu.EntryTip(_readingHistorySnapshot[0].Position);
         ToolTip.SetTip(button, help);
         AutomationProperties.SetHelpText(button, help);
         if (_resumeReadingMenu == null) return;
@@ -158,64 +173,95 @@ public partial class MainWindow
 
     private void InitializeReadingHistoryMenus()
     {
-        // The submenu sits directly behind "Continue reading" (which keeps resuming the newest place); its entries are read when it opens.
-        _readingHistoryMenu = new MenuItem { Header = Texts.T("resume.history.menu") };
-        _readingHistoryMenu.Items.Add(ReadingHistoryNote(Texts.T("resume.history.loading")));
-        _readingHistoryMenu.SubmenuOpened += (_, _) => _ = LoadReadingHistoryAsync(
-            items => { _readingHistoryMenu.Items.Clear(); foreach (Control item in items) _readingHistoryMenu.Items.Add(item); },
-            () => _readingHistoryMenu.IsSubMenuOpen);
-        WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
-        _readingHistoryContext = ContextMenuBuilder.Empty();
-        _readingHistoryContext.Opening += (_, e) =>
+        // The submenu sits directly behind "Continue reading" (which keeps resuming the newest place); its entries are the menu's.
+        _readingHistoryMenu = new MenuItem { Header = Texts.T("resume.history.menu"), Icon = CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId) };
+        _readingHistoryMenu.SubmenuOpened += (_, _) =>
         {
-            if (!CanResumeReading) { e.Cancel = true; return; }
-            _ = LoadReadingHistoryAsync(
-                items => { _readingHistoryContext.Items.Clear(); foreach (Control item in items) _readingHistoryContext.Items.Add(item); },
-                () => _readingHistoryContext.IsOpen);
+            FillReadingHistorySubmenu();
+            _ = RefreshReadingHistorySnapshotAsync();
         };
-        ContinueReadingButton.ContextMenu = _readingHistoryContext;
+        FillReadingHistorySubmenu();
+        WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
+        // Right-click, the menu key and Shift+F10 on the book button open the same entries as a context menu.
+        _readingHistoryHost = new ContextMenuHost(ContinueReadingButton, ComposeReadingHistoryMenu, fallbackFocus: FocusReadingResumeFallback);
     }
+
+    private ContextMenuBuilder? ComposeReadingHistoryMenu()
+    {
+        if (_isClosing || !_config.RememberReadingPosition || !CanResumeReading) return null;
+        _ = RefreshReadingHistorySnapshotAsync(); // The next opening shows what a write in between changed.
+        return ReadingHistoryMenu.Compose(_readingHistorySnapshot, _config.ReadingHistoryMenuEntries, _config.ReadingHistoryLimit,
+            DateTimeOffset.UtcNow, CanResumeReading, place => _ = ResumeReadingPlaceAsync(place), () => _ = ShowReadingHistoryAsync());
+    }
+
+    private void FillReadingHistorySubmenu()
+    {
+        if (_readingHistoryMenu == null) return;
+        _readingHistoryMenu.Items.Clear();
+        if (!_readingHistorySnapshotLoaded) { _readingHistoryMenu.Items.Add(ReadingHistoryNote(Texts.T("resume.history.loading"))); return; }
+        ContextMenuModel model = ComposeReadingHistorySubmenu().ToModel();
+        foreach (Control item in ContextMenuBuilder.BuildItems(model)) _readingHistoryMenu.Items.Add(item);
+    }
+
+    private ContextMenuBuilder ComposeReadingHistorySubmenu() =>
+        ReadingHistoryMenu.Compose(_readingHistorySnapshot, _config.ReadingHistoryMenuEntries, _config.ReadingHistoryLimit,
+            DateTimeOffset.UtcNow, CanResumeReading, place => _ = ResumeReadingPlaceAsync(place), () => _ = ShowReadingHistoryAsync());
 
     private static MenuItem ReadingHistoryNote(string text) => new() { Header = text.Replace("_", "__"), IsEnabled = false };
 
-    // "{title} · No.{post} · {2 h ago}". Underscores in a title are access-key markers in a menu header: doubled they stay literal.
-    internal static string ReadingHistoryEntryText(LocalReadingHistoryEntry entry, DateTimeOffset now)
-    {
-        LocalReadingPosition position = entry.Position;
-        string title = position.Title ?? Texts.T("resume.history.untitled", position.Board, position.Thread);
-        if (title.Length > ReadingHistoryTitleDisplayLength) title = title[..(ReadingHistoryTitleDisplayLength - 1)].TrimEnd() + "…";
-        return title + " · " + Texts.T("reader.postNumber", position.PostId) + " · " + ReaderDateText.Relative(entry.At, now);
-    }
+    // "{title} · No.{post} · {2 h ago}" (ReadingHistoryMenu.EntryText); kept here for the callers of the window.
+    internal static string ReadingHistoryEntryText(LocalReadingHistoryEntry entry, DateTimeOffset now) => ReadingHistoryMenu.EntryText(entry, now);
 
-    private async Task LoadReadingHistoryAsync(Action<IReadOnlyList<Control>> show, Func<bool> stillOpen)
+    /// <summary>
+    /// Reads the saved places for the menus. A failed read leaves the last snapshot (the explicit resume reports its own errors); a read
+    /// that a newer one or a forget overtook is dropped.
+    /// </summary>
+    private async Task RefreshReadingHistorySnapshotAsync()
     {
-        int revision = ++_readingHistoryRevision;
-        show(new[] { ReadingHistoryNote(Texts.T("resume.history.loading")) });
-        List<Control> items = new();
+        if (_isClosing || !_restoreCompleted || _session.State != DesktopSessionState.Ready) return;
+        int revision = ++_readingHistorySnapshotRevision;
+        long generation = _session.ReadingPositionGeneration;
+        IReadOnlyList<LocalReadingHistoryEntry> entries;
         try
         {
             try { await _readingPositionSave; } catch (Exception) { } // A failed save is reported where it happened.
-            IReadOnlyList<LocalReadingHistoryEntry> entries = await _session.ReadReadingHistoryAsync();
-            DateTimeOffset now = DateTimeOffset.UtcNow;
-            foreach (LocalReadingHistoryEntry entry in entries)
-            {
-                LocalReadingPosition place = entry.Position;
-                string text = ReadingHistoryEntryText(entry, now);
-                MenuItem item = new() { Header = text.Replace("_", "__"), IsEnabled = CanResumeReading };
-                AutomationProperties.SetName(item, text);
-                ToolTip.SetTip(item, place.Title is { } full ? full + " · " + place.Source + " /" + place.Board + "/ · " + place.Thread : null);
-                item.Click += async (_, _) => await ResumeReadingPlaceAsync(place);
-                items.Add(item);
-            }
-            if (items.Count == 0) items.Add(ReadingHistoryNote(Texts.T("resume.history.empty")));
+            entries = await _session.ReadReadingHistoryAsync();
+        }
+        catch (Exception) { return; }
+        if (_isClosing || revision != _readingHistorySnapshotRevision || generation != _session.ReadingPositionGeneration) return;
+        _readingHistorySnapshot = entries;
+        _readingHistorySnapshotLoaded = true;
+        if (_readingHistoryMenu?.IsSubMenuOpen == true) FillReadingHistorySubmenu();
+        RefreshReadingResumeLabels();
+    }
+
+    private void ClearReadingHistorySnapshot()
+    {
+        ++_readingHistorySnapshotRevision;
+        _readingHistorySnapshot = Array.Empty<LocalReadingHistoryEntry>();
+        _readingHistorySnapshotLoaded = true;
+        RefreshReadingResumeLabels();
+    }
+
+    /// <summary>"Show full history…": every remembered thread in a window; a click opens that place.</summary>
+    internal async Task ShowReadingHistoryAsync()
+    {
+        if (!CanResumeReading) return;
+        IReadOnlyList<LocalReadingHistoryEntry> entries;
+        try
+        {
+            try { await _readingPositionSave; } catch (Exception) { }
+            entries = await _session.ReadReadingHistoryAsync();
         }
         catch (Exception error)
         {
-            items.Clear();
-            items.Add(ReadingHistoryNote(Texts.T("resume.readFailed", UserFacingError.Report(error, "Reading the reading history"))));
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"),
+                Texts.T("resume.readFailed", UserFacingError.Report(error, "Reading the reading history")), NotificationType.Error, operation: "preferences.reading-position");
+            return;
         }
-        if (_isClosing || revision != _readingHistoryRevision || !stillOpen()) return;
-        show(items);
+        if (_isClosing || !CanResumeReading) return;
+        LocalReadingPosition? place = await ReadingHistoryWindow.ShowAsync(this, entries, DateTimeOffset.UtcNow);
+        if (place != null && !_isClosing) await ResumeReadingPlaceAsync(place);
     }
 
     private void SaveConsciousReadingPosition(LocalReadingPosition position)
@@ -251,6 +297,7 @@ public partial class MainWindow
             {
                 _readingResumeState = ReadingResumeState.Present;
                 RefreshReadingResumePresentation();
+                _ = RefreshReadingHistorySnapshotAsync();
             }
         }
         catch (Exception error)
@@ -279,6 +326,7 @@ public partial class MainWindow
         {
             await _session.ForgetReadingPositionAsync();
             _readingResumeState = ReadingResumeState.Absent;
+            ClearReadingHistorySnapshot();
         }
         catch { _readingResumeState = ReadingResumeState.Error; throw; }
         finally { _readingPositionForgetPending = false; RefreshReadingResumePresentation(); }

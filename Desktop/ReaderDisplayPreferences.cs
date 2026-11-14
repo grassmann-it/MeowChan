@@ -45,6 +45,10 @@ internal sealed class ReaderDisplayPreferences
     internal const int ReadingHistoryLimitDefault = 10;
     internal const int ReadingHistoryLimitMinimum = 5;
     internal const int ReadingHistoryLimitMaximum = 25;
+    // RH1: how many of those threads the "Continue reading" menu lists (the history window shows all of them).
+    internal const int ReadingHistoryMenuEntriesDefault = 10;
+    internal const int ReadingHistoryMenuEntriesMinimum = 3;
+    internal const int ReadingHistoryMenuEntriesMaximum = 25;
 
     internal int ReaderThumbnailWidth
     {

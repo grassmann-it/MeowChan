@@ -29,6 +29,8 @@ public partial class SettingsEditor
     public int ReaderThreadingDepthMinimum => Config.ReaderThreadingDepthMinimum;
     public int ReaderThreadingDepthMaximum => Config.ReaderThreadingDepthMaximum;
     public int ReadingHistoryLimitMinimum => Config.ReadingHistoryLimitMinimum;
+    public int ReadingHistoryMenuEntriesMinimum => Config.ReadingHistoryMenuEntriesMinimum;
+    public int ReadingHistoryMenuEntriesMaximum => Config.ReadingHistoryMenuEntriesMaximum;
     public int ReaderMediaSidebarWidthMinimum => Config.ReaderMediaSidebarWidthMinimum;
     public int ReaderMediaSidebarWidthMaximum => Config.ReaderMediaSidebarWidthMaximum;
     public int ReaderMediaSidebarMinimumWidthMinimum => Config.ReaderMediaSidebarMinimumWidthMinimum;
@@ -129,6 +131,11 @@ public partial class SettingsEditor
     public string ReadingHistoryLimitLabel => Texts.T("settings.reader.historyLimit");
     public string ReadingHistoryLimitHint => Texts.T("settings.reader.historyLimit.hint") + " " + Texts.T("settings.reader.range", Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum);
     public string ReadingHistoryLimitHelp => FieldHelp(nameof(ReadingHistoryLimitInput), ReadingHistoryLimitHint);
+    private decimal? _readingHistoryMenuEntries;
+    public decimal? ReadingHistoryMenuEntries { get => _readingHistoryMenuEntries; set => SetField(ref _readingHistoryMenuEntries, value, nameof(ReadingHistoryMenuEntries)); }
+    public string ReadingHistoryMenuEntriesLabel => Texts.T("settings.reader.historyMenuEntries");
+    public string ReadingHistoryMenuEntriesHint => Texts.T("settings.reader.historyMenuEntries.hint") + " " + Texts.T("settings.reader.range", Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum);
+    public string ReadingHistoryMenuEntriesHelp => FieldHelp(nameof(ReadingHistoryMenuEntriesInput), ReadingHistoryMenuEntriesHint);
     private decimal? _readerTextlessMediaWidth;
     public decimal? ReaderTextlessMediaWidth { get => _readerTextlessMediaWidth; set => SetField(ref _readerTextlessMediaWidth, value, nameof(ReaderTextlessMediaWidth)); }
     public string ReaderTextlessMediaWidthLabel => Texts.T("settings.reader.textlessWidth");
@@ -333,6 +340,8 @@ public partial class SettingsEditor
         ResetNumber(HiddenPostLimitInput, HiddenPostLimit.Value);
         ReadingHistoryLimit = config.ReadingHistoryLimit;
         ResetNumber(ReadingHistoryLimitInput, ReadingHistoryLimit.Value);
+        ReadingHistoryMenuEntries = config.ReadingHistoryMenuEntries;
+        ResetNumber(ReadingHistoryMenuEntriesInput, ReadingHistoryMenuEntries.Value);
         ReaderTextlessMediaWidth = config.ReaderTextlessMediaWidth;
         ResetNumber(ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth.Value);
         ReaderFocusedMediaScalePercent = config.ReaderFocusedMediaScalePercent;
@@ -402,6 +411,7 @@ public partial class SettingsEditor
         candidate.PostFilterRuleLimit = GetInteger(PostFilterRuleLimit, PostFilterRuleLimitLabel, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
         candidate.HiddenPostLimit = GetInteger(HiddenPostLimit, HiddenPostLimitLabel, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum);
         candidate.ReadingHistoryLimit = GetInteger(ReadingHistoryLimit, ReadingHistoryLimitLabel, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum);
+        candidate.ReadingHistoryMenuEntries = GetInteger(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesLabel, Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum);
         candidate.ReaderTextlessMediaWidth = GetInteger(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum);
         candidate.ReaderFocusedMediaScalePercent = GetInteger(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum);
         candidate.ReaderHoverEnlargeSize = GetInteger(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum);
@@ -456,6 +466,7 @@ public partial class SettingsEditor
         yield return (PostFilterRuleLimitInput, PostFilterRuleLimit, PostFilterRuleLimitLabel, string.Empty, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum, true);
         yield return (HiddenPostLimitInput, HiddenPostLimit, HiddenPostLimitLabel, string.Empty, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum, true);
         yield return (ReadingHistoryLimitInput, ReadingHistoryLimit, ReadingHistoryLimitLabel, string.Empty, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum, true);
+        yield return (ReadingHistoryMenuEntriesInput, ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesLabel, string.Empty, Config.ReadingHistoryMenuEntriesMinimum, Config.ReadingHistoryMenuEntriesMaximum, true);
         yield return (ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, string.Empty, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum, true);
         yield return (ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, string.Empty, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum, true);
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
@@ -528,6 +539,7 @@ public partial class SettingsEditor
         nameof(PostFilterRuleLimitLabel), nameof(PostFilterRuleLimitHint), nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitLabel), nameof(HiddenPostLimitHint), nameof(HiddenPostLimitHelp),
         nameof(ReadingHistoryLimitLabel), nameof(ReadingHistoryLimitHint), nameof(ReadingHistoryLimitHelp),
+        nameof(ReadingHistoryMenuEntriesLabel), nameof(ReadingHistoryMenuEntriesHint), nameof(ReadingHistoryMenuEntriesHelp),
         nameof(ReaderTextlessMediaWidthLabel), nameof(ReaderTextlessMediaWidthHint), nameof(ReaderTextlessMediaWidthHelp),
         nameof(ReaderFocusedMediaScalePercentLabel), nameof(ReaderFocusedMediaScalePercentHint), nameof(ReaderFocusedMediaScalePercentHelp),
         nameof(ReaderHoverEnlargeSizeLabel), nameof(ReaderHoverEnlargeSizeHint), nameof(ReaderHoverEnlargeSizeHelp),
@@ -567,6 +579,7 @@ public partial class SettingsEditor
         nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitHelp),
         nameof(ReadingHistoryLimitHelp),
+        nameof(ReadingHistoryMenuEntriesHelp),
         nameof(ReaderTextlessMediaWidthHelp),
         nameof(ReaderFocusedMediaScalePercentHelp),
         nameof(ReaderHoverEnlargeSizeHelp),
