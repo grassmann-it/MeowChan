@@ -99,7 +99,9 @@ internal static class RulesCatalog
         // Overview first and the in-page wizard (14.11.2026).
         ("rules.overview.create", "Create rule", "Regel erstellen"),
         ("rules.overview.startFromTemplate", "Start from template", "Mit Vorlage beginnen"),
-        ("rules.overview.empty", "No rules yet. Until you create one, downloads use the built-in defaults below.", "Noch keine Regeln. Bis du eine erstellst, gelten für Downloads die Programmstandards unten."),
+        // The empty state (15.11.2026): a short headline and one sentence below it.
+        ("rules.overview.emptyTitle", "No rules yet", "Noch keine Regeln"),
+        ("rules.overview.empty", "Until you create one, downloads use the built-in defaults below.", "Bis du eine erstellst, gelten für Downloads die Programmstandards unten."),
         ("rules.overview.draftsCount", "{0} unsaved drafts", "{0} ungespeicherte Entwürfe"),
         ("rules.overview.draftsCount.one", "{0} unsaved draft", "{0} ungespeicherter Entwurf"),
         ("rules.overview.draftsHint", "Drafts stay here when you switch pages. Continue one to save it, or discard it.", "Entwürfe bleiben beim Seitenwechsel erhalten. Setze einen fort, um ihn zu speichern, oder verwirf ihn."),

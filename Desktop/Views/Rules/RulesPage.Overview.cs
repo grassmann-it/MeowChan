@@ -32,6 +32,24 @@ public partial class RulesPage
         _drafts.Values.Where(draft => draft.Dirty).Select(draft => new RuleOverviewDraft(draft.Scope, DescribeDraft(draft), draft.Stale)),
         FilterDisplayName);
 
+    // Starts true: until the first refresh the header's Create stays hidden instead of flashing next to the empty state's.
+    private bool _overviewEmpty = true;
+
+    /// <summary>
+    /// One primary "Create rule" at a time: while the empty state shows, its own button is the primary action and the header's
+    /// hides; with rules or drafts listed the header carries it. The editor never shows it.
+    /// </summary>
+    public bool IsHeaderCreateVisible => !_wizard.IsOpen && !_overviewEmpty;
+
+    /// <summary>The visible "Create rule" of the overview (focus target after closing the editor, deleting or discarding).</summary>
+    internal Button OverviewCreateButton => _overviewEmpty && CreateFirstRuleButton.IsVisible ? CreateFirstRuleButton : CreateRuleButton;
+
+    /// <summary>
+    /// The footer bar is the editor's; on the overview it shows only while there is something to report (saving, a confirmation
+    /// or an error). The idle line "n saved rules · drafts stay here" repeated the list's heading and the drafts hint.
+    /// </summary>
+    public bool HasFooter => _wizard.IsOpen || HasError || _busy || _overviewStatus != null;
+
     private string OverviewStatusMessage => !_available || !_hasConfirmed ? Texts.T("rules.unavailable") : _busy ? Texts.T("rules.saving")
         : _overviewStatus is { } status ? Texts.T(status.Key, status.Scope) : Texts.Count("rules.changedScopes", _confirmed.Rules.Count);
 
@@ -75,9 +93,19 @@ public partial class RulesPage
 
         bool ready = _available && _hasConfirmed;
         RulesOverviewEmpty.IsVisible = overview.IsEmpty;
+        // The icon is a catalog mask (the Rules page's own "sliders"); it needs the asset loader, so it is made when first shown.
+        if (overview.IsEmpty) RulesOverviewEmptyIcon.Content ??= CommandBindings.NamedIcon(CommandCatalog.IconForState("navigation.rules", null), 32);
+        RulesOverviewEmptyTitle.Text = Texts.T("rules.overview.emptyTitle");
+        RulesOverviewEmptyTitle.IsVisible = ready;
         RulesOverviewEmptyText.Text = Texts.T(ready ? "rules.overview.empty" : "rules.unavailable");
+        AutomationProperties.SetName(RulesOverviewEmpty, ready ? RulesOverviewEmptyTitle.Text : RulesOverviewEmptyText.Text);
         StartFromTemplateButton.IsVisible = ready && templates;
         CreateFirstRuleButton.IsVisible = ready;
+        if (_overviewEmpty != overview.IsEmpty)
+        {
+            _overviewEmpty = overview.IsEmpty;
+            Raise(nameof(IsHeaderCreateVisible));
+        }
 
         RulesOverviewDrafts.Children.Clear();
         RulesOverviewDrafts.IsVisible = overview.Drafts.Count > 0;
@@ -102,15 +130,32 @@ public partial class RulesPage
             }
         }
 
-        RulesOverviewDefaults.Children.Clear();
-        RulesOverviewDefaults.Children.Add(SectionTitle(Texts.T("rules.overview.defaults")));
-        Border defaults = new() { Child = Chips(overview.Defaults) };
-        defaults.Classes.Add("workspace-card");
-        AutomationProperties.SetName(defaults, Texts.T("rules.overview.defaults") + ": " + string.Join(", ", overview.Defaults.Select(chip => chip.Text)));
-        RulesOverviewDefaults.Children.Add(defaults);
-        RulesOverviewDefaults.Children.Add(Help(Texts.T("rules.overview.defaultsHint")));
+        // The baseline is read only: its chips are static badges (no hover, no focus, no menu), the card has no action of its own.
+        RulesOverviewDefaultsTitle.Text = Texts.T("rules.overview.defaults");
+        RulesOverviewDefaultsChips.Content = Chips(overview.Defaults);
+        RulesOverviewDefaultsHint.Text = Texts.T("rules.overview.defaultsHint");
+        AutomationProperties.SetName(RulesOverviewDefaults, Texts.T("rules.overview.defaults") + ": " + string.Join(", ", overview.Defaults.Select(chip => chip.Text)));
+        AutomationProperties.SetHelpText(RulesOverviewDefaults, RulesOverviewDefaultsHint.Text);
 
+        ApplyOverviewEmptyLayout();
         if (focused is { } target) FocusOverviewRow(target.Scope, target.Action);
+    }
+
+    /// <summary>
+    /// Places the empty state in the free height of the page: the overview grid takes the scroll viewport's height and its spacer
+    /// rows the shares 1:2, so the empty state with the defaults below it sits at about a third. A filled overview (or a window
+    /// too short for any free height) stays top-aligned.
+    /// </summary>
+    private void ApplyOverviewEmptyLayout()
+    {
+        if (_ended) return;
+        // Independent of the editor: the overview grid is hidden while it is open and keeps its layout for the way back.
+        bool centre = _overviewEmpty;
+        RowDefinitions rows = RulesOverviewPanel.RowDefinitions;
+        rows[0].Height = centre ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        rows[2].Height = centre ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
+        // Floor: a fractional viewport must not round the content past it and show a scroll bar for nothing.
+        RulesOverviewPanel.MinHeight = centre ? Math.Max(0, Math.Floor(RulesScroll.Viewport.Height)) : 0;
     }
 
     private Border OverviewCard(RuleOverviewRow row, bool draftRow)
@@ -223,10 +268,10 @@ public partial class RulesPage
         return null;
     }
 
-    /// <summary>Focus back on a row of the overview: the given action, else its Edit/Continue, else Create rule.</summary>
+    /// <summary>Focus back on a row of the overview: the given action, else its Edit/Continue, else the visible Create rule.</summary>
     private void FocusOverviewRow(MediaRuleScope? scope, string action = "edit")
     {
-        Control target = CreateRuleButton;
+        Control target = OverviewCreateButton;
         if (scope != null)
             foreach (string candidate in new[] { action, "edit", "continue" })
                 if (_overviewButtons.TryGetValue((scope, candidate), out Button? button)) { target = button; break; }
@@ -264,7 +309,7 @@ public partial class RulesPage
         bool drafted = _drafts.TryGetValue(scope, out RuleDraft? draft) && draft.Dirty;
         confirmation.OpenAsync(FormatScope(scope), () => DeleteRuleAsync(scope), Texts.T("rules.overview.delete"),
             context: () => !_ended && IsEditable && IsEffectivelyVisible && !_wizard.IsOpen,
-            completedFocus: () => CreateRuleButton,
+            completedFocus: () => OverviewCreateButton,
             title: Texts.T("rules.overview.deleteTitle", FormatScope(scope)),
             body: Texts.T(drafted ? "rules.overview.deleteDraftBody" : "rules.overview.deleteBody"),
             cancelLabel: Texts.T("templates.cancel"));
@@ -314,7 +359,7 @@ public partial class RulesPage
         {
             if (IsEditable && _drafts.TryGetValue(scope, out RuleDraft? current) && ReferenceEquals(current, draft)
                 && current.Generation == generation) DiscardDraft(scope);
-        }, context: () => !_ended && IsEditable && IsEffectivelyVisible && !_wizard.IsOpen, completedFocus: () => CreateRuleButton);
+        }, context: () => !_ended && IsEditable && IsEffectivelyVisible && !_wizard.IsOpen, completedFocus: () => OverviewCreateButton);
     }
 
     /// <summary>Discards one draft from the overview: the current one through the editor's own discard, any other by reloading it.</summary>

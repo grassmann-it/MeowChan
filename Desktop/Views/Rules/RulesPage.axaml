@@ -22,36 +22,58 @@
     <Grid RowDefinitions="*,Auto">
       <!-- The page area carries the shared page inset; the footer below it runs to the window edges. -->
       <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*">
-        <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge. -->
-        <StackPanel x:Name="RulesHeader" Margin="0,0,0,8" MaxWidth="880" HorizontalAlignment="Center">
+        <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge.
+             A centred reading column without a toolbar row (like Settings): 12 above the header on top of the page inset (24 to the
+             shell header) and 16 to the content, the gap between the overview's sections, so the first section title does not read as
+             part of the header. -->
+        <StackPanel x:Name="RulesHeader" Margin="0,12,0,16" MaxWidth="880" HorizontalAlignment="Center">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                 <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
                     <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
-                <!-- HB2: the precedence line stays as the subtitle; the popover adds what the line cannot say. -->
-                <controls:HelpButton x:Name="RulesHelpButton" Grid.Column="1" HelpKey="help.rules" VerticalAlignment="Top" />
-                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="2" Classes="primary" VerticalAlignment="Top"
-                        IsVisible="{Binding IsOverviewVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+                <!-- One primary "Create rule" at a time: while the empty state shows, its button is the page's primary action and this one
+                     hides (IsHeaderCreateVisible); with rules or drafts listed it is the overview's primary action here. -->
+                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="1" Classes="primary" VerticalAlignment="Top"
+                        IsVisible="{Binding IsHeaderCreateVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+                <!-- HB2: the precedence line stays as the subtitle; the popover adds what the line cannot say. Last in the row, as on
+                     Plugins, so it keeps the column's right edge while Create rule is hidden (the grid's spacing then falls before it). -->
+                <controls:HelpButton x:Name="RulesHelpButton" Grid.Column="2" HelpKey="help.rules" VerticalAlignment="Top" />
             </Grid>
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="{StaticResource Workspace.Space.12}">
-                <!-- Overview (default): saved rules by scope, unsaved drafts and the built-in baseline; rows are built in RulesPage.Overview.cs. -->
-                <StackPanel x:Name="RulesOverviewPanel" wv:WorkViewElement.Id="rules.overview" Spacing="{StaticResource Workspace.Space.16}" IsVisible="{Binding IsOverviewVisible}">
-                    <Border x:Name="RulesOverviewEmpty" Classes="workspace-section" IsVisible="False">
-                        <StackPanel Spacing="{StaticResource Workspace.Space.12}" HorizontalAlignment="Center">
+                <!-- Overview (default): saved rules by scope, unsaved drafts and the built-in baseline; rows are built in RulesPage.Overview.cs.
+                     A filled overview is top-aligned (rows 0 and 2 have no height). Only the empty state is placed in the free height:
+                     ApplyOverviewEmptyLayout gives the grid the viewport's height and rows 0 and 2 the shares 1:2, so the empty state and
+                     the defaults below it sit at about a third of the page; a short window leaves no free height and the stack scrolls. -->
+                <Grid x:Name="RulesOverviewPanel" wv:WorkViewElement.Id="rules.overview" RowDefinitions="0,Auto,0" IsVisible="{Binding IsOverviewVisible}">
+                <StackPanel x:Name="RulesOverviewStack" Grid.Row="1" Spacing="{StaticResource Workspace.Space.16}">
+                    <!-- DS-P3 empty state: icon, headline, one sentence and the one primary action (Start from template is secondary). -->
+                    <controls:WorkspaceEmptyState x:Name="RulesOverviewEmpty" IsVisible="False">
+                        <ContentControl x:Name="RulesOverviewEmptyIcon" HorizontalAlignment="Center" Focusable="False" IsTabStop="False"
+                                        Foreground="{DynamicResource Workspace.Muted}" />
+                        <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                            <TextBlock x:Name="RulesOverviewEmptyTitle" Classes="section-title" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
                             <TextBlock x:Name="RulesOverviewEmptyText" Classes="workspace-empty-text" />
-                            <WrapPanel x:Name="RulesOverviewEmptyActions" HorizontalAlignment="Center" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
-                                <Button x:Name="CreateFirstRuleButton" Classes="primary" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
-                                <Button x:Name="StartFromTemplateButton" IsEnabled="{Binding IsEditable}" Click="OnStartFromTemplate" />
-                            </WrapPanel>
                         </StackPanel>
-                    </Border>
+                        <WrapPanel x:Name="RulesOverviewEmptyActions" HorizontalAlignment="Center" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
+                            <Button x:Name="CreateFirstRuleButton" Classes="primary" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+                            <Button x:Name="StartFromTemplateButton" IsEnabled="{Binding IsEditable}" Click="OnStartFromTemplate" />
+                        </WrapPanel>
+                    </controls:WorkspaceEmptyState>
                     <StackPanel x:Name="RulesOverviewDrafts" wv:WorkViewElement.Id="rules.overview.drafts" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
                     <StackPanel x:Name="RulesOverviewSaved" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
-                    <StackPanel x:Name="RulesOverviewDefaults" wv:WorkViewElement.Id="rules.overview.defaults" Spacing="{StaticResource Workspace.Space.8}" />
+                    <!-- The read-only baseline: one quiet card with its own small heading, static chips (no hover, no focus) and the hint. -->
+                    <Border x:Name="RulesOverviewDefaults" wv:WorkViewElement.Id="rules.overview.defaults" Classes="workspace-card">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="RulesOverviewDefaultsTitle" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <ContentControl x:Name="RulesOverviewDefaultsChips" Focusable="False" IsTabStop="False" />
+                            <TextBlock x:Name="RulesOverviewDefaultsHint" Classes="workspace-help" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
+                </Grid>
                 <!-- Create/edit wizard (in-page detail like Sources and Plugins): 1 scope, 2 settings, 3 review. -->
                 <StackPanel x:Name="RuleWizardPanel" Spacing="{StaticResource Workspace.Space.12}" IsVisible="{Binding IsWizardOpen}">
                     <!-- The editor's header row (Tom's rule 14.11. evening): Back to the rule overview at the far left, apart from the title and
@@ -222,7 +244,9 @@
             </StackPanel>
         </ScrollViewer>
       </Grid>
-        <Border Grid.Row="1" Classes="workspace-dialog-footer">
+        <!-- The footer bar (the Settings footer pattern) shows while the editor is open and on the overview only while it has
+             something to say: saving, a confirmation, an error. The idle "n saved rules" line repeated the list's own heading. -->
+        <Border x:Name="RulesFooterBar" Grid.Row="1" Classes="workspace-dialog-footer" IsVisible="{Binding HasFooter}">
             <Grid x:Name="RulesFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" RowSpacing="{StaticResource Workspace.Space.8}"
                   HorizontalAlignment="Center">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
