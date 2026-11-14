@@ -16,10 +16,10 @@ public sealed class TrayStatsModelTests : IDisposable
 
     private static TrayStatsInput Running(int active = 3, int waiting = 0, double net = 2.4 * MiB, double write = 12 * MiB, double read = 0,
         long today = 1288490189, bool known = true) =>
-        new(false, active, waiting, new IoRates(net, write, read, 0), new IoCounts(today, 450 * MiB, 0, 0, 0), known);
+        new(false, active, waiting, new IoRates(NetDown: net, NetUp: 0, DiskWrite: write, DiskRead: read, Requests: 0), new IoCounts(NetDown: today, NetUp: 0, DiskWritten: 450 * MiB, DiskRead: 0, Requests: 0, Errors: 0), known);
 
     private static TrayStatsInput Quiet(bool paused = false, long today = 1288490189) =>
-        new(paused, 0, 0, IoRates.Zero, new IoCounts(today, 450 * MiB, 0, 0, 0), RatesKnown: false);
+        new(paused, 0, 0, IoRates.Zero, new IoCounts(NetDown: today, NetUp: 0, DiskWritten: 450 * MiB, DiskRead: 0, Requests: 0, Errors: 0), RatesKnown: false);
 
     [Theory]
     [InlineData("en", "MeowChan · ↓ 2.4 MiB/s · Disk written 12.0 MiB/s · 3 downloads active")]

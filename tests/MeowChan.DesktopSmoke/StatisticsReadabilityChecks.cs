@@ -89,12 +89,12 @@ internal static class StatisticsReadabilityChecks
 
     private static IoStatsSnapshot Traffic()
     {
-        IoCounts counts = new(2_000_000, 3_000_000, 4_000_000, 123, 2);
-        IoSourceStats source = new("Synthetic source", counts, counts, counts, new IoRates(131072, 65536, 32768, 1));
+        IoCounts counts = new(NetDown: 2_000_000, NetUp: 0, DiskWritten: 3_000_000, DiskRead: 4_000_000, Requests: 123, Errors: 2);
+        IoSourceStats source = new("Synthetic source", counts, counts, counts, new IoRates(NetDown: 131072, NetUp: 0, DiskWrite: 65536, DiskRead: 32768, Requests: 1));
         return new IoStatsSnapshot
         {
             RetentionDays = 7, Rate = source.Rate, Sources = [source], Total = source,
-            Series = new IoSeries(300, 4, [0, 65536, 98304, 131072], [0, 0, 32768, 65536], [0, 0, 0, 32768], [0, 1, 1, 1])
+            Series = new IoSeries(Capacity: 300, Count: 4, NetDown: [0, 65536, 98304, 131072], NetUp: [0, 0, 0, 0], DiskWrite: [0, 0, 32768, 65536], DiskRead: [0, 0, 0, 32768], Requests: [0, 1, 1, 1])
         };
     }
 
