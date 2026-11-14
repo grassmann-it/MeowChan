@@ -600,6 +600,7 @@ namespace MeowChan
         }
         internal const int GallerySlideshowVideoRepeatsDefault = 2, GallerySlideshowVideoRepeatsMinimum = 1, GallerySlideshowVideoRepeatsMaximum = 50;
         /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
+        [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]

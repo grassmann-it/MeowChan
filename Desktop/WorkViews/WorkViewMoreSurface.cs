@@ -25,8 +25,7 @@ public static class WorkViewMoreSurface
         .Select(item => (item.Button, Entry: WorkViewPolicy.Get(item.Id!)))
         .Where(item => item.Entry.For(view) == Presence.Overflow)
         .Select(item => new Entry(item.Entry.OverflowOrder, item.Entry.CommandId, () => LabelOf(item.Button),
-            () => CommandBindings.InvokeAction(item.Button), () => item.Button.IsEnabled
-                && (item.Button.Command?.CanExecute(item.Button.CommandParameter) ?? true)));
+            () => WorkViewActionStateGuard.Invoke(item.Button), () => WorkViewActionStateGuard.CanInvoke(item.Button)));
 
     /// <summary>Shows the button when there are entries and names it "More, n actions"; the icon is the catalog's ⋯.</summary>
     public static void Configure(Button more, int count)
@@ -39,14 +38,18 @@ public static class WorkViewMoreSurface
     }
 
     /// <summary>The menu for <paramref name="entries"/> in policy order (a disabled entry stays listed, greyed out).</summary>
-    public static ContextMenu CreateMenu(IEnumerable<Entry> entries)
+    public static ContextMenu CreateMenu(IEnumerable<Entry> entries) => CreateMenu(entries, null);
+
+    internal static ContextMenu CreateMenu(IEnumerable<Entry> entries, Button? owner)
     {
         ContextMenu menu = new();
         foreach (Entry entry in entries.OrderBy(entry => entry.Order))
         {
+            // Also guard custom entries (not backed by ForButtons) when their page goes busy with the menu open.
+            bool CanRun() => (owner == null || WorkViewActionStateGuard.CanInvoke(owner)) && entry.CanRun();
             MenuItem item = entry.CommandId != null
-                ? CommandBindings.CreateMenuItem(entry.CommandId, entry.Run, entry.CanRun, null, entry.Label)
-                : new MenuItem { Header = entry.Label(), Command = new DelegateCommand(entry.Run, entry.CanRun), IsEnabled = entry.CanRun() };
+                ? CommandBindings.CreateMenuItem(entry.CommandId, entry.Run, CanRun, null, entry.Label)
+                : new MenuItem { Header = entry.Label(), Command = new DelegateCommand(entry.Run, CanRun), IsEnabled = CanRun() };
             AutomationProperties.SetName(item, entry.Label());
             menu.Items.Add(item);
         }
@@ -58,7 +61,7 @@ public static class WorkViewMoreSurface
     {
         Entry[] current = entries.ToArray();
         if (current.Length == 0) return;
-        CreateMenu(current).Open(more);
+        CreateMenu(current, more).Open(more);
     }
 
     private static string LabelOf(Button button) =>

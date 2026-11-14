@@ -54,17 +54,32 @@ public static class WorkViewShortcuts
         // As for visible actions: never invent a target among several materialized ones.
         if (matches.Length > 1) return true;
         Control target = matches[0];
-        if (!Enabled(target)) return true;
-        CommandBindings.InvokeAction(target);
+        WorkViewActionStateGuard.Invoke(target);
         return true;
     }
+}
 
-    // A detached popup child has no enabled ancestors to inherit from; its own state and its surface's decide.
-    private static bool Enabled(Control target)
+/// <summary>Checks the live source control, not the snapshot of an already open overflow menu.</summary>
+internal static class WorkViewActionStateGuard
+{
+    internal static bool CanInvoke(Control target)
     {
-        if (!target.IsEnabled) return false;
+        if (!target.IsEnabled || !target.IsEffectivelyEnabled || !WorkViewElement.GetStateVisible(target)
+            || (!target.IsVisible && !WorkViewGate.HiddenByView(target))) return false;
+        // Popup/omitted items can be visually detached, but still belong to their toolbar logically.
         Control? surface = target.FindLogicalAncestorOfType<ActionToolBar>() ?? target.GetVisualParent() as Control;
-        return surface?.IsEffectivelyEnabled ?? true;
+        if (surface?.IsEffectivelyEnabled == false) return false;
+        return target switch
+        {
+            Button button => button.Command?.CanExecute(button.CommandParameter) ?? true,
+            MenuItem item => item.Command?.CanExecute(item.CommandParameter) ?? true,
+            _ => true
+        };
+    }
+
+    internal static void Invoke(Control target)
+    {
+        if (CanInvoke(target)) CommandBindings.InvokeAction(target);
     }
 }
 
@@ -78,8 +93,8 @@ public static class WorkViewOverflow
     /// <summary>A menu entry for <paramref name="target"/> under its catalog command <paramref name="commandId"/>.</summary>
     public static MenuItem CreateForwardingItem(Button target, string commandId, Func<string?>? unavailableReason = null,
         Func<string>? label = null) =>
-        CommandBindings.CreateMenuItem(commandId, () => CommandBindings.InvokeAction(target),
-            () => target.IsEnabled && (target.Command?.CanExecute(target.CommandParameter) ?? true), unavailableReason, label);
+        CommandBindings.CreateMenuItem(commandId, () => WorkViewActionStateGuard.Invoke(target),
+            () => WorkViewActionStateGuard.CanInvoke(target), unavailableReason, label);
 
     /// <summary>
     /// Fills <paramref name="menu"/> with one forwarding entry per button of <paramref name="buttons"/> that the policy puts
