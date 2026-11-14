@@ -398,8 +398,9 @@
   filter fields, selection bar), the large Reader (a narrow window moves tools under **More** from
   the end of the order Gallery, Read, Find, Tags, Export, Full screen, View, History, Capture, so
   the HTML export outranks the rarely used actions) and the Rules, Sources and Plugins pages. Diagnostics,
-  Statistics, Settings (four of six groups stay direct in Simple) and the dialogs follow the view as
-  well; the Gallery does not yet. Existing Barebones and Simple profiles see a one-time notice.
+  Statistics, Settings (four of six groups stay direct in Simple), the dialogs and the Gallery (curating
+  tools under **More** in Barebones) follow the view as well. Existing Barebones and Simple profiles see
+  a one-time notice.
 - Search with one field and a scope. Archive and the Reader's find bar share one search field with
   a scope chip (**Text**, **File name**, **SHA-256**) inside it; File name and SHA-256 open their
   existing result dialogs with the draft already searched, and SHA-256 keeps its exact 64-digit
