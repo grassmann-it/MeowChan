@@ -500,9 +500,12 @@ class CycleEvidenceGateTests(unittest.TestCase):
         self.addCleanup(subprocess_guard.stop)
 
     def write_trx(self, outcome):
-        upgrade = (f'<UnitTestResult testName="N.C.{run.TEST_NAME}" outcome="{outcome}"/>'
+        # The runner keys the released-upgrade fact by its exact TRX display name,
+        # not by a synthetic fully-qualified name that would test only "absent".
+        upgrade = (f'<UnitTestResult testName="{run.TEST_NAME}" outcome="{outcome}"/>'
                    if outcome is not None else '')
-        self.trx.write_text('<TestRun><Results><UnitTestResult testName="N.C.Unrelated" outcome="Passed"/>'
+        self.trx.write_text('<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
+                            '<Results><UnitTestResult testName="Unrelated" outcome="Passed"/>'
                             + upgrade + '</Results></TestRun>')
 
     def test_green_summary_without_executed_upgrade_is_refused(self):
@@ -511,7 +514,8 @@ class CycleEvidenceGateTests(unittest.TestCase):
         for outcome in (None, 'NotExecuted', 'Failed'):
             with self.subTest(upgrade_outcome=outcome):
                 self.write_trx(outcome)
-                with self.assertRaisesRegex(run.StepFailed, 'upgrade test did not pass or was skipped'):
+                with self.assertRaisesRegex(run.StepFailed,
+                                            'upgrade test did not pass or was skipped: ' + (outcome or 'absent') + '$'):
                     run.step_cycles(self.ctx)
 
     def test_passed_trx_cannot_replace_any_required_process_receipt(self):
@@ -534,8 +538,11 @@ class CycleEvidenceGateTests(unittest.TestCase):
         result = run.verdict(records, [], True, True)
         lines = run.render({'commit': SHA, 'bin': 'b' * 16, 'pkg': 'c' * 16}, records, [], result, '/synthetic')
         self.assertEqual('PASS', result, 'this is the scoped helper verdict, not a real upgrade')
-        self.assertIn('SCOPE synthetic profile written by the released 1.0.2 code', lines[-1])
-        self.assertIn('NOT a real-profile, UI, package-start, platform, Danbooru-network or release acceptance', lines[-1])
+        self.assertIn('SCOPE source-upgrade evidence only: synthetic profile written by the released 1.0.2 code '
+                      'from the pinned Git object', lines[-1])
+        self.assertIn('DesktopSessionHost and PluginSession processes, no window', lines[-1])
+        self.assertIn('packaged-release verification was not executed (package root/checksums are provenance only)', lines[-1])
+        self.assertIn('NOT a real-profile, UI, platform, Danbooru-network or release acceptance', lines[-1])
 
 
 def plugin_state(active=True):
