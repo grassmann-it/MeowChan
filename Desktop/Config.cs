@@ -105,6 +105,10 @@ namespace MeowChan
         /// profile and every in-memory configuration start false, and dismissing or acting on the notice saves false.
         /// </summary>
         public bool WorkViewNoticePending { get; set; }
+        /// <summary>Lifetime of the work-view switch toast in seconds; zero disables it, including Undo and Details.</summary>
+        public int WorkViewSwitchNoticeSeconds { get; set; } = 8;
+        internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
+        internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShrinkWindowForBarebones { get; set; } = true;
@@ -949,6 +953,8 @@ namespace MeowChan
                 throw new InvalidDataException("Unsupported or inconsistent first-run setup state.");
             if (SchemaVersion != 1)
                 throw new InvalidDataException($"Unsupported settings schema version: {SchemaVersion}.");
+            if (WorkViewSwitchNoticeSeconds is < WorkViewSwitchNoticeSecondsMinimum or > WorkViewSwitchNoticeSecondsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(WorkViewSwitchNoticeSeconds), "The work-view switch notice duration must be between 0 and 60 seconds.");
             if (RecheckTimer < 10 || TimeSpan.FromSeconds(RecheckTimer).TotalMilliseconds > uint.MaxValue - 1)
                 throw new ArgumentOutOfRangeException(nameof(RecheckTimer), "The recheck interval must be between 10 seconds and the supported timer maximum.");
             if (BandwidthLimiter <= 0 || BandwidthLimiter > BandwidthLimiterMaximumBytes)
@@ -1131,6 +1137,7 @@ namespace MeowChan
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 WorkViewNoticePending = WorkViewNoticePending,
+                WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -1306,6 +1313,7 @@ namespace MeowChan
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewNoticePending = source.WorkViewNoticePending;
+            WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1441,6 +1449,7 @@ namespace MeowChan
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
+            WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
@@ -1776,6 +1785,10 @@ namespace MeowChan
                 if (config.MaxParallelDownloads > MaxParallelDownloadsMaximum) config.MaxParallelDownloads = MaxParallelDownloadsMaximum;
                 if (config.BandwidthLimiter > BandwidthLimiterMaximumBytes) config.BandwidthLimiter = BandwidthLimiterMaximumBytes;
                 if (config.MinimumFreeSpaceGiB > MinimumFreeSpaceGiBMaximum) config.MinimumFreeSpaceGiB = MinimumFreeSpaceGiBMaximum;
+
+                // Coerce stored preferences only; edited candidates must pass Validate without coercion.
+                config.WorkViewSwitchNoticeSeconds = Math.Clamp(config.WorkViewSwitchNoticeSeconds,
+                    WorkViewSwitchNoticeSecondsMinimum, WorkViewSwitchNoticeSecondsMaximum);
 
                 config._relativePathBaseDirectory = relativePathBaseDirectory;
                 if (config.SchemaVersion != 1)

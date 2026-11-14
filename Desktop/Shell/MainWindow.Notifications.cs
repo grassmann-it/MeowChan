@@ -41,6 +41,29 @@ public partial class MainWindow
         string? context = null, [CallerMemberName] string operation = "ui") =>
         ShowNotificationCore(title, message, type, context, operation, actions: actions);
 
+    // WV12: deliberately not queued at startup and not subject to ToastDuration.Action's ten-second floor.
+    // The caller owns an occurrence lease; every kind of close (expiry, eviction, CloseAll, explicit dismissal) revokes it.
+    private FeedbackToastContent? ShowTransientActionNotification(string title, string message, TimeSpan duration,
+        FeedbackToastAction[] actions, Action onClose)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (_allowClose || _isClosing || !_hasOpened || duration <= TimeSpan.Zero
+            || !SessionFeedbackStore.AllowsPopup(_config, FeedbackCategory.Information)) return null;
+        RememberFeedbackReturnTarget(FocusManager?.GetFocusedElement());
+        FeedbackToastContent content = new(title, message, null, toast =>
+        {
+            onClose();
+            if (toast.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
+            _notificationManager.Close(toast);
+        }, actions);
+        _notificationManager.Show(content, NotificationType.Information, duration, onClose: () =>
+        {
+            onClose();
+            if (content.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
+        });
+        return content;
+    }
+
     // Separate helper preserves the five-parameter reflection entry point. Future structured
     // owners may supply a fault key, but disappearance/text changes never imply recovery.
     private void ShowNotificationCore(string title, string message, NotificationType type,

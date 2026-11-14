@@ -23,6 +23,7 @@ public partial class MainWindow
     private void InitializeWorkViewMenu()
     {
         if (_workViewGroupMenu != null) return;
+        InitializeWorkViewSwitchNotices();
         _themeMenu = new MenuItem { Name = "ThemeMenuItem" };
         // The button's own handler owns the busy/restore guards and saves the choice; the menu entry only presses it.
         _themeMenu.Click += (_, _) => ThemeToggleButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -61,12 +62,21 @@ public partial class MainWindow
         && !WorkspaceCommandBusy && WorkspaceModeComboBox.IsEnabled && !HasVisibleShellDialog();
 
     /// <summary>Saves <paramref name="view"/> as the work view; the window applies it at once (no restart, same session).</summary>
-    private async Task SetWorkViewAsync(WorkView view)
+    private async Task SetWorkViewAsync(WorkView view, WorkViewSwitchNoticeState.Notice? undoNotice = null)
     {
+        WorkViewSwitchNoticeState.UndoRequest? undo = null;
         try
         {
             if (CanSwitchWorkView && view != ConfiguredWorkView)
             {
+                if (undoNotice != null)
+                {
+                    if (!WorkViewSwitchNoticeEnabled) return;
+                    undo = _workViewSwitchNotices.BeginUndo(undoNotice, ConfiguredWorkView);
+                    if (undo == null) return; // Expired, dismissed, or superseded by a more recent switch.
+                }
+                else _workViewSwitchNotices.BeginSwitch();
+                CloseWorkViewSwitchToast();
                 Config candidate = _config.Clone();
                 candidate.WorkspaceMode = view.ToSetting();
                 await SaveAppearanceAsync(candidate);
@@ -74,6 +84,7 @@ public partial class MainWindow
         }
         finally
         {
+            if (undo != null) _workViewSwitchNotices.EndUndo(undo);
             // A refused or failed change must not leave a different radio checked.
             if (!_isClosing) RefreshWorkViewMenu();
         }
@@ -90,6 +101,7 @@ public partial class MainWindow
     /// <summary>Labels, checked view and availability of the entries above; called when the language, theme, view or readiness changes.</summary>
     private void RefreshWorkViewMenu()
     {
+        RefreshWorkViewSwitchNoticeAvailability();
         if (_workViewGroupMenu == null || _themeMenu == null || _fullscreenMenu == null || _viewCycleMenu == null) return;
         WorkView current = ConfiguredWorkView;
         CommandBindings.Apply(_themeMenu, "appearance.theme", label: ThemeMenuLabel);
