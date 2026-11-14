@@ -26,6 +26,11 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderReplyLines), "settings.reader.replyLines", nameof(SettingsEditor.ReaderReplyLinesMinimum), nameof(SettingsEditor.ReaderReplyLinesMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderPageSize), "settings.reader.pageSize", nameof(SettingsEditor.ReaderPageSizeMinimum), nameof(SettingsEditor.ReaderPageSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderThreadingDepth), "settings.reader.threadingDepth", nameof(SettingsEditor.ReaderThreadingDepthMinimum), nameof(SettingsEditor.ReaderThreadingDepthMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReadingHistoryLimit), "settings.reader.historyLimit", nameof(SettingsEditor.ReadingHistoryLimitMinimum), nameof(SettingsEditor.ReadingHistoryLimitMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderTextlessMediaWidth), "settings.reader.textlessWidth", nameof(SettingsEditor.ReaderTextlessMediaWidthMinimum), nameof(SettingsEditor.ReaderTextlessMediaWidthMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderFocusedMediaScalePercent), "settings.reader.focusedScale", nameof(SettingsEditor.ReaderFocusedMediaScalePercentMinimum), nameof(SettingsEditor.ReaderFocusedMediaScalePercentMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.PostFilterRuleLimit), "settings.limits.postFilterRules", nameof(SettingsEditor.PostFilterRuleLimitMinimum), nameof(SettingsEditor.PostFilterRuleLimitMaximum), "SettingsWorkerBudgetsPage"),
         (nameof(Config.HiddenPostLimit), "settings.limits.hiddenPosts", nameof(SettingsEditor.HiddenPostLimitMinimum), nameof(SettingsEditor.HiddenPostLimitMaximum), "SettingsWorkerBudgetsPage"),
     };
