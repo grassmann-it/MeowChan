@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Automation;
 using MeowChan.Gallery;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
