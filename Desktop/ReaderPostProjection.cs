@@ -179,6 +179,16 @@ internal sealed class ReaderPostProjection
         }
     }
 
+    /// <summary>
+    /// The page containing a position in the shown order. Retained offsets (history, settings changes) may belong
+    /// to an older page size or a longer projection; always realign them before rendering or paging again.
+    /// </summary>
+    internal int PageOffset(int position, int pageSize)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+        return Count == 0 ? 0 : Math.Clamp(position, 0, Count - 1) / pageSize * pageSize;
+    }
+
     internal IReadOnlyList<ReaderPostEntry> Page(int offset, int count)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(offset);

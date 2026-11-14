@@ -74,6 +74,36 @@ public sealed class ReaderSettingsPersistenceTests
         }
     }
 
+    [Theory]
+    [InlineData("System", 120, 20)]
+    [InlineData("Long", 241, 37)]
+    [InlineData("SinceOp", 480, 200)]
+    [InlineData("RelativeToNow", 365, 50)]
+    public void EveryP5BChoiceSurvivesTheEditorAndTwoRestartsWithoutRoundingWidthsOrPageSizes(string dateStyle, int width, int pageSize)
+    {
+        using TempDirectory directory = new();
+        Config config = new()
+        {
+            ReaderDateStyle = dateStyle, ReaderThumbnailWidth = width, ReaderPageSize = pageSize,
+            ReaderPostWidth = "Column", ReaderFoldLines = 31, ReaderPreviewDelayMs = 725
+        };
+        config = ReaderSettingsEditorTests.CaptureDraft(config, config.Clone());
+        config.SaveConfig(directory.Path);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            config = Config.LoadConfig(directory.Path);
+            Assert.Null(config.LoadWarning);
+            Assert.Equal(dateStyle, config.ReaderDateStyle);
+            Assert.Equal(Enum.Parse<ReaderDateStyle>(dateStyle), ReaderSettingsPreferences.DateStyle(config));
+            Assert.Equal(width, config.ReaderThumbnailWidth);
+            Assert.Equal(pageSize, config.ReaderPageSize);
+            Assert.Equal("Column", config.ReaderPostWidth);
+            Assert.Equal(31, config.ReaderFoldLines);
+            Assert.Equal(725, config.ReaderPreviewDelayMs);
+            config.SaveConfig(directory.Path);
+        }
+    }
+
     [Fact]
     public void AbsentOrUnknownPresentationChoicesKeepTheOldBehavior()
     {

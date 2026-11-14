@@ -517,10 +517,12 @@ public partial class ArchivePage : UserControl
                 if (_projectionPagePost is { } pagePost)
                 {
                     int position = projection.NearestPosition(pagePost);
-                    _postOffset = position >= 0 ? position / pageSize * pageSize : 0;
+                    _postOffset = position;
                     _projectionPagePost = null;
                 }
-                else if (_postOffset > 0 && _postOffset >= projection.Count) _postOffset = Math.Max(0, (projection.Count - 1) / pageSize * pageSize);
+                // History can retain an offset from another page size even when it has no realized anchor.
+                // Keep every rendered page aligned to the current reader size, including empty/shortened views.
+                _postOffset = projection.PageOffset(_postOffset, pageSize);
             }
             Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             ArchivedThreadView current = _thread;

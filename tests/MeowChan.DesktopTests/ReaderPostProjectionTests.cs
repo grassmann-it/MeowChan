@@ -81,6 +81,64 @@ public sealed class ReaderPostProjectionTests
         Assert.Equal(ReaderPostProjection.ComputeKey(view, Array.Empty<IReaderPostClassifier>(), null, NoReveal), identity.Key);
     }
 
+    [Theory]
+    [InlineData(50, 20, 40)]    // History retained the old 50-post offset; Prev must reach 20, then 0, not 30 and 10.
+    [InlineData(100, 35, 70)]   // Non-step values are valid saved settings too.
+    [InlineData(50, 200, 0)]
+    [InlineData(100, 50, 100)]  // Existing default pages are unchanged.
+    [InlineData(int.MaxValue, 20, 100)]
+    [InlineData(int.MinValue, 20, 0)]
+    public void RetainedOffsetsAreAlignedAndClampedToTheCurrentReaderPage(int position, int pageSize, int expected)
+    {
+        ReaderPostProjection projection = ReaderPostProjection.Identity(View(120));
+        int offset = projection.PageOffset(position, pageSize);
+        Assert.Equal(expected, offset);
+        Assert.NotEmpty(projection.Page(offset, pageSize));
+        Assert.Equal(0, offset % pageSize);
+    }
+
+    [Theory]
+    [InlineData(20)]
+    [InlineData(35)]
+    [InlineData(50)]
+    [InlineData(200)]
+    public void ConfiguredPagesCoverTheShownOrderExactlyOnceIncludingConversationAndHiddenPosts(int pageSize)
+    {
+        ReaderPostProjection projection = Build(View(231),
+            new IReaderPostClassifier[] { new Rules(index => index % 3 == 0 ? Hidden() : default) },
+            new FixedOrder(count => Enumerable.Range(0, count).Reverse()
+                .Select(index => new ReaderOrderEntry(index, 0, -1)).ToArray()));
+        Assert.True(projection.IsOrdered);
+        Assert.Equal(154, projection.Count);
+        List<string> visited = new();
+        for (int offset = 0; offset < projection.Count; offset += pageSize)
+        {
+            Assert.Equal(offset, projection.PageOffset(offset, pageSize));
+            IReadOnlyList<ReaderPostEntry> page = projection.Page(offset, pageSize);
+            foreach (ReaderPostEntry entry in page)
+                Assert.Equal(offset, projection.PageOffset(projection.PositionOf(entry.Post.PostId), pageSize));
+            visited.AddRange(page.Select(entry => entry.Post.PostId));
+        }
+        Assert.Equal(Enumerable.Range(0, projection.Count).Select(position => projection[position].Post.PostId), visited);
+        Assert.Equal(visited.Count, visited.Distinct().Count());
+    }
+
+    [Fact]
+    public void EmptyViewsAlwaysStartAtZeroAndInvalidPageSizesAreRejected()
+    {
+        foreach (ReaderPostProjection projection in new[]
+        {
+            ReaderPostProjection.Identity(View(0)),
+            Build(View(80), new IReaderPostClassifier[] { new Rules(_ => Hidden()) })
+        })
+        {
+            Assert.Equal(0, projection.PageOffset(50, 20));
+            Assert.Empty(projection.Page(projection.PageOffset(50, 20), 20));
+            Assert.Throws<ArgumentOutOfRangeException>(() => projection.PageOffset(0, 0));
+            Assert.Throws<ArgumentOutOfRangeException>(() => projection.PageOffset(0, -1));
+        }
+    }
+
     [Fact]
     public void VerdictsCombineByPrecedenceMarksByOrAndTheStrongestReason()
     {
