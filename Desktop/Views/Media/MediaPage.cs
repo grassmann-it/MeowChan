@@ -78,6 +78,7 @@ public sealed partial class MediaPage : UserControl
     private long _mediaMenuRevision;
     private long _mediaMenuSerial;
     private bool _sharedPointerContextPending;
+    private MediaLibraryUserOrder? _userOrder;
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
@@ -160,7 +161,7 @@ public sealed partial class MediaPage : UserControl
         Name = "MediaPage";
         WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
         _nameFilter.ScopeChip = _searchScope; // inside the field, as in Archive and the reader (S5)
-        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _shuffle, _missing, _refresh, _exportAll, _manageRatings })
+        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _sortDirection, _shuffle, _missing, _refresh, _exportAll, _manageRatings })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -193,7 +194,8 @@ public sealed partial class MediaPage : UserControl
         layout.Children.Add(filterSurface); Avalonia.Controls.Grid.SetRow(filterSurface, 1);
         Content = layout;
 
-        _sort.SelectionChanged += (_, _) => { if (!_localizing) Present(); };
+        _sort.SelectionChanged += (_, _) => OnSortChanged();
+        _sortDirection.Click += (_, _) => { if (!_localizing) ToggleSortDirection(); };
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
         _missing.IsCheckedChanged += (_, _) => { if (!_localizing) { RefreshWorkView(); Present(); } };
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
@@ -214,7 +216,7 @@ public sealed partial class MediaPage : UserControl
         set { _available = value; UpdateStatus(); }
     }
 
-    internal MediaLibrarySort Sort => _sort.SelectedIndex switch { 1 => MediaLibrarySort.Newest, 2 => MediaLibrarySort.Random, _ => MediaLibrarySort.ByThread };
+    internal MediaLibrarySort Sort => SelectedSort;
 
     /// <summary>
     /// Shows the saved index as soon as it is read (in the background; the page stays responsive and says that it is
@@ -340,7 +342,8 @@ public sealed partial class MediaPage : UserControl
 
     // Everything a presentation reads from the page and its controls, taken on the UI thread; the computation touches nothing else.
     private sealed record PresentInputs(IReadOnlyList<MediaLibraryEntry> All, PresentIndexHolder? Holder, MediaLibraryFilter? Filter,
-        bool InvalidFilter, MediaLibrarySort Sort, bool IncludeMissing, int Seed, MediaLibraryUserData UserData, MediaAudioMap Audio,
+        bool InvalidFilter, MediaLibrarySort Sort, MediaLibrarySortDirection Direction, bool IncludeMissing, int Seed, MediaLibraryUserData UserData,
+        MediaLibraryUserOrder? UserOrder, MediaAudioMap Audio,
         MediaLibraryUntagged? Untagged, IReadOnlyList<MediaLibraryTile> OldTiles, int[] SelectedPositions, long SelectionStamp);
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
@@ -405,7 +408,8 @@ public sealed partial class MediaPage : UserControl
         catch (ArgumentException) { invalid = true; }
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
         return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
-            Sort, _missing.IsChecked == true, _seed, _userData, _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
+            Sort, SortDirection, _missing.IsChecked == true, _seed, _userData, snapshot == null ? null : UserOrderFor(snapshot),
+            _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
     }
 
     // Filter, group and order (the index), and make the rows. Touches no control and no page state, so it may run on any thread.
@@ -462,8 +466,8 @@ public sealed partial class MediaPage : UserControl
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
         MediaLibraryUserData userData = input.UserData;
         IReadOnlyList<MediaLibraryTile> tiles = input.Holder is { } holder
-            ? holder.Index.Build(passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, token)
-            : MediaLibraryGrouping.Build(all, passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite);
+            ? holder.Index.Build(passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, token, input.Direction, input.UserOrder)
+            : MediaLibraryGrouping.Build(all, passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, input.Direction, input.UserOrder);
         MediaLibraryEntry[] shown = new MediaLibraryEntry[tiles.Count];
         int missing = 0;
         for (int i = 0; i < shown.Length; i++)
@@ -524,6 +528,7 @@ public sealed partial class MediaPage : UserControl
         }
         finally { _restoring = false; }
         RefreshWorkView(); // the shuffle button follows the random order (state) and the view (placement)
+        UpdateSortDirection();
         UpdateStatus();
     }
 
@@ -1007,9 +1012,7 @@ public sealed partial class MediaPage : UserControl
         _localizing = true;
         try
         {
-            int sort = Math.Max(0, _sort.SelectedIndex);
-            _sort.ItemsSource = new[] { Texts.T("media.sort.thread"), Texts.T("media.sort.newest"), Texts.T("media.sort.random") };
-            _sort.SelectedIndex = sort;
+            LocalizeSortControls();
         }
         finally { _localizing = false; }
         _title.Text = Texts.T("media.title");
