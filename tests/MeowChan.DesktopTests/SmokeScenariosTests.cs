@@ -36,6 +36,7 @@ public sealed class SmokeScenariosTests
     [InlineData("booru-workbench", "MEOWCHAN_BOORU_WORKBENCH_ONLY")]
     [InlineData("booru-composition", "MEOWCHAN_BOORU_COMPOSITION_ONLY")]
     [InlineData("booru-media", "MEOWCHAN_BOORU_MEDIA_ONLY")]
+    [InlineData("booru-busy-fallback", "MEOWCHAN_BOORU_BUSY_FALLBACK_ONLY")]
     public void BooruGuiJourneysStayInTheNightlyRegistryAsStandaloneOfflineRuns(string id, string selector)
     {
         SmokeScenario entry = Assert.Single(SmokeScenarios.All, candidate => candidate.Id == id);
@@ -46,6 +47,17 @@ public sealed class SmokeScenariosTests
         Assert.Empty(entry.NightlyEnvironment);
         string claim = entry.Pass!(_ => null);
         Assert.Matches("(?i)no (live provider|network|socket)", claim);
+    }
+
+    [Fact]
+    public void BooruBusyFallbackBindsTheNativeOwnerScenarioWithoutClaimingOsInput()
+    {
+        Assert.Equal("new(SmokeStage.Ready, mainWindow => BooruBusyFallbackChecks.RunAsync(mainWindow))",
+            Binding("booru-busy-fallback"));
+        string claim = Assert.Single(SmokeScenarios.All, scenario => scenario.Id == "booru-busy-fallback").Pass!(_ => null);
+        Assert.Contains("failure and closing cases", claim, StringComparison.Ordinal);
+        Assert.Contains("managed routed input only", claim, StringComparison.Ordinal);
+        Assert.Contains("no live provider or OS input acceptance", claim, StringComparison.Ordinal);
     }
 
     [Fact]

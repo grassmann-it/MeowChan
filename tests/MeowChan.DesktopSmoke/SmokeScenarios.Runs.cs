@@ -115,6 +115,7 @@ internal static partial class SmokeScenarios
         ["download-safety"] = new(SmokeStage.Ready, mainWindow => DownloadSafetyLimitChecks.RunAsync(mainWindow)),
         ["booru-workbench"] = new(SmokeStage.Ready, mainWindow => BooruWorkbenchChecks.RunAsync(mainWindow)),
         ["booru-composition"] = new(SmokeStage.Ready, mainWindow => BooruCompositionChecks.RunAsync(mainWindow)),
+        ["booru-busy-fallback"] = new(SmokeStage.Ready, mainWindow => BooruBusyFallbackChecks.RunAsync(mainWindow)),
         ["board-language-refresh"] = new(SmokeStage.Ready, mainWindow => BoardAdmissionLanguageRefreshChecks.RunAsync(mainWindow)),
         ["rating-language-refresh"] = new(SmokeStage.Ready, mainWindow => RatingLanguageRefreshChecks.RunAsync(mainWindow)),
         ["html-export-language"] = new(SmokeStage.Ready, mainWindow => HtmlExportLanguageChecks.RunAsync(mainWindow)),

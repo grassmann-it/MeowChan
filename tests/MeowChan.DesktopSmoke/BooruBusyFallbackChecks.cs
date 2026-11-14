@@ -127,9 +127,13 @@ internal static class BooruBusyFallbackChecks
         }
         finally
         {
+            // An assertion can fail before the test releases the held monitor. Always drain it
+            // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
+            source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
+            stub?.Dispose();
             source?.Dispose();
             TryDelete(profile);
             owner.Activate();
@@ -210,9 +214,13 @@ internal static class BooruBusyFallbackChecks
         }
         finally
         {
+            // An assertion can fail before the test releases the held monitor. Always drain it
+            // before closing, otherwise fixture cleanup would hide the original failure in a timeout.
+            source?.Thread.ReleasePause();
             if (shell != null && shell.IsVisible) await CloseAsync(shell);
             if (host != null && !host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Wait);
             binding?.Dispose();
+            stub?.Dispose();
             source?.Dispose();
             TryDelete(profile);
             owner.Activate();
