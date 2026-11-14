@@ -4497,6 +4497,7 @@
     "folderSource.version.undo": "Deshacer",
     "folderSource.version.undone": "Las etiquetas copiadas se quitaron de nuevo de esta versión.",
     "folderSource.version.failed": "No se pudieron copiar las etiquetas. Puede que el archivo haya vuelto a cambiar o que no se pueda leer. No se cambió nada.",
-    "folderSource.version.undoFailed": "No se pudieron quitar las etiquetas copiadas. Quítelas a mano."
+    "folderSource.version.undoFailed": "No se pudieron quitar las etiquetas copiadas. Quítelas a mano.",
+    "command.tags.filter-only": "Mostrar solo este"
   }
 }

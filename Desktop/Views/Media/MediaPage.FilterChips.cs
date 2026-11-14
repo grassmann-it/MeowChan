@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.MediaActions;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -78,9 +79,11 @@ public sealed partial class MediaPage
         // "+ Filter" and "Reset all" follow the last chip directly (M1): the columns are Auto, so the chips are held to the row width
         // minus both by hand; they wrap there, and the two stay on the first line at the chip height.
         Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8, Background = Avalonia.Media.Brushes.Transparent };
-        // M3: a right click on the row writes the whole filter as a query (every chip's menu does the same).
-        _copyFiltersItem.Click += (_, _) => _ = CopyFiltersAsTextAsync();
-        row.ContextMenu = new ContextMenu { ItemsSource = new Control[] { _copyFiltersItem } };
+        // M3: a right click on the row (or the Menu key on "+ Filter" or "Reset all") writes the whole filter as a query and resets it;
+        // every chip's menu offers the same two.
+        WorkspaceChips.AttachMenu(row, () => _lifetime.IsCancellationRequested || ActiveFilterCount == 0 ? null
+            : FilterChipMenu.ComposeRow(Texts.T("media.filter.active"), () => _ = CopyFiltersAsTextAsync(), ResetFiltersFromChip),
+            () => FilterSurfaceToggle.Focus(NavigationMethod.Tab));
         row.Children.Add(_filterChips);
         row.Children.Add(_filterAdd); Avalonia.Controls.Grid.SetColumn(_filterAdd, 1);
         row.Children.Add(_filterResetAll); Avalonia.Controls.Grid.SetColumn(_filterResetAll, 2);
@@ -170,7 +173,6 @@ public sealed partial class MediaPage
         ToolTip.SetTip(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         AutomationProperties.SetName(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         _emptyReset.Content = Texts.T("media.filter.reset");
-        _copyFiltersItem.Header = Texts.T("media.filter.chip.copyText");
         List<FilterChip> chips = ActiveFilterChips();
         ActiveFilterCount = chips.Count;
         _filterAdd.IsVisible = chips.Count > 0; // the work view re-applies it below (media.filter.add)
@@ -188,11 +190,55 @@ public sealed partial class MediaPage
             MediaFilterTerm? term = chip.Term;
             ClosableTag tag = WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable, term?.Exclude == true,
                 () => RemoveFilterChip(position, chip.Remove), chip.Negatable ? () => ToggleFilterChip(term!) : null, chip.ValueName,
-                menu: true, edit: term != null && FilterTermPicker.GroupOrder(term.Field) <= FilterTermPicker.GroupOrder(MediaFilterField.Untagged)
-                    ? () => EditFilterChip(term.Field) : null, copyText: () => _ = CopyFiltersAsTextAsync());
+                menu: MediaFilterChipMenu.Options(term, _terms.ToArray(), term?.Field == MediaFilterField.Tag ? chip.ValueName : null, ChipActions));
             if (term != null) tag.Tag = MediaFilterTermSet.IdentityKey(term);
             _filterChips.Children.Add(tag);
         }
+    }
+
+    // Keyboard focus is in the chip row, or a chip's menu is open (its popup holds the focus): a removal or switch from the menu keeps
+    // keyboard users in the row, like one made on the chip.
+    private bool ChipRowHasFocus() => FocusWithin(_filterChips)
+        || _filterChips.Children.OfType<ClosableTag>().Any(chip => WorkspaceChips.MenuHostOf(chip)?.OpenMenu != null);
+
+    // What the entries of a chip's menu do. The menu is composed at every opening from the term set as it is then (the chip may outlive a change).
+    private MediaFilterChipActions ChipActions => _chipActions ??= new MediaFilterChipActions(
+        ShowOnly: ShowOnlyFilterChip, Edit: EditFilterChip, CopyTagName: name => _ = CopyTagNameAsync(name), CopyFilters: () => _ = CopyFiltersAsTextAsync(),
+        QueueAll: () => _ = AddAllShownToQueueAsync(),
+        QueueBlocked: () => AddToTagQueue != null && _tiles.Count > 0 && _building == null ? null : MediaMenuReasons.Unavailable,
+        ResetAll: ResetFiltersFromChip, IsSuppressed: () => _lifetime.IsCancellationRequested);
+    private MediaFilterChipActions? _chipActions;
+
+    // "Show only this": the other terms of the chip's field go; a set that would no longer be one filter is refused with its reason.
+    private void ShowOnlyFilterChip(MediaFilterTerm term)
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        bool focused = ChipRowHasFocus();
+        if (ShowOnlyFilterTerm(term) != null || !focused) return;
+        string identity = MediaFilterTermSet.IdentityKey(term);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_lifetime.IsCancellationRequested) return;
+            ClosableTag? chip = _filterChips.Children.OfType<ClosableTag>().FirstOrDefault(tag => tag.Tag as string == identity);
+            if (chip != null) chip.Focus(NavigationMethod.Tab);
+            else FilterSurfaceToggle.Focus(NavigationMethod.Tab);
+        }, DispatcherPriority.Loaded);
+    }
+
+    // "Copy tag name": the own tag's name, with the same failure line as "Copy filters as text".
+    private async System.Threading.Tasks.Task CopyTagNameAsync(string name)
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        await MenuClipboard.CopyAsync(this, name, message => { if (!_lifetime.IsCancellationRequested) ShowQueryHint(null, message); });
+    }
+
+    // "Reset all" in a menu: like the link behind the chips; a menu opened from the keyboard leaves the focus on the filter toggle.
+    private void ResetFiltersFromChip()
+    {
+        if (_lifetime.IsCancellationRequested) return;
+        ResetFilters();
+        // The row is gone; the toggle is the nearest place. Posted ahead of the menu's own focus return, which then leaves it alone.
+        Dispatcher.UIThread.Post(() => { if (!_lifetime.IsCancellationRequested) FilterSurfaceToggle.Focus(NavigationMethod.Tab); }, DispatcherPriority.Loaded);
     }
 
     // "Edit…" on a chip: the picker opens on that field's entries (another type, another rating, …).
@@ -205,7 +251,7 @@ public sealed partial class MediaPage
     // A switch rebuilds the chip (its key and place change); keyboard users stay on the toggle of the same value.
     private void ToggleFilterChip(MediaFilterTerm term)
     {
-        bool focused = FocusWithin(_filterChips);
+        bool focused = ChipRowHasFocus();
         if (ToggleFilterTerm(term) != null || !focused) return;
         string identity = MediaFilterTermSet.IdentityKey(term);
         Dispatcher.UIThread.Post(() =>
@@ -224,7 +270,7 @@ public sealed partial class MediaPage
     // filter toggle once the row is empty. Pointer removals and other re-renders leave focus alone.
     private void RemoveFilterChip(int position, Action remove)
     {
-        bool focused = FocusWithin(_filterChips);
+        bool focused = ChipRowHasFocus();
         remove();
         if (!focused) return;
         Dispatcher.UIThread.Post(() =>

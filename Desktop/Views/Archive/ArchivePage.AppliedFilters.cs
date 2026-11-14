@@ -31,9 +31,10 @@ public partial class ArchivePage
     /// removes the tag. The one chip model of the media page (<see cref="WorkspaceChips.CreateTermChip"/>), with its context menu.
     /// </summary>
     internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle,
-        Action? copyName = null)
+        FilterChipMenuOptions? menu = null)
     {
-        ClosableTag tag = WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true, copyName: copyName);
+        ClosableTag tag = WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName,
+            menu: menu ?? new FilterChipMenuOptions { TagName = tagName });
         tag.Tag = id;
         return tag;
     }
@@ -93,8 +94,8 @@ public partial class ArchivePage
         {
             var item = tags[i]; int index = i;
             ClosableTag chip = CreateAppliedChip(item, index);
-            // An own-tag chip has the M2 chip menu (with KM2's Copy tag name); any other applied chip gets KM2's chip menu.
-            if (chip.ContextMenu == null) AttachFilterChipMenu(chip, async () => await RemoveAppliedFilter(item.Field, item.Value, index), applied: true);
+            // An own-tag chip got the chip menu from CreateTagFilterChip (one menu, one Copy tag name); any other applied chip gets it here.
+            if (!WorkspaceChips.HasMenu(chip)) AttachFilterChipMenu(chip, async () => await RemoveAppliedFilter(item.Field, item.Value, index), applied: true);
             panel.Children.Add(chip);
         }
         if (tags.Count > 0)

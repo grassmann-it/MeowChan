@@ -4503,6 +4503,7 @@
     "folderSource.version.undo": "Desfazer",
     "folderSource.version.undone": "As tags copiadas foram removidas desta versão novamente.",
     "folderSource.version.failed": "Não foi possível copiar as tags. O arquivo pode ter mudado de novo ou não pode ser lido. Nada foi alterado.",
-    "folderSource.version.undoFailed": "Não foi possível remover as tags copiadas. Remova-as manualmente."
+    "folderSource.version.undoFailed": "Não foi possível remover as tags copiadas. Remova-as manualmente.",
+    "command.tags.filter-only": "Mostrar somente este"
   }
 }

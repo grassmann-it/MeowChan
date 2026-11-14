@@ -71,7 +71,7 @@ public sealed class FilterSurfaceContractTests
         string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs"), archive = Source("Desktop/Views/Archive/ArchivePage.AppliedFilters.cs");
         Assert.Contains("WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable,", chips);
         Assert.Contains("chip.Negatable ? () => ToggleFilterChip(term!) : null", chips);
-        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName, menu: true, copyName: copyName)", archive);
+        Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName,", archive);
         Assert.Contains("WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove)", archive);
         Assert.DoesNotContain("ArchivePage.CreateTagFilterChip(", chips);
     }

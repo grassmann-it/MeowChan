@@ -4517,6 +4517,7 @@
     "folderSource.version.undo": "Отменить",
     "folderSource.version.undone": "Скопированные теги снова удалены из этой версии.",
     "folderSource.version.failed": "Не удалось скопировать теги. Возможно, файл снова изменился или его нельзя прочитать. Ничего не изменено.",
-    "folderSource.version.undoFailed": "Не удалось удалить скопированные теги. Удалите их вручную."
+    "folderSource.version.undoFailed": "Не удалось удалить скопированные теги. Удалите их вручную.",
+    "command.tags.filter-only": "Показать только это"
   }
 }

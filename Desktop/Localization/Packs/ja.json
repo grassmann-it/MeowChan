@@ -4411,6 +4411,7 @@
     "folderSource.version.undo": "元に戻す",
     "folderSource.version.undone": "コピーしたタグをこのバージョンから再び削除しました。",
     "folderSource.version.failed": "タグをコピーできませんでした。ファイルが再び変更されたか、読み取れない可能性があります。何も変更していません。",
-    "folderSource.version.undoFailed": "コピーしたタグを削除できませんでした。手動で削除してください。"
+    "folderSource.version.undoFailed": "コピーしたタグを削除できませんでした。手動で削除してください。",
+    "command.tags.filter-only": "これだけを表示"
   }
 }

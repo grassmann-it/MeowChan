@@ -4503,6 +4503,7 @@
     "folderSource.version.undo": "Annulla",
     "folderSource.version.undone": "I tag copiati sono stati rimossi di nuovo da questa versione.",
     "folderSource.version.failed": "Impossibile copiare i tag. Il file potrebbe essere cambiato di nuovo o non essere leggibile. Non è stato modificato nulla.",
-    "folderSource.version.undoFailed": "Impossibile rimuovere i tag copiati. Rimuovili a mano."
+    "folderSource.version.undoFailed": "Impossibile rimuovere i tag copiati. Rimuovili a mano.",
+    "command.tags.filter-only": "Mostra solo questo"
   }
 }

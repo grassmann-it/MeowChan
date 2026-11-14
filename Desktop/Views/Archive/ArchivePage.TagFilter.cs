@@ -212,9 +212,9 @@ public partial class ArchivePage
             { (entry.Exclude ? _draftExcludeTags : _draftIncludeTags).Remove(entry.Id); DraftEdited("tags"); RenderDraftSets(); }))),
             (position, label, remove) =>
             {
-                // The M2 chip menu (include, exclude, remove) with KM2's Copy tag name; no second menu host on the same chip.
+                // The one chip menu (switch, copy text, Copy tag name, remove); no second menu host on the same chip.
                 return CreateTagFilterChip(label, TagFilterLabel(drafted[position].Id), drafted[position].Id, drafted[position].Exclude, remove,
-                    () => ToggleDraftChip(drafted[position].Id), copyName: () => _ = CopyChipTextAsync(this, TagFilterLabel(drafted[position].Id)));
+                    () => ToggleDraftChip(drafted[position].Id), ChipMenuOptions(label, TagFilterLabel(drafted[position].Id), applied: false));
             });
         ArchiveTagChoice.Refresh();
     }

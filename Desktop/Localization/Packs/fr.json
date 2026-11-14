@@ -4497,6 +4497,7 @@
     "folderSource.version.undo": "Annuler",
     "folderSource.version.undone": "Les étiquettes copiées ont de nouveau été retirées de cette version.",
     "folderSource.version.failed": "Les étiquettes n’ont pas pu être copiées. Le fichier a peut-être encore changé ou n’est pas lisible. Rien n’a été modifié.",
-    "folderSource.version.undoFailed": "Les étiquettes copiées n’ont pas pu être retirées. Retirez-les manuellement."
+    "folderSource.version.undoFailed": "Les étiquettes copiées n’ont pas pu être retirées. Retirez-les manuellement.",
+    "command.tags.filter-only": "Afficher uniquement celui-ci"
   }
 }

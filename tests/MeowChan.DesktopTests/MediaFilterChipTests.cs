@@ -150,7 +150,8 @@ public sealed class MediaFilterChipTests : IDisposable
     public void ANegatableChipSwitchesByItsToggleItsBodyEnterAndItsMenuAndRemovesByDelete()
     {
         int removed = 0, toggled = 0;
-        ClosableTag chip = WorkspaceChips.CreateTermChip("Type: Videos", negatable: true, exclude: false, () => removed++, () => toggled++, "Videos", menu: true);
+        ClosableTag chip = WorkspaceChips.CreateTermChip("Type: Videos", negatable: true, exclude: false, () => removed++, () => toggled++, "Videos",
+            menu: FilterChipMenuOptions.Plain);
         Assert.Equal(new[] { "chip", "chip-filter" }, chip.Classes);
         Assert.Equal("Type: Videos", WorkspaceChips.TermChipLabel(chip));
         Assert.Equal("Type: Videos", AutomationProperties.GetName(chip));
@@ -174,13 +175,12 @@ public sealed class MediaFilterChipTests : IDisposable
         chip.Command!.Execute(null);
         Assert.Equal((2, 4), (removed, toggled));
 
-        MenuItem[] items = ((IEnumerable<object>)chip.ContextMenu!.ItemsSource!).OfType<MenuItem>().ToArray();
-        Assert.Equal(new[] { "FilterChipInclude", "FilterChipExclude", "FilterChipRemove" }, items.Select(item => item.Name));
-        Assert.True(items[0].IsChecked);
-        items[0].Command!.Execute(null); // already included: nothing changes
-        Assert.Equal((2, 4), (removed, toggled));
-        items[1].Command!.Execute(null);
-        items[2].Command!.Execute(null);
+        // The menu (KM1/KM2 builder, opened by the chip's ContextMenuHost): the switch says what it will do, then Remove filter.
+        ContextMenuEntry[] entries = WorkspaceChips.MenuModelOf(chip)!.Entries.ToArray();
+        Assert.Equal(new[] { "tags.filter-toggle", "archive.clear-filter" }, entries.Select(entry => entry.CommandId));
+        Assert.Equal(Texts.T("tags.filter.toExclude", "Videos"), entries[0].Label);
+        entries[0].Invoke!();
+        entries[1].Invoke!();
         Assert.Equal((3, 5), (removed, toggled));
     }
 
@@ -207,12 +207,13 @@ public sealed class MediaFilterChipTests : IDisposable
     public void AnExcludedChipSaysSoAndItsMenuOffersEdit()
     {
         int edited = 0;
-        ClosableTag chip = WorkspaceChips.CreateTermChip("Without board: /g/", negatable: true, exclude: true, () => { }, () => { }, "/g/", menu: true, edit: () => edited++);
+        ClosableTag chip = WorkspaceChips.CreateTermChip("Without board: /g/", negatable: true, exclude: true, () => { }, () => { }, "/g/",
+            menu: new FilterChipMenuOptions { Edit = () => edited++ });
         Assert.Contains("chip-exclude", chip.Classes);
         Assert.Equal(Texts.T("tags.filter.toInclude", "/g/"), AutomationProperties.GetName(WorkspaceChips.TermChipToggle(chip)!));
-        MenuItem[] items = ((IEnumerable<object>)chip.ContextMenu!.ItemsSource!).OfType<MenuItem>().ToArray();
-        Assert.True(items.Single(item => item.Name == "FilterChipExclude").IsChecked);
-        items.Single(item => item.Name == "FilterChipEdit").Command!.Execute(null);
+        ContextMenuEntry[] entries = WorkspaceChips.MenuModelOf(chip)!.Entries.ToArray();
+        Assert.Equal(Texts.T("tags.filter.toInclude", "/g/"), entries.Single(entry => entry.CommandId == "tags.filter-toggle").Label);
+        entries.Single(entry => entry.CommandId == "media.filter.edit").Invoke!();
         Assert.Equal(1, edited);
     }
 
@@ -220,7 +221,7 @@ public sealed class MediaFilterChipTests : IDisposable
     public void APlainChipOnlyRemovesAndKeepsTheArchiveLook()
     {
         int removed = 0;
-        ClosableTag chip = WorkspaceChips.CreateTermChip("Rating: at least 3 of 5", negatable: false, exclude: false, () => removed++, menu: true);
+        ClosableTag chip = WorkspaceChips.CreateTermChip("Rating: at least 3 of 5", negatable: false, exclude: false, () => removed++, menu: FilterChipMenuOptions.Plain);
         Assert.IsType<TextBlock>(chip.Content); // the archive's plain chips read their text from the content directly
         Assert.Null(WorkspaceChips.TermChipToggle(chip));
         Assert.Equal(Texts.T("archive.removeFilter", "Rating: at least 3 of 5"), AutomationProperties.GetName(chip));
@@ -228,9 +229,9 @@ public sealed class MediaFilterChipTests : IDisposable
         Assert.Equal(0, removed); // the body of a plain chip does nothing
         foreach (Key key in new[] { Avalonia.Input.Key.Enter, Avalonia.Input.Key.Space, Avalonia.Input.Key.Delete, Avalonia.Input.Key.Back }) Key(chip, key);
         Assert.Equal(4, removed);
-        Assert.Equal(new[] { "FilterChipRemove" }, ((IEnumerable<object>)chip.ContextMenu!.ItemsSource!).OfType<MenuItem>().Select(item => item.Name));
+        Assert.Equal(new[] { "archive.clear-filter" }, WorkspaceChips.MenuModelOf(chip)!.Entries.Select(entry => entry.CommandId));
         // Without a menu (the archive's plain chips) nothing is added.
-        Assert.Null(ArchivePage.CreateFilterTag("Source: 4chan", () => { }).ContextMenu);
+        Assert.False(WorkspaceChips.HasMenu(ArchivePage.CreateFilterTag("Source: 4chan", () => { })));
     }
 
     [Fact]
@@ -240,7 +241,7 @@ public sealed class MediaFilterChipTests : IDisposable
         int toggled = 0;
         ClosableTag chip = ArchivePage.CreateTagFilterChip("Tag: surface", "surface", id, exclude: false, () => { }, () => toggled++);
         Assert.Equal(id, chip.Tag);
-        Assert.NotNull(chip.ContextMenu);
+        Assert.True(WorkspaceChips.HasMenu(chip));
         chip.RaiseEvent(Tap(((StackPanel)chip.Content!).Children[1]));
         Assert.Equal(1, toggled);
     }

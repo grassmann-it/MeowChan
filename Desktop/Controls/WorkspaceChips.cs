@@ -220,9 +220,6 @@ internal static class WorkspaceChips
 
     // ---- M2 filter term chips ----------------------------------------------------------------------------------------
 
-    /// <summary>The name of the menu entry that copies the page's filters as query text (tests and smokes).</summary>
-    internal const string CopyTextItemName = "FilterChipCopyText";
-
     /// <summary>The name of the include/exclude switch inside a negatable term chip (tests and smokes find it by this name).</summary>
     internal const string TermToggleName = "MediaFilterTagToggle";
 
@@ -240,14 +237,14 @@ internal static class WorkspaceChips
     /// on its body does the same (E4): both call <paramref name="toggle"/>. Enter or Space on the chip switches as well, Delete or
     /// Backspace removes. <paramref name="valueName"/> is what the switch names ("Switch to exclude: surface").</para>
     /// <para>Every other chip only removes: Enter, Space, Delete or Backspace remove it, as before.</para>
-    /// <para><paramref name="menu"/> adds the chip's context menu: Include · Exclude (negatable chips), Remove and, when the page offers
-    /// one, Edit… (<paramref name="edit"/>: opens the filter picker on the chip's field) and Copy filters as text
-    /// (<paramref name="copyText"/>, M3: the page writes its whole filter as a query) and, for an own tag, Copy tag name
-    /// (<paramref name="copyName"/>, KM2).</para>
+    /// <para><paramref name="menu"/> gives the chip its context menu (<see cref="FilterChipMenu"/>, opened by <see cref="ContextMenuHost"/>
+    /// on a right-click, the Menu key and Shift+F10, focus returning to the chip): the include/exclude switch for a negatable chip, the
+    /// page's extras from <see cref="FilterChipMenuOptions"/> (Show only this, Edit…, Copy filters as text, Copy tag name, Add all
+    /// shown to the tagging queue…, Reset all) and Remove filter.</para>
     /// The content is a TextBlock (plain chip) or a StackPanel of the switch and the TextBlock; <see cref="TermChipLabel"/> reads both.
     /// </summary>
     internal static ClosableTag CreateTermChip(string label, bool negatable, bool exclude, Action remove, Action? toggle = null,
-        string? valueName = null, bool menu = false, Action? edit = null, Action? copyText = null, Action? copyName = null)
+        string? valueName = null, FilterChipMenuOptions? menu = null)
     {
         ArgumentNullException.ThrowIfNull(remove);
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
@@ -258,7 +255,9 @@ internal static class WorkspaceChips
         ClosableTag tag = new() { Command = new ChipCommand(remove), Focusable = true };
         MarkFilter(tag, exclude);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit, copyText, copyName);
+        if (menu != null)
+            AttachMenu(tag, () => menu.IsSuppressed?.Invoke() == true ? null
+                : FilterChipMenu.Compose(TermChipLabel(tag), menu.TagName ?? valueName, exclude, negatable ? toggle : null, remove, menu, menu.IsAvailable?.Invoke() ?? true));
         if (!negatable)
         {
             tag.Content = text;
@@ -317,33 +316,32 @@ internal static class WorkspaceChips
     /// <summary>The include/exclude switch of a negatable term chip, or null for a plain chip.</summary>
     internal static Button? TermChipToggle(ClosableTag tag) => (tag.Content as StackPanel)?.Children.OfType<Button>().FirstOrDefault();
 
-    // The entries are a fixed array (ItemsSource), not the menu's own Items list: a list would observe its changes on the UI thread only.
-    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit, Action? copyText, Action? copyName = null)
+    private sealed record ChipMenu(ContextMenuHost Host, Func<ContextMenuBuilder?> Compose);
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, ChipMenu> Menus = new();
+
+    /// <summary>
+    /// Gives a filter chip (or the media page's chip row) its context menu: right-click, the Menu key and Shift+F10 open it, the menu is composed fresh at every opening
+    /// and the keyboard focus returns to where it was. The one way a filter chip gets a menu, whether the chip is a term chip of the
+    /// media page, a tag chip of the archive or a plain archive chip. A chip has one menu; a second call replaces the first.
+    /// </summary>
+    internal static ContextMenuHost AttachMenu(Control chip, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
     {
-        List<Control> items = new();
-        MenuItem Item(string name, string header, Action action) => new() { Name = name, Header = header, Command = new ChipCommand(action) };
-        if (negatable)
-        {
-            // The current state is checked; choosing it again changes nothing.
-            items.Add(new MenuItem
-            {
-                Name = "FilterChipInclude", Header = Texts.T("tags.filter.include"), ToggleType = MenuItemToggleType.Radio, IsChecked = !exclude,
-                Command = new ChipCommand(() => { if (exclude) toggle!(); })
-            });
-            items.Add(new MenuItem
-            {
-                Name = "FilterChipExclude", Header = Texts.T("tags.filter.exclude"), ToggleType = MenuItemToggleType.Radio, IsChecked = exclude,
-                Command = new ChipCommand(() => { if (!exclude) toggle!(); })
-            });
-            items.Add(new Separator());
-        }
-        items.Add(Item("FilterChipRemove", Texts.T("media.filter.chip.remove"), remove));
-        if (edit != null) items.Add(Item("FilterChipEdit", Texts.T("media.filter.chip.edit"), edit));
-        if (copyText != null) items.Add(Item(CopyTextItemName, Texts.T("media.filter.chip.copyText"), copyText));
-        // KM2 (wave3 glue): an own-tag chip also copies the tag's name.
-        if (copyName != null) items.Add(Item("FilterChipCopyName", MeowChan.Desktop.Commands.CommandCatalog.Label("tags.copy-name"), copyName));
-        return new ContextMenu { ItemsSource = items.ToArray() };
+        ArgumentNullException.ThrowIfNull(chip);
+        ArgumentNullException.ThrowIfNull(compose);
+        if (Menus.TryGetValue(chip, out ChipMenu? previous)) previous.Host.Dispose();
+        ContextMenuHost host = new(chip, compose, fallbackFocus);
+        Menus.AddOrUpdate(chip, new ChipMenu(host, compose));
+        return host;
     }
+
+    /// <summary>Whether the chip has its context menu already.</summary>
+    internal static bool HasMenu(Control chip) => Menus.TryGetValue(chip, out _);
+
+    /// <summary>The menu host of a chip, or null.</summary>
+    internal static ContextMenuHost? MenuHostOf(Control chip) => Menus.TryGetValue(chip, out ChipMenu? menu) ? menu.Host : null;
+
+    /// <summary>The menu the chip would open now as plain data (tests); null without a menu or when it opens nothing.</summary>
+    internal static ContextMenuModel? MenuModelOf(Control chip) => Menus.TryGetValue(chip, out ChipMenu? menu) ? menu.Compose()?.ToModel() : null;
 
     private static T Add<T>(T control, params string?[] classes) where T : Control
     {

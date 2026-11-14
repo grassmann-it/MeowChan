@@ -4543,6 +4543,7 @@
     "folderSource.version.undo": "Cofnij",
     "folderSource.version.undone": "Skopiowane tagi zostały ponownie usunięte z tej wersji.",
     "folderSource.version.failed": "Nie udało się skopiować tagów. Plik mógł się znowu zmienić albo nie można go odczytać. Nic nie zostało zmienione.",
-    "folderSource.version.undoFailed": "Nie udało się usunąć skopiowanych tagów. Usuń je ręcznie."
+    "folderSource.version.undoFailed": "Nie udało się usunąć skopiowanych tagów. Usuń je ręcznie.",
+    "command.tags.filter-only": "Pokaż tylko ten"
   }
 }

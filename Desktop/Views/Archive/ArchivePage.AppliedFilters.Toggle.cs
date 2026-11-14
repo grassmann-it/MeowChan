@@ -20,7 +20,7 @@ public partial class ArchivePage
         if (item.Field is "tagInclude" or "tagExclude" && Guid.TryParse(item.Value, out Guid id))
             return CreateTagFilterChip(item.Label, TagFilterLabel(id), id, item.Field == "tagExclude",
                 async () => await RemoveAppliedFilter(item.Field, item.Value, index), async () => await ToggleAppliedTag(id),
-                copyName: () => _ = CopyChipTextAsync(this, TagFilterLabel(id)));
+                ChipMenuOptions(item.Label, TagFilterLabel(id), applied: true));
         return CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index), item.Field == "tagExclude");
     }
 

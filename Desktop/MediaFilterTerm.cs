@@ -296,6 +296,27 @@ internal static class MediaFilterTermSet
         return held == null ? terms : With(terms, held.Toggled());
     }
 
+    /// <summary>
+    /// "Show only this": the set without every other term of this term's field (the other tags, included and excluded, the other types,
+    /// sources or boards), the term itself kept. A type change that leaves videos out drops the sound, as for any other type change.
+    /// The set itself when it does not hold the term.
+    /// </summary>
+    internal static IReadOnlyList<MediaFilterTerm> OnlyThis(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
+    {
+        ArgumentNullException.ThrowIfNull(term);
+        MediaFilterTerm? held = terms.FirstOrDefault(other => Identity(other) == Identity(term));
+        if (held == null) return terms;
+        List<MediaFilterTerm> next = terms.Where(other => other.Field != held.Field || ReferenceEquals(other, held)).ToList();
+        return held.Field == MediaFilterField.Type ? DropSoundWithoutVideos(next) : next;
+    }
+
+    /// <summary>
+    /// Whether "Show only this" does something for this chip: an included value of a field that holds several (tag, type, source,
+    /// board) while the set has another term of that field. An excluded chip has no "only" (it hides, it does not single out).
+    /// </summary>
+    internal static bool CanShowOnly(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term) =>
+        !term.Exclude && MediaFilterTerm.CanExclude(term.Field) && OnlyThis(terms, term).Count < terms.Count;
+
     /// <summary>The set whose types are exactly <paramref name="kinds"/> included (none: every type), as the section's type combo chooses.</summary>
     internal static IReadOnlyList<MediaFilterTerm> WithTypes(IReadOnlyList<MediaFilterTerm> terms, params MediaLibraryKindFilter[] kinds)
     {

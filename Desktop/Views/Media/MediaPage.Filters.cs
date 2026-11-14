@@ -445,6 +445,24 @@ public sealed partial class MediaPage
     }
 
     /// <summary>
+    /// "Show only this" on a chip: drops the other terms of its field (the other tags, types, sources or boards). Null when done, else the
+    /// localized reason (a set that would no longer be one filter), also shown on the error line.
+    /// </summary>
+    internal string? ShowOnlyFilterTerm(MediaFilterTerm term)
+    {
+        IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.OnlyThis(_terms.ToArray(), term);
+        if (!IsValidFilter(next))
+        {
+            string refusal = Texts.T("media.filter.add.refused");
+            _filterError.Text = refusal;
+            _filterError.IsVisible = true;
+            return refusal;
+        }
+        EditTerms(_ => next);
+        return null;
+    }
+
+    /// <summary>
     /// Adds a term from the "+ Filter" picker (or a test). Null when added, else the localized reason it was refused: a tag beyond
     /// the list limit, or a term that would not make one filter with the others.
     /// </summary>

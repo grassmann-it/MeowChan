@@ -4411,6 +4411,7 @@
     "folderSource.version.undo": "撤销",
     "folderSource.version.undone": "已再次从此版本中移除复制的标签。",
     "folderSource.version.failed": "无法复制标签。文件可能再次发生了变化，或无法读取。未做任何更改。",
-    "folderSource.version.undoFailed": "无法移除复制的标签。请手动移除。"
+    "folderSource.version.undoFailed": "无法移除复制的标签。请手动移除。",
+    "command.tags.filter-only": "仅显示此项"
   }
 }

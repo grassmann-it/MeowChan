@@ -4540,6 +4540,7 @@
     "folderSource.version.undo": "Zpět",
     "folderSource.version.undone": "Zkopírované štítky byly z této verze znovu odebrány.",
     "folderSource.version.failed": "Štítky se nepodařilo zkopírovat. Soubor se mohl znovu změnit nebo ho nelze přečíst. Nic nebylo změněno.",
-    "folderSource.version.undoFailed": "Zkopírované štítky se nepodařilo odebrat. Odeberte je ručně."
+    "folderSource.version.undoFailed": "Zkopírované štítky se nepodařilo odebrat. Odeberte je ručně.",
+    "command.tags.filter-only": "Zobrazit jen tento"
   }
 }

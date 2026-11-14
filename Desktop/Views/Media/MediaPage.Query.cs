@@ -24,7 +24,6 @@ public sealed partial class MediaPage
     private readonly TextBlock _queryNote = new() { Name = "MediaQueryNote", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "workspace-meta" } };
     private readonly TextBlock _queryProblem = new() { Name = "MediaQueryProblem", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false, Classes = { "workspace-error" } };
     private readonly StackPanel _queryHint = new() { Name = "MediaQueryHint", Spacing = 2, IsVisible = false };
-    private readonly MenuItem _copyFiltersItem = new() { Name = "MediaFilterCopyText" };
     private IReadOnlyDictionary<string, MediaFilterField>? _queryAliases;
     private long _queryHintRevision;
 

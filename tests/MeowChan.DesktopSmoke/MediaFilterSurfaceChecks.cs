@@ -187,8 +187,21 @@ internal static partial class MediaPageChecks
         string expectedText = "tag:surface type:video source:media-fixture name:\"bogus:x\"";
         Require(page.FiltersAsText() == expectedText, state + ": the filter as text was " + page.FiltersAsText());
         Ursa.Controls.ClosableTag firstChip = (Ursa.Controls.ClosableTag)page.FilterChips.Children[0];
-        Require(firstChip.ContextMenu!.ItemsSource is System.Collections.IEnumerable entries && entries.OfType<MenuItem>().Any(item => item.Name == WorkspaceChips.CopyTextItemName)
-            && (page.FilterChips.Parent as Control)?.ContextMenu != null, state + ": the chip and the row must offer Copy filters as text.");
+        Require(WorkspaceChips.MenuModelOf(firstChip) is { } chipMenu && chipMenu.Entries.Any(entry => entry.CommandId == "media.filter.copy-query")
+            && chipMenu.Entries.Any(entry => entry.CommandId == "media.filter.reset-all")
+            && page.FilterChips.Parent is Control chipRow && WorkspaceChips.MenuModelOf(chipRow) is { } rowMenu && rowMenu.Entries.Any(entry => entry.CommandId == "media.filter.copy-query"),
+            state + ": the chip and the row must offer Copy filters as text and Reset all.");
+        // The Menu key and Shift+F10 open the chip's menu (the shared ContextMenuHost) and the focus comes back to the chip when it closes.
+        foreach ((Key menuKey, KeyModifiers menuModifiers) in new[] { (Key.Apps, KeyModifiers.None), (Key.F10, KeyModifiers.Shift) })
+        {
+            firstChip.Focus(NavigationMethod.Tab);
+            firstChip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = menuKey, KeyModifiers = menuModifiers, Source = firstChip });
+            await UntilAsync(() => WorkspaceChips.MenuHostOf(firstChip)?.OpenMenu != null);
+            Require(WorkspaceChips.MenuHostOf(firstChip)!.OpenMenu!.Items.OfType<MenuItem>().Any(item => item.Tag as string == "media.filter.copy-query"),
+                state + ": " + menuKey + " must open the chip menu with Copy filters as text.");
+            WorkspaceChips.MenuHostOf(firstChip)!.Close();
+            await UntilAsync(() => firstChip.IsFocused || firstChip.IsKeyboardFocusWithin);
+        }
         await page.CopyFiltersAsTextAsync();
         Require(copied == expectedText && page.QueryNote == Texts.T("media.query.copied") && page.QueryProblem == null, state + ": copying must write the query and say so: " + copied);
         // Plain text is not a query: Enter changes nothing and clears the hint.
