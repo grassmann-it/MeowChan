@@ -2104,16 +2104,17 @@ The shared list of known profiles is outside the profiles and contains folder
 references; removing a list entry deletes neither the profile nor its media.
 
 Rows in **Switch profile…** appear immediately with **Checking…**. Their folder
-state is filled in asynchronously; a folder that does not answer is shown as
-**Status unknown: the folder does not answer**. While a row is still being checked
-or its status is unknown, **Open** is disabled; only a confirmed usable folder can
-be opened.
+state is filled in asynchronously; each folder gets up to two seconds to answer.
+A folder that does not answer within that window is shown as **Status unknown: the
+folder does not answer**. While a row is still being checked or its status is
+unknown, **Open** is disabled; only a confirmed usable folder can be opened.
 
 **Deutsch:** Im Dialog **Profil wechseln…** erscheinen die Zeilen sofort mit
-**Wird geprüft…**. Der Zustand des Ordners wird danach asynchron nachgetragen; ein
-nicht antwortender Ordner steht als **Status unbekannt: Der Ordner antwortet nicht**
-da. Solange geprüft wird oder der Status unbekannt ist, bleibt **Öffnen**
-deaktiviert; öffnen lässt sich nur ein bestätigter nutzbarer Ordner.
+**Wird geprüft…**. Der Zustand des Ordners wird danach asynchron nachgetragen; je
+Ordner wird bis zu zwei Sekunden auf eine Antwort gewartet. Antwortet er bis dahin
+nicht, steht dort **Status unbekannt: Der Ordner antwortet nicht**. Solange geprüft
+wird oder der Status unbekannt ist, bleibt **Öffnen** deaktiviert; öffnen lässt sich
+nur ein bestätigter nutzbarer Ordner.
 
 ## Missing media and finished threads
 
