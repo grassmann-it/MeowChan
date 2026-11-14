@@ -576,6 +576,9 @@
         <CornerRadius x:Key="MenuFlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
+        <!-- HB1: no tooltip is wider than 360 dip (HelpPopover.MaxContentWidth): longer text wraps (style "ToolTip TextBlock" below). -->
+        <x:Double x:Key="ToolTipMaxWidth">360</x:Double>
+        <Thickness x:Key="ToolTipPadding">8,6</Thickness>
         <CornerRadius x:Key="NotificationCardCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ComboBoxPopupBoxCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="AutoCompleteBoxPopupCornerRadius">8</CornerRadius>
@@ -1265,6 +1268,30 @@
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
         <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- HB1 tooltips: a long text wraps inside the 360 dip tooltip (ToolTipMaxWidth above) instead of running off as one line; a text
+         may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
+    <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
+    <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the help-circle icon centred, the subtle outline
+         and the shared focus ring. Never text, never a glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
+    <Style Selector="Button.help-round">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- HB1 HelpPopover: a flyout with 12 dip inset, the control outline and the overlay radius; the column inside is 360 dip at most. -->
+    <Style Selector="FlyoutPresenter.help-popover">
+        <Setter Property="Padding" Value="12" /><Setter Property="MaxWidth" Value="384" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Group}" />
+    </Style>
+    <Style Selector="Border.help-popover-dot">
+        <Setter Property="Width" Value="4" /><Setter Property="Height" Value="4" /><Setter Property="CornerRadius" Value="2" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Muted}" /><Setter Property="VerticalAlignment" Value="Top" />
+        <Setter Property="Margin" Value="0,7,0,0" /><Setter Property="IsHitTestVisible" Value="False" />
     </Style>
     <!-- Drawn glyph icons (WorkspaceIcons.cs): 16 dip grid, stroke weight 1.5 (glyph-thin 1, glyph-heavy 2; no other weights), round
          caps. The stroke follows the foreground of the owner in code, so a disabled button greys its icon like its text. -->

@@ -549,7 +549,11 @@ internal sealed partial class GalleryViewer : UserControl
 
     private void UpdateHelpButtonTooltip()
     {
-        string tip = string.Join(" · ", (_showShortcutHelp ? new[] { "viewer.shortcut-help", "favorites.add", "favorites.remove", "gallery.context-toggle" } : new[] { "viewer.shortcut-help" }).Select(id => CommandBindings.Tooltip(id)));
+        // HB1: two lines - the help command with its key, then the keys of the other commands the help lists ("Label · key · Label · key").
+        string tip = CommandBindings.Tooltip("viewer.shortcut-help");
+        if (_showShortcutHelp)
+            tip = CommandBindings.TooltipHeadline("viewer.shortcut-help") + "\n"
+                + string.Join(" · ", new[] { "favorites.add", "favorites.remove", "gallery.context-toggle" }.Select(id => CommandBindings.TooltipHeadline(id)));
         ToolTip.SetTip(_helpButton, tip);
         AutomationProperties.SetHelpText(_helpButton, tip);
     }

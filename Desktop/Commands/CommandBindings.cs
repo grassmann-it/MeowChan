@@ -207,13 +207,28 @@ public static class CommandBindings
     }
     public static void Refresh(NativeMenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
 
+    /// <summary>
+    /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the hint where it applies and the
+    /// reason it is unavailable, joined by " · " (HB1: no more row of four middle dots). The tooltip style wraps a line that is still too
+    /// long at 360 dip; a command without a hint or reason has one line.
+    /// </summary>
     public static string Tooltip(string id, string? unavailableReason = null, string? visibleLabel = null)
     {
         string label = visibleLabel ?? CommandCatalog.Label(id);
         string? shortcut = CommandCatalog.ShortcutDisplay(id);
-        string result = shortcut is null ? label : label + " · " + shortcut;
-        if (CommandCatalog.ScopeHint(id) is string scope) result += " · " + scope;
-        return string.IsNullOrWhiteSpace(unavailableReason) ? result : result + " · " + unavailableReason;
+        string headline = shortcut is null ? label : label + " · " + shortcut;
+        List<string> notes = [];
+        if (CommandCatalog.ScopeHint(id) is string scope) notes.Add(scope);
+        if (!string.IsNullOrWhiteSpace(unavailableReason)) notes.Add(unavailableReason);
+        return notes.Count == 0 ? headline : headline + "\n" + string.Join(" · ", notes);
+    }
+
+    /// <summary>The first line of <see cref="Tooltip"/> only ("Label · shortcut"), for a text that lists several commands in one line.</summary>
+    internal static string TooltipHeadline(string id, string? visibleLabel = null)
+    {
+        string tip = Tooltip(id, null, visibleLabel);
+        int lineBreak = tip.IndexOf('\n');
+        return lineBreak < 0 ? tip : tip[..lineBreak];
     }
 
     public static Control Icon(string id, int size = 16, string? state = null) =>
