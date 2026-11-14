@@ -290,6 +290,10 @@ public sealed class EffectiveShortcutBindings
             // Fn is never the only way on a Mac: the Diagnostics retry shares the gesture of "Retry missing media"
             // (they never apply on the same page).
             "diagnostics.retry-selection" => Of("Primary+Alt+Shift+R"),
+            // TG1 tagging page: Home/End need Fn on an Apple keyboard, so ⌥⌘↑ / ⌥⌘↓ (the Mac's "to the start / end" arrows next to ⌥↑/⌥↓
+            // of one step) come first and Alt+Home/Alt+End stay extras.
+            "tagging.move-first" => Of("Primary+Alt+Up", "Alt+Home"),
+            "tagging.move-last" => Of("Primary+Alt+Down", "Alt+End"),
             // Quick tagging: an Apple keyboard has no PageUp/PageDown (Fn+arrow), so the ⌘-arrow is the first gesture there.
             "tags.quick.next" => Of("Primary+Down", "PageDown"),
             "tags.quick.previous" => Of("Primary+Up", "PageUp"),
