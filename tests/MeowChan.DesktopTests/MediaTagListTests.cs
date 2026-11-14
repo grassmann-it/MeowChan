@@ -141,7 +141,7 @@ public sealed class MediaTagListTests : IDisposable
             Assert.Contains("1", one.AccessibleName);
             Assert.Contains("5", many.AccessibleName);
             Assert.EndsWith(Texts.T("media.tags.state.included"), many.AccessibleName);
-            foreach (string key in new[] { "media.booruMode", "media.booruMode.tip", "media.tags.title", "media.tags.hint", "media.tile.queued", "media.status.queue",
+            foreach (string key in new[] { "media.tagList", "media.tagList.tip", "media.tags.title", "media.tags.hint", "media.tile.queued", "media.status.queue",
                          "media.queue.walkNow", "media.toolbar.taggingPage", "settings.limits.mediaTagListTop" })
                 Assert.NotEqual(key, Texts.T(key));
         }

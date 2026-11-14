@@ -11,7 +11,7 @@ public sealed class MediaBooruOverflowRegistrationTests
     {
         string view = Read("MediaPage.WorkView.cs"), toolbar = Read("MediaPage.Toolbar.cs");
         Assert.Contains("WorkViewElement.SetId(_booruOpen, \"media.toolbar.booru\")", view);
-        Assert.Contains("Overflowed(_booruMode, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen)", view);
+        Assert.Contains("Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen)", view);
         Assert.Contains("UpdateMore(_more, HeaderOverflow())", view);
         Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow())", view);
         Assert.Contains("WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true)", view);

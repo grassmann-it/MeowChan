@@ -86,7 +86,7 @@ public sealed class MediaBooruModeTests : IDisposable
     public void TheWorkViewsPutTheSwitchUnderMoreInBarebonesAndTheWaysToTaggingAlwaysThere()
     {
         Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
-            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.booru-mode", view)));
+            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.tag-list", view)));
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
             Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("media.toolbar.queue-walk", view));

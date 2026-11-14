@@ -26,7 +26,7 @@ internal static partial class MediaPageChecks
         window.RequestedThemeVariant = theme;
         Texts.SetLanguage(code);
         window.Width = 1400; window.Height = 900;
-        await UntilAsync(() => AutomationProperties.GetName(page.BooruModeButton) == Texts.T("media.booruMode"));
+        await UntilAsync(() => AutomationProperties.GetName(page.BooruModeButton) == Texts.T("media.tagList"));
         int tagged = page.Tiles.Count, all = 0;
         MediaTagSidebar sidebar = page.TagSidebar;
         Require(!page.IsBooruMode && !sidebar.IsVisible && page.BooruModeButton.IsEffectivelyVisible, state + ": the mode starts off with its switch on the toolbar.");
