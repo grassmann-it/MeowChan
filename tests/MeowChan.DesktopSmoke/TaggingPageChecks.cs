@@ -89,6 +89,44 @@ internal static class TaggingPageChecks
             tagging.OpenListMenu!.Close();
             await SettleAsync(window);
 
+            // TG1: the selection bar above the list. Hidden without a selection; one entry offers "Tag…", two "Tag together…"; the state menu
+            // lists the three marks; Esc clears. The grid then shows the same entries and keeps the selection (and the saved view follows).
+            tagging.List.SelectedItems!.Clear();
+            await SettleAsync(window);
+            Require(!tagging.SelectionBar.IsVisible, "The selection bar shows without a selection.");
+            tagging.List.SelectedItems.Add(tagging.Rows[0]);
+            await SettleAsync(window);
+            Require(tagging.SelectionBar.IsVisible && tagging.SelectionText.Text == "1 selected" && (string?)tagging.SelectionTagButton.Content == "Tag…"
+                && tagging.SelectionTagButton.IsEnabled, "Selection bar for one entry: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
+            tagging.List.SelectedItems.Add(tagging.Rows[1]);
+            await SettleAsync(window);
+            Require(tagging.SelectionText.Text == "2 selected" && (string?)tagging.SelectionTagButton.Content == "Tag together…",
+                "Selection bar for two entries: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
+            MeowChan.Desktop.Controls.ContextMenuModel stateMenu = tagging.StateMenuModel() ?? throw new InvalidOperationException("No state menu for a selection.");
+            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[] { "Mark as finished", "Mark as open", "Mark as skipped" }),
+                "State menu: " + string.Join(" | ", stateMenu.Entries.Select(item => item.Label)));
+            tagging.ShowStateMenu();
+            await SettleAsync(window);
+            Require(tagging.OpenStateMenu is { IsOpen: true }, "The state menu did not open under its button.");
+            tagging.OpenStateMenu!.Close();
+            await SettleAsync(window);
+            tagging.SetViewMode(TaggingViewMode.Grid, save: true);
+            await SettleAsync(window);
+            Require(tagging.ViewMode == TaggingViewMode.Grid && tagging.TileGrid.IsVisible && !tagging.List.IsVisible && tagging.ViewToggle.SelectedIndex == 1,
+                "The grid view is not shown after the switch.");
+            Require(tagging.TileGrid.SelectedItems!.Count == 2 && tagging.SelectionText.Text == "2 selected", "The grid lost the selection: " + tagging.TileGrid.SelectedItems.Count);
+            Require(tagging.TileGrid.ContainerFromIndex(0) is ListBoxItem, "The grid built no tile.");
+            Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 17, "The grid has no context menu for its selection.");
+            await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "Grid", () => "saved view " + Config.LoadConfig().TaggingPageView);
+            Program.CaptureWindow(window, "smoke-tagging-page-grid.png");
+            Press((Control)tagging.TileGrid.ContainerFromIndex(0)!, Key.Escape);
+            await SettleAsync(window);
+            Require(tagging.TileGrid.SelectedItems!.Count == 0 && !tagging.SelectionBar.IsVisible, "Esc did not clear the grid selection.");
+            tagging.SetViewMode(TaggingViewMode.List, save: true);
+            await SettleAsync(window);
+            Require(tagging.List.IsVisible && !tagging.TileGrid.IsVisible, "Back to the list failed.");
+            await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "List", () => "saved view " + Config.LoadConfig().TaggingPageView);
+
             // Stamp (wave3 glue e224cd02): Enter in the field adds the name to the window's shared stamp, which is saved in the settings
             // (Config.TagStamp) and shown by the page; the stamp field of tag-queue.json stays unused.
             tagging.StampInput.Text = "surface";
@@ -137,7 +175,7 @@ internal static class TaggingPageChecks
             await Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 0 && tagging.Rows.Count == 0);
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
-            Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, stamp, filter, work views, clear; Light/Dark EN/DE captures.");
+            Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE captures.");
         }
         finally
         {

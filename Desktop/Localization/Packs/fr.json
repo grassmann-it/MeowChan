@@ -4732,6 +4732,15 @@
     "help.taggingStamp.p1": "Le tampon contient les étiquettes que vous donnez à la plupart des médias. Elles passent en premier dans chaque panneau d’étiquettes, dans l’ordre indiqué ici.",
     "help.taggingStamp.li1": "« Appliquer le tampon d’étiquettes » les attribue toutes d’un coup aux entrées sélectionnées ; celles qu’une entrée a déjà ne sont pas réécrites.",
     "help.taggingStamp.li2": "Le tampon contient au plus autant d’étiquettes que le permet la taille du tampon dans les réglages.",
-    "tagging.page.showInMedia.missing": "Cette entrée n’est pas affichée pour le moment sur la page Médias ; un filtre la masque peut-être."
+    "tagging.page.showInMedia.missing": "Cette entrée n’est pas affichée pour le moment sur la page Médias ; un filtre la masque peut-être.",
+    "tagging.page.view": "Affichage",
+    "tagging.page.view.list": "Liste",
+    "tagging.page.view.list.hint": "Afficher la file sous forme de liste",
+    "tagging.page.view.grid": "Grille",
+    "tagging.page.view.grid.hint": "Afficher la file sous forme de miniatures",
+    "tagging.page.selection.name": "Actions pour la sélection",
+    "tagging.page.selection.state": "État",
+    "tagging.page.selection.state.hint": "Marquer les entrées sélectionnées comme terminées, à faire ou ignorées",
+    "tagging.page.selection.remove": "Retirer"
   }
 }

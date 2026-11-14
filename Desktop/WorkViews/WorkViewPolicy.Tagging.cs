@@ -25,6 +25,17 @@ public static partial class WorkViewPolicy
         new("tagging.keys-hint", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.continue-here"),
         // TG1: the help button of the page sits at the end of the tool row; Barebones moves it under More.
         new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),
+        // TG1: "List | Grid" sits next to the filter; Barebones moves it under More (the saved view stays what it was).
+        new("tagging.view-toggle", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 40),
+        // TG1: the selection bar above the list or grid, shown while something is selected. The count, the way to tag and the cross
+        // are the selection itself in every view; stamping, setting a state and removing thin out like the toolbar.
+        Same("tagging.selection-bar", WorkViewPage.Tagging, WorkViewKind.Element, Required),
+        Same("tagging.selection.status", WorkViewPage.Tagging, WorkViewKind.Element, Required),
+        Same("tagging.selection.tag", WorkViewPage.Tagging, WorkViewKind.Action, Required),
+        Same("tagging.selection.remove", WorkViewPage.Tagging, WorkViewKind.Action, Required),
+        Same("tagging.selection.clear", WorkViewPage.Tagging, WorkViewKind.Action, Required),
+        new("tagging.selection.stamp", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tags.quick.stamp-apply", OverflowOrder: 10),
+        new("tagging.selection.state", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
         new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tagging.clear-done", OverflowOrder: 20),
         new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, "tagging.clear", OverflowOrder: 30),

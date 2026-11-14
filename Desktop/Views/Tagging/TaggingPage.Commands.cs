@@ -64,7 +64,7 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _filterPanel, _help })
+        foreach (Control item in new Control[] { _start, _add, _clearDone, _clear, _filterPanel, _viewToggle, _help })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
             _actions.Items.Add(item);
@@ -80,7 +80,7 @@ public sealed partial class TaggingPage
             if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand("tagging.continue-here"))
                 _ = ExecuteRowCommandAsync("tagging.continue-here");
         };
-        _list.SelectionChanged += (_, _) => RefreshCommandStates();
+        _list.SelectionChanged += OnSelectionChanged;
     }
 
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
@@ -91,8 +91,8 @@ public sealed partial class TaggingPage
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();
 
     /// <summary>Opens the context menu on the list (the keyboard way: under the list).</summary>
-    internal void ShowListMenu() => _menuHost?.Show(atPointer: false);
-    internal ContextMenu? OpenListMenu => _menuHost?.OpenMenu;
+    internal void ShowListMenu() => ActiveMenuHost?.Show(atPointer: false);
+    internal ContextMenu? OpenListMenu => ActiveMenuHost?.OpenMenu;
 
     private TaggingCapabilities Capabilities => new(CanChange, StartTagging != null && CanChange, CanTag, _queueWork.StampNames.Count > 0,
         OpenGallery != null, ShowInThread != null, ShowInMedia != null, ShowInFolder != null, CopyPath != null);
@@ -204,6 +204,13 @@ public sealed partial class TaggingPage
     private void OnListKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _queueWork.Ended || ShortcutService.IsCapturing || !MainWindow.IsListCommandSource(e.Source, ActiveList)) return;
+        // Esc (fixed) clears a selection before anything else; without one the key is left to the window.
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && SelectedCount > 0)
+        {
+            e.Handled = true;
+            ClearSelection();
+            return;
+        }
         foreach (string id in TaggingCommands.All)
         {
             if (!ShortcutService.Current.Matches(e, id)) continue;

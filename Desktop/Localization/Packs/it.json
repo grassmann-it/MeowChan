@@ -4738,6 +4738,15 @@
     "help.taggingStamp.p1": "Il timbro contiene i tag che dai alla maggior parte dei media. Compaiono per primi in ogni pannello dei tag, nell’ordine mostrato qui.",
     "help.taggingStamp.li1": "«Applica timbro di tag» li assegna tutti insieme alle voci selezionate; quelli che una voce ha già non vengono riscritti.",
     "help.taggingStamp.li2": "Il timbro contiene al massimo tanti tag quanti ne consente la dimensione del timbro nelle impostazioni.",
-    "tagging.page.showInMedia.missing": "Questa voce al momento non è mostrata nella pagina Media; forse un filtro la nasconde."
+    "tagging.page.showInMedia.missing": "Questa voce al momento non è mostrata nella pagina Media; forse un filtro la nasconde.",
+    "tagging.page.view": "Vista",
+    "tagging.page.view.list": "Elenco",
+    "tagging.page.view.list.hint": "Mostra la coda come elenco",
+    "tagging.page.view.grid": "Griglia",
+    "tagging.page.view.grid.hint": "Mostra la coda come miniature",
+    "tagging.page.selection.name": "Azioni per la selezione",
+    "tagging.page.selection.state": "Stato",
+    "tagging.page.selection.state.hint": "Segna le voci selezionate come completate, da fare o saltate",
+    "tagging.page.selection.remove": "Rimuovi"
   }
 }

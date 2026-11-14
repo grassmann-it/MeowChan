@@ -81,6 +81,7 @@ public sealed partial class TaggingPage : UserControl
         _start.Click += (_, _) => _ = StartAsync(null);
         _lastShown.Click += (_, _) => _ = StartAsync(null);
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
+        InitializeGrid();
         InitializeCommands();
         InitializeStamp();
         InitializeEmptyStates();
@@ -106,8 +107,6 @@ public sealed partial class TaggingPage : UserControl
     internal TagQueueSnapshot Queue => _queueWork.Queue;
     internal IReadOnlyList<TaggingQueueRow> Rows => _rows;
     internal ListBox List => _list;
-    // The list that shows the entries now (TG1: the grid joins it in the second step); selection, focus and scrolling go through it.
-    private ListBox ActiveList => _list;
     internal Button StartButton => _start;
     internal ComboBox FilterBox => _filter;
     internal TextBlock StatusText => _status;
@@ -170,11 +169,15 @@ public sealed partial class TaggingPage : UserControl
         _emptyHow.HorizontalAlignment = HorizontalAlignment.Center;
         Panel body = new();
         body.Children.Add(_list);
+        body.Children.Add(_grid);
         body.Children.Add(_emptyState);
-        Grid listArea = new() { RowDefinitions = new RowDefinitions("Auto,*") };
+        // The selection bar (only with a selection) stands above the column header; the toolbar above it never moves.
+        Grid listArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
+        listArea.Children.Add(BuildSelectionBar());
+        Grid.SetRow(_columnHeader, 1);
         listArea.Children.Add(_columnHeader);
         Border surface = new() { Name = "TaggingListSurface", Child = body, Classes = { "workspace-section-flush" } };
-        Grid.SetRow(surface, 1);
+        Grid.SetRow(surface, 2);
         listArea.Children.Add(surface);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
@@ -267,19 +270,30 @@ public sealed partial class TaggingPage : UserControl
         ApplyPendingSelect();
     }
 
-    private void Render()
+    // The selection that stays over a new set of rows is the shown list's (by key); a change of view hands the old list's keys over.
+    private void Render(TagQueueKey[]? carry = null, TagQueueKey? carryLead = null)
     {
         TagQueueSnapshot queue = _queueWork.Queue;
-        TagQueueKey[] selected = SelectedKeys();
-        TagQueueKey? lead = (ActiveList.SelectedItem as TaggingQueueRow)?.Key;
-        _rows = TaggingQueueView.Rows(queue, Filter, Scope);
-        _list.ItemsSource = _rows;
-        if (selected.Length > 0)
+        TagQueueKey[] selected = carry ?? SelectedKeys();
+        TagQueueKey? lead = carry != null ? carryLead : Lead?.Key;
+        _rendering = true;
+        try
         {
-            HashSet<TagQueueKey> keep = selected.ToHashSet();
-            foreach (TaggingQueueRow row in _rows.Where(row => keep.Contains(row.Key))) ActiveList.SelectedItems?.Add(row);
-            if (lead is { } stands && _rows.FirstOrDefault(row => row.Key == stands) is { } leadRow) ActiveList.ScrollIntoView(leadRow);
+            _rows = TaggingQueueView.Rows(queue, Filter, Scope);
+            // Only the shown list is bound: the other one holds no rows (no tiles or rows built behind the scenes).
+            ListBox hidden = _viewMode == TaggingViewMode.Grid ? _list : _grid;
+            hidden.ItemsSource = null;
+            ActiveList.ItemsSource = _rows;
+            if (selected.Length > 0)
+            {
+                HashSet<TagQueueKey> keep = selected.ToHashSet();
+                TaggingQueueRow? leadRow = lead is { } stands ? _rows.FirstOrDefault(row => row.Key == stands) : null;
+                if (leadRow != null && keep.Contains(leadRow.Key)) ActiveList.SelectedItems?.Add(leadRow);
+                foreach (TaggingQueueRow row in _rows.Where(row => keep.Contains(row.Key) && !ReferenceEquals(row, leadRow))) ActiveList.SelectedItems?.Add(row);
+                if (leadRow != null) ActiveList.ScrollIntoView(leadRow);
+            }
         }
+        finally { _rendering = false; }
         _progressText.Text = TaggingQueueView.ProgressText(queue);
         _bar.Value = TaggingQueueView.Share(queue) * 100;
         _percent.Text = TaggingQueueView.PercentText(queue);
@@ -287,11 +301,13 @@ public sealed partial class TaggingPage : UserControl
         AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text);
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded;
-        _list.IsVisible = !empty;
-        _columnHeader.IsVisible = !empty;
+        _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
+        _grid.IsVisible = !empty && _viewMode == TaggingViewMode.Grid;
+        _columnHeader.IsVisible = !empty && _viewMode == TaggingViewMode.List;
         RenderEmptyState(queue);
         _errorText.Text = _queueWork.ErrorText;
         UpdateActions();
+        UpdateSelectionBar();
     }
 
     // T1: the link follows the queue; it continues like the start button, so it is as enabled as that button. Whether it is shown at all
@@ -356,7 +372,9 @@ public sealed partial class TaggingPage : UserControl
             _help.Refresh();
             LocalizeColumns();
             LocalizeCommands();
+            LocalizeView();
             LocalizeStamp();
+            LocalizeSelection();
         }
         finally { _localizing = false; }
     }
@@ -386,6 +404,8 @@ public sealed partial class TaggingPage : UserControl
         _queueWork.End();
         EndTagging();
         _menuHost?.Dispose();
+        _gridMenuHost?.Dispose();
+        _stateMenuHost?.Dispose();
         _lifetime.Cancel();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;

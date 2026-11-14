@@ -4738,6 +4738,15 @@
     "help.taggingStamp.p1": "O carimbo guarda as tags que você atribui à maioria das mídias. Elas aparecem primeiro em cada painel de tags, na ordem mostrada aqui.",
     "help.taggingStamp.li1": "“Aplicar carimbo de tags” atribui todas às entradas selecionadas de uma vez; as que uma entrada já tem não são gravadas de novo.",
     "help.taggingStamp.li2": "O carimbo comporta no máximo as tags que o tamanho do carimbo nas configurações permite.",
-    "tagging.page.showInMedia.missing": "Esta entrada não é mostrada agora na página Mídia; um filtro pode estar ocultando-a."
+    "tagging.page.showInMedia.missing": "Esta entrada não é mostrada agora na página Mídia; um filtro pode estar ocultando-a.",
+    "tagging.page.view": "Visualização",
+    "tagging.page.view.list": "Lista",
+    "tagging.page.view.list.hint": "Mostrar a fila como lista",
+    "tagging.page.view.grid": "Grade",
+    "tagging.page.view.grid.hint": "Mostrar a fila como miniaturas",
+    "tagging.page.selection.name": "Ações para a seleção",
+    "tagging.page.selection.state": "Estado",
+    "tagging.page.selection.state.hint": "Marcar as entradas selecionadas como concluídas, pendentes ou puladas",
+    "tagging.page.selection.remove": "Remover"
   }
 }

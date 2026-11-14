@@ -4780,6 +4780,15 @@
     "help.taggingStamp.p1": "Stempel zawiera tagi, które nadajesz większości mediów. W każdym panelu tagów stoją na początku, w kolejności pokazanej tutaj.",
     "help.taggingStamp.li1": "„Ustaw stempel tagów” nadaje je wszystkie naraz zaznaczonym wpisom; tagi, które wpis już ma, nie są zapisywane ponownie.",
     "help.taggingStamp.li2": "Stempel mieści najwyżej tyle tagów, na ile pozwala rozmiar stempla w ustawieniach.",
-    "tagging.page.showInMedia.missing": "Ten wpis nie jest teraz widoczny na stronie Media; może go ukrywać filtr."
+    "tagging.page.showInMedia.missing": "Ten wpis nie jest teraz widoczny na stronie Media; może go ukrywać filtr.",
+    "tagging.page.view": "Widok",
+    "tagging.page.view.list": "Lista",
+    "tagging.page.view.list.hint": "Pokaż kolejkę jako listę",
+    "tagging.page.view.grid": "Siatka",
+    "tagging.page.view.grid.hint": "Pokaż kolejkę jako miniatury",
+    "tagging.page.selection.name": "Działania dla zaznaczenia",
+    "tagging.page.selection.state": "Stan",
+    "tagging.page.selection.state.hint": "Oznacz zaznaczone wpisy jako zakończone, otwarte lub pominięte",
+    "tagging.page.selection.remove": "Usuń"
   }
 }

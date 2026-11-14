@@ -6,6 +6,8 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -28,6 +30,8 @@ internal sealed class TwoWayToggle : StackPanel
         Children.Add(_first);
         Children.Add(_second);
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Group);
+        _first.AttachedToVisualTree += (_, _) => ShowIcon(_first);
+        _second.AttachedToVisualTree += (_, _) => ShowIcon(_second);
         _first.Click += (_, _) => Select(0);
         _second.Click += (_, _) => Select(1);
         AddHandler(KeyDownEvent, OnKeyDown);
@@ -50,9 +54,27 @@ internal sealed class TwoWayToggle : StackPanel
         Describe(_second, second, secondHint);
     }
 
-    private static void Describe(ToggleButton button, string text, string? hint)
+    /// <summary>
+    /// As <see cref="SetItems"/> with a catalog icon (<c>list</c>, <c>grid</c>) instead of a word on each button: the name and the hint are
+    /// the buttons' accessible name, tooltip and help text, so nothing depends on the picture. The icons are created once the buttons are
+    /// shown (they need the platform's asset loader).
+    /// </summary>
+    internal void SetIconItems(string firstIcon, string first, string? firstHint, string secondIcon, string second, string? secondHint)
     {
-        button.Content = text;
+        Describe(_first, first, firstHint, firstIcon);
+        Describe(_second, second, secondHint, secondIcon);
+    }
+
+    private static void ShowIcon(ToggleButton button)
+    {
+        if (button.Tag is string icon && button.Content is not Control) button.Content = CommandBindings.NamedIcon(icon);
+    }
+
+    private static void Describe(ToggleButton button, string text, string? hint, string? icon = null)
+    {
+        button.Tag = icon;
+        button.Content = icon == null ? text : null;
+        if (icon != null && button.IsAttachedToVisualTree()) ShowIcon(button);
         AutomationProperties.SetName(button, text);
         ToolTip.SetTip(button, hint);
         AutomationProperties.SetHelpText(button, hint ?? string.Empty);

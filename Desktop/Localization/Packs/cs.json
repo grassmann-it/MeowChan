@@ -4777,6 +4777,15 @@
     "help.taggingStamp.p1": "Razítko obsahuje štítky, které dáváte většině médií. V každém panelu štítků jsou na prvním místě, ve zde zobrazeném pořadí.",
     "help.taggingStamp.li1": "„Nastavit razítko štítků“ je dá všem vybraným položkám najednou; co položka už má, se znovu nezapisuje.",
     "help.taggingStamp.li2": "Razítko pojme nejvýše tolik štítků, kolik dovoluje velikost razítka v nastavení.",
-    "tagging.page.showInMedia.missing": "Tato položka se teď na stránce Média nezobrazuje; možná ji skrývá filtr."
+    "tagging.page.showInMedia.missing": "Tato položka se teď na stránce Média nezobrazuje; možná ji skrývá filtr.",
+    "tagging.page.view": "Zobrazení",
+    "tagging.page.view.list": "Seznam",
+    "tagging.page.view.list.hint": "Zobrazit frontu jako seznam",
+    "tagging.page.view.grid": "Mřížka",
+    "tagging.page.view.grid.hint": "Zobrazit frontu jako náhledy",
+    "tagging.page.selection.name": "Akce pro výběr",
+    "tagging.page.selection.state": "Stav",
+    "tagging.page.selection.state.hint": "Označit vybrané položky jako hotové, otevřené nebo přeskočené",
+    "tagging.page.selection.remove": "Odebrat"
   }
 }

@@ -4644,6 +4644,15 @@
     "help.taggingStamp.p1": "スタンプには、ほとんどのメディアに付けるタグを入れます。どのタグパネルでも、ここに表示された順で先頭に並びます。",
     "help.taggingStamp.li1": "「タグスタンプを設定」で選択した項目にまとめて付けられます。項目が既に持つタグは書き直されません。",
     "help.taggingStamp.li2": "スタンプに入るタグの数は、設定のスタンプサイズが上限です。",
-    "tagging.page.showInMedia.missing": "この項目は現在メディアページに表示されていません。フィルターで隠れている可能性があります。"
+    "tagging.page.showInMedia.missing": "この項目は現在メディアページに表示されていません。フィルターで隠れている可能性があります。",
+    "tagging.page.view": "表示",
+    "tagging.page.view.list": "リスト",
+    "tagging.page.view.list.hint": "キューをリストで表示",
+    "tagging.page.view.grid": "グリッド",
+    "tagging.page.view.grid.hint": "キューをサムネイルで表示",
+    "tagging.page.selection.name": "選択項目の操作",
+    "tagging.page.selection.state": "状態",
+    "tagging.page.selection.state.hint": "選択した項目を完了・未処理・スキップとしてマークする",
+    "tagging.page.selection.remove": "削除"
   }
 }

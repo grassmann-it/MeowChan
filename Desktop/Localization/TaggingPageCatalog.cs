@@ -90,6 +90,15 @@ internal static class TaggingPageCatalog
         ("tagging.page.empty.showAll", "Show all entries", "Alle Einträge zeigen"),
         ("command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…"),
         ("command.tagging.show-in-media", "Show in Media", "In Medien zeigen"),
-        ("tagging.page.showInMedia.missing", "This entry is not shown on the Media page right now; a filter may hide it.", "Dieser Eintrag wird auf der Medienseite gerade nicht gezeigt; vielleicht blendet ihn ein Filter aus.")
+        ("tagging.page.showInMedia.missing", "This entry is not shown on the Media page right now; a filter may hide it.", "Dieser Eintrag wird auf der Medienseite gerade nicht gezeigt; vielleicht blendet ihn ein Filter aus."),
+        ("tagging.page.view", "View", "Ansicht"),
+        ("tagging.page.view.list", "List", "Liste"),
+        ("tagging.page.view.list.hint", "Show the queue as a list", "Warteschlange als Liste zeigen"),
+        ("tagging.page.view.grid", "Grid", "Raster"),
+        ("tagging.page.view.grid.hint", "Show the queue as thumbnails", "Warteschlange als Vorschaubilder zeigen"),
+        ("tagging.page.selection.name", "Actions for the selection", "Aktionen für die Auswahl"),
+        ("tagging.page.selection.state", "State", "Zustand"),
+        ("tagging.page.selection.state.hint", "Mark the selected entries as finished, open or skipped", "Die ausgewählten Einträge als erledigt, offen oder übersprungen markieren"),
+        ("tagging.page.selection.remove", "Remove", "Entfernen")
     };
 }

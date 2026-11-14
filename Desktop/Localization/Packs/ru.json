@@ -4754,6 +4754,15 @@
     "help.taggingStamp.p1": "Штамп хранит теги, которые вы присваиваете большинству медиа. Они стоят первыми в каждой панели тегов в показанном здесь порядке.",
     "help.taggingStamp.li1": "«Применить штамп тегов» присваивает их все выбранным записям сразу; теги, которые у записи уже есть, не записываются повторно.",
     "help.taggingStamp.li2": "В штампе не больше тегов, чем позволяет размер штампа в настройках.",
-    "tagging.page.showInMedia.missing": "Эта запись сейчас не показана на странице «Медиа»; возможно, её скрывает фильтр."
+    "tagging.page.showInMedia.missing": "Эта запись сейчас не показана на странице «Медиа»; возможно, её скрывает фильтр.",
+    "tagging.page.view": "Вид",
+    "tagging.page.view.list": "Список",
+    "tagging.page.view.list.hint": "Показать очередь списком",
+    "tagging.page.view.grid": "Сетка",
+    "tagging.page.view.grid.hint": "Показать очередь миниатюрами",
+    "tagging.page.selection.name": "Действия для выбранного",
+    "tagging.page.selection.state": "Состояние",
+    "tagging.page.selection.state.hint": "Отметить выбранные записи как выполненные, открытые или пропущенные",
+    "tagging.page.selection.remove": "Убрать"
   }
 }

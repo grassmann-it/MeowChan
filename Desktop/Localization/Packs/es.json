@@ -4732,6 +4732,15 @@
     "help.taggingStamp.p1": "El sello contiene las etiquetas que asigna a la mayoría de los medios. Aparecen primero en cada panel de etiquetas, en el orden mostrado aquí.",
     "help.taggingStamp.li1": "«Aplicar sello de etiquetas» las asigna todas a las entradas seleccionadas de una vez; las que una entrada ya tiene no se vuelven a escribir.",
     "help.taggingStamp.li2": "El sello admite como máximo tantas etiquetas como permite el tamaño del sello en los ajustes.",
-    "tagging.page.showInMedia.missing": "Esta entrada no se muestra ahora en la página Medios; puede que un filtro la oculte."
+    "tagging.page.showInMedia.missing": "Esta entrada no se muestra ahora en la página Medios; puede que un filtro la oculte.",
+    "tagging.page.view": "Vista",
+    "tagging.page.view.list": "Lista",
+    "tagging.page.view.list.hint": "Mostrar la cola como lista",
+    "tagging.page.view.grid": "Cuadrícula",
+    "tagging.page.view.grid.hint": "Mostrar la cola como miniaturas",
+    "tagging.page.selection.name": "Acciones para la selección",
+    "tagging.page.selection.state": "Estado",
+    "tagging.page.selection.state.hint": "Marcar las entradas seleccionadas como terminadas, pendientes u omitidas",
+    "tagging.page.selection.remove": "Quitar"
   }
 }

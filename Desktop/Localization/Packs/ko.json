@@ -4644,6 +4644,15 @@
     "help.taggingStamp.p1": "스탬프에는 대부분의 미디어에 지정하는 태그가 들어 있습니다. 모든 태그 패널에서 여기에 표시된 순서대로 맨 앞에 나옵니다.",
     "help.taggingStamp.li1": "“태그 스탬프 적용”은 선택한 항목에 모두 한 번에 지정합니다. 항목이 이미 가진 태그는 다시 기록하지 않습니다.",
     "help.taggingStamp.li2": "스탬프에는 설정의 스탬프 크기가 허용하는 만큼의 태그만 담을 수 있습니다.",
-    "tagging.page.showInMedia.missing": "이 항목은 지금 미디어 페이지에 표시되지 않습니다. 필터가 숨기고 있을 수 있습니다."
+    "tagging.page.showInMedia.missing": "이 항목은 지금 미디어 페이지에 표시되지 않습니다. 필터가 숨기고 있을 수 있습니다.",
+    "tagging.page.view": "보기",
+    "tagging.page.view.list": "목록",
+    "tagging.page.view.list.hint": "대기열을 목록으로 표시",
+    "tagging.page.view.grid": "격자",
+    "tagging.page.view.grid.hint": "대기열을 미리보기로 표시",
+    "tagging.page.selection.name": "선택 항목 작업",
+    "tagging.page.selection.state": "상태",
+    "tagging.page.selection.state.hint": "선택한 항목을 완료, 미처리 또는 건너뜀으로 표시",
+    "tagging.page.selection.remove": "제거"
   }
 }
