@@ -43,15 +43,21 @@ internal sealed class ThemeColorsDialog : Window
     private readonly Button _apply = new() { Name = "ThemeColorsApply", Classes = { "primary" } };
     private readonly Button _cancel = new() { Name = "ThemeColorsCancel" };
     private readonly Button _resetAll = new() { Name = "ThemeColorsResetAll" };
+    // TH5: the round help button beside the intro, and "Try in window" (only with a live-apply callback: the owner's palette runtime).
+    private readonly HelpButton _help = new() { Name = "ThemeColorsHelp", HelpKey = "help.themeColors", VerticalAlignment = VerticalAlignment.Top };
+    private readonly CheckBox _try = new() { Name = "ThemeColorsTry" };
+    private readonly ThemeTrialSession? _trial;
     private ThemeTokenTheme _theme;
     private bool _busy, _asking, _closeConfirmed, _closed;
 
     private sealed record PresetButton(ThemeAccentPreset Preset, ToggleButton Button, Border Light, Border Dark, TextBlock Caption);
 
-    internal ThemeColorsDialog(ThemeConfiguratorModel model, ThemeTokenTheme initialVariant, Func<ThemeColorOverrides, Task> commit)
+    internal ThemeColorsDialog(ThemeConfiguratorModel model, ThemeTokenTheme initialVariant, Func<ThemeColorOverrides, Task> commit,
+        Action<ThemeColorOverrides>? applyLive = null)
     {
         _model = model ?? throw new ArgumentNullException(nameof(model));
         _commit = commit ?? throw new ArgumentNullException(nameof(commit));
+        if (applyLive != null) _trial = new ThemeTrialSession(model, applyLive);
         _theme = initialVariant;
         Name = "ThemeColorsDialog";
         DialogWindow.Configure(this, DialogSize.XL, modal: true);
@@ -68,14 +74,23 @@ internal sealed class ThemeColorsDialog : Window
             _rows.Add(row);
         }
 
+        // The intro and the round help button share the first row; the button stays at the top edge when the intro wraps.
+        Grid introRow = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        introRow.Children.Add(_intro);
+        Grid.SetColumn(_help, 1); introRow.Children.Add(_help);
+        // The variant choice and "Try in window" share a row: what is edited, and whether the window shows it.
+        Grid variantRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 16 };
+        variantRow.Children.Add(_variant);
+        _try.HorizontalAlignment = HorizontalAlignment.Right; _try.VerticalAlignment = VerticalAlignment.Center; _try.IsVisible = _trial != null;
+        Grid.SetColumn(_try, 1); variantRow.Children.Add(_try);
         StackPanel header = new()
         {
             Spacing = 12,
             Children =
             {
-                _intro,
+                introRow,
                 new StackPanel { Spacing = 4, Children = { _presetsLabel, _presetsHint, _presetRow } },
-                _variant
+                variantRow
             }
         };
         StackPanel rows = new() { Name = "ThemeColorRows", Margin = new Thickness(0, 0, 8, 0) };
@@ -98,10 +113,15 @@ internal sealed class ThemeColorsDialog : Window
         _apply.Click += async (_, _) => await ApplyAsync();
         _cancel.Click += (_, _) => Close();
         _resetAll.Click += (_, _) => _model.ResetAll();
+        _try.IsCheckedChanged += (_, _) => _trial?.SetOn(_try.IsChecked == true);
         AutomationProperties.SetControlTypeOverride(_presetRow, Avalonia.Automation.Peers.AutomationControlType.Group);
         DialogEscape.Attach(this, TryCancelLocal, () => _busy);
         Texts.Changed += OnLanguageChanged;
-        Closed += (_, _) => { _closed = true; Texts.Changed -= OnLanguageChanged; _model.Changed -= OnModelChanged; };
+        Closed += (_, _) =>
+        {
+            _closed = true; Texts.Changed -= OnLanguageChanged; _model.Changed -= OnModelChanged;
+            _trial?.Close(); // TH5: Cancel, Escape, × and the owner closing all end up here: the saved colours go back on the window
+        };
         Opened += (_, _) => (_variant.SelectedIndex == 0 ? _variant.First : _variant.Second).Focus();
         ApplyTexts();
         RefreshAll();
@@ -115,16 +135,21 @@ internal sealed class ThemeColorsDialog : Window
     internal Button ApplyButton => _apply;
     internal Button CancelButton => _cancel;
     internal Button ResetAllButton => _resetAll;
+    internal HelpButton HelpButton => _help;
+    internal CheckBox TryCheckBox => _try;
+    /// <summary>The "Try in window" state (tests and smokes); null when the owner gave no live-apply callback.</summary>
+    internal ThemeTrialSession? Trial => _trial;
     internal TextBlock StatusText => _status;
     internal TextBlock ErrorText => _error;
     internal IReadOnlyList<ToggleButton> PresetButtons => _presets.Select(preset => preset.Button).ToArray();
     internal bool IsAsking => _asking;
 
     /// <summary>Opens the dialog over <paramref name="owner"/>; it returns when the dialog is closed.</summary>
-    internal static Task ShowAsync(Window owner, ThemeConfiguratorModel model, ThemeTokenTheme initialVariant, Func<ThemeColorOverrides, Task> commit)
+    internal static Task ShowAsync(Window owner, ThemeConfiguratorModel model, ThemeTokenTheme initialVariant, Func<ThemeColorOverrides, Task> commit,
+        Action<ThemeColorOverrides>? applyLive = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
-        return new ThemeColorsDialog(model, initialVariant, commit).ShowDialog(owner);
+        return new ThemeColorsDialog(model, initialVariant, commit, applyLive).ShowDialog(owner);
     }
 
     /// <summary>Shows the colours of one variant (the Hell | Dunkel choice by code; tests and smokes).</summary>
@@ -161,7 +186,11 @@ internal sealed class ThemeColorsDialog : Window
 
     private void OnResetRequested(ThemeColorRow row) => _model.ResetRole(_theme, row.Role.Id);
 
-    private void OnModelChanged(object? sender, EventArgs e) => RefreshAll();
+    private void OnModelChanged(object? sender, EventArgs e)
+    {
+        _trial?.DraftChanged(); // TH5: with "Try in window" on, the window follows the draft (a refused draft is not shown)
+        RefreshAll();
+    }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
@@ -192,6 +221,9 @@ internal sealed class ThemeColorsDialog : Window
         AutomationProperties.SetName(_apply, _apply.Content.ToString());
         _cancel.Content = Texts.T("action.cancel");
         AutomationProperties.SetName(_cancel, _cancel.Content.ToString());
+        _try.Content = Texts.T("theme.colors.try");
+        ToolTip.SetTip(_try, Texts.T("theme.colors.tryHint"));
+        AutomationProperties.SetHelpText(_try, Texts.T("theme.colors.tryHint"));
         _resetAll.Content = Texts.T("theme.colors.resetAll");
         AutomationProperties.SetName(_resetAll, _resetAll.Content.ToString());
     }

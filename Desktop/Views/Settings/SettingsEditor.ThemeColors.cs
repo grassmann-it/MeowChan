@@ -32,7 +32,8 @@ public partial class SettingsEditor
         if (ThemeRuntime.BaseOf(ThemeVariant.Light) == null) return; // the runtime palette is not installed (no application)
         ThemeConfiguratorModel model = new(_config.ThemeOverrides, theme => ThemeRuntime.BaseOf(ThemeRuntime.Variant(theme))!);
         ThemeTokenTheme shown = ThemeRuntime.Base(owner.ActualThemeVariant);
-        ThemeColorsDialog dialog = new(model, shown, CommitThemeColorsAsync);
+        // TH5: "Try in window" puts the draft on the live palette through the same call a saved change makes; closing puts the saved colours back.
+        ThemeColorsDialog dialog = new(model, shown, CommitThemeColorsAsync, overrides => ThemeRuntime.ApplyOverrides(overrides));
         _themeColorsDialog = dialog;
         try { await dialog.ShowDialog(owner); }
         finally { _themeColorsDialog = null; }
