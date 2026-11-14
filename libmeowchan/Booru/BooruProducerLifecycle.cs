@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Persistence;
+using Serilog;
 
 namespace MeowChan.Booru;
 
@@ -50,6 +51,9 @@ internal sealed class BooruProducerLifecycle
 {
     private readonly object _sync = new();
     private readonly ProfileAdmission _admission;
+    // Internal fault seam used by core tests to exercise a detached terminal-release cleanup failure.
+    // Production composition leaves it null; real drain/admission ownership is unchanged.
+    private readonly Action? _terminalReleaseDisposeHook;
     private BooruProducerPhase _phase = BooruProducerPhase.Prepared;
     private ProfileProducerEpoch? _epoch;
     private CancellationTokenSource? _cut;
@@ -58,8 +62,11 @@ internal sealed class BooruProducerLifecycle
     private long _generation;
     private TaskCompletionSource _changed = NewSignal();
 
-    internal BooruProducerLifecycle(ProfileAdmission admission) =>
+    internal BooruProducerLifecycle(ProfileAdmission admission, Action? terminalReleaseDisposeHook = null)
+    {
         _admission = admission ?? throw new ArgumentNullException(nameof(admission));
+        _terminalReleaseDisposeHook = terminalReleaseDisposeHook;
+    }
 
     /// <summary>Raised outside every lock after each phase or generation change.</summary>
     internal event Action? Changed;
@@ -283,7 +290,7 @@ internal sealed class BooruProducerLifecycle
         _ = CompleteTerminalReleaseAsync(release);
         // Detached recovery cleanup must remain observable for callers that do not immediately await StopAsync; the
         // terminal phase remains fail-closed rather than turning a cleanup fault into success.
-        ObserveFault(release.Completion.Task);
+        ObserveFault(release.Completion.Task, "terminal_release");
     }
 
     private async Task CompleteTerminalReleaseAsync(TerminalRelease release)
@@ -318,6 +325,7 @@ internal sealed class BooruProducerLifecycle
             {
                 release.Epoch.Dispose();
                 cut?.Dispose();
+                _terminalReleaseDisposeHook?.Invoke();
             }
             catch (Exception error) { (errors ??= new()).Add(error); }
         }
@@ -343,12 +351,17 @@ internal sealed class BooruProducerLifecycle
         // BeginStop is intentionally a synchronous fence and has no task to return. Observe a callback failure even
         // during the interval before its owner calls StopAsync; that call still awaits this exact task and preserves
         // the original fault.
-        ObserveFault(cancellation);
+        ObserveFault(cancellation, "cut_cancellation");
         return cancellation;
     }
 
-    private static void ObserveFault(Task task) => _ = task.ContinueWith(static completed => _ = completed.Exception,
-        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+    private static void ObserveFault(Task task, string reason) => _ = task.ContinueWith(static (completed, state) =>
+    {
+        Exception? failure = completed.Exception?.GetBaseException();
+        Log.Warning(
+            "Danbooru producer lifecycle cleanup fault; reason={Reason} exceptionType={ExceptionType}",
+            state, failure?.GetType().Name ?? "Unknown");
+    }, reason, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 
     internal bool IsCurrentGeneration(long generation)
     {

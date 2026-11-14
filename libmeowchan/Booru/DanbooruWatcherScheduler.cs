@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Persistence;
+using Serilog;
 
 namespace MeowChan.Booru;
 
@@ -47,6 +48,8 @@ namespace MeowChan.Booru;
 internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 {
     private static readonly TimeSpan MaximumSingleWait = TimeSpan.FromHours(6);
+    private static readonly TimeSpan DefaultMaximumProviderCooldown = TimeSpan.FromHours(24);
+    private const string ProviderCooldownUnavailableCode = "provider_cooldown_unavailable";
 
     private readonly object _sync = new();
     private readonly BooruCatalogStore _catalog;
@@ -567,7 +570,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             {
                 return;
             }
-            catch (Exception)
+            catch (Exception exception) when (exception is not OutOfMemoryException)
             {
                 // A defect must never turn into a request loop: keep the state, back off visibly.
                 lock (_sync) _backoffUntil = Max(_backoffUntil, _time.GetUtcNow() + _options.UnavailableRetry);
@@ -712,7 +715,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 session).ConfigureAwait(false);
             return Record(watcherId, summary);
         }
-        catch (Exception exception)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // No exception may leave the watcher in the persisted Checking state: SelectNext skips every
             // watcher while one is Checking and BeginCheck refuses manual checks for it, so a single escaped
@@ -1077,11 +1080,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 return retryAt > now;
             }
         }
-        catch
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // A provider-fence read is an admission input. If it is unavailable while a check is
             // being cancelled, use the bounded maximum rather than releasing an uncertain check.
-            _fault = "provider_cooldown_unavailable";
+            // The visible fault is intentionally sticky until a safe restart reloads the scheduler.
+            MarkProviderCooldownUnavailable(exception, "transport_fence_read");
             retryAt = AddSaturating(now, MaximumProviderCooldown());
             return retryAt > now;
         }
@@ -1146,7 +1150,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         if (_fault is { } fault) return Rejected(fault, now, manual);
         if (HoldCodeLocked(manual) is { } hold) return Rejected(hold, now, manual);
-        if (ProviderCooldownLocked(now) is { } until && until > now)
+        DateTimeOffset? providerCooldown = ProviderCooldownLocked(now);
+        if (_fault is { } cooldownFault)
+            return Rejected(cooldownFault, now, manual, providerCooldown is { } faultUntil && faultUntil > now ? faultUntil : null);
+        if (providerCooldown is { } until && until > now)
             return Rejected("provider_cooldown", now, manual, until);
         DanbooruWatcherTransition preview = DanbooruWatcher.BeginCheck(watcher, now, manual);
         if (!preview.Accepted)
@@ -1166,6 +1173,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         if (_fault != null) return null;
 
         DateTimeOffset cap = AddSaturating(now, MaximumProviderCooldown());
+        if (_fault != null) return null;
         if (_backoffUntil is { } backoff && backoff > cap) _backoffUntil = cap;
         foreach (string watcherId in _watchers.Keys.ToArray())
         {
@@ -1186,7 +1194,17 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             }
         }
         DateTimeOffset? cooldown = _backoffUntil is { } boundedBackoff && boundedBackoff > now ? boundedBackoff : null;
-        if (_search.GetProviderCooldownUntilUtc() is { } transport && transport > now) cooldown = Max(cooldown, Min(transport, cap));
+        try
+        {
+            if (_search.GetProviderCooldownUntilUtc() is { } transport && transport > now)
+                cooldown = Max(cooldown, Min(transport, cap));
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            MarkProviderCooldownUnavailable(exception, "transport_cooldown_read");
+            DateTimeOffset fallback = AddSaturating(now, MaximumProviderCooldown());
+            return fallback > now ? fallback : null;
+        }
         return cooldown;
     }
 
@@ -1326,9 +1344,25 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         TimeSpan value;
         try { value = _search.GetProviderCooldownMaximum(); }
-        catch { return TimeSpan.FromHours(24); }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            // The cap is safety-critical input. Keep a bounded conservative fallback, but do not
+            // turn an unavailable cap into a successful scheduling decision.
+            MarkProviderCooldownUnavailable(exception, "maximum_cooldown_read");
+            return DefaultMaximumProviderCooldown;
+        }
         return value < TimeSpan.FromHours(1) ? TimeSpan.FromHours(1)
             : value > TimeSpan.FromHours(168) ? TimeSpan.FromHours(168) : value;
+    }
+
+    private void MarkProviderCooldownUnavailable(Exception exception, string reason)
+    {
+        _fault = ProviderCooldownUnavailableCode;
+        // Do not attach the exception: provider adapters may include URLs, queries or credentials in
+        // their messages. The stable reason and exception type are sufficient for diagnosis.
+        Log.Warning(
+            "Danbooru provider cooldown is unavailable; scheduler remains fail-closed. reason={Reason} exceptionType={ExceptionType}",
+            reason, exception.GetType().Name);
     }
 
     private static DateTimeOffset AddSaturating(DateTimeOffset now, TimeSpan delay) =>

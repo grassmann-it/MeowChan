@@ -103,16 +103,43 @@ internal sealed class FakeDanbooruSearch(TimeProvider clock) : IDanbooruWatcherS
     internal int MaxConcurrent { get; private set; }
     internal int Cancelled;
     internal DateTimeOffset? TransportCooldown { get; set; }
+    internal Exception? TransportCooldownFailure { get; set; }
+    internal bool TransportCooldownFailureOnce { get; set; }
     internal TimeSpan ProviderCooldownMaximum { get; set; } = TimeSpan.FromHours(24);
+    internal Exception? ProviderCooldownMaximumFailure { get; set; }
+    internal bool ProviderCooldownMaximumFailureOnce { get; set; }
     internal Func<string, string?, CancellationToken, Task>? Hold { get; set; }
     internal Func<long, BooruPostClaim>? ClaimFactory { get; set; }
 
     public int PageSize => 20;
 
-    public DateTimeOffset? GetProviderCooldownUntilUtc() =>
-        TransportCooldown is { } until && until > clock.GetUtcNow() ? until : null;
+    public DateTimeOffset? GetProviderCooldownUntilUtc()
+    {
+        if (TransportCooldownFailure is { } failure)
+        {
+            if (TransportCooldownFailureOnce)
+            {
+                TransportCooldownFailure = null;
+                TransportCooldownFailureOnce = false;
+            }
+            throw failure;
+        }
+        return TransportCooldown is { } until && until > clock.GetUtcNow() ? until : null;
+    }
 
-    public TimeSpan GetProviderCooldownMaximum() => ProviderCooldownMaximum;
+    public TimeSpan GetProviderCooldownMaximum()
+    {
+        if (ProviderCooldownMaximumFailure is { } failure)
+        {
+            if (ProviderCooldownMaximumFailureOnce)
+            {
+                ProviderCooldownMaximumFailure = null;
+                ProviderCooldownMaximumFailureOnce = false;
+            }
+            throw failure;
+        }
+        return ProviderCooldownMaximum;
+    }
 
     internal int CallCount { get { lock (_gate) return Calls.Count; } }
 
