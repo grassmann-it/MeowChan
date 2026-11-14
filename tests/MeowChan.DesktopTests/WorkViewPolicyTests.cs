@@ -180,12 +180,12 @@ public sealed class WorkViewPolicyTests
             Assert.Equal(advanced, WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("downloads.intake.url-hint", view)));
             foreach (string page in MainPageOrder.CommandIds.Skip(1))
                 Assert.Equal(page is "navigation.archive" or "navigation.media" ? !barebones : advanced, WorkViewPolicy.FooterDirect(page, view));
-            Assert.Equal(advanced, IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, view.ToSetting()));
+            // The directional I/O header (Codex base) draws both graphs in every work view when there is room; the policy row
+            // shell.header.disk-graph is no longer read by the header (see IoStatsDisplay.ResolveHeaderLayout).
+            Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));
             Assert.Equal(barebones, WorkViewDensity.Compact(view));
             Assert.Equal(advanced ? 140 : 300, WorkViewDensity.DownloadCompletionWidth(view));
             Assert.Equal(advanced ? 900 : 650, WorkViewDensity.ArchiveTableMinWidth(view));
         }
-        Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, " ADVANCED ")); // trimmed, case-insensitive as before
-        Assert.False(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto, "unknown"));
     }
 }
