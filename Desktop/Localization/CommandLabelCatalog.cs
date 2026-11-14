@@ -21,6 +21,7 @@ internal static class CommandLabelCatalog
         ("command.reader-groups.move-down", "Move thread down", "Thread nach unten"),
         ("command.reader-groups.save", "Save group", "Gruppe speichern"),
         ("command.reader-groups.read", "Read group", "Gruppe lesen"),
+        ("command.media.focus-mode", "Focus mode", "Fokusmodus"),
         ("command.media.rating.edit", "Edit rating…", "Bewertung bearbeiten…"),
         ("command.media.rating.clear", "Remove rating", "Bewertung entfernen"),
         ("command.media.rating.manage", "Manage saved ratings…", "Gespeicherte Bewertungen verwalten…"),

@@ -171,6 +171,8 @@ public sealed class EffectiveShortcutBindings
         ["media.rating.set-5"] = 8, ["media.rating.clear"] = 8,
         // New in revision 8: the reader's media sidebar (R8).
         ["reader.sidebar.toggle"] = 8, ["reader.sidebar.previous-media"] = 8, ["reader.sidebar.next-media"] = 8,
+        // New in revision 8: the media page's focus mode (M4), Shift+F next to the favourite's F.
+        ["media.focus-mode"] = 8,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

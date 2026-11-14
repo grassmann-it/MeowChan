@@ -65,5 +65,11 @@ internal static class FilterSurfaceCatalog
         ("media.query.alias.untagged", "notags", "ungetaggt"),
         ("media.query.alias.thread", "threads", "faden"),
         ("media.query.alias.name", "file filename", "datei dateiname"),
+        // M4: the focus mode of the media page (MediaPage.Focus.cs). The command label itself is command.media.focus-mode (CommandLabelCatalog).
+        ("media.focus.label", "Focus", "Fokus"),
+        ("media.focus.exit", "Exit focus ×", "Fokus beenden ×"),
+        ("media.focus.exit.tip", "Exit focus mode and show the toolbar and filters again · Esc", "Fokusmodus beenden und Werkzeugleiste und Filter wieder zeigen · Esc"),
+        ("media.focus.on", "Focus mode on", "Fokusmodus an"),
+        ("media.focus.off", "Focus mode off", "Fokusmodus aus"),
     };
 }

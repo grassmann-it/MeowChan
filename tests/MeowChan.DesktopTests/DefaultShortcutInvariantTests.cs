@@ -15,6 +15,8 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.context-toggle", "gallery.show-in-thread", "gallery.slideshow-toggle",
         "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.filmstrip-toggle",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
+        // The media page's focus mode: Shift+F (the F alone is the favourite); a typed capital in a text field is left to the field.
+        "media.focus-mode",
         // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed, A the A–B loop, "." the next frame.
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
