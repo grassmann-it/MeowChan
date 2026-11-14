@@ -29,6 +29,22 @@ public sealed class CurationConsistencyTests
         Assert.DoesNotContain("\"★\" : \"☆\"", source, StringComparison.Ordinal);
     }
 
+    // Wave-3 smoke regression (video-contrast): the gold star on the gallery's checked favourite toggle measured 1.5:1 (Light) and
+    // 1.7:1 (Dark). The toggle's checked fill carries the state, so its filled star follows the toggle's foreground like the label.
+    [Fact]
+    public void TheGalleryFavouriteToggleDrawsAnUntintedStarThatFollowsItsForeground()
+    {
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../..", "Desktop/GalleryViewer.cs")));
+        Assert.Contains("FavoriteStar.Create(_favoriteSelected, size, tinted: false)", source);
+        Border marked = FavoriteStar.Create(true, 16, tinted: false);
+        Assert.True(FavoriteStar.MarkOf(marked));
+        var star = Assert.IsType<Avalonia.Controls.Shapes.Path>(marked.Child);
+        var foreground = new Avalonia.Media.SolidColorBrush(Avalonia.Media.Colors.White);
+        _ = new ContentControl { Foreground = foreground, Content = marked }; // the star inherits the host's foreground
+        Assert.Same(foreground, star.Stroke);
+        Assert.Same(foreground, star.Fill);
+    }
+
     private static string SourcePath([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     [Fact]

@@ -672,9 +672,11 @@ internal sealed partial class GalleryViewer : UserControl
         if (label == null || CommandId(name) is not { } id) return;
         if (button.Tag is OverflowItem) return; // A menu row shows its own text.
         // The favourite button draws the app's one favourite mark for its state (outline or filled); the other icons follow the foreground.
+        // Untinted here: the marked toggle already shows its checked fill, and the gold tint on that fill fell to 1.5:1 (Light) and
+        // 1.7:1 (Dark), below the 3:1 of an icon (video-contrast smoke, wave 3). The filled shape keeps the state readable.
         Border Icon(int size)
         {
-            if (id == "favorites.toggle") return MeowChan.Desktop.Controls.FavoriteStar.Create(_favoriteSelected, size);
+            if (id == "favorites.toggle") return MeowChan.Desktop.Controls.FavoriteStar.Create(_favoriteSelected, size, tinted: false);
             Border plain = (Border)CommandBindings.Icon(id, size);
             // Semi sets the checked/pressed/disabled foreground on the content
             // presenter; inherit that same foreground for the icon and label.

@@ -43,9 +43,8 @@ internal static class GalleryToolbarContrastChecks
     private static void Inspect(ToggleButton toggle, ThemeVariant theme, bool contextOpen, bool marked, List<string> failures)
     {
         TextBlock label = toggle.GetVisualDescendants().OfType<TextBlock>().Single();
-        Border icon = toggle.GetVisualDescendants().OfType<Border>().Single(border => border.OpacityMask != null);
         Color textColor = Solid(label.Foreground);
-        Color iconColor = Solid(icon.Background);
+        Color iconColor = IconColor(toggle);
         List<(string Element, ISolidColorBrush Brush)> layers = new();
         foreach (Visual parent in label.GetVisualAncestors())
         {
@@ -80,6 +79,17 @@ internal static class GalleryToolbarContrastChecks
         }));
         if (!label.IsEffectivelyVisible || label.Bounds.Width <= 0 || textRatio < 4.5 || iconRatio < 3)
             failures.Add($"toolbar/{theme}/{toggle.Name}/context={contextOpen}/favorite={marked}: text={textRatio:0.###}, icon={iconRatio:0.###}");
+    }
+
+    // Command icons are masked borders painted with their background; the favourite toggle draws the app's one star path
+    // (FavoriteStar over WorkspaceIcons, a6f5b4fa), whose stroke carries the outline and the filled mark alike.
+    private static Color IconColor(ToggleButton toggle)
+    {
+        Border[] masked = toggle.GetVisualDescendants().OfType<Border>().Where(border => border.OpacityMask != null).ToArray();
+        if (masked.Length == 1) return Solid(masked[0].Background);
+        if (masked.Length > 1) throw new InvalidOperationException(toggle.Name + " shows more than one masked icon.");
+        Avalonia.Controls.Shapes.Path star = toggle.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().Single();
+        return Solid(star.Stroke);
     }
 
     private static Color Solid(IBrush? brush)
