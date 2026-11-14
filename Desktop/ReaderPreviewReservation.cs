@@ -107,6 +107,15 @@ internal static class ReaderPreviewReservation
     internal static int PrefetchBudget(int cacheCapacity) => Math.Max(0, cacheCapacity / 2);
 
     /// <summary>
+    /// Technical limit, deliberately not a setting: preloads running at once (decoding or waiting for a slot of the page's decode gate).
+    /// The window size ("Preload previews") already decides how much is preloaded; this only decides how much is in flight. The page's
+    /// gate has <see cref="ThumbnailDecodeGate.ArchiveSlots"/> slots, so one more than that keeps the slots busy while the next job is
+    /// handed over, yet leaves the rest of the window in the page's waiting list instead of the gate, where a visible preview would queue
+    /// behind it. More would only delay what the user looks at.
+    /// </summary>
+    internal const int PrefetchInFlight = 3;
+
+    /// <summary>
     /// Preloading only helps where the decoded preview is kept: the ordinary reader keeps its previews by their bytes; the large reader
     /// does not keep its full-size decodes, so preloading there would decode and drop.
     /// </summary>
@@ -251,5 +260,36 @@ internal static class ReaderPreviewHeaderProbe
         public override void Flush() { }
         public override void SetLength(long value) => throw new NotSupportedException();
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+}
+
+/// <summary>
+/// The waiting list of preview preloads: what is planned but not started. It is replaced by every planning pass (nearest posts first,
+/// recomputed from the current scroll position, so posts scrolled away simply drop out) and handed out as running preloads finish,
+/// never more than <see cref="ReaderPreviewReservation.PrefetchInFlight"/> running at once. UI thread only.
+/// </summary>
+internal sealed class ReaderPreviewPrefetchQueue<T>
+{
+    private readonly Queue<T> _waiting = new();
+
+    /// <summary>Planned preloads that have not started.</summary>
+    internal int Waiting => _waiting.Count;
+
+    /// <summary>Replaces the waiting list with a fresh plan (in the order to start them).</summary>
+    internal void Replace(IEnumerable<T> plan)
+    {
+        _waiting.Clear();
+        foreach (T item in plan) _waiting.Enqueue(item);
+    }
+
+    internal void Clear() => _waiting.Clear();
+
+    /// <summary>The next preload to start while fewer than <see cref="ReaderPreviewReservation.PrefetchInFlight"/> are running.</summary>
+    internal bool TryTake(int running, out T item)
+    {
+        item = default!;
+        if (running >= ReaderPreviewReservation.PrefetchInFlight || _waiting.Count == 0) return false;
+        item = _waiting.Dequeue();
+        return true;
     }
 }

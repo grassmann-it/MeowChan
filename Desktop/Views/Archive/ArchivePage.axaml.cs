@@ -761,9 +761,9 @@ public partial class ArchivePage : UserControl
             ThumbnailMaxHeight = widthOverride > 0
                 ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
             LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
-            // Preloading (ArchivePage.PreviewReservation) waits behind visible previews; the large reader keeps no decodes to preload into.
+            // Preloading (ArchivePage.PreviewReservation) never gets a slot before a visible image or poster; the large reader keeps no decodes to preload into.
             PrefetchThumbnail = large ? null : cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken,
-                priority: ThumbnailDecodePriority.Poster),
+                priority: ThumbnailDecodePriority.Prefetch),
             LoadSized = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: false, cancellationToken),
             LoadStripThumbnail = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: true, cancellationToken, small: true),
             ResolveEntry = async cancellationToken =>

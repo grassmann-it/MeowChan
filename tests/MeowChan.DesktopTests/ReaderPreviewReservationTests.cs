@@ -108,6 +108,20 @@ public sealed class ReaderPreviewReservationTests
     }
 
     [Fact]
+    public void PreloadsInFlightAreCappedBelowTheWindowBudgetAndTheWaitingListHoldsTheRest()
+    {
+        // The window (up to the budget, 192 tiles by default) is planned, but only the in-flight cap of it is running at once.
+        Assert.InRange(ReaderPreviewReservation.PrefetchInFlight, 2, 4);
+        Assert.True(ReaderPreviewReservation.PrefetchInFlight < ReaderPreviewReservation.PrefetchBudget(MediaThumbnailCache.DefaultCapacity));
+        ReaderPreviewPrefetchQueue<string> queue = new();
+        queue.Replace(new[] { "a", "b", "c", "d", "e" });
+        Assert.False(queue.TryTake(ReaderPreviewReservation.PrefetchInFlight, out _));
+        Assert.True(queue.TryTake(ReaderPreviewReservation.PrefetchInFlight - 1, out string? next));
+        Assert.Equal("a", next); // plan order is start order (nearest posts first)
+        Assert.Equal(4, queue.Waiting);
+    }
+
+    [Fact]
     public void TheSettingsHaveDefaultsAndInclusiveBounds()
     {
         Assert.Equal((0, 8, 50), (ReaderPreviewReservation.PrefetchPostsMinimum, ReaderPreviewReservation.PrefetchPostsDefault, ReaderPreviewReservation.PrefetchPostsMaximum));

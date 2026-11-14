@@ -18,7 +18,9 @@ namespace MeowChan;
 // arrived. Now every row of a page is reserved at its final size before the list measures it: from the session's size memory at once,
 // otherwise from a header read of the saved file (a background pass, nearest posts first), and only as a last resort from the decoded
 // thumbnail. Previews of the posts just before and after the visible ones are decoded ahead into the shared preview cache, behind the
-// visible ones, so scrolling shows them at once. Nothing here reads a file on the UI thread or touches the network.
+// visible ones, so scrolling shows them at once. Preloads use the gate's Prefetch priority (never before an image or poster that
+// waits) and only ReaderPreviewReservation.PrefetchInFlight of them are in flight; the rest of the window waits in
+// _previewPrefetchQueue and is started as running ones finish. Nothing here reads a file on the UI thread or touches the network.
 public partial class ArchivePage
 {
     private readonly record struct PendingSize(int Post, string PostId, string Key, ArchiveAttachmentRow Row);
@@ -30,6 +32,7 @@ public partial class ArchivePage
     private readonly HashSet<ArchiveAttachmentRow> _previewPrefetched = new(ReferenceEqualityComparer.Instance);
     private bool _previewPrefetchHooked, _previewPrefetchScheduled, _previewPrefetchForward = true;
     private int _previewPrefetchGeneration;
+    private readonly ReaderPreviewPrefetchQueue<(ArchiveAttachmentRow Row, int Post)> _previewPrefetchQueue = new();
 
     /// <summary>Posts before and after the visible ones whose previews are decoded ahead ("Preload previews"); 0 turns it off.</summary>
     internal int ReaderPreviewPrefetchPosts
@@ -47,6 +50,9 @@ public partial class ArchivePage
 
     /// <summary>Preloads running now (diagnostic and smoke seam).</summary>
     internal int PreviewPrefetchesRunning => _previewPrefetches.Count;
+
+    /// <summary>Preloads planned but not started (diagnostic and smoke seam).</summary>
+    internal int PreviewPrefetchesWaiting => _previewPrefetchQueue.Waiting;
 
     // Called while a page is built, before its rows are handed to the list: what is known is set now, so the first measure already
     // uses it; what is not is read in the background and reserved as it arrives (rows ahead of the viewport long before they show).
@@ -134,6 +140,7 @@ public partial class ArchivePage
         if (pass != null) { pass.Cancel(); pass.Dispose(); }
         PreviewSizePassTask = Task.CompletedTask;
         ++_previewPrefetchGeneration;
+        _previewPrefetchQueue.Clear();
         CancelPreviewPrefetches(_ => true);
         _previewPrefetched.Clear();
     }
@@ -165,6 +172,7 @@ public partial class ArchivePage
             || !ArchivePosts.IsEffectivelyVisible || ArchiveAttachmentView.GetLoadingSuspended(ArchivePosts)
             || !VisiblePostRange(out int first, out int last))
         {
+            _previewPrefetchQueue.Clear();
             CancelPreviewPrefetches(_ => true);
             return;
         }
@@ -172,7 +180,16 @@ public partial class ArchivePage
         // Posts scrolled out of the window are not decoded any more. A preload of a post that scrolled into view runs on: its result is
         // what the visible preview finds in the cache.
         CancelPreviewPrefetches(post => !window.Contains(post));
+        // The plan is made again at every pass from the current position; it only waits here, the gate never sees more than the in-flight cap.
+        _previewPrefetchQueue.Replace(PlanPreviewPrefetches(rows, first, last, window, posts));
+        FeedPreviewPrefetches();
+    }
+
+    private List<(ArchiveAttachmentRow Row, int Post)> PlanPreviewPrefetches(IReadOnlyList<ArchivePostRow> rows, int first, int last,
+        ReaderPreviewReservation.PostWindow window, int posts)
+    {
         int budget = ReaderPreviewReservation.PrefetchBudget(MediaTileThumbnails.Cache.Capacity), planned = 0;
+        List<(ArchiveAttachmentRow Row, int Post)> plan = new();
         foreach (int index in ReaderPreviewReservation.NearestFirst(first, last, window, _previewPrefetchForward))
         {
             if (!rows[index].ShowsMedia) continue;
@@ -180,11 +197,20 @@ public partial class ArchivePage
             {
                 if (row.PrefetchThumbnail == null || row.Attachment.IsDeleted || !ReaderPreviewReservation.Prefetches(row.LargePreview, posts)
                     || SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty) == SavedMediaKind.Video) continue;
-                if (++planned > budget) return;
+                if (++planned > budget) return plan;
                 if (_previewPrefetched.Contains(row) || _previewPrefetches.ContainsKey(row)) continue;
-                StartPreviewPrefetch(row, index);
+                plan.Add((row, index));
             }
         }
+        return plan;
+    }
+
+    // Starts waiting preloads while fewer than the in-flight cap run. Called after a planning pass and whenever a preload finishes.
+    private void FeedPreviewPrefetches()
+    {
+        if (_ended || _lifetime.IsCancellationRequested || ArchiveAttachmentView.GetLoadingSuspended(ArchivePosts)) return;
+        while (_previewPrefetchQueue.TryTake(_previewPrefetches.Count, out (ArchiveAttachmentRow Row, int Post) next))
+            if (!_previewPrefetches.ContainsKey(next.Row) && !_previewPrefetched.Contains(next.Row)) StartPreviewPrefetch(next.Row, next.Post);
     }
 
     // The posts whose card intersects the list's viewport. The realized set can hold more (a focused card stays realized far away).
@@ -235,6 +261,7 @@ public partial class ArchivePage
             if (_previewPrefetches.TryGetValue(row, out var running) && ReferenceEquals(running.Cancellation, cancellation))
                 _previewPrefetches.Remove(row);
             cancellation.Dispose();
+            if (generation == _previewPrefetchGeneration) FeedPreviewPrefetches(); // The slot of the finished preload goes to the next waiting one.
         }
     }
 
