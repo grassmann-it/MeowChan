@@ -63,7 +63,8 @@ internal sealed class TagContextIndex
         _bound = Freeze(bound);
 
         Dictionary<LocalMediaTagTarget, List<TagId>> local = new();
-        HashSet<(TagId, LocalMediaTagTarget)> seenLocal = new();
+        // Like bound files: one count per file (occurrence) and tag, however many of its revisions carry the tag.
+        HashSet<(TagId, LocalMediaOccurrenceId)> seenLocal = new();
         foreach (PrivateLocalMediaTagAssignment item in snapshot.LocalAssignments)
         {
             if ((++step & 1023) == 0) cancellation.ThrowIfCancellationRequested();
@@ -71,7 +72,7 @@ internal sealed class TagContextIndex
             LocalMediaOccurrence? occurrence = _registry.Find(item.Target.Occurrence);
             if (occurrence == null) continue;
             if (occurrence.Find(item.Target.Revision) is { } revision) Add(byHash, revision.Sha256, item.TagId);
-            if (seenLocal.Add((item.TagId, item.Target))) Count(occurrence.Locator.Thread, item.TagId);
+            if (seenLocal.Add((item.TagId, item.Target.Occurrence))) Count(occurrence.Locator.Thread, item.TagId);
         }
         _local = Freeze(local);
         _byHash = Freeze(byHash);

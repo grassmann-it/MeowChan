@@ -286,6 +286,32 @@ public sealed class TagContextSuggestionTests
         Assert.Empty(TagContextIndex.For(snapshot).TagsOf(null));
     }
 
+    // R18 (review 14.11. night): a loose file counts once per tag in the thread, however many of its revisions carry the tag.
+    [Fact]
+    public void ALooseFileWithTwoTaggedRevisionsCountsOnceForTheThread()
+    {
+        PrivateTagDefinition loc = Tag("loc");
+        LocalMediaOccurrenceId occurrenceId = new(Guid.NewGuid()), otherId = new(Guid.NewGuid());
+        LocalMediaRevisionId first = new(Guid.NewGuid()), second = new(Guid.NewGuid()), third = new(Guid.NewGuid());
+        LocalMediaRegistry registry = new(new[]
+        {
+            new LocalMediaOccurrence(occurrenceId, new LocalMediaLocator(Thread("lt"), "dir", "pic.png"),
+                new[] { new LocalMediaRevision(first, Hex('d'), 10, Hex('1')), new LocalMediaRevision(second, Hex('e'), 11, Hex('2')) }),
+            new LocalMediaOccurrence(otherId, new LocalMediaLocator(Thread("lt"), "dir", "other.png"),
+                new[] { new LocalMediaRevision(third, Hex('f'), 12, Hex('3')) })
+        });
+        PrivateTagStoreSnapshot snapshot = Snap(new[] { loc }, registry: registry, local: new[]
+        {
+            (loc, new LocalMediaTagTarget(occurrenceId, first)), (loc, new LocalMediaTagTarget(occurrenceId, second)),
+            (loc, new LocalMediaTagTarget(otherId, third))
+        });
+
+        Assert.Equal(2, TagContextIndex.For(snapshot).ThreadMediaTags(Thread("lt"))[loc.Id]); // two files, not three revisions
+        // Both revisions still answer for their own bytes.
+        Assert.Equal(new[] { loc.Id }, TagContextIndex.For(snapshot).TagsOfHash(Hex('1')));
+        Assert.Equal(new[] { loc.Id }, TagContextIndex.For(snapshot).TagsOfHash(Hex('2')));
+    }
+
     // ------------------------------------------------------------------ word matching
 
     [Fact]
