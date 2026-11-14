@@ -29,10 +29,19 @@ internal sealed class FolderSourceManifests
     internal async Task<MediaAssetSnapshot> OpenAsync(string directory, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        // Callers of a manifest reader handle IO and data errors; a catalog that is gone (session ending) reads as "missing".
+        try { return await OpenCoreAsync(directory, cancellationToken).ConfigureAwait(false); }
+        catch (ObjectDisposedException) { return Missing(directory); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return Missing(directory); } // The hasher stopped.
+        catch (Microsoft.Data.Sqlite.SqliteException) { throw new InvalidDataException("The folder source catalog cannot be read."); }
+        catch (FolderSourceException) { throw new InvalidDataException("The folder source catalog cannot be read."); }
+    }
+
+    private async Task<MediaAssetSnapshot> OpenCoreAsync(string directory, CancellationToken cancellationToken)
+    {
         if (!FolderSourceIdentity.TryParseVirtualDirectory(_catalog.VirtualRoot, directory, out Guid root, out Guid itemId)) return Missing(directory);
         (FolderSourceItem Item, FolderSourceRoot Root)? found;
-        try { found = await Task.Run(() => _catalog.Find(itemId), cancellationToken).ConfigureAwait(false); }
-        catch (FolderSourceException) { throw new InvalidDataException("The folder source catalog cannot be read."); }
+        found = await Task.Run(() => _catalog.Find(itemId), cancellationToken).ConfigureAwait(false);
         if (found is not { } pair || pair.Root.Id != root || pair.Item.State == FolderSourceItemState.Missing) return Missing(directory);
         FolderSourceItem item = pair.Item;
         if (item.State != FolderSourceItemState.Hashed)
