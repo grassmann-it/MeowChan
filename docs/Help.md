@@ -390,14 +390,30 @@ Das ist keine neue Booru-Fußleistenseite und kein Einstellungsschalter.
 #### Waiting, local data and offline use
 
 Metadata sends start at least one second apart. HTTP 429 causes a provider-wide
-pause of at least 60 seconds; a longer valid `Retry-After` is not shortened to
-24 hours. Only the technical maximum representable date bounds that deadline.
-HTTP 502/503 permits at most one retry, no earlier than two seconds
-after the failed response. A longer `Retry-After` is honored only within the
-operation budget. A metadata operation has at most 20 sends
-including retries, a 120-second lifetime and a 15-second deadline per response.
-Metadata response limits are 2 MiB on the wire and 4 MiB decoded. These are fixed
-transport safeguards, not a promise that a search always returns 100 posts.
+pause of at least 60 seconds. The Retry-After maximum defaults to **24 hours** and
+is configurable from **1 to 168 hours** in Settings as **Danbooru Retry-After
+cooldown maximum (hours)**. A valid longer provider wait is capped at that setting;
+missing, invalid, expired or shorter values keep the minimum. Date arithmetic
+also saturates at the technical maximum representable date; this does not remove
+the configured cap.
+
+Lowering the setting can shorten an existing in-memory provider pause when the
+host next checks it; it does not promise an immediate watcher check. It neither
+resumes a paused watcher nor automatically replays a failed search or post lookup.
+A 429 ends the current metadata job without retry. Later eligible work uses a new
+job and still obeys pacing and pause state; it does not change the submitted query
+or add a rating filter.
+
+HTTP 502/503 permits at most one retry, no earlier than two seconds after the
+failed response. A longer valid Retry-After is bounded by the live configured cap,
+and the retry must fall strictly before the job deadline. Otherwise the job fails
+with a budget notice rather than waiting beyond its lifetime. For a second 502/503
+response returned to the plugin, a valid Retry-After beyond the live cap is bounded
+too; it does not authorize another host retry. A metadata operation has at most 20 sends
+including retries, a 120-second lifetime including waits and a 15-second deadline
+per response. Metadata response limits are 2 MiB on the wire and 4 MiB decoded.
+These are fixed transport safeguards, not a promise that a search always returns
+100 posts.
 
 The local Danbooru catalog of posts, findings and watchers has a configurable
 write limit under Settings → **Storage and limits**. It defaults to 32 MiB and

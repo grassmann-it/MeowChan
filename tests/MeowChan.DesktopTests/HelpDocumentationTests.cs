@@ -1296,9 +1296,24 @@ public sealed class HelpDocumentationTests
         string text = Plain(Section(Read(Help), "Waiting, local data and offline use"));
         AssertNumber(text, @"starts? at least (?<value>\w+) second", BooruHostHttp.MinimumStartSpacing.TotalSeconds);
         AssertNumber(text, @"pause of at least (?<value>\d+) seconds", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        Assert.Contains("a longer valid Retry-After is not shortened", text, StringComparison.Ordinal);
-        Assert.Contains("Only the technical maximum representable date bounds that deadline", text, StringComparison.Ordinal);
-        Assert.DoesNotMatch(@"\b\d+-hour cap\b", text);
+        AssertNumber(text, @"maximum defaults to (?<value>\d+) hours", new Config().BooruRetryAfterCooldownHours);
+        AssertNumber(text, @"configurable from (?<value>\d+) to \d+ hours", Config.BooruRetryAfterCooldownMinimumHours);
+        AssertNumber(text, @"configurable from \d+ to (?<value>\d+) hours", Config.BooruRetryAfterCooldownMaximumHours);
+        Assert.Contains("A valid longer provider wait is capped at that setting", text, StringComparison.Ordinal);
+        Assert.Contains("missing, invalid, expired or shorter values keep the minimum", text, StringComparison.Ordinal);
+        Assert.Contains("also saturates at the technical maximum representable date; this does not remove the configured cap", text, StringComparison.Ordinal);
+        Assert.Contains("Lowering the setting can shorten an existing in-memory provider pause when the host next checks it", text, StringComparison.Ordinal);
+        Assert.Contains("it does not promise an immediate watcher check", text, StringComparison.Ordinal);
+        Assert.Contains("neither resumes a paused watcher nor automatically replays a failed search or post lookup", text, StringComparison.Ordinal);
+        Assert.Contains("A 429 ends the current metadata job without retry", text, StringComparison.Ordinal);
+        Assert.Contains("Later eligible work uses a new job and still obeys pacing and pause state", text, StringComparison.Ordinal);
+        Assert.Contains("does not change the submitted query or add a rating filter", text, StringComparison.Ordinal);
+        Assert.Contains("HTTP 502/503 permits at most one retry", text, StringComparison.Ordinal);
+        Assert.Contains("bounded by the live configured cap, and the retry must fall strictly before the job deadline", text, StringComparison.Ordinal);
+        Assert.Contains("the job fails with a budget notice rather than waiting beyond its lifetime", text, StringComparison.Ordinal);
+        Assert.Contains("it does not authorize another host retry", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("is not shortened to 24 hours", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Only the technical maximum representable date bounds that deadline", text, StringComparison.Ordinal);
         AssertNumber(text, @"no earlier than (?<value>\w+) seconds", BooruHostHttp.RetryDelay.TotalSeconds);
         AssertNumber(text, @"operation has at most (?<value>\d+) sends", BooruHostHttp.MaximumSendsPerJob);
         AssertNumber(text, @"(?<value>\d+)-second lifetime", BooruHostHttp.MaximumJobLifetime.TotalSeconds);
@@ -1316,9 +1331,51 @@ public sealed class HelpDocumentationTests
         AssertNumber(text, @"auf \d+ bis (?<value>\d+) MiB", Config.BooruCatalogMaximumLimitMiB);
         AssertNumber(text, @"Lesedeckel von (?<value>\d+) MiB", BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024));
         AssertNumber(text, @"mindestens (?<value>\d+) Sekunden", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        Assert.Contains("Ein längeres gültiges Retry-After wird nicht auf 24 Stunden verkürzt", text, StringComparison.Ordinal);
-        Assert.Contains("nur das technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt", text, StringComparison.Ordinal);
-        Assert.DoesNotMatch(@"höchstens \d+ Stunden", text);
+        AssertNumber(text, @"Deckel liegt standardmäßig bei (?<value>\d+) Stunden", new Config().BooruRetryAfterCooldownHours);
+        AssertNumber(text, @"ist von (?<value>\d+) bis \d+ Stunden einstellbar", Config.BooruRetryAfterCooldownMinimumHours);
+        AssertNumber(text, @"ist von \d+ bis (?<value>\d+) Stunden einstellbar", Config.BooruRetryAfterCooldownMaximumHours);
+        Assert.Contains("Ein gültiger längerer Providerwunsch wird an diesem Deckel begrenzt", text, StringComparison.Ordinal);
+        Assert.Contains("fehlende, ungültige, abgelaufene oder kürzere Angaben behalten die Mindestwartezeit", text, StringComparison.Ordinal);
+        Assert.Contains("Zusätzlich sättigt die Kalenderrechnung am technisch maximal darstellbaren Datum; das hebt den eingestellten Deckel nicht auf", text, StringComparison.Ordinal);
+        Assert.Contains("Ein Absenken der Einstellung kann eine bestehende Providerpause im Arbeitsspeicher beim nächsten Prüfen durch den Host verkürzen", text, StringComparison.Ordinal);
+        Assert.Contains("es verspricht keine sofortige Beobachtungsprüfung", text, StringComparison.Ordinal);
+        Assert.Contains("weder eine pausierte Suchbeobachtung fort noch wiederholt es automatisch eine fehlgeschlagene Suche oder einen Postabruf", text, StringComparison.Ordinal);
+        Assert.Contains("Ein 429 beendet den aktuellen Metadatenjob ohne Wiederholung", text, StringComparison.Ordinal);
+        Assert.Contains("Später zulässige Arbeit verwendet einen neuen Job und beachtet weiterhin Pacing und Pausenzustand", text, StringComparison.Ordinal);
+        Assert.Contains("die gesendete Query wird dabei nicht geändert und kein Ratingfilter ergänzt", text, StringComparison.Ordinal);
+        Assert.Contains("Vor dem einzigen 502/503-Wiederholungsversuch", text, StringComparison.Ordinal);
+        Assert.Contains("durch den aktuellen Deckel begrenzt; der Versuch muss strikt vor der Jobfrist liegen", text, StringComparison.Ordinal);
+        Assert.Contains("Andernfalls endet der Job mit einem Budgethinweis, statt über seine Laufzeit hinaus zu warten", text, StringComparison.Ordinal);
+        Assert.Contains("das erlaubt keine weitere Host-Wiederholung", text, StringComparison.Ordinal);
+        AssertNumber(text, @"Host mindestens (?<value>\w+) Sekunden", BooruHostHttp.RetryDelay.TotalSeconds);
+        AssertNumber(text, @"starten mindestens (?<value>\w+) Sekunde", BooruHostHttp.MinimumStartSpacing.TotalSeconds);
+        AssertNumber(text, @"Job erlaubt höchstens (?<value>\d+) Sends", BooruHostHttp.MaximumSendsPerJob);
+        AssertNumber(text, @"dauert höchstens (?<value>\d+) Sekunden", BooruHostHttp.MaximumJobLifetime.TotalSeconds);
+        AssertNumber(text, @"jeder Antwort höchstens (?<value>\d+) Sekunden", BooruHostHttp.ResponseTimeout.TotalSeconds);
+        AssertNumber(text, @"auf (?<value>\d+) MiB übertragen", BooruHostHttp.MaximumWireBytes / (1024 * 1024));
+        AssertNumber(text, @"und (?<value>\d+) MiB dekodiert", BooruHostHttp.MaximumDecodedBytes / (1024 * 1024));
+        Assert.DoesNotContain("wird nicht auf 24 Stunden verkürzt", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("nur das technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentedCooldownSettingBoundsAlsoMatchTheTransportBounds()
+    {
+        // The transport cap fields are internal to PluginHost, not a public SDK contract.
+        // Read only these static constants; do not widen InternalsVisibleTo, create a host,
+        // load a profile or make HTTP requests just to verify documentation/config agreement.
+        static TimeSpan TransportBound(string name)
+        {
+            var field = typeof(BooruHostHttp).GetField(name,
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            return Assert.IsType<TimeSpan>(field!.GetValue(null));
+        }
+
+        Assert.Equal(Config.BooruRetryAfterCooldownDefaultHours, new Config().BooruRetryAfterCooldownHours);
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownDefaultHours), TransportBound("DefaultMaximumCooldown"));
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownMinimumHours), TransportBound("MinimumConfiguredCooldown"));
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownMaximumHours), TransportBound("MaximumConfiguredCooldown"));
     }
 
     [Theory]

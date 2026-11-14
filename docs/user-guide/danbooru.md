@@ -101,11 +101,28 @@ normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown; die global
 Sitzungspause verhindert ebenfalls neue Prüfungen.
 
 Bei HTTP 429 bleibt die Suchbeobachtung erhalten und wartet mindestens 60 Sekunden.
-Ein längeres gültiges `Retry-After` wird nicht auf 24 Stunden verkürzt; nur das
-technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt. **Vor**
-dem einzigen 502/503-Wiederholungsversuch wartet der Host mindestens zwei Sekunden;
-ein längeres `Retry-After` innerhalb des Jobbudgets wird ebenfalls berücksichtigt.
-Bis zur erlaubten Zeit wird keine weitere Provideranfrage gesendet.
+Der Retry-After-Deckel liegt standardmäßig bei **24 Stunden** und ist von **1 bis
+168 Stunden** einstellbar. Die Einstellung heißt **Maximale Danbooru-Retry-After-Pause
+(Stunden)**. Ein gültiger längerer Providerwunsch wird an diesem Deckel begrenzt;
+fehlende, ungültige, abgelaufene oder kürzere Angaben behalten die Mindestwartezeit.
+Zusätzlich sättigt die Kalenderrechnung am technisch maximal darstellbaren Datum;
+das hebt den eingestellten Deckel nicht auf.
+
+Ein Absenken der Einstellung kann eine bestehende Providerpause im Arbeitsspeicher
+beim nächsten Prüfen durch den Host verkürzen; es verspricht keine sofortige
+Beobachtungsprüfung. Es setzt weder eine pausierte Suchbeobachtung fort noch
+wiederholt es automatisch eine fehlgeschlagene Suche oder einen Postabruf.
+Ein 429 beendet den aktuellen Metadatenjob ohne Wiederholung. Später zulässige
+Arbeit verwendet einen neuen Job und beachtet weiterhin Pacing und Pausenzustand;
+die gesendete Query wird dabei nicht geändert und kein Ratingfilter ergänzt.
+
+**Vor** dem einzigen 502/503-Wiederholungsversuch wartet der Host mindestens zwei
+Sekunden. Ein längeres gültiges Retry-After wird durch den aktuellen Deckel begrenzt;
+der Versuch muss strikt vor der Jobfrist liegen. Andernfalls endet der Job mit
+einem Budgethinweis, statt über seine Laufzeit hinaus zu warten. Auch bei einer
+zweiten 502/503-Antwort an das Plugin wird ein gültiges Retry-After oberhalb des
+Deckels begrenzt; das erlaubt keine weitere Host-Wiederholung.
+Bis zur erlaubten Zeit wird keine weitere Metadatenanfrage an diesen Provider gesendet.
 Ein temporärer Providerfehler löscht keine Suchbeobachtung und pausiert nicht
 still die übrigen lokalen Medien.
 
