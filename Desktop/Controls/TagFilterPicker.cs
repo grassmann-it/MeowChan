@@ -50,13 +50,13 @@ internal sealed class TagFilterPicker : Button
         VerticalAlignment = VerticalAlignment.Center;
         HorizontalAlignment = HorizontalAlignment.Left;
         _plus[!Shape.StrokeProperty] = new DynamicResourceExtension("Workspace.Text");
-        Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { _plus, _label } };
+        Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _plus, _label } };
         string group = "tag-filter-mode-" + Guid.NewGuid().ToString("N");
         _asInclude.GroupName = _asExclude.GroupName = group;
         _list.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<TagSuggestion>((item, _) =>
             new TextBlock { Text = item?.Name.Display ?? string.Empty, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 320 });
         StackPanel modes = new() { Orientation = Orientation.Horizontal, Spacing = 12, Children = { _asInclude, _asExclude } };
-        StackPanel body = new() { Spacing = 6, MinWidth = 280, MaxWidth = 360, Children = { _search, _list, _empty, modes, _hint, _error } };
+        StackPanel body = new() { Spacing = 8, MinWidth = 280, MaxWidth = 360, Children = { _search, _list, _empty, modes, _hint, _error } };
         _flyout.Content = new Border { Padding = new Thickness(4), Child = body };
         Flyout = _flyout;
         _flyout.Opened += (_, _) => { _error.IsVisible = false; _search.SetTextSilently(string.Empty); Refill(); _search.Focus(); };
