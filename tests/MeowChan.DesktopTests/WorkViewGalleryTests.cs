@@ -83,11 +83,14 @@ public sealed class WorkViewGalleryTests
     }
 
     [Fact]
-    public void OnlyTheWhereAmILineAndTheFilmstripAreLeftOutAndTheirAlternativesExist()
+    public void OnlyTheWhereAmILineTheFilmstripAndTheModeSwitchAreLeftOutAndTheirAlternativesExist()
     {
         // The filmstrip (V3) is away in Barebones by default; the L key, the menu row and the setting bring it back in every view.
-        Assert.Equal(["gallery.filmstrip", "gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
+        // G1: Barebones leaves the mode switch away until the list can be walked or the mode runs (states, R6); Shift+T works anyway.
+        Assert.Equal(["gallery.mode", "gallery.filmstrip", "gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
             .Select(entry => entry.Id).ToArray());
+        Assert.Equal("gallery.mode-toggle", WorkViewPolicy.Get("gallery.mode").Alternative);
+        Assert.True(WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.mode", WorkView.Barebones, nonDefaultState: true)));
         WorkViewEntry scope = WorkViewPolicy.Get("gallery.info.scope");
         Assert.Equal(Presence.Hidden, scope.Barebones);
         Assert.Equal("media.details", scope.Alternative);

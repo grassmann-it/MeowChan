@@ -102,6 +102,10 @@ public partial class MainWindow
 
     // The walk of the open gallery, or null when the gallery shows anything else.
     private TaggingWalk? _galleryTagging;
+    // G1: the walk of a gallery the person switched to View: kept (with its undo steps) so Tag continues it on the same list.
+    private TaggingWalk? _galleryTaggingParked;
+    // The list the walk was started over; Tag resumes only while the gallery still shows exactly this list.
+    private IReadOnlyList<GalleryEntry>? _galleryTaggingList;
 
     /// <summary>The walk of the open gallery (tests and smokes); null outside the tagging mode.</summary>
     internal TaggingWalk? GalleryTagging => _galleryTagging;
@@ -131,8 +135,34 @@ public partial class MainWindow
         }
         EndGalleryTagging(persist: false);
         _galleryTagging = walk;
+        _galleryTaggingList = entries;
+        _gallery.SetTaggingAvailable(true); // the switch's Tag half can come back to this walk after View
         _gallery.StartTaggingMode(walk, _galleryTagPanelOwner ??= new GalleryTagPanelOwner(this));
         UpdateGalleryPosition();
+    }
+
+    /// <summary>
+    /// G1: the gallery's mode switch ("View | Tag", Shift+T). View ends the tagging mode on the same list and keeps the walk (its undo steps
+    /// and the resume point, which moves to the shown medium as on close); Tag continues that walk. A list that is not a walk of the tagging
+    /// queue cannot be tagged here: the viewer says why and never asks.
+    /// </summary>
+    private void SwitchGalleryTagging(bool tag)
+    {
+        if (_isClosing || _gallery == null) return;
+        if (!tag)
+        {
+            if (_galleryTagging is not { } walk) return;
+            PersistTaggingResume(walk);
+            _galleryTagging = null;
+            _gallery.EndTaggingMode();
+            _galleryTaggingParked = walk;
+            UpdateGalleryPosition();
+            return;
+        }
+        if (_galleryTagging != null || _galleryTaggingParked is not { } parked || _galleryTaggingList is not { } list) return;
+        _galleryTaggingParked = null;
+        StartGalleryTagging(parked, list); // disposes the walk and leaves View when the list changed meanwhile
+        if (_galleryTagging == null) _gallery?.SetTaggingAvailable(false);
     }
 
     /// <summary>
@@ -143,18 +173,38 @@ public partial class MainWindow
     /// </summary>
     private TagQueueKey? EndGalleryTagging(bool persist)
     {
-        if (_galleryTagging is not { } walk) return null;
+        // A walk parked by the mode switch (View) ends with its gallery like the running one.
+        TaggingWalk? walk = _galleryTagging ?? _galleryTaggingParked;
+        bool running = _galleryTagging != null;
+        _galleryTaggingParked = null;
+        _galleryTaggingList = null;
+        if (walk == null) return null;
         _galleryTagging = null;
+        TagQueueKey? lastShown = ShownTaggingKey(walk);
+        if (running) _gallery?.EndTaggingMode();
+        _gallery?.SetTaggingAvailable(false);
+        walk.Dispose();
+        if (persist) PersistTaggingResume(walk);
+        return lastShown;
+    }
+
+    // The queue entry of the medium shown now, or null when it is not part of the walk.
+    private TagQueueKey? ShownTaggingKey(TaggingWalk walk)
+    {
         GalleryEntry? shown = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         int index = shown == null ? -1 : walk.IndexOf(shown.EntryKey);
-        TagQueueKey? lastShown = index < 0 ? null : walk.Items[index].Key;
-        _gallery?.EndTaggingMode();
-        walk.Dispose();
-        if (!persist || _isClosing || index < 0 || walk.StateOf(index) != TagQueueState.Open) return lastShown;
+        return index < 0 ? null : walk.Items[index].Key;
+    }
+
+    // The resume point moves to the shown medium when it is still open, so the next walk continues there.
+    private void PersistTaggingResume(TaggingWalk walk)
+    {
+        GalleryEntry? shown = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
+        int index = shown == null ? -1 : walk.IndexOf(shown.EntryKey);
+        if (_isClosing || index < 0 || walk.StateOf(index) != TagQueueState.Open) return;
         int position = walk.Snapshot.IndexOf(walk.Items[index].Key);
-        if (position < 0 || position == walk.Snapshot.Cursor) return lastShown;
+        if (position < 0 || position == walk.Snapshot.Cursor) return;
         _ = PersistTagQueueCursorAsync(position);
-        return lastShown;
     }
 
     /// <summary>

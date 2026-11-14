@@ -200,8 +200,8 @@ internal sealed partial class GalleryViewer
         _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow, _slideshow.IsRunning, _slideshowStarted, _slideshow.IsTerminal,
         _entry != null && _entry.Kind != SavedMediaKind.Other, _mediaFailed,
         _navigationPending || _entry != null && (_entry.Kind == SavedMediaKind.Video ? _videoReadyRequest != _request : _imageReadyRequest != _request),
-        _contextOpen, _helpOpen || IsFavoriteConfirmOpen, HasGalleryPopup || HasGalleryDialog,
-        _interactionAvailable && IsGalleryWindowActive && !_videoSuspended, false, Tagging: IsTaggingMode).Resolve();
+        SlideshowBlockedByPanel, _helpOpen || IsFavoriteConfirmOpen, HasGalleryPopup || HasGalleryDialog,
+        _interactionAvailable && IsGalleryWindowActive && !_videoSuspended, false, Tagging: IsTaggingMode, TagHold: _taggingHold).Resolve();
 
     private string SlideshowStatusText(SlideshowStatus state)
     {
@@ -219,6 +219,7 @@ internal sealed partial class GalleryViewer
             SlideshowStatus.Failed => GalleryPlaybackCatalog.Get("viewer.playback.status.failed"),
             SlideshowStatus.SeekPaused => GalleryPlaybackCatalog.Get("viewer.playback.status.seekPaused"),
             SlideshowStatus.Paused => GalleryPlaybackCatalog.Get("viewer.playback.status.paused"),
+            SlideshowStatus.TagHold => GalleryPlaybackCatalog.Get("viewer.playback.status.tagHold"),
             _ => string.Empty
         };
     }
@@ -226,7 +227,10 @@ internal sealed partial class GalleryViewer
     private void RefreshSlideshowStatus()
     {
         _shownSlideshowStatus = CurrentSlideshowStatus;
-        string text = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty;
+        // GL0: what the slideshow does is a hint (the layout's Hints, off with hidden tools); why it waits and a failure always show.
+        bool shown = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow
+            && (!GalleryChromePlan.IsHint(_shownSlideshowStatus) || _modeTools == null || BuildChromePlan().Hints);
+        string text = shown ? SlideshowStatusText(_shownSlideshowStatus) : string.Empty;
         if (_slideshowStatus.Text != text) _slideshowStatus.Text = text;
         _slideshowStatus.IsVisible = text.Length > 0;
     }
@@ -275,7 +279,7 @@ internal sealed partial class GalleryViewer
             PlaceSlideshowToggle();
             RefreshOverflowItems();
             RefreshSlideshowStatus();
-            UpdateMediaFocusVisibility();
+            ApplyChrome();
             _lastRunning = _slideshow.IsRunning;
         }
         finally { _updatingPlaybackControls = false; }

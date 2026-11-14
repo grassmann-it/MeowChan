@@ -88,7 +88,7 @@ internal sealed partial class GalleryViewer
     }
 
     private bool CanRunSlideshow => !_viewerInteractionStopped && _interactionAvailable && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup
-        && !_videoSuspended && !_contextOpen && !_helpOpen && !IsFavoriteConfirmOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
+        && !_videoSuspended && !SlideshowBlockedByPanel && !_helpOpen && !IsFavoriteConfirmOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
         && _entry != null && _entry.Kind != SavedMediaKind.Other;
 
     private readonly Button _controlsEdgeIndicator = CreateEdgeIndicator(post: false);
@@ -320,7 +320,7 @@ internal sealed partial class GalleryViewer
                 && (_playbackPreferences.OverlayControls || _playbackPreferences.OverlayPostContext);
             ApplyOverlayBackgrounds();
             LayoutContext();
-            UpdateMediaFocusVisibility();
+            ApplyChrome();
             UpdateFavoriteIndicators();
             RefreshPlaybackControls();
         }
@@ -606,7 +606,10 @@ internal sealed partial class GalleryViewer
         if (!active) _pressedPointers.Clear();
         bool popup = HasGalleryPopup || HasGalleryDialog;
         bool captured = _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null;
-        bool reading = _helpOpen || _contextOpen || IsFavoriteConfirmOpen || _keyboardInteraction && _infoOverlay.IsKeyboardFocusWithin;
+        // In the tagging mode the tag panel does not stop the slideshow; it holds it while it is worked in (UpdateTaggingHold renews the
+        // shown medium's period when that ends, so the medium just tagged is never skipped).
+        bool tagHold = UpdateTaggingHold();
+        bool reading = _helpOpen || SlideshowBlockedByPanel || tagHold || IsFavoriteConfirmOpen || _keyboardInteraction && _infoOverlay.IsKeyboardFocusWithin;
         RefreshHoverGeometry();
         RevealHoveredPanels();
         bool controlHasFocus = _chrome.IsKeyboardFocusWithin || _infoOverlay.IsKeyboardFocusWithin

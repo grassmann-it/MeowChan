@@ -23,25 +23,25 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     [InlineData(null, true, null)]
     [InlineData(null, false, null)]
     public void TheTagPanelHeadShowsNoPositionInTheModeAndKeepsItOutsideIt(string? counter, bool mode, string? expected) =>
-        Assert.Equal(expected, GalleryTaggingChrome.PanelCounter(counter, mode));
+        Assert.Equal(expected, GalleryChromePlan.PanelCounter(counter, mode));
 
     [Theory]
     [InlineData("Queue 3 of 27", false, null)]            // the arrows are on the screen: they count, the strip does not repeat it
     [InlineData("Queue 3 of 27", true, "Queue 3 of 27")]  // the controls are hidden and the strip peeks in alone: it counts
     [InlineData(null, true, null)]
     public void TheFilmstripRepeatsThePositionOnlyWhileTheArrowsAreAway(string? position, bool controlsHidden, string? expected) =>
-        Assert.Equal(expected, GalleryTaggingChrome.FilmstripPosition(position, controlsHidden));
+        Assert.Equal(expected, GalleryChromePlan.FilmstripPosition(position, controlsHidden));
 
     [Fact]
     public void ThePositionHooksOfTheViewerUseTheRules()
     {
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
-        Assert.Contains("GalleryTaggingChrome.PanelCounter(counter, _tagging != null)", panel);
+        Assert.Contains("GalleryChromePlan.PanelCounter(counter, _tagging != null)", panel);
         // Every place that sets the counter goes through the rule (open, same medium, retarget, marks); none writes the raw text.
         Assert.DoesNotContain("surface.CounterText = controller.CounterFor", panel.Replace("PanelCounter(controller.CounterFor", ""));
         Assert.DoesNotContain("surface.CounterText = frame.Counter;", panel);
         string filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
-        Assert.Contains("GalleryTaggingChrome.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden)", filmstrip);
+        Assert.Contains("GalleryChromePlan.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden)", filmstrip);
         Assert.DoesNotContain("_filmstrip.SetPositionText(_compactPosition.Text)", filmstrip);
         string mode = Source("Desktop/GalleryViewer.TaggingMode.cs");
         Assert.Equal(2, CountOf(mode, "RefreshPanelCounter();")); // the mode starts and ends under an open panel
@@ -54,11 +54,11 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     [Fact]
     public void TheStripStatusLineYieldsToThePanelAndComesBackWithoutIt()
     {
-        Assert.False(GalleryTaggingChrome.StripStatusVisible(panelCoupled: true));
-        Assert.True(GalleryTaggingChrome.StripStatusVisible(panelCoupled: false));
+        Assert.False(GalleryChromePlan.StripStatusVisible(panelCoupled: true));
+        Assert.True(GalleryChromePlan.StripStatusVisible(panelCoupled: false));
         string mode = Source("Desktop/GalleryViewer.TaggingMode.cs");
-        Assert.Contains("_taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: true);", mode);
-        Assert.Contains("_taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: false);", mode);
+        Assert.Contains("_taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: true);", mode);
+        Assert.Contains("_taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: false);", mode);
         // The first sentence goes through the one line (the panel's while it is open); it is no longer written to the strip alone.
         Assert.Contains("SayTagging(TaggingModeText.Start(walk));", mode);
         Assert.DoesNotContain("_taggingStatus.Text = TaggingModeText.Start(walk);", mode);
@@ -90,7 +90,7 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     [Fact]
     public void TheViewerFillsTheModeIntoTheInputAndRefreshesWhenTheModeStartsAndEnds()
     {
-        Assert.Contains("Tagging: IsTaggingMode).Resolve()", Source("Desktop/GalleryViewer.Playback.cs"));
+        Assert.Contains("Tagging: IsTaggingMode, TagHold: _taggingHold).Resolve()", Source("Desktop/GalleryViewer.Playback.cs"));
         string mode = Source("Desktop/GalleryViewer.TaggingMode.cs");
         Assert.Equal(2, CountOf(mode, "RefreshPlaybackControls();"));
     }
@@ -115,16 +115,18 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     [InlineData(true, false, false)]  // tools hidden: no info line
     [InlineData(true, true, false)]
     public void TheInfoLineRatingYieldsToThePanelsRow(bool mediaFocus, bool rowVisible, bool expected) =>
-        Assert.Equal(expected, GalleryTaggingChrome.InfoRatingVisible(mediaFocus, rowVisible));
+        Assert.Equal(expected, GalleryChromePlan.InfoRatingVisible(mediaFocus, rowVisible));
 
     [Fact]
     public void TheViewerRefreshesTheInfoLineWhenThePanelOpensAndCloses()
     {
-        string viewer = Source("Desktop/GalleryViewer.cs");
-        Assert.Contains("_ratingStatus.IsVisible = GalleryTaggingChrome.InfoRatingVisible(_mediaFocus, DecisionRowVisible);", viewer);
+        // G1: the rule is a case of the chrome plan, and the viewer applies the plan's answer in its one place (ApplyChrome).
+        Assert.Contains("_ratingStatus.IsVisible = plan.InfoRating;", Source("Desktop/GalleryViewer.Chrome.cs"));
+        Assert.Contains("InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions)", Source("Desktop/GalleryChromePlan.cs"));
+        Assert.Contains("PanelDecisions = DecisionRowVisible", Source("Desktop/GalleryViewer.Chrome.cs"));
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
         Assert.Contains("internal bool DecisionRowVisible => _tagPanelOpen && _decisionRow != null;", panel);
-        Assert.Equal(2, CountOf(panel, "UpdateMediaFocusVisibility();"));
+        Assert.Equal(2, CountOf(panel, "ApplyChrome();"));
     }
 
     // ---- helpers ------------------------------------------------------------------------------------------------------------

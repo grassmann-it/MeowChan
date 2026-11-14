@@ -73,10 +73,15 @@ internal sealed partial class GalleryViewer
         content.Children.Add(_taggingStatus);
         _taggingStrip.Child = content;
         AutomationProperties.SetName(_taggingStrip, Texts.T("tagging.strip.name"));
-        StackPanel controls = new() { Name = "GalleryControlsStack" };
-        controls.Children.Add(toolbar);
-        controls.Children.Add(_taggingStrip);
-        return controls;
+        // G1: a grid, so the tagging mode can lay toolbar and strip out in one row from the wide width on (GalleryViewer.Chrome.cs,
+        // LayOutControls); otherwise the strip is the second row, as before.
+        _controlsGrid = new Grid { Name = "GalleryControlsStack", ColumnDefinitions = new ColumnDefinitions("Auto,*"), RowDefinitions = new RowDefinitions("Auto,Auto") };
+        _controlsGrid.Children.Add(toolbar);
+        Grid.SetColumnSpan(toolbar, 2);
+        _controlsGrid.Children.Add(_taggingStrip);
+        Grid.SetRow(_taggingStrip, 1);
+        Grid.SetColumnSpan(_taggingStrip, 2);
+        return _controlsGrid;
     }
 
     /// <summary>
@@ -94,7 +99,6 @@ internal sealed partial class GalleryViewer
         _taggingOwner = owner;
         walk.Changed += OnTaggingChanged;
         ApplyTaggingLabels();
-        _taggingStrip.IsVisible = true;
         RefreshTaggingStrip();
         StartCards(); // the saved card setting (PT4)
         if (_tagPanelOpen && _tagSurface != null && _tagController != null) CoupleTaggingPanel(_tagSurface, _tagController);
@@ -105,6 +109,7 @@ internal sealed partial class GalleryViewer
         RefreshPanelCounter();
         RefreshPlaybackControls();
         UpdateHelp();
+        OnGalleryModeChanged(); // G1: the strip, the switch and the rest of the chrome follow the mode, and the screen reader hears it
         RevealOverlayControls();
     }
 
@@ -117,11 +122,11 @@ internal sealed partial class GalleryViewer
         UncoupleTaggingPanel(_taggingSurface);
         _tagging = null;
         _taggingOwner = null;
-        _taggingStrip.IsVisible = false;
         _taggingStatus.Text = string.Empty;
         RefreshPanelCounter(); // an open panel shows its "Medium n of m" again
         RefreshPlaybackControls(); // the slideshow line may speak again
         UpdateHelp();
+        OnGalleryModeChanged();
     }
 
     // The panel opened (or is open) during the mode: its undo button and key take the queue decisions too, and the stamp finishes.
@@ -134,7 +139,7 @@ internal sealed partial class GalleryViewer
         surface.StampApplied += OnTaggingStampApplied;
         _taggingSurface = surface;
         // QW2: the panel's status line says every sentence once, so the strip's line is neither shown nor read.
-        _taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: true);
+        _taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: true);
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Off);
     }
 
@@ -147,7 +152,7 @@ internal sealed partial class GalleryViewer
         _taggingUndo?.Dispose();
         _taggingUndo = null;
         _taggingSurface = null;
-        _taggingStatus.IsVisible = GalleryTaggingChrome.StripStatusVisible(panelCoupled: false); // without the panel the strip shows the last sentence
+        _taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: false); // without the panel the strip shows the last sentence
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite); // ... and speaks
     }
 

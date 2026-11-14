@@ -204,7 +204,7 @@ internal sealed partial class GalleryViewer : UserControl
         _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value);
         if (changedError) ReportDiagnostic("rating", error);
         _ratingButton.IsEnabled = available && _entry != null;
-        UpdateMediaFocusVisibility();
+        ApplyChrome();
         RefreshDecisionRow(); // the panel's row shows the same rating
     }
     internal event Action<GalleryEntry>? ExportOriginalRequested;
@@ -293,7 +293,7 @@ internal sealed partial class GalleryViewer : UserControl
 
     internal GalleryViewer()
     {
-        // The "where am I" line goes through the work-view gate (UpdateMediaFocusVisibility), which needs its id from the first frame.
+        // The "where am I" line goes through the work-view gate (ApplyChrome), which needs its id from the first frame.
         WorkViewElement.SetId(_scope, "gallery.info.scope");
         // Subscribe before any of these subtrees can enter a presentation root.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
@@ -320,13 +320,15 @@ internal sealed partial class GalleryViewer : UserControl
             toolbar.Children.Add(group);
             return group;
         }
-        StackPanel navigation = ToolGroup("GalleryNavigationTools");
-        StackPanel zoom = ToolGroup("GalleryZoomTools");
-        StackPanel media = ToolGroup("GalleryMediaTools");
+        // G1: the mode switch "View | Tag" comes first; the rest of the bar follows the mode (GalleryViewer.Chrome.cs).
+        InitializeModeSwitch(ToolGroup("GalleryModeTools"));
+        StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools");
+        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools");
+        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools");
         // The tools a work view brings onto the bar (rating, tags, slideshow numbers, mode, help): a group of its own, away from
         // the favourite and the way back; empty (hidden) in Barebones.
         _workViewTools = ToolGroup("GalleryWorkViewTools");
-        StackPanel view = ToolGroup("GalleryViewTools");
+        StackPanel view = _viewTools = ToolGroup("GalleryViewTools");
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
         // The way back is not a toolbar button: it floats alone at the top right edge of the picture (Tom's gallery rule), names
         // where it returns to and stays reachable, dimmed, while auto-hidden controls are away. The favourite star sits directly
@@ -442,6 +444,7 @@ internal sealed partial class GalleryViewer : UserControl
         root.Children.Add(_chrome); Grid.SetRow(_chrome, 1);
         root.Children.Add(_infoOverlay); Grid.SetRow(_infoOverlay, 2);
         root.Children.Add(_helpPanel);
+        root.Children.Add(_modeAnnouncement); // the mode's live region, at no size (GalleryViewer.Chrome.cs)
         Content = root;
         InitializeOverlayInteraction();
         InitializeFavoriteIndicators();
@@ -457,6 +460,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (compactBack != _compactBack) { _compactBack = compactBack; ApplyCloseLabel(); }
             UpdateToolbarDensity();
             LayoutContext();
+            ApplyChrome(); // the width moves blocks under "More" in the plan's overflow order
         };
         _viewport.SizeChanged += (_, _) => FitIfAutomatic();
         InitializeViewTransform();
@@ -529,6 +533,7 @@ internal sealed partial class GalleryViewer : UserControl
         RefreshOverflowItems();
         RefreshGifTransport();
         RefreshTaggingTexts();
+        PresentModeSwitch();
     }
 
     // Names, icons, labels and tooltips of the toolbar and menu controls from the current language, shortcuts and density.
@@ -823,28 +828,7 @@ internal sealed partial class GalleryViewer : UserControl
             _toolsToggle.Content = only; // The label stays as name and tooltip.
         }
         _toolsToggle.IsChecked = _mediaFocus;
-        UpdateMediaFocusVisibility();
-    }
-
-    private void UpdateMediaFocusVisibility()
-    {
-        foreach (Control control in _secondaryTools) control.IsVisible = !_mediaFocus;
-        _workViewTools.IsVisible = !_mediaFocus && _workViewTools.Children.Count > 0;
-        // The legacy action remains routable, but must never reappear as duplicate chrome.
-        _autoHideToggle.IsVisible = false;
-        // The position sits between the arrows, always; the caption no longer repeats it.
-        _compactPosition.IsVisible = true;
-        _position.IsVisible = false;
-        _quality.IsVisible = !_mediaFocus;
-        // "Where am I" (thread or result list): Barebones leaves it to the details; the position between the arrows stays.
-        WorkViewGate.Apply(_scope, _workView, stateVisible: !_mediaFocus);
-        _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
-        // QW5: with the tag panel's favorite and rating row on the screen, that row is the one place that shows (and changes) the rating.
-        _ratingStatus.IsVisible = GalleryTaggingChrome.InfoRatingVisible(_mediaFocus, DecisionRowVisible);
-        // Diagnostic notices have no visibility or auto-hide authority. The capability
-        // fallback is neutral layout information, not a dismissible technical banner.
-        _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
-        _chrome.Margin = new Thickness(8, 8, 8, _infoOverlay.IsVisible ? 0 : 8);
+        ApplyChrome();
     }
 
     private void SetContextOpen(bool open, bool notify = true, bool hover = false)
@@ -857,7 +841,8 @@ internal sealed partial class GalleryViewer : UserControl
         bool tagOnly = !open && ReleaseTagPanel(); // the slot closed under the tag panel: it goes, the post panel's preference stays
         // Deliberate reading stops automatic progression until explicit restart;
         // opening a panel is never permission to pause the native video itself.
-        if (open) PauseSlideshow(pauseVideo: false);
+        // In the tagging mode the tag panel is part of the work, not reading: the slideshow may go on (it waits while the panel is worked in).
+        if (open && SlideshowBlockedByPanel) PauseSlideshow(pauseVideo: false);
         if (!hover) RevealOverlayControls();
         EnsureContextCurrent();
         LayoutContext();
@@ -1449,6 +1434,7 @@ internal sealed partial class GalleryViewer : UserControl
         }
         if (!IsGalleryShortcutInput(e)) return;
         if (HandleFilmstripKey(e)) return;
+        if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTaggingMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }

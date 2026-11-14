@@ -51,10 +51,12 @@ internal static class WorkViewGalleryChecks
         Console.WriteLine($"SMOKE work-views gallery {viewName}: bar=[{string.Join(", ", viewer.ToolbarToolIds)}]; More=[{string.Join(", ", viewer.MenuToolIds)}].");
     }
 
-    // The fixture shows no slideshow, so the policy's own answer for the view is the expectation.
+    // The fixture shows no slideshow, so the policy's own answer for the view, narrowed by the width (G1, GalleryChromePlan), is the expectation.
     private static void CheckTools(GalleryViewer viewer, WorkView view, string scene)
     {
-        string[] expected = WorkViewPolicy.GalleryBarToolIds(view).ToArray();
+        string[] expected = viewer.ChromePlan.BarToolIds.ToArray();
+        if (expected.Except(WorkViewPolicy.GalleryBarToolIds(view)).Any())
+            throw new InvalidOperationException($"{scene}: the chrome plan puts [{string.Join(", ", expected)}] on the bar, more than the view offers.");
         if (!viewer.ToolbarToolIds.SequenceEqual(expected))
             throw new InvalidOperationException($"{scene}: the bar holds [{string.Join(", ", viewer.ToolbarToolIds)}], the policy says [{string.Join(", ", expected)}].");
         foreach (string id in WorkViewPolicy.GalleryMovableToolIds)

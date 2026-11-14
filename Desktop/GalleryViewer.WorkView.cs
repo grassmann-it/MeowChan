@@ -76,9 +76,9 @@ internal sealed partial class GalleryViewer
 
     private bool SlideshowToggleOnBar => _slideshowToggle.Tag is not OverflowItem && _slideshowToggle.Parent != null;
 
-    /// <summary>Whether the slideshow toggle belongs on the bar: the view says so, or a slideshow is chosen or running (R6).</summary>
-    private bool SlideshowOnBarByView => _slideshow != null && WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.toolbar.slideshow",
-        _workView, nonDefaultState: _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow || _slideshow.IsRunning));
+    /// <summary>Whether the slideshow toggle belongs on the bar: the chrome plan says so (the view, a chosen or running slideshow (R6), the
+    /// mode and the width).</summary>
+    private bool SlideshowOnBarByView => _slideshow != null && BuildChromePlan().Slideshow;
 
     // Id registration (WorkViewElement): one literal call per control, so the policy lint sees every id.
     private void RegisterWorkViewIds()
@@ -90,6 +90,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_favorite, "gallery.favorite"); Mark(_favorite);
         WorkViewElement.SetId(_favoriteIndicator, "gallery.favorite.indicator"); Mark(_favoriteIndicator);
         WorkViewElement.SetId(_toolsToggle, "gallery.toolbar.tools-toggle"); Mark(_toolsToggle);
+        WorkViewElement.SetId(_modeTools, "gallery.mode"); Mark(_modeTools);
         WorkViewElement.SetId(_overflowButton, "gallery.toolbar.more"); Mark(_overflowButton);
         WorkViewElement.SetId(_readPosts, "gallery.toolbar.read-posts"); Mark(_readPosts);
         WorkViewElement.SetId(_contextToggle, "gallery.toolbar.post-panel"); Mark(_contextToggle);
@@ -149,24 +150,15 @@ internal sealed partial class GalleryViewer
 
     /// <summary>
     /// Lays the viewer out for <paramref name="view"/> (plan §1.6): movable tools go to the bar or under "More", the "where am I"
-    /// line follows the gate, and the slideshow toggle follows the view unless a slideshow is chosen or running.
+    /// line follows the gate, and the slideshow toggle follows the view unless a slideshow is chosen or running. The chrome plan
+    /// (GalleryChromePlan, applied in ApplyChrome) adds the mode and the width on top of the view.
     /// </summary>
     internal void ApplyWorkView(WorkView view)
     {
         if (_terminalRetirement) return;
         bool focusInMenu = _overflowFlyout.IsOpen;
         _workView = view;
-        foreach (ToolSlot slot in _toolSlots)
-        {
-            bool onBar = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(slot.Id, view));
-            if (onBar) PlaceToolOnBar(slot);
-            else PlaceToolInMenu(slot);
-        }
-        _workViewTools.IsVisible = _workViewTools.Children.Count > 0;
-        PlaceSlideshowToggle();
-        PresentMovableTools();
-        UpdateMediaFocusVisibility();
-        RefreshOverflowItems();
+        ApplyChrome(force: true); // G1: the view is the first layer of the chrome plan; the mode and the width follow in the same pass
         UpdateFilmstripPlacement();
         if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
     }

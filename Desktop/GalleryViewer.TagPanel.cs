@@ -102,7 +102,7 @@ internal sealed partial class GalleryViewer
         _tagPanelOpen = true;
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
-        UpdateMediaFocusVisibility(); // the info line's rating yields to the row (QW5)
+        ApplyChrome(); // the info line's rating yields to the row (QW5)
         _sidePanel.TagContent = surface;
         _sidePanel.Segment = GallerySidePanelSegment.Tags;
         if (_contextOpen)
@@ -153,7 +153,7 @@ internal sealed partial class GalleryViewer
         surface?.Dispose();
         controller?.Dispose();
         _threadSection = null; _tagExtra = null; _tagReason = null;
-        UpdateMediaFocusVisibility(); // the row is gone: the info line shows the rating again (QW5)
+        ApplyChrome(); // the row is gone: the info line shows the rating again (QW5)
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         return true;
@@ -266,7 +266,7 @@ internal sealed partial class GalleryViewer
     }
 
     // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
-    private string? PanelCounter(string? counter) => GalleryTaggingChrome.PanelCounter(counter, _tagging != null);
+    private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, _tagging != null);
 
     // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
     private void RefreshPanelCounter()

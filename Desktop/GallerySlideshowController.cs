@@ -27,6 +27,8 @@ internal sealed class GallerySlideshowController
     private long? _imageStartedAt;
     private long _generation;
     private bool _hasMedia, _video, _hasNext, _ready, _advanced, _videoEnded, _advanceHeld;
+    // A video that ended while the tagging hold held it waits one image period after the hold (RenewAfterHold), like an image.
+    private bool _videoGrace;
 
     public GallerySlideshowController(Action requestNext, TimeProvider? timeProvider = null, Action? requestReplay = null)
     {
@@ -93,7 +95,7 @@ internal sealed class GallerySlideshowController
         _hasMedia = true;
         _video = video;
         _hasNext = hasNext;
-        _ready = _advanced = _videoEnded = _advanceHeld = false;
+        _ready = _advanced = _videoEnded = _advanceHeld = _videoGrace = false;
         _remaining = _imageDuration;
         _imageStartedAt = null;
         _videoPasses = 0;
@@ -170,6 +172,9 @@ internal sealed class GallerySlideshowController
             _videoStartedAt = _timeProvider.GetTimestamp();
     }
 
+    // An image, or a video whose end waits out a grace period after a tagging hold: counted by the image clock.
+    private bool ImageClocked => !_video || _videoGrace;
+
     public void Start()
     {
         if (IsRunning || _mode != GalleryPlaybackMode.Slideshow || !_hasMedia
@@ -183,7 +188,7 @@ internal sealed class GallerySlideshowController
     public void Pause()
     {
         if (!IsRunning) return;
-        if (_ready && !_video) _remaining = RemainingImageTime();
+        if (_ready && ImageClocked) _remaining = RemainingImageTime();
         _imageStartedAt = null;
         PauseVideoClock();
         SetRunning(false);
@@ -204,12 +209,12 @@ internal sealed class GallerySlideshowController
         if (!IsCurrent(generation) || _advanceHeld == held) return;
         if (held)
         {
-            if (IsRunning && _ready && !_video) _remaining = RemainingImageTime();
+            if (IsRunning && _ready && ImageClocked) _remaining = RemainingImageTime();
             _imageStartedAt = null;
             PauseVideoClock();
         }
         _advanceHeld = held;
-        if (!held && IsRunning && _ready && !_video && !_advanced)
+        if (!held && IsRunning && _ready && ImageClocked && !_advanced)
             _imageStartedAt = _timeProvider.GetTimestamp();
         if (!held) ResumeVideoClock();
     }
@@ -222,10 +227,24 @@ internal sealed class GallerySlideshowController
         SetAdvanceHeld(generation, true);
     }
 
+    /// <summary>
+    /// The tagging hold ended (the tag panel lost the focus and the field is empty again): the shown medium gets a full new period, so a
+    /// clock that nearly ran out while the person typed never moves on at once. A video that ended meanwhile is not replayed; it stays one
+    /// image period before the slideshow goes on. Call it before the hold is released; while another hold remains the period waits for it.
+    /// </summary>
+    public void RenewAfterHold(long generation)
+    {
+        if (!IsCurrent(generation) || _advanced) return;
+        if (_video && !_videoEnded) return; // still playing: its pass decides, as before
+        _videoGrace = _video;
+        _remaining = _imageDuration;
+        _imageStartedAt = IsRunning && !_advanceHeld && _ready ? _timeProvider.GetTimestamp() : null;
+    }
+
     public void Tick()
     {
         if (!IsRunning || _advanceHeld || !_hasMedia || _advanced) return;
-        if (_video) { if (_videoEnded) Advance(); }
+        if (_video) { if (_videoEnded && (!_videoGrace || RemainingImageTime() == TimeSpan.Zero)) Advance(); }
         else if (_ready && RemainingImageTime() == TimeSpan.Zero) Advance();
     }
 

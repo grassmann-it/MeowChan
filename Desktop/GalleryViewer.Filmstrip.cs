@@ -110,7 +110,7 @@ internal sealed partial class GalleryViewer
     // QW1: the position stands once, between the arrows; the strip repeats it only while the arrows are away (the controls are hidden
     // and the strip peeks in at the top edge).
     private void RefreshFilmstripPosition() =>
-        _filmstrip.SetPositionText(GalleryTaggingChrome.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden));
+        _filmstrip.SetPositionText(GalleryChromePlan.FilmstripPosition(_compactPosition.Text, OverlayControlsEffective && _overlayHidden));
 
     // ---- visibility ----
 
@@ -122,7 +122,8 @@ internal sealed partial class GalleryViewer
 
     private bool FilmstripFits => Bounds.Height <= 0 || Bounds.Height >= FilmstripMinimumHeight;
 
-    private bool FilmstripEffective => FilmstripWanted && _filmstrip.Count > 0 && !_mediaFocus && !_terminalRetirement
+    // G1/GL0: the chrome plan decides: the view's default, the person's choice (the setting, L, later GL4's layout choice), the state.
+    private bool FilmstripEffective => BuildChromePlan().Filmstrip && _filmstrip.Count > 0 && !_terminalRetirement
         && !_viewerInteractionStopped && FilmstripFits;
 
     private bool FilmstripHolds => _pointerInFilmstrip || _keyboardInteraction && _filmstrip.IsKeyboardFocusWithin;
