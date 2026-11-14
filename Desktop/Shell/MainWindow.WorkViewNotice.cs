@@ -112,7 +112,7 @@ public partial class MainWindow
         if (notice == null) return;
         FeedbackToastContent? content = null;
         content = ShowTransientActionNotification(WorkViewSwitchCatalog.T("workview.switch.title"),
-            WorkViewSwitchCatalog.Summary(notice.Diff), notice.Duration,
+            WorkViewSwitchCatalog.CompactSummary(notice.Diff), notice.Duration,
             [
                 new FeedbackToastAction(WorkViewSwitchCatalog.T("workview.switch.undo"),
                     () => SetWorkViewAsync(notice.Diff.From, undoNotice: notice)),
