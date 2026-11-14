@@ -73,6 +73,8 @@ public sealed class WorkViewSettingsTests
         "AutomaticUpdatesInput", "PrereleaseUpdatesInput",
         "InformationNotificationsInput", "WarningNotificationsInput", "ErrorNotificationsInput",
         "WorkViewSwitchNoticeSecondsInput",
+        // F1: "Show Booru actions" sits with the footer setting in the main interface section (it replaces the footer's "Show Booru" box).
+        "ShowBooruActionsInput",
     ];
 
     private static readonly string[] InputElements = ["CheckBox", "ComboBox", "TextBox", "NumericUpDown", "SettingsNumberInput", "AccessibleNumberInput"];
