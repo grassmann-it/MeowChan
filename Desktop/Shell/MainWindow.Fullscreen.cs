@@ -652,11 +652,24 @@ public partial class MainWindow
         }, DispatcherPriority.Background);
     }
 
+    /// <summary>Closes the shortcuts window (or the former in-window overlay) as Escape's first layer; false when neither is open.</summary>
     private bool DismissShellHelp()
     {
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true } window)
+        {
+            window.RequestClose();
+            return true;
+        }
+        // The in-window overlay is no longer opened (KS2); kept until its markup is removed.
         Border help = ShellHelpOverlay;
         if (!help.IsVisible) return false;
         help.IsVisible = false;
+        RestoreHelpOrigin();
+        return true;
+    }
+
+    private void RestoreHelpOrigin()
+    {
         if (_helpOrigin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin
             && origin.IsAttachedToVisualTree() && ReferenceEquals(TopLevel.GetTopLevel(origin), this))
         {
@@ -664,14 +677,29 @@ public partial class MainWindow
         }
         else Focus();
         _helpOrigin = null;
-        return true;
     }
 
+    /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2).</summary>
     private void ShowShellHelp()
     {
-        Border help = ShellHelpOverlay;
-        if (help.IsVisible) { DismissShellHelp(); return; }
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true }) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
+        var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, ShellHelpContext());
+        window.Closed -= OnShortcutsWindowClosed;
+        window.Closed += OnShortcutsWindowClosed;
+    }
+
+    private void OnShortcutsWindowClosed(object? sender, EventArgs e)
+    {
+        if (_isClosing) return;
+        Activate();
+        RestoreHelpOrigin();
+    }
+
+    /// <summary>The context of F1: the current area, its commands in the order of the former help list (only actions that
+    /// are available here), which of them the work view keeps under More, and the notes of the old help.</summary>
+    private MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext ShellHelpContext()
+    {
         var ids = new List<string>(MainPageOrder.CommandIds);
         ids.AddRange(new[] { "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" });
         if (_largeReaderOpen)
@@ -722,35 +750,17 @@ public partial class MainWindow
             && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
             && (activeContext != "downloads" || !downloadSelectionCommands.Contains(command.Id))
             && command.ShortcutDisplay != null).Select(command => command.Id));
-        ShellHelpTitle.Text = Texts.T("shortcuts.title");
-        // The command registry supplies the visible help and its scoped gestures.
-        // Keep this named text surface for the existing automation consumers.
-        string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
-            && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
         // R9: a shortcut whose button this view keeps under "More" says so.
         WorkView helpView = ConfiguredWorkView;
-        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(activePage, _largeReaderOpen);
-        string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-            + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)
-            + (WorkViewHelp.UnderMore(id, helpView, helpPages) ? " · " + Texts.T("workview.underMore") : string.Empty);
-        List<string> sections = new();
-        foreach ((string label, bool shell) in new[] { ("help.scope.current", false), ("help.scope.application", true) })
-        {
-            string[] lines = effectiveIds.Where(id => CommandCatalog.Get(id).ExecutionContexts.Contains("shell") == shell)
-                .Select(HelpLine).ToArray();
-            if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
-        }
-        if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
-            sections.Insert(0, Texts.T("help.reader.mediaActivation"));
-        // The "outside inputs and overlays" qualifier of the page shortcuts is stated once, not on every line (UX round 3).
-        if (effectiveIds.Any(CommandCatalog.HasGenericScope)) sections.Add(Texts.T("help.scope.generalNote"));
-        ShellHelpText.Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
-            + Environment.NewLine + Environment.NewLine
-            + (ShortcutService.Current.SingleKeyShortcuts ? string.Empty : Texts.T("help.singleKeysOff") + Environment.NewLine + Environment.NewLine)
-            + Texts.T("help.escape");
-        help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
-        help.IsVisible = true;
-        ShellHelpClose.Focus();
+        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(_selectedPage.ToString(), _largeReaderOpen);
+        List<string> notes = new();
+        if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true) notes.Add("help.reader.mediaActivation");
+        return new MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext(
+            MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext.AreaFor(_selectedPage.ToString(), _largeReaderOpen),
+            ids.Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _)).ToArray(),
+            id => WorkViewHelp.UnderMore(id, helpView, helpPages),
+            _largeReaderOpen ? CommandScope.Reader : CommandScope.None,
+            notes);
     }
 
     private bool DismissShellMenu()
@@ -895,8 +905,9 @@ public partial class MainWindow
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }
             || control is ComboBox { IsDropDownOpen: true });
 
+    // The shortcuts window is modeless help: while it is open the window's own shortcuts keep working (KS2).
     private bool HasVisibleShellDialog() => OwnedWindows.Any(window => window.IsVisible
-        && !(_gallery?.OwnsOverlayWindow(window) ?? false));
+        && !(_gallery?.OwnsOverlayWindow(window) ?? false) && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window));
 
     private void RefreshShellCommands()
     {

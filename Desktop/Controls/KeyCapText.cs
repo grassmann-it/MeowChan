@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -35,11 +36,17 @@ public sealed class KeyCapText : StackPanel
         catch (System.FormatException) { return [.. gesture.Modifiers, gesture.Key]; }
     }
 
-    /// <summary>Rebuilds the caps (language change: Strg/Ctrl).</summary>
+    /// <summary>Relabels the caps in place (language change: Strg/Ctrl); the caps themselves stay the same controls.</summary>
     public void Refresh()
     {
-        Children.Clear();
         IReadOnlyList<string> parts = Parts(Gesture, Platform);
+        if (Children.Count == parts.Count && Children.All(child => child is Border { Child: TextBlock }))
+        {
+            for (int i = 0; i < parts.Count; i++) ((TextBlock)((Border)Children[i]).Child!).Text = parts[i];
+            AutomationProperties.SetName(this, Platform == ShortcutPlatform.MacOS ? string.Concat(parts) : string.Join("+", parts));
+            return;
+        }
+        Children.Clear();
         foreach (string part in parts)
         {
             Border cap = new() { Child = new TextBlock { Text = part } };

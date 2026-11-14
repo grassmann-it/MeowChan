@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Views.Shortcuts;
 using MeowChan.Desktop.Localization;
 using Ursa.Controls;
 
@@ -29,7 +30,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void RefreshKeepsCleanOrDirtyDraftSearchSelectionAndExistingControls(bool dirty)
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         TextBox search = Get<TextBox>(editor, "_search");
         ListBox actions = Get<ListBox>(editor, "_actions");
         search.Text = ActionId;
@@ -58,7 +59,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
             Assert.Equal(input, (search.Text, search.CaretIndex, search.SelectionStart, search.SelectionEnd));
             Assert.Same(items, actions.ItemsSource);
             Assert.Same(selection, actions.SelectedItem);
-            Assert.Single(actions.Items);
+            Assert.Single(actions.Items.OfType<ListBoxItem>(), item => item.Tag is string); // plus its group header
             Assert.Equal(ActionId, Get<string>(editor, "_selected"));
             Assert.Equal(0, selectionChanges);
             AssertSameControls(tree, Controls(editor).ToArray());
@@ -73,7 +74,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void FilteringOutTheSelectedCommandClearsSelectionAndDetailInsteadOfRestoringStaleIdentity()
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         TextBox search = Get<TextBox>(editor, "_search");
         ListBox actions = Get<ListBox>(editor, "_actions");
         Select(editor, ActionId);
@@ -106,7 +107,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void RefreshRetainsTheSameActiveLeasePendingGestureAndModifierChoice(bool hasPending, bool keepExplicit)
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         Select(editor, ActionId);
         Click(editor, "clearBinding");
         CheckBox explicitModifiers = Get<CheckBox>(editor, "_explicit");
@@ -168,7 +169,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void AltGrWarningIsRelocalizedWithoutResurrectingTheRejectedPendingGesture()
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         Select(editor, ActionId);
         Click(editor, "recordAdditional");
         KeyGestureInput capture = Get<KeyGestureInput>(editor, "_capture");
@@ -208,7 +209,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void GestureLimitMessageRetainsPendingStateAndTracksTheLiveLanguage()
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         editor.Load(editor.Draft.Set(ActionId, Enumerable.Range(1, 8)
             .Select(number => ShortcutGesture.Parse("Shift+F" + number)).ToArray()));
         Select(editor, ActionId);
@@ -237,7 +238,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void ApplyAndTakeOverRetainTheirDistinctDraftOnlyConflictSemantics(bool takeOver)
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         editor.Load(editor.Draft.Set(ActionId, Array.Empty<ShortcutGesture>())
             .Set("navigation.rules", new[] { ShortcutGesture.Parse("Shift+F10") }));
         Select(editor, ActionId);
@@ -266,7 +267,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void LoadDiscardsEveryRecordingStateBeforeFurtherLanguageModifierOrApplyActions(string state)
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         if (state == "limit")
             editor.Load(editor.Draft.Set(ActionId, Enumerable.Range(1, 8)
                 .Select(number => ShortcutGesture.Parse("Shift+F" + number)).ToArray()));
@@ -326,7 +327,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void LoadClearsDormantGestureWithoutAnySelectionChangedReset()
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         ListBox actions = Get<ListBox>(editor, "_actions");
         KeyGestureInput capture = Get<KeyGestureInput>(editor, "_capture");
         Assert.Null(actions.SelectedItem);
@@ -357,7 +358,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         AssertRecordingCleared(editor);
     }
 
-    private static void AssertRecordingCleared(ShortcutEditor editor)
+    private static void AssertRecordingCleared(ShortcutBindingsEditor editor)
     {
         Assert.False(ShortcutService.IsCapturing);
         Assert.Null(Get<IDisposable?>(editor, "_captureLease"));
@@ -378,7 +379,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     public void RealLifecycleActionsStillReleaseCaptureAfterLanguageRefresh(string action)
     {
         using var fixture = new EditorFixture();
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         Select(editor, ActionId);
         Click(editor, "recordAdditional");
         Get<KeyGestureInput>(editor, "_capture").Gesture = new KeyGesture(Key.F9, KeyModifiers.Shift);
@@ -408,7 +409,7 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
     {
         using var fixture = new EditorFixture();
         using var document = JsonDocument.Parse("""{"SchemaVersion":99,"Overrides":{"future.command":{"future":[1,2]}}}""");
-        ShortcutEditor editor = fixture.Editor;
+        ShortcutBindingsEditor editor = fixture.Editor;
         editor.Load(new ShortcutBindingsSection(document.RootElement));
         Select(editor, ActionId);
         var draft = editor.Draft;
@@ -425,17 +426,15 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         }
     }
 
-    private static void AssertFrame(ShortcutEditor editor, bool customUnbound)
+    private static void AssertFrame(ShortcutBindingsEditor editor, bool customUnbound)
     {
-        Assert.Equal(Texts.T("shortcuts.title"), ((TextBlock)editor.SectionHeading).Text);
         Assert.Equal(Texts.T("settings.shortcutsEditor.search"), Get<TextBox>(editor, "_search").PlaceholderText);
         Assert.Equal(Texts.T("settings.shortcutsEditor.search"), AutomationProperties.GetName(Get<TextBox>(editor, "_search")));
         ListBox actions = Get<ListBox>(editor, "_actions");
         Assert.Equal(Texts.T("settings.shortcutsEditor.actions"), AutomationProperties.GetName(actions));
-        Panel root = (Panel)editor.Content!;
-        Assert.Contains(root.Children.OfType<TextBlock>(), text => text.Text == Texts.T("settings.shortcutsEditor.hint"));
-        Assert.Equal(new[] { "action", "context", "effectiveBinding" }.Select(key => Texts.T("settings.shortcutsEditor." + key)),
-            ((Panel)editor.MoreGroup.Content!).Children.OfType<Grid>().Single().Children.OfType<TextBlock>().Select(text => text.Text)); // the table sits in the settings group
+        // The sortable column heads of the window's table (the title is the window caption, the hint lives on the Settings card).
+        Assert.Equal(new[] { Texts.T("settings.shortcutsEditor.action"), Texts.T("shortcuts.window.shortcut"), Texts.T("shortcuts.window.status") },
+            Get<Button[]>(editor, "_sortButtons").Select(button => Controls(button).OfType<TextBlock>().Single().Text));
         foreach (string key in new[] { "resetAll", "recordAdditional", "clearBinding", "restoreDefault", "applyRecording", "takeOver", "cancelRecording" })
         {
             Button button = FindButton(editor, key);
@@ -474,20 +473,20 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
         foreach (Control child in children)
             foreach (Control descendant in Controls(child)) yield return descendant;
     }
-    private static void Select(ShortcutEditor editor, string id)
+    private static void Select(ShortcutBindingsEditor editor, string id)
     {
         ListBox list = Get<ListBox>(editor, "_actions");
         list.SelectedItem = list.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == id);
     }
-    private static Button FindButton(ShortcutEditor editor, string suffix) => Controls(editor).OfType<Button>()
+    private static Button FindButton(ShortcutBindingsEditor editor, string suffix) => Controls(editor).OfType<Button>()
         .Single(button => button.Content as string == Texts.T("settings.shortcutsEditor." + suffix));
-    private static void Click(ShortcutEditor editor, string suffix) => FindButton(editor, suffix).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static T Get<T>(ShortcutEditor editor, string field) =>
-        (T)typeof(ShortcutEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(editor)!;
+    private static void Click(ShortcutBindingsEditor editor, string suffix) => FindButton(editor, suffix).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static T Get<T>(ShortcutBindingsEditor editor, string field) =>
+        (T)typeof(ShortcutBindingsEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(editor)!;
 
     private sealed class EditorFixture : IDisposable
     {
-        public ShortcutEditor Editor { get; } = new();
+        public ShortcutBindingsEditor Editor { get; } = new();
         private readonly EventHandler _refresh;
         public EditorFixture()
         {
@@ -496,14 +495,14 @@ public sealed class ShortcutEditorLiveLanguageStateTests : IDisposable
             Editor.Load(new ShortcutBindingsSection(document.RootElement));
             // Detached controls do not subscribe through AttachedToVisualTree.
             // Subscribe the exact production callback, not a duplicate refresh model.
-            _refresh = typeof(ShortcutEditor).GetMethod("OnLanguageChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+            _refresh = typeof(ShortcutBindingsEditor).GetMethod("OnLanguageChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .CreateDelegate<EventHandler>(Editor);
             Texts.Changed += _refresh;
         }
         public void Dispose()
         {
             Texts.Changed -= _refresh;
-            typeof(ShortcutEditor).GetMethod("StopCapture", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(Editor, null);
+            typeof(ShortcutBindingsEditor).GetMethod("StopCapture", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(Editor, null);
         }
     }
 }

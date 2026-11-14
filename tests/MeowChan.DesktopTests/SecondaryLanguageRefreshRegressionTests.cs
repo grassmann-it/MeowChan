@@ -142,7 +142,7 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
     [Fact]
     public void AttachedShortcutEditorRelocalizesMaterializedRowsAndDetailLabelsInPlace()
     {
-        string source = ReadSource("Desktop/Commands/ShortcutEditor.cs");
+        string source = ReadSource("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs");
         Assert.Contains("Texts.Changed += OnLanguageChanged;", source);
         Assert.Contains("Texts.Changed -= OnLanguageChanged;", source);
 
@@ -155,29 +155,29 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
         Assert.DoesNotContain("RefreshList();", localize);
         Assert.DoesNotContain("RefreshDetail();", localize);
 
-        string list = Between(source, "private void RefreshList()", "private IReadOnlyList<ShortcutGesture> DraftGestures(");
-        Assert.Contains("Text = command.Label", list);
-        Assert.Contains("AutomationProperties.SetName(item, accessible)", list);
-        Assert.Contains("void RefreshTexts()", list);
-        Assert.Contains("label.Text = command.Label;", list);
-        Assert.Contains("binding.Text = Binding();", list);
-        Assert.Contains("stateText.Text = State();", list);
-        Assert.Contains("AutomationProperties.SetName(item, Accessible());", list);
+        string list = Between(source, "private void RefreshList()", "private ListBoxItem GroupHeader(");
+        Assert.Contains("_rowTexts.Clear();", list);
         Assert.Contains("RefreshDetail();", list);
-
-        Assert.Contains("_rowTexts.Add(row.Refresh)", list);
-        string detail = Between(source, "private void RefreshDetail()", "private void CaptureKey(");
+        string row = Between(source, "private ListBoxItem Row(", "private void RefreshDetail()");
+        Assert.Contains("Text = row.Label", row);
+        Assert.Contains("void Refresh()", row);
+        Assert.Contains("label.Text = CommandCatalog.Label(row.CommandId);", row);
+        Assert.Contains("state.Text = State();", row);
+        Assert.Contains("AutomationProperties.SetName(item, accessible);", row);
+        Assert.Contains("_rowTexts.Add(Refresh);", row);
+        string detail = Between(source, "private void RefreshDetail()", "private static string SafeDisplay(");
         Assert.Contains("_detailTexts.Clear();", detail);
         Assert.Contains("!CommandCatalog.TryGet(_selected, out var command) || command is null", detail);
         Assert.Contains("var title = LocalizedText(() => command.Label, _detailTexts);", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.remove\")", detail);
+        Assert.Contains("Button(() => Texts.T(\"shortcuts.window.recordReplace\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.recordAdditional\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.clearBinding\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.restoreDefault\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.applyRecording\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.takeOver\")", detail);
         Assert.Contains("Button(() => Texts.T(\"settings.shortcutsEditor.cancelRecording\")", detail);
-        Assert.Equal(7, Regex.Matches(detail, @", _detailTexts\)\);").Count);
+        Assert.Equal(8, Regex.Matches(detail, @", _detailTexts\)\);").Count);
 
         string textHelper = Between(source, "private static TextBlock LocalizedText(", "private static Button Button(");
         Assert.Contains("void Refresh() => text.Text = label();", textHelper);

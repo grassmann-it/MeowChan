@@ -19,7 +19,7 @@ using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
-    public partial class SettingsEditor : UserControl, INotifyPropertyChanged
+    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
     {
         public static IMultiValueConverter NumericActionNameConverter { get; } =
             new FuncMultiValueConverter<object?, string>((IReadOnlyList<object?> values) =>
@@ -218,6 +218,7 @@ namespace MeowChan
             InitializeComponent();
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
+            ShortcutsEditor.Host = this;
             ShortcutsEditor.DraftEdited += (_, _) => RetireSavedStatus();
             _initialCompactDensity = config.CompactDensity;
             _initialReadingFontSize = config.ReadingFontSize;
@@ -1271,6 +1272,18 @@ namespace MeowChan
             }
         }
 
+        ShortcutDraftSession IShortcutDraftHost.ShortcutSession => ShortcutsEditor.Session;
+        bool IShortcutDraftHost.IsShortcutCommitBlocked => IsBusy || !IsAvailable || _isClosed;
+
+        /// <summary>The shortcuts window's Save: only the bindings, through the same commit path as Save here (KS2).</summary>
+        async Task IShortcutDraftHost.CommitShortcutsAsync(ShortcutBindingsSection draft)
+        {
+            if (IsBusy || !IsAvailable || _isClosed) throw new InvalidOperationException("The settings are busy or unavailable.");
+            IsBusy = true;
+            try { await ShortcutBindingsCommit.CommitAsync(_config, draft, _applySettings); }
+            finally { IsBusy = false; }
+        }
+
         private async void OnSaveButtonClick(object? sender, RoutedEventArgs e)
         {
             if (IsBusy || !IsAvailable || _isClosed)
@@ -1292,7 +1305,7 @@ namespace MeowChan
                     SelectCategory("settings.shortcuts");
                 if (!ShortcutsEditor.ValidateDraft()) return;
                 Config candidate = _config.Clone();
-                candidate.ShortcutBindings = ShortcutsEditor.Draft.Clone();
+                ShortcutBindingsCommit.ApplyTo(candidate, ShortcutsEditor.Draft);
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
                 candidate.MaxParallelDownloads = GetInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum);
@@ -1404,16 +1417,8 @@ namespace MeowChan
                 if (DestinationNeedsCheck(candidate) && !await CheckDestinationAsync(candidate.DownloadPath, candidate.MinimumFreeSpaceGiB))
                     return;
                 if (_isClosed || !IsAvailable) return;
-                if (_applySettings != null)
-                {
-                    await _applySettings(candidate);
-                }
-                else
-                {
-                    if (!candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
-                    candidate.SaveConfig();
-                    ShortcutService.Publish(candidate.ShortcutBindings);
-                }
+                if (_applySettings == null && !candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
+                await ShortcutBindingsCommit.PersistAsync(candidate, _applySettings);
 
                 if (_applySettings == null)
                     _config.CopyFrom(candidate);

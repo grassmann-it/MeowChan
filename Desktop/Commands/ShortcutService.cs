@@ -14,6 +14,8 @@ public static class ShortcutService
     private static int _captureDepth;
     private static readonly List<WeakReference<Action>> Refreshers = new();
     public static EffectiveShortcutBindings Current => _current;
+    /// <summary>The section <see cref="Current"/> was built from (a copy): a clean Settings draft reloads it after a publish.</summary>
+    public static ShortcutBindingsSection CurrentSection { get; private set; } = new();
     public static long Revision { get; private set; }
     internal static int ObserverCount => Refreshers.Count;
     public static bool IsCapturing => _captureDepth > 0;
@@ -29,9 +31,10 @@ public static class ShortcutService
     public static void Publish(ShortcutBindingsSection section)
     {
         var snapshot = EffectiveShortcutBindings.Build(section);
+        var copy = section.Clone();
         void Apply()
         {
-            _current = snapshot; ++Revision;
+            _current = snapshot; CurrentSection = copy; ++Revision;
             IReadOnlyList<Exception> failures = RefreshAll(Refreshers);
             // Always: a failed presentation must not keep the others (and every Changed listener) on the old snapshot.
             Changed?.Invoke();
