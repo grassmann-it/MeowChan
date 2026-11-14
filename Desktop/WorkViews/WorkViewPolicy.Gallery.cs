@@ -68,6 +68,8 @@ public static partial class WorkViewPolicy
         Same("gallery.favorite.indicator", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         // Play/pause, seek, volume and mute, repeat and speed of a shown video or GIF (GalleryVideoPlayer's one transport).
         Same("gallery.video.transport", WorkViewPage.Gallery, WorkViewKind.Element, Required),
+        // The transport's own "⋯" (speed choices, audio track, save frame, repeat): part of the transport, never reduced.
+        Same("gallery.video.player-menu", WorkViewPage.Gallery, WorkViewKind.Action, Required),
         // The tools toggle brings the hidden tools back; "More" is the way to everything a view moved; "Read posts" appears
         // only for an empty gallery (state) and is then the way on.
         Same("gallery.toolbar.tools-toggle", WorkViewPage.Gallery, WorkViewKind.Action, Required, "gallery.tools-toggle"),

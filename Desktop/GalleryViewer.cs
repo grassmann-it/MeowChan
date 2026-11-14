@@ -1050,6 +1050,9 @@ internal sealed partial class GalleryViewer : UserControl
                 _video.LoopChanged += OnVideoLoopChanged;
                 _video.TransportControl.SizeChanged += (_, _) => { if (_contextOpen) LayoutContextPlacement(); };
                 WorkViewElement.SetId(_video.TransportControl, "gallery.video.transport"); Mark(_video.TransportControl);
+                WorkViewElement.SetId(_video.PlayerMenuControl, "gallery.video.player-menu"); Mark(_video.PlayerMenuControl);
+                _video.FullscreenRequested += () => FullscreenRequested?.Invoke();
+                _video.SaveFrameRequested += RequestSaveFrame;
                 UseNativeVideoOverlay(true);
                 _viewport.Children.Add(_video);
             }
@@ -1408,6 +1411,10 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.speed-up")) { _video.StepRate(1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-reset")) { _video.StepRate(0); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.snapshot")) { RequestSaveFrame(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.ab-loop")) { _video.ToggleAbLoop(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.frame-step")) { _ = _video.StepFrameAsync(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.speed-choose")) { _video.OpenSpeedMenu(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.audio-track")) { _video.CycleAudioTrack(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }

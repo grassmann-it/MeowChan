@@ -152,6 +152,8 @@ public sealed class EffectiveShortcutBindings
         // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
         // keep any binding the user saved for them.
         ["navigation.status"] = 7,
+        // New in revision 7: the video transport row (A–B loop, next frame).
+        ["video.ab-loop"] = 7, ["video.frame-step"] = 7,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
