@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -15,6 +16,11 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private MenuItem? _resumeReadingMenu;
+    // R5: the recent reading places, one per thread. Right-click on the book button and the "Reading history" submenu list them.
+    private MenuItem? _readingHistoryMenu;
+    private ContextMenu? _readingHistoryContext;
+    private int _readingHistoryRevision;
+    private const int ReadingHistoryTitleDisplayLength = 60;
     private Task _readingPositionSave = Task.CompletedTask;
     private Task _readingPositionWrite = Task.CompletedTask;
     private LocalReadingPosition? _submittedReadingPosition;
@@ -92,6 +98,11 @@ public partial class MainWindow
         WorkViewGate.Apply(button, view, visible);
         button.IsEnabled = CanResumeReading;
         if (_resumeReadingMenu != null) _resumeReadingMenu.IsEnabled = CanResumeReading;
+        if (_readingHistoryMenu != null)
+        {
+            _readingHistoryMenu.IsVisible = _config.RememberReadingPosition;
+            _readingHistoryMenu.IsEnabled = CanResumeReading && _readingResumeState == ReadingResumeState.Present;
+        }
         if (transferFocus)
         {
             // Never leave focus on a disappearing top-bar action. Reader anchor work
@@ -122,6 +133,7 @@ public partial class MainWindow
         // First entry of the tools group, directly behind the page group's separator.
         WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator) + 1, _resumeReadingMenu);
         ContinueReadingButton.Click += async (_, _) => await ResumeLastReadingAsync();
+        InitializeReadingHistoryMenus();
         RefreshReadingResumeLabels();
     }
 
@@ -130,13 +142,77 @@ public partial class MainWindow
         Button button = ContinueReadingButton;
         CommandBindings.Apply(button, "navigation.continue-reading",
             () => Texts.T("resume.actionHint"), iconOnly: true);
-        string help = CommandBindings.Tooltip("navigation.continue-reading") + " · " + Texts.T("resume.actionHint");
+        string help = CommandBindings.Tooltip("navigation.continue-reading") + " · " + Texts.T("resume.actionHint")
+            + " " + Texts.T("resume.history.hint");
         ToolTip.SetTip(button, help);
         AutomationProperties.SetHelpText(button, help);
         if (_resumeReadingMenu == null) return;
         CommandBindings.Apply(_resumeReadingMenu, "navigation.continue-reading",
             () => Texts.T("resume.actionHint"));
         AutomationProperties.SetHelpText(_resumeReadingMenu, help);
+        if (_readingHistoryMenu != null) _readingHistoryMenu.Header = Texts.T("resume.history.menu");
+    }
+
+    private void InitializeReadingHistoryMenus()
+    {
+        // The submenu sits directly behind "Continue reading" (which keeps resuming the newest place); its entries are read when it opens.
+        _readingHistoryMenu = new MenuItem { Header = Texts.T("resume.history.menu") };
+        _readingHistoryMenu.Items.Add(ReadingHistoryNote(Texts.T("resume.history.loading")));
+        _readingHistoryMenu.SubmenuOpened += (_, _) => _ = LoadReadingHistoryAsync(
+            items => { _readingHistoryMenu.Items.Clear(); foreach (Control item in items) _readingHistoryMenu.Items.Add(item); },
+            () => _readingHistoryMenu.IsSubMenuOpen);
+        WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
+        _readingHistoryContext = new ContextMenu();
+        _readingHistoryContext.Opening += (_, e) =>
+        {
+            if (!CanResumeReading) { e.Cancel = true; return; }
+            _ = LoadReadingHistoryAsync(
+                items => { _readingHistoryContext.Items.Clear(); foreach (Control item in items) _readingHistoryContext.Items.Add(item); },
+                () => _readingHistoryContext.IsOpen);
+        };
+        ContinueReadingButton.ContextMenu = _readingHistoryContext;
+    }
+
+    private static MenuItem ReadingHistoryNote(string text) => new() { Header = text.Replace("_", "__"), IsEnabled = false };
+
+    // "{title} · No.{post} · {2 h ago}". Underscores in a title are access-key markers in a menu header: doubled they stay literal.
+    internal static string ReadingHistoryEntryText(LocalReadingHistoryEntry entry, DateTimeOffset now)
+    {
+        LocalReadingPosition position = entry.Position;
+        string title = position.Title ?? Texts.T("resume.history.untitled", position.Board, position.Thread);
+        if (title.Length > ReadingHistoryTitleDisplayLength) title = title[..(ReadingHistoryTitleDisplayLength - 1)].TrimEnd() + "…";
+        return title + " · " + Texts.T("reader.postNumber", position.PostId) + " · " + ReaderDateText.Relative(entry.At, now);
+    }
+
+    private async Task LoadReadingHistoryAsync(Action<IReadOnlyList<Control>> show, Func<bool> stillOpen)
+    {
+        int revision = ++_readingHistoryRevision;
+        show(new[] { ReadingHistoryNote(Texts.T("resume.history.loading")) });
+        List<Control> items = new();
+        try
+        {
+            try { await _readingPositionSave; } catch (Exception) { } // A failed save is reported where it happened.
+            IReadOnlyList<LocalReadingHistoryEntry> entries = await _session.ReadReadingHistoryAsync();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (LocalReadingHistoryEntry entry in entries)
+            {
+                LocalReadingPosition place = entry.Position;
+                string text = ReadingHistoryEntryText(entry, now);
+                MenuItem item = new() { Header = text.Replace("_", "__"), IsEnabled = CanResumeReading };
+                AutomationProperties.SetName(item, text);
+                ToolTip.SetTip(item, place.Title is { } full ? full + " · " + place.Source + " /" + place.Board + "/ · " + place.Thread : null);
+                item.Click += async (_, _) => await ResumeReadingPlaceAsync(place);
+                items.Add(item);
+            }
+            if (items.Count == 0) items.Add(ReadingHistoryNote(Texts.T("resume.history.empty")));
+        }
+        catch (Exception error)
+        {
+            items.Clear();
+            items.Add(ReadingHistoryNote(Texts.T("resume.readFailed", error.Message)));
+        }
+        if (_isClosing || revision != _readingHistoryRevision || !stillOpen()) return;
+        show(items);
     }
 
     private void SaveConsciousReadingPosition(LocalReadingPosition position)
@@ -204,7 +280,17 @@ public partial class MainWindow
         finally { _readingPositionForgetPending = false; RefreshReadingResumePresentation(); }
     }
 
-    internal async Task ResumeLastReadingAsync()
+    internal Task ResumeLastReadingAsync() => ResumeReadingCoreAsync(async stillRequested =>
+    {
+        await _readingPositionSave;
+        return stillRequested() ? await _session.ReadReadingPositionAsync() : null;
+    });
+
+    /// <summary>Opens one place of the reading history; the newest place and the stored position stay as they are.</summary>
+    internal Task ResumeReadingPlaceAsync(LocalReadingPosition place) =>
+        ResumeReadingCoreAsync(_ => Task.FromResult<LocalReadingPosition?>(place));
+
+    private async Task ResumeReadingCoreAsync(Func<Func<bool>, Task<LocalReadingPosition?>> load)
     {
         if (!CanResumeReading || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         bool ownedFocus = ContinueReadingButton.IsKeyboardFocusWithin;
@@ -217,9 +303,7 @@ public partial class MainWindow
             && generation == _session.ReadingPositionGeneration && readerUnchanged();
         try
         {
-            await _readingPositionSave;
-            if (!StillRequested()) return;
-            LocalReadingPosition? position = await _session.ReadReadingPositionAsync();
+            LocalReadingPosition? position = await load(StillRequested);
             if (!StillRequested()) return;
             _readingResumeState = position == null ? ReadingResumeState.Absent : ReadingResumeState.Present;
             if (position == null) ArchivePage.ShowReadingPositionMessage(Texts.T("resume.none"));

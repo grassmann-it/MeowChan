@@ -85,8 +85,10 @@ public partial class ArchivePage
         ReaderAnchor? anchor = CaptureReaderAnchor();
         if (anchor == null || anchor.Thread.Thread == null) return;
         _readingPositionStatus.IsVisible = false;
+        // The title is a local snapshot for the reading history list; it is the open thread's own title.
+        string? title = _thread != null && _thread.Summary.Id == anchor.Thread ? LocalReadingPosition.CleanTitle(_thread.Summary.Title) : null;
         ConsciousReadingPositionChanged?.Invoke(new LocalReadingPosition(anchor.Thread.Source, anchor.Thread.Board,
-            anchor.Thread.Thread, anchor.PostId, anchor.Top, anchor.SelectedPostId));
+            anchor.Thread.Thread, anchor.PostId, anchor.Top, anchor.SelectedPostId, title));
     }
 
     internal void ShowReadingPositionMessage(string message, bool error = false)
