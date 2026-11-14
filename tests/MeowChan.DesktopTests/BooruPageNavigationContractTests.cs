@@ -143,6 +143,27 @@ public sealed class BooruPageNavigationContractTests
             "A delayed media activation must revalidate navigation and source lifetime before changing selection.");
     }
 
+    // Source-wiring regression only. A native shell scenario separately covers the actual
+    // asynchronous pause owner, service loss and completed Downloads navigation.
+    [Theory]
+    [InlineData("private async Task ApplySettingsAsync(Config candidate)", "private void ApplyAppearance()")]
+    [InlineData("private async void OnPauseClick(object? sender, RoutedEventArgs e)", "private async void OnAboutMenuItemClick")]
+    public void BothPreferenceOwnersRetryPendingBooruFallbackOnlyAfterReleasingTheirBusyGate(string start, string next)
+    {
+        string source = Read("Desktop/Shell/MainWindow.axaml.cs");
+        int begin = source.IndexOf(start, StringComparison.Ordinal);
+        int end = source.IndexOf(next, begin, StringComparison.Ordinal);
+        Assert.True(begin >= 0 && end > begin);
+        string owner = source[begin..end];
+        int cleanup = owner.IndexOf("finally", StringComparison.Ordinal);
+        int release = owner.IndexOf("_applyingPreferences = false;", cleanup, StringComparison.Ordinal);
+        int alive = owner.IndexOf("if (!_isClosing)", release, StringComparison.Ordinal);
+        int refresh = owner.IndexOf("UpdateInteractionState();", alive, StringComparison.Ordinal);
+        int retry = owner.IndexOf("TryCompleteBooruUnavailableFallback();", refresh, StringComparison.Ordinal);
+        Assert.True(cleanup >= 0 && release > cleanup && alive > release && refresh > alive && retry > refresh,
+            "The real preference owner must release the gate and retry a pending fallback without navigating during teardown.");
+    }
+
     [Fact]
     public void PageConstructionUsesTheExistingLazyActivationAndOwnsNoProviderAction()
     {

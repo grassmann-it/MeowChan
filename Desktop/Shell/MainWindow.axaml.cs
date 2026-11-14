@@ -1248,7 +1248,11 @@ public partial class MainWindow : Window
         finally
         {
             _applyingPreferences = false;
-            if (!_isClosing) UpdateInteractionState();
+            if (!_isClosing)
+            {
+                UpdateInteractionState();
+                TryCompleteBooruUnavailableFallback();
+            }
         }
     }
 
@@ -1386,7 +1390,17 @@ public partial class MainWindow : Window
         {
             ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.pause");
         }
-        finally { _applyingPreferences = false; UpdateInteractionState(); }
+        finally
+        {
+            _applyingPreferences = false;
+            if (!_isClosing)
+            {
+                UpdateInteractionState();
+                // A composition can disappear while pause/resume owns the shell's busy gate.
+                // Retry only after releasing that owner, through the ordinary navigation gate.
+                TryCompleteBooruUnavailableFallback();
+            }
+        }
     }
 
     private async void OnAboutMenuItemClick(object? sender, RoutedEventArgs e)
