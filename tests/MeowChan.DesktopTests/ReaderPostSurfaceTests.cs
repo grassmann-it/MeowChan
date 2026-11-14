@@ -108,6 +108,8 @@ public sealed class ReaderPostSurfaceTests
             Assert.Equal("{DynamicResource Workspace.Accent}", Setting(style, "BorderBrush"));
             Assert.Equal("3,1,1,1", Setting(style, "BorderThickness"));
         }
+        // R6: the selected card is the focused one whose media can be drawn larger; one selected style carries both.
+        Assert.Equal("True", Setting(PostStyle("ListBoxItem:selected"), "desktop:ReaderPostLayout.Focused"));
         XElement focus = PostStyle("ListBoxItem:focus-visible /template/ ContentPresenter");
         Assert.Equal("{DynamicResource Workspace.Accent}", Setting(focus, "BorderBrush"));
         Assert.Equal("3,2,2,2", Setting(focus, "BorderThickness"));

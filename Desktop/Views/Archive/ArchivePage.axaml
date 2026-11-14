@@ -369,10 +369,6 @@
                                                     <Setter Property="Margin" Value="8,4" />
                                                     <Setter Property="Padding" Value="2,0" />
                                                 </Style>
-                                                <!-- The selected (focused) card: its media can be drawn larger (R6); inherited by everything in the card. -->
-                                                <Style Selector="ListBoxItem:selected">
-                                                    <Setter Property="desktop:ReaderPostLayout.Focused" Value="True" />
-                                                </Style>
                                                 <Style Selector="ListBoxItem /template/ ContentPresenter">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
@@ -412,7 +408,10 @@
                                                 <Style Selector="ListBox.reader-column-width ListBoxItem">
                                                     <Setter Property="MaxWidth" Value="1120" />
                                                 </Style>
+                                                <!-- The selected (focused) card: its media can be drawn larger (R6, ReaderPostLayout.Focused is inherited by
+                                                     everything in the card), on the active surface with the accent edge. -->
                                                 <Style Selector="ListBoxItem:selected">
+                                                    <Setter Property="desktop:ReaderPostLayout.Focused" Value="True" />
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
                                                     <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />

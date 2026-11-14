@@ -123,7 +123,13 @@ public sealed class ReaderThreadMenuTests : IDisposable
     {
         FieldInfo order = typeof(ArchivePage).GetField("ReaderViewOptionOrder", BindingFlags.NonPublic | BindingFlags.Static)!;
         string[] ids = (string[])order.GetValue(null)!;
-        Assert.Equal(["reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "watch.follow-live", "reader.post-filters"], ids);
+        // R6 (media switches), R8 (media sidebar) and R7 (reader settings) joined the menu after the conversation; "Show new posts
+        // automatically" still comes after the conversation and right before the post filters, and the reader settings close it.
+        Assert.Equal(["reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
+            "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.sidebar.toggle", "watch.follow-live", "reader.post-filters",
+            "reader.quick-settings"], ids);
+        int live = Array.IndexOf(ids, "watch.follow-live");
+        Assert.True(live > Array.IndexOf(ids, "reader.view.conversation") && ids[live + 1] == "reader.post-filters");
         // The command keeps its id, so saved user shortcuts stay valid; its label and place changed.
         CommandDefinition command = CommandCatalog.Get("watch.follow-live");
         Assert.Equal("Show new posts automatically", command.LabelEn);
