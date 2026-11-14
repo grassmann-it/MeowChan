@@ -7,7 +7,8 @@ namespace MeowChan.Desktop.Theming;
 internal enum ThemeTokenTheme { Dark, Light }
 internal enum ThemeTokenClassification { Unknown, Seed, Mirror, Variation, Shadow }
 
-// These are findings, NOT seed aliases or an algorithm for deriving new theme colours.
+// These are findings, NOT seed aliases. Their derivation rules (TH1) live in ThemePalette.Rules, which keeps
+// today's value pinned where a rule does not reproduce it and the source seeds are unchanged.
 internal enum ThemeTokenVariation
 {
     // Dark has its own disabled outline; Light currently reuses the decorative border.
@@ -29,8 +30,8 @@ internal enum ThemeTokenVariation
 /// T1 inventory of WorkspaceStyles.axaml, not a theme loader or a palette replacement.
 /// Only exact, semantically justified aliases are mirrors. Workspace colour roles remain
 /// independent seeds even when their current values coincide (e.g. Overlay/Panel,
-/// ChipSurface/Raised, Progress/Accent in Dark). State variations are explicit findings
-/// for T3: inheriting a base theme does not make them safe to derive from a changed seed.
+/// ChipSurface/Raised, Progress/Accent in Dark). State variations are explicit findings;
+/// <see cref="ThemePalette"/> gives each one an explicit derivation rule (TH1).
 /// No resource dictionaries, brushes or application state are read or changed here.
 /// </summary>
 internal static class ThemeTokens

@@ -105,6 +105,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/GalleryViewer.Overlay.cs` (Color.FromRgb): Edge hint and fallback tone when the Workspace.Overlay resource is missing.
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).
 - `color-code` in `Desktop/ReaderBodyTextBlock.cs` (Colors.Black): Opacity-mask gradient, not a visible colour.
+- `color-code` in `Desktop/Theming/ThemePalette.cs` (Color.FromArgb): Variation rules derived from theme seeds (scale, mix, alpha).
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)

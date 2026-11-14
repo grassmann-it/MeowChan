@@ -75,6 +75,8 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.Overlay.cs", "Color.FromRgb", "Edge hint and fallback tone when the Workspace.Overlay resource is missing."),
         new(DesignRules.ColorCode, "Desktop/GalleryViewer.cs", "Brushes.Black", "Letterbox behind media (palette item 8)."),
         new(DesignRules.ColorCode, "Desktop/ReaderBodyTextBlock.cs", "Colors.Black", "Opacity-mask gradient, not a visible colour."),
+        // TH1 runtime palette: the documented variation rules compute colours from the WorkspaceStyles seeds; no literal colour.
+        new(DesignRules.ColorCode, "Desktop/Theming/ThemePalette.cs", "Color.FromArgb", "Variation rules derived from theme seeds (scale, mix, alpha)."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
     };
