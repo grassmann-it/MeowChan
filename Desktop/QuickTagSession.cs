@@ -184,6 +184,36 @@ internal enum QuickTagStatusKind
     StampFull
 }
 
+/// <summary>How one run of the stamp ended, judged by what the bound target carries afterwards.</summary>
+internal enum QuickTagStampOutcome
+{
+    /// <summary>Nothing was tried: the session was busy, the stamp is empty or none of its names is an existing tag.</summary>
+    None,
+    /// <summary>Every stamp tag is on every file of the target (tags it carried before count).</summary>
+    Complete,
+    /// <summary>Some tags were written, but not all stamp tags are on the target (a refused write, a cancel or a target switch).</summary>
+    Partial,
+    /// <summary>The run was tried and nothing was written; the status keeps the reason.</summary>
+    Refused
+}
+
+/// <summary>
+/// The result of <see cref="QuickTagSession.ApplyStampWithOutcomeAsync"/>: the outcome, how many tags were written and the target the
+/// stamp was bound to when it started (a switch of the session's target meanwhile is not followed by the run).
+/// </summary>
+internal sealed record QuickTagStampResult(QuickTagStampOutcome Outcome, int Given, bool Attempted, IQuickTagTarget? Target)
+{
+    internal static readonly QuickTagStampResult None = new(QuickTagStampOutcome.None, 0, false, null);
+
+    internal bool Complete => Outcome == QuickTagStampOutcome.Complete;
+
+    /// <summary>
+    /// True when a host may finish the medium it shows: the stamp is complete on <paramref name="current"/>, the target the host
+    /// shows now (a medium the gallery moved away from meanwhile is no longer the one to finish). A partial or refused run never does.
+    /// </summary>
+    internal bool FinishesMedium(IQuickTagTarget? current) => Complete && Target != null && ReferenceEquals(Target, current);
+}
+
 /// <summary>
 /// The status line: the last change (polite), its undo, or a refused write (assertive, kept until the next successful change).
 /// </summary>
@@ -368,35 +398,60 @@ internal sealed class QuickTagSession : IDisposable
     /// <summary>
     /// Gives every stamp tag that the target does not carry on all its files to the target (the current medium or the whole
     /// selection). One write per tag, each its own undo step, so Ctrl+Z takes the tags back one by one. Nothing already set is
-    /// written again. The first refused write stops the run and its error stays in the status line. Never retargets and never
-    /// moves on: the host decides what follows (<see cref="Applied"/> reports each tag, the returned count how many were set).
+    /// written again. The first refused write stops the run and its error stays in the status line; tags written before it stay
+    /// (and stay undoable). Never retargets and never moves on: the host decides what follows from <see cref="ApplyStampWithOutcomeAsync"/>.
     /// </summary>
     /// <returns>How many tags were written.</returns>
-    internal async Task<int> ApplyStampAsync(CancellationToken token = default)
+    internal async Task<int> ApplyStampAsync(CancellationToken token = default) => (await ApplyStampWithOutcomeAsync(token)).Given;
+
+    /// <summary>
+    /// <see cref="ApplyStampAsync"/> with the verdict a host needs to decide whether the medium is finished: the run is
+    /// <see cref="QuickTagStampOutcome.Complete"/> only when, afterwards, every stamp tag is on every file of the target it started on
+    /// (and no write failed). The run is bound to that target: when the session is retargeted meanwhile (the gallery moved on) the
+    /// remaining tags are not written to the new medium and the run ends <see cref="QuickTagStampOutcome.Partial"/>.
+    /// </summary>
+    internal async Task<QuickTagStampResult> ApplyStampWithOutcomeAsync(CancellationToken token = default)
     {
-        if (!Ready) return 0;
+        if (!Ready) return QuickTagStampResult.None;
+        IQuickTagTarget bound = _target;
         IReadOnlyList<PrivateTagDefinition> pending = StampPending();
         if (pending.Count == 0)
         {
-            _status = new QuickTagStatus(Stamp.Count == 0 || Stamp.Resolve(Snapshot).Count == 0 ? QuickTagStatusKind.StampEmpty : QuickTagStatusKind.StampComplete);
+            bool empty = Stamp.Count == 0 || Stamp.Resolve(Snapshot).Count == 0;
+            _status = new QuickTagStatus(empty ? QuickTagStatusKind.StampEmpty : QuickTagStatusKind.StampComplete);
             Updated?.Invoke();
-            return 0;
+            return empty ? QuickTagStampResult.None : new QuickTagStampResult(QuickTagStampOutcome.Complete, 0, false, bound);
         }
         List<string> given = new();
+        bool failed = false;
         foreach (PrivateTagDefinition tag in pending)
         {
-            if (token.IsCancellationRequested || !Ready) break;
+            if (token.IsCancellationRequested || !Ready || !ReferenceEquals(_target, bound)) break;
             int before = _appliedCount;
             await RunAsync(target => target.AddExistingAsync(tag.Id, token));
-            if (_status.IsError) return given.Count;
+            if (_status.IsError) { failed = true; break; }
             if (_appliedCount != before) given.Add(tag.Name.Display);
         }
-        if (given.Count > 0)
+        bool complete = !failed && StampCovered(bound);
+        if (complete && ReferenceEquals(_target, bound))
         {
-            _status = new QuickTagStatus(QuickTagStatusKind.StampApplied, string.Join(", ", given), _target.Coverage().Total);
+            _status = given.Count > 0
+                ? new QuickTagStatus(QuickTagStatusKind.StampApplied, string.Join(", ", given), bound.Coverage().Total)
+                : new QuickTagStatus(QuickTagStatusKind.StampComplete);
             Updated?.Invoke();
         }
-        return given.Count;
+        QuickTagStampOutcome outcome = complete ? QuickTagStampOutcome.Complete : given.Count > 0 ? QuickTagStampOutcome.Partial : QuickTagStampOutcome.Refused;
+        return new QuickTagStampResult(outcome, given.Count, true, bound);
+    }
+
+    // Every existing stamp tag is on every file of the target (a stamp without an existing tag covers nothing).
+    private bool StampCovered(IQuickTagTarget target)
+    {
+        if (target.Snapshot is not { } snapshot) return false;
+        IReadOnlyList<PrivateTagDefinition> tags = Stamp.Resolve(snapshot);
+        if (tags.Count == 0) return false;
+        TagCoverage coverage = target.Coverage();
+        return tags.All(tag => coverage.StateOf(tag.Id) == TagToggleState.All);
     }
 
     /// <summary>

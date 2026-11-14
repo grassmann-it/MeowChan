@@ -302,6 +302,142 @@ public sealed class QuickTagStampSourceTests : IDisposable
         Assert.Equal(2, await session.ApplyStampAsync()); // reloaded: the retry works
     }
 
+    // The stamp run is revision-bound on a selection: defining another tag after the first write refuses the second one (a refusal
+    // between two stamp tags, with the first already saved).
+    [Fact]
+    public async Task APartlyRefusedStampKeepsTheWrittenTagUndoableTheErrorAndNoFinishUntilARetryCompletesIt()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), second = Entry("b", 'b');
+        store.Define("a"); store.Define("b");
+        IQuickTagTarget shown = QuickTagTarget.For(Selection(store, first, second));
+        using QuickTagSession session = new(shown, stamp: new QuickTagStamp(new[] { "a", "b" }));
+        bool refuseOnce = true;
+        session.Applied += _ => { if (refuseOnce) { refuseOnce = false; store.Define("other"); } };
+
+        QuickTagStampResult partial = await session.ApplyStampWithOutcomeAsync();
+
+        Assert.Equal(QuickTagStampOutcome.Partial, partial.Outcome);
+        Assert.Equal(1, partial.Given);
+        Assert.True(partial.Attempted);
+        Assert.False(partial.FinishesMedium(shown)); // no Done, no next medium
+        Assert.True(session.Status.IsError);
+        Assert.Equal(Texts.T("tags.error.stale"), session.Status.Text);
+        Assert.Equal(new[] { "a" }, NamesOn(store, first)); // the tag written stays ...
+        Assert.Equal(new[] { "a" }, NamesOn(store, second));
+        Assert.Equal(new[] { "a" }, session.UndoSteps.Select(change => change.Name)); // ... with its own undo step
+
+        QuickTagStampResult retry = await session.ApplyStampWithOutcomeAsync();
+
+        Assert.Equal(QuickTagStampOutcome.Complete, retry.Outcome);
+        Assert.Equal(1, retry.Given); // only the tag that was missing
+        Assert.True(retry.FinishesMedium(shown));
+        Assert.False(retry.FinishesMedium(QuickTagTarget.For(Selection(store, first, second)))); // another medium is never finished
+        Assert.False(session.Status.IsError);
+        Assert.Equal(new[] { "a", "b" }, NamesOn(store, first));
+        Assert.Equal(new[] { "a", "b" }, session.UndoSteps.Select(change => change.Name));
+        await session.UndoAsync();
+        Assert.Equal(new[] { "a" }, NamesOn(store, second)); // the retry's step undoes on its own, the first stays
+
+        // A stamp that is already complete writes nothing and still counts as complete (a tag set before counts).
+        await session.ApplyStampAsync();
+        QuickTagStampResult already = await session.ApplyStampWithOutcomeAsync();
+        Assert.Equal(QuickTagStampOutcome.Complete, already.Outcome);
+        Assert.False(already.Attempted);
+        Assert.Equal(0, already.Given);
+    }
+
+    [Fact]
+    public async Task AStampWhoseFirstWriteIsRefusedIsRefusedAndAnEmptyOrBusyOneAttemptsNothing()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), second = Entry("b", 'b');
+        store.Define("a"); store.Define("b");
+        IQuickTagTarget shown = QuickTagTarget.For(Selection(store, first, second));
+        using QuickTagSession session = new(shown, stamp: new QuickTagStamp(new[] { "a", "b" }));
+        using QuickTagSession empty = new(QuickTagTarget.For(Single(store, first)));
+
+        store.Define("other");
+        QuickTagStampResult refused = await session.ApplyStampWithOutcomeAsync();
+
+        Assert.Equal(QuickTagStampOutcome.Refused, refused.Outcome);
+        Assert.Equal(0, refused.Given);
+        Assert.True(refused.Attempted);
+        Assert.False(refused.FinishesMedium(shown));
+        Assert.True(session.Status.IsError);
+        Assert.Empty(session.UndoSteps);
+
+        QuickTagStampResult none = await empty.ApplyStampWithOutcomeAsync();
+        Assert.Equal(QuickTagStampOutcome.None, none.Outcome);
+        Assert.False(none.Attempted);
+        Assert.False(none.FinishesMedium(empty.Target));
+        Assert.False(QuickTagStampResult.None.FinishesMedium(null));
+    }
+
+    [Fact]
+    public async Task AStampRunStaysOnTheTargetItStartedOnAndNeverFinishesTheMediumTheSessionMovedTo()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), next = Entry("b", 'b');
+        store.Define("a"); store.Define("b");
+        IQuickTagTarget original = QuickTagTarget.For(Single(store, first));
+        IQuickTagTarget moved = QuickTagTarget.For(Single(store, next));
+        using QuickTagSession session = new(original, stamp: new QuickTagStamp(new[] { "a", "b" }));
+        session.Applied += _ => session.Retarget(moved); // the gallery moves on after the first write
+
+        QuickTagStampResult result = await session.ApplyStampWithOutcomeAsync();
+
+        Assert.Equal(QuickTagStampOutcome.Partial, result.Outcome);
+        Assert.Equal(new[] { "a" }, NamesOn(store, first));
+        Assert.Empty(NamesOn(store, next)); // the second tag was not written to the medium shown now
+        Assert.False(result.FinishesMedium(moved));
+        Assert.False(result.FinishesMedium(original)); // and the medium it started on is not complete either
+    }
+
+    [Fact]
+    public async Task TheSurfaceReportsEachRunWithItsOutcomeSoOnlyTheCompleteOneFinishesAndARetryFinishesOnce()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), second = Entry("b", 'b');
+        store.Define("a"); store.Define("b");
+        (QuickTagSurface surface, QuickTagSession session) = Surface(QuickTagTarget.For(Selection(store, first, second)), new QuickTagStamp(new[] { "a", "b" }));
+        using (session)
+        using (surface)
+        {
+            List<QuickTagStampOutcome> reported = new();
+            int finished = 0;
+            surface.StampApplied += result =>
+            {
+                reported.Add(result.Outcome);
+                if (result.FinishesMedium(surface.Session.Target)) finished++; // what the tagging mode does
+            };
+            bool refuseOnce = true;
+            session.Applied += _ => { if (refuseOnce) { refuseOnce = false; store.Define("other"); } };
+
+            Assert.Equal(QuickTagStampOutcome.Partial, (await surface.ApplyStampAsync()).Outcome);
+            Assert.Equal(new[] { QuickTagStampOutcome.Partial }, reported);
+            Assert.Equal(0, finished);
+            Assert.True(session.Status.IsError);
+
+            await surface.ApplyStampAsync();
+            Assert.Equal(new[] { QuickTagStampOutcome.Partial, QuickTagStampOutcome.Complete }, reported);
+            Assert.Equal(1, finished);
+
+            // Everything is set: nothing is written, so no report (the tagging mode finishes that case itself, once).
+            Assert.False((await surface.ApplyStampAsync()).Attempted);
+            Assert.Equal(2, reported.Count);
+            Assert.Equal(1, finished);
+        }
+    }
+
     [Fact]
     public void TheStampIsEditedByTagIdAndAFullStampSaysSoInTheStatus()
     {
@@ -497,7 +633,7 @@ public sealed class QuickTagStampSourceTests : IDisposable
         using (surface)
         {
             int reported = 0;
-            surface.StampApplied += () => reported++;
+            surface.StampApplied += _ => reported++;
             Assert.False(surface.StampButton.IsEnabled); // an empty stamp: nothing to give
             Assert.Equal("The stamp is empty: right-click a tag to add it · Ctrl+Shift+Enter", AutomationProperties.GetName(surface.StampButton));
             await surface.ApplyStampAsync();

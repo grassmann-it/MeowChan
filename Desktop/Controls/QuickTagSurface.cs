@@ -479,10 +479,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     /// <summary>Ctrl+T while navigation is on: the panel opens or focuses its thread tags section.</summary>
     internal event Action? ThreadSectionRequested;
     /// <summary>
-    /// The stamp was applied and gave at least one tag (key or footer button). The tagging mode listens to go on to the next
-    /// medium; the surface itself never moves.
+    /// A stamp run was tried (key or footer button) and ended with the given outcome. The tagging mode listens to go on to the next
+    /// medium, but only when the outcome is complete for the medium it still shows; a partial or refused run keeps the medium open.
+    /// The surface itself never moves.
     /// </summary>
-    internal event Action? StampApplied;
+    internal event Action<QuickTagStampResult>? StampApplied;
 
     /// <summary>Starts the background read of source tags (each time the host opens the surface).</summary>
     internal void LoadSourceTags() => _sourceTags.Load();
@@ -797,11 +798,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private async void OnStamp(object? sender, RoutedEventArgs e) => await ApplyStampAsync();
 
     /// <summary>Gives the stamp set to the shown medium or selection (Ctrl+Shift+Enter, the footer button).</summary>
-    internal async Task ApplyStampAsync()
+    internal async Task<QuickTagStampResult> ApplyStampAsync()
     {
-        int given = 0;
-        await Guard(async () => given = await _session.ApplyStampAsync(), "tags.quick.stamp");
-        if (!_disposed && given > 0) StampApplied?.Invoke();
+        QuickTagStampResult result = QuickTagStampResult.None;
+        await Guard(async () => result = await _session.ApplyStampWithOutcomeAsync(), "tags.quick.stamp");
+        if (!_disposed && result.Attempted) StampApplied?.Invoke(result);
+        return result;
     }
 
     // The tooltip and name of the footer button: what it gives (or why it cannot), with its key.

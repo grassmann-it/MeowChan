@@ -143,6 +143,14 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         // A quick second key never decides a medium that is not shown yet.
         Assert.Contains("_navigationPending", strip);
         Assert.Contains("surface.StampApplied += OnTaggingStampApplied;", strip);
+        // A partly done or refused stamp keeps the medium open: only a complete run on the medium still shown decides (the key, the
+        // footer button and the stamp card all go through TaggingStampAsync; the event covers the panel's own routes).
+        Assert.Contains("private void OnTaggingStampApplied(QuickTagStampResult result)", strip);
+        Assert.Contains("result.FinishesMedium(surface.Session.Target)", strip);
+        Assert.Contains("!result.Attempted && ReferenceEquals(surface, _tagSurface) && result.FinishesMedium(surface.Session.Target)", strip);
+        Assert.DoesNotContain("private void OnTaggingStampApplied() =>", strip);
+        Assert.DoesNotContain("QuickTagStatusKind.StampComplete) TaggingDecide", strip); // no stale status decides
+        Assert.Contains("case TaggingCardKind.Stamp: await TaggingStampAsync(); break;", Source("Desktop", "GalleryViewer.Cards.cs"));
     }
 
     [Fact]

@@ -304,8 +304,9 @@ internal sealed partial class GalleryViewer
         RefreshTaggingStrip();
     }
 
-    // Stamp & next: gives the stamp to the shown medium (or the marked ones) and finishes it. The stamp's own event finishes after a write;
-    // a stamp that is already complete finishes too, an empty stamp or a refused write leaves the medium open with the panel's reason.
+    // Stamp & next: gives the stamp to the shown medium (or the marked ones) and finishes it. The stamp's own event finishes after a write
+    // that left every stamp tag on the medium; a stamp that is already complete finishes too. An empty stamp, a refused or only partly
+    // done write leaves the medium open with the panel's reason (the tags written stay and stay undoable; a retry writes the rest).
     private async Task TaggingStampAsync()
     {
         if (_tagging == null || _navigationPending || _terminalRetirement) return;
@@ -313,13 +314,19 @@ internal sealed partial class GalleryViewer
         if (_tagSurface is not { } surface) return;
         try
         {
-            await surface.ApplyStampAsync();
-            if (ReferenceEquals(surface, _tagSurface) && surface.Session.Status.Kind == QuickTagStatusKind.StampComplete) TaggingDecide(TagQueueState.Done);
+            QuickTagStampResult result = await surface.ApplyStampAsync();
+            // A run that wrote finished through StampApplied; one that found everything set writes nothing and finishes here.
+            if (!result.Attempted && ReferenceEquals(surface, _tagSurface) && result.FinishesMedium(surface.Session.Target)) TaggingDecide(TagQueueState.Done);
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.tagging")) { /* Logged and shown. */ }
     }
 
-    private void OnTaggingStampApplied() => TaggingDecide(TagQueueState.Done);
+    // Only a stamp that is complete on the medium still shown finishes it; a partial or refused one (or one for a medium the gallery
+    // left meanwhile) decides nothing, so the queue entry stays open.
+    private void OnTaggingStampApplied(QuickTagStampResult result)
+    {
+        if (_taggingSurface is { } surface && result.FinishesMedium(surface.Session.Target)) TaggingDecide(TagQueueState.Done);
+    }
 
     // Ctrl+Enter in the mode: the typed tag is taken over (when there is one) and the medium is finished; a refused tag keeps the medium open.
     private async Task TaggingCommitAsync()
