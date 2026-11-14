@@ -31,8 +31,12 @@
                         <TextBlock Classes="brand" VerticalAlignment="Center" AutomationProperties.Name="MeowChan"><Run Text="Meow" /><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}" /></TextBlock>
                         <TextBlock x:Name="WorkspaceVersion" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" VerticalAlignment="Center" />
                     </StackPanel>
-                    <TextBlock x:Name="WorkspaceSubtitle" Grid.Column="1" Tag="shell.subtitle" Classes="localized muted" FontSize="{StaticResource Workspace.Text.Meta}"
-                               VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+                    <!-- The tagline's star column. Its width, reported by SizeChanged, decides which form of the tagline the text block shows
+                         (MainWindow.Tagline.cs); the text block carries no localization tag because the form is set from code. -->
+                    <Panel x:Name="WorkspaceTaglineHost" Grid.Column="1" ClipToBounds="True">
+                        <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
+                    </Panel>
                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
                              statistics page. The inner parts are not exposed separately. -->

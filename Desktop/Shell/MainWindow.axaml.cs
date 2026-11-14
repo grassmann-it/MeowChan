@@ -1262,6 +1262,7 @@ public partial class MainWindow : Window
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
         ApplyHeaderGraphMode();
+        ApplyHeaderTaglineSetting();
         ApplyGalleryPreferences();
     }
 

@@ -1080,13 +1080,15 @@ namespace MeowChan
             string animations = SelectedAnimations?.Value ?? _config.Animations;
             string statsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
             string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
+            string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
+            string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth); }
+            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed); }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 
-        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null, string? readerPostWidth = null)
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null, string? readerPostWidth = null, string? headerTagline = null, string? headerTaglineFixed = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
@@ -1149,6 +1151,7 @@ namespace MeowChan
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
             RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
+            RefreshHeaderTaglineChoices(headerTagline ?? _config.HeaderTagline, headerTaglineFixed ?? _config.HeaderTaglineFixedId);
             RefreshReaderChoiceLabels();
         }
 
@@ -1247,6 +1250,8 @@ namespace MeowChan
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
                 candidate.Animations = SelectedAnimations?.Value ?? _config.Animations;
                 candidate.StatsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
+                candidate.HeaderTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
+                candidate.HeaderTaglineFixedId = HeaderTaglineFixedEnabled ? SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId : _config.HeaderTaglineFixedId;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 if (CompactDensity != _initialCompactDensity)
@@ -1547,7 +1552,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
                     or nameof(SelectedGallerySlideshowVideoRule);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {

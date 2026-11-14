@@ -132,6 +132,30 @@
                             <CheckBox x:Name="CompactDensityInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=DensityFieldLabel}" AutomationProperties.Name="{Binding DensityLabel}" Grid.Column="1" Content="{Binding CompactLabel}" IsChecked="{Binding CompactDensity, Mode=TwoWay}" />
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                <TextBlock x:Name="HeaderTaglineFieldLabel" Text="{Binding HeaderTaglineLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding HeaderTaglineHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="HeaderTaglineInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineHint}" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding HeaderTaglineChoices}" SelectedItem="{Binding SelectedHeaderTagline, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsEnabled="{Binding HeaderTaglineFixedEnabled}">
+                            <StackPanel VerticalAlignment="Center" Spacing="4">
+                                <TextBlock x:Name="HeaderTaglineFixedFieldLabel" Text="{Binding HeaderTaglineFixedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding HeaderTaglineFixedHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="HeaderTaglineFixedIdInput" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineFixedFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineFixedLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineFixedHint}" Grid.Column="1" HorizontalAlignment="Stretch"
+                                      ItemsSource="{Binding HeaderTaglineFixedChoices}" SelectedItem="{Binding SelectedHeaderTaglineFixed, Mode=TwoWay}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
                         </StackPanel>
                     </Expander>
                     <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Header="{Binding LanguagePacksLabel}" Margin="0,4,0,0">

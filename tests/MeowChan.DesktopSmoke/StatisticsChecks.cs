@@ -181,9 +181,11 @@ internal static class StatisticsChecks
             await PresentationChecks.SwitchModeAsync(window, mode);
             if (mode != "Barebones") await EnsureWideAsync(window);
             await RequireHeaderAsync(window, disk: true, graph: true, "Auto/" + mode);   // both graphs in every work view, where there is room
-            // The tagline shows where the title bar has room and is gone where it has not (never a stub).
+            // The tagline shows in full, as "— quip", or not at all; what is shown is never cut off and the stage names what is on screen.
             Control tagline = window.FindControl<Control>("WorkspaceSubtitle")!;
-            if (mode == "Barebones") Require(!tagline.IsVisible, "The tagline is still shown in the narrow Barebones title bar.");
+            Require((window.TaglineStage != HeaderTaglineStage.None) == tagline.IsVisible, $"The tagline stage {window.TaglineStage} does not match its visibility {tagline.IsVisible} in {mode}.");
+            if (tagline is TextBlock { IsVisible: true } shown)
+                Require(shown.Bounds.Width <= window.FindControl<Control>("WorkspaceTaglineHost")!.Bounds.Width - HeaderTaglineFit.Tolerance + 0.01, $"The tagline is wider than its column in {mode}: {shown.Bounds.Width}.");
             if (mode == "Advanced") Require(tagline.IsEffectivelyVisible && tagline.Bounds.Width > 100, $"The tagline is missing in a wide title bar: visible {tagline.IsVisible}, bounds {tagline.Bounds}, column {window.FindControl<Grid>("WorkspaceHeader")!.ColumnDefinitions[1].ActualWidth}, window {window.Bounds.Width}.");
             Program.CaptureWindow(window, $"smoke-statistics-header-dark-{mode.ToLowerInvariant()}.png");
         }

@@ -321,7 +321,7 @@ public partial class MainWindow
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
-        ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
+        LocalizeHeaderTagline();
         MeowChan.Desktop.Controls.HeaderBar.MakeClose(DownloadSearchClose, Texts.T("downloads.searchClose"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));

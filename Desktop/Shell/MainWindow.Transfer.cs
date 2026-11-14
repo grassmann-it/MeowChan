@@ -36,20 +36,7 @@ public partial class MainWindow
         ApplyHeaderGraphMode();
         RefreshSpeedLabel();
         UpdateSpeedSamplingState();
-        WorkspaceHeader.LayoutUpdated += OnHeaderLayoutUpdated;
-        UpdateHeaderTagline();
-    }
-
-    // The tagline lives in the header's star column; below this width it would be a stub, so it disappears.
-    private const double HeaderTaglineMinimumWidth = 200;
-
-    // A layout pass is the one place where the star column's width is known; the property only changes when the width really does.
-    private void OnHeaderLayoutUpdated(object? sender, EventArgs e) => UpdateHeaderTagline();
-
-    private void UpdateHeaderTagline()
-    {
-        bool fits = WorkspaceHeader.ColumnDefinitions[1].ActualWidth >= HeaderTaglineMinimumWidth;
-        if (WorkspaceSubtitle.IsVisible != fits) WorkspaceSubtitle.IsVisible = fits;
+        StartHeaderTagline();
     }
 
     // Keep space between graphs and text even on the very first layout. Shared grid columns align
@@ -138,7 +125,7 @@ public partial class MainWindow
     private void StopSpeedSampling()
     {
         PropertyChanged -= OnSpeedWindowPropertyChanged;
-        WorkspaceHeader.LayoutUpdated -= OnHeaderLayoutUpdated;
+        StopHeaderTagline();
         if (_ioStats != null) _ioStats.Sampled -= OnIoStatsSampled;
         _ioClaim?.Dispose();
         _ioClaim = null;
