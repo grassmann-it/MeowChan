@@ -11,13 +11,13 @@
     </UserControl.Styles>
     <!-- Hosted by the Status page: no page header, hint or summary of its own (the Status head carries them). The page inset is
          the one the Status head and segment bar use, so the sides line up at 12 dip, not 24. -->
-    <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="8">
+    <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner. The Status page above
              already carries the title, the hint and the counts, so the segment starts with its filters. The content root
              takes at least the viewport height (code-behind), which lets the table row use the free height (Height *); its
              own bounded, virtualized row viewport comes from the grid's MaxHeight. -->
         <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnDiagnosticScrollSizeChanged">
-            <Grid x:Name="DiagnosticsContentRoot" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="8">
+            <Grid x:Name="DiagnosticsContentRoot" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <!-- Work views: Barebones starts with the filters closed (an active filter opens them, R6); the data and the default values are the same in every view. -->
                 <Expander x:Name="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
@@ -35,7 +35,7 @@
                 <!-- Only while a filter is set or rows are selected: "a / b entries · c selected". -->
                 <TextBlock x:Name="DiagnosticFilterSummary" wv:WorkViewElement.Id="diagnostics.filter-summary" Grid.Row="1" Classes="workspace-help" TextWrapping="Wrap"
                            IsVisible="False" AutomationProperties.LiveSetting="Polite" />
-                <Grid x:Name="DiagnosticSplit" Grid.Row="2" ColumnDefinitions="*,0" RowDefinitions="*,Auto" RowSpacing="12">
+                <Grid x:Name="DiagnosticSplit" Grid.Row="2" ColumnDefinitions="*,0" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.12}">
                     <Border x:Name="DiagnosticListPane" wv:WorkViewElement.Id="diagnostics.table" Classes="workspace-section-flush">
                         <!-- The platform facts live in their own group below, so this table holds requests and problems only and
                              its "nothing to show" text can sit over the empty grid. -->
@@ -73,7 +73,7 @@
                     </DataGrid>
                 </Expander>
                 <Expander x:Name="SessionFeedbackSection" wv:WorkViewElement.Id="diagnostics.session-messages" Grid.Row="4" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                         <TextBlock x:Name="SessionFeedbackEmpty" Tag="feedback.empty" Classes="muted localized" TextWrapping="Wrap" />
                         <DataGrid x:Name="SessionFeedbackGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="80" MaxHeight="160"
                                   SelectionMode="Single" GridLinesVisibility="None" SelectionChanged="OnFeedbackSelectionChanged">
@@ -84,7 +84,7 @@
                             </DataGrid.Columns>
                         </DataGrid>
                         <TextBox x:Name="SessionFeedbackDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="36" MaxHeight="90" />
-                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button x:Name="CopySessionFeedbackButton" Click="OnCopyFeedback" />
                             <Button x:Name="DismissSessionFeedbackButton" Click="OnDismissFeedback" />
                             <Button x:Name="ClearSessionFeedbackButton" Click="OnClearFeedback" />
@@ -93,7 +93,7 @@
                 </Expander>
             </Grid>
         </ScrollViewer>
-        <StackPanel Grid.Row="1" Spacing="8">
+        <StackPanel Grid.Row="1" Spacing="{StaticResource Workspace.Space.8}">
             <ScrollViewer MaxHeight="64" HorizontalScrollBarVisibility="Disabled">
                 <TextBlock x:Name="DiagnosticsActionError" wv:WorkViewElement.Id="diagnostics.error" Classes="workspace-error" TextWrapping="Wrap" VerticalAlignment="Center" />
             </ScrollViewer>
