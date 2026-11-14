@@ -1,8 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Layout;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
@@ -61,20 +59,21 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal BooruWorkbenchWindow(BooruWorkbenchModel model, bool ownsModel)
     {
         Name = "BooruWorkbenchWindow";
-        Width = 1000; Height = 760; MinWidth = 600; MinHeight = 520;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        DialogFit.OnOpen(this);
+        // MD3: the workbench is a modeless XL tool window, so it keeps its minimize button and taskbar entry.
+        // DialogWindow owns the size step, owner centring and first-open screen fit; the title remains in the caption.
+        DialogWindow.Configure(this, DialogSize.XL, modal: false);
 
         _view = new BooruWorkbenchView(model, ownsModel, (header, body, footer) =>
             DialogFrame.Build(header, new Border { Child = body, Classes = { "workspace-dialog-body" } },
                 BuildFooter(footer), DialogFrame.ErrorStrip(new TextBlock())));
-        Content = WindowChrome.Frame(this, _view);
+        DialogWindow.Frame(this, _view, modal: false);
         _view.ChromeChanged += OnChromeChanged;
         OnChromeChanged();
         _close.Click += (_, _) => Close();
         Opened += async (_, _) => await _view.ActivateAsync();
         Closed += (_, _) => Dispose();
-        KeyDown += OnKeyDown;
+        // SearchBox consumes Escape while a draft has text; this policy handles the empty-field/window levels.
+        DialogEscape.Attach(this, tryCancelLocal: CancelEscapeLocally);
     }
 
     internal BooruWorkbenchModel Model => _view.Model;
@@ -84,17 +83,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal void ShowQuery(string query) => _view.ShowQuery(query);
     internal void AddTagToSearch(string tag) => _view.AddTagToSearch(tag);
 
-    private Control BuildFooter(Control notes)
-    {
-        Grid footer = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-        footer.Children.Add(notes);
-        _close.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(_close, 1);
-        footer.Children.Add(_close);
-        Border host = new() { Child = footer };
-        host.Classes.Add("workspace-dialog-footer");
-        return host;
-    }
+    private Control BuildFooter(Control notes) => DialogFooter.Build(_close, status: notes);
 
     private void OnChromeChanged()
     {
@@ -102,24 +91,15 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
         _close.Content = Texts.T("action.close");
     }
 
-    private void OnKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
-        if (e.Key == Key.Escape && !_view.IsModeDropDownOpen)
-        {
-            e.Handled = true;
-            // SearchBox normally consumes this first. Never clear a draft on Escape elsewhere in the window.
-            if (e.KeyModifiers == KeyModifiers.None && SearchBox.OwnsEscape(e.Source) && _view.TryClearQuery()) return;
-            // An open removal question is answered "Cancel" first; only then does Escape close the window.
-            if (!_view.TryCancelRemoval()) Close();
-        }
-    }
+    // Escape levels: shortcut capture and the mode list stay in control, then an open removal question is cancelled;
+    // when none claims it, DialogEscape closes the modeless window. SearchBox clears a non-empty draft before this runs.
+    private bool CancelEscapeLocally() =>
+        MeowChan.Desktop.Commands.ShortcutService.IsCapturing || _view.IsModeDropDownOpen || _view.TryCancelRemoval();
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        KeyDown -= OnKeyDown;
         _view.ChromeChanged -= OnChromeChanged;
         _view.Dispose();
     }
