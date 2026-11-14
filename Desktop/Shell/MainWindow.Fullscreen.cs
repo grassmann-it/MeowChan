@@ -836,6 +836,9 @@ public partial class MainWindow
             foreach (string id in MainPageOrder.CommandIds)
             {
                 if (id == "navigation.booru" && !CanOpenBooru) continue;
+                // A saved binding of the tagging page runs through its own router registration (RegisterTaggingPageCommands):
+                // the page is built lazily, which NavigateWorkspace alone does not do.
+                if (id == "navigation.tagging") continue;
                 if (!CommandBindings.Matches(e, id)) continue;
                 WorkspacePage page = PageFor(id);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);

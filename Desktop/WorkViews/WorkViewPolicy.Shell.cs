@@ -42,6 +42,8 @@ public static partial class WorkViewPolicy
         Same("shell.footer.booru-toggle", WorkViewPage.Shell, WorkViewKind.Element, Required),
         Footer("archive", Overflow, Direct, Direct),
         Footer("media", Overflow, Direct, Direct),
+        // Tagging follows Media's rule: a reading-side tool, so Barebones keeps it under More and Simple and Advanced show it.
+        Footer("tagging", Overflow, Direct, Direct),
         Footer("booru", Overflow, Direct, Direct),
         Footer("rules", Overflow, Overflow, Direct),
         Footer("sources", Overflow, Overflow, Direct),

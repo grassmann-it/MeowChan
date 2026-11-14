@@ -266,6 +266,8 @@ public partial class MainWindow : Window
         // Media reads the catalog and media folders like Archive, but its index build waits for a ready session.
         MediaNavigationButton.IsEnabled = navigationReady;
         BooruNavigationButton.IsEnabled = navigationReady && CanOpenBooru;
+        // The tagging page needs a ready session like the queue it shows; ShowTaggingPage also refuses while a reader or gallery is open.
+        TaggingNavigationButton.IsEnabled = navigationReady && _session.State == DesktopSessionState.Ready;
         if (_mediaPage != null) _mediaPage.IsAvailable = ready;
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;
@@ -273,6 +275,7 @@ public partial class MainWindow : Window
         SourcesMenuItem.IsEnabled = navigationReady;
         ArchiveMenuItem.IsEnabled = earlyPages;
         MediaMenuItem.IsEnabled = navigationReady;
+        TaggingMenuItem.IsEnabled = TaggingNavigationButton.IsEnabled;
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
         RulesMenuItem.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy

@@ -8,13 +8,13 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// The tagging page (PT2) in the shell: an entry of the app menu's tools group (in front of "Walk through tagging queue", PT1) and the
-// command navigation.tagging, no footer button. The page is built when it is first opened. "Start tagging" goes through
-// StartTaggingFromPageAsync starts the queue walk in PT3's tagging mode.
+// The tagging page (PT2) in the shell: a main page of MainPageOrder behind Media with a footer button (TaggingNavigationButton, a More
+// entry and the ⋯ menu's TaggingMenuItem, all declared in MainWindow.axaml) and the command navigation.tagging, which has no default
+// digit. The page is built when it is first opened. "Start tagging" goes through StartTaggingFromPageAsync, which starts the queue
+// walk in PT3's tagging mode.
 public partial class MainWindow
 {
     private TaggingPage? _taggingPage;
-    private MenuItem? _taggingMenu;
     private IDisposable? _taggingRegistration;
 
     /// <summary>The tagging page once it has been opened; null before.</summary>
@@ -24,11 +24,8 @@ public partial class MainWindow
 
     private void InitializeTaggingPage()
     {
-        _taggingMenu = CommandBindings.CreateMenuItem("navigation.tagging", () => ShowTaggingPage(), () => CanShowTaggingPage);
-        int at = _tagQueueMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_tagQueueMenu);
-        if (at < 0) at = WorkspaceMenuItem.Items.IndexOf(MenuPagesToolsSeparator) + 1;
-        WorkspaceMenuItem.Items.Insert(at, _taggingMenu);
-        WorkspaceMenuItem.SubmenuOpened += (_, _) => { if (_taggingMenu != null) CommandBindings.Refresh(_taggingMenu); };
+        // The ⋯ entry follows the old gating: no tagging page while a reader or the gallery covers the workspace.
+        WorkspaceMenuItem.SubmenuOpened += (_, _) => TaggingMenuItem.IsEnabled = TaggingNavigationButton.IsEnabled && CanShowTaggingPage;
         _workViews.Changed += (_, view) => _taggingPage?.ApplyWorkView(view);
         Closed += (_, _) =>
         {
@@ -40,11 +37,6 @@ public partial class MainWindow
     private void RegisterTaggingPageCommands() =>
         _taggingRegistration = _shortcutRouter!.Register(new CommandRegistration("navigation.tagging", this,
             () => !_isClosing && !_largeReaderOpen && _gallery == null, () => CanShowTaggingPage, () => ShowTaggingPage()));
-
-    private void RefreshTaggingPageLabels()
-    {
-        if (_taggingMenu != null) { CommandBindings.Apply(_taggingMenu, "navigation.tagging"); CommandBindings.Refresh(_taggingMenu); }
-    }
 
     /// <summary>Opens the tagging page. False while the window cannot navigate (no restored session, busy editors, gallery or reader open).</summary>
     internal bool ShowTaggingPage()

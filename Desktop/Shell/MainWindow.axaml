@@ -99,10 +99,11 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
                         <MenuItem x:Name="WorkspaceMenuItem">
-                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media | Rules, Sources & Plugins | Status). -->
+                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status). -->
                             <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
                             <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <MenuItem x:Name="TaggingMenuItem" Tag="nav.tagging" Classes="localized" Header="Tagging" Click="OnTaggingNavigationClick" />
                             <MenuItem x:Name="BooruMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" Click="OnBooruNavigationClick" />
                             <Separator x:Name="PagesGroupSeparatorWork" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
@@ -511,8 +512,9 @@
                 </Button>
                 <Button x:Name="ArchiveNavigationButton" Classes="nav localized" Tag="nav.archive" Content="Archive" Click="OnArchiveNavigationClick" />
                 <Button x:Name="MediaNavigationButton" Classes="nav localized" Tag="nav.media" Content="Media" Click="OnMediaNavigationClick" />
+                <Button x:Name="TaggingNavigationButton" Classes="nav localized" Tag="nav.tagging" Content="Tagging" Click="OnTaggingNavigationClick" />
                 <Button x:Name="BooruNavigationButton" Classes="nav localized" Tag="nav.booru" Content="Booru" Click="OnBooruNavigationClick" />
-                <!-- Footer groups: Downloads, Archive, Media, Booru | Rules, Sources & Plugins | Status | More, Settings.
+                <!-- Footer groups: Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status | More, Settings.
                      UpdatePageNavigation shows a separator only between two groups that both have a visible button. -->
                 <Border x:Name="FooterSeparatorWork" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
@@ -531,6 +533,7 @@
                         <MenuFlyout>
                             <MenuItem Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
                             <MenuItem Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
+                            <MenuItem Tag="nav.tagging" Classes="localized" Header="Tagging" Click="OnTaggingNavigationClick" />
                             <MenuItem x:Name="BooruMoreMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" IsVisible="False" Click="OnBooruNavigationClick" />
                             <Separator Tag="nav.group-separator.0" />
                             <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />

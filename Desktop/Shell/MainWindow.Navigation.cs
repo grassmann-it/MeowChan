@@ -18,12 +18,13 @@ namespace MeowChan;
 public partial class MainWindow
 {
     /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
-    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings, Tagging }
+    internal enum WorkspacePage { Downloads, Archive, Media, Tagging, Booru, Rules, Sources, Status, Settings }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
         "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
-        "navigation.media" => WorkspacePage.Media, "navigation.booru" => WorkspacePage.Booru,
+        "navigation.media" => WorkspacePage.Media, "navigation.tagging" => WorkspacePage.Tagging,
+        "navigation.booru" => WorkspacePage.Booru,
         "navigation.rules" => WorkspacePage.Rules,
         "navigation.sources" => WorkspacePage.Sources, "navigation.status" => WorkspacePage.Status,
         "navigation.plugins" => WorkspacePage.Sources,
@@ -370,6 +371,7 @@ public partial class MainWindow
         ArchiveNavigationButton.Classes.Set("selected", page == WorkspacePage.Archive);
         MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
         BooruNavigationButton.Classes.Set("selected", page == WorkspacePage.Booru);
+        TaggingNavigationButton.Classes.Set("selected", page == WorkspacePage.Tagging);
         SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
@@ -462,7 +464,7 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
-            // Footer groups (Downloads, Archive, Media | Rules, Sources & Plugins | Status | More, Settings):
+            // Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status | More, Settings):
             // the separator behind a group is shown while that group has a visible button, so no two separators meet and
             // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
             Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
@@ -608,6 +610,13 @@ public partial class MainWindow
     {
         ToolsNavigationButton.Flyout?.Hide();
         NavigateWorkspace(WorkspacePage.Media);
+    }
+
+    // The page is built on first use (EnsureTaggingPage), so the footer, More and ⋯ entries go through ShowTaggingPage.
+    private void OnTaggingNavigationClick(object? sender, RoutedEventArgs e)
+    {
+        ToolsNavigationButton.Flyout?.Hide();
+        ShowTaggingPage();
     }
 
     private void OnArchiveNavigationClick(object? sender, RoutedEventArgs e)
