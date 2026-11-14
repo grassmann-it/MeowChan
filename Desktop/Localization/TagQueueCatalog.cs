@@ -36,6 +36,6 @@ internal static class TagQueueCatalog
         ("settings.limits.tagQueueConfirm", "Tagging queue: ask above (files)", "Tagging-Warteschlange: nachfragen ab (Dateien)"),
         ("settings.limits.tagQueueConfirm.hint", "Adding more files than this at once asks first. After you confirm, every file is added.", "Werden auf einmal mehr Dateien hinzugefügt, wird vorher nachgefragt. Nach der Bestätigung werden alle Dateien hinzugefügt."),
         ("limit.tagQueueFile", "The tagging queue file has reached its size limit of {0}, so nothing new can be added. Raise “{1}” under {2}; removing entries still works.", "Die Datei der Tagging-Warteschlange hat ihre Größengrenze von {0} erreicht, es kann nichts Neues hinzukommen. Erhöhe „{1}“ unter {2}; Einträge entfernen geht weiterhin."),
-        ("limit.tagQueueEntries", "The tagging queue is full (limit: {0} entries). Raise “{1}” under {2}; removing entries still works.", "Die Tagging-Warteschlange ist voll (Grenze: {0} Einträge). Erhöhe „{1}“ unter {2}; Einträge entfernen geht weiterhin.")
+        ("limit.tagQueueEntries", "The tagging queue is full (entry limit: {0}). Raise “{1}” under {2}; removing entries still works.", "Die Tagging-Warteschlange ist voll (Grenze für Einträge: {0}). Erhöhe „{1}“ unter {2}; Einträge entfernen geht weiterhin.")
     };
 }

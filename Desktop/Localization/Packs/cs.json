@@ -4128,6 +4128,7 @@
     "command.media.queue.open": "Projít frontu štítkování",
     "queue.title": "Fronta štítkování",
     "queue.ask": "Přidat mediální soubory do fronty štítkování ({0})?",
+    "queue.ask.one": "Přidat mediální soubory do fronty štítkování ({0})?",
     "queue.ask.yes": "Přidat",
     "queue.ask.no": "Zrušit",
     "queue.result": "Přidáno: {0} · Už ve frontě: {1}",

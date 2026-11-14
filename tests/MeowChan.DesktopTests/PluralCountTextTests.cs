@@ -40,7 +40,7 @@ public sealed class PluralCountTextTests : IDisposable
         "readerGroups.matchesNarrow", "reader.newPostsCount", "rules.changedScopes", "selection.failed", "sources.count",
         "tags.manage.orphansUnchecked", "tags.dialog.usesName", "tags.dialog.row.all", "tags.dialog.removedMany",
         "tags.suggest.count", "work.missingAndErrors", "work.interventionCount", "booru.ui.status.results",
-        "booru.ui.post.favorites"
+        "booru.ui.post.favorites", "queue.ask"
     };
 
     // Catalog texts of the shape "{n} noun" with no singular form. Every one is either count-neutral for the number in the
@@ -53,6 +53,7 @@ public sealed class PluralCountTextTests : IDisposable
         ["booru.media.tile.inPosts"] = "shown only for two or more provider posts (guarded by ProviderPostCount > 1)",
         ["booru.ui.page.info"] = "constants: the page cap and the page size of the Danbooru browse",
         ["booru.ui.page.limit"] = "both numbers are fixed Danbooru browse constants, never 1",
+        ["booru.ui.result.showInMediaFor"] = "the number is a post id (\"#{0}\") and \"Media\" is the name of a page",
         ["booru.ui.tags.searchFull"] = "the Danbooru tag-search limit is a fixed provider constant above 1",
         ["export.collectionSelection"] = "a collection export always has at least two members",
         ["feedback.repeated"] = "shown only when the same notice repeated (Count > 1)",
@@ -69,10 +70,12 @@ public sealed class PluralCountTextTests : IDisposable
         ["media.untagged.hint"] = "\"media\" is the same in the singular and the plural",
         ["progress.mediaOf"] = "\"media\" is the same in the singular and the plural",
         ["settings.galleryPlayback.videoRepeatsHint"] = "range text of a bounded setting (\"Default {0}, from {1} to {2} passes\")",
+        ["reader.sidebar.noMedia"] = "the number is a post number (\"No. {0}\") and \"media\" is the same in the singular and the plural",
         ["sources.showAll"] = "\"Downloads\" is the name of a page, not the counted noun",
         ["stats.settings.maxSourcesHint"] = "range text of a bounded setting",
         ["stats.settings.persistIntervalHint"] = "range text of a bounded setting (minutes)",
         ["stats.settings.retentionDaysHint"] = "range text of a bounded setting (days)",
+        ["tagging.help.note"] = "\"{2}\" is the name of a key, not a count",
         ["tags.dialog.row.some"] = "\"{1} of {2} ticked\" form; the total is at least 2 whenever only some carry the tag",
         ["tags.filter.error.tooMany"] = "ArchiveTagFilter.MaximumTagsPerList is a fixed product constant above 1",
         ["tags.quick.chip.all"] = "the chip row exists only for a multi-selection, so the total is always at least 2",

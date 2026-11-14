@@ -4134,6 +4134,7 @@
     "command.media.queue.open": "Przejdź przez kolejkę tagowania",
     "queue.title": "Kolejka tagowania",
     "queue.ask": "Dodać pliki multimedialne do kolejki tagowania ({0})?",
+    "queue.ask.one": "Dodać pliki multimedialne do kolejki tagowania ({0})?",
     "queue.ask.yes": "Dodaj",
     "queue.ask.no": "Anuluj",
     "queue.result": "Dodano: {0} · Już w kolejce: {1}",

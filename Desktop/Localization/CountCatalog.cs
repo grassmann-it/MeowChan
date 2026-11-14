@@ -30,6 +30,7 @@ internal static class CountCatalog
         ("work.retryPaused.one", "Requested one retry for {0} media file. Transfers wait until the session resumes; source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendatei angefordert. Transfers warten auf das Fortsetzen der Sitzung; Quellenlimits gelten weiterhin."),
         ("work.errorSummary.one", "{0} media error", "{0} Medienfehler"),
         ("drop.files.title.one", "Drop to import {0} file or folder", "Loslassen, um {0} Datei oder Ordner zu importieren"),
+        ("queue.ask.one", "Add {0} media file to the tagging queue?", "{0} Mediendatei zur Tagging-Warteschlange hinzufügen?"),
         ("import.start.one", "Import {0} file", "{0} Datei importieren"),
         ("import.done.one", "Imported {0} file into “{1}”.", "{0} Datei in „{1}“ importiert."),
         ("import.done.linked.one", "{0} was already there and is only linked.", "{0} war schon vorhanden und ist nur verknüpft."),

@@ -20,7 +20,7 @@ internal static class StatisticsRowMenu
         Texts.T("stats.col.rate") + ": " + row.Now,
         Texts.T("stats.col.session") + ": " + row.Session,
         Texts.T("stats.col.today") + ": " + row.Today,
-        Texts.T("stats.col.retained", retentionDays) + ": " + row.Retained,
+        Texts.Count("stats.col.retained", retentionDays) + ": " + row.Retained,
         Texts.T("stats.col.diskWritten") + ": " + row.DiskWritten,
         Texts.T("stats.col.diskRead") + ": " + row.DiskRead,
         Texts.T("stats.col.requests") + ": " + row.Requests,

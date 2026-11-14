@@ -51,7 +51,7 @@ internal static class FilterSurfaceCatalog
         ("media.query.reason.tooManyTags", "too many tags", "zu viele Tags"),
         ("media.query.tip", "Also understands filters: type:video, -tag:name, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234. Enter turns them into chips; quotes keep spaces (tag:\"two words\"); everything else stays the file name.", "Versteht auch Filter: type:video, -tag:name, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (oder deutsche Feldnamen wie typ:, quelle:, bewertung:). Enter macht daraus Chips; Anführungszeichen halten Leerzeichen zusammen (tag:\"zwei Wörter\"); alles andere bleibt der Dateiname."),
         ("media.query.copied", "Filters copied as text", "Filter als Text kopiert"),
-        ("media.query.copiedLong", "Filters copied as text. The text is longer than the search field takes ({0} characters).", "Filter als Text kopiert. Der Text ist länger, als das Suchfeld aufnimmt ({0} Zeichen)."),
+        ("media.query.copiedLong", "Filters copied as text. The text is longer than the search field takes (character limit: {0}).", "Filter als Text kopiert. Der Text ist länger, als das Suchfeld aufnimmt (Zeichengrenze: {0})."),
         ("media.query.copyFailed", "The filters could not be copied: the clipboard is not available.", "Die Filter konnten nicht kopiert werden: Die Zwischenablage ist nicht verfügbar."),
         ("media.filter.chip.copyText", "Copy filters as text", "Filter als Text kopieren"),
         ("media.query.alias.tag", "tags label", "tags schlagwort"),

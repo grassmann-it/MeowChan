@@ -5,7 +5,7 @@ internal static class GalleryFilmstripCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("gallery.filmstrip.name", "Filmstrip, {0} media", "Filmstreifen, {0} Medien"),
+        ("gallery.filmstrip.name", "Filmstrip, number of media: {0}", "Filmstreifen, Anzahl der Medien: {0}"),
         ("gallery.filmstrip.tile", "{0} of {1}, {2}, {3}", "{0} von {1}, {2}, {3}"),
         ("gallery.filmstrip.more", "More media are being loaded", "Weitere Medien werden geladen"),
         ("gallery.filmstrip.kind.image", "image", "Bild"),
