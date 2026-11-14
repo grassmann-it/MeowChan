@@ -35,6 +35,8 @@ public sealed class WorkViewRulesSourcesPluginsTests
         string[] required =
         [
             "rules.scope.editing-header", "rules.preview.blocked", "rules.footer.save", "rules.footer.discard",
+            "rules.overview", "rules.overview.create", "rules.overview.drafts", "rules.wizard.close", "rules.wizard.back", "rules.wizard.next",
+            "rules.scope.new", "rules.preview",
             "sources.detail.media-integrity", "sources.detail.watches", "sources.detail.error",
             "plugins.header.review-repairs", "plugins.header.inventory-problems", "plugins.header.error",
             "plugins.detail.sdk-transition", "plugins.detail.draft-footer"
@@ -48,7 +50,7 @@ public sealed class WorkViewRulesSourcesPluginsTests
     public void ReducedBlocksFoldOrMoveUnderMoreInBarebonesAndShowInAdvanced()
     {
         // Barebones: the secondary blocks fold or move; the primary content of each page stays.
-        foreach (string id in new[] { "rules.scope.new", "rules.plugin-filter", "rules.preview", "sources.detail.capabilities",
+        foreach (string id in new[] { "rules.scope.saved", "rules.plugin-filter", "sources.detail.capabilities",
                      "sources.detail.technical", "plugins.directory", "plugins.detail.info" })
             Assert.Equal(Presence.Collapsed, WorkViewPolicy.Resolve(id, WorkView.Barebones));
         foreach (string id in new[] { "rules.templates", "plugins.header.add", "plugins.header.folder", "sources.detail.plugin",
@@ -75,10 +77,10 @@ public sealed class WorkViewRulesSourcesPluginsTests
     public void FoldedRulesBlocksAreDeclaredAsExpandersAndTheTemplatesCardIsGated()
     {
         string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");
-        foreach (string name in new[] { "NewRuleScopeExpander", "RulePluginExpander", "RulePreviewExpander", "RuleTemplatesExpander" })
+        foreach (string name in new[] { "RuleSavedScopesExpander", "RulePluginExpander", "RuleTemplatesExpander" })
             Assert.Matches(@"<Expander\b[^>]*x:Name=""" + name + @"""", xaml);
         string code = ReadSource("Desktop/Views/Rules/RulesPage.WorkViews.cs");
-        // R6: validation or a blocked preview opens the preview block; an active filter opens the filter block.
+        // R6: validation or a blocked preview marks the review step (never folded); an active filter opens the filter block.
         Assert.Contains("HasValidationError || HasPreviewBlocked", code);
         Assert.Contains("PluginFilterActive", code);
         Assert.Contains("TemplatesNeedAttention", code);
