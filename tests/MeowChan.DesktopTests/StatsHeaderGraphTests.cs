@@ -135,7 +135,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
         foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
         {
             Texts.SetLanguage(language);
-            foreach (string key in new[] { "stats.header.networkTitle", "stats.header.diskTitle", "stats.header.readMark", "stats.header.writeMark" })
+            foreach (string key in new[] { "stats.header.networkTitle", "stats.header.diskTitle", "stats.header.down", "stats.header.up", "stats.header.write", "stats.header.read" })
             {
                 string text = Texts.T(key);
                 Assert.NotEqual(key, text);
