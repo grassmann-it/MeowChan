@@ -511,13 +511,11 @@ internal static class BooruMediaChecks
         settings.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await UntilAsync(() => !settings.IsBusy && host.Config.ShowBooruTools == visible && settings.ShowBooruActions == visible);
         await SmokeNavigation.GoToAsync(shell, before);
-        SmokeNavigation.RefreshNavigation(shell);
     }
 
     private static async Task<BooruPage> OpenBooruFromShellAsync(MainWindow shell, string phase)
     {
         // F1: the pages left the ⋯ menu; Booru is hidden in the footer by default, so the page is reached through the More menu.
-        SmokeNavigation.RefreshNavigation(shell);
         Require(SmokeNavigation.Route(shell, MainWindow.WorkspacePage.Booru) is "footer" or "more" && SmokeNavigation.IsEnabled(shell, MainWindow.WorkspacePage.Booru),
             phase + ": the footer and More menu did not expose the Booru entry.");
         await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Booru);
@@ -534,7 +532,6 @@ internal static class BooruMediaChecks
         bool pageHostVisible, bool pageRetained, string phase)
     {
         ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
-        SmokeNavigation.RefreshNavigation(shell);
         // The Danbooru tools entry of the ⋯ menu (the pages have no entry there since F1), the Booru entry of More and the footer button.
         MenuItem appEntry = shell.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
             .Single(item => item.Header as string == MeowChan.Desktop.Commands.CommandCatalog.Label("booru.open"));

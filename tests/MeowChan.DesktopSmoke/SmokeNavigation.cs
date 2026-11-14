@@ -57,22 +57,11 @@ internal static class SmokeNavigation
     }
 
     /// <summary>
-    /// Runs the shell's footer refresh (UpdatePageNavigation). Booru's availability (plugin composed or revoked at runtime, "Show Booru actions")
-    /// changes without that refresh running, so its footer button and More entry can be stale until the next resize or view change; a smoke that has
-    /// just changed it refreshes before it looks. Reflection on a private method, as the other smokes do for the shell's private entry points.
-    /// </summary>
-    internal static void RefreshNavigation(MainWindow window) =>
-        (typeof(MainWindow).GetMethod("UpdatePageNavigation", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("MainWindow.UpdatePageNavigation was renamed; adapt SmokeNavigation.RefreshNavigation."))
-        .Invoke(window, null);
-
-    /// <summary>
     /// Opens a page the way a person does and returns at once (the caller waits for what it needs, as it did after the former menu click).
     /// Footer button first, then the More entry, then the page's keyboard command.
     /// </summary>
     internal static void GoTo(MainWindow window, MainWindow.WorkspacePage page)
     {
-        if (page == MainWindow.WorkspacePage.Booru) RefreshNavigation(window);
         switch (Route(window, page))
         {
             case "footer":
@@ -97,7 +86,6 @@ internal static class SmokeNavigation
     /// </summary>
     internal static async Task GoToAsync(MainWindow window, MainWindow.WorkspacePage page)
     {
-        if (page == MainWindow.WorkspacePage.Booru) RefreshNavigation(window);
         if (Route(window, page) == "more" && window.FindControl<Button>("ToolsNavigationButton") is { Flyout: MenuFlyout menu } tools)
         {
             menu.ShowAt(tools);

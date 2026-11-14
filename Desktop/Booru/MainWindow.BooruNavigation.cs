@@ -87,6 +87,7 @@ public partial class MainWindow
             // completed from the normal busy/restore transitions below.
             RequestBooruUnavailableFallback();
         }
+        SyncBooruNavigation();
         UpdateInteractionState();
         TryCompleteBooruUnavailableFallback();
     }
@@ -100,6 +101,18 @@ public partial class MainWindow
     {
         if (_booruMenu != null) _booruMenu.IsVisible = CanOpenBooru;
         if (!CanOpenBooru) BooruMoreMenuItem.IsVisible = false;
+        SyncBooruNavigation();
+    }
+
+    /// <summary>
+    /// The footer's Booru button and the Booru entry of More follow <see cref="CanOpenBooru"/> (Booru composed or revoked, "Show Booru actions", session
+    /// state). Runs the footer refresh when that value differs from the one the last refresh used, so the button appears or goes away at once instead of
+    /// at the next resize or page change. Cheap when nothing changed; does nothing before the first footer refresh (the constructor builds it).
+    /// </summary>
+    private void SyncBooruNavigation()
+    {
+        if (_booruNavigationAvailable is not { } built || built == CanOpenBooru || _isClosing) return;
+        UpdatePageNavigation();
     }
 
     private void RequestBooruUnavailableFallback()

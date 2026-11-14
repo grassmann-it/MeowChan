@@ -99,6 +99,42 @@ public sealed class BooruPageNavigationContractTests
     }
 
     [Fact]
+    public void BooruAvailabilityChangesRefreshTheFooterButtonAndMoreEntry()
+    {
+        // Booru composed or revoked at runtime (OnBooruChanged), "Show Booru actions" or the session state changing (RefreshBooruToolsPresentation)
+        // must run the footer refresh, or the button and the More entry stay stale until the next resize or page change.
+        string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");
+        string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
+
+        string changed = Between(host, "private void OnBooruChanged()", "private void RefreshBooruToolsPresentation()");
+        Assert.Contains("SyncBooruNavigation();", changed, StringComparison.Ordinal);
+        Assert.True(changed.IndexOf("SyncBooruNavigation();", StringComparison.Ordinal) < changed.IndexOf("UpdateInteractionState();", StringComparison.Ordinal),
+            "The footer must be refreshed before the interaction state enables the Booru button.");
+
+        string presentation = Between(host, "private void RefreshBooruToolsPresentation()", "private void SyncBooruNavigation()");
+        Assert.Contains("SyncBooruNavigation();", presentation, StringComparison.Ordinal);
+
+        // The sync is a no-op until the first refresh and when the availability the last refresh used is unchanged (UpdateInteractionState runs often).
+        string sync = Between(host, "private void SyncBooruNavigation()", "private void RequestBooruUnavailableFallback()");
+        Assert.Contains("_booruNavigationAvailable is not { } built || built == CanOpenBooru || _isClosing", sync, StringComparison.Ordinal);
+        Assert.Contains("UpdatePageNavigation();", sync, StringComparison.Ordinal);
+
+        // The refresh records the availability it builds from; the guard against re-entry comes first so a nested call does not record.
+        string update = Between(navigation, "private void UpdatePageNavigation()", "_measuringPageNavigation = true;");
+        Assert.Contains("if (_measuringPageNavigation) return;", update, StringComparison.Ordinal);
+        Assert.Contains("_booruNavigationAvailable = CanOpenBooru;", update, StringComparison.Ordinal);
+    }
+
+    private static string Between(string text, string from, string to)
+    {
+        int start = text.IndexOf(from, StringComparison.Ordinal);
+        Assert.True(start >= 0, "Missing: " + from);
+        int end = text.IndexOf(to, start + from.Length, StringComparison.Ordinal);
+        Assert.True(end > start, "Missing: " + to);
+        return text[start..end];
+    }
+
+    [Fact]
     public void CompositionSwitchDisposesByReferenceAndDoesNotRecreateOnRepeatedOpen()
     {
         string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");

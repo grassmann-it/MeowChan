@@ -105,7 +105,6 @@ internal static class BooruCompositionChecks
             Require(ReferenceEquals(page, retainedPage), "Returning to Booru replaced the same-service page.");
             // F1: the footer check box is gone; the switch is "Show Booru actions" in Settings (Config.ShowBooruTools), and the page's entry
             // of the footer is the More menu (Booru is hidden from the footer buttons by default).
-            SmokeNavigation.RefreshNavigation(shell);
             Require(shell.SessionHost.Config.ShowBooruTools && SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true },
                 "Booru actions are not on, or the More menu offers no Booru entry, while the page is open.");
             Require(shell.FindControl<CheckBox>("ShowBooruToolsToggle") == null, "The footer still has the Show Booru check box.");
@@ -120,7 +119,6 @@ internal static class BooruCompositionChecks
                 "Hiding Booru discarded the draft from the same page composition.");
             await SetBooruActionsAsync(shell, true);
             await Program.WaitUntilAsync(() => shell.SessionHost.Config.ShowBooruTools, () => "showing Booru did not restore the setting");
-            SmokeNavigation.RefreshNavigation(shell);
             Require(SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true }, "showing Booru did not restore its More entry");
             await RequireEntryVisibleAsync(menu, visible: true);
             page = await OpenAsync(shell, menu);

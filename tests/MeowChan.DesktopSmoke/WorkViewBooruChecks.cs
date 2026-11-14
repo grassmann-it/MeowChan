@@ -67,9 +67,8 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
     internal static async Task EnterAsync(MainWindow window)
     {
         // F1: the pages are not in the ⋯ menu; Booru is hidden in the footer by default, so the route is the More menu (or the footer
-        // button once the person shows it). GoToAsync refreshes the footer first: the fixture composed the services without a resize.
+        // button once the person shows it). The fixture's Reconcile (OnBooruChanged) has refreshed the footer.
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-        SmokeNavigation.RefreshNavigation(window);
         Require(SmokeNavigation.Route(window, MainWindow.WorkspacePage.Booru) is "footer" or "more"
             && SmokeNavigation.IsEnabled(window, MainWindow.WorkspacePage.Booru), "The real shell Booru footer/More route is unavailable.");
         await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Booru);

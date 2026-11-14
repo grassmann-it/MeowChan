@@ -64,7 +64,6 @@ internal static class FooterNavigationChecks
                             scenario + ": the footer view switch is clipped.");
 
                         MenuItem[] visibleItems = menu.Items.OfType<MenuItem>().Where(item => item.IsVisible).ToArray();
-                        SmokeNavigation.RefreshNavigation(window);
                         bool booruInMore = BooruInMore(window);
                         string[] expectedHidden = Destinations.Where(destination => !Button(window, destination.Name).IsVisible)
                             .Select(destination => "nav." + destination.Name.ToLowerInvariant())
@@ -392,7 +391,6 @@ internal static class FooterNavigationChecks
         await window.SetFooterPageVisibleAsync("media", false);
         await Program.WaitUntilAsync(() => !window.FooterLayout.IsVisible("navigation.media"));
         await SettleAsync(window);
-        SmokeNavigation.RefreshNavigation(window);
         Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
         MenuFlyout menu = (MenuFlyout)tools.Flyout!;
         Require(!Button(window, "Media").IsVisible && tools.IsVisible

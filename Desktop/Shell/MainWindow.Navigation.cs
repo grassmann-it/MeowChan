@@ -405,6 +405,7 @@ public partial class MainWindow
     }
 
     private bool _measuringPageNavigation;
+    private bool? _booruNavigationAvailable;
 
     // The footer's separators: one trailing slot behind every page button (so the order of the children follows the footer layout only), shown
     // where the next shown button belongs to another group and behind the last one. The three XAML separators are the slots behind Booru,
@@ -521,6 +522,7 @@ public partial class MainWindow
         if (_measuringPageNavigation) return;
         FooterLayout layout = _config.FooterLayout;
         ApplyFooterNumbering(layout);
+        _booruNavigationAvailable = CanOpenBooru; // what this refresh builds the Booru button and More entry from (SyncBooruNavigation compares)
         _measuringPageNavigation = true;
         try
         {
