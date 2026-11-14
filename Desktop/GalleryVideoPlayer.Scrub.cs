@@ -37,7 +37,7 @@ internal sealed partial class GalleryVideoPlayer
     private readonly TextBlock _scrubTime = new()
     {
         Name = "GalleryVideoScrubTime",
-        HorizontalAlignment = HorizontalAlignment.Center,
+        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
         [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted"),
         IsHitTestVisible = false
     };
@@ -283,7 +283,7 @@ internal sealed partial class GalleryVideoPlayer
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Task inner = await Dispatcher.UIThread.InvokeAsync(DisposeScrubPreviewAsync).ConfigureAwait(false);
+            Task inner = await Dispatcher.UIThread.InvokeAsync(() => DisposeScrubPreviewAsync()).ConfigureAwait(false);
             await inner.ConfigureAwait(false);
             return;
         }
