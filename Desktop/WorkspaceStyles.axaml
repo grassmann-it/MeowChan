@@ -986,6 +986,9 @@
         <Setter Property="BorderThickness" Value="0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
         <Setter Property="Padding" Value="12,8" />
     </Style>
+    <!-- GL5b: the video bar in the gallery's dock: its row is 40 dip (the 32 dip controls and 4 above and below) and has no side inset (the
+         dock's own padding is the only inset); the overlay footer and the Windows fallback keep the padding above. -->
+    <Style Selector="Border.workspace-media-transport.in-dock"><Setter Property="Padding" Value="0,4" /></Style>
     <!-- S2: an icon-only toolbar button: a square of the input height with the catalog icon centred (IconButtons.Apply). -->
     <Style Selector="Button.icon-only">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />

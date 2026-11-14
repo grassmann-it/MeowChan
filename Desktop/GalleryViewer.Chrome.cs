@@ -62,7 +62,7 @@ internal sealed partial class GalleryViewer
     };
     // GL2: the dock hosts the video bar above the tools (one surface, 4 dip between the rows) in the docked placement; the overlay footer
     // has its own host (GalleryViewer.Overlay.cs). Empty and collapsed while no video bar lives here.
-    private readonly StackPanel _dockTransportHost = new() { Name = "GalleryDockTransportHost", IsVisible = false };
+    private readonly StackPanel _dockTransportHost = new() { Name = "GalleryDockTransportHost", Classes = { "in-dock" }, IsVisible = false };
     private GalleryChromePlan? _chromePlan;
     // GL0 hook: the person's layout choice per mode (GL4 loads and saves them per profile, GL3's menu changes them).
     private GalleryLayoutChoice _viewChoice = GalleryLayoutChoice.Default, _tagChoice = GalleryLayoutChoice.Default;

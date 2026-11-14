@@ -100,13 +100,13 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
-        Margin = new Thickness(8, 0, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome)
+        Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome); GL5b: 8/4 inside, so the two rows are 40 dip each
     // GL1+GL2: the docked dock below the picture, without a gap to it: [filmstrip (when at the bottom)] [_chrome: video bar row
     // (GalleryDockTransportHost, GL2), tools] [info line]. The floating footer (_overlayFooter) has the same order: [filmstrip]
     // [GalleryOverlayTransportHost] [_chrome] [info]. The Windows transparency fallback keeps the video bar under the picture.
     private readonly StackPanel _dockStack = new() { Name = "GalleryDock", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
-        Margin = new Thickness(8, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
+        Margin = new Thickness(8, 0, 8, 8), Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b: one 20 dip line (it grows with a safety line)
     private readonly Border _statusPlate = new() { Classes = { "workspace-media-caption" },
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
         MaxWidth = 650, IsHitTestVisible = false, IsVisible = false };

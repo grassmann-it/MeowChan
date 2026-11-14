@@ -451,8 +451,9 @@ internal sealed partial class GalleryViewer
         if (_video?.TransportControl is Border transport)
         {
             SetOverlayBackground(transport, OverlayControlsEffective, background);
-            // GL2: in the dock the bar shares the tools' surface and inset (the dock's padding is its only inset).
-            if (DockHostsTransport) transport.Padding = new Thickness(0); else transport.ClearValue(Border.PaddingProperty);
+            // GL2: in the dock the bar shares the tools' surface and inset (the dock's padding is its only inset); GL5b: the ".in-dock" class
+            // of the dock's host gives the bar that padding (SetExternalTransportHost), so nothing is set here.
+            transport.ClearValue(Border.PaddingProperty);
         }
         // Deliberately never set parent Opacity: text and controls remain fully opaque.
     }
