@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -264,10 +265,12 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
         internal async Task<ProbeResult> Run(string phase, params string[] arguments)
         {
             string executable = BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "PluginReauthorizationProbe"));
+            int invocation = ++sequence;
+            string prefix = Path.Combine(root, $"{invocation:D2}-{phase}");
             ProcessStartInfo start = new(dotnetHost) { WorkingDirectory = root };
-            foreach (string argument in new[] { executable, root, phase, BuiltTestBinaries.WorkerAssembly() }.Concat(arguments)) start.ArgumentList.Add(argument);
+            foreach (string argument in new[] { executable, root, phase, BuiltTestBinaries.WorkerAssembly(),
+                invocation.ToString(CultureInfo.InvariantCulture) }.Concat(arguments)) start.ArgumentList.Add(argument);
             PluginProbeEnvironment.ApplyPrivateEnvironment(start, root);
-            string prefix = Path.Combine(root, $"{++sequence:D2}-{phase}");
             // Kills the whole owned process tree and drains both pipes, also on timeout, before returning/throwing.
             var child = await PluginProbeEnvironment.RunChildAsync(start, TimeSpan.FromSeconds(35),
                 pid => File.WriteAllText(prefix + ".pid", pid.ToString()));
@@ -277,6 +280,15 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
             Assert.True(child.ExitCode == 0, $"Probe {phase} PID {child.Pid} exited {child.ExitCode}: {errors}\n{resultJson}");
             var result = JsonSerializer.Deserialize<ProbeResult>(resultJson) ?? throw new InvalidDataException("Missing probe result.");
             Assert.Equal(child.Pid, result.Pid);
+            Assert.Equal(invocation, result.Sequence);
+            Assert.Equal(phase, result.Phase);
+            string workerEvidence = prefix + ".worker-pid";
+            if (result.WorkerPid is int workerPid)
+            {
+                Assert.NotEqual(result.Pid, workerPid);
+                Assert.Equal(workerPid.ToString(CultureInfo.InvariantCulture), await File.ReadAllTextAsync(workerEvidence));
+            }
+            else Assert.False(File.Exists(workerEvidence));
             Assert.Equal(Environment.GetEnvironmentVariable("OCHAN_TEST_SOURCE_SHA"), result.SourceSha);
             Assert.Equal(Hash(await File.ReadAllBytesAsync(executable)), result.ProbeHash);
             Assert.Equal(Hash(await File.ReadAllBytesAsync(BuiltTestBinaries.WorkerAssembly())), result.WorkerHash);
@@ -285,7 +297,7 @@ public sealed class PluginReauthorizationProcessTests(ITestOutputHelper output) 
             return result;
         }
     }
-    private sealed record ProbeResult(int Pid, string? SourceSha, PluginProfileSnapshot State, BundledCandidateRepair? Row,
+    private sealed record ProbeResult(int Pid, int Sequence, string Phase, string? SourceSha, PluginProfileSnapshot State, BundledCandidateRepair? Row,
         string? Rejection, int? WorkerPid, string? Text, int ImageReads, int HttpRequests,
         string StoreHash, string? BackupHash, string ProbeHash, string WorkerHash,
         string TargetExecution, string TargetAssemblyHash, string OldExecution, string? ThirdExecution);

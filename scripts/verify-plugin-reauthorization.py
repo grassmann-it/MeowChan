@@ -44,7 +44,6 @@ TRX_NAME = "plugin-reauthorization.trx"
 SOURCE_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 PHASE_FILE_RE = re.compile(r"^(?P<sequence>[0-9]+)-(?P<phase>.+)\.(?P<suffix>json|pid|stderr)$")
-WORKER_FILE_RE = re.compile(r"^(?P<phase>.+)\.worker-pid$")
 DEFAULT_TIMEOUT_SECONDS = 1800
 MAX_TIMEOUT_SECONDS = 1800
 DEFAULT_LOCK_WAIT_SECONDS = 120
@@ -699,9 +698,15 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
         expected_numbers = list(range(1, len(phases) + 1))
         if [number for number, _, _ in phases] != expected_numbers:
             raise ProbeError(f"Process evidence sequence numbers are not contiguous in {root}.")
+        # PIDs may be recycled between independent cases, but every invocation
+        # in this one restart sequence must witness a distinct host/worker.
+        seen_pids = set()
+        worker_names = set()
         for number, phase, json_path in phases:
             deadline.remaining()
             prefix = f"{number:02d}-{phase}"
+            if json_path.stem != prefix:
+                raise ProbeError(f"Noncanonical process evidence invocation name: {json_path}")
             pid_path = root / f"{prefix}.pid"
             stderr_path = root / f"{prefix}.stderr"
             _required_file(pid_path, f"process PID evidence {prefix}")
@@ -713,8 +718,14 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
                 raise ProbeError(f"Invalid process evidence JSON/PID for {prefix}.") from error
             if not isinstance(value, dict) or value.get("Phase") != phase:
                 raise ProbeError(f"Process evidence phase mismatch for {json_path}.")
+            if _int_field(value.get("Sequence"), f"{prefix}.Sequence", positive=True) != number:
+                raise ProbeError(f"Process evidence invocation sequence mismatch for {json_path}.")
             _int_field(process_pid, f"{prefix}.pid", positive=True)
-            _int_field(value.get("Pid"), f"{prefix}.Pid", positive=True)
+            if _int_field(value.get("Pid"), f"{prefix}.Pid", positive=True) != process_pid:
+                raise ProbeError(f"Process PID evidence mismatch for {json_path}.")
+            if process_pid in seen_pids:
+                raise ProbeError(f"Process PID reused within the restart sequence: {json_path}.")
+            seen_pids.add(process_pid)
             if value.get("SourceSha") != source_commit:
                 raise ProbeError(f"Process evidence source SHA mismatch for {json_path}.")
             if value.get("ProbeHash") != probe_hash or value.get("WorkerHash") != worker_hash:
@@ -725,15 +736,21 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
                 if not isinstance(value.get(field), str) or not HASH_RE.fullmatch(value[field]):
                     raise ProbeError(f"Process evidence field {field} is not a pinned SHA-like value: {json_path}")
             worker_pid = value.get("WorkerPid")
-            worker_path = root / f"{phase}.worker-pid"
+            worker_path = root / f"{prefix}.worker-pid"
             if worker_pid is None:
                 if worker_path.exists() or os.path.lexists(worker_path):
                     raise ProbeError(f"Unexpected worker PID evidence for a non-worker phase: {worker_path}")
             else:
                 _int_field(worker_pid, f"{prefix}.WorkerPid", positive=True)
-                _required_file(worker_path, f"worker PID evidence {phase}")
+                if not phase.startswith("start-"):
+                    raise ProbeError(f"Worker PID evidence belongs to a non-start invocation: {json_path}.")
+                if worker_pid in seen_pids:
+                    raise ProbeError(f"Worker PID reused within the restart sequence: {json_path}.")
+                seen_pids.add(worker_pid)
+                _required_file(worker_path, f"worker PID evidence {prefix}")
                 if worker_path.read_text(encoding="utf-8").strip() != str(worker_pid):
                     raise ProbeError(f"Worker PID evidence mismatch for {worker_path}.")
+                worker_names.add(worker_path.name)
                 worker_evidence_count += 1
             process_count += 1
         expected_json_names = {f"{number:02d}-{phase}.json" for number, phase, _ in phases}
@@ -745,7 +762,7 @@ def validate_process_evidence(parent: Path, source_commit: str, probe_hash: str,
                 name.replace(".json", ".pid") for name in expected_json_names
             } and path.name not in {
                 name.replace(".json", ".stderr") for name in expected_json_names
-            } and path.name not in {phase + ".worker-pid" for _, phase, _ in phases}:
+            } and path.name not in worker_names:
                 raise ProbeError(f"Unmatched per-process evidence file: {path}")
         inventory_tree(root, f"persistent process evidence {root.name}", deadline)
 
@@ -869,11 +886,15 @@ def main(argv: list[str] | None = None) -> int:
         _atomic_json(evidence / "RESULT.json", result)
         print(json.dumps({"passed": True, "scope": SCOPE, "evidence": str(evidence / "RESULT.json")}, sort_keys=True))
         return 0
-    except (ProbeError, OSError, ValueError, ET.ParseError) as error:
-        result["error"] = {"type": type(error).__name__, "message": str(error)}
-        result["exitCode"] = 2 if isinstance(error, UnsupportedEnvironment) else 1
+    except (ProbeError, OSError, ValueError, ET.ParseError, KeyboardInterrupt) as error:
+        # Success serialization/output can fail or be interrupted after passed
+        # was set. The recovery report must never retain that optimistic flag.
+        result["passed"] = False
+        interrupted = isinstance(error, KeyboardInterrupt)
+        result["error"] = {"type": type(error).__name__, "message": "interrupted" if interrupted else str(error)}
+        result["exitCode"] = 130 if interrupted else 2 if isinstance(error, UnsupportedEnvironment) else 1
         if evidence is not None:
-            if "nugetFeed" in result and "after" not in result["nugetFeed"]:
+            if not interrupted and "nugetFeed" in result and "after" not in result["nugetFeed"]:
                 try:
                     result["nugetFeed"]["after"] = inventory_tree(
                         Path(result["nugetFeed"]["path"]), "provided local NuGet feed after failure", deadline)
@@ -883,16 +904,13 @@ def main(argv: list[str] | None = None) -> int:
             # expired. Never restart a deadline or an unbounded after-inventory.
             try:
                 _atomic_json(evidence / "RESULT.json", result)
-            except (OSError, ProbeError) as report_error:
+            except (OSError, ProbeError, ValueError) as report_error:
                 result["reportWriteError"] = f"{type(report_error).__name__}: {report_error}"
-        print(json.dumps({"passed": False, "scope": SCOPE, "error": result["error"]}, sort_keys=True), file=sys.stderr)
+        summary = {"passed": False, "exitCode": result["exitCode"], "scope": SCOPE, "error": result["error"]}
+        if "reportWriteError" in result:
+            summary["reportWriteError"] = result["reportWriteError"]
+        print(json.dumps(summary, sort_keys=True), file=sys.stderr)
         return result["exitCode"]
-    except KeyboardInterrupt:
-        result["error"] = {"type": "KeyboardInterrupt", "message": "interrupted"}
-        result["exitCode"] = 130
-        if evidence is not None:
-            _atomic_json(evidence / "RESULT.json", result)
-        return 130
 
 
 def _atomic_json(path: Path, value: dict) -> None:

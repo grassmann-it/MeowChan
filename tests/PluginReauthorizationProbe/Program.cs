@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,8 @@ using PluginReauthorizationProbe;
 // Every invocation is a fresh host process. The only bridge is the fixture input and the
 // real profile store on disk; no snapshot, binding or consent is reconstructed by the parent.
 string root = Path.GetFullPath(args[0]), phase = args[1], workerPath = args[2];
+int sequence = int.Parse(args[3], CultureInfo.InvariantCulture);
+if (sequence <= 0) throw new ArgumentOutOfRangeException(nameof(sequence));
 Directory.CreateDirectory(root);
 using CancellationTokenSource lifetime = new(TimeSpan.FromSeconds(25));
 using SemaphoreSlim permissions = new(1, 1);
@@ -22,7 +25,7 @@ string inputPath = Path.Combine(root, "fixture.json"), reviewPath = Path.Combine
 Fixture fixture;
 if (phase == "seed")
 {
-    bool material = bool.Parse(args[3]), enabled = bool.Parse(args[4]);
+    bool material = bool.Parse(args[4]), enabled = bool.Parse(args[5]);
     fixture = new(await Deliver("old", material ? 'A' : 'a'), await Deliver("target", material ? 'B' : 'b'),
         null, await Deliver("other", 'x'), material);
     await File.WriteAllBytesAsync(inputPath, SdkJson.Serialize(fixture));
@@ -103,7 +106,11 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
         await using (var worker = await manager.StartAsync(new(dotnet, [workerPath], workspace), active.Artifact, active.Configuration, services, cancellationToken: lifetime.Token))
         {
             workerPid = worker.Snapshot.ProcessId;
-            await File.WriteAllTextAsync(Path.Combine(root, phase + ".worker-pid"), workerPid!.Value.ToString());
+            // Keep every restart's PID, not just the last PID for this phase.
+            // CreateNew makes an accidental invocation replay fail, never overwrite.
+            string workerEvidence = Path.Combine(root, $"{sequence:D2}-{phase}.worker-pid");
+            await using (FileStream evidence = new(workerEvidence, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                await evidence.WriteAsync(Encoding.UTF8.GetBytes(workerPid!.Value.ToString(CultureInfo.InvariantCulture)), lifetime.Token);
             if (!SdkJson.Serialize(active.Description).AsSpan().SequenceEqual(SdkJson.Serialize(worker.Description)))
                 throw new InvalidDataException("Worker did not describe the exact approved release.");
             var operation = new PluginOperationContext("shared/b/1", 1);
@@ -127,7 +134,7 @@ if (phase.StartsWith("start-", StringComparison.Ordinal) && Plugin(final) is { E
 var repair = (await store.PreviewBundledRepairsAsync(lifetime.Token)).Rows.SingleOrDefault(row => row.PluginId == "process.plugin");
 Console.WriteLine(JsonSerializer.Serialize(new
 {
-    Pid = Environment.ProcessId, SourceSha = Environment.GetEnvironmentVariable("OCHAN_TEST_SOURCE_SHA"), Phase = phase,
+    Pid = Environment.ProcessId, Sequence = sequence, SourceSha = Environment.GetEnvironmentVariable("OCHAN_TEST_SOURCE_SHA"), Phase = phase,
     State = final, Row = repair, Rejection = rejection, WorkerPid = workerPid, Text = text, ImageReads = imageReads, HttpRequests = httpRequests,
     StoreHash = Hash(await File.ReadAllBytesAsync(store.StorePath)),
     BackupHash = File.Exists(store.PreReselectionBackupPath) ? Hash(await File.ReadAllBytesAsync(store.PreReselectionBackupPath)) : null,

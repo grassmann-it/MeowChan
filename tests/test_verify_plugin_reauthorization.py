@@ -25,6 +25,8 @@ SPEC.loader.exec_module(RUNNER)
 
 SHA = "a" * 40
 HASH = "b" * 64
+PROBE_HASH = "c" * 64
+WORKER_HASH = "d" * 64
 
 
 class FakeClock:
@@ -143,52 +145,152 @@ class PluginReauthorizationRunnerTests(unittest.TestCase):
                     with self.assertRaises(RUNNER.ProbeError):
                         RUNNER.validate_trx(trx, RUNNER.Deadline(30))
 
+    @staticmethod
+    def write_process_fixture(parent):
+        parent.mkdir()
+        sequences = (
+            [("seed", "stage-B", "review", "consent-no-rights", "start-B", "consent",
+              "start-B", "start-B", "stage-C", "consent", "start-C")] * 4
+            + [("seed", "stage-B", "review", "consent-forged", "start-B")] * 2
+            + [("seed", "stage-B", "review", "consent-cancel", "start-B")] * 2
+            + [("seed", "stage-B", "review", "consent-missing", "start-B")] * 2
+            + [("seed", "stage-B", "review", "bump-grant", "consent", "start-B")] * 2
+            + [("seed", "stage-B", "review", "consent", "delete-target", "start-B")] * 2
+        )
+        for index, sequence in enumerate(sequences):
+            root = parent / f"reauth-process-{index:02d}"
+            root.mkdir()
+            for number, phase in enumerate(sequence, 1):
+                prefix = f"{number:02d}-{phase}"
+                host_pid = 10000 + index * 100 + number
+                (root / f"{prefix}.pid").write_text(str(host_pid), encoding="utf-8")
+                (root / f"{prefix}.stderr").write_text("", encoding="utf-8")
+                value = {
+                    "Pid": host_pid, "Sequence": number, "SourceSha": SHA, "Phase": phase,
+                    "HttpRequests": 0, "StoreHash": HASH, "TargetExecution": HASH,
+                    "TargetAssemblyHash": HASH, "OldExecution": HASH,
+                    "ProbeHash": PROBE_HASH, "WorkerHash": WORKER_HASH, "WorkerPid": None,
+                }
+                # The two enabled success cases have an early denied start-B,
+                # then two fresh worker processes. Disabled/invalid cases have none.
+                if index < 2 and number in (7, 8):
+                    value["WorkerPid"] = 20000 + index * 100 + number
+                    (root / f"{prefix}.worker-pid").write_text(str(value["WorkerPid"]), encoding="utf-8")
+                (root / f"{prefix}.json").write_text(json.dumps(value), encoding="utf-8")
+
     def test_process_evidence_requires_all_persistent_phase_and_worker_records(self):
         with tempfile.TemporaryDirectory() as temporary:
             parent = Path(temporary) / "process-evidence"
-            parent.mkdir()
-            sequences = (
-                [("seed", "stage-B", "review", "consent-no-rights", "start-B", "consent",
-                  "start-B", "start-B", "stage-C", "consent", "start-C")] * 4
-                + [("seed", "stage-B", "review", "consent-forged", "start-B")] * 2
-                + [("seed", "stage-B", "review", "consent-cancel", "start-B")] * 2
-                + [("seed", "stage-B", "review", "consent-missing", "start-B")] * 2
-                + [("seed", "stage-B", "review", "bump-grant", "consent", "start-B")] * 2
-                + [("seed", "stage-B", "review", "consent", "delete-target", "start-B")] * 2
-            )
-            for index, sequence in enumerate(sequences):
-                root = parent / f"reauth-process-{index:02d}"
-                root.mkdir()
-                for number, phase in enumerate(sequence, 1):
-                    prefix = f"{number:02d}-{phase}"
-                    (root / f"{prefix}.pid").write_text(str(1000 + index), encoding="utf-8")
-                    (root / f"{prefix}.stderr").write_text("", encoding="utf-8")
-                    value = {
-                        "Pid": 2000 + index,
-                        "SourceSha": SHA,
-                        "Phase": phase,
-                        "HttpRequests": 0,
-                        "StoreHash": HASH,
-                        "TargetExecution": HASH,
-                        "TargetAssemblyHash": HASH,
-                        "OldExecution": HASH,
-                        "ProbeHash": HASH,
-                        "WorkerHash": HASH,
-                        "WorkerPid": None,
-                    }
-                    if phase.startswith("start-") and index % 2 == 0:
-                        value["WorkerPid"] = 3000 + index
-                        (root / f"{phase}.worker-pid").write_text(str(value["WorkerPid"]), encoding="utf-8")
-                    (root / f"{prefix}.json").write_text(json.dumps(value), encoding="utf-8")
-            result = RUNNER.validate_process_evidence(parent, SHA, HASH, HASH, RUNNER.Deadline(30))
-            self.assertEqual(RUNNER.EXPECTED_MATRIX_CASES, result["matrixRoots"])
-            self.assertEqual(RUNNER.EXPECTED_PROCESS_INVOCATIONS, result["processInvocations"])
-            self.assertGreater(result["workerEvidenceFiles"], 0)
-
-            missing = parent / "reauth-process-00" / "01-seed.stderr"
-            missing.unlink()
+            self.write_process_fixture(parent)
+            result = RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+            self.assertEqual(14, result["matrixRoots"])
+            self.assertEqual(98, result["processInvocations"])
+            self.assertEqual(4, result["workerEvidenceFiles"])
+            root = parent / "reauth-process-00"
+            self.assertFalse((root / "05-start-B.worker-pid").exists())
+            first = json.loads((root / "07-start-B.json").read_text())
+            second = json.loads((root / "08-start-B.json").read_text())
+            self.assertNotEqual(first["Pid"], second["Pid"])
+            self.assertNotEqual(first["WorkerPid"], second["WorkerPid"])
+            for number, value in ((7, first), (8, second)):
+                self.assertEqual(number, value["Sequence"])
+                self.assertEqual(str(value["WorkerPid"]), (root / f"{number:02d}-start-B.worker-pid").read_text())
+            (root / "01-seed.stderr").unlink()
             with self.assertRaisesRegex(RUNNER.ProbeError, "stderr"):
-                RUNNER.validate_process_evidence(parent, SHA, HASH, HASH, RUNNER.Deadline(30))
+                RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+
+    def test_process_json_is_bound_to_exact_invocation_pid_phase_hash_and_source(self):
+        mutations = (
+            ("Pid", 99999, "PID"), ("Pid", True, "integer"),
+            ("Sequence", 8, "sequence"), ("Sequence", True, "integer"),
+            ("Phase", "start-C", "phase"), ("SourceSha", "e" * 40, "source SHA"),
+            ("ProbeHash", WORKER_HASH, "artifact hash"), ("WorkerHash", PROBE_HASH, "artifact hash"),
+            ("HttpRequests", 1, "HTTP"), ("StoreHash", "not-a-hash", "SHA-like"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary) / "process-evidence"
+            self.write_process_fixture(parent)
+            path = parent / "reauth-process-00" / "07-start-B.json"
+            original = path.read_text(encoding="utf-8")
+            for field, invalid, message in mutations:
+                with self.subTest(field=field, invalid=invalid):
+                    value = json.loads(original)
+                    value[field] = invalid
+                    path.write_text(json.dumps(value), encoding="utf-8")
+                    with self.assertRaisesRegex(RUNNER.ProbeError, message):
+                        RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+            path.write_text(original, encoding="utf-8")
+            # Same-named phase, but a different invocation: copying the entire
+            # previous JSON must not turn a reused process into a fresh restart.
+            (path.parent / "08-start-B.json").write_text(original, encoding="utf-8")
+            with self.assertRaisesRegex(RUNNER.ProbeError, "sequence"):
+                RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+
+    def test_fresh_invocations_cannot_reuse_host_or_worker_pid(self):
+        for role in ("host", "worker", "worker-is-host", "host-was-worker"):
+            with self.subTest(role=role), tempfile.TemporaryDirectory() as temporary:
+                parent = Path(temporary) / "process-evidence"
+                self.write_process_fixture(parent)
+                root = parent / "reauth-process-00"
+                first = json.loads((root / "07-start-B.json").read_text())
+                path = root / "08-start-B.json"
+                second = json.loads(path.read_text())
+                if role in ("host", "host-was-worker"):
+                    second["Pid"] = first["Pid"] if role == "host" else first["WorkerPid"]
+                    (root / "08-start-B.pid").write_text(str(second["Pid"]))
+                else:
+                    second["WorkerPid"] = first["WorkerPid"] if role == "worker" else second["Pid"]
+                    (root / "08-start-B.worker-pid").write_text(str(second["WorkerPid"]))
+                path.write_text(json.dumps(second))
+                with self.assertRaisesRegex(RUNNER.ProbeError, "PID.*reused|reused.*PID"):
+                    RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+
+    def test_worker_pid_evidence_cannot_be_missing_swapped_legacy_or_aliased(self):
+        for mutation in ("missing", "wrong", "swapped", "legacy-only", "legacy-extra", "unknown-sequence",
+                         "non-worker", "symlink"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                parent = Path(temporary) / "process-evidence"
+                self.write_process_fixture(parent)
+                root = parent / "reauth-process-00"
+                first, second = root / "07-start-B.worker-pid", root / "08-start-B.worker-pid"
+                if mutation == "missing":
+                    first.unlink()
+                elif mutation == "wrong":
+                    first.write_text("99999")
+                elif mutation == "swapped":
+                    a, b = first.read_text(), second.read_text()
+                    first.write_text(b)
+                    second.write_text(a)
+                elif mutation == "legacy-only":
+                    first.rename(root / "start-B.worker-pid")
+                elif mutation == "legacy-extra":
+                    (root / "start-B.worker-pid").write_text(second.read_text())
+                elif mutation == "unknown-sequence":
+                    (root / "99-start-B.worker-pid").write_text(second.read_text())
+                elif mutation == "non-worker":
+                    (root / "05-start-B.worker-pid").write_text(first.read_text())
+                else:
+                    first.unlink()
+                    first.symlink_to(second)
+                with self.assertRaises(RUNNER.ProbeError):
+                    RUNNER.validate_process_evidence(parent, SHA, PROBE_HASH, WORKER_HASH, RUNNER.Deadline(30))
+
+    def test_csharp_parent_and_producer_share_the_sequenced_invocation_contract(self):
+        # Source-contract check only, not a C# compile/runtime claim.
+        parent = (ROOT / "tests/MeowChan.PluginRuntime.Tests/PluginReauthorizationProcessTests.cs").read_text()
+        producer = (ROOT / "tests/PluginReauthorizationProbe/Program.cs").read_text()
+        self.assertIn('invocation.ToString(CultureInfo.InvariantCulture)', parent)
+        self.assertIn('int.Parse(args[3], CultureInfo.InvariantCulture)', producer)
+        self.assertIn('bool.Parse(args[4]), enabled = bool.Parse(args[5])', producer)
+        self.assertIn('$"{invocation:D2}-{phase}"', parent)
+        self.assertIn('$"{sequence:D2}-{phase}.worker-pid"', producer)
+        self.assertIn('FileMode.CreateNew', producer)
+        self.assertIn('Sequence = sequence', producer)
+        self.assertIn('Assert.Equal(invocation, result.Sequence)', parent)
+        self.assertIn('Assert.Equal(phase, result.Phase)', parent)
+        self.assertIn('ProbeResult(int Pid, int Sequence, string Phase,', parent)
+        self.assertIn('string workerEvidence = prefix + ".worker-pid"', parent)
+        self.assertNotIn('phase + ".worker-pid"', producer)
 
     def test_network_namespace_and_environment_are_explicitly_private(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -580,6 +682,96 @@ class PluginReauthorizationRunnerTests(unittest.TestCase):
                             self.fail("Contended lock acquired")
                 self.assertLessEqual(sum(sleeps), min(total, wait) + 1e-10)
                 self.assertLessEqual(len(sleeps), 2)
+
+    def test_result_write_or_success_output_failure_is_persisted_fail_closed(self):
+        cases = (
+            ("write", OSError("first RESULT write failed"), 1),
+            ("write", ValueError("first RESULT encoding failed"), 1),
+            ("write", KeyboardInterrupt(), 130),
+            ("output", OSError("success output failed"), 1),
+            ("output", KeyboardInterrupt(), 130),
+        )
+        for stage, failure, expected_code in cases:
+            with self.subTest(stage=stage, failure=type(failure).__name__), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                feed, evidence = root / "feed", root / "evidence"
+                feed.mkdir()
+                lock = mock.MagicMock()
+                lock.__enter__.return_value = {"acquired": True}
+                original_writer = RUNNER._atomic_json
+                attempts, messages = [], []
+
+                def writer(path, value):
+                    attempts.append(json.loads(json.dumps(value)))
+                    if stage == "write" and len(attempts) == 1:
+                        raise failure
+                    original_writer(path, value)
+
+                def output(message, **kwargs):
+                    messages.append(json.loads(message))
+                    if stage == "output" and len(messages) == 1:
+                        raise failure
+
+                with mock.patch.object(RUNNER, "verify_source_pin", return_value={"commit": SHA}), \
+                     mock.patch.object(RUNNER, "acquire_lock", return_value=lock), \
+                     mock.patch.object(RUNNER, "execute", side_effect=lambda *args: args[4]), \
+                     mock.patch.object(RUNNER, "_atomic_json", side_effect=writer), \
+                     mock.patch.object(RUNNER, "print", create=True, side_effect=output):
+                    code = RUNNER.main([
+                        "--source-commit", SHA, "--evidence-dir", str(evidence), "--nuget-feed", str(feed),
+                        "--heavy-lock", str(root / "fake-parent.lock"),
+                    ])
+                result = json.loads((evidence / "RESULT.json").read_text())
+                self.assertEqual(expected_code, code)
+                self.assertFalse(result["passed"])
+                self.assertEqual(expected_code, result["exitCode"])
+                self.assertEqual(type(failure).__name__, result["error"]["type"])
+                self.assertTrue(attempts[0]["passed"])
+                self.assertFalse(attempts[-1]["passed"])
+                self.assertEqual(2, len(attempts))
+                self.assertFalse(messages[-1]["passed"])
+                self.assertEqual(expected_code, messages[-1]["exitCode"])
+
+    def test_error_and_interrupt_report_write_failures_still_return_nonzero_and_false(self):
+        cases = (
+            (RUNNER.ProbeError("execution failed"), 1, OSError("evidence disk unavailable")),
+            (KeyboardInterrupt(), 130, OSError("evidence disk unavailable")),
+            (RUNNER.ProbeError("execution failed"), 1, ValueError("evidence encoding failed")),
+            (KeyboardInterrupt(), 130, ValueError("evidence encoding failed")),
+            (RUNNER.UnsupportedEnvironment("tool unavailable"), 2, OSError("evidence disk unavailable")),
+        )
+        for failure, expected_code, report_error in cases:
+            with self.subTest(failure=type(failure).__name__, report_error=type(report_error).__name__), \
+                 tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                feed, evidence = root / "feed", root / "evidence"
+                feed.mkdir()
+                lock = mock.MagicMock()
+                lock.__enter__.return_value = {"acquired": True}
+                stderr = io.StringIO()
+                attempts = []
+
+                def failing_writer(path, value):
+                    attempts.append(json.loads(json.dumps(value)))
+                    raise report_error
+
+                with mock.patch.object(RUNNER, "verify_source_pin", return_value={"commit": SHA}), \
+                     mock.patch.object(RUNNER, "acquire_lock", return_value=lock), \
+                     mock.patch.object(RUNNER, "execute", side_effect=failure), \
+                     mock.patch.object(RUNNER, "_atomic_json", side_effect=failing_writer), \
+                     redirect_stderr(stderr), redirect_stdout(io.StringIO()):
+                    code = RUNNER.main([
+                        "--source-commit", SHA, "--evidence-dir", str(evidence), "--nuget-feed", str(feed),
+                        "--heavy-lock", str(root / "fake-parent.lock"),
+                    ])
+                self.assertEqual(expected_code, code)
+                self.assertEqual(1, len(attempts))  # No endless report retries.
+                self.assertFalse(attempts[0]["passed"])
+                self.assertEqual(expected_code, attempts[0]["exitCode"])
+                summary = json.loads(stderr.getvalue())
+                self.assertFalse(summary["passed"])
+                self.assertEqual(expected_code, summary["exitCode"])
+                self.assertIn(str(report_error), summary["reportWriteError"])
 
     def test_timeout_and_lock_wait_limits_are_rejected_before_side_effects(self):
         common = [
