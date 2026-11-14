@@ -31,11 +31,14 @@ internal static class TaggingPageChecks
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
             await window.SessionHost.EnqueueTagQueueAsync(new[] { Item(1), Item(2), Item(3) });
 
-            // The page is an app-menu destination, not a footer button.
+            // The page has a footer button behind Media (Ctrl+1…7 stay as shipped, so it owns no digit) and keeps its ⋯ entry.
             MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
             MenuItem entry = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Tagging"));
-            Require(window.FindControl<Button>("TaggingNavigationButton") == null, "The tagging page must not get a footer button.");
-            entry.Command!.Execute(null);
+            Button footerButton = window.FindControl<Button>("TaggingNavigationButton") ?? throw new InvalidOperationException("The tagging page has no footer button.");
+            Require(Avalonia.Automation.AutomationProperties.GetName(footerButton) == "Tagging" && ToolTip.GetTip(footerButton) is string footerTip
+                && footerTip.StartsWith("Tagging", StringComparison.Ordinal), "The tagging footer button lost its accessible name or tooltip.");
+            Require(entry.Name == "TaggingMenuItem" && entry.IsEnabled, "The ⋯ entry of the tagging page is missing or disabled.");
+            entry.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
             await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Tagging && window.TaggingPage is { IsBusy: false } page
                 && page.Rows.Count == 3, () => "page " + window.SelectedPage + ", rows " + window.TaggingPage?.Rows.Count);
             TaggingPage tagging = window.TaggingPage!;

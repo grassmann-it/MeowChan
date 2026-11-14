@@ -18,6 +18,8 @@ public sealed class MainPageHeadingTests
         ("navigation.downloads", "Desktop/Shell/MainWindow.axaml"),
         ("navigation.archive", "Desktop/Views/Archive/ArchivePage.axaml"),
         ("navigation.media", "Desktop/Views/Media/MediaPage.cs"),
+        ("navigation.tagging", "Desktop/Views/Tagging/TaggingPage.cs"),
+        ("navigation.booru", "Desktop/Views/Booru/BooruWorkbenchView.cs"),
         ("navigation.rules", "Desktop/Views/Rules/RulesPage.axaml"),
         ("navigation.sources", "Desktop/Views/Plugins/PluginsPage.axaml"),
         ("navigation.status", "Desktop/Views/Status/StatusPage.axaml"),

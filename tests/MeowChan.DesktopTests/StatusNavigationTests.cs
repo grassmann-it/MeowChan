@@ -17,7 +17,7 @@ public sealed class StatusNavigationTests : IDisposable
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
     private static readonly string[] Earlier =
-        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources"];
+        ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.booru", "navigation.rules", "navigation.sources"];
 
     public StatusNavigationTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
@@ -28,8 +28,9 @@ public sealed class StatusNavigationTests : IDisposable
         Assert.Equal([.. Earlier, "navigation.status"], MainPageOrder.CommandIds);
         // Visual grouping gained Booru before Rules, but existing digit defaults deliberately
         // stay stable: Booru uses the freed Plugins slot 6; Rules/Sources keep 4/5.
-        Assert.Equal(new int?[] { 1, 2, 3, 6, 4, 5, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
-        foreach (string id in Earlier)
+        // Tagging joined the footer behind Media without taking a digit.
+        Assert.Equal(new int?[] { 1, 2, 3, null, 6, 4, 5, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
+        foreach (string id in Earlier.Where(id => id != "navigation.tagging"))
             Assert.Equal("Primary+" + MainPageOrder.Digit(id), MainPageOrder.DefaultShortcut(id));
         Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
         Assert.Equal("Primary+7", MainPageOrder.DefaultShortcut("navigation.status"));

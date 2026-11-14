@@ -8,7 +8,7 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class NavigationMediaShortcutTests : IDisposable
 {
-    private static readonly string[] Pages = MainPageOrder.CommandIds.ToArray();
+    private static readonly string[] Pages = MainPageOrder.NumberedCommandIds.ToArray();
     // Pages whose digit changed with the footer-order renumbering (Downloads and Archive kept theirs).
     public static IEnumerable<object[]> RenumberedPages() =>
         new[] { "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status" }.Select(id => new object[] { id });

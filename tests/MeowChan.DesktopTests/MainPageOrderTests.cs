@@ -23,26 +23,37 @@ public sealed class MainPageOrderTests
     private static string Stem(string tag) => char.ToUpperInvariant(tag[4]) + tag[5..];
 
     [Fact]
-    public void TheNthFooterButtonIsTheNthMainPageAndHasDigitN()
+    public void TheNthFooterButtonIsTheNthMainPageAndItsDigitIsTheShippedOne()
     {
         XElement footer = Assert.Single(Markup().Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
         string[] names = footer.Elements().Select(Name).OfType<string>().Where(name => name.EndsWith("NavigationButton", StringComparison.Ordinal)).ToArray();
         string[] pages = names.TakeWhile(name => name != "ToolsNavigationButton").ToArray();
         Assert.Equal(OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "NavigationButton"), pages);
         Assert.Equal(new[] { "ToolsNavigationButton", "SettingsNavigationButton" }, names.Skip(pages.Length));
+        // The digits are the shipped ones (the help and many tests pin them), not the footer position: Booru takes 6 behind
+        // Media, Tagging (also behind Media) owns none and stays bindable.
+        int?[] digits = [1, 2, 3, null, 6, 4, 5, 7];
+        Assert.Equal(digits.Length, pages.Length);
         for (int index = 0; index < pages.Length; index++)
         {
-            Assert.Equal(MainPageOrder.DefaultShortcut(OrderedIds[index]), CommandCatalog.Get(OrderedIds[index]).Shortcut);
-            Assert.Equal(index + 1, MainPageOrder.Digit(OrderedIds[index]));
+            Assert.Equal(digits[index], MainPageOrder.Digit(OrderedIds[index]));
+            if (digits[index] is int digit)
+                Assert.Equal(MainPageOrder.DefaultShortcut(OrderedIds[index]), CommandCatalog.Get(OrderedIds[index]).Shortcut);
+            else
+            {
+                Assert.Null(CommandCatalog.Get(OrderedIds[index]).Shortcut);
+                Assert.Throws<ArgumentException>(() => MainPageOrder.DefaultShortcut(OrderedIds[index]));
+            }
         }
+        Assert.Equal(OrderedIds.Where(id => id != "navigation.tagging"), MainPageOrder.NumberedCommandIds);
     }
 
     [Fact]
     public void TheMainPagesFormThreeGroupsInTheAgreedOrderAndTheFooterSetsThemApartWithSeparators()
     {
-        Assert.Equal(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.booru", "navigation.rules", "navigation.sources",
-            "navigation.status" }, OrderedIds);
-        Assert.Equal(new[] { 4, 2, 1 }, MainPageOrder.Groups.Select(group => group.Count));
+        Assert.Equal(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.booru", "navigation.rules",
+            "navigation.sources", "navigation.status" }, OrderedIds);
+        Assert.Equal(new[] { 5, 2, 1 }, MainPageOrder.Groups.Select(group => group.Count));
         Assert.Null(MainPageOrder.Digit("navigation.plugins"));
         Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
         // Diagnostics and Statistics are segments of Status, no main pages and no digits (Primary+8 is free).
@@ -70,7 +81,7 @@ public sealed class MainPageOrderTests
         // Separators of the flyout stand exactly between the groups (Downloads is not in the flyout).
         string[] flyoutShape = tools.Descendants().Where(e => e.Name.LocalName is "MenuItem" or "Separator")
             .Select(e => e.Name.LocalName == "Separator" ? "|" : (string)e.Attribute("Tag")!).ToArray();
-        Assert.Equal(new[] { "nav.archive", "nav.media", "nav.booru", "|", "nav.rules", "nav.sources", "|", "nav.status" }, flyoutShape);
+        Assert.Equal(new[] { "nav.archive", "nav.media", "nav.tagging", "nav.booru", "|", "nav.rules", "nav.sources", "|", "nav.status" }, flyoutShape);
         Assert.Equal(new[] { "nav.group-separator.0", "nav.group-separator.1" },
             tools.Descendants().Where(e => e.Name.LocalName == "Separator").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
 
@@ -83,7 +94,7 @@ public sealed class MainPageOrderTests
         string[] menuShape = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?")
             .TakeWhile(item => item != "ManualImportMenuItem").ToArray();
         string[] pageShape = OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "MenuItem").ToArray();
-        Assert.Equal(pageShape.Take(4).Append("|").Concat(pageShape.Skip(4).Take(2)).Append("|").Append(pageShape[6]).Append("|"), menuShape);
+        Assert.Equal(pageShape.Take(5).Append("|").Concat(pageShape.Skip(5).Take(2)).Append("|").Append(pageShape[7]).Append("|"), menuShape);
         // Tools, then the application's own entries, then Exit.
         string[] rest = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?").SkipWhile(item => item != "ManualImportMenuItem").ToArray();
         Assert.Equal(new[] { "ManualImportMenuItem", "ReaderGroupsMenuItem", "|", "PauseMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "|", "ExitMenuItem" }, rest);
@@ -102,8 +113,9 @@ public sealed class MainPageOrderTests
     public void TheHelpAndTooltipsReadTheSameDigitsAsTheCatalog()
     {
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-        for (int index = 0; index < OrderedIds.Length; index++)
-            Assert.Equal("Ctrl+" + MainPageOrder.Digit(OrderedIds[index]), bindings.Display(OrderedIds[index]));
+        foreach (string id in MainPageOrder.NumberedCommandIds)
+            Assert.Equal("Ctrl+" + MainPageOrder.Digit(id), bindings.Display(id));
+        Assert.Null(bindings.Display("navigation.tagging"));
         Assert.Empty(bindings.Issues);
     }
 }

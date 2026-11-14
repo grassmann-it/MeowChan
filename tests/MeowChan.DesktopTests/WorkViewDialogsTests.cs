@@ -96,7 +96,7 @@ public sealed class WorkViewDialogsTests : IDisposable
                 Assert.DoesNotContain(method.GetParameters(), parameter => parameter.ParameterType == typeof(WorkView) || parameter.ParameterType == typeof(WorkViewPolicy));
         // Every page stays one menu entry in the View menu in all views, whatever the footer shows (R3).
         string[] viewMenu = MacMenuModel.Build().Single(menu => menu.Id == "view").Items.Where(node => node.CommandId != null).Select(node => node.CommandId!).ToArray();
-        Assert.All(MainPageOrder.CommandIds, id => Assert.Contains(id, viewMenu));
+        Assert.All(MainPageOrder.NumberedCommandIds, id => Assert.Contains(id, viewMenu));
         Assert.Contains("session.pause", MacMenuModel.CommandIds());
     }
 

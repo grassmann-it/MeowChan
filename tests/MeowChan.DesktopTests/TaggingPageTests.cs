@@ -106,12 +106,18 @@ public sealed class TaggingPageTests : IDisposable
     }
 
     [Fact]
-    public void ThePageIsAnAppMenuDestinationNotAFooterPage()
+    public void ThePageIsAFooterPageBehindMediaWithoutADigitAndKeepsItsAppMenuEntry()
     {
-        Assert.False(MainPageOrder.Contains("navigation.tagging"));
+        Assert.True(MainPageOrder.Contains("navigation.tagging"));
+        Assert.Equal("navigation.media", MainPageOrder.CommandIds[MainPageOrder.CommandIds.ToList().IndexOf("navigation.tagging") - 1]);
+        Assert.Null(MainPageOrder.Digit("navigation.tagging"));
+        Assert.Equal(MainWindow.WorkspacePage.Tagging, MainWindow.PageFor("navigation.tagging"));
         CommandDefinition navigation = CommandCatalog.Get("navigation.tagging");
+        Assert.Equal(new[] { "footer", "app-menu", "tools-menu" }, navigation.Contexts);
+        Assert.Equal("tag", navigation.Icon);
         Assert.Equal(CommandScope.Application, navigation.Scope);
         Assert.Null(navigation.Shortcut);
+        Assert.Empty(EffectiveShortcutBindings.Defaults(navigation));
         Assert.Equal("Tagging", navigation.Label);
         foreach (string id in new[] { "tagging.start", "tagging.mark-done", "tagging.mark-open", "tagging.mark-skipped", "tagging.add", "tagging.clear-done", "tagging.clear" })
         {
@@ -119,6 +125,29 @@ public sealed class TaggingPageTests : IDisposable
             Assert.Equal(new[] { "tagging" }, CommandCatalog.Get(id).ExecutionContexts);
         }
     }
+
+    [Fact]
+    public void TheFooterButtonIsWiredLikeTheOtherPagesWithAnIconAndALocalizedName()
+    {
+        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Source())!, "../.."));
+        string markup = File.ReadAllText(Path.Combine(root, "Desktop/Shell/MainWindow.axaml"));
+        // Footer button, More entry and the ⋯ entry all call the one handler, which builds the page lazily through ShowTaggingPage.
+        Assert.Contains("x:Name=\"TaggingNavigationButton\" Classes=\"nav localized\" Tag=\"nav.tagging\"", markup, StringComparison.Ordinal);
+        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(markup, "Tag=\"nav.tagging\"[^>]*Click=\"OnTaggingNavigationClick\"").Count);
+        string navigation = File.ReadAllText(Path.Combine(root, "Desktop/Shell/MainWindow.Navigation.cs"));
+        Assert.Contains("ShowTaggingPage();", navigation[navigation.IndexOf("private void OnTaggingNavigationClick", StringComparison.Ordinal)..], StringComparison.Ordinal);
+        Assert.Contains("TaggingNavigationButton.Classes.Set(\"selected\", page == WorkspacePage.Tagging)", navigation, StringComparison.Ordinal);
+        // Tooltip and accessible name come from the command adapter; the icon is a catalog mask that exists as a file.
+        Assert.True(File.Exists(Path.Combine(root, "Assets/icons/feather/masks/" + CommandCatalog.Get("navigation.tagging").Icon + ".png")));
+        Assert.StartsWith("Tagging", CommandBindings.Tooltip("navigation.tagging"), StringComparison.Ordinal);
+        Texts.SetLanguage("de");
+        Assert.Equal("Taggen", CommandCatalog.Label("navigation.tagging"));
+        Assert.Equal("Taggen", Texts.T("nav.tagging"));
+        Texts.SetLanguage("en");
+        Assert.Equal("Tagging", Texts.T("nav.tagging"));
+    }
+
+    private static string Source([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     [Fact]
     public void TheWorkViewsKeepTheQueueAndThinOutOnlyTheToolbar()
@@ -133,6 +162,11 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", WorkView.Simple));
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear", WorkView.Simple));
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.toolbar.clear", WorkView.Advanced));
+        // The footer button: Barebones keeps the page under More, Simple and Advanced show it directly (like Media).
+        Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("shell.footer.tagging", WorkView.Barebones));
+        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("shell.footer.tagging", WorkView.Simple));
+        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("shell.footer.tagging", WorkView.Advanced));
+        Assert.Equal("navigation.tagging", WorkViewPolicy.Get("shell.footer.tagging").CommandId);
         Assert.Equal(new[] { WorkViewPage.Shell, WorkViewPage.Tagging }, WorkViewHelp.HelpPages(nameof(MainWindow.WorkspacePage.Tagging), false));
     }
 

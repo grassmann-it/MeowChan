@@ -14,7 +14,7 @@ internal static class FooterNavigationChecks
     private static readonly (string Name, MainWindow.WorkspacePage Page)[] Destinations =
     [
         ("Downloads", MainWindow.WorkspacePage.Downloads), ("Archive", MainWindow.WorkspacePage.Archive),
-        ("Media", MainWindow.WorkspacePage.Media), ("Rules", MainWindow.WorkspacePage.Rules),
+        ("Media", MainWindow.WorkspacePage.Media), ("Tagging", MainWindow.WorkspacePage.Tagging), ("Rules", MainWindow.WorkspacePage.Rules),
         ("Status", MainWindow.WorkspacePage.Status), ("Settings", MainWindow.WorkspacePage.Settings),
         ("Sources", MainWindow.WorkspacePage.Sources)
     ];
@@ -150,7 +150,7 @@ internal static class FooterNavigationChecks
 
     private static string DestinationLabel(string name, string language) => (name, language) switch
     {
-        ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Rules", "de") => "Regeln", ("Sources", "de") => "Quellen",
+        ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Tagging", "de") => "Taggen", ("Rules", "de") => "Regeln", ("Sources", "de") => "Quellen",
         ("Settings", "de") => "Einstellungen", _ => name
     };
 
@@ -269,7 +269,7 @@ internal static class FooterNavigationChecks
             && origin.Y + control.Bounds.Height <= window.Bounds.Height + 1;
     }
 
-    /// <summary>Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Status | More, Settings):
+    /// <summary>Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Sources, Plugins | Status | More, Settings):
     /// a separator shows exactly while the group in front of it has a visible button, never two in a row, never one at an edge,
     /// and the More flyout sets its own groups apart the same way.</summary>
     private static void RequireGroupSeparators(MainWindow window, Button tools)

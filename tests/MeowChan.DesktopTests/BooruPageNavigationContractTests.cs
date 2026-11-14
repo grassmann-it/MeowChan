@@ -25,7 +25,7 @@ public sealed class BooruPageNavigationContractTests
     [Fact]
     public void MainPageAndShortcutUseTheFormerlyFreeSixSlot()
     {
-        Assert.Equal("navigation.booru", MainPageOrder.CommandIds[3]);
+        Assert.Equal("navigation.booru", MainPageOrder.CommandIds[4]); // behind Media and Tagging
         Assert.Equal(6, MainPageOrder.Digit("navigation.booru"));
         Assert.Equal("Primary+6", CommandCatalog.Get("navigation.booru").Shortcut);
         Assert.Equal(MainWindow.WorkspacePage.Booru, MainWindow.PageFor("navigation.booru"));
@@ -61,17 +61,18 @@ public sealed class BooruPageNavigationContractTests
         XDocument markup = Shell();
         XElement footer = Assert.Single(markup.Descendants(), element => Name(element) == "WorkspaceNavigationButtons");
         string[] buttons = footer.Elements().Select(Name).OfType<string>().Where(name => name.EndsWith("NavigationButton", StringComparison.Ordinal)).ToArray();
-        Assert.Equal("BooruNavigationButton", buttons[3]);
+        Assert.Equal("TaggingNavigationButton", buttons[3]); // Tagging sits behind Media, Booru keeps its place right behind it
+        Assert.Equal("BooruNavigationButton", buttons[4]);
 
         XElement flyout = Assert.Single(markup.Descendants(), element => Name(element) == "ToolsNavigationButton");
-        Assert.Equal(new[] { "nav.archive", "nav.media", "nav.booru" },
+        Assert.Equal(new[] { "nav.archive", "nav.media", "nav.tagging", "nav.booru" },
             flyout.Descendants().Where(element => element.Name.LocalName == "MenuItem")
-                .Select(element => (string?)element.Attribute("Tag")).Take(3).ToArray());
+                .Select(element => (string?)element.Attribute("Tag")).Take(4).ToArray());
 
         XElement appMenu = Assert.Single(markup.Descendants(), element => Name(element) == "WorkspaceMenuItem");
         string[] tags = appMenu.Elements().Select(element => (string?)element.Attribute("Tag"))
             .Where(tag => tag != null).OfType<string>().ToArray();
-        Assert.Equal("nav.booru", tags[3]);
+        Assert.Equal("nav.booru", tags[4]);
     }
 
     [Fact]
