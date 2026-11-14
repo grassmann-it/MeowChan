@@ -3632,7 +3632,7 @@
     "stats.graph.nameDisk": "Pliki multimedialne na dysku: zapis {0}, odczyt {1}; aktywne pobierania: {2}. Otwiera statystyki.",
     "stats.graph.page.name": "{0}: historia ostatnich {1} s, skala do {2}",
     "stats.headerGraph.auto": "Automatycznie",
-    "stats.headerGraph.hint": "Określa, co pokazuje górny pasek. Automatycznie: sieć i dysk, każde z własnym wykresem, w każdym widoku. Układ obok siebie wymaga szerokiego okna; w wąskich oknach wykresy znikają, a wartości zostają. Wyłączone ukrywa wskaźnik i zatrzymuje jego pomiar; przywraca go strona statystyk oraz menu w zasobniku.",
+    "stats.headerGraph.hint": "Określa, co pokazuje górny pasek. Automatycznie: sieć i dysk, każde z własnym wykresem, w każdym widoku. Układ obok siebie wymaga szerokiego okna; w wąskich oknach wykresy znikają, a wartości zostają. Każdy wykres ma własną skalę. Na górnym pasku pobieranie i odczyt są rysowane linią ciągłą z wypełnionym obszarem, wysyłanie i zapis linią przerywaną. Wyłączone ukrywa wskaźnik i zatrzymuje jego pomiar; przywraca go strona statystyk oraz menu w zasobniku.",
     "stats.headerGraph.label": "Wykres u góry",
     "stats.headerGraph.network": "Tylko sieć",
     "stats.headerGraph.networkAndDisk": "Sieć i dysk, jedno pod drugim",
