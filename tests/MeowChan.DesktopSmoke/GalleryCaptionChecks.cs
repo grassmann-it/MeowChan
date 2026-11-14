@@ -131,10 +131,16 @@ internal static class GalleryCaptionChecks
             // GL2: docked, the video bar is the dock's first row (inside the tools surface, directly under the picture, no gap);
             // in the Windows transparency fallback it stays under the picture inside the media viewport.
             bool inDock = transport.GetVisualAncestors().OfType<Control>().Any(ancestor => ancestor.Name == "GalleryDockTransportHost");
+            // GL1+GL2: a bottom filmstrip shown in the dock is its first row; it touches the picture and the tools surface follows it.
+            Control? band = viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .FirstOrDefault(control => control.Name == "GalleryFilmstrip" && control.IsEffectivelyVisible && control.Parent is Control { Name: "GalleryDock" });
+            Rect? bandBounds = band == null ? null : Bounds(band, viewer);
+            double dockTop = bandBounds?.Top ?? toolsBounds.Top;
             if (surfaceBounds.Height < 100 || transportBounds.Top < surfaceBounds.Bottom - 1
                 || (inDock ? transportBounds.Top < viewportBounds.Bottom - 1 || transportBounds.Top < toolsBounds.Top - 1
                     || transportBounds.Bottom > toolsBounds.Bottom + 1 || transportBounds.Left < toolsBounds.Left - 1
-                    || transportBounds.Right > toolsBounds.Right + 1 || toolsBounds.Top - viewportBounds.Bottom > 1
+                    || transportBounds.Right > toolsBounds.Right + 1 || dockTop - viewportBounds.Bottom > 1
+                    || bandBounds is { } strip && (toolsBounds.Top - strip.Bottom > 1 || strip.Top < viewportBounds.Bottom - 1)
                     : transportBounds.Bottom > viewportBounds.Bottom + 1))
                 throw new InvalidOperationException("Video transport covers its picture, leaves the dock, or leaves a gap above it.");
             Control[] actions = transport.GetVisualDescendants().OfType<Control>()

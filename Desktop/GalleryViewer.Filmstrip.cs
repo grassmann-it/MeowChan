@@ -43,6 +43,8 @@ internal sealed partial class GalleryViewer
     private bool _filmstripSetting = true;
     private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault;
     private bool _filmstripPeek, _filmstripTopHot, _pointerInFilmstrip, _filmstripOverlayStyled, _filmstripStyleKnown;
+    // The band is shown as the first row of the docked dock (GL1 bottom, docked): the dock's top margin is the band's (GL2, ApplyDockMargin).
+    private bool _filmstripHeadsDock;
     private long _lastFilmstripActivity = Stopwatch.GetTimestamp();
 
     internal GalleryFilmstrip Filmstrip => _filmstrip;
@@ -158,7 +160,7 @@ internal sealed partial class GalleryViewer
         bool panelDocked = ReferenceEquals(_contextPanel.Parent, _body) && picture == _visualRoot;
         bool panelOver = ReferenceEquals(_contextPanel.Parent, picture);
         double panelRight = _contextOpen && _contextPanel.IsVisible && panelDocked ? panelWidth - 4 : _contextOpen && _contextPanel.IsVisible && panelOver ? panelWidth + 12 : 0;
-        GalleryFilmstripPlan.Placement place = GalleryFilmstripPlan.Place(plan.FilmstripDock, overlay, show, tile, TopRowClearance, panelRight);
+        GalleryFilmstripPlan.Placement place = GalleryFilmstripPlan.Place(plan.FilmstripDock, overlay, show, tile, TopRowClearance, panelRight, _nativeOverlayFallback);
         switch (place.Host)
         {
             case GalleryFilmstripPlan.Host.Dock: MoveOverlayControlAt(_filmstrip, _dockStack, 0); break;
@@ -168,6 +170,9 @@ internal sealed partial class GalleryViewer
         }
         Grid.SetRow(_filmstrip, _nativeOverlayFallback && !_nativeOverlayActive ? 1 : 0); Grid.SetRowSpan(_filmstrip, 1);
         _filmstrip.Margin = new Thickness(place.Left, place.Top, place.Right, place.Bottom);
+        // GL1+GL2: a shown band in the dock is its first row; the tools surface below it gives up its own top margin (ApplyDockMargin).
+        bool headsDock = show && place.Host == GalleryFilmstripPlan.Host.Dock;
+        if (headsDock != _filmstripHeadsDock) { _filmstripHeadsDock = headsDock; ApplyDockMargin(); }
         _filmstrip.SetDock(plan.FilmstripDock == GalleryFilmstripDock.Bottom);
         _filmstrip.Configure(tile, _filmstripPreload);
         ApplyFilmstripBackground(overlay);

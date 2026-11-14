@@ -387,9 +387,25 @@ public sealed class GalleryFilmstripTests : IDisposable
             Assert.False(place.PeeksAtTopEdge);        // the bottom band comes with the controls: no top edge zone, no peek
             Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Left);
             Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Right); // an open side panel is not the bottom band's business
-            Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Top);   // the gap above, the toolbar's own top margin is the gap below
+            // GL1+GL2 (integration): docked the band is the dock's first row and touches the picture like the video bar and the tools
+            // (GL2: no gap under the picture); floating in the footer it keeps its 8 dip from the picture. The tools follow without a gap.
+            Assert.Equal(overlay ? GalleryFilmstripPlan.DockMargin : 0, place.Top);
             Assert.Equal(0, place.Bottom);
         }
+    }
+
+    [Fact]
+    public void TheDockedBottomBandKeepsTheFallbackGapBelowTheVideoStrip()
+    {
+        // The Windows transparency fallback keeps the video bar under the picture; the dock (here: the band, its first row) starts 8 dip below.
+        var fallback = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Bottom, overlay: false, show: true, Tile, TopRow, panelRight: 0, transparencyFallback: true);
+        Assert.Equal(GalleryFilmstripPlan.Host.Dock, fallback.Host);
+        Assert.Equal(GalleryFilmstripPlan.DockMargin, fallback.Top);
+        Assert.Equal(0, fallback.PictureTopInset);
+        Assert.Equal(0, GalleryFilmstripPlan.Place(GalleryFilmstripDock.Bottom, false, true, Tile, TopRow, 0).Top);
+        // The top band is not the dock's business: the fallback changes nothing there.
+        Assert.Equal(GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, false, true, Tile, TopRow, 0),
+            GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, false, true, Tile, TopRow, 0, transparencyFallback: true));
     }
 
     [Fact]

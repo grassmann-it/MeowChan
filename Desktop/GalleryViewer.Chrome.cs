@@ -31,9 +31,11 @@ internal static class GalleryTransportPlacement
 
     /// <summary>
     /// The dock's margin: directly under the picture (the video bar is the dock's first row, nothing separates them); the fallback keeps
-    /// the 8 dip its full-width strip always had above the tools. The bottom is 8 only while no info line follows.
+    /// the 8 dip its full-width strip always had above the tools. The bottom is 8 only while no info line follows. With the filmstrip at
+    /// the bottom (GL1) the band is the dock's first row and carries that top margin; the tools surface then sits right under the band.
     /// </summary>
-    internal static Thickness DockMargin(bool transparencyFallback, bool infoFollows) => new(8, transparencyFallback ? 8 : 0, 8, infoFollows ? 0 : 8);
+    internal static Thickness DockMargin(bool transparencyFallback, bool infoFollows, bool filmstripAbove = false) =>
+        new(8, transparencyFallback && !filmstripAbove ? 8 : 0, 8, infoFollows ? 0 : 8);
 }
 
 // G1 (PLAN-TAGGING-GALERIE-UX-1.1 §3, §6): the viewer applies GalleryChromePlan in one place, ApplyChrome. Every change that can move a
@@ -299,14 +301,19 @@ internal sealed partial class GalleryViewer
         // Diagnostic notices have no visibility or auto-hide authority. The capability
         // fallback is neutral layout information, not a dismissible technical banner.
         _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
-        // GL2: the dock sits directly under the picture (the video bar is its first row now); only the Windows fallback, whose bar stays
-        // under the picture as a full-width strip, keeps the 8 dip it always had.
-        _chrome.Margin = GalleryTransportPlacement.DockMargin(_nativeOverlayFallback, _infoOverlay.IsVisible);
+        ApplyDockMargin();
         // The video bar is a plan block (Transport); its docked host is visible only while the dock hosts it and the video is shown (the
         // transport left the player, so the player's own visibility no longer hides it).
         _dockTransportHost.IsVisible = GalleryTransportPlacement.DockRowVisible(plan.Transport, TransportHostKind, _video?.IsVisible == true);
         if (focusLost) RescueChromeFocus();
     }
+
+    // GL2: the dock sits directly under the picture (the video bar is the first row of the tools surface); only the Windows fallback, whose
+    // bar stays under the picture as a full-width strip, keeps the 8 dip it always had. GL1+GL2: a bottom filmstrip shown in the dock is
+    // the dock's first row and takes that margin itself (GalleryFilmstripPlan.BottomBandTop), so the tools surface follows it without a
+    // gap. Called from ApplyChrome and, when the band comes or goes in the dock, from UpdateFilmstripPlacement.
+    private void ApplyDockMargin() =>
+        _chrome.Margin = GalleryTransportPlacement.DockMargin(_nativeOverlayFallback, _infoOverlay.IsVisible, _filmstripHeadsDock);
 
     // GL2: the video bar's row above the tools; it shares the dock's surface, so the rows are 4 dip apart and there is no second frame.
     private Control WithDockTransport(Control tools)

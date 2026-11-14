@@ -34,6 +34,33 @@ public sealed class GalleryDockTransportTests
     public void TheDockTouchesThePictureSoNoGapRemains(bool fallback, bool infoFollows, double left, double top, double right, double bottom) =>
         Assert.Equal(new Thickness(left, top, right, bottom), GalleryTransportPlacement.DockMargin(fallback, infoFollows));
 
+    // GL1+GL2 (integration): a bottom filmstrip shown in the dock is its first row and carries the dock's top margin; the tools surface
+    // (video bar row, tools) follows it without a gap, in the fallback too.
+    [Theory]
+    [InlineData(false, true, 8, 0, 8, 0)]
+    [InlineData(false, false, 8, 0, 8, 8)]
+    [InlineData(true, true, 8, 0, 8, 0)]
+    [InlineData(true, false, 8, 0, 8, 8)]
+    public void UnderABottomFilmstripTheToolsSurfaceFollowsTheBandWithoutAGap(bool fallback, bool infoFollows, double left, double top, double right, double bottom) =>
+        Assert.Equal(new Thickness(left, top, right, bottom), GalleryTransportPlacement.DockMargin(fallback, infoFollows, filmstripAbove: true));
+
+    [Fact]
+    public void TheDockOrderIsFilmstripVideoBarToolsInfoAndOnlyTheFirstRowHasATopMargin()
+    {
+        string chrome = Source("Desktop/GalleryViewer.Chrome.cs"), viewer = Source("Desktop/GalleryViewer.cs"), filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
+        // The dock (GL1): the band is inserted first; the tools surface (_chrome, whose first row is the video bar, GL2) and the info follow.
+        Assert.Contains("MoveOverlayControlAt(_filmstrip, _dockStack, 0)", filmstrip);
+        int tools = viewer.IndexOf("_dockStack.Children.Add(_chrome);", StringComparison.Ordinal), info = viewer.IndexOf("_dockStack.Children.Add(_infoOverlay);", StringComparison.Ordinal);
+        Assert.True(tools > 0 && info > tools);
+        Assert.Contains("_chrome.Child = WithDockTransport(WithTaggingStrip(toolbar));", viewer);
+        // The band's top margin is the dock's first-row margin; the tools surface yields its own while the band heads the dock.
+        Assert.Contains("GalleryFilmstripPlan.Place(plan.FilmstripDock, overlay, show, tile, TopRowClearance, panelRight, _nativeOverlayFallback);", filmstrip);
+        Assert.Contains("bool headsDock = show && place.Host == GalleryFilmstripPlan.Host.Dock;", filmstrip);
+        Assert.Contains("_filmstripHeadsDock = headsDock; ApplyDockMargin();", filmstrip);
+        Assert.Equal(1, chrome.Split("_chrome.Margin =").Length - 1); // one place sets it
+        Assert.Contains("ApplyDockMargin();", chrome[chrome.IndexOf("private void ApplyChrome", StringComparison.Ordinal)..]);
+    }
+
     [Theory]
     [InlineData(WorkView.Barebones)]
     [InlineData(WorkView.Simple)]
@@ -80,7 +107,8 @@ public sealed class GalleryDockTransportTests
         Assert.Contains("_video?.SetExternalTransportHost(_overlayTransportHost);", overlay);
         Assert.Contains("if (DockHostsTransport) _video?.SetExternalTransportHost(_dockTransportHost);", overlay);
         Assert.Contains("if (!DockHostsTransport) _video?.SetExternalTransportHost(null);", overlay);
-        Assert.Contains("GalleryTransportPlacement.DockMargin(_nativeOverlayFallback, _infoOverlay.IsVisible)", chrome);
+        // (integration: the third argument is GL1's band heading the dock; see UnderABottomFilmstripTheToolsSurfaceFollowsTheBandWithoutAGap)
+        Assert.Contains("GalleryTransportPlacement.DockMargin(_nativeOverlayFallback, _infoOverlay.IsVisible, _filmstripHeadsDock)", chrome);
         // The dock row's visibility is a plan block decided in ApplyChrome only.
         Assert.Equal(1, chrome.Split("_dockTransportHost.IsVisible =").Length - 1);
         Assert.DoesNotContain("_dockTransportHost.IsVisible", overlay + viewer);
