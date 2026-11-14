@@ -297,6 +297,74 @@ public sealed class VideoScrubPreviewTests
     }
 
     [Fact]
+    public async Task DisposalWaitsForCooperativeDecoderCleanupBeforeReleasingItsGate()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        TaskCompletionSource cleanupStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource cleanupRelease = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeDecoder decoder = new()
+        {
+            Hold = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            CleanupStarted = cleanupStarted, CleanupHold = cleanupRelease
+        };
+        using SemaphoreSlim gate = new(1, 1);
+        VideoScrubPreviewSession session = Cache(temp.Path, decoder, gate).OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(2, Duration, CancellationToken.None);
+        try
+        {
+            await decoder.Started.Task.WaitAsync(Patience);
+            Task disposing = session.DisposeAsync().AsTask();
+            await cleanupStarted.Task.WaitAsync(Patience);
+            Assert.False(disposing.IsCompleted);
+            Assert.False(decoder.AllStreamsDisposed);
+            Assert.Equal(0, gate.CurrentCount);
+            cleanupRelease.TrySetResult();
+            await disposing.WaitAsync(Patience);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Patience));
+            Assert.True(decoder.AllStreamsDisposed);
+            Assert.Equal(1, gate.CurrentCount);
+        }
+        finally
+        {
+            cleanupRelease.TrySetResult();
+            await session.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task DisposalIsBoundedForAnUncooperativeDecoderAndKeepsItsGateUntilItReturns()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeDecoder decoder = new() { Hold = release, IgnoreCancellation = true };
+        using SemaphoreSlim gate = new(1, 1);
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder, gate);
+        VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(2, Duration, CancellationToken.None);
+        try
+        {
+            await decoder.Started.Task.WaitAsync(Patience);
+            await session.DisposeAsync().AsTask().WaitAsync(Patience);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Patience));
+            Assert.False(decoder.AllStreamsDisposed);
+            Assert.Equal(0, gate.CurrentCount);
+            Assert.False(session.TryGetReady(0.1, out _));
+            release.TrySetResult();
+            await Eventually(() => gate.CurrentCount == 1);
+            Assert.True(decoder.AllStreamsDisposed);
+            Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 2))));
+        }
+        finally
+        {
+            release.TrySetResult();
+            await session.DisposeAsync();
+            await Eventually(() => gate.CurrentCount == 1);
+        }
+    }
+
+    [Fact]
     public async Task ALoweredBudgetEvictsTheOldestThumbnailsAndNeverTouchesOriginals()
     {
         using TempDirectory temp = new();
@@ -477,6 +545,8 @@ public sealed class VideoScrubPreviewTests
         internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource? Hold { get; init; }
         internal bool IgnoreCancellation { get; init; }
+        internal TaskCompletionSource? CleanupStarted { get; init; }
+        internal TaskCompletionSource? CleanupHold { get; init; }
         // Releases the verified handle before holding, so a test can rewrite the original on platforms that enforce sharing.
         internal bool ReleaseBeforeHold { get; init; }
         internal volatile bool Fail, Oversized;
@@ -503,7 +573,12 @@ public sealed class VideoScrubPreviewTests
                     return Oversized ? Png(maximumWidth * 2, maximumHeight) : Png(WidthOf(slot), 60);
                 }
             }
-            finally { Interlocked.Decrement(ref _open); }
+            finally
+            {
+                CleanupStarted?.TrySetResult();
+                if (CleanupHold != null) await CleanupHold.Task;
+                Interlocked.Decrement(ref _open);
+            }
         }
     }
 

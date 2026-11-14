@@ -238,11 +238,23 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         {
             if (gateHeld)
             {
+                // WaitAsync(token) can observe session cancellation before a cooperative decoder has finished
+                // disposing its native resources. Give that cleanup a bounded grace period before completing
+                // the load/disposal. A decoder which ignores cancellation still cannot hold disposal forever.
+                if (token.IsCancellationRequested && decoding is { IsCompleted: false })
+                {
+                    try { await decoding.WaitAsync(NativeGrace).ConfigureAwait(false); }
+                    catch (Exception) { /* Completion/failure is observed below; timeout leaves the gate owned. */ }
+                }
                 // A native decode that outlived its timeout keeps the shared gate until it actually returns.
                 if (decoding is { IsCompleted: false })
                     _ = decoding.ContinueWith(task => { _ = task.Exception; gate.Release(); }, CancellationToken.None,
                         TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-                else gate.Release();
+                else
+                {
+                    _ = decoding?.Exception; // Observe a late decoder fault, including cancellation cleanup.
+                    gate.Release();
+                }
             }
             lock (_lock)
             {
