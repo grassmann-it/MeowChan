@@ -471,7 +471,8 @@ internal static class ShowcaseCaptures
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && rules.IsEditable);
         rules.EditScope(MediaRuleScope.Global);
         rules.FindControl<ScrollViewer>("RulesScroll")!.Offset = default;
-        await Program.WaitUntilAsync(() => rules.FindControl<TextBlock>("RuleEffectiveTypes")!.IsEffectivelyVisible);
+        // Overview first: EditScope opens the wizard at its settings step (the effective values are step 3).
+        await Program.WaitUntilAsync(() => rules.FindControl<CheckBox>("RuleEnabledInput")!.IsEffectivelyVisible);
         await CaptureAsync(window, "v0.9.0-rules.png");
     }
 

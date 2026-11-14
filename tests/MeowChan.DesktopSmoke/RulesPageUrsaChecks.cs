@@ -25,8 +25,12 @@ internal static partial class RulesPageChecks
         try
         {
             fixture.IsAvailable = true;
-            await Program.WaitUntilAsync(() => fixture.CanExecuteTemplateCommand("rules.template-create"));
+            // Overview first: template commands act on a chosen scope's draft, so the wizard opens before they are available.
+            Require(fixture.IsOverviewVisible && !fixture.CanExecuteTemplateCommand("rules.template-create"),
+                "The Rules page did not open on its overview, or offered template commands without a chosen scope.");
             fixture.EditScope(MediaRuleScope.ForThread("unknown-source", "unknown-board", "unknown-thread"));
+            Require(fixture.IsWizardOpen && fixture.WizardStep == RuleWizardStep.Settings, "EditScope did not open the wizard at its settings step.");
+            await Program.WaitUntilAsync(() => fixture.CanExecuteTemplateCommand("rules.template-create"));
             fixture.RuleEnabled = false; fixture.TypesMode = (int)MediaTypeSelectionMode.Selected;
             await FlushAsync(); // Materialize the editor, then deliberately do not yield between input and Save/Discard.
             var raw = fixture.FindControl<MeowChan.Desktop.Controls.RuleExtensionsInput>("RuleExtensionsInput")!.GetVisualDescendants().OfType<TextBox>().First();

@@ -208,6 +208,14 @@ internal static class WorkViewCaptures
         };
         window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
+        // Rules opens on its overview; the view gates (Save/Discard, folded blocks, More) belong to the editor, so the
+        // capture opens the global rule in the in-page wizard as the page looked before the overview existed.
+        if (page == "rules")
+        {
+            await Program.WaitUntilAsync(() => window.RulesPage.IsEditable);
+            window.RulesPage.EditScope(MeowChan.Rules.MediaRuleScope.Global);
+            await Program.WaitUntilAsync(() => window.RulesPage.IsWizardOpen);
+        }
     }
 
     private static async Task OpenArchiveAsync(MainWindow window)

@@ -68,6 +68,8 @@ internal static class ThemeMigrationChecks
                     window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                     RulesPage rules = window.RulesPage;
                     await Program.WaitUntilAsync(() => rules.IsEditable && rules.IsEffectivelyVisible);
+                    // Overview first: the field errors belong to the editor, so open the global rule in the wizard.
+                    rules.EditScope(MeowChan.Rules.MediaRuleScope.Global);
                     rules.RuleEnabled = true;
                     rules.SizeMode = (int)MediaSizeLimitMode.Limited;
                     rules.MegabytesText = "invalid";
