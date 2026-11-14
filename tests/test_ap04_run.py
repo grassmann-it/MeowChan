@@ -478,6 +478,66 @@ class RunnerTests(unittest.TestCase):
         self.assertIn('"-Urn"', test)
 
 
+class CycleEvidenceGateTests(unittest.TestCase):
+    """Synthetic files test refusals only; no process, package or real upgrade is exercised."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.ctx = unittest.mock.Mock()
+        self.ctx.out = Path(self.temp.name)
+        self.ctx.results = self.ctx.out / 'cycles'
+        self.ctx.results.mkdir()
+        self.ctx.test_command.return_value = ['synthetic-command-never-executed']
+        self.trx = self.ctx.out / 'test-results/ap04.trx'
+        self.trx.parent.mkdir()
+        # A green console summary is not process evidence. No external command may run here.
+        command = unittest.mock.patch.object(run, 'run', return_value='Passed! synthetic summary only')
+        command.start()
+        self.addCleanup(command.stop)
+        subprocess_guard = unittest.mock.patch.object(run.subprocess, 'run', side_effect=AssertionError('no subprocess allowed'))
+        subprocess_guard.start()
+        self.addCleanup(subprocess_guard.stop)
+
+    def write_trx(self, outcome):
+        upgrade = (f'<UnitTestResult testName="N.C.{run.TEST_NAME}" outcome="{outcome}"/>'
+                   if outcome is not None else '')
+        self.trx.write_text('<TestRun><Results><UnitTestResult testName="N.C.Unrelated" outcome="Passed"/>'
+                            + upgrade + '</Results></TestRun>')
+
+    def test_green_summary_without_executed_upgrade_is_refused(self):
+        with self.assertRaisesRegex(run.StepFailed, 'no TRX produced'):
+            run.step_cycles(self.ctx)
+        for outcome in (None, 'NotExecuted', 'Failed'):
+            with self.subTest(upgrade_outcome=outcome):
+                self.write_trx(outcome)
+                with self.assertRaisesRegex(run.StepFailed, 'upgrade test did not pass or was skipped'):
+                    run.step_cycles(self.ctx)
+
+    def test_passed_trx_cannot_replace_any_required_process_receipt(self):
+        self.write_trx('Passed')
+        names = ('current-result.json', 'cycle-0.json', 'cycle-1.json', 'cycle-2.json', 'released-receipt.json')
+        for name in names:
+            # Presence placeholders, NOT fabricated acceptance evidence or a migrated profile.
+            (self.ctx.results / name).write_text('{}')
+        for name in names:
+            with self.subTest(missing=name):
+                path = self.ctx.results / name
+                path.unlink()
+                with self.assertRaises(run.StepFailed) as raised:
+                    run.step_cycles(self.ctx)
+                self.assertEqual('missing ' + name, str(raised.exception))
+                path.write_text('{}')
+
+    def test_even_a_complete_synthetic_report_disclaims_real_upgrade_acceptance(self):
+        records = [{'name': name, 'status': 'PASS', 'seconds': 0, 'detail': 'synthetic'} for name, _ in run.STEPS]
+        result = run.verdict(records, [], True, True)
+        lines = run.render({'commit': SHA, 'bin': 'b' * 16, 'pkg': 'c' * 16}, records, [], result, '/synthetic')
+        self.assertEqual('PASS', result, 'this is the scoped helper verdict, not a real upgrade')
+        self.assertIn('SCOPE synthetic profile written by the released 1.0.2 code', lines[-1])
+        self.assertIn('NOT a real-profile, UI, package-start, platform, Danbooru-network or release acceptance', lines[-1])
+
+
 def plugin_state(active=True):
     required = [{'PluginId': pid, 'Enabled': True, 'Active': active, 'ActiveExecutionRevision': 'r-' + pid,
                  'Problem': None, 'SdkTransition': None} for pid in cw.REQUIRED_PLUGINS]
