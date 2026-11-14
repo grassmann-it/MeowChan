@@ -60,7 +60,7 @@
         </Style>
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
-        <StackPanel x:Name="SettingsHeader" Margin="20,12,20,12" Spacing="5" MaxWidth="1088" HorizontalAlignment="Center">
+        <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="20,12,20,12" MaxWidth="1088" HorizontalAlignment="Center">
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
         </StackPanel>

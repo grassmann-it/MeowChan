@@ -126,7 +126,7 @@ internal static class DesignLintScanner
         new("Desktop/Views/Diagnostics/DiagnosticsPage.axaml", null, new[] { "Grid" }),
         new("Desktop/Views/Statistics/StatisticsPage.axaml", "StatisticsScroll", new[] { "StackPanel" }),
         new("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveRoot", Array.Empty<string>()),
-        new("Desktop/Views/Rules/RulesPage.axaml", null, new[] { "Grid" }),
+        new("Desktop/Views/Rules/RulesPage.axaml", null, new[] { "Grid", "Grid" }), // inner page area; the footer below it is full width
         new("Desktop/Views/Settings/SettingsEditor.axaml", null, new[] { "Grid" }),
     };
 

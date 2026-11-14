@@ -13,7 +13,7 @@
     <ScrollViewer x:Name="StatisticsScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <StackPanel Spacing="5">
+                <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
                     <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>

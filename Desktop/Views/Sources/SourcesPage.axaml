@@ -7,7 +7,7 @@
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
             <Grid x:Name="SourcesPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <StackPanel Spacing="5">
+                <StackPanel Classes="workspace-page-header">
                     <TextBlock Tag="nav.sources" Classes="page-title localized" />
                     <TextBlock Tag="sources.subtitle" Classes="muted localized" TextWrapping="Wrap" />
                 </StackPanel>
@@ -15,10 +15,10 @@
                     <TextBlock x:Name="SourceCount" Classes="muted" />
                 </WrapPanel>
             </Grid>
-            <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="14">
-              <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="10">
+            <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="{StaticResource Workspace.Space.Card}">
+              <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="{StaticResource Workspace.Space.Card}">
                 <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
-                <StackPanel x:Name="SourceCards" Spacing="10" />
+                <StackPanel x:Name="SourceCards" Spacing="{StaticResource Workspace.Space.Card}" />
               </StackPanel>
               <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
                 <StackPanel Spacing="12">

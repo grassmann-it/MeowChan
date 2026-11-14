@@ -606,6 +606,12 @@
         <x:Double x:Key="Workspace.Space.16">16</x:Double>
         <x:Double x:Key="Workspace.Space.24">24</x:Double>
         <x:Double x:Key="Workspace.Space.32">32</x:Double>
+        <!-- P2 page grid: title to subtitle inside a page header (4), gap between the cards of a page (12) and between a
+             form's label column and its value column (24); ValueColumn is the width of that value column. -->
+        <x:Double x:Key="Workspace.Space.Header">4</x:Double>
+        <x:Double x:Key="Workspace.Space.Card">12</x:Double>
+        <x:Double x:Key="Workspace.Form.Gap">24</x:Double>
+        <x:Double x:Key="Workspace.Form.ValueColumn">280</x:Double>
         <x:Double x:Key="Workspace.Text.Caption">11</x:Double>
         <!-- UI font (Inter) and reading font of post bodies only (bundled Noto Sans subset, Inter for missing glyphs).
              These are the static defaults; ReaderFonts.Apply republishes both keys in Application.Resources with the
@@ -696,7 +702,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,8" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
     <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Button">
@@ -899,7 +905,12 @@
     <Style Selector="TextBlock.workspace-status, SelectableTextBlock.workspace-status">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <Style Selector="StackPanel.workspace-page-header, StackPanel.workspace-section-header">
+    <!-- workspace-page-header: the title and its one-line subtitle of a page (4 apart); the page stack puts 8 between this header
+         and the content. workspace-section-header: the title row of a card, 8 above its content. -->
+    <Style Selector="StackPanel.workspace-page-header">
+        <Setter Property="Spacing" Value="{StaticResource Workspace.Space.Header}" />
+    </Style>
+    <Style Selector="StackPanel.workspace-section-header">
         <Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" />
     </Style>
     <Style Selector="StackPanel.workspace-section-body, StackPanel.workspace-dialog-content">

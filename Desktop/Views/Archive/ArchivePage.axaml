@@ -3,7 +3,7 @@
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
     <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <StackPanel Spacing="5">
+            <StackPanel Classes="workspace-page-header">
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>

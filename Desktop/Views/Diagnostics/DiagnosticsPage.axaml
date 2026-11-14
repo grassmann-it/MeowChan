@@ -16,7 +16,7 @@
             <StackPanel Spacing="8">
                 <!-- The session summary is the page's count, top right like the Sources count, not a card of its own. -->
                 <Grid x:Name="DiagnosticsPageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                    <StackPanel Spacing="5">
+                    <StackPanel Classes="workspace-page-header">
                         <TextBlock Tag="nav.diagnostics" Classes="page-title localized" Text="Diagnostics" />
                         <TextBlock Tag="diagnostics.hint" Classes="muted localized" TextWrapping="Wrap" />
                     </StackPanel>
