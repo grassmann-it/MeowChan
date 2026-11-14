@@ -124,6 +124,24 @@ internal static class TaggingPageChecks
                 && AutomationProperties.GetName(firstTile).StartsWith(firstTile.Row.AccessibleName, StringComparison.Ordinal)
                 && (firstTile.Badges.Description.Length == 0 || AutomationProperties.GetName(firstTile).EndsWith(firstTile.Badges.Description, StringComparison.Ordinal)),
                 "The tile's badges or its name: " + (firstTile == null ? "no tile" : AutomationProperties.GetName(firstTile)));
+            // MB1b: the badges sit on the corners of the tile's slot (the preview's bounds), the same place on every tile of the grid; the selection check
+            // shares the top right corner with them and never covers a badge.
+            Rect SlotRect(Control control, Control root) => new(control.TranslatePoint(default, root) ?? default, control.Bounds.Size);
+            foreach (TaggingQueueTileView gridTile in tagging.TileGrid.GetVisualDescendants().OfType<TaggingQueueTileView>().Where(tile => tile.Row != null && tile.Badges.View.IsVisible))
+            {
+                Rect slot = SlotRect(gridTile.Preview, gridTile), view = SlotRect(gridTile.Badges.View, gridTile);
+                Require(gridTile.Badges.View.Options.Anchor == MeowChan.Desktop.Controls.MediaBadgeAnchor.Slot
+                    && Math.Abs(view.X - slot.X) < 1.5 && Math.Abs(view.Y - slot.Y) < 1.5 && Math.Abs(view.Width - slot.Width) < 1.5 && Math.Abs(view.Height - slot.Height) < 1.5,
+                    "The tile's badge view " + view + " is not on the tile's slot " + slot + ".");
+                Rect check = SlotRect(gridTile.SelectedMark, gridTile);
+                foreach (MeowChan.Desktop.Controls.PlacedBadge placed in gridTile.Badges.View.Plan.Badges)
+                {
+                    Require(new Rect(default, slot.Size).Inflate(0.5).Contains(placed.Bounds), "Badge " + placed.Badge.Id + " " + placed.Bounds + " is outside the slot " + slot + ".");
+                    Require(!gridTile.SelectedMark.IsVisible || placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.PlayMark
+                        || !check.Intersects(placed.Bounds.Translate(new Vector(view.X, view.Y))), "The selection check " + check + " covers badge " + placed.Badge.Id + " " + placed.Bounds + ".");
+                }
+                if (gridTile.SelectedMark.IsVisible) Require(slot.Inflate(0.5).Contains(check), "The selection check " + check + " is outside the slot " + slot + ".");
+            }
             Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 17, "The grid has no context menu for its selection.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "Grid", () => "saved view " + Config.LoadConfig().TaggingPageView);
             Program.CaptureWindow(window, "smoke-tagging-page-grid.png");

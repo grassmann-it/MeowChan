@@ -11,8 +11,8 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// One tile of the tagging page's grid (TG1): the preview (the media page's thumbnail path), the shared media badges over exactly the shown
-/// picture (<see cref="TaggingTileBadges"/>, MB1b), a selection check and, under the picture, the entry's number (bold with a mark where the
+/// One tile of the tagging page's grid (TG1): the preview (the media page's thumbnail path), the shared media badges on the corners of the
+/// tile's slot (<see cref="TaggingTileBadges"/>, MB1b; the same place on every tile of a row, the play mark on the picture), a selection check and, under the picture, the entry's number (bold with a mark where the
 /// walk continues) and its file name. Built once per container and filled from the <see cref="TaggingQueueRow"/> it is given. The tile's
 /// name for assistive technology and its tooltip are <see cref="TaggingQueueRow.TileName"/> (the badges' sentence is part of it; the badge
 /// view itself is not in the accessibility tree and takes no focus); the selection is the list item's (the check only repeats it, never colour alone).
@@ -30,7 +30,7 @@ internal sealed class TaggingQueueTileView : Border
     private readonly TextBlock _name = new() { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     // The number is a caption, not a badge (MB1b): "#3", bold with a following mark where "continue" starts.
     private readonly TextBlock _number = new() { MaxLines = 1, Margin = new Thickness(0, 0, 4, 0), Classes = { "tnum" } };
-    /// <summary>The space the selection check keeps from the picture's right edge when no badge sits in that corner (dip).</summary>
+    /// <summary>The space the selection check keeps from the slot's right edge when no badge sits in that corner (dip).</summary>
     internal const double CheckInset = 4, CheckGap = 4;
     private IDisposable? _selection;
 
@@ -46,9 +46,9 @@ internal sealed class TaggingQueueTileView : Border
         _selected.VerticalAlignment = VerticalAlignment.Top;
         _selected.Margin = new Thickness(0, 4, CheckInset, 0);
         AutomationProperties.SetAccessibilityView(_number, AccessibilityView.Raw);
-        // The badge view lies over the shown picture (it is as large as the picture and centred on the slot, like the picture itself).
+        // The badge view lies over the whole slot (the picture is letterboxed inside it): its corners are the slot's, so every tile carries them at one height.
         Grid picture = new() { Children = { _preview, _badges.View, _selected } };
-        _preview.PictureChanged += () => { _badges.Place(_preview.PictureSize); PlaceCheck(); };
+        _preview.PictureChanged += () => { _badges.Place(_preview.PictureSize, _preview.Bounds.Size); PlaceCheck(); };
         Grid cell = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions(PreviewHeight + ",Auto"), RowSpacing = 4 };
         cell.Children.Add(picture);
         Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*") };
@@ -83,7 +83,7 @@ internal sealed class TaggingQueueTileView : Border
         Row = row;
         int? tags = row == null ? null : _tagCount?.Invoke(row.Item);
         _preview.Item = row?.Item;
-        _badges.Show(row, tags, _preview.PictureSize);
+        _badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size);
         PlaceCheck();
         _name.Text = row?.Name;
         _number.Text = row == null ? null : "#" + row.NumberText + (row.Next ? " \u203A" : null);
@@ -96,15 +96,13 @@ internal sealed class TaggingQueueTileView : Border
     }
 
     /// <summary>
-    /// Lays the selection check in the top-right corner of the picture, beside the badges that sit there (the tagging state, the booru globe),
-    /// never on top of them. The picture is centred in the slot, so the gap between its edge and the slot's is part of the inset.
+    /// Lays the selection check in the top-right corner of the slot, beside the badges that sit there (the tagging state, the booru globe),
+    /// never on top of them. The badges and the check share the slot's corner, whatever the picture's shape.
     /// </summary>
     private void PlaceCheck()
     {
-        Size picture = _preview.PictureSize;
-        double edge = Math.Max(0, (_preview.Bounds.Width - picture.Width) / 2);
-        double reach = TaggingTileBadges.TopRightReach(_badges.View.Plan, picture.Width);
-        double inset = edge + (reach > 0 ? reach + CheckGap : CheckInset);
+        double reach = TaggingTileBadges.TopRightReach(_badges.View.Plan, _preview.Bounds.Width);
+        double inset = reach > 0 ? reach + CheckGap : CheckInset;
         if (_selected.Margin.Right != inset) _selected.Margin = new Thickness(0, 4, inset, 0);
     }
 }

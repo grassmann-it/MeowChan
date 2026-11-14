@@ -27,6 +27,9 @@ public sealed class TaggingTileBadgesTests : IDisposable
 
     private static readonly Size Picture = new(160, 124);
 
+    private static string Read(string relative, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
+
     [Fact]
     public void TheStateFollowsTheEntryTheTagCountAndTheBooruSource()
     {
@@ -121,6 +124,40 @@ public sealed class TaggingTileBadgesTests : IDisposable
         Assert.Equal(Picture.Width - left.Bounds.Left, reach);
         // Two chips of 20 dip at most plus the margin: more than one chip, less than the tile.
         Assert.InRange(reach, 2 * 12, Picture.Width / 2);
+    }
+
+    [Fact]
+    public void TheGridAnchorsItsBadgesToTheSlotSoPortraitAndLandscapeTilesCarryThemAtTheSameHeight()
+    {
+        Assert.Equal(MediaBadgeAnchor.Slot, MediaBadgeOptions.TaggingGrid.Anchor);
+        Size slot = new(160, 124);
+        Size portrait = TaggingThumbnail.FittedSize(new Size(400, 600), slot), landscape = TaggingThumbnail.FittedSize(new Size(640, 360), slot), wide = TaggingThumbnail.FittedSize(new Size(800, 200), slot);
+        PlacedBadge[] Chips(Size picture)
+        {
+            TaggingTileBadges badges = new();
+            badges.Show(Row(1, TagQueueState.Done, SavedMediaKind.Video, "991"), 3, picture, slot);
+            Assert.Equal((slot.Width, slot.Height), (badges.View.Width, badges.View.Height));   // the view lies on the whole slot
+            PlacedBadge mark = badges.View.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark);
+            Assert.Equal(slot.Width / 2, mark.Bounds.Center.X, 6);   // the mark is the picture's: centred on it, and the picture is centred in the slot
+            Assert.Equal(slot.Height / 2, mark.Bounds.Center.Y, 6);
+            return badges.View.Plan.Badges.Where(placed => placed.Badge.Id != MediaBadgeId.PlayMark).ToArray();
+        }
+        PlacedBadge[] expected = Chips(landscape);
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, Chips(portrait));
+        Assert.Equal(expected, Chips(wide));
+        Assert.All(expected, placed => Assert.True(new Rect(default, slot).Contains(placed.Bounds.BottomRight)));
+        // The tile follows a changed slot with Place and the check's reach is measured against the slot.
+        TaggingTileBadges tile = new();
+        tile.Show(Row(1, TagQueueState.Done, booru: "991"), null, landscape, slot);
+        tile.Place(portrait, new Size(200, 124));
+        Assert.Equal(200, tile.View.Width);
+        double reach = TaggingTileBadges.TopRightReach(tile.View.Plan, 200);
+        PlacedBadge leftmost = tile.View.Plan.Badges.Where(placed => placed.Badge.Corner == MediaBadgeCorner.TopRight).MinBy(placed => placed.Bounds.Left);
+        Assert.Equal(200 - leftmost.Bounds.Left, reach);
+        string source = Read("Desktop/Views/Tagging/TaggingQueueTileView.cs");
+        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size)", source);
+        Assert.Contains("TopRightReach(_badges.View.Plan, _preview.Bounds.Width)", source);
     }
 
     [Fact]

@@ -83,8 +83,8 @@ internal readonly record struct MediaBadgeOptions(
     internal static MediaBadgeOptions Default => new();
     /// <summary>The media page's tiles: with the untagged and booru marks; the corners follow the tile's slot, so a row of tiles carries its badges at one height.</summary>
     internal static MediaBadgeOptions MediaPage => new(ShowUntagged: true, ShowBooru: true, Anchor: MediaBadgeAnchor.Slot);
-    /// <summary>The tagging page's grid and cards: with the untagged and booru marks.</summary>
-    internal static MediaBadgeOptions TaggingGrid => new(ShowUntagged: true, ShowBooru: true);
+    /// <summary>The tagging page's grid tiles: with the untagged and booru marks; the corners follow the tile's slot, so a row of tiles carries its badges at one height.</summary>
+    internal static MediaBadgeOptions TaggingGrid => new(ShowUntagged: true, ShowBooru: true, Anchor: MediaBadgeAnchor.Slot);
     /// <summary>The archive's attachment tiles and the thread list's thumbnails.</summary>
     internal static MediaBadgeOptions Archive => new();
     /// <summary>The gallery filmstrip: small tiles, the dense play mark.</summary>

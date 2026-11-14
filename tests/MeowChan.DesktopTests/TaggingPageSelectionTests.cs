@@ -86,10 +86,10 @@ public sealed class TaggingPageSelectionTests : IDisposable
             Assert.DoesNotContain(gone, badges);
             Assert.DoesNotContain(gone, tile);
         }
-        // The tile lays the view over the picture and hands it the row and the shown picture's size; the badges add no focus stop.
+        // The tile lays the view over its slot and hands it the row, the shown picture's size and the slot's size; the badges add no focus stop.
         Assert.Contains("_badges.View", tile);
-        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize)", tile);
-        Assert.Contains("_badges.Place(_preview.PictureSize)", tile);
+        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size)", tile);
+        Assert.Contains("_badges.Place(_preview.PictureSize, _preview.Bounds.Size)", tile);
         Assert.DoesNotContain("Focusable = true", badges);
         Assert.DoesNotContain("TaggingTileBadges", Read("Desktop/Views/Tagging/TaggingPage.cs"));
     }
