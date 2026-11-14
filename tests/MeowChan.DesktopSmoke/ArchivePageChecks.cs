@@ -469,8 +469,9 @@ internal static class ArchivePageChecks
                 ["ArchiveThreadTable.title"] = 0,
                 ["ArchiveThreadTable.identity"] = 1
             };
-            Require(threads.Columns[1].DisplayIndex == 0 && threads.Columns[0].DisplayIndex == 1,
-                "Archive column order did not apply semantic preferences.");
+            // A2: the pinned favourite star (key index 8) is always the first column; saved orders count the other columns only.
+            Require(threads.Columns[8].DisplayIndex == 0 && threads.Columns[1].DisplayIndex == 1 && threads.Columns[0].DisplayIndex == 2,
+                "Archive column order did not apply semantic preferences behind the pinned favourite column.");
             Button editor = page.FindControl<Button>("ArchiveThreadColumnsButton")!;
             page.ArchiveLayoutPreference = "Table";
             Require(editor.IsVisible, "The thread table has no visible Columns editor.");

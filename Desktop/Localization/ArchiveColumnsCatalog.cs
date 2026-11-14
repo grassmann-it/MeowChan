@@ -5,6 +5,9 @@ internal static class ArchiveColumnsCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     [
         ("archive.columnsReset", "Reset to mode defaults", "Auf Modus-Standard zurücksetzen"),
+        ("archive.columnsFit", "Fit column", "Spalte anpassen"),
+        ("archive.columnsFitAll", "Fit all columns", "Alle Spalten anpassen"),
+        ("archive.columns.favorite", "Favorite", "Favorit"),
         ("archive.columns.identity", "Source / board", "Quelle / Board"),
         ("archive.columns.title", "Title / ID", "Titel / ID"),
         ("archive.columns.posts", "Posts", "Posts"),

@@ -54,6 +54,8 @@ public static partial class WorkViewPolicy
         Same(ArchiveColumnId(ArchiveThreads, "title"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
         Same(ArchiveColumnId(ArchiveThreads, "posts"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
         Same(ArchiveColumnId(ArchiveThreads, "media"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
+        // A2: the favourite star has its own pinned first column, shown in every view (it used to sit in the title cell, which always showed).
+        Same(ArchiveColumnId(ArchiveThreads, "favorite"), WorkViewPage.Archive, WorkViewKind.Column, Direct),
         new(ArchiveColumnId(ArchiveThreads, "source"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Direct, Direct),
         new(ArchiveColumnId(ArchiveThreads, "work"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Overflow, Direct),
         new(ArchiveColumnId(ArchiveThreads, "lastCapture"), WorkViewPage.Archive, WorkViewKind.Column, Overflow, Overflow, Direct),

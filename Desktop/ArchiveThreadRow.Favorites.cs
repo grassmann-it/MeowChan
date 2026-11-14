@@ -13,6 +13,8 @@ internal sealed partial record ArchiveThreadRow : INotifyPropertyChanged
     public bool CanToggleThreadFavorite { get; private set; }
     public string? ThreadFavoriteError { get; private set; }
     public Func<Task>? ToggleThreadFavoriteAsync { get; set; }
+    /// <summary>Sort key of the favourite column: marked threads first on the first click, unmarked next, a state still loading last.</summary>
+    public int FavoriteSortKey => ThreadFavorite switch { true => 0, false => 1, null => 2 };
     public string ThreadFavoriteLabel => ThreadFavoriteText.Action(ThreadFavorite == true);
 
     internal void SetThreadFavorite(bool? marked, bool available, string? error)
