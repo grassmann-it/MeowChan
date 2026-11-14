@@ -1489,6 +1489,12 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />
     </Style>
+    <!-- MB1b: where the shared media badges already show the favourite at rest (archive tiles), the toggle is only shown while the tile is
+         hovered or holds keyboard focus, set or not (declared after the rules above, so it wins over ":checked"). -->
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:checked"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
+    <Style Selector="ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet"><Setter Property="Opacity" Value="1" /></Style>
     <Style Selector="ListBoxItem.chip-item:selected controls|ChipOutline.chip-source TextBlock.chip-label"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
 
     <!-- D4 (E7, A11Y M7): a chosen chip is never the tint alone. The chip-selected class gives the tint and a solid 2-px accent

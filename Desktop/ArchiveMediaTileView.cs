@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.Media;
 using Avalonia.Layout;
 using Avalonia.Media.Imaging;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -18,12 +19,18 @@ namespace MeowChan.Desktop;
 public sealed class ArchiveMediaTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
-    // I7: the favourite star sits in the bottom-right corner of the preview and shows when set or while the tile is hovered or
-    // focused (opacity only); the top-right corner names the type (GIF, video, other file) from the file name alone.
+    // MB1b: what the tile says about the medium (favourite, type, length, file missing) is drawn by the shared media badges over exactly the
+    // shown picture: one view, no child per badge (the former type chip is gone). The interactive favourite toggle stays what it was (a button,
+    // bottom right, shown while the tile is hovered or focused); the badge carries the state at rest, so the toggle is quiet unless pointed at.
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
-        Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass }, Margin = new Thickness(0, 0, 2, 2) };
-    private readonly Border _kind = MeowChan.Desktop.Controls.WorkspaceChips.CreateCornerBadge("ArchiveMediaKind", HorizontalAlignment.Right, VerticalAlignment.Top);
-    // D4 (T3): a selected tile also shows a check mark beside the type badge, so the multi-selection is never colour alone.
+        Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass, QuietFavoriteClass }, Margin = new Thickness(0, 0, 2, 2) };
+    private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
+    private ArchiveBadgeDescription _badgeText;
+    private bool _missing;
+    private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
+        VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0) };
+    // D4 (T3): a selected tile also shows a check mark in the top-right corner, so the multi-selection is never colour alone. A badge that
+    // already sits in that corner (a missing file) keeps its place: the check moves in beside it.
     private readonly Border _selectedMark = MeowChan.Desktop.Controls.WorkspaceChips.CreateSelectionCheck("ArchiveMediaSelected");
     private IDisposable? _selection;
     private readonly Image _image = new() { Stretch = Stretch.Uniform, MaxWidth = 170, MaxHeight = 125 };
@@ -46,12 +53,20 @@ public sealed class ArchiveMediaTileView : UserControl
     // attachments and the Medien page (cache keyed by the verified bytes); images
     // keep the image decoder. Nothing is fetched or generated beyond the reader.
     internal const int PosterWidth = 340, PosterHeight = 250;
+    /// <summary>The style class of a favourite toggle that is only shown while its tile is hovered or focused (the badge shows the state at rest).</summary>
+    internal const string QuietFavoriteClass = "tile-favorite-quiet";
+    /// <summary>The space the check mark keeps from the tile's top-right edge (dip).</summary>
+    internal const double CornerInset = 2, CornerGap = 2;
     internal bool HasThumbnail => _bitmap != null;
+    /// <summary>The shared badge view over the shown picture (tests and smokes read its state and plan).</summary>
+    internal MediaBadgeView Badges => _badges;
+    /// <summary>The badge sentence in the tile's name (empty when the tile has no badge).</summary>
+    internal string BadgeDescription => DataContext is ArchiveAssetRow ? _badgeText.Get(_badges.State, _badges.Options) : string.Empty;
     /// <summary>Where the picture is drawn, in the preview's coordinates (the badge, star and check mark sit on it).</summary>
     internal Rect PictureBounds => _preview.PictureBounds;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
         MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
-    /// <summary>I7: GIF, video or other file by the saved name (no file is read); empty for still images.</summary>
+    /// <summary>I7: GIF, video or other file by the saved name (no file is read); empty for still images. The badges name GIF and video themselves; only "other file" is added to the tile's name.</summary>
     internal static string KindLabel(ArchiveAssetRow row)
     {
         string name = row.Asset.OriginalFileName ?? row.Asset.Path;
@@ -77,22 +92,18 @@ public sealed class ArchiveMediaTileView : UserControl
         // The cell stays uniform (the tile grid is regular); the picture is letterboxed in it and the badge, star and check mark are
         // arranged on the picture, not on the cell edge.
         LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170;
-        _kind.VerticalAlignment = VerticalAlignment.Center;
-        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kind, _selectedMark } };
-        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(topRight); preview.Children.Add(_favorite);
+        _topRight.Children.Add(_selectedMark);
+        preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_badges); preview.Children.Add(_topRight); preview.Children.Add(_favorite);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 4 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
         grid.Children.Add(_status); Grid.SetRow(_status, 3); Content = grid;
         DataContextChanged += (_, _) =>
         {
+            _missing = false;
             Reset(); RefreshFavorite(); RefreshRating();
             ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
             _title.Text = row?.Name; _status.Text = row?.TileSummary;
-            string kind = row == null ? string.Empty : KindLabel(row);
-            _kind.IsVisible = kind.Length > 0;
-            ((TextBlock)_kind.Child!).Text = kind;
             UpdateDescription();
             if (_visible && IsEffectivelyVisible) _ = LoadAsync();
         };
@@ -141,6 +152,35 @@ public sealed class ArchiveMediaTileView : UserControl
     {
         ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
         _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
+        // The name is rebuilt only when the badges' sentence changed (the page refreshes every tile whenever a favourite changes).
+        string before = BadgeDescription;
+        UpdateBadges(row);
+        if (!ReferenceEquals(before, BadgeDescription)) UpdateDescription();
+    }
+
+    // The badges follow the row (favourite, type) and a load that found the file gone. The view is told the picture's size; the letterbox
+    // panel repeats that on every layout. Nothing is allocated when the state did not change (the view compares, the sentence is cached).
+    private void UpdateBadges(ArchiveAssetRow? row)
+    {
+        if (row == null) { _badges.Clear(); _badgeText.Reset(); }
+        else _badges.Apply(ArchiveMediaBadges.ForAsset(row, _missing), _preview.PictureBounds.Size);
+        // The selection check keeps clear of a badge in the same corner (a missing file is a safety fact and is never covered). The check is
+        // arranged on the marks band, which can be wider than a thin picture, so that difference is part of the inset.
+        Rect picture = _preview.PictureBounds, band = _preview.MarksBounds;
+        double inset = CornerInset + Math.Max(0, band.Right - picture.Right) + TopRightExtent(_badges.Plan, picture.Width);
+        if (_topRight.Margin.Right != inset) _topRight.Margin = new Thickness(0, 2, inset, 0);
+    }
+
+    /// <summary>
+    /// How far the badges of the top-right corner reach into the picture from its right edge, plus a gap; 0 when the corner holds none. The
+    /// selection check is arranged beside them, never on top.
+    /// </summary>
+    internal static double TopRightExtent(MediaBadgePlan plan, double pictureWidth)
+    {
+        double reach = 0;
+        foreach (PlacedBadge placed in plan.Badges)
+            if (placed.Badge.Corner == MediaBadgeCorner.TopRight) reach = Math.Max(reach, pictureWidth - placed.Bounds.Left);
+        return reach > 0 ? reach + CornerGap : 0;
     }
 
     internal void RefreshRating()
@@ -159,9 +199,10 @@ public sealed class ArchiveMediaTileView : UserControl
         string? key = ReferenceEquals(decode, DefaultThumbnailDecoder) && !UsesVideoPoster(row) ? MediaTileThumbnails.ByteKey(row.Asset) : null;
         if (key != null && MediaTileThumbnails.Cache.TryAcquire(key) is { } kept)
         {
-            _bitmap = kept;
+            _bitmap = kept; _missing = false;
             _image.Source = kept; _preview.Aspect = MediaSlotGeometry.AspectOf(kept);
             _message.Text = string.Empty;
+            UpdateBadges(row);
             UpdateDescription();
             return;
         }
@@ -178,23 +219,37 @@ public sealed class ArchiveMediaTileView : UserControl
             if (key != null && bitmap != null) bitmap = MediaTileThumbnails.Cache.Add(key, bitmap);
             if (request != _request || !_visible || !IsEffectivelyVisible || !ReferenceEquals(DataContext, row) || loading.IsCancellationRequested)
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
-            _bitmap = bitmap;
+            _bitmap = bitmap; _missing = false;
             _image.Source = bitmap; _preview.Aspect = MediaSlotGeometry.AspectOf(bitmap);
             // The tile has no path line below it, unlike the preview pane, so name only what is missing.
             _message.Text = bitmap == null ? Texts.T(UnavailableKey(row)) : string.Empty;
+            UpdateBadges(row);
             UpdateDescription();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (request == _request) { _message.Text = exception.Message; UpdateDescription(); } }
+        catch (Exception exception)
+        {
+            if (request != _request) return;
+            // A file that is gone is a safety fact the badges show (a failure to decode is not).
+            _missing = ArchiveMediaBadges.IsMissingFile(exception);
+            _message.Text = exception.Message;
+            UpdateBadges(row);
+            UpdateDescription();
+        }
         finally { if (ReferenceEquals(_loading, loading)) _loading = null; }
     }
 
     private void UpdateDescription()
     {
-        string kind = DataContext is ArchiveAssetRow row ? KindLabel(row) : string.Empty;
-        string description = string.Join(Environment.NewLine, new[] { _title.Text, kind, _status.Text, _rating.Text, _message.Text }.Where(part => !string.IsNullOrEmpty(part)));
+        ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
+        // GIF and video are said by the badges' sentence ("Video", "Animated image"); only "file" (neither a picture nor a video) is added here.
+        string kind = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path)
+            is not (MeowChan.Gallery.SavedMediaKind.Image or MeowChan.Gallery.SavedMediaKind.Video) ? KindLabel(row) : string.Empty;
+        string badges = row == null ? string.Empty : _badgeText.Get(_badges.State, _badges.Options);
+        string description = string.Join(Environment.NewLine, new[] { _title.Text, kind, badges, _status.Text, _rating.Text, _message.Text }.Where(part => !string.IsNullOrEmpty(part)));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
+        AutomationProperties.SetHelpText(this, badges);
     }
 
     private void Reset()
