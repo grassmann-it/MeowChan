@@ -29,6 +29,9 @@ public sealed class DialogFitCoverageTests
         "Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs",
     };
 
+    // A window fits itself either directly or through the dialog factory (modals plan MD1/MD2), which calls DialogFit.OnOpen once.
+    private static readonly Regex FitCall = new(@"DialogFit\.OnOpen\(this\)|DialogWindow\.Configure\(this", RegexOptions.Compiled);
+
     [Theory]
     [InlineData("Desktop/Views/About/AboutWindow.axaml.cs")]
     [InlineData("Desktop/Views/Settings/SettingsWindow.axaml.cs")]
@@ -42,7 +45,7 @@ public sealed class DialogFitCoverageTests
     [InlineData("Desktop/Views/Media/ManualImportDialog.cs")]
     [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs")]
     public void TheWindowsOfTheAuditStillFitThemselvesToTheScreen(string path) =>
-        Assert.Matches(@"DialogFit\.OnOpen\(this\)", File.ReadAllText(Source(path)));
+        Assert.Matches(FitCall, File.ReadAllText(Source(path)));
 
     [Fact]
     public void FittingIsAskedForOnceAndOnlyOnOpening()
@@ -50,7 +53,7 @@ public sealed class DialogFitCoverageTests
         foreach (string path in Fitted)
         {
             string source = File.ReadAllText(Source(path));
-            Assert.Single(Regex.Matches(source, @"DialogFit\.OnOpen\("));
+            Assert.Single(Regex.Matches(source, @"DialogFit\.OnOpen\(|DialogWindow\.Configure\(this"));
             Assert.DoesNotContain("DialogFit.Apply(", source); // Opening is the moment; later calls would fight the user.
         }
         // Nobody else in the product calls the computation directly.
@@ -78,12 +81,11 @@ public sealed class DialogFitCoverageTests
     [Fact]
     public void TheImportDialogKeepsItsFooterOutsideTheScrollingBodySoALoweredMinimumScrolls()
     {
+        // Modals plan MD2: the import dialog sits in the dialog frame, whose body scrolls between the title bar and the footer.
         string source = File.ReadAllText(Source("Desktop/Views/Media/ManualImportDialog.cs"));
-        Assert.Contains("RowDefinitions = new RowDefinitions(\"Auto,*,Auto\")", source);
-        Assert.Matches(@"ScrollViewer scroll = new\(\) \{ Content = body,", source);
-        Assert.Contains("Grid.SetRow(scroll, 1);", source);
-        Assert.Contains("Grid.SetRow(footer, 2);", source);
-        Assert.Contains("footer.Children.Add(_close);", source);
+        Assert.Contains("DialogFrame.Build(header: null, body, footer)", source);
+        Assert.Contains("DialogFooter.Build(_import, new Control[] { _cancel, _close, _showBatch })", source);
+        Assert.DoesNotContain("Children.Add(body)", source);
     }
 
     // The window's own opening height: from the XAML root for a XAML window, else from the constructor assignment.

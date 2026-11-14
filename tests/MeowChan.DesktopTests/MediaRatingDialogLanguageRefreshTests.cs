@@ -146,7 +146,7 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
         string apply = Between(source, "private void ApplyTexts()", "private void RefreshErrorText()");
         foreach (string required in new[] { "Title = CommandCatalog.Label", "_search.PlaceholderText = MediaRatingText.Catalog",
             "AutomationProperties.SetName(_search,", "_frozen is MediaRatingEntry entry", "CommandBindings.Apply(_remove,", "_confirm.Content = MediaRatingText.Catalog", "_cancel.Content = MediaRatingText.Catalog",
-            "_close.Content = MediaRatingText.Catalog", "row.RefreshTexts()", "RefreshSummary();",
+            "_close.Content = Texts.T(\"action.close\")", "row.RefreshTexts()", "RefreshSummary();",
             "MediaRatingText.Catalog(\"media.rating.confirmRemove\")", "(_list.SelectedItem as Row)?.ToString()", "RefreshErrorText();" })
             Assert.Contains(required, apply);
         Assert.Contains("new Binding(nameof(Row.ValueText)) { Source = row }", source);

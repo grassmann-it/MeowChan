@@ -208,8 +208,6 @@ public sealed class WindowChromeCoverageTests
     [Theory]
     [InlineData("Desktop/Views/Admission/ExperimentalActivationDialog.axaml.cs")]
     [InlineData("Desktop/Shell/MainWindow.ArchiveDeletion.cs")]
-    [InlineData("Desktop/Shell/MainWindow.GalleryActions.cs")]
-    [InlineData("Desktop/Views/Archive/ArchivePage.Commands.cs")]
     public void SmallModalPromptsUseTheDialogVariant(string path) =>
         Assert.Contains("WindowChromeKind.Dialog", File.ReadAllText(Source(path)));
 
@@ -219,11 +217,28 @@ public sealed class WindowChromeCoverageTests
     [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", true)]
     [InlineData("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs", true)]
     [InlineData("Desktop/Views/Media/MediaOccurrencesWindow.cs", false)]
+    [InlineData("Desktop/Shell/MainWindow.GalleryActions.cs", true)]
+    [InlineData("Desktop/Views/Archive/ArchivePage.Commands.cs", true)]
+    [InlineData("Desktop/Views/Media/BooruMediaDetailsDialog.cs", true)]
+    [InlineData("Desktop/ArchiveCleanupDialog.cs", true)]
+    [InlineData("Desktop/MediaRatingsManagerDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/FilenameSearchDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/InterruptedTransfersDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/MediaConflictsDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/MediaHashSearchDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/NativeTransferImportDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/NativeTransferPreviewDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/PostFilterDialog.cs", true)]
+    [InlineData("Desktop/Views/Archive/UrlTextExportDialog.cs", true)]
+    [InlineData("Desktop/Views/Collections/MediaTagDialog.cs", true)]
+    [InlineData("Desktop/Views/Collections/TagManagerDialog.cs", true)]
+    [InlineData("Desktop/Views/Media/MediaSelectionTagDialog.cs", true)]
+    [InlineData("Desktop/Views/Media/ManualImportDialog.cs", false)]
     public void FactoryWindowsDeclareWhetherTheyAreModal(string path, bool modal)
     {
         string source = File.ReadAllText(Source(path));
         Assert.Matches(@"DialogWindow\.(Configure|Create)\(", source);
-        Assert.Matches(@"DialogWindow\.Frame\([^;]*modal: " + (modal ? "true" : "false") + @"\)", source);
+        Assert.Matches(@"DialogWindow\.Frame\([^;]*modal: " + (modal ? "true" : "false") + @"[,)]", source);
         Assert.Equal(WindowChromeKind.Dialog, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true));
         Assert.Equal(WindowChromeKind.Window, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: false));
     }

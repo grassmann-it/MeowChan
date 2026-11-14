@@ -108,7 +108,7 @@ public sealed class SecondaryLanguageRefreshRegressionTests : IDisposable
         string source = ReadSource("Desktop/Views/About/AboutWindow.axaml.cs");
         string apply = Between(source, "private void ApplyTexts()", "private void OnTextsChanged(");
         foreach (string target in new[] { "Title", "AboutTab.Header", "CreditsTab.Header", "LicensesTab.Header",
-            "LicenseSearchBox.PlaceholderText", "CloseButton.Content" })
+            "LicenseSearchBox.PlaceholderText" })
             Assert.Contains(target + " = Texts.T(", apply);
         Assert.Contains("UpdateSelection();", apply);
         Assert.Contains("RefreshUpdates();", apply);

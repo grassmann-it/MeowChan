@@ -35,6 +35,12 @@ public sealed class DialogMinimumHeightTests
                     tooLow.Add(Path.GetRelativePath(root, file) + ": MinHeight " + minimum);
             }
         }
+        // A window on the dialog factory (modals plan MD1/MD2) has no literal minimum: its step does (checked below).
+        foreach (string file in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+            checkedWindows += Regex.Matches(File.ReadAllText(file), @"DialogWindow\.Configure\(this").Count;
+        foreach (MeowChan.Desktop.DialogSize step in Enum.GetValues<MeowChan.Desktop.DialogSize>())
+            if (MeowChan.Desktop.WorkspaceMetrics.DialogMinimumSize(step).Height < MinimumFramedHeight)
+                tooLow.Add("DialogSize." + step);
         Assert.True(checkedWindows >= 20, "The scan found only " + checkedWindows + " window minimums; the pattern no longer matches.");
         Assert.True(tooLow.Count == 0, "Raise these minimums above " + MinimumFramedHeight + ": " + string.Join(", ", tooLow));
     }

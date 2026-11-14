@@ -161,6 +161,89 @@ public sealed class DialogWindowTests
         Assert.Matches(@"DialogWindow\.(Configure|Create)\(", part);
     }
 
+    // MD2: the class-based dialogs of the archive, transfer, search, tag and media groups. Each takes its size step and its
+    // modal or modeless kind from the factory, frames through it, answers Escape through the policy, shows its title only in
+    // the title bar (no duplicated _heading) and spells Close as action.close. A lone footer Close is left out where × suffices.
+    [Theory]
+    [InlineData("Desktop/ArchiveCleanupDialog.cs", true, true)]
+    [InlineData("Desktop/MediaRatingsManagerDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/FilenameSearchDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/InterruptedTransfersDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/MediaConflictsDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/MediaHashSearchDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/NativeTransferImportDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/NativeTransferPreviewDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/PostFilterDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Archive/UrlTextExportDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Collections/MediaTagDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Collections/TagManagerDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Media/MediaSelectionTagDialog.cs", true, true)]
+    [InlineData("Desktop/Views/Media/ManualImportDialog.cs", false, true)]
+    // Read-only details dialogs: no footer at all.
+    [InlineData("Desktop/Views/Media/BooruMediaDetailsDialog.cs", true, false)]
+    public void ClassDialogsOfMd2UseTheFactoryTheFooterAndTheEscapePolicy(string path, bool modal, bool footer)
+    {
+        string source = File.ReadAllText(Source(path));
+        string kind = modal ? "true" : "false";
+        Assert.Matches(@"DialogWindow\.Configure\(this, DialogSize\.[SMLX], modal: " + kind + @"\)", source);
+        Assert.Matches(@"DialogWindow\.Frame\(this, [^;]*modal: " + kind + @"[,)]", source);
+        Assert.Contains("DialogEscape.Attach(this", source);
+        // The tag dialogs and the import dialog keep one Escape rule of their own: the first press closes an open suggestion list.
+        bool listEscape = path.Contains("MediaTagDialog", StringComparison.Ordinal) || path.Contains("MediaSelectionTagDialog", StringComparison.Ordinal)
+            || path.Contains("ManualImportDialog", StringComparison.Ordinal);
+        if (!listEscape) Assert.DoesNotContain("Key.Escape", source);
+        Assert.DoesNotContain("_heading", source);
+        Assert.DoesNotContain("WindowChrome.Apply", source);
+        Assert.DoesNotContain("WindowChromeBar _chrome", source);
+        Assert.DoesNotContain("WindowStartupLocation", source);
+        Assert.Equal(footer, source.Contains("DialogFooter.Build(", StringComparison.Ordinal));
+        foreach (string obsolete in new[] { "archive.cleanup.close", "transfer.import.close", "mediahash.close", "postFilter.close", "tags.media.close",
+            "tags.manage.close", "import.close", "urltext.export.close", "filename.search.close", "media.rating.close" })
+            Assert.DoesNotContain("\"" + obsolete + "\"", source);
+    }
+
+    [Theory]
+    [InlineData("Desktop/Shell/MainWindow.GalleryActions.cs", "Name = \"GalleryDetailsDialog\"")]
+    [InlineData("Desktop/Views/Archive/ArchivePage.Commands.cs", "private async Task ShowArchiveMetadataAsync(")]
+    public void ReadOnlyDetailsDialogsHaveNeitherHeadingNorLoneCloseButton(string path, string anchor)
+    {
+        string source = File.ReadAllText(Source(path));
+        int start = source.IndexOf(anchor, StringComparison.Ordinal);
+        Assert.True(start >= 0, anchor);
+        string part = source[start..Math.Min(source.Length, start + 1800)];
+        Assert.Contains("DialogWindow.Create(", source[(path.EndsWith("GalleryActions.cs", StringComparison.Ordinal) ? start - 400 : start)..Math.Min(source.Length, start + 1800)]);
+        Assert.Contains("DialogEscape.Attach(dialog)", part);
+        Assert.Contains("footer: null", part);
+        Assert.DoesNotContain("heading", part, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Button close", part);
+    }
+
+    [Fact]
+    public void TheAboutWindowHasNoLoneCloseButtonAndClosesOnEscapeThroughThePolicy()
+    {
+        string xaml = File.ReadAllText(Source("Desktop/Views/About/AboutWindow.axaml"));
+        string code = File.ReadAllText(Source("Desktop/Views/About/AboutWindow.axaml.cs"));
+        Assert.DoesNotContain("CloseButton", xaml);
+        Assert.DoesNotContain("DialogFrameFooter", xaml);
+        Assert.DoesNotContain("CloseButton", code);
+        Assert.Contains("DialogEscape.Attach(this);", code);
+    }
+
+    [Fact]
+    public void AStatusAboveTheActionsKeepsTheFullWidthAndTheActionOrder()
+    {
+        TextBlock status = new() { Name = "Outcome" };
+        Button first = new(), primary = new();
+        Border footer = DialogFooter.Build(primary, new Control[] { first }, status, statusAbove: true);
+        Assert.Contains("workspace-dialog-footer", footer.Classes);
+        StackPanel stack = Assert.IsType<StackPanel>(footer.Child);
+        Assert.Same(status, stack.Children[0]);
+        Assert.Equal("Outcome", status.Name); // an existing name is kept
+        WrapPanel actions = Assert.IsType<WrapPanel>(stack.Children[1]);
+        Assert.Equal(new Control[] { first, primary }, actions.Children.ToArray());
+        Assert.Equal(default, status.Margin);
+    }
+
     private static string Source(string path, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", path));
 }
