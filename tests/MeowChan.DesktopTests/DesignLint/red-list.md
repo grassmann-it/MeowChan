@@ -313,4 +313,3 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)
-

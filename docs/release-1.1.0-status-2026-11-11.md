@@ -10,7 +10,7 @@ beweglichen Claude-Zweig. Herkunft und Ausführungsstand sind getrennt:
 | Aktueller Root vor Übernahme des kombinierten Kandidaten | `cf147f7f78ec1cf228915c25619bb16bd89127df` | Enthält die drei Python-Runner-/Prozesshelper-Nachläufe seit `66296fd9`; **34 gezielte Python-Tests bestanden** laut Übernahmenachtrag. Kein neuer Appbuild daraus abzuleiten. |
 | Zuletzt tatsächlich gebaute Root-App | `66296fd9d6c5b50e45f39c7ecc9be7fa53d645eb` | G0115, fertig **11:40:42 CET**, **0 Fehler / 4 Avalonia-Warnungen**. Compile-/Dogfood-Anker, kein Release- oder GUI-PASS. |
 | Final von Claude gelieferter UX-Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Explizit zur Integration geliefert; dessen separate Compile-/Testmeldungen sind kein Beleg für den kombinierten Kandidaten. |
-| Kombinierter Integrationskandidat | `b098907402cd34661c72d73a3559df68bfcd3cc4` | Merge von `cf147f7f` und `0fc7c5cf`; **noch kein gemeinsamer Compilebeleg und noch kein Root-Fast-Forward**. Parent prüft und aktualisiert danach. |
+| Kombinierter Integrationskandidat | `b098907402cd34661c72d73a3559df68bfcd3cc4` | Merge von `cf147f7f` und `0fc7c5cf`; **App, DesktopTests und DesktopSmoke gemeinsam kompiliert: jeweils 0 Fehler**, G0117 fertig 12:06:12 CET. Noch kein Root-Fast-Forward; keine Testausführung/GUI-Abnahme dieses Laufs. |
 
 Kein finaler Freeze und keine Releasefreigabe. Keine Vollsuite-/GUI-/Plattform-/
 Endpaketabnahme aus Quellintegration oder älteren Zwischenbelegen ableiten;
@@ -24,6 +24,25 @@ Der frühere Hauptcheckout-Anker `6e8e4437` und der damals getrennte Codex-Stand
 früher erhaltenen Root-WIP und alle commitgebundenen Nachweise unten, ohne
 Root-WIP zu verändern. G0105 und G0106–G0109 bleiben eigenständige historische
 Läufe; sie sind keine Abnahme des neuen Merge-Kandidaten.
+
+## Integrationsnachlauf nach dem gemeinsamen Compile
+
+Nach G0117 kamen im Integrationszweig hinzu: Booru-Werkbank auf der modelessen
+Dialogfabrik (`4dba3f42`, Vertragsnachlauf `3eda084b`), M2/BP3-Filter- und
+asynchrone Hinweis-Lifetime-Korrekturen (`f3fffbd5`, `13b376e6`, `46728f32`),
+AP04-Prozesscleanup (`9c802626`) sowie die konkrete Wave3-Hilfe für Galerie,
+Markierung/Stempel, Tagging, Reader, Profile und Ordnerquellen (`945191be`).
+Diese Nachläufe benötigen ihren eigenen kombinierten Compile; G0117 wird ihnen
+nicht als bereits ausgeführter Nachweis zugeschrieben. Die alten Help-Tests mit
+expliziten Nichtverfügbarkeitsaussagen müssen an die nun vorhandenen Funktionen
+angepasst werden, ohne die Dokumentation zurückzudrehen.
+
+Der separate Wave3-Review meldet drei konkrete Pflichtkorrekturen: Tagging-Undo
+bei entfernten Einträgen/fehlgeschlagenen Writes sowie abbrechbares, begrenztes
+Ordner-Hashing und entlastende Katalogoperationen bei voller Datei. Claude hat
+hierfür eigene Fixpakete gestartet; im hier beschriebenen Kandidaten sind diese
+noch nicht als erledigt nachgewiesen. Compile-first für Dogfooding ist keine
+Freigabe dieser Daten-/I/O-Pfade und kein Release-PASS.
 
 ## Entscheidung und Umfang
 
@@ -85,7 +104,7 @@ Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
   Medien-Termset angepasst; Codex-M5 (Preloader/stat) und Claude-M5
   (Medienfilterraster) sind verschiedene enthaltene Pakete.
 
-**Noch kein Abschlussclaim:** Gemeinsamer Compile/Root-FF steht aus.
+**Noch kein Abschlussclaim:** Gemeinsamer Compile auf `b0989074` ist belegt; Root-FF und die Abnahme der danach integrierten Nachläufe stehen aus.
 Der Booru-Workbench-Window-Host ist auf diesem Pin noch nicht auf die
 MD3-Dialogfabrik portiert; der separate Nachlauf ist nicht als integriert zu
 zählen. Help-Nachpflege zu Markieren/Stempel und Stempelgröße, Tagging-Seite,
