@@ -5,6 +5,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using MeowChan.Tags;
 using Ursa.Controls;
 
