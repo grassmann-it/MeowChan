@@ -9,9 +9,10 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Tom's rule (14.11.2026 evening, reversing the right-edge rule of the same day): back, close, "close details" and every "Back to …"
-/// stand at the far left of their header or tool row, before the title, first in the row's tab order and set apart from the title by a
-/// gap and a thin separator; the remaining buttons are right-aligned. All through the one shared <see cref="HeaderBar"/>. Layout runs
+/// Tom's rule (14.11.2026 evening, reversing the right-edge rule of the same day, narrowed by his item 35): the way back of a page or
+/// overlay (back, "Back to …", an overlay's ×) stands at the far left of its header row, before the title, first in the row's tab order and
+/// set apart from the title by a gap and a thin separator; the remaining buttons are right-aligned. Inline tool rows (find bar, tag row,
+/// preview, Downloads search, details panel) keep their × at the right edge, without back slot, gap or separator. All through the one shared <see cref="HeaderBar"/>. Layout runs
 /// without an Avalonia application (plain borders); the page rows are checked in their XAML. The × of window dialogs (caption) stays at the right.
 /// </summary>
 public sealed class HeaderBarContractTests
@@ -69,6 +70,20 @@ public sealed class HeaderBarContractTests
         Assert.True(title.Bounds.Left - back.Bounds.Right >= HeaderBar.BackGap - 0.001);
         Assert.NotNull(bar.SeparatorX);
         Assert.All(new Control[] { title, more }, control => Assert.True(control.Bounds.Left > back.Bounds.Right));
+    }
+
+    [Fact]
+    public void AnInlineRowWithOnlyAnEndCloseHasNoBackGapAndNoSeparator()
+    {
+        Border content = new() { Height = 32 }, close = Box(32);
+        HeaderBar bar = HeaderBar.Create(null, content, close);
+        Layout(bar, 400);
+        Assert.Null(bar.SeparatorX);
+        Assert.Equal(0, content.Bounds.Left, 3);
+        Assert.Equal(400, close.Bounds.Right, 3);
+        Assert.True(content.Bounds.Right <= close.Bounds.Left - HeaderBar.EndGap + 0.001);
+        Assert.Empty(bar.BackChildren);
+        Assert.True(bar.EndSlotIsLast);
     }
 
     [Fact]
@@ -155,19 +170,15 @@ public sealed class HeaderBarContractTests
         Assert.Equal("Suche schließen · Esc", ToolTip.GetTip(close));
     }
 
-    // Inventory (14.11. evening): every way out stands in a back slot at the far left. The gallery viewer keeps its own overlay placement
-    // (GL3), the popovers and the quick-tag surface their own headers; window modals have the caption's × at the right (OS convention).
-    public static TheoryData<string, string> WaysOut => new()
+    // Inventory (14.11. evening, item 35): pages and overlays have a back slot at the far left; the inline tool rows keep their × at the right
+    // (end slot). The gallery viewer keeps its own overlay placement (GL3), the popovers and the quick-tag surface their own headers; window
+    // modals have the caption's × at the right (OS convention).
+    public static TheoryData<string, string> WaysBack => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveGalleryReturn" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveMediaReturn" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveBackButton" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveCloseReader" },
-        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderFindClose" },
-        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderTagClose" },
-        { "Desktop/Views/Archive/ArchivePage.axaml", "ClosePreviewButton" },
-        { "Desktop/Shell/MainWindow.axaml", "DownloadSearchClose" },
-        { "Desktop/Shell/MainWindow.axaml", "InspectorCloseButton" },
         { "Desktop/Shell/MainWindow.axaml", "ShellHelpClose" },
         { "Desktop/Views/Sources/SourcesPage.axaml", "SourceBackButton" },
         { "Desktop/Views/Plugins/PluginsPage.axaml", "PluginBack" },
@@ -177,9 +188,18 @@ public sealed class HeaderBarContractTests
         { "Desktop/Views/Statistics/StatisticsPage.axaml", "ResetConfirmClose" },
     };
 
+    public static TheoryData<string, string> InlineCloses => new()
+    {
+        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderFindClose" },
+        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderTagClose" },
+        { "Desktop/Views/Archive/ArchivePage.axaml", "ClosePreviewButton" },
+        { "Desktop/Shell/MainWindow.axaml", "DownloadSearchClose" },
+        { "Desktop/Shell/MainWindow.axaml", "InspectorCloseButton" },
+    };
+
     [Theory]
-    [MemberData(nameof(WaysOut))]
-    public void EveryWayOutSitsInAHeaderBarBackSlotAsItsFirstChild(string file, string name)
+    [MemberData(nameof(WaysBack))]
+    public void EveryPageOrOverlayWayBackSitsInAHeaderBarBackSlotAsItsFirstChild(string file, string name)
     {
         XElement control = Named(file, name);
         Assert.Equal("True", BackAttribute(control));
@@ -191,10 +211,24 @@ public sealed class HeaderBarContractTests
         Assert.DoesNotContain(control.Attributes(), attribute => attribute.Name.LocalName == "Grid.Column");
     }
 
-    [Fact]
-    public void EveryHeaderBarDeclaresItsBackSlotFirstItsEndSlotLastAndOnlyButtonsInThem()
+    [Theory]
+    [MemberData(nameof(InlineCloses))]
+    public void EveryInlineToolRowKeepsItsCloseAtTheRightInTheEndSlotWithoutABackSlot(string file, string name)
     {
-        int bars = 0;
+        XElement control = Named(file, name);
+        Assert.Equal("True", EndAttribute(control));
+        Assert.Null(BackAttribute(control));
+        XElement row = control.Parent!;
+        Assert.Equal("HeaderBar", row.Name.LocalName);
+        Assert.DoesNotContain(row.Elements(), child => BackAttribute(child) == "True"); // no back gap, no separator
+        Assert.Same(control, row.Elements().Last()); // the rightmost control of its row, last in tab order
+        Assert.DoesNotContain(control.Attributes(), attribute => attribute.Name.LocalName == "Grid.Column");
+    }
+
+    [Fact]
+    public void EveryHeaderBarIsEitherAPageRowWithABackSlotFirstOrAnInlineRowWithOnlyEndButtons()
+    {
+        int bars = 0, withBack = 0, inline = 0;
         foreach (string file in Directory.EnumerateFiles(Root("Desktop"), "*.axaml", SearchOption.AllDirectories))
             foreach (XElement bar in XDocument.Load(file).Descendants().Where(element => element.Name.LocalName == "HeaderBar"))
             {
@@ -203,19 +237,26 @@ public sealed class HeaderBarContractTests
                 string where = Path.GetFileName(file) + "/" + ((string?)bar.Attribute(X + "Name") ?? "HeaderBar");
                 int lastBack = Array.FindLastIndex(children, child => BackAttribute(child) == "True");
                 int firstEnd = Array.FindIndex(children, child => EndAttribute(child) == "True");
-                Assert.True(lastBack >= 0, where + " has no back slot.");
-                Assert.True(children.Length > lastBack + 1, where + " has no content after the back slot.");
-                Assert.All(children.Take(lastBack + 1), child => Assert.True(BackAttribute(child) == "True", where + ": content before the way back."));
-                Assert.All(children.Take(lastBack + 1), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
+                Assert.True(lastBack >= 0 || firstEnd >= 0, where + " has neither a back slot nor an end slot.");
+                Assert.DoesNotContain(children, child => BackAttribute(child) == "True" && EndAttribute(child) == "True");
+                if (lastBack >= 0)
+                {
+                    withBack++;
+                    Assert.True(children.Length > lastBack + 1, where + " has no content after the back slot.");
+                    Assert.All(children.Take(lastBack + 1), child => Assert.True(BackAttribute(child) == "True", where + ": content before the way back."));
+                    Assert.All(children.Take(lastBack + 1), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
+                }
+                else inline++;
                 if (firstEnd >= 0)
                 {
-                    Assert.True(firstEnd > lastBack + 1, where + " has no content between the back slot and the remaining buttons.");
-                    Assert.All(children.Skip(firstEnd), child => Assert.True(EndAttribute(child) == "True", where + ": content after the remaining buttons."));
+                    Assert.True(firstEnd > lastBack + 1, where + " has no content between the back slot and the end buttons.");
+                    Assert.All(children.Skip(firstEnd), child => Assert.True(EndAttribute(child) == "True", where + ": content after the end buttons."));
                     Assert.All(children.Skip(firstEnd), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
                 }
-                Assert.DoesNotContain(children, child => BackAttribute(child) == "True" && EndAttribute(child) == "True");
             }
-        Assert.True(bars >= 8, "Expected the reader, find, tag, preview, search, inspector, help and rules rows: " + bars);
+        Assert.True(withBack >= 7, "Expected the reader, filter surface, link, help, reset, plugin, source and rule rows: " + withBack);
+        Assert.True(inline >= 5, "Expected the find, tag, preview, search and details rows: " + inline);
+        Assert.Equal(bars, withBack + inline);
     }
 
     // The ways back of the reader are the first controls of its header row (left to right: the state returns, the narrow list return, the large reader's

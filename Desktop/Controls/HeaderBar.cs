@@ -12,12 +12,14 @@ using Avalonia.VisualTree;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The one header or tool row with a way out (Tom's rule, 14.11.2026 evening, which reverses the earlier right-edge rule): back,
-/// close, "close details" and every "Back to …" stand at the far left of their row, before the title, so they read as "back".
-/// Children marked <see cref="IsBackProperty"/> form the back slot; children marked <see cref="IsEndProperty"/> are the row's remaining
-/// buttons, right-aligned; everything else is the row's content (title, toolbar) and fills the room between. Between the back slot
-/// and the content lie <see cref="BackGap"/> dip of empty room with one thin vertical separator (the Workspace.Border token) in
-/// the middle, so the way out never reads as one more action.
+/// The one header or tool row (Tom's rule, 14.11.2026 evening, which reverses the earlier right-edge rule for pages and overlays):
+/// the way back of a PAGE or OVERLAY (back, "Back to …", the × of an overlay, a detail view or a rule editor) stands at the far left of
+/// its header row, before the title, so it reads as "back". Children marked <see cref="IsBackProperty"/> form the back slot.
+/// Inline tool rows (reader find bar, tag row, preview, Downloads search, details panel; Tom's item 35) keep their × at the right
+/// edge: it is an <see cref="IsEndProperty"/> child there, with no back slot, no back gap and no separator. Children marked
+/// <see cref="IsEndProperty"/> are the row's remaining buttons, right-aligned; everything else is the row's content (title,
+/// toolbar) and fills the room between. Between a back slot and the content lie <see cref="BackGap"/> dip of empty room with one thin
+/// vertical separator (the Workspace.Border token) in the middle, so the way back never reads as one more action.
 /// </summary>
 /// <remarks>
 /// <para>Keyboard order (documented choice): the back slot first, then the row's own content, the remaining buttons last, in

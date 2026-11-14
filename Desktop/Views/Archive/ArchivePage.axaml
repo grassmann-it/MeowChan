@@ -306,8 +306,7 @@
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
                              dialogs on Enter or Search, Text finds in the open thread as before. -->
                         <controls:HeaderBar x:Name="ReaderFindRow">
-                        <!-- The find bar's way out: at the far left (HeaderBar back slot), the drawn cross with its name. -->
-                        <Button x:Name="ReaderFindClose" controls:HeaderBar.IsBack="True" Click="OnCloseThreadFind" />
+                        <!-- The inline find bar keeps its × at the right edge (HeaderBar end slot, Tom's item 35), the drawn cross with its name. -->
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                             <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
                                 <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
@@ -319,6 +318,7 @@
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                         </WrapPanel>
+                        <Button x:Name="ReaderFindClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadFind" />
                         </controls:HeaderBar>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
                         <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
@@ -329,12 +329,12 @@
                         <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" />
                         <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="False" />
                         <controls:HeaderBar x:Name="ReaderTagRow">
-                        <Button x:Name="ReaderTagClose" controls:HeaderBar.IsBack="True" Click="OnCloseThreadTags" />
                         <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                             <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
                             <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
                             <Button x:Name="ReaderTagManage" Click="OnManageTags" />
                         </WrapPanel>
+                        <Button x:Name="ReaderTagClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadTags" />
                         </controls:HeaderBar>
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
@@ -761,8 +761,8 @@
         <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="workspace-section" IsVisible="False">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <controls:HeaderBar>
-                    <Button x:Name="ClosePreviewButton" controls:HeaderBar.IsBack="True" Click="OnClosePreview" />
                     <TextBlock x:Name="PreviewTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <Button x:Name="ClosePreviewButton" controls:HeaderBar.IsEnd="True" Click="OnClosePreview" />
                 </controls:HeaderBar>
                 <Grid Grid.Row="1">
                     <Image x:Name="ArchivePreviewImage" Stretch="Uniform" />

@@ -708,20 +708,26 @@ public sealed class HelpDocumentationTests
         Assert.Contains("if (discard && !Editor.IsBusy) Close();", settings, StringComparison.Ordinal);
         Assert.True(HeaderBar.BackGap > 0 && HeaderBar.BackSpacing > 0);
 
-        // Every button the Help names is declared in the back slot of a HeaderBar (static XAML check; layout and tab order
-        // are covered by HeaderBarContractTests, not here). NOTE for the Help.md owner (14.11. evening): the section text asserted
-        // above still states the old right-edge rule; when Help.md moves to the left rule, update the phrases above (section
-        // title "Back and Close at the right edge", "stands alone at the right edge of that row", "comes last in the Tab order").
+        // Every button the Help names is declared in a HeaderBar: the ways back of pages in the back slot, the inline tool rows' closes in
+        // the end slot (static XAML check; layout and tab order are covered by HeaderBarContractTests, not here). NOTE for the Help.md owner
+        // (14.11. evening, Tom's item 35): the section text asserted above still states the old right-edge rule for everything; when Help.md
+        // moves to the new rule (pages and overlays left, inline rows right), update the phrases above (section title "Back and Close at
+        // the right edge", "stands alone at the right edge of that row", "comes last in the Tab order").
         string main = Read("Desktop/Shell/MainWindow.axaml");
         string archive = Read("Desktop/Views/Archive/ArchivePage.axaml");
+        (string Xaml, string Name)[] backs =
+        [
+            (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader")
+        ];
+        foreach ((string xaml, string name) in backs)
+            Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsBack=\"True\"", xaml);
         (string Xaml, string Name)[] ends =
         [
             (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
-            (archive, "ArchiveBackButton"), (archive, "ArchiveGalleryReturn"), (archive, "ArchiveMediaReturn"), (archive, "ArchiveCloseReader"),
             (archive, "ReaderFindClose"), (archive, "ReaderTagClose"), (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
-            Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsBack=\"True\"", xaml);
+            Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);
 
         // The reader header declares its ways back before its own title, so they are first in reading and Tab order.
         int start = archive.IndexOf("<controls:HeaderBar x:Name=\"ReaderHeaderBar\">", StringComparison.Ordinal);
