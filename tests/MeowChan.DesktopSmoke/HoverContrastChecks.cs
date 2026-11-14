@@ -222,6 +222,10 @@ internal static class HoverContrastChecks
 
     private static async Task ContextMenuAsync(MainWindow window, MouseDevice mouse, string tag, List<string> failures)
     {
+        // An empty list shows the empty-state guide instead of Search, Columns and Copy URLs (4b79032e), so the columns menu
+        // needs one passive, network-free row to exist at all.
+        await using SyntheticShellRows synthetic = await SyntheticShellRows.CreateAsync(window,
+            [SnapshotFixtures.Thread(990001, "990001", "Hover contrast fixture", completed: 3, known: 5)]);
         Button columns = window.FindControl<Button>("DownloadsColumnsButton")!;
         ActionToolBar actions = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
         window.UpdateLayout();
