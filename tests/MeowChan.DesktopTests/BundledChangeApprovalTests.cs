@@ -197,7 +197,10 @@ public sealed class BundledChangeApprovalTests
         {
             _requiresRights = requiresRights;
             SettingsSchema empty = new("1", []);
-            PluginDescription description = new("fixture", "Fixture", "1.0", SdkContract.Version, "Inert fixture", [], [], empty, []);
+            // Inert on purpose: SdkValidation rejects a plugin without a source or filter unless it is explicitly blocked, and the
+            // review reader validates both descriptions.
+            PluginDescription description = new("fixture", "Fixture", "1.0", SdkContract.Version, "Inert fixture", [], [], empty, [])
+            { DeclarationStatus = PluginDeclarationStatus.Blocked };
             var review = new BundledPluginChangeReview(description, description,
                 new("old", new("1", []), new Dictionary<string, SettingsSnapshot>()),
                 new([], requiresRights ? ["source"] : []));
