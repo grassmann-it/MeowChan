@@ -52,6 +52,10 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     private async Task<HostHttpResult> SendCoreAsync(HostHttpRequest request, Contracts.PluginOperationContext? operation,
         CancellationToken cancellationToken)
     {
+        // The explicit host-owned context wins over an unrelated ambient operation,
+        // including for admission failures and their final SDK echo. WorkerConnection
+        // already resumes it, but direct callers of this overload need the same isolation.
+        using IDisposable? operationScope = operation is null ? null : MetadataHistory.Resume(operation);
         // A final SDK failure may echo only the last completed, non-overlapping
         // host failure. Keep this separate from the operation's deferred history.
         using MetadataHistory.RequestObservation? observation = MetadataHistory.Current?.BeginRequest();
@@ -211,6 +215,9 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     internal sealed class MetadataHistory : IDisposable
     {
         private static readonly AsyncLocal<MetadataHistory?> Slot = new();
+        // Preserve correlation even when Resume cannot find a live history. Context-free
+        // IHostHttp bridges must not turn that missing binding into a standalone booru job.
+        private static readonly AsyncLocal<bool> ResumedScope = new();
         private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Contracts.PluginOperationContext, MetadataHistory> Operations = new();
         private static readonly object OperationsLock = new();
         /// <summary>
@@ -263,6 +270,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         internal static IDisposable Resume(Contracts.PluginOperationContext operation)
         {
             MetadataHistory? previous = Slot.Value;
+            bool previousScope = ResumedScope.Value;
             MetadataHistory? history;
             lock (OperationsLock)
             {
@@ -278,11 +286,16 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 }
             }
             Slot.Value = history;
-            return new Restore(previous);
+            ResumedScope.Value = true;
+            return new Restore(previous, previousScope);
         }
-        private sealed class Restore(MetadataHistory? previous) : IDisposable
+        private sealed class Restore(MetadataHistory? previous, bool previousScope) : IDisposable
         {
-            public void Dispose() => Slot.Value = previous;
+            public void Dispose()
+            {
+                Slot.Value = previous;
+                ResumedScope.Value = previousScope;
+            }
         }
         private readonly MetadataHistory? _previous = Slot.Value;
         private readonly bool _ambient;
@@ -355,6 +368,16 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 if (_disposed != 0) return null;
                 return _booruJob ??= new BooruJob(clock, _operationLifetime);
             }
+        }
+        /// <summary>
+        /// Resolves the captured ambient scope without treating a missing binding or retirement as absence.
+        /// A late continuation must not replace a retired operation with a standalone job.
+        /// </summary>
+        internal static BooruJob? GetAmbientBooruJob(TimeProvider clock, out bool hasScope)
+        {
+            MetadataHistory? history = Slot.Value;
+            hasScope = history is not null || ResumedScope.Value;
+            return history?.GetBooruJob(clock);
         }
         private BooruJob? _booruJob;
 

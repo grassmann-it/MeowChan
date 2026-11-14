@@ -30,14 +30,21 @@ internal sealed class BooruMetadataHttp : IDisposable
     /// (see <see cref="PluginHostHttp.SendAsync(HostHttpRequest, Contracts.PluginOperationContext, CancellationToken)"/>).
     /// Only the context-free <see cref="IHostHttp"/> entry point passes null: it resumes the
     /// ambient operation history, and a direct caller without one still gets one bounded,
-    /// non-shareable job rather than an unbounded request lifetime.
+    /// non-shareable job rather than an unbounded request lifetime. A missing or retired
+    /// correlated scope fails closed; it must never acquire that standalone fallback.
     /// </param>
     internal async Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
         BooruJob? operationJob, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        BooruJob? job = operationJob ?? PluginHostHttp.MetadataHistory.Current?.GetBooruJob(_host.TimeProvider);
+        BooruJob? job = operationJob;
+        if (job is null)
+        {
+            job = PluginHostHttp.MetadataHistory.GetAmbientBooruJob(_host.TimeProvider, out bool hasScope);
+            if (hasScope && job is null)
+                return new HostHttpFailure(new("booru-job", "The booru job is not live."));
+        }
         BooruJob? ownedJob = null;
         if (job is null)
         {
