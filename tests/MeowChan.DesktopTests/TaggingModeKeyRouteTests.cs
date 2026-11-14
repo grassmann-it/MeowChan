@@ -158,7 +158,7 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         Assert.Contains("TaggingPositionText(_galleryEntries[_galleryIndex]) ??", gallery);
         // PT5 host glue: one stamp for every panel of the window, kept in the settings.
         string glue = Source("Desktop", "Shell", "MainWindow.GalleryTags.cs");
-        Assert.Contains("QuickTagOptions.Default.CreateStamp(_config.TagStamp)", glue);
+        Assert.Contains("QuickTagSettings.SurfaceOptions(_config).CreateStamp(_config.TagStamp)", glue); // sized by QuickTagStampSize (wave3)
         Assert.Contains("config.TagStamp = (string[])names.Clone()", glue);
         Assert.Contains("public QuickTagStamp? Stamp => window.QuickTagStampSet;", glue);
         Assert.Contains("new QuickTagSession(target, owner.Options.UndoDepth, owner.Stamp)", Source("Desktop", "GalleryTagPanelModel.cs"));

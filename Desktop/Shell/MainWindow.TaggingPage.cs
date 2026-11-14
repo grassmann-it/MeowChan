@@ -10,7 +10,7 @@ namespace MeowChan;
 
 // The tagging page (PT2) in the shell: an entry of the app menu's tools group (in front of "Walk through tagging queue", PT1) and the
 // command navigation.tagging, no footer button. The page is built when it is first opened. "Start tagging" goes through
-// StartTaggingFromPageAsync, the one seam the tagging mode (PT3) replaces; until then it is PT1's walk through the queue.
+// StartTaggingFromPageAsync starts the queue walk in PT3's tagging mode.
 public partial class MainWindow
 {
     private TaggingPage? _taggingPage;
@@ -57,7 +57,7 @@ public partial class MainWindow
     private void EnsureTaggingPage()
     {
         if (_taggingPage != null || _isClosing) return;
-        _taggingPage = new TaggingPage(_session) { StartTagging = StartTaggingFromPageAsync, AddRequested = AddToTaggingQueueFromPage };
+        _taggingPage = new TaggingPage(_session) { StartTagging = StartTaggingFromPageAsync, AddRequested = AddToTaggingQueueFromPage, Stamp = QuickTagStampSet };
         _taggingPage.ApplyWorkView(_workViews.Current);
         TaggingPageHost.Content = _taggingPage;
     }
@@ -66,8 +66,8 @@ public partial class MainWindow
     private void ActivateTaggingPage() => _ = _taggingPage?.ActivateAsync();
 
     /// <summary>
-    /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. PT3 replaces this body
-    /// with the mode start (decision bar, return to the page); until then PT1's walk opens the gallery over the open entries.
+    /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. The queue walk opens the
+    /// gallery in PT3's tagging mode (decision strip, keys, resume point; MainWindow.TagQueue.cs, StartTaggingMode).
     /// </summary>
     private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync();
 

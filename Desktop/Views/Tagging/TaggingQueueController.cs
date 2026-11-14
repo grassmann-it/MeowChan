@@ -23,6 +23,15 @@ internal sealed class TaggingQueueController
     internal TaggingQueueController(DesktopSessionHost host) => _host = host ?? throw new ArgumentNullException(nameof(host));
 
     internal TagQueueSnapshot Queue { get; private set; } = TagQueueSnapshot.Empty;
+
+    /// <summary>
+    /// The window's one stamp set (PT5, saved in <c>Config.TagStamp</c>), shared with the gallery panel and the popovers. The stamp of
+    /// <c>tag-queue.json</c> stays in the file format but is not used (wave3: one source for the stamp). Null keeps the file's stamp.
+    /// </summary>
+    internal QuickTagStamp? SharedStamp { get; set; }
+
+    /// <summary>The stamp names the page shows: the shared stamp, else the file's.</summary>
+    internal IReadOnlyList<string> StampNames => SharedStamp?.ToNames() ?? Queue.Stamp;
     /// <summary>The reason the queue file cannot be read, or null.</summary>
     internal Exception? LoadError { get; private set; }
     internal bool Loaded { get; private set; }
@@ -146,6 +155,14 @@ internal sealed class TaggingQueueController
         Status = null;
         if (!PrivateTagName.TryCreate(candidate, out PrivateTagName? name, out _) || name == null)
             return Refuse(Texts.T("tagging.page.stamp.invalid", candidate));
+        if (SharedStamp is { } shared)
+        {
+            if (shared.Contains(name)) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
+            if (shared.Count >= Math.Min(capacity, shared.Capacity)) return Refuse(Texts.T("tags.quick.stamp.full", Math.Min(capacity, shared.Capacity)));
+            if (shared.Add(name) != QuickTagStampAdd.Added) return Refuse(Texts.T("tags.quick.stamp.full", shared.Capacity));
+            Status = Texts.T("tags.quick.stamp.added", name.Display); // saved by the window on Changed
+            return Task.FromResult(true);
+        }
         QuickTagStamp stamp = new(Queue.Stamp, QuickTagOptions.MaximumStampSize);
         if (stamp.Contains(name)) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
         if (stamp.Count >= capacity) return Refuse(Texts.T("tags.quick.stamp.full", capacity));
@@ -155,6 +172,13 @@ internal sealed class TaggingQueueController
 
     internal Task<bool> RemoveStampAsync(string name)
     {
+        if (SharedStamp is { } shared)
+        {
+            if (Ended || !PrivateTagName.TryCreate(name, out PrivateTagName? parsed, out _) || parsed == null || !shared.Remove(parsed))
+                return Task.FromResult(false);
+            Status = Texts.T("tags.quick.stamp.removed", name);
+            return Task.FromResult(true);
+        }
         string[] names = Queue.Stamp.Where(item => !string.Equals(item, name, StringComparison.Ordinal)).ToArray();
         if (names.Length == Queue.Stamp.Count) return Task.FromResult(false);
         return RunAsync(() => _host.SetTagQueueStampAsync(names), _ => Texts.T("tags.quick.stamp.removed", name));

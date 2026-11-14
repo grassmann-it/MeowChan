@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -13,9 +14,10 @@ using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
-// The stamp set editor of the tagging page (PT2 step 3, PT5's stamp): the names live in tag-queue.json ("Stamp") and are written by
-// the host in one command per change (TaggingQueueController). A name that no tag carries yet is kept and is simply not offered by a
-// tag surface until such a tag exists. The size limit is the stamp size (TagStampSize with PT7; the default until then).
+// The stamp set editor of the tagging page (PT2 step 3, PT5's stamp). wave3: it edits the window's one stamp (Stamp, saved in
+// Config.TagStamp by the window), the same the gallery panel and the popovers show; the stamp field of tag-queue.json stays in the
+// format but unused. A name that no tag carries yet is kept and is simply not offered by a tag surface until such a tag exists.
+// The size limit is the stamp size setting (QuickTagStampSize).
 public sealed partial class TaggingPage
 {
     private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp", Spacing = 6 };
@@ -33,6 +35,23 @@ public sealed partial class TaggingPage
         get => _stampCapacity;
         set => _stampCapacity = Math.Clamp(value, QuickTagOptions.MinimumStampSize, QuickTagOptions.MaximumStampSize);
     }
+
+    private QuickTagStamp? _sharedStamp;
+
+    /// <summary>The window's shared stamp; set by the shell. Its changes (from any surface) redraw the editor.</summary>
+    internal QuickTagStamp? Stamp
+    {
+        get => _sharedStamp;
+        set
+        {
+            if (_sharedStamp != null) _sharedStamp.Changed -= OnSharedStampChanged;
+            _sharedStamp = value;
+            _queueWork.SharedStamp = value;
+            if (value != null) { value.Changed += OnSharedStampChanged; _stampCapacity = value.Capacity; }
+        }
+    }
+
+    private void OnSharedStampChanged() { if (!_queueWork.Ended) RenderStamp(); }
 
     internal WrapPanel StampChips => _stampChips;
     internal TextBox StampInput => _stampInput;
@@ -77,9 +96,10 @@ public sealed partial class TaggingPage
     private void RenderStamp()
     {
         _stampChips.Children.Clear();
-        foreach (string name in _queueWork.Queue.Stamp) _stampChips.Children.Add(StampChip(name));
-        _stampChips.IsVisible = _queueWork.Queue.Stamp.Count > 0;
-        _stampEmpty.IsVisible = _queueWork.Queue.Stamp.Count == 0;
+        IReadOnlyList<string> names = _queueWork.StampNames;
+        foreach (string name in names) _stampChips.Children.Add(StampChip(name));
+        _stampChips.IsVisible = names.Count > 0;
+        _stampEmpty.IsVisible = names.Count == 0;
         _stampInput.IsEnabled = CanChange;
         _stampAdd.IsEnabled = CanChange;
     }
@@ -102,7 +122,7 @@ public sealed partial class TaggingPage
     /// <summary>Appends a name to the stamp (refused when invalid, already there or the stamp is full; the status line says why).</summary>
     internal async Task AddStampAsync(string? text)
     {
-        Task<bool> added = _queueWork.AddStampAsync(text, _stampCapacity);
+        Task<bool> added = _queueWork.AddStampAsync(text, _sharedStamp?.Capacity ?? _stampCapacity);
         UpdateActions();
         bool done = await added;
         if (_queueWork.Ended) return;
