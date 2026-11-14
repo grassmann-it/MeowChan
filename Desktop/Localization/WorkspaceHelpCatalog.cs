@@ -2,7 +2,8 @@ namespace MeowChan.Desktop.Localization;
 
 internal static class WorkspaceHelpCatalog
 {
-    public static readonly (string Key, string English, string German)[] Entries =
+    // Declared before Entries: static fields initialize in text order.
+    private static readonly (string Key, string English, string German)[] Own =
     {
         ("help.escape", "Esc  Close shortcut help", "Esc  Tastenkürzelhilfe schließen"),
         ("help.singleKeysOff", "Single-key shortcuts are turned off (Settings → Keyboard shortcuts).", "Einzeltasten-Kürzel sind ausgeschaltet (Einstellungen → Tastenkürzel)."),
@@ -21,4 +22,7 @@ internal static class WorkspaceHelpCatalog
         ("macmenu.pagePrevious", "Previous page", "Vorherige Seite"),
         ("macmenu.pageNext", "Next page", "Nächste Seite"),
     };
+
+    public static readonly (string Key, string English, string German)[] Entries = System.Linq.Enumerable.ToArray(
+        System.Linq.Enumerable.Concat(Own, ShortcutsWindowCatalog.Entries));
 }
