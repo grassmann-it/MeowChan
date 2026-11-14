@@ -127,6 +127,22 @@ public sealed class BooruPageNavigationContractTests
     }
 
     [Fact]
+    public void LocalMediaHandoffUsesThePageLifetimeAndRechecksAfterActivation()
+    {
+        string bridge = Read("Desktop/Booru/MainWindow.BooruMedia.cs");
+        Assert.DoesNotContain("ConfigureBooruMediaLinks(BooruWorkbenchWindow", bridge, StringComparison.Ordinal);
+        Assert.DoesNotContain("_booruWindow", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
+        Assert.Contains("CaptureMediaPageMenuGuard()", bridge, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(_booruPage, sourcePage)", bridge, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(_session.BooruServices, services)", bridge, StringComparison.Ordinal);
+        int activation = bridge.IndexOf("await page.ActivateAsync()", StringComparison.Ordinal);
+        int recheck = bridge.IndexOf("if (!Current()) return false;", activation, StringComparison.Ordinal);
+        int selection = bridge.IndexOf("await page.ShowBooruPostAsync(postId)", StringComparison.Ordinal);
+        Assert.True(activation >= 0 && recheck > activation && selection > recheck,
+            "A delayed media activation must revalidate navigation and source lifetime before changing selection.");
+    }
+
+    [Fact]
     public void PageConstructionUsesTheExistingLazyActivationAndOwnsNoProviderAction()
     {
         string page = Read("Desktop/Views/Booru/BooruPage.cs");

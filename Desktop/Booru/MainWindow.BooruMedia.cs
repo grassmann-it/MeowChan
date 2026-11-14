@@ -28,12 +28,6 @@ public partial class MainWindow
         view.IsPostSavedInMedia = IsSavedBooruPost;
     }
 
-    private void ConfigureBooruMediaLinks(BooruWorkbenchWindow window)
-    {
-        window.ShowInMedia = ShowBooruPostInMediaAsync;
-        window.IsPostSavedInMedia = IsSavedBooruPost;
-    }
-
     /// <summary>Exact local catalog admission for a saved Danbooru original; pending/other-source records do not qualify.</summary>
     internal static bool CatalogHasSavedBooruPost(BooruCatalogSnapshot? catalog, string postId)
     {
@@ -59,12 +53,19 @@ public partial class MainWindow
 
     private async Task<bool> ShowBooruPostInMediaAsync(string postId)
     {
-        if (!CanOpenBooru || !IsSavedBooruPost(postId) || _mediaPage is not { } page) return false;
-        if (!NavigateWorkspace(WorkspacePage.Media)) return false;
-        // The click starts in the secondary Booru window. Transfer activation before the exact tile focus
-        // so the main window, not the still-open workbench, owns keyboard focus after navigation.
+        if (!CanOpenBooru || !IsSavedBooruPost(postId) || _mediaPage is not { } page
+            || _booruPage is not { } sourcePage) return false;
+        BooruWorkbenchServices services = sourcePage.Services;
+        if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return false;
+        Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();
+        bool Current() => navigationCurrent() && CanOpenBooru
+            && ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services);
+        // This is a local page-to-page handoff. If navigation or source composition changes
+        // while Media activates, the old click must not reset the user's new filters or focus.
         Activate();
         await page.ActivateAsync().ConfigureAwait(true);
-        return await page.ShowBooruPostAsync(postId).ConfigureAwait(true);
+        if (!Current()) return false;
+        bool shown = await page.ShowBooruPostAsync(postId).ConfigureAwait(true);
+        return Current() && shown;
     }
 }
