@@ -252,12 +252,16 @@ internal static class WorkspaceChips
         ArgumentNullException.ThrowIfNull(remove);
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
         TextBlock text = new() { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis };
-        ClosableTag tag = new() { Content = text, Command = new ChipCommand(remove), Focusable = true };
+        // Give the label only its final owner. Setting Content=text before inserting the
+        // same label into the toggle panel makes the later Content replacement clear
+        // its parent while it is still in the panel's LogicalChildren.
+        ClosableTag tag = new() { Command = new ChipCommand(remove), Focusable = true };
         MarkFilter(tag, exclude);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
         if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit, copyText, copyName);
         if (!negatable)
         {
+            tag.Content = text;
             string accessible = Texts.T("archive.removeFilter", label);
             ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
             tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space or Key.Delete or Key.Back) { e.Handled = true; remove(); } };
