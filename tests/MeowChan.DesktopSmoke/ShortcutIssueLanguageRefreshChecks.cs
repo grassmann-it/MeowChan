@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Views.Shortcuts;
 using MeowChan.Testing;
 using Ursa.Controls;
 
@@ -17,7 +18,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Root hook (serial, authorized disposable desktop only):
 // await ShortcutIssueLanguageRefreshChecks.RunAsync(mainWindow);
-// Real shown SettingsWindow/controls and Texts.Changed; managed routed input,
+// Real shown shortcuts window (opened from the Settings card, KS2) and Texts.Changed; managed routed input,
 // NOT OS keyboard injection, headless delegate invocation or translation-quality QA.
 internal static class ShortcutIssueLanguageRefreshChecks
 {
@@ -57,10 +58,10 @@ internal static class ShortcutIssueLanguageRefreshChecks
         Console.WriteLine("SMOKE shortcut issue refresh: 20 EN/DE/ES/FR/RU cells passed (conflict, retained schema, active invalid capture, rejected Apply). Managed input only; no language-quality/native-OS-keyboard claim.");
     }
 
-    private static async Task IssuesAsync(SettingsWindow window, ShortcutEditor editor,
+    private static async Task IssuesAsync(ShortcutsWindow window, ShortcutBindingsEditor editor,
         IReadOnlyDictionary<string, Dictionary<string, string>> templates, bool schema)
     {
-        var (search, actions) = SelectAction(editor);
+        var (search, actions) = await SelectActionAsync(editor);
         TextBlock error = Errors(editor);
         var snapshot = EffectiveShortcutBindings.Build(editor.Draft);
         ShortcutIssue issue = snapshot.Issues.Single();
@@ -120,10 +121,10 @@ internal static class ShortcutIssueLanguageRefreshChecks
         }
     }
 
-    private static async Task PendingAsync(SettingsWindow window, ShortcutEditor editor,
+    private static async Task PendingAsync(ShortcutsWindow window, ShortcutBindingsEditor editor,
         IReadOnlyDictionary<string, Dictionary<string, string>> templates)
     {
-        var (search, actions) = SelectAction(editor);
+        var (search, actions) = await SelectActionAsync(editor);
         Click(ActionButton(editor, "clearBinding"));
         await Program.WaitUntilAsync(() => editor.IsDirty);
         Require(EffectiveShortcutBindings.Build(editor.Draft).RequestedGestures[ActionId].Count == 0,
@@ -203,14 +204,14 @@ internal static class ShortcutIssueLanguageRefreshChecks
 
     // Real UI regression for a stale queued language-relayout reveal. The positive
     // 20-cell matrix above remains the prerequisite; this is not a lexical test.
-    private static async Task ViewportUserTakeoverAsync(SettingsWindow window, ShortcutEditor editor,
+    private static async Task ViewportUserTakeoverAsync(ShortcutsWindow window, ShortcutBindingsEditor editor,
         IReadOnlyDictionary<string, Dictionary<string, string>> templates, bool startCapture)
     {
         // Same FR -> RU boundary as the observed displacement; finish setup
         // before establishing error focus and the no-yield takeover boundary.
         Texts.SetLanguage("fr");
         await SettleAsync(window);
-        var (search, actions) = SelectAction(editor);
+        var (search, actions) = await SelectActionAsync(editor);
         TextBlock error = Errors(editor);
         await FocusAsync(window, error);
         Require(error.IsFocused && Visible(window, error) && window.IsActive && !ShortcutService.IsCapturing,
@@ -278,12 +279,12 @@ internal static class ShortcutIssueLanguageRefreshChecks
     }
 
     // ADDITIONAL native negative guard for the active-invalid-pending reveal path.
-    private static async Task PendingUserTakeoverAsync(SettingsWindow window, ShortcutEditor editor,
+    private static async Task PendingUserTakeoverAsync(ShortcutsWindow window, ShortcutBindingsEditor editor,
         IReadOnlyDictionary<string, Dictionary<string, string>> templates)
     {
         Texts.SetLanguage("fr");
         await SettleAsync(window);
-        var (search, actions) = SelectAction(editor);
+        var (search, actions) = await SelectActionAsync(editor);
         Button record = ActionButton(editor, "recordAdditional");
         await FocusAsync(window, record);
         Click(record);
@@ -338,7 +339,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
     }
 
     private static async Task WithFixtureAsync(MainWindow owner, string scenario, ShortcutBindingsSection bindings,
-        Func<SettingsWindow, ShortcutEditor, Task> journey)
+        Func<ShortcutsWindow, ShortcutBindingsEditor, Task> journey)
     {
         Require(!ShortcutService.IsCapturing, "Fixture must not inherit a capture lease.");
         string language = Texts.Language;
@@ -347,6 +348,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
         var page = owner.SelectedPage;
         string profile = TemporaryWorkspacePaths.CreateDirectory("meowchan-shortcut-issue-" + scenario + "-");
         SettingsWindow? window = null;
+        ShortcutsWindow? shortcuts = null;
         Task? dialog = null;
         try
         {
@@ -374,11 +376,21 @@ internal static class ShortcutIssueLanguageRefreshChecks
             window.Editor.OpenSectionNavigation();
             Require(window.Editor.CanGoToSection("settings.shortcuts"), "Real shortcut section unavailable.");
             window.Editor.GoToSection("settings.shortcuts");
-            ShortcutEditor editor = window.Editor.FindControl<ShortcutEditor>("ShortcutsEditor")
-                ?? throw new InvalidOperationException("Real ShortcutEditor missing.");
-            await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.SectionHeading.IsFocused
-                && editor.Bounds.Width > 0 && ReferenceEquals(TopLevel.GetTopLevel(editor), window));
-            await journey(window, editor);
+            ShortcutEditor card = window.Editor.FindControl<ShortcutEditor>("ShortcutsEditor")
+                ?? throw new InvalidOperationException("Real ShortcutEditor card missing.");
+            await Program.WaitUntilAsync(() => card.IsEffectivelyVisible && card.SectionHeading.IsFocused
+                && card.Bounds.Width > 0 && ReferenceEquals(TopLevel.GetTopLevel(card), window));
+            Button open = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "SettingsShortcutsOpen");
+            await Program.WaitUntilAsync(() => open.IsEffectivelyVisible && open.Bounds.Width > 0);
+            Click(open); // The one modeless shortcuts window, editing the Settings draft.
+            await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
+            shortcuts = ShortcutsWindow.For(window)!;
+            ShortcutBindingsEditor editor = shortcuts.Editor;
+            Require(ReferenceEquals(editor.Session, card.Session), "The shortcuts window does not edit the Settings draft.");
+            shortcuts.Activate();
+            await Program.WaitUntilAsync(() => shortcuts.IsActive);
+            await SettleAsync(shortcuts);
+            await journey(shortcuts, editor);
             Require(commits == 0 && baseline == JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config)
                 && Files(profile).SequenceEqual(files), "Language/capture journey committed settings or changed fixture files.");
             Require(ShortcutService.Revision == revision && ReferenceEquals(ShortcutService.Current, live) && owner.SelectedPage == page,
@@ -388,6 +400,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
         {
             try
             {
+                shortcuts?.CloseWithoutAsking();
                 if (window?.IsVisible == true) window.Close();
                 if (dialog != null) await dialog.WaitAsync(Deadline);
             }
@@ -420,12 +433,12 @@ internal static class ShortcutIssueLanguageRefreshChecks
         private readonly long _revision = ShortcutService.Revision;
         private readonly EffectiveShortcutBindings _live = ShortcutService.Current;
         internal string Raw { get; }
-        internal EditorState(SettingsWindow window, ShortcutEditor editor, TextBox search, ListBox actions)
+        internal EditorState(ShortcutsWindow window, ShortcutBindingsEditor editor, TextBox search, ListBox actions)
         {
             Dispatcher.UIThread.VerifyAccess();
             _draft = editor.Draft; Raw = _draft.Raw.GetRawText(); _dirty = editor.IsDirty;
             _model = Model(EffectiveShortcutBindings.Build(_draft), includeIssues: true);
-            _settings = SettingsState(window.Editor);
+            _settings = SettingsState(SettingsOf(window).Editor);
             _search = search; _actions = actions; _items = actions.ItemsSource; _selected = actions.SelectedItem;
             _input = Input(search);
             _focus = window.FocusManager?.GetFocusedElement() as Control ?? throw new InvalidOperationException("Fixture has no real focus.");
@@ -436,13 +449,13 @@ internal static class ShortcutIssueLanguageRefreshChecks
             _children = _detail.Children.ToArray();
             AssertUnchanged(window, editor);
         }
-        internal void AssertUnchanged(SettingsWindow window, ShortcutEditor editor)
+        internal void AssertUnchanged(ShortcutsWindow window, ShortcutBindingsEditor editor)
         {
             Dispatcher.UIThread.VerifyAccess();
-            Require(ReferenceEquals(window.Editor.FindControl<ShortcutEditor>("ShortcutsEditor"), editor)
+            Require(ReferenceEquals(ShortcutsWindow.For(window.OwnerWindow), window) && ReferenceEquals(window.Editor, editor)
                 && ReferenceEquals(editor.Draft, _draft) && editor.Draft.Raw.GetRawText() == Raw && editor.IsDirty == _dirty
                 && Model(EffectiveShortcutBindings.Build(editor.Draft), includeIssues: true) == _model
-                && SettingsState(window.Editor) == _settings, "Refresh changed editor/draft/schema/reasons/raw args/ownership/settings state.");
+                && SettingsState(SettingsOf(window).Editor) == _settings, "Refresh changed editor/draft/schema/reasons/raw args/ownership/settings state.");
             Require(ReferenceEquals(_actions.ItemsSource, _items) && ReferenceEquals(_actions.SelectedItem, _selected)
                 && (_selected as ListBoxItem)?.Tag as string == ActionId && Input(_search) == _input
                 && _detail.Children.Count == _children.Length
@@ -458,7 +471,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
 
         // Passive bounded snapshots only: no focus, scroll, layout, dispatcher work,
         // subscriptions, retries, screenshots or catch-to-pass in diagnostics.
-        internal void Trace(SettingsWindow window, ShortcutEditor editor, string phase)
+        internal void Trace(ShortcutsWindow window, ShortcutBindingsEditor editor, string phase)
         {
             Dispatcher.UIThread.VerifyAccess();
             _phase = phase;
@@ -492,6 +505,9 @@ internal static class ShortcutIssueLanguageRefreshChecks
             }));
         }
     }
+
+    private static SettingsWindow SettingsOf(ShortcutsWindow window) => window.OwnerWindow as SettingsWindow
+        ?? throw new InvalidOperationException("The shortcuts window is not owned by the Settings window.");
 
     private static object? Identity(object? value) => value == null ? null : new
     {
@@ -577,7 +593,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
         foreach (var entry in templates[language])
             Require(T(entry.Key) == entry.Value, language + ": missing/stale catalog integration: " + entry.Key);
     }
-    private static void AssertIssues(ShortcutEditor editor, TextBlock error, IReadOnlyList<ShortcutIssue> issues,
+    private static void AssertIssues(ShortcutBindingsEditor editor, TextBlock error, IReadOnlyList<ShortcutIssue> issues,
         IReadOnlyDictionary<string, string> templates)
     {
         string expected = string.Join("\n", issues.Select(issue =>
@@ -606,17 +622,18 @@ internal static class ShortcutIssueLanguageRefreshChecks
     });
     private static (string? Text, int Caret, int Start, int End) Input(TextBox input) =>
         (input.Text, input.CaretIndex, input.SelectionStart, input.SelectionEnd);
-    private static (TextBox Search, ListBox Actions) SelectAction(ShortcutEditor editor)
+    private static IEnumerable<ListBoxItem> ActionRows(ListBox actions) => actions.Items.OfType<ListBoxItem>().Where(item => item.Tag is string);
+    private static async Task<(TextBox Search, ListBox Actions)> SelectActionAsync(ShortcutBindingsEditor editor)
     {
-        Panel root = (Panel)editor.Content!;
-        TextBox search = root.Children.OfType<TextBox>().Single();
-        ListBox actions = root.Children.OfType<ListBox>().Single();
+        TextBox search = editor.SearchInput;
+        ListBox actions = editor.ActionList;
         search.Text = ActionId;
-        actions.SelectedItem = actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == ActionId);
+        await Program.WaitUntilAsync(() => ActionRows(actions).Count() == 1);
+        actions.SelectedItem = ActionRows(actions).Single(item => item.Tag as string == ActionId);
+        await Program.WaitUntilAsync(() => editor.SelectedCommandId == ActionId && editor.GetVisualDescendants().OfType<KeyGestureInput>().Any());
         return (search, actions);
     }
-    private static TextBlock Errors(ShortcutEditor editor) => ((Panel)editor.Content!).Children.OfType<TextBlock>()
-        .Single(text => text.Classes.Contains("workspace-error"));
+    private static TextBlock Errors(ShortcutBindingsEditor editor) => editor.ErrorText;
     private static TextBlock PendingLabel(KeyGestureInput capture)
     {
         Panel detail = capture.Parent as Panel ?? throw new InvalidOperationException("Capture panel missing.");
@@ -624,7 +641,7 @@ internal static class ShortcutIssueLanguageRefreshChecks
         return index >= 0 && index + 2 < detail.Children.Count && detail.Children[index + 1] is CheckBox
             && detail.Children[index + 2] is TextBlock label ? label : throw new InvalidOperationException("Pending label missing.");
     }
-    private static Button ActionButton(ShortcutEditor editor, string suffix) => editor.GetVisualDescendants().OfType<Button>()
+    private static Button ActionButton(ShortcutBindingsEditor editor, string suffix) => editor.GetVisualDescendants().OfType<Button>()
         .Single(button => button.Content as string == T("settings.shortcutsEditor." + suffix));
     private static void Click(Button button)
     {
