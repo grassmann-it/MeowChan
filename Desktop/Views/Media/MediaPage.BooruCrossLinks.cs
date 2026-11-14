@@ -27,9 +27,9 @@ public sealed partial class MediaPage
     /// Explicit reset-navigation to a local Danbooru original: only source and exact post/thread remain active.
     /// No catalog/provider request is made here; the host has already admitted the local post.
     /// </summary>
-    internal async Task<bool> ShowBooruPostAsync(string postId)
+    internal async Task<bool> ShowBooruPostAsync(string postId, Func<bool>? stillRequested = null)
     {
-        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible || _building != null) return false;
+        if (stillRequested?.Invoke() == false || _lifetime.IsCancellationRequested || !IsEffectivelyVisible || _building != null) return false;
         ResourceId thread = BooruMediaIdentity.Thread(postId);
         if (!BooruMediaIdentity.IsBooruThread(thread)) return false;
         if (_snapshot == null || !_snapshot.Entries.Any(entry => IsSavedBooruEntry(entry, postId)))
@@ -47,11 +47,11 @@ public sealed partial class MediaPage
         RenderTagOptions();
         FilterEdited();
         Func<bool> context = CaptureNavigationContext(run, awaitingPresent: true);
-        bool Current() => context() && IsEffectivelyVisible;
+        bool Current() => context() && IsEffectivelyVisible && (stillRequested?.Invoke() ?? true);
         await PresentTask.ConfigureAwait(true);
         if (!Current()) return false;
         bool focused = await FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId),
-            Texts.T("booru.crossLinks.missingLocal", postId), run).ConfigureAwait(true);
+            Texts.T("booru.crossLinks.missingLocal", postId), run, stillRequested).ConfigureAwait(true);
         return Current() && focused;
     }
 

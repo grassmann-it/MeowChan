@@ -65,7 +65,7 @@ public partial class MainWindow
         Activate();
         await page.ActivateAsync().ConfigureAwait(true);
         if (!Current()) return false;
-        bool shown = await page.ShowBooruPostAsync(postId).ConfigureAwait(true);
+        bool shown = await page.ShowBooruPostAsync(postId, Current).ConfigureAwait(true);
         return Current() && shown;
     }
 }

@@ -180,6 +180,20 @@ public sealed class BooruCrossLinkExactFilterTests
     });
 
     [Fact]
+    public void RevokedHostRequestRejectsNavigationBeforeResettingAnyOldFilter() => OnDispatcher(() =>
+    {
+        using var model = new FilterModel(Entry("123", Md5Name));
+        model.IncompatibleFilters();
+        int gateCalls = 0;
+        Assert.False(model.Page.ShowBooruPostAsync("123", () => { gateCalls++; return false; }).GetAwaiter().GetResult());
+        Assert.Equal(1, gateCalls);
+        Assert.Equal("a different filename", model.Page.NameFilter.Text);
+        Assert.True(model.Page.CurrentFilter().FavoritesOnly);
+        Assert.Single(model.Get<List<Guid>>("_includeTags"));
+        Assert.Single(model.Get<List<Guid>>("_excludeTags"));
+    });
+
+    [Fact]
     public void FocusWiringRechecksAfterTheLayoutAwaitAndRequiresTheExactContainerRow()
     {
         string returns = Source("Desktop/Views/Media/MediaPage.Return.cs");
@@ -190,11 +204,13 @@ public sealed class BooruCrossLinkExactFilterTests
             "ReferenceEquals(rows, _grid.ItemsSource)", "ReferenceEquals(exact, _shown[index])",
             "ReferenceEquals(row, _grid.Items[index])", "ReferenceEquals(row.Tile, _tiles[index])", "ReferenceEquals(row.Entry, exact)" })
             Assert.Contains(guard, focus);
+        Assert.Contains("(stillRequested?.Invoke() ?? true)", focus);
         Assert.DoesNotContain("FocusGrid(", focus);
         Assert.DoesNotContain("FirstTileInView(", focus);
         string navigation = Source("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs");
         Assert.Contains("await PresentTask.ConfigureAwait(true);\n        if (!Current()) return false;", navigation);
         Assert.Contains("return Current() && focused;", navigation);
+        Assert.Contains("run, stillRequested).ConfigureAwait(true)", navigation);
         Assert.DoesNotContain("SetTextSilently(postId)", navigation);
         foreach (string persistence in new[] { "SaveConfig(", "SaveSortAsync", "SaveFilter", "ReadUserData(" })
             Assert.DoesNotContain(persistence, navigation);

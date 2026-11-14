@@ -22,8 +22,13 @@ public sealed class BooruPageBehaviorRegressionTests
     {
         BooruUiHarness harness = new();
         using BooruPage page = new(harness.Services);
-        SearchBox input = Assert.Single(page.View.Body.GetVisualDescendants()
-            .OfType<SearchBox>().Where(control => control.Name == BooruWorkbenchView.InputName));
+        // The page is not attached to a renderer: TabControl has not presented its selected
+        // content yet. Inspect the real search-tab content, as the page-host contracts do.
+        TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
+        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
+        Control searchContent = Assert.IsAssignableFrom<Control>(segments[0].Content);
+        SearchBox input = Assert.Single(searchContent.GetVisualDescendants().OfType<SearchBox>(),
+            control => control.Name == BooruWorkbenchView.InputName);
 
         page.ShowQuery("before_activate");
         Assert.Equal("before_activate", input.Text);

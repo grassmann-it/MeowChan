@@ -81,10 +81,11 @@ public sealed partial class MediaPage
             && !_presentPending && selection == _selectionStamp;
     }
 
-    private async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText, object run)
+    private async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText, object run,
+        Func<bool>? stillRequested = null)
     {
         Func<bool> context = CaptureNavigationContext(run, awaitingPresent: false);
-        if (!context() || !IsEffectivelyVisible) return false;
+        if (!context() || !IsEffectivelyVisible || stillRequested?.Invoke() == false) return false;
         int[] matches = _shown.Select((entry, index) => (entry, index)).Where(item => match(item.entry)).Select(item => item.index).ToArray();
         if (matches.Length != 1)
         {
@@ -97,7 +98,7 @@ public sealed partial class MediaPage
         object? rows = _grid.ItemsSource;
         MediaLibraryEntry exact = shown[index];
         // Full occurrence/row identity, not just byte grouping: another post may have identical bytes.
-        bool Current() => context() && IsEffectivelyVisible
+        bool Current() => context() && IsEffectivelyVisible && (stillRequested?.Invoke() ?? true)
             && ReferenceEquals(shown, _shown) && ReferenceEquals(tiles, _tiles) && ReferenceEquals(rows, _grid.ItemsSource)
             && index < _shown.Count && index < _tiles.Count && index < _grid.ItemCount
             && ReferenceEquals(exact, _shown[index]) && ReferenceEquals(exact, _tiles[index].Entry) && match(_shown[index]);
