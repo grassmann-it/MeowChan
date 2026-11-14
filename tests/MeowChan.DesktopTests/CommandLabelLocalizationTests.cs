@@ -54,7 +54,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
     }
 
     [Fact]
-    public void NewlyCataloguedFullLabelsPreserveTheExactLegacyEnglishAndGermanFallbacks()
+    public void FullLabelsPreserveLegacyFallbacksExceptTheExplicitMergedSourcesTitles()
     {
         // Only new full-label entries belong to this migration. Existing feature
         // catalogs deliberately have a few context-specific titles differing from
@@ -64,10 +64,18 @@ public sealed class CommandLabelLocalizationTests : IDisposable
         {
             if (entry.Key.EndsWith(".compact", StringComparison.Ordinal)) continue;
             Assert.True(commands.TryGetValue(entry.Key, out CommandDefinition? definition), entry.Key);
-            Assert.Equal(definition!.LabelEn, entry.English);
-            Assert.Equal(definition.LabelDe, entry.German);
-            Assert.Equal(entry.English, BuiltInCatalog.English[entry.Key]);
-            Assert.Equal(entry.German, BuiltInCatalog.German[entry.Key]);
+            // WP deliberately supersedes these two legacy entries. Keep checking both commands and the actual
+            // built-in registration, rather than skipping their old rows or accepting arbitrary non-empty titles.
+            (string english, string german) = entry.Key switch
+            {
+                "command.navigation.sources" => ("Sources & Plugins", "Quellen & Plugins"),
+                "command.navigation.plugins" => ("Show all plugins", "Alle Plugins anzeigen"),
+                _ => (entry.English, entry.German)
+            };
+            Assert.Equal(english, definition!.LabelEn);
+            Assert.Equal(german, definition.LabelDe);
+            Assert.Equal(english, BuiltInCatalog.English[entry.Key]);
+            Assert.Equal(german, BuiltInCatalog.German[entry.Key]);
         }
     }
 
@@ -81,10 +89,12 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.continue-reading", "Continue reading", "Weiterlesen", "Continuar leyendo", "Continuer la lecture", "Продолжить чтение"),
             ("navigation.archive", "Archive", "Archiv", "Archivo", "Archives", "Архив"),
             ("navigation.rules", "Rules", "Regeln", "Reglas", "Règles", "Правила"),
-            ("navigation.sources", "Sources", "Quellen", "Fuentes", "Sources", "Источники"),
+            // EN/DE use the WP titles; exact ES/FR/RU expectations still describe the delivered packs.
+            // Parent coordinates those packs and their new wording; do not weaken their exact label checks here.
+            ("navigation.sources", "Sources & Plugins", "Quellen & Plugins", "Fuentes", "Sources", "Источники"),
             ("navigation.diagnostics", "Diagnostics", "Diagnose", "Diagnóstico", "Diagnostics", "Диагностика"),
             ("navigation.status", "Status", "Status", "Estado", "État", "Состояние"),
-            ("navigation.plugins", "Plugins", "Plugins", "Complementos", "Plugins", "Плагины"),
+            ("navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "Complementos", "Plugins", "Плагины"),
             ("navigation.settings", "Settings", "Einstellungen", "Configuración", "Paramètres", "Настройки"),
             ("navigation.about", "About MeowChan", "Über MeowChan", "Acerca de MeowChan", "À propos de MeowChan", "О программе MeowChan"),
             ("navigation.tools-menu", "More", "Mehr", "Más", "Plus", "Ещё"),

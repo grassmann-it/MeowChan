@@ -42,7 +42,9 @@ public sealed class MacMenuModelTests
         Assert.Equal(MainPageOrder.CommandIds, view.Take(MainPageOrder.CommandIds.Count).Select(node => node.CommandId!));
         Assert.Equal("window.fullscreen", view[^1].CommandId);
         var digits = view.Take(MainPageOrder.CommandIds.Count).Select(node => MacMenuModel.Shortcut(Mac, node)).ToArray();
-        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘6", "⌘7" }, digits);
+        // The merged Sources destination does not consume the removed Plugins slot; Status keeps Primary+7.
+        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘5", "⌘7" }, digits);
+        Assert.DoesNotContain(AllEntries(), node => node.Commands.Contains("navigation.plugins"));
     }
 
     [Fact]
