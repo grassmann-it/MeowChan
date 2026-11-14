@@ -219,6 +219,7 @@ public static class CommandBindings
         string headline = shortcut is null ? label : label + " · " + shortcut;
         List<string> notes = [];
         if (CommandCatalog.ScopeHint(id) is string scope) notes.Add(scope);
+        if (CommandCatalog.DialogHint(id) is string dialog) notes.Add(dialog);
         if (!string.IsNullOrWhiteSpace(unavailableReason)) notes.Add(unavailableReason);
         return notes.Count == 0 ? headline : headline + "\n" + string.Join(" · ", notes);
     }

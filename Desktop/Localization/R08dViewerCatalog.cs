@@ -43,7 +43,7 @@ internal static class R08dViewerCatalog
         ("viewer.help.escape", "Esc  Close help or context, leave full screen, then gallery", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann Galerie"),
         ("viewer.help.escape.media", "Esc  Close help or context, leave full screen, then back to media", "Esc  Hilfe oder Kontext schließen, Vollbild verlassen, dann zu Medien"),
         ("viewer.help.more", "All shortcuts", "Alle Tastenkürzel"),
-        ("viewer.menu.exportOriginal", "Export…", "Exportieren…"),
+        ("viewer.menu.exportOriginal", "Export", "Exportieren"),
         ("viewer.favorites.title", "Media favorites", "Medienfavoriten"),
         ("viewer.favorites.current", "Current thread", "Aktueller Thread"),
         ("viewer.favorites.selected", "Selected threads", "Ausgewählte Threads"),

@@ -113,7 +113,7 @@ public static class CommandCatalog
         new("archive.next-page", "command.archive.next-page", "Next results page", "Nächste Ergebnisseite", "chevron-right", "Alt+PageDown", CommandScope.Archive, new[] { "archive-results-list" }),
         new("archive.select-page", "command.archive.select-page", "Select all on this page", "Alle auf dieser Seite auswählen", "check-square", "Primary+A", CommandScope.Archive, new[] { "archive-results-list" }),
         new("input.focus-download-search", "command.input.focus-download-search", "Search local downloads", "Lokale Downloads durchsuchen", "search", "Primary+F", CommandScope.Downloads, new[] { "downloads" }),
-        new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results…", "Alle Treffer exportieren…", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("export.open-all-results-html-dialog", "command.export.open-all-results-html-dialog", "Export all results", "Alle Treffer exportieren", "download", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("archive.refresh", "command.archive.refresh", "Refresh archive", "Archiv aktualisieren", "refresh-cw", null, CommandScope.Archive, new[] { "archive-toolbar" }),
         new("archive.transfer-preview", "transfer.preview.open", "Inspect transfer package…", "Transferpaket prüfen…", "archive", null, CommandScope.Archive, new[] { "archive-header" }),
         new("archive.cleanup", "command.archive.cleanup", "Clean up archive…", "Archiv aufräumen…", "archive", null, CommandScope.Archive, new[] { "archive-toolbar" }),
@@ -186,8 +186,8 @@ public static class CommandCatalog
         new("admission.apply", "command.admission.apply", "Apply selection and watch", "Auswahl übernehmen und beobachten", "check", null, CommandScope.Application, new[] { "board-admission-footer" }),
         new("admission.reset-choice", "command.admission.reset-choice", "Use rules again", "Wieder Regeln verwenden", "rotate-ccw", null, CommandScope.Application, new[] { "board-admission-thread-row" }),
         new("admission.remove-rule", "command.admission.remove-rule", "Remove rule", "Regel entfernen", "x", null, CommandScope.Application, new[] { "board-admission-rule-row" }),
-        new("export.open-urltext-dialog", "urltext.export.open", "Export link list…", "Linkliste exportieren…", "download", null, CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
-        new("export.open-html-dialog", "command.export.open-html-dialog", "Export…", "Exportieren…", "download", "Primary+E", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar" }),
+        new("export.open-urltext-dialog", "urltext.export.open", "Export link list", "Linkliste exportieren", "download", null, CommandScope.Archive, new[] { "archive-card-menu", "archive-table-menu" }),
+        new("export.open-html-dialog", "command.export.open-html-dialog", "Export", "Exportieren", "download", "Primary+E", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar" }),
         new("export.open-previous", "command.export.open-previous", "Open previous export", "Früheren Export öffnen", "folder", null, CommandScope.Dialog, new[] { "html-export-dialog" }),
         new("export.associate", "command.export.associate", "Associate export folder…", "Exportordner zuordnen…", "link", null, CommandScope.Dialog, new[] { "html-export-dialog" }),
         new("export.find-legacy", "command.export.find-legacy", "Find older exports", "Ältere Exporte suchen", "search", null, CommandScope.Dialog, new[] { "html-export-legacy-section" }),
@@ -252,8 +252,8 @@ public static class CommandCatalog
         new("favorites.remove", "command.favorites.remove", "Remove favorite", "Favorit entfernen", "x", "U", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("favorites.filter", "command.favorites.filter", "Favorites only", "Nur Favoriten", "star", null, CommandScope.Archive | CommandScope.Media, new[] { "thread-media-filter", "archive-media-filter" }),
         new("favorites.open", "command.favorites.open", "Show favorites", "Favoriten anzeigen", "star", null, CommandScope.Archive, new[] { "archive-favorites-overview" }),
-        new("favorites.export-originals", "command.favorites.export-originals", "Export favorite originals…", "Favorisierte Originale exportieren…", "download", null, CommandScope.Archive | CommandScope.Gallery | CommandScope.Media, new[] { "gallery", "thread-media", "selected-threads", "archive-results", "favorites-overview" }),
-        new("media.export-original", "command.media.export-original", "Export…", "Exportieren…", "download", "Primary+E", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
+        new("favorites.export-originals", "command.favorites.export-originals", "Export favorite originals", "Favorisierte Originale exportieren", "download", null, CommandScope.Archive | CommandScope.Gallery | CommandScope.Media, new[] { "gallery", "thread-media", "selected-threads", "archive-results", "favorites-overview" }),
+        new("media.export-original", "command.media.export-original", "Export", "Exportieren", "download", "Primary+E", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.show-in-folder", "command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen", "folder", "Primary+O", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.details", "command.media.details", "Show media details", "Mediendetails anzeigen", "info", "I", CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
         new("media.copy-path", "command.media.copy-path", "Copy file path", "Dateipfad kopieren", "copy", null, CommandScope.Gallery | CommandScope.Media, new[] { "media-context-menu", "gallery-menu" }),
@@ -365,6 +365,16 @@ public static class CommandCatalog
             _ => null
         };
     }
+
+    /// <summary>
+    /// Export labels carry no trailing ellipsis, so the tooltip says instead that the command opens the export dialog.
+    /// </summary>
+    public static string? DialogHint(string id) => id switch
+    {
+        "export.open-html-dialog" or "export.open-all-results-html-dialog" or "export.open-urltext-dialog"
+            or "favorites.export-originals" or "media.export-original" => Texts.T("command.hint.opens-export-dialog"),
+        _ => null
+    };
 
     public static IEnumerable<CommandDefinition> Available(CommandScope scope, Func<CommandDefinition, bool> isAvailable) =>
         Entries.Where(x => (x.Scope & scope) != 0 && isAvailable(x));

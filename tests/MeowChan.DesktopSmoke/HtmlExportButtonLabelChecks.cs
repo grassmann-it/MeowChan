@@ -54,7 +54,7 @@ internal static class HtmlExportButtonLabelChecks
                     Texts.SetLanguage(code);
                     Require(Texts.Language == code, code + ": bundled language did not become effective.");
                     if (code is "es" or "fr" or "ru")
-                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                             code + ": HTML export command silently fell back to English; bundled pack coverage is not exercised.");
                     await SettleAsync(owner);
                     inspector.BringIntoView();
@@ -87,7 +87,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for archive export.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": archive export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await SettleAsync(host);
@@ -124,7 +124,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for large reader.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": large-reader export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(host, size.Width, size.Height));

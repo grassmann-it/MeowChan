@@ -6,7 +6,7 @@ internal static class UrlTextExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("urltext.export.open", "Export link list…", "Linkliste exportieren…"),
+        ("urltext.export.open", "Export link list", "Linkliste exportieren"),
         ("urltext.export.title", "Export archived thread page URL as text", "Seiten-URL eines archivierten Threads als Text exportieren"),
         ("urltext.export.scope", "Scope: one saved archive thread, one page URL. The confirmed target stays fixed even if the selection changes.", "Umfang: ein gespeicherter Archivthread, eine Seiten-URL. Das bestätigte Ziel bleibt auch bei geänderter Auswahl fest."),
         ("urltext.export.source", "Source: {0}", "Quelle: {0}"),
