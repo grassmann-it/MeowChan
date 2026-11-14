@@ -138,7 +138,7 @@ public sealed class HeaderIoMarker : Control
 
         double offsetX = (Bounds.Width - VectorWidth * scale) / 2;
         double offsetY = (Bounds.Height - VectorHeight * scale) / 2;
-        using (context.PushTransform(Matrix.CreateScale(scale) * Matrix.CreateTranslation(offsetX, offsetY)))
+        using (context.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(offsetX, offsetY)))
             context.DrawGeometry(null, new Pen(stroke, StrokeThickness), GeometryFor(Direction));
     }
 
