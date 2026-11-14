@@ -367,7 +367,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
         if (saved || !UsesSoftwareVideo || _softwareVideo.Source is not Avalonia.Media.Imaging.Bitmap shown) return saved;
-        try { shown.Save(path); return File.Exists(path); }
+        try { shown.Save(path, Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default); return File.Exists(path); }
         catch (Exception) { return false; }
     }
 

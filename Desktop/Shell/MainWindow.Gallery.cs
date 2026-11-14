@@ -633,7 +633,10 @@ internal sealed class ReaderGalleryAdornerCoverage
                 ReferenceEquals(ancestor, reader) || ReferenceEquals(ancestor, archive))) continue;
             // A disposable priority override preserves bindings/styles/local values,
             // including an adorner that was already hidden before gallery entry.
-            _hidden.Add(adorner, adorner.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation));
+            // SetValue's nullable result also covers non-reversible local values;
+            // retain each actual override until Clear, never just for this update.
+            if (adorner.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation) is { } visibility)
+                _hidden.Add(adorner, visibility);
         }
     }
 
