@@ -148,7 +148,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
         Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
 
-        string workViews = Plain(Section(Read(Help), "Integrated work-view behavior (WV1–WV6)"));
+        string workViews = Plain(Section(Read(Help), "Integrated work-view behavior"));
         (WorkViewPage Page, string Marker)[] integrated =
         [
             (WorkViewPage.Downloads, "WV1 Downloads"),
@@ -157,7 +157,11 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Media, "WV5 Media"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
             (WorkViewPage.Sources, "Sources"),
-            (WorkViewPage.Plugins, "Plugins")
+            (WorkViewPage.Plugins, "Plugins"),
+            (WorkViewPage.Diagnostics, "WV7 Diagnostics and Statistics"),
+            (WorkViewPage.Statistics, "WV7 Diagnostics and Statistics"),
+            (WorkViewPage.Settings, "WV8 Settings"),
+            (WorkViewPage.Dialogs, "WV9 dialogs and menus")
         ];
         foreach ((WorkViewPage page, string marker) in integrated)
         {
@@ -165,15 +169,11 @@ public sealed class HelpDocumentationTests
             Assert.Contains(marker, workViews, StringComparison.Ordinal);
         }
 
-        // These policies are still empty on the integrated checkout; Help must not turn their
-        // planned identifiers into shipped work-view claims.
-        foreach (WorkViewPage page in new[] { WorkViewPage.Gallery, WorkViewPage.Diagnostics, WorkViewPage.Statistics,
-            WorkViewPage.Settings, WorkViewPage.Dialogs })
-            Assert.Empty(WorkViewPolicy.Entries.Where(entry => entry.Page == page));
-        Assert.DoesNotContain("WV7", workViews, StringComparison.Ordinal);
-        Assert.DoesNotContain("WV8", workViews, StringComparison.Ordinal);
-        Assert.DoesNotContain("WV9", workViews, StringComparison.Ordinal);
-        Assert.DoesNotContain("Gallery", workViews, StringComparison.Ordinal);
+        // WV7–WV9 have policies now; only the separate WV4 gallery layout is still absent.
+        // Keep the boundary explicit rather than deleting the old negative assertions outright.
+        Assert.Empty(WorkViewPolicy.Entries.Where(entry => entry.Page == WorkViewPage.Gallery));
+        Assert.Contains("gallery still uses the same toolbar and overflow in every work view", workViews, StringComparison.Ordinal);
+        Assert.Contains("gallery work-view layout (WV4) and quick-tag suggestion panels are not part of this integrated checkout", workViews, StringComparison.Ordinal);
 
         var showPlugin = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.manageSource");
         var showSources = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.watches");
@@ -181,6 +181,108 @@ public sealed class HelpDocumentationTests
         Assert.Contains(showSources.English, workViews, StringComparison.Ordinal);
         Assert.Contains("German: " + showPlugin.German, workViews, StringComparison.Ordinal);
         Assert.Contains("German: " + showSources.German, workViews, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("diagnostics.filters", Presence.Collapsed, Presence.Direct, Presence.Direct, "Diagnostics starts with its filters collapsed in Barebones")]
+    [InlineData("diagnostics.toolbar.copy", Presence.Overflow, Presence.Direct, Presence.Direct, "Copy moves under More in Barebones")]
+    [InlineData("diagnostics.toolbar.retry-filtered", Presence.Overflow, Presence.Overflow, Presence.Direct, "retrying all filtered entries stays under More in Barebones and Simple")]
+    [InlineData("statistics.reset", Presence.Overflow, Presence.Overflow, Presence.Direct, "Reset statistics is under More in Barebones and Simple, directly available in Advanced")]
+    [InlineData("settings.group.reading-media", Presence.Collapsed, Presence.Direct, Presence.Direct, "Simple opens interface extras, download extras, reading/media and behavior")]
+    [InlineData("settings.group.limits", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "storage limits and the shortcut table remain collapsed")]
+    [InlineData("settings.group.shortcuts", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "Advanced opens all six groups")]
+    [InlineData("dialogs.board-admission.text-rules", Presence.Collapsed, Presence.Direct, Presence.Direct, "board-admission text rules start collapsed only in Barebones")]
+    [InlineData("dialogs.export.options", Presence.Collapsed, Presence.Collapsed, Presence.Direct, "export update/backup options start collapsed in Barebones and Simple")]
+    public void WorkViewRemainderHelpMatchesSpecificPolicyRows(string id, Presence barebones, Presence simple,
+        Presence advanced, string guidance)
+    {
+        WorkViewEntry entry = WorkViewPolicy.Get(id);
+        Assert.Equal(barebones, entry.Barebones);
+        Assert.Equal(simple, entry.Simple);
+        Assert.Equal(advanced, entry.Advanced);
+        Assert.Contains(guidance, Plain(Section(Read(Help), "Integrated work-view behavior")), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Add results and rejected URLs", "admission.problemsOnly")]
+    [InlineData("Add results and rejected URLs", "admission.putBack")]
+    [InlineData("Archive filters and saved searches", "tags.filter.label")]
+    [InlineData("Archive filters and saved searches", "tags.filter.include")]
+    [InlineData("Archive filters and saved searches", "tags.filter.exclude")]
+    [InlineData("Saving a video frame", "command.video.snapshot")]
+    public void HelpActionNamesMatchEnglishAndGermanCatalogs(string heading, string key)
+    {
+        string text = Plain(Section(Read(Help), heading));
+        Assert.Contains(BuiltInCatalog.English[key].Replace("{0}", "n"), text, StringComparison.Ordinal);
+        Assert.Contains(BuiltInCatalog.German[key].Replace("{0}", "n"), text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RejectedUrlHelpDescribesTheNonDestructivePutBackRules()
+    {
+        string text = Plain(Section(Read(Help), "Add results and rejected URLs"));
+        Assert.Contains("If every row is a problem, there is nothing to filter and this checkbox is not shown", text);
+        Assert.Contains("Already present does not", text);
+        Assert.Contains("that text is kept and only missing rejected URLs are appended", text);
+        Assert.Contains("This action itself adds nothing", text);
+        string[] rejected = AdmissionProblemPlan.RejectedUrls(new[]
+        {
+            ("https://example.invalid/rejected", true),
+            ("https://example.invalid/accepted", false),
+            ("https://example.invalid/rejected", true)
+        }).ToArray();
+        Assert.Equal(new[] { "https://example.invalid/rejected" }, rejected);
+        Assert.Equal(rejected[0], AdmissionProblemPlan.FieldText("submitted", "submitted", rejected));
+        Assert.Equal("new draft" + Environment.NewLine + rejected[0],
+            AdmissionProblemPlan.FieldText("new draft", "submitted", rejected));
+        foreach (string id in new[] { "thread.details", "plugins.details" })
+        {
+            Assert.Equal("Show details", CommandCatalog.Get(id).LabelEn);
+            Assert.Equal("Details anzeigen", CommandCatalog.Get(id).LabelDe);
+            Assert.Contains(CommandCatalog.Get(id).LabelEn, text);
+            Assert.Contains(CommandCatalog.Get(id).LabelDe, text);
+        }
+    }
+
+    [Fact]
+    public void ArchiveHelpSeparatesTheCurrentFilterEditorFromThreadAndMediaTagging()
+    {
+        string filters = Plain(Section(Read(Help), "Archive filters and saved searches"));
+        Assert.Contains("choose a tag in Filter by own tag", filters);
+        Assert.Contains("A selected tag not yet included or excluded is flagged when you search", filters);
+        Assert.DoesNotContain("Shift+Enter", filters); // The proposed picker is not wired in Archive yet.
+        string tags = Plain(Section(Read(Help), "Own tags and the shared media menu"));
+        Assert.Contains("own-tag editor beside the posts", tags);
+        Assert.Contains("inline editor follows the open thread until you close it", tags);
+        Assert.Equal("Primary+T", CommandCatalog.Get("thread.tags").Shortcut);
+        Assert.Equal("Primary+Shift+T", CommandCatalog.Get("media.tags.edit").Shortcut);
+        Assert.Contains("Ctrl+Shift+T / Command+Shift+T", tags);
+    }
+
+    [Fact]
+    public void FrameFolderAndReadFirstHeaderGuidanceKeepTheirCurrentBoundaries()
+    {
+        string frames = Plain(Section(Read(Help), "Saving a video frame"));
+        Assert.Equal("Shift+S", CommandCatalog.Get("video.snapshot").Shortcut);
+        Assert.Contains("On first use you choose a folder", frames);
+        Assert.Contains("Cancel saves nothing", frames);
+        Assert.Contains("Existing files are never overwritten", frames);
+        Assert.Contains("it is not remembered as the frames folder", frames);
+        Assert.Contains("There is no separate Settings control", frames);
+        string export = Path.Combine(Path.GetTempPath(), "help-export");
+        Assert.False(GalleryFrameFile.IsDedicatedFolder(export, export));
+        Assert.True(GalleryFrameFile.IsDedicatedFolder(Path.Combine(Path.GetTempPath(), "help-frames"), export));
+
+        string header = Plain(Section(Read(Help), "From a package to an offline picture"));
+        foreach (string key in new[] { "stats.header.down", "stats.header.up", "stats.header.read", "stats.header.write" })
+        {
+            Assert.Contains(BuiltInCatalog.English[key], header);
+            Assert.Contains(BuiltInCatalog.German[key], header);
+        }
+        Assert.Contains("Down and Read are solid with a filled area; Up and Write are dashed", header);
+        Assert.DoesNotContain("Down ↓", header);
+        Assert.DoesNotContain("Read R", header);
+        Assert.Equal(37, IoStatsDisplay.HeaderDiskRate(new IoRates(NetDown: 1, NetUp: 2, DiskWrite: 11, DiskRead: 37, Requests: 0)));
     }
 
     [Fact]

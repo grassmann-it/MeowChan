@@ -62,10 +62,12 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
-The header can show two separate I/O graphs: **Network I/O** (Down ↓ and Up ↑)
-and **Disk I/O** (Read R and Write W). Each direction remains a separate series; the
-categories are not summed. **Auto** keeps both categories available in every work
-view where the header layout fits; click the header rates or graphs to open
+The header uses words beside the rates: **Down / Up** for network traffic and
+**Read / Write** for disk traffic (German: **Download / Upload**, **Lesen / Schreiben**),
+without Network/Disk headings, arrows or single-letter direction labels. It can
+show two graphs, each with two separate series: Down and Read are solid with a
+filled area; Up and Write are dashed. The categories are not summed. **Auto**
+keeps both categories available in every work view where the header layout fits; click the header rates or graphs to open
 **Statistics**. These are MeowChan application-payload and media-I/O measurements,
 not system-wide traffic, and are separate from saved/selected media progress.
 
@@ -93,15 +95,19 @@ when the feature is enabled and a saved reading position is known; it is hidden
 while the reader or gallery is visible. When no icon is shown on Downloads or
 the archive list, use the app-menu entry to check the reading-position state.
 
-### Integrated work-view behavior (WV1–WV6)
+### Integrated work-view behavior
 
 The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
 **WV3 Reader**, **WV5 Media**, and the **WV6** setup pages **Rules**, **Sources**
-and **Plugins**. Barebones, Simple and Advanced change how much of these pages is
-shown, not whether their data can be reached. A reduced action remains under the
-page's **More** (German: **Mehr**) or **More filters** surface, and its shortcut
-continues to work. Data, applied filters, validation or integrity warnings, and
-other safety state stay reachable on the page.
+and **Plugins**, plus **WV7 Diagnostics and Statistics**, **WV8 Settings** and
+**WV9 dialogs and menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
+Advanced (**Erweitert**) change how much is shown directly, not whether the data
+can be reached. The work view decides which settings groups and buttons are shown
+directly; the rest is under **More** (**Mehr**), **More filters** (**Weitere Filter**),
+**More settings** (**Weitere Einstellungen**) or **More options** (**Weitere Optionen**),
+as appropriate. Shortcuts continue to work in every work view. Data, applied
+filters, validation or integrity warnings, and other safety state stay reachable
+on the page.
 
 - **Downloads:** the URL intake, thread identity and progress remain available;
   list tools such as search, columns, copied URLs and details can move into **More**.
@@ -123,6 +129,35 @@ other safety state stay reachable on the page.
   the providing plugin; in Plugins, **Show in Sources** (German: **In Quellen
   anzeigen**) returns to its sources.
 
+- **Diagnostics and Statistics (WV7):** Diagnostics starts with its filters
+  collapsed in Barebones; a non-default filter opens the group. **Check now**,
+  retrying the selection and showing it in Downloads stay directly available.
+  Copy moves under More in Barebones; retrying all filtered entries stays under
+  More in Barebones and Simple. Statistics keeps current values, history and
+  source rows visible in every view; **Reset statistics** is under More in
+  Barebones and Simple, directly available in Advanced, and always asks first.
+- **Settings (WV8):** Barebones keeps the core settings direct and the six extra
+  groups collapsed. Simple opens interface extras, download extras, reading/media
+  and behavior; storage limits and the shortcut table remain collapsed. Advanced
+  opens all six groups. A changed or invalid field opens its group; the settings
+  search covers every group and opens the setting it jumps to. Save/Discard,
+  errors and the free-space reserve are never hidden inside those groups.
+- **Dialogs and menus (WV9):** board-admission text rules start collapsed only in
+  Barebones; export update/backup options start collapsed in Barebones and Simple.
+  Active rules or an update in progress open the relevant section. Previews,
+  confirmations, integrity consent and explicit manager dialogs are not reduced.
+  The tray menu and macOS menu bar remain complete in every view.
+
+Use **Switch work view** (German: **Arbeitsansicht wechseln**) in the app menu to
+cycle Barebones → Simple → Advanced → Barebones; it has no default shortcut, but
+can be rebound. Existing profiles affected by the reduction can show a one-time
+notice with **Switch to Advanced** (**Zu Erweitert wechseln**) and **Got it**
+(**Verstanden**). This does not silently change the saved view.
+
+The gallery still uses the same toolbar and overflow in every work view; the
+separate gallery work-view layout (WV4) and quick-tag suggestion panels are not
+part of this integrated checkout.
+
 ### Language packs
 
 In Settings, choose **Language** and Save. Alongside English and German, the app
@@ -133,6 +168,25 @@ linguistic or native-UI reviews; missing translations fall back to English.
 Catalog coverage is not complete-UI localization: some legacy and vendor controls
 still use English. Linux users need suitable installed CJK fonts for the CJK packs.
 See the [bundled-pack limitations](../Desktop/Localization/Packs/README.md#known-english-surfaces).
+
+### Add results and rejected URLs
+
+After adding a batch in Downloads, each URL has its own result. If accepted or
+already-present entries are mixed with rejected ones, **Problems only (n)**
+(German: **Nur Probleme (n)**) hides the non-problem rows in the report; it changes
+neither the watches nor the download queue. If every row is a problem, there is
+nothing to filter and this checkbox is not shown.
+
+Whenever any URLs were rejected, **Put rejected back into the field** (German:
+**Abgelehnte ins Feld**) returns those URLs to the Add input, once each, so you can
+correct them and choose Add again. Invalid, unsupported, failed and skipped
+entries count as rejected; **Already present** does not. If you have edited the
+input since submission, that text is kept and only missing rejected URLs are
+appended. This action itself adds nothing.
+
+The interface calls ongoing observation **watch** (German: **beobachten**).
+**Show details** (**Details anzeigen**) opens details in Downloads, Archive and
+Plugins; it is not a command to start watching or downloading.
 
 ### Clipboard URL monitor
 
@@ -369,7 +423,7 @@ The platform-specific exceptions are listed below:
 | Shift+Delete | Permanently delete selected Archive threads and their local media (confirmation required) |
 | F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
 | Ctrl+R | Open the lead entry's **Media rules…** |
-| Ctrl+T | Open the lead thread's **Tags…** in Archive or the reader; edit media tags on Media or in the gallery |
+| Ctrl+T / Ctrl+Shift+T | Open the lead thread's **Tags…** in Archive or the reader / **Edit media tags…** on Media or in the gallery |
 | Ctrl+D | Favorite or unfavorite the thread in Archive or the reader |
 | Ctrl+Shift+F | Open a board's **Thread filters…**; in the Archive, **Filters and sorting** |
 | Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / open its source in the browser |
@@ -605,6 +659,11 @@ Switching categories keeps all drafts, including invalid text. **Save** applies
 changes across every category; **Discard draft** reverts all unapplied edits.
 Saving with an invalid field opens its category so you can correct it.
 
+The search at the top (Ctrl+F, Command+F on macOS) finds settings by name, hint or
+key, including English terms in other languages. Results update as you type.
+Up/Down selects a hit; Enter or a click jumps to it and opens its group. A screen
+reader can receive the current hit's position and name, or the empty-result notice.
+
 Under **Notifications** (German: **Benachrichtigungen**), independently enable or
 disable **Success and information popups**, **Warning popups** and **Error popups**,
 then Save. These control in-app popups. Warnings and errors remain at the affected
@@ -633,8 +692,10 @@ can contribute bytes without a saved file. The header uses the same directional
 categories; **Auto** keeps both available in every work view where the layout fits.
 These counters are separate from saved/selected media progress. The header uses a word/rate matrix: **Down** then **Up** for network traffic,
 **Read** then **Write** for disk traffic;
-the directions are never combined. **Reset statistics** asks for confirmation before
-clearing the counters, not media.
+the directions are never combined. Read is the solid, filled main disk series;
+Write is the dashed second series, not a combined disk total. **Reset statistics**
+is under More in Barebones and Simple and directly available in Advanced. It asks
+for confirmation before clearing the counters, not media.
 
 Settings → **Behavior → Statistics** controls the sampling and persistence:
 
@@ -777,8 +838,10 @@ moving either direction can show them immediately. The cache is 256 MiB by defau
 Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
-This changes the gallery layout independently of F11 window fullscreen. The gallery toolbar keeps Close,
-Previous, position, Next, Fit, 1:1, the post panel, Favorite and Tools visible. Use **⋯ (More gallery actions)**
+This changes the gallery layout independently of F11 window fullscreen. Close the
+gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) at the top
+left; the button names the return destination. The toolbar keeps Previous,
+position, Next, Fit, 1:1, the post panel, Favorite and Tools visible. Use **⋯ (More gallery actions)**
 for zoom, rating, tags, original export, slideshow settings, overlays, fullscreen
 and shortcut help; these are overflow menu actions, not additional always-visible
 toolbar buttons. Their shortcuts still work directly. In a narrow window the
@@ -789,8 +852,11 @@ playback** offers **Manual**, **Repeat current video**, and **Slideshow**. The s
 mode is available in the gallery. Repeat applies to each video you select until
 changed; its choice and media focus are remembered for the profile. Slideshow
 must be started explicitly, even after reopening the gallery or restarting the
-app. Images remain for the chosen duration (1–300 seconds, initially 5); videos
-advance at their actual end. The last item finishes and stops. Explicit Pause
+app. Images remain for the chosen duration (1–300 seconds, initially 5). Under
+**Videos in the slideshow**, choose one pass, a minimum duration (initially 10
+seconds, 1–600) or a repeat count (initially 2, 1–50). The pass that crosses the
+minimum duration finishes before advancing; with reduced motion videos play once.
+You can always move on manually. The last item finishes and stops. Explicit Pause
 stops progression until you resume. Seeking, dialogs and temporary loss of active
 interaction hold automatic advancement while the interaction is unsafe; they do
 not pause the native video. Reading a hover-opened post stops slideshow progression
@@ -807,7 +873,10 @@ panels: it only briefly shows subtle bottom/right chevrons. These hints have no
 box or border and disappear after mouse inactivity. Navigation shortcuts work
 on the first press even while controls are hidden. A pointer click on
 Start does not pin the controls; keyboard focus, active gestures and menus do.
-Keyboard access remains available. **Post overlay** reveals at the right edge,
+Keyboard access remains available. **Hide controls after** sets the idle delay
+for the gallery overlay and reader navigation cross (initially 2000 ms, 500–30000).
+The post panel and shortcut help close with their top-right × or Esc; Esc closes
+only the topmost layer first. **Post overlay** reveals at the right edge,
 stays open while you read inside it and collapses after leaving; hover does not
 save a new preference. It pauses slideshow without automatic resume when closed.
 An explicitly opened/pinned context retains its normal toggle behavior. Its
@@ -998,7 +1067,7 @@ kept instead. **Discard draft** restores the saved choice and percentage.
 
 ### Archive filters and saved searches
 
-In the 1.0 Archive, open **Filters and sorting**. Source and board fields offer
+In the Archive, open **Filters and sorting**. Source and board fields offer
 bounded local suggestions and also accept values you type. Accepting a suggestion
 changes the input only. Use **Add** for each source, board or source state, or clear
 unfinished input before searching. Add several alternatives when needed: a thread
@@ -1007,6 +1076,14 @@ An empty category is unrestricted. **Board source (or all sources)** distinguish
 a board in one source from the same board name across all sources; accepting a
 source-qualified board suggestion uses that source. A board outside the selected
 sources cannot match until you adjust the source or board choices.
+
+For own-tag filters, choose a tag in **Filter by own tag** (German: **Nach eigenem
+Tag filtern**) and click **Include** (**Einschließen**) or **Exclude**
+(**Ausschließen**). Choose **All included tags** or **At least one included tag**
+for the inclusion match; an excluded tag rules a thread out. Remove a draft chip
+to remove that choice. A selected tag not yet included or excluded is flagged
+when you search: add it or clear the selection first. These are search filters,
+not changes to the tags assigned to a thread.
 
 **First registered locally** filters the day a thread first entered the local
 archive catalog, including threads without captured posts. Enter **From** and/or
@@ -1103,10 +1180,13 @@ their thread, but **Without media tags** counts only tags assigned to the media
 itself. Danbooru source tags do not count as your own tags. Click the untagged
 count on Media, or use that filter, to start tagging those items.
 
-**Tags…** opens the thread's tags from Archive; **Edit media tags…** opens the
-media's tags. The dialog has a search field, selection counts for group tagging,
-and **Undo** for the last dialog edit. Tag-name suggestions put your own tags
-first and Danbooru source tags in a separate group. Choosing a source tag as an
+In Archive, right-click a thread and choose **Tags…**, or use Ctrl+T (Command+T
+on macOS), to open its own-tag editor beside the posts. The inline editor follows
+the open thread until you close it. **Edit media tags…** (German: **Medientags
+bearbeiten…**, Ctrl+Shift+T / Command+Shift+T) opens the medium's tag dialog on
+Media or in the gallery. That dialog has a search field, selection counts for
+group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
+own tags first and Danbooru source tags in a separate group. Choosing a source tag as an
 own tag creates a local tag; it does not edit Danbooru. Clicking a tag chip on a
 media tile filters the view by that tag.
 
@@ -1159,8 +1239,29 @@ In a thread's Archive media view, **Rating filter** offers **All ratings**,
 **Unrated** or **At least 1** through **At least 5**. A rating change can remove an
 item from that filtered view. This filters media within the thread, separately
 from the thread search above. Ratings do not alter saved files or download rules.
-Diagnostics → **Manage saved ratings…** lets you inspect stored entries and remove
-an individual rating, including one whose original is no longer available.
+**Manage saved ratings…** (German: **Gespeicherte Bewertungen verwalten…**) is in
+the Media page's More menu, the Archive rating row and the gallery's More menu,
+not Diagnostics. It lets you inspect stored entries and remove an individual
+rating, including one whose original is no longer available.
+
+### Saving a video frame
+
+In the gallery, **Save frame as image** (German: **Einzelbild als Bild speichern**,
+Shift+S) saves the displayed video frame as a PNG. On first use you choose a
+folder for saved video frames. MeowChan remembers this dedicated folder, not the
+archive export folder; if it no longer exists, or matches the remembered export
+folder, you are asked again. You may explicitly select the export folder for
+this save, but it is not remembered as the frames folder. Cancel saves nothing.
+Existing files are never overwritten; a free numbered name is used instead.
+There is no separate Settings control for changing the frames folder yet.
+
+Deutsch: Das Standbild eines Videos speichert die Galerie als PNG in einem beim
+ersten Mal gewählten Ordner. Der eigene Standbildordner wird gemerkt; der
+Exportordner wird nie stillschweigend übernommen. Ist der gemerkte Ordner nicht
+mehr vorhanden oder inzwischen der Exportordner, wird erneut gefragt. Ein
+bewusst gewählter Exportordner gilt nur für diesen Speichervorgang. Abbrechen
+speichert nichts; vorhandene Dateien werden nie überschrieben. Eine eigene
+Einstellung zum Wechseln des Standbildordners gibt es noch nicht.
 
 ### Local video
 
