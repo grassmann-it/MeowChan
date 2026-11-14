@@ -113,6 +113,25 @@ public sealed class ProfileLease : IDisposable
         }
     }
 
+    /// <summary>
+    /// Whether an owner (another window of this app, or this one) holds the lease of <paramref name="profileDirectory"/>
+    /// right now. A probe only: it never creates the folder, the lock file or the marker, and a folder without a lock file
+    /// is not in use. An unreadable lock counts as in use, so a caller never starts a second owner on a guess.
+    /// </summary>
+    internal static bool IsInUse(string profileDirectory)
+    {
+        string lockPath = Path.Combine(NormalizeDirectory(profileDirectory), LockName);
+        try
+        {
+            using FileStream probe = new FileStream(lockPath, FileMode.Open, FileAccess.Read, FileShare.None);
+            return false;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+        catch (IOException) { return true; }
+        catch (UnauthorizedAccessException) { return true; }
+    }
+
     private static bool HasProtocolMarker(string directory)
     {
         try
