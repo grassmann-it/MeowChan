@@ -1,23 +1,29 @@
 # MeowChan 1.1.0 — Umsetzung und Abnahme, noch nicht releasefertig
 
-**Abgleich: 14.11.2026, 10:26 CET. Gepinnter Produktbezugsstand:**
-`308e6780bf054163b257a4e602c0bcaa03c0e022` (kurz `308e6780`).
-G0109 ist beendet: App, DesktopTests und Smokeprojekt kompiliert;
-**166 enge Nicht-GUI-Fälle bestanden, 0 FAIL / 0 SKIP**. Danach geschützter
-Fast-Forward von `goal/gesamtprogramm-profile-a` von `437e5662` auf diesen SHA
-und Hauptcheckout-Appbuild mit **0 Fehlern / 4 Avalonia-Warnungen**, fertig
-10:26:18 CET. Das ist **kein finaler Freeze und keine Releasefreigabe**.
-Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme daraus ableiten; kein Push,
-Tag oder Upload. Claude UX Wave 3 ist weiterhin nicht als final übergeben
-oder integriert gezählt.
+**Abgleich: 14.11.2026, Übernahme des final gelieferten Wave3-Stapels.**
+Diese Fortschreibung ist an den kombinierten Merge-Kandidaten
+**`b098907402cd34661c72d73a3559df68bfcd3cc4`** gebunden, nicht an einen
+beweglichen Claude-Zweig. Herkunft und Ausführungsstand sind getrennt:
+
+| Stand | Exakter SHA | Beleg / Grenze |
+| --- | --- | --- |
+| Aktueller Root vor Übernahme des kombinierten Kandidaten | `cf147f7f78ec1cf228915c25619bb16bd89127df` | Enthält die drei Python-Runner-/Prozesshelper-Nachläufe seit `66296fd9`; **34 gezielte Python-Tests bestanden** laut Übernahmenachtrag. Kein neuer Appbuild daraus abzuleiten. |
+| Zuletzt tatsächlich gebaute Root-App | `66296fd9d6c5b50e45f39c7ecc9be7fa53d645eb` | G0115, fertig **11:40:42 CET**, **0 Fehler / 4 Avalonia-Warnungen**. Compile-/Dogfood-Anker, kein Release- oder GUI-PASS. |
+| Final von Claude gelieferter UX-Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Explizit zur Integration geliefert; dessen separate Compile-/Testmeldungen sind kein Beleg für den kombinierten Kandidaten. |
+| Kombinierter Integrationskandidat | `b098907402cd34661c72d73a3559df68bfcd3cc4` | Merge von `cf147f7f` und `0fc7c5cf`; **noch kein gemeinsamer Compilebeleg und noch kein Root-Fast-Forward**. Parent prüft und aktualisiert danach. |
+
+Kein finaler Freeze und keine Releasefreigabe. Keine Vollsuite-/GUI-/Plattform-/
+Endpaketabnahme aus Quellintegration oder älteren Zwischenbelegen ableiten;
+kein Push, Tag oder Upload. Insbesondere werden historische Testergebnisse
+nicht auf `b0989074` umetikettiert.
 
 Der frühere Hauptcheckout-Anker `6e8e4437` und der damals getrennte Codex-Stand
-`88627d6b` sind Vorfahren dieses Bezugsstands. Die Aussage „Codex noch nicht
-nach goal übernommen“ vom 13.11. ist damit überholt. Diese Fortschreibung
-verwendet den erhaltenen Root-WIP als Ausgangstext, trennt heutige Integration
-von historischen Belegen und bindet Ergebnisse an ihren tatsächlich geprüften
-SHA. Der vorherige Dokumentabgleich auf `3b9e7e04`/G0105 bleibt unten als eigener
-Nachweis erhalten; die neuen G0106–G0109-Ergebnisse ersetzen ihn nicht rückwirkend.
+`88627d6b` sind Vorfahren dieses Bezugsstands. „Codex noch nicht nach goal
+übernommen“ vom 13.11. und „Wave3 noch nicht final geliefert“ vom früheren
+14.11.-Abgleich sind überholt. Die Fortschreibung bewahrt die Herkunft des
+früher erhaltenen Root-WIP und alle commitgebundenen Nachweise unten, ohne
+Root-WIP zu verändern. G0105 und G0106–G0109 bleiben eigenständige historische
+Läufe; sie sind keine Abnahme des neuen Merge-Kandidaten.
 
 ## Entscheidung und Umfang
 
@@ -32,51 +38,73 @@ stillschweigend Teil dieses Kandidaten.
 Alle Tests verwenden synthetische Daten, Fake-HTTP oder Loopback und isolierte
 Profile. Keine Live-Providerabnahme und keine Tests gegen das persönliche Profil.
 
-## Integriert auf goal am gepinnten Bezugsstand
+## Quellstand im kombinierten Kandidaten
 
-„Integriert“ bezeichnet hier den Quellstand, nicht eine bestandene vollständige
-Abnahme. Die früher getrennten Arbeitsstatus werden nicht als zusätzliche offene
-Implementierung weitergeführt.
+„Enthalten“ bezeichnet hier die Quellen in `b0989074`, nicht eine bestandene
+vollständige Abnahme oder schon erfolgte Root-Übernahme. Die bisherigen
+Codex-Funktionen sind über Root `cf147f7f`, Wave3 über den festen Liefer-SHA
+`0fc7c5cf` enthalten; keine doppelte offene Implementierung daraus ableiten.
 
-| Bereich | Tatsächlicher integrierter Stand | Abgrenzung |
+| Bereich | Im Kandidaten enthaltener Quellstand | Abgrenzung |
 | --- | --- | --- |
-| Header-I/O | Zwei Graphflächen: Network I/O mit Down/Up, Disk I/O mit Read/Write; gemessene eigene Nutzlast-/Medien-I/O, keine vollständigen OS-/TLS-Zähler. Lokalisierte Wörter sind Standard, adaptive Raten haben drei sichtbare Ziffern, farbige Richtungsicons sind optional (`ff54a543`, `4c4601d5`, `2e3ab7e9`, `6949018e`). | Keine vier Einzelgraphen oder Richtungssummen; native Kontrast-/Plattformabnahme offen. |
+| Header-I/O | Zwei Graphflächen: Network I/O mit Down/Up, Disk I/O mit Read/Write; gemessene eigene Nutzlast-/Medien-I/O, keine vollständigen OS-/TLS-Zähler. Lokalisierte Wörter sind Standard, adaptive Raten haben drei sichtbare Ziffern, farbige Richtungsicons sind optional (`ff54a543`, `4c4601d5`, `2e3ab7e9`, `6949018e`). | Keine vier Einzelgraphen oder Richtungssummen; Wave3 ergänzt den Monitor-Modus Aus; native Kontrast-/Plattformabnahme offen. |
 | BP2 Booru-Seite | Lazy-Hauptseite hinter Medien, bestehende Workbench, eigener Host/Lifetime und gespeicherter Anzeigeschalter im Footer/Appmenü (`bc1a2573`, `0463773b`, `15734d44`). Booru standardmäßig Primary+6, Quellen & Plugins 5, Status 7; gespeichertes `navigation.plugins=Primary+6` bleibt vorrangig und führt zu Alle Plugins. | Ausblenden ist keine Quellenautorisierung, Plugin-Deaktivierung oder Watcher-Pause. Öffnen/Vorbefüllen sendet keine Suche. |
 | BP3 und BP2-Aktionsgates | Exakter lokaler Booru↔Medien-Sprung, Bereinigung inkompatibler transienter Filter, Aktion im Medien-Mehr-Menü (`8815b062`); Details-Suchaktion an Live-Verfügbarkeit gebunden (`135ca876`). Handoff/Fokus nach Aktivierung, Present/Layout an Navigation und Quellkomposition gebunden; tote MainWindow-Fensterreste entfernt (`b4c5264e`, `3b9e7e04`). | Keine entfernte Abfrage oder Originalaufnahme durch den lokalen Sprung. Bewusst eigenständige Workbench-Window-Fixtures sind nicht die normale Shellroute. GUI-Migration/-Abnahme bleibt separat. |
 | Booru-Lebenszyklus und Cooldown | Suche/Einzelpost, Originalqueue, Katalog, Cursor-Watcher und Offline-Medien; F2/F3-Suspend/Drain/Resume und globale Sitzungspause sind integriert (`3bc753c5`, `3fa0ce4f`). Manuelles Jetzt prüfen bleibt während globaler Pause erlaubt, ohne Entpausieren (`929917e8`). Retry-After-Deckel: 24 h Standard, 1–168 h konfigurierbar, 60 s Minimum; Live-Absenkung, terminale Jobs und Reset-Grenzen (`5392aea2`, `02536a70`). | Frühere ungekappte Retry-After-Annahmen sind überholt. Kein automatisches Resume/Replay, kein versteckter Ratingfilter; letzter vollständiger End-to-End-Lauf offen. |
-| Status / Quellen & Plugins | SM1/SM2-Statusseite mit Statistik/Diagnose und erhaltener Slot-7-/Segmentsemantik; gemeinsame Quellen-&-Plugins-Seite (`c4090396`), aktive Quellen vor inaktiven mit Chip, Plugin-Details auf zweiter Ebene, Dropdown Quellen/Bildfilter/Alle Plugins. | `navigation.plugins` ist Kompatibilitätsroute, keine separate Hauptseite. Weitere Claude-Statuspakete SM3–SM7 nicht pauschal mitgezählt. |
+| Status / Quellen & Plugins | SM1/SM2-Statusseite mit Statistik/Diagnose und erhaltener Slot-7-/Segmentsemantik; gemeinsame Quellen-&-Plugins-Seite (`c4090396`), aktive Quellen vor inaktiven mit Chip, Plugin-Details auf zweiter Ebene, Dropdown Quellen/Bildfilter/Alle Plugins. | `navigation.plugins` ist Kompatibilitätsroute, keine separate Hauptseite. Wave3 enthält SM3/SM4/SM5 einschließlich Status-Deep-Links; kein pauschaler SM3–SM7-Abnahmeclaim. |
 | Settings / Limits | SP1 draft-only Reset (`76f30070`), SP2 Export aus reinem gespeichertem portablem Snapshot (`782d9d9d`), SP5 konfigurierbare Grenzen mit produktiven Callern (`cadf74d3`, `d8b89687`) und Referenz-/Caller-Verträgen (`b3729bf2`). | Kein Claim, dass sämtliche Settings-Planpakete oder eine Settings-Importoberfläche fertig seien. Save/Discard, Berechtigungen und Validierung bleiben getrennt. |
 | Arbeitsansichten | WV0–WV9-Policyflächen einschließlich Galerie; WV11 Übersicht/Differenzfilter (`ce4a9c32`); WV12 kompakter Wechseltoast, Undo, geschützter Details-Host mit Differenz-/Fokusroute und Hinweisdauer (`5a0d9cd9`, `874c6270`, `ee00ba7f`). | Reduktion ist kein Datenverlust; Required-/Safety-Flows bleiben erreichbar. Vollständige Ansichts-/Breiten-/Fokus-Smokes offen. |
 | Cache / Staging / Poster / Codex-M5 | Poster-/Scrub-Grundfunktionen mit Profilhost und Wartung (`630fc66f`); Pluginimport-Ownership, Quarantänemarker vor Payload und Unix-Publish ohne Überschreiben (`a82c8ca1`, `53dfbda6`); PNG-/DEFLATE-Member-/Tabellengrenzen (`8c5530a6` und Vorgänger); Galerie-Preloader auch bei Verzögerung 0 außerhalb UI-Thread, bestätigte Decodes behalten und keine Lease an abgebrochene Aufrufe (`221f441a`, `5bde1ea8`). | „M5“ hier = Codex Galerie-stat/Preloader, nicht Claudes Medienfilterraster. Gezielte Belege unten ersetzen weder vollständige Cache-/Plattform- noch Playbackabnahme. |
-| Medien, Reader, Tags und bestehende UX | Lokale Identität, eigene Tags, gemeinsames Medienmenü, Import und v1-Backup; vorhandene Reader-/Galerie-/Conversation-/Filter-/Chrome-/Designpakete samt älteren b10–b13- und Codex-Nachläufen sind enthalten. | Kein Vorgriff auf den noch nicht final übergebenen Claude-Wave3-Stapel; gemeinsame Host-/Stempelbindung und native Abnahme bleiben abzugleichen. |
-| Help / Locales | EN/DE-Hilfe für Settings/WP/Status/WV12, konfigurierbaren Cooldown (`9563892e`) und tatsächliche BP2-Seite/Anzeige/Navigation (`d211c18c`). Neue Settings-/WV-/Quellen-/BP2-/BP3-Schlüssel in EN/DE und zehn zusätzlichen Packs; auch HTML-Export-Ergänzungen aus `5b467df1` sind Vorfahren des Bezugsstands. | Kein globaler Help-/Sprach-/Muttersprachler-PASS. F1 kann eine wirksame Belegung trotz ausgeblendeter Booru-Seite weiter nennen; das macht das Ziel nicht verfügbar. |
-| Paketierung / API | Öffentliche Plugin-Allowlist und physische Alias-/Zielbaumkontrolle (`a32f203b`), AP04 strikt gegen unbekannte Assets; dokumentierte Coreconsumer-Migration über `StartAsync(lease)` sowie API-Review ([Inventar](releases/v1.1.0-api-review.md)). | Private Plugins bleiben außerhalb öffentlicher Repo-/Releaseinputs. Kein Endpaket-/Apphost-/echtes-1.0.2-Upgrade-PASS; finale Analyzer-/Consumerprüfung offen. |
+| Medien, Reader, Tags und Wave3-UX | Lokale Identität, eigene Tags, gemeinsames Medienmenü, Import und v1-Backup; zusätzlich Viewer V1–V4, Tagging-Seite/-Modus/-Karten und Popover, Reader-Erweiterungen einschließlich Medien-Seitenleiste/Inline-Video/Schnelleinstellungen, Archiv-/Medienfilter, Profile und Modal-/Kürzel-/Tagline-Nachläufe aus `0fc7c5cf`. | Quellintegration, noch kein gemeinsamer Build-/Runtime-PASS. Tagging ist eine Appmenü-/Befehlsroute, keine zusätzliche nummerierte Fußleistenseite. Gemeinsamer Stempel und Revision 9 sind unten abgegrenzt. |
+| Help / Locales | EN/DE-Hilfe für Settings/WP/Status/WV12, konfigurierbaren Cooldown (`9563892e`) und tatsächliche BP2-Seite/Anzeige/Navigation (`d211c18c`) sowie Footer-/Mehr-/Settings-/Header-Nachpflege (`e6ab24da`). Neue Settings-/WV-/Quellen-/BP2-/BP3-Schlüssel in EN/DE und zehn zusätzlichen Packs; auch HTML-Export-Ergänzungen aus `5b467df1` sind Vorfahren des Bezugsstands. | Wave3-Sprach-/Plural-/Icon-Nachläufe sind enthalten; die unten genannten neuen Help-Sätze bleiben nachzupflegen. Kein globaler Help-/Sprach-/Muttersprachler-PASS. F1 kann eine wirksame Belegung trotz ausgeblendeter Booru-Seite weiter nennen; das macht das Ziel nicht verfügbar. |
+| Paketierung / API | Öffentliche Plugin-Allowlist und physische Alias-/Zielbaumkontrolle (`a32f203b`), AP04 strikt gegen unbekannte Assets; dokumentierte Coreconsumer-Migration über `StartAsync(lease)`, [API-Review](releases/v1.1.0-api-review-current-2026-11-14.md) und echte SDK-/Core-/Host-/Paketconsumer-Zwischenbelege (unten). Die drei Python-Nachläufe sind in `cf147f7f` enthalten. | Private Plugins bleiben außerhalb öffentlicher Repo-/Releaseinputs. Alter profilgebundener Core-Startup wird beabsichtigt abgewiesen. Kein Endpaket-/Apphost-/echtes-1.0.2-Upgrade-PASS; finale Analyzer-/Consumerprüfung offen. |
 
-## Noch abzugleichen / nicht als final geliefert zählen
+## Wave3 geliefert und zusammengeführt — gemeinsame Abnahme noch offen
 
-**Claude UX Wave 3** (`integration/ux-wave3-20261114`) ist ein beweglicher
-Integrationszweig, kein übergebener Freeze. Der im 09:38-Status genannte
-Zwischenanker `2a117ebf` ist kein finaler Liefer-SHA. Viewer V1/V2/V3,
-TP3/TP4/PT1/PT5 und gemeinsame Host-/Stempelbindung, Reader-Reste,
-Archiv/Medien M2–M5, Profile PR1–PR3, Modals/Kürzel, Taglines/HB1,
-SM3–SM7/ADM-A sowie Sprachreview/Plurale und Designsystem-/Icon-Reste bleiben
-mit Claudes finalem Stapel und tatsächlicher Restliste abzugleichen. Diese Liste
-ist eine Übergabeabgrenzung, keine Behauptung, jeder Punkt sei dort noch ungebaut.
+Der frühere Zwischenanker `2a117ebf` und der damalige bewegliche Arbeitsstatus
+sind keine aktuelle Resteliste mehr. Claude hat den festen Stapel `0fc7c5cf`
+final geliefert; `b0989074` führt ihn mit dem neueren Codex-Root zusammen.
+Die separaten Claude-Läufe und deren Baseline-Einordnung bleiben Belege nur
+für ihre eigenen Stände. Insbesondere keine roten Tests durch bloße Berufung
+auf eine ältere Baseline als auf dem Merge-Kandidaten gelöst zählen.
 
-Beim Merge insbesondere beide DefaultsRevision-8-Erweiterungen bewusst
-zusammenführen, gespeicherte Overrides erhalten, BP3-/Booru-Medien-Lifetime-Hooks
-in Toolbar/Filters/WorkView/Return einschließlich optionalem Gate-Parameter
-bewahren und Codex-M5 nicht mit Claudes M5 verwechseln. Keine parallele zweite
-Cache-/Settings-/Booru-/Help-Umsetzung aus dem alten Status ableiten.
+Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
+
+- Shortcut-**DefaultsRevision 9** in `EffectiveShortcutBindings`; die neuen
+  Defaults sind yielding, gespeicherte Overrides bleiben erhalten. Die
+  `MainPageOrder` bleibt autoritativ: Booru 6, Quellen & Plugins 5, Status 7;
+  die alte Plugins-Belegung kann Booru 6 weiterhin übersteuern.
+- Eine gemeinsame Fenster-Stempelquelle `MainWindow.QuickTagStampSet`,
+  persistiert als `Config.TagStamp`, wird von Galerie, Popover und
+  Tagging-Seite benutzt. `TagStampSize` ist standardmäßig 9, einstellbar 1–18.
+  Das separate Queue-Stamp-Feld bleibt im Dateiformat, wird aber nicht benutzt
+  (gelieferter Queue-TODO); keine zweite aktive Stempelquelle behaupten.
+- `ReaderQuickSettings` enthält die R5/R6-, R8- und R10-Felder.
+  `navigation.tagging` öffnet die lazy Tagging-Seite aus dem Appmenü; sie
+  erweitert die nummerierte Fußleiste nicht. Booru ist an das neue
+  Medien-Termset angepasst; Codex-M5 (Preloader/stat) und Claude-M5
+  (Medienfilterraster) sind verschiedene enthaltene Pakete.
+
+**Noch kein Abschlussclaim:** Gemeinsamer Compile/Root-FF steht aus.
+Der Booru-Workbench-Window-Host ist auf diesem Pin noch nicht auf die
+MD3-Dialogfabrik portiert; der separate Nachlauf ist nicht als integriert zu
+zählen. Help-Nachpflege zu Markieren/Stempel und Stempelgröße, Tagging-Seite,
+Tagging-Modus und -Karten, Reader R8/R10, Viewer V4 Zoom/Drehen, Ordnerquellen, Profilen
+und Shortcuts-Fenster bleibt mit den tatsächlichen Produktpfaden abzugleichen.
+Die gelieferte neue Smoke-Registry (unter anderem `tagging-page`,
+`reader-media-sidebar`, `reader-inline-video`, `profile-switch`,
+`folder-source`, `status-deep-links`) braucht zentrale Ausführung, nicht nur
+Quellvorhandensein.
 
 BooruMedia- und BooruComposition-Smoke-Fixtures sind auf den Seitenhost
-portiert (`dd6af97b`, `6e567e7a`); ein kompilierendes Smokeprojekt ist **kein
-ausgeführter Smoke**. Der nachfolgende statische Review fand noch zwei konkrete
-Prüflücken: die URL muss tatsächlich genau einmal in das isolierte Clipboard
-geschrieben werden (kein Fehlerstatus als Copy-Erfolg), und „Booru aus“ muss
-über den echten Shell-Schalter statt nur über eine Config-Mutation geprüft
-werden. Deren Fixture-Nachlauf und die native Pause-/Serviceverlust-Regression
-sind noch nicht integriert/ausgeführt.
+portiert (`dd6af97b`, `6e567e7a`). Die nachfolgenden Fixturekorrekturen
+(`ccaf9793`, `1b3c9511`, `600cf352`) sind inzwischen enthalten: isoliertes
+Clipboard mit exaktem kanonischem Inhalt und echtem Copy-Aufruf statt
+Fehlerstatus als Erfolg; Anzeige-Aus über den echten Shell-Schalter. Die
+frühere Aussage „Fixture-Nachlauf noch nicht integriert“ ist damit überholt.
+Ein kompilierendes Smokeprojekt auf älteren Ständen und diese Quellorakel sind
+**kein ausgeführter Smoke** des kombinierten Kandidaten. Native Pause-/
+Serviceverlust-/Lifetime-Regressionen bleiben auszuführen.
 
 Produktiver Booru-Nachlauf auf dem Bezugsstand: Interaktions-/Auswahlrevisionen
 widerrufen einen verzögerten Medien-Handoff, ohne normale Index-/Buildwechsel
@@ -96,7 +124,7 @@ andere Ignore-Änderungen werden weder pauschal übernommen noch zurückgesetzt.
 Kein belastbares Gesamtprozent und kein RC-Datum; Umfang und finale Abnahme
 werden nicht durch einen kompilierenden Dogfood-Build ersetzt.
 
-## Fertige aktuelle Teilnachweise — keine Gesamtfreigabe
+## Fertige commitgebundene Teilnachweise — keine Gesamtfreigabe
 
 | Lauf / SHA | Fertiger, belegter Umfang | Ergebnis / Grenze |
 | --- | --- | --- |
@@ -227,20 +255,98 @@ Lokale Evidenz:
 - Historischer Gesamtlauf:
   `/home/tomka/mc-evidence/ux103-restpakete-20261111/acceptance-83174f54/`.
 
-## API-Review-Nachtrag 14.11.2026
+## API-Review und ausgeführte Zwischenbelege vom 14.11.2026
 
 Das [aktuelle API-Review](releases/v1.1.0-api-review-current-2026-11-14.md)
-vergleicht den veröffentlichten Tag `v1.0.2` (`eec6c016`) mit dem Quellstand
-`ab24f601`. Es trennt additive SDK-/Core-Einträge, die entwicklungsinterne
-`BooruPostId`-Umbenennung, die Versions-/Größenkonstanten und den dokumentierten
-`RestoreAsync`→`StartAsync(lease)`-Verhaltensbruch für profilgebundene
-Core-Consumer. Das deklarative Inventar ist geprüft; kompilierte Analyzer-,
-Paket-/Binärconsumer- und echte Upgrade-Nachweise bleiben die unten genannten
-Release-Gates. Kein pauschaler Binärkompatibilitäts-PASS.
+bindet seine Quellgegenprüfung weiterhin an
+`ab24f6011115541d3d1b0240dbd133c2b9e867b3` gegenüber dem veröffentlichten Tag
+`v1.0.2 = eec6c0169f8d52f7481ea0bf7febfd20981e97c3`. Es trennt additive
+SDK-/Core-Einträge, die entwicklungsinterne `BooruPostId`-Umbenennung,
+Versions-/Größenkonstanten und den `RestoreAsync`→`StartAsync(lease)`-
+Verhaltensbruch für profilgebundene Core-Consumer. Seine Abschnitte 8/9 ergänzen
+reale Ausführungen, ohne den ursprünglichen Review-Pin rückwirkend zu ändern.
 
-## Offene Release-Gates (nach gemeinsamem finalem Integrationsfreeze)
+### Direkte SDK-/Core-Binärproben (G0113, 11:22)
 
-1. **Freeze und Herkunft:** eindeutiger SHA/Tree, frischer isolierter Candidate,
+Probe-/Runner-SHA **`d2d9a45744ef97931126987a0c47976b6e141cc5`**;
+SDK-/Core-Buildinputs **`52ab4453522a0fb294c2b21ca31a17c107c7230e`**,
+relevante Inputs bis zum Probe-SHA bytegleich mit gesondertem Herkunftsbeleg.
+Die alten DLLs sind aus unveränderten Exporten des veröffentlichten
+**v1.0.2-Git-Tags gebaut**, keine heruntergeladenen Releasepaket-Binaries.
+SDK/Core wurden im Release-Modus mit Public-API-Analyzern und RS0016/RS0017
+als Fehlern gebaut; lokale Cacheinputs, isolierter Netzwerknamespace und
+`heavy.lock`. Das ist ein Analyzer-Zwischenbeleg, nicht der finale Freezecheck.
+
+| Ausgeführter Fall | Tatsächliches Ergebnis / Grenze |
+| --- | --- |
+| Gegen alte SDK-DLL gebautes `ISourcePlugin` unter aktueller SDK-DLL | **PASS**: Vertrag 1.0.0→1.1.0, typisierte Catalog-/Thread-Aufrufe, aktuelle Validierung und polymorpher JSON-Roundtrip. Direktes AssemblyLoadContext-Laden, noch kein Host-/Workerbeleg. |
+| Alter profilgebundener `RestoreAsync`-Consumer unter alter Core-Runtime | **PASS**, normaler Start. |
+| Dieselben alten Consumerbytes unter aktueller Core-Runtime | **Erwarteter Bruch bestätigt**, `System.InvalidOperationException` mit Startup-Admission-Meldung; ausdrücklich **kein Verhaltenskompatibilitäts-PASS**. |
+| Migrierter Consumer unter aktueller Core-Runtime | **PASS** mit `StartAsync(lease)` und derselben privaten Lease-/Store-Komposition. |
+
+Alle vier kleinen Probeprojekte kompilierten mit 0 Fehlern / 0 Warnungen;
+Eingabehashes und alte Consumer-/Pluginbytes blieben unverändert. Der erste
+Core-Lauf scheiterte an der nativen SQLite-Laderauflösung. Der positive Nachlauf
+benutzte die passende gehashte linux-x64-Bibliothek aus derselben Dependency-
+Closure neben dem Probeprozess, keinen Ersatz für Produktguards/Assertions.
+Der Erstfehler bleibt erhalten.
+
+### Echter Host-/Childworker und package-only SDK-Consumer (11:36)
+
+Probe-/Verifier-SHA **`7001acc9b4eb26cb83b00db7387d9eef33ff555b`**:
+
+- **Host-/Childworker-Zwischenbeleg PASS:** Das alte Plugin wurde unverändert
+  über die produktiven `PluginWorkerManager.DescribeAsync`-/`StartAsync`-Pfade
+  geladen, mit beobachtetem getrenntem Child-PID, Deklaration `1.0.0` und echten
+  Catalog-/Thread-Aufrufen. Host-/Worker-Runtime stammt aus dem Build
+  **`0f5796a269fe14e9356890646be582fbbeba2c04`**, relevante Produkt-/Buildinputs
+  bis `7001acc9` unverändert; die Probe selbst wurde frisch auf `7001acc9`
+  gebaut (0 Fehler / 0 Warnungen). Der vorherige Compilefehler wegen mehrdeutigem
+  `ThreadSnapshot` und der SDK-Alias-Fix bleiben getrennte Belege. Synthetisches
+  Plugin ohne HTTP-Hostservices, isolierter Linux-Netzwerknamespace, privates
+  Kurzpfadprofil; kein PluginSession-/Reautorisierungs-PASS.
+- **Package-only SDK-Consumer-Zwischenbeleg PASS:** `MeowChan.PluginSdk` 1.1.0
+  aus sauberem Export von `7001acc9`, frischer externer Consumer und privater
+  NuGet-Cache, ausschließlich lokales Paket. Restore, Build und tatsächliche
+  Ausführung endeten jeweils mit Exit 0. Der Assets-Graph enthält nur
+  `MeowChan.PluginSdk/1.1.0`, keinen Core-/ProjectReference-Ersatz. Paket-SHA-256:
+  `f8d853cbb17b2bd6fb3eab7868a9800de8d088b7dc922348a9b31d2ab7df2b2d`.
+  **Evidenzgrenze des ersten positiven Runs:** Assets/Logs sind erhalten,
+  der temporäre Consumer-Buildbaum wurde gelöscht; die tatsächlich ausgeführte
+  Consumer-DLL ist aus diesem Run nicht mehr verfügbar. Nicht als vollständig
+  erhaltene finale Paketevidenz ausgeben.
+
+Die Nachläufe für begrenzte SDK-Consumer-Prozesse samt dauerhafter
+Artefakterhaltung (`cb5156fe`), Prozess-Interrupt-/Timeout-Cleanup (`7aa182be`)
+und reproduzierbaren Host-/Childworker-Runner (`cf147f7f`) sind inzwischen im
+Root-Quellstand enthalten. Die 34 gezielten Python-PASS laut Übernahmenachtrag
+prüfen diese Helfer. **Der positive Runner-/Paketconsumer-Wiederholungslauf mit
+dauerhaft erhaltener ausgeführter Consumer-DLL steht weiterhin offen.**
+Vorhandener Code und Python-Fixtures sind keine nachträglich erzeugte DLL-
+Evidenz des ersten Runs; Windows-Cleanup ist nicht nativ abgenommen.
+
+Lokale Nachweise (nur gelesen; keine erneuten Builds oder Produkt-/Gateläufe
+in dieser Dokumentfortschreibung):
+
+- `/home/tomka/.cache/claude-ssd-tmp/legacy102-inputs-20261114-111256/`
+  (Herkunft, Inputinventare und Source-Equivalence);
+- `/home/tomka/.cache/claude-ssd-tmp/g0113-legacy102-native-20261114-112148/RESULT.json`;
+- `/home/tomka/.cache/claude-ssd-tmp/legacy102-host-inputs-20261114-113408/attempt2/RESULT.json`;
+- `/home/tomka/.cache/claude-ssd-tmp/sdk-package-input-20261114-113603/gate/RESULT.json`;
+- `/home/tomka/.cache/claude-ssd-tmp/g0115-root-host-package-20261114-113913/`
+  (Root-Appbuild auf `66296fd9`, nicht `cf147f7f` oder `b0989074`).
+
+**Kein pauschaler Binärkompatibilitäts-PASS:** Der alte profilgebundene
+Core-Startup wird beabsichtigt abgewiesen; `StartAsync(lease)` ist eine echte
+Migration. Die Zwischenbelege schließen weder die finalen Analyzer-/Inventar-/
+Paketconsumer-Wiederholungen noch AP04, zwei Neustarts, material-change/
+Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
+
+## Offene Schritte bis zur finalen Release-Abnahme
+
+1. **Gemeinsamer Build, Freeze und Herkunft:** zunächst `b0989074` gemeinsam
+   kompilieren und geschützt nach Root übernehmen; beides hier noch offen.
+   Danach eindeutiger SHA/Tree, frischer isolierter Candidate,
    Quell-/Plugininventar, lokale Release-Pakete und Prüfsummen an denselben SHA
    binden. Den absichtlich dirty Hauptcheckout nicht für ein Gate „aufräumen“.
 2. **Vollsuiten:** Core, Desktop und sämtliche Plugin-/Runtime-/Packaging-Suiten
@@ -263,15 +369,22 @@ Release-Gates. Kein pauschaler Binärkompatibilitäts-PASS.
    Auch die 1.1.0-Paketbindung ist bislang ein Herkunftsnachweis, kein Ausführen
    des gepackten Kandidaten. Der Runner weist diese Grenze ausdrücklich aus.
    Endpakete und tatsächliche Packaged-Apphost-Abnahme bleiben separat offen.
-6. **API/Bestandsdaten:** Release-Inventarchecker und Compiler-Analyzer, aktuelle
-   Transfer-/Backupgrenzen (insbesondere Postfilter), Fehler- und Recoverypfade;
-   alle offenen Muss-Befunde ausräumen.
+6. **API/Bestandsdaten:** Release-Inventarchecker, Compiler-Analyzer und
+   package-only Consumer erneut am finalen SHA/Paket mit dauerhaft erhaltenen
+   ausführbaren Artefakten. Die oben genannten Alt-SDK-/Core-/Hostbelege sind
+   Zwischenstände, kein finaler Kompatibilitäts- oder Upgrade-PASS. Aktuelle
+   Transfer-/Backupgrenzen (insbesondere Postfilter), Fehler- und Recoverypfade
+   prüfen; alle offenen Muss-Befunde ausräumen.
 7. **Nutzer-/Plattformabnahme:** Windows, macOS, Hardware, Skalierung, Tastatur
    und Screenreader mit Tom. Linux-Unit- oder Xvfb-Tests ersetzen diese nicht.
-8. **Restentscheidungen:** Light-Fortschrittsspur auf Raised/Hover/AccentSurface
+8. **Reautorisierung/material-change:** echten PluginSession-/Prozessablauf
+   einschließlich Repair/Draft/Version/Rollback und geänderter Konfiguration
+   ohne geerbte Zustimmung auf dem finalen Stand abnehmen. Altplugin-Load,
+   Childworker-Aufruf und SDK-Paketconsumer ersetzen diesen Ablauf nicht.
+9. **Restentscheidungen:** Light-Fortschrittsspur auf Raised/Hover/AccentSurface
    erreicht mit bisheriger Füllung nicht überall 3:1; keine stillschweigende
    Abnahme. Die sieben zusätzlichen HTML-Export-Sprachen aus `5b467df1`
-   sind inzwischen Vorfahren des goal-Bezugsstands, aber nicht dadurch
+   sind Vorfahren des Kandidaten, aber nicht dadurch
    muttersprachlich abgenommen. Sprach- und Kontrastgrenzen dürfen nicht durch
    einen pauschalen Release-PASS verdeckt werden.
 
