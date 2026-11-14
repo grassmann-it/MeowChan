@@ -68,8 +68,10 @@ internal sealed record GalleryChromeInput(GalleryChromeMode Mode, WorkView View,
     public bool SlideshowRunning { get; init; }
     /// <summary>The tag panel's favourite and rating row (PT6) is on the screen.</summary>
     public bool PanelDecisions { get; init; }
-    /// <summary>The shown list can be walked as the tagging queue (the switch's Tag half works; Barebones shows the switch only then).</summary>
+    /// <summary>The shown list can be walked as the tagging queue (Barebones shows the switch then; elsewhere it is always there).</summary>
     public bool TagAvailable { get; init; }
+    /// <summary>The Tag mode walks the tagging queue: only then is there a decision strip (Back, Skip, Done &amp; next, Stamp &amp; next) and a progress.</summary>
+    public bool Walk { get; init; }
 }
 
 /// <summary>The answer (GL0 members first, G1's single tools as init members). A record: an equal plan needs no new layout pass.</summary>
@@ -191,7 +193,8 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             // QW5: the info line's rating yields to the tag panel's row, which shows the same value and is the one place to change it.
             InfoRating: info && InfoRatingVisible(mediaFocus: false, input.PanelDecisions),
             Hints: hints,
-            DecisionRow: tag && bar,
+            // Only a walk of the tagging queue has decisions; Tag in any other gallery is the tag panel alone.
+            DecisionRow: tag && input.Walk && bar,
             // The way back to hidden tools; in the tagging mode there are no optional tools to hide (unless they are hidden already).
             ToolsToggle: bar && (!tag || input.MediaFocus),
             FilmstripPeek: filmstrip && dock == GalleryFilmstripDock.Top && input.Overlay,
@@ -212,11 +215,11 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             // R6: a chosen or running slideshow keeps its pause one click away (with hidden tools too); in the tagging mode only while it runs.
             Slideshow = bar && (input.SlideshowActive && (!tag || input.SlideshowRunning)
                 || tools && ViewOffers("gallery.toolbar.slideshow") && Fits("gallery.toolbar.slideshow")),
-            // Barebones leaves the switch away while it could only say "not possible here"; the mode and a walkable list raise it (R6).
+            // Barebones (the reduced bar) leaves the switch to its key; the mode and a walkable list raise it (R6).
             // In the tagging mode it is the way out and stays even with hidden tools.
             ModeSwitch = bar && ViewOffers("gallery.mode", tag || input.TagAvailable) && (tag || !input.MediaFocus),
             InfoQuality = info,
-            StripTwoRows = tag && input.Width > 0 && input.Width < WideWidth
+            StripTwoRows = tag && input.Walk && input.Width > 0 && input.Width < WideWidth
         };
     }
 

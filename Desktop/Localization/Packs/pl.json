@@ -4556,7 +4556,6 @@
     "gallery.mode.name": "Tryb galerii",
     "gallery.mode.view": "Przeglądaj",
     "gallery.mode.tag": "Taguj",
-    "gallery.mode.tagUnavailable": "Tagowanie przechodzi przez kolejkę tagowania. Dodaj te media przez „Dodaj do kolejki tagowania”, a potem kontynuuj na stronie Tagowanie.",
     "gallery.mode.announce.tag": "Tryb tagowania: ulubione, ocena i tagi są w panelu tagów.",
     "gallery.mode.announce.view": "Tryb przeglądania.",
     "viewer.playback.status.tagHold": "Pokaz slajdów czeka, gdy tagujesz — po opuszczeniu panelu tagów kontynuuje od tego medium",

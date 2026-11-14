@@ -1434,7 +1434,7 @@ internal sealed partial class GalleryViewer : UserControl
         }
         if (!IsGalleryShortcutInput(e)) return;
         if (HandleFilmstripKey(e)) return;
-        if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTaggingMode); e.Handled = true; return; }
+        if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }

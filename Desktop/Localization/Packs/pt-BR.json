@@ -4516,7 +4516,6 @@
     "gallery.mode.name": "Modo da galeria",
     "gallery.mode.view": "Ver",
     "gallery.mode.tag": "Marcar",
-    "gallery.mode.tagUnavailable": "A marcação percorre a fila de tags. Adicione estas mídias com “Adicionar à fila de tags” e continue depois na página Marcação com tags.",
     "gallery.mode.announce.tag": "Modo de tags: favorito, avaliação e tags ficam no painel de tags.",
     "gallery.mode.announce.view": "Modo de visualização.",
     "viewer.playback.status.tagHold": "A apresentação espera enquanto você marca — continua com esta mídia quando você sai do painel de tags",

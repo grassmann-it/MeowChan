@@ -36,7 +36,7 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     public void ThePositionHooksOfTheViewerUseTheRules()
     {
         string panel = Source("Desktop/GalleryViewer.TagPanel.cs");
-        Assert.Contains("GalleryChromePlan.PanelCounter(counter, _tagging != null)", panel);
+        Assert.Contains("GalleryChromePlan.PanelCounter(counter, IsTagMode)", panel); // Tag with or without a walk
         // Every place that sets the counter goes through the rule (open, same medium, retarget, marks); none writes the raw text.
         Assert.DoesNotContain("surface.CounterText = controller.CounterFor", panel.Replace("PanelCounter(controller.CounterFor", ""));
         Assert.DoesNotContain("surface.CounterText = frame.Counter;", panel);
@@ -90,7 +90,7 @@ public sealed class GalleryTaggingChromeTests : IDisposable
     [Fact]
     public void TheViewerFillsTheModeIntoTheInputAndRefreshesWhenTheModeStartsAndEnds()
     {
-        Assert.Contains("Tagging: IsTaggingMode, TagHold: _taggingHold).Resolve()", Source("Desktop/GalleryViewer.Playback.cs"));
+        Assert.Contains("Tagging: IsTagMode, TagHold: _taggingHold).Resolve()", Source("Desktop/GalleryViewer.Playback.cs"));
         string mode = Source("Desktop/GalleryViewer.TaggingMode.cs");
         Assert.Equal(2, CountOf(mode, "RefreshPlaybackControls();"));
     }

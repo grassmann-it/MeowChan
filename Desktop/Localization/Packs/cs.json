@@ -4553,7 +4553,6 @@
     "gallery.mode.name": "Režim galerie",
     "gallery.mode.view": "Prohlížet",
     "gallery.mode.tag": "Štítkovat",
-    "gallery.mode.tagUnavailable": "Štítkuje se fronta štítkování. Přidejte tato média pomocí „Přidat do fronty štítkování“ a pak pokračujte na stránce Štítkování.",
     "gallery.mode.announce.tag": "Režim štítkování: oblíbené, hodnocení a štítky jsou v panelu štítků.",
     "gallery.mode.announce.view": "Režim prohlížení.",
     "viewer.playback.status.tagHold": "Prezentace čeká, dokud štítkujete — po opuštění panelu štítků pokračuje tímto médiem",

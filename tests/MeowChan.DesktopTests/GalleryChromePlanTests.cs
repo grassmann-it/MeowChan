@@ -42,7 +42,7 @@ public sealed class GalleryChromePlanTests
             _ => GalleryLayoutChoice.Default
         };
         bool focus = variant == "media-focus";
-        GalleryChromePlan plan = Plan(Input(mode, view, choice, mediaFocus: focus, overlay: true));
+        GalleryChromePlan plan = Plan(Input(mode, view, choice, mediaFocus: focus, overlay: true) with { Walk = tag });
         bool filmstripByView = view != WorkView.Barebones; // the policy row "gallery.filmstrip": Hidden in Barebones
         Assert.Equal(!focus && variant != "filmstrip-off" && filmstripByView, plan.Filmstrip);
         Assert.Equal(variant == "dock-top" ? GalleryFilmstripDock.Top : GalleryFilmstripDock.Bottom, plan.FilmstripDock);
@@ -101,9 +101,12 @@ public sealed class GalleryChromePlanTests
                     // Tag: the tools go into the decision strip.
                     if (mode == GalleryChromeMode.Tag)
                     {
-                        GalleryChromePlan tag = Plan(Input(mode, view, new(Tools: true), mediaFocus: focus));
+                        GalleryChromePlan tag = Plan(Input(mode, view, new(Tools: true), mediaFocus: focus) with { Walk = true });
                         Assert.False(tag.Tools || tag.Zoom || tag.PanelToggle || tag.Rating || tag.Tags || tag.Help);
                         Assert.True(tag.DecisionRow);
+                        // Tag without a walk: the same Tag layout, but no decisions (they only exist for the tagging queue).
+                        GalleryChromePlan free = Plan(Input(mode, view, new(Tools: true), mediaFocus: focus));
+                        Assert.False(free.Tools || free.DecisionRow || free.StripTwoRows);
                     }
                 }
         // A low viewer leaves the filmstrip away; a not yet laid out one (0) does not.
@@ -128,28 +131,29 @@ public sealed class GalleryChromePlanTests
 
     public static IEnumerable<object[]> G1Matrix()
     {
-        foreach (bool tag in new[] { false, true })
+        // Tag runs with a walk of the tagging queue or without one (any gallery); View never has a walk.
+        foreach ((bool tag, bool walk) in new[] { (false, false), (true, false), (true, true) })
             foreach (WorkView view in Views)
                 foreach (double width in new[] { 1920d, 1200d, 1024d, 640d })
                     foreach (bool panel in new[] { false, true })
                         foreach (bool video in new[] { false, true })
-                            yield return [tag, view, width, panel, video];
+                            yield return [tag, walk, view, width, panel, video];
     }
 
     [Theory, MemberData(nameof(G1Matrix))]
-    public void TheBarFollowsModeViewWidthPanelAndVideo(bool tag, WorkView view, double width, bool panel, bool video)
+    public void TheBarFollowsModeWalkViewWidthPanelAndVideo(bool tag, bool walk, WorkView view, double width, bool panel, bool video)
     {
         GalleryChromeMode mode = tag ? GalleryChromeMode.Tag : GalleryChromeMode.View;
-        GalleryChromePlan plan = Plan(Input(mode, view, width: width, panelOpen: panel, panelCoupled: tag && panel, video: video)
-            with { PanelDecisions = panel, TagAvailable = true });
+        GalleryChromePlan plan = Plan(Input(mode, view, width: width, panelOpen: panel, panelCoupled: walk && panel, video: video)
+            with { PanelDecisions = panel, TagAvailable = walk || !tag, Walk = walk });
         // Never reduced: the arrows with the position, "More", the video bar of a video.
         Assert.True(plan.Nav && plan.More);
         Assert.Equal(video, plan.Transport);
         Assert.True(plan.ModeSwitch); // a walkable list raises it in Barebones too
         Assert.Equal(!tag, plan.ToolsToggle);
         Assert.Equal(!tag, plan.Zoom && plan.PanelToggle);
-        Assert.Equal(tag, plan.DecisionRow);
-        // E1: in the mode the panel's decision row is the one favourite surface; without the panel the button comes back.
+        Assert.Equal(walk, plan.DecisionRow); // Back, Skip, Done & next and the progress only for a walk of the tagging queue
+        // E1: in the mode (with or without a walk) the panel's decision row is the one favourite surface; without the panel the button comes back.
         Assert.Equal(tag && panel ? GalleryFavoriteSurface.Panel : GalleryFavoriteSurface.Bar, plan.FavoriteSurface);
         Assert.Equal(!(tag && panel), plan.Favorite);
         // The movable tools: the view's bar, narrowed by the width (help first, then rating, then everything); none in the mode.
@@ -161,7 +165,7 @@ public sealed class GalleryChromePlanTests
         Assert.True(plan.InfoQuality);
         Assert.Equal(!tag && view != WorkView.Barebones, plan.InfoScope);
         Assert.Equal(!panel, plan.InfoRating);
-        Assert.Equal(tag && width < 1280, plan.StripTwoRows);
+        Assert.Equal(walk && width < 1280, plan.StripTwoRows);
     }
 
     [Fact]
@@ -208,6 +212,22 @@ public sealed class GalleryChromePlanTests
     [InlineData(WorkView.Advanced, false, false, true)]
     public void TheModeSwitchFollowsTheViewAndTheState(WorkView view, bool available, bool tagging, bool shown) =>
         Assert.Equal(shown, Plan(Input(tagging ? GalleryChromeMode.Tag : GalleryChromeMode.View, view) with { TagAvailable = available }).ModeSwitch);
+
+    [Fact]
+    public void TagWithoutAWalkKeepsTheFavouriteInThePanelAndHasNoDecisions()
+    {
+        GalleryChromeInput free = Input(GalleryChromeMode.Tag, WorkView.Simple, panelOpen: true) with { PanelDecisions = true };
+        GalleryChromePlan plan = Plan(free);
+        Assert.Equal(GalleryFavoriteSurface.Panel, plan.FavoriteSurface); // E1: the panel's row, not a decision strip
+        Assert.False(plan.DecisionRow || plan.Favorite || plan.Rating || plan.Tags || plan.Tools || plan.InfoRating);
+        Assert.True(plan.ModeSwitch && plan.Nav && plan.More && plan.InfoQuality);
+        // The panel closed: the favourite button is back on the bar, so the favourite stays reachable (and the star shows it anyway).
+        GalleryChromePlan closed = Plan(free with { PanelOpen = false, PanelDecisions = false });
+        Assert.Equal(GalleryFavoriteSurface.Bar, closed.FavoriteSurface);
+        Assert.True(closed.Favorite && closed.InfoRating);
+        // The same with a walk adds the decision strip and nothing else of the layout changes.
+        Assert.Equal(plan with { DecisionRow = true }, Plan(free with { Walk = true }));
+    }
 
     [Fact]
     public void TheModeSwitchStaysTheWayOutWithHiddenTools()
@@ -302,6 +322,17 @@ public sealed class GalleryChromePlanTests
     [Fact]
     public void TheModeSwitchHasACommandAKeyAndTheWindowStartsAndEndsTheMode()
     {
+        // Tag works in every gallery: the switch is never disabled with an "add to the queue first" reason.
+        Assert.DoesNotContain("_modeTag.IsEnabled", Source("Desktop/GalleryViewer.Chrome.cs"));
+        Assert.DoesNotContain("gallery.mode.tagUnavailable", Source("Desktop/Localization/GalleryActionsCatalog.cs"));
+        Assert.Contains("_gallery.StartFreeTagMode(", Source("Desktop/Shell/MainWindow.TagQueue.cs"));
+        Assert.Contains("_gallery.EndFreeTagMode();", Source("Desktop/Shell/MainWindow.TagQueue.cs"));
+        // Tag without a walk opens the tag panel on the shown medium; nothing in that path touches the tagging queue.
+        string free = Source("Desktop/GalleryViewer.Chrome.cs");
+        int start = free.IndexOf("internal void StartFreeTagMode", StringComparison.Ordinal);
+        string body = free[start..free.IndexOf("internal void EndFreeTagMode", start, StringComparison.Ordinal)];
+        Assert.Contains("ShowTagPanel(owner);", body);
+        Assert.DoesNotContain("Queue", body);
         Assert.Contains("CommandBindings.Matches(e, \"gallery.mode-toggle\")", Source("Desktop/GalleryViewer.cs"));
         string chrome = Source("Desktop/GalleryViewer.Chrome.cs");
         Assert.Contains("TaggingModeRequested?.Invoke(tag);", chrome);

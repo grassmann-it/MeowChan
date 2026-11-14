@@ -17,9 +17,10 @@ namespace MeowChan.Desktop;
 // visibility of a block the plan decides. Errors, warnings, the consent to remove a favourite and the way back are not blocks of the plan
 // and keep their own rules (they are never hidden by a mode, a width or a layout choice).
 //
-// The mode switch "View | Tag" (Tom's E3 addition): tagging is a mode of the gallery, independent of the slideshow. The viewer does not
-// own the walk: it raises TaggingModeRequested and the window starts or ends the tagging mode (StartTaggingMode / EndTaggingMode), so the
-// existing ways in (the Tagging page, "Walk through tagging queue") keep working and the switch is one more of them.
+// The mode switch "View | Tag" (Tom's E3 addition): tagging is a mode of the gallery, in every gallery, independent of the slideshow.
+// Tag without a walk (any gallery) is the docked tag panel with favourite, rating and tags for the shown medium (StartFreeTagMode); on a
+// walk of the tagging queue the window starts the queue's tagging mode (StartTaggingMode) with its decision strip. The viewer raises
+// TaggingModeRequested and the window picks the flavour, so the existing ways in (the Tagging page, "Walk through tagging queue") stay.
 internal sealed partial class GalleryViewer
 {
     private StackPanel _modeTools = null!;
@@ -37,6 +38,8 @@ internal sealed partial class GalleryViewer
     // GL0 hook: the person's layout choice per mode (GL4 loads and saves them per profile, GL3's menu changes them).
     private GalleryLayoutChoice _viewChoice = GalleryLayoutChoice.Default, _tagChoice = GalleryLayoutChoice.Default;
     private bool _taggingAvailable;
+    // Tag mode without a walk: the tag panel works on the shown medium; nothing is added to the tagging queue.
+    private bool _freeTagMode;
     private bool _taggingHold;
 
     /// <summary>The person chose View (false) or Tag (true) with the switch or its key; the window starts or ends the tagging mode.</summary>
@@ -52,8 +55,36 @@ internal sealed partial class GalleryViewer
     internal Panel ModeSwitch => _modeTools;
     /// <summary>What the screen reader got last for a mode change (null: never changed).</summary>
     internal string? ModeAnnouncement => _modeAnnouncement.Text;
-    /// <summary>Whether the window can walk the shown list as the tagging queue (the Tag half of the switch works then).</summary>
+    /// <summary>Whether the window can walk the shown list as the tagging queue (Tag then brings the decision strip as well).</summary>
     internal bool IsTaggingAvailable => _taggingAvailable;
+    /// <summary>The gallery is in its Tag mode: a walk of the tagging queue (<see cref="IsTaggingMode"/>) or the tag panel alone.</summary>
+    internal bool IsTagMode => _tagging != null || _freeTagMode;
+
+    /// <summary>
+    /// Tag in a gallery that is no walk of the tagging queue: the tag panel opens docked on the shown medium (its favourite and rating row
+    /// is the favourite surface, E1) and the chrome takes the Tag layout without a decision strip. No-op without a medium.
+    /// </summary>
+    internal void StartFreeTagMode(IGalleryTagPanelOwner owner)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (_terminalRetirement || IsTagMode || _entry == null) return;
+        _freeTagMode = true; // first: the panel then opens as part of the work and does not pause a running slideshow
+        ShowTagPanel(owner);
+        RefreshPanelCounter();
+        RefreshPlaybackControls();
+        OnGalleryModeChanged();
+    }
+
+    /// <summary>View again after <see cref="StartFreeTagMode"/>: the tag panel closes and the View layout comes back.</summary>
+    internal void EndFreeTagMode()
+    {
+        if (!_freeTagMode) return;
+        _freeTagMode = false;
+        CloseTagPanel();
+        RefreshPanelCounter();
+        RefreshPlaybackControls();
+        OnGalleryModeChanged();
+    }
 
     /// <summary>The window tells whether the shown list is a walk of the tagging queue (open or parked); the switch's Tag half follows.</summary>
     internal void SetTaggingAvailable(bool available)
@@ -87,7 +118,6 @@ internal sealed partial class GalleryViewer
         _modeTools.Children.Add(_modeTag);
         _modeView.Click += (_, _) => RequestGalleryMode(tag: false);
         _modeTag.Click += (_, _) => RequestGalleryMode(tag: true);
-        ToolTip.SetShowOnDisabled(_modeTag, true); // the reason why Tag is not possible here stays readable
         AutomationProperties.SetLiveSetting(_modeAnnouncement, AutomationLiveSetting.Polite);
         PresentModeSwitch();
     }
@@ -95,17 +125,15 @@ internal sealed partial class GalleryViewer
     private void PresentModeSwitch()
     {
         if (_modeTools == null) return;
-        bool tag = IsTaggingMode;
+        bool tag = IsTagMode;
         string view = Texts.T("gallery.mode.view"), tagLabel = Texts.T("gallery.mode.tag");
         _modeView.Content = view;
         _modeTag.Content = tagLabel;
         _modeView.IsChecked = !tag;
         _modeTag.IsChecked = tag;
-        _modeTag.IsEnabled = tag || _taggingAvailable;
-        string? reason = _modeTag.IsEnabled ? null : Texts.T("gallery.mode.tagUnavailable");
-        foreach ((ToggleButton button, string label, string? why) in new[] { (_modeView, view, (string?)null), (_modeTag, tagLabel, reason) })
+        foreach ((ToggleButton button, string label) in new[] { (_modeView, view), (_modeTag, tagLabel) })
         {
-            string tip = CommandBindings.Tooltip("gallery.mode-toggle", why, label);
+            string tip = CommandBindings.Tooltip("gallery.mode-toggle", null, label);
             AutomationProperties.SetName(button, label);
             AutomationProperties.SetHelpText(button, tip);
             AutomationProperties.SetAcceleratorKey(button, CommandCatalog.ShortcutDisplay("gallery.mode-toggle") ?? string.Empty);
@@ -114,19 +142,15 @@ internal sealed partial class GalleryViewer
         AutomationProperties.SetName(_modeTools, Texts.T("gallery.mode.name"));
     }
 
-    /// <summary>The switch or its key asks for View (false) or Tag (true). Tag on a list that is not the tagging queue only says why.</summary>
+    /// <summary>The switch or its key asks for View (false) or Tag (true); the window starts the walk or the tag panel alone.</summary>
     private void RequestGalleryMode(bool tag)
     {
         if (_terminalRetirement) return;
         bool hadFocus = _modeTools.IsKeyboardFocusWithin;
-        if (tag != IsTaggingMode)
-        {
-            if (tag && !_taggingAvailable) _modeAnnouncement.Text = Texts.T("gallery.mode.tagUnavailable");
-            else TaggingModeRequested?.Invoke(tag);
-        }
+        if (tag != IsTagMode) TaggingModeRequested?.Invoke(tag);
         PresentModeSwitch(); // a ToggleButton flips itself on click; the shown state is the mode's
         // The mode change keeps the focus on the switch (the half that is now on), never on a block that just left the bar.
-        if (hadFocus && _modeTools.IsEffectivelyVisible) (IsTaggingMode ? _modeTag : _modeView).Focus(NavigationMethod.Tab);
+        if (hadFocus && _modeTools.IsEffectivelyVisible) (IsTagMode ? _modeTag : _modeView).Focus(NavigationMethod.Tab);
     }
 
     // StartTaggingMode and EndTaggingMode: the switch, the chrome and the screen reader follow the mode.
@@ -134,14 +158,14 @@ internal sealed partial class GalleryViewer
     {
         PresentModeSwitch();
         ApplyChrome();
-        _modeAnnouncement.Text = Texts.T(IsTaggingMode ? "gallery.mode.announce.tag" : "gallery.mode.announce.view");
+        _modeAnnouncement.Text = Texts.T(IsTagMode ? "gallery.mode.announce.tag" : "gallery.mode.announce.view");
     }
 
     private GalleryChromePlan BuildChromePlan() => GalleryChromePlan.Resolve(BuildChromeInput());
 
     private GalleryChromeInput BuildChromeInput()
     {
-        GalleryChromeMode mode = GalleryChromePlan.ResolveMode(IsTaggingMode);
+        GalleryChromeMode mode = GalleryChromePlan.ResolveMode(IsTagMode);
         GalleryLayoutChoice choice = LayoutChoice(mode);
         // Until GL4 persists the filmstrip in the choice, the profile setting and the person's own L in a view that leaves it away (R6)
         // are the filmstrip's choice: off, on, or the view's default.
@@ -153,7 +177,8 @@ internal sealed partial class GalleryViewer
             SlideshowActive = _slideshow != null && (_playbackPreferences.Mode == GalleryPlaybackMode.Slideshow || _slideshow.IsRunning),
             SlideshowRunning = _slideshow?.IsRunning == true,
             PanelDecisions = DecisionRowVisible,
-            TagAvailable = _taggingAvailable
+            TagAvailable = _taggingAvailable,
+            Walk = IsTaggingMode
         };
     }
 
@@ -238,7 +263,7 @@ internal sealed partial class GalleryViewer
     private void RescueChromeFocus()
     {
         NavigationMethod method = _keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer;
-        if (_modeTools.IsEffectivelyVisible) (IsTaggingMode ? _modeTag : _modeView).Focus(method);
+        if (_modeTools.IsEffectivelyVisible) (IsTagMode ? _modeTag : _modeView).Focus(method);
         else if (_overflowButton.IsEffectivelyVisible) _overflowButton.Focus(method);
         else FocusGallerySurface();
     }
@@ -246,10 +271,10 @@ internal sealed partial class GalleryViewer
     // ---- the slideshow in the tagging mode (Tom's E3 addition) -------------------------------------------------------------
 
     /// <summary>The side panel stops the slideshow: the post always does; the tag panel only outside the tagging mode.</summary>
-    private bool SlideshowBlockedByPanel => TaggingSlideshowHold.PanelBlocks(_contextOpen, _tagPanelOpen, IsTaggingMode);
+    private bool SlideshowBlockedByPanel => TaggingSlideshowHold.PanelBlocks(_contextOpen, _tagPanelOpen, IsTagMode);
 
     /// <summary>The tag panel is being worked in: the focus is in it, the field has text or its suggestion list is open.</summary>
-    private bool TagPanelBusy => _tagSurface is { } surface && TaggingSlideshowHold.Holds(IsTaggingMode, _tagPanelOpen,
+    private bool TagPanelBusy => _tagSurface is { } surface && TaggingSlideshowHold.Holds(IsTagMode, _tagPanelOpen,
         _contextPanel.IsKeyboardFocusWithin, !string.IsNullOrEmpty(surface.Input.Text), surface.Input.IsDropDownOpen);
 
     /// <summary>Whether the tag panel holds a running slideshow now (tests and smokes).</summary>

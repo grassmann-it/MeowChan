@@ -4424,7 +4424,6 @@
     "gallery.mode.name": "图库模式",
     "gallery.mode.view": "查看",
     "gallery.mode.tag": "打标签",
-    "gallery.mode.tagUnavailable": "打标签会依次处理标签队列。请先用“加入标签队列”添加这些媒体，然后在打标签页面继续。",
     "gallery.mode.announce.tag": "打标签模式：收藏、评分和标签都在标签面板中。",
     "gallery.mode.announce.view": "查看模式。",
     "viewer.playback.status.tagHold": "打标签时幻灯片会等待 — 离开标签面板后从此媒体继续",

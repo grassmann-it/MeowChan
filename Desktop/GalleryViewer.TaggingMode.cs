@@ -95,6 +95,7 @@ internal sealed partial class GalleryViewer
         ArgumentNullException.ThrowIfNull(owner);
         if (_terminalRetirement) return;
         EndTaggingMode();
+        _freeTagMode = false; // a walk takes over a Tag mode without one (the open panel is coupled below)
         _tagging = walk;
         _taggingOwner = owner;
         walk.Changed += OnTaggingChanged;

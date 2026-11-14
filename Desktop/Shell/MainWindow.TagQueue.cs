@@ -142,24 +142,31 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// G1: the gallery's mode switch ("View | Tag", Shift+T). View ends the tagging mode on the same list and keeps the walk (its undo steps
-    /// and the resume point, which moves to the shown medium as on close); Tag continues that walk. A list that is not a walk of the tagging
-    /// queue cannot be tagged here: the viewer says why and never asks.
+    /// G1: the gallery's mode switch ("View | Tag", Shift+T). On a walk of the tagging queue View ends the tagging mode on the same list and
+    /// keeps the walk (its undo steps and the resume point, which moves to the shown medium as on close); Tag continues that walk. In every
+    /// other gallery Tag opens the tag panel alone on the shown medium: its tags, favourite and rating apply there directly, and nothing is
+    /// added to the tagging queue.
     /// </summary>
     private void SwitchGalleryTagging(bool tag)
     {
         if (_isClosing || _gallery == null) return;
         if (!tag)
         {
-            if (_galleryTagging is not { } walk) return;
+            if (_galleryTagging is not { } walk) { _gallery.EndFreeTagMode(); return; }
             PersistTaggingResume(walk);
             _galleryTagging = null;
             _gallery.EndTaggingMode();
+            _gallery.CloseTagPanel(); // View: the panel goes with the mode, as in a gallery without a walk
             _galleryTaggingParked = walk;
             UpdateGalleryPosition();
             return;
         }
-        if (_galleryTagging != null || _galleryTaggingParked is not { } parked || _galleryTaggingList is not { } list) return;
+        if (_galleryTagging != null) return;
+        if (_galleryTaggingParked is not { } parked || _galleryTaggingList is not { } list)
+        {
+            _gallery.StartFreeTagMode(_galleryTagPanelOwner ??= new GalleryTagPanelOwner(this));
+            return;
+        }
         _galleryTaggingParked = null;
         StartGalleryTagging(parked, list); // disposes the walk and leaves View when the list changed meanwhile
         if (_galleryTagging == null) _gallery?.SetTaggingAvailable(false);

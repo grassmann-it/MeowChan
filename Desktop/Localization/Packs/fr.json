@@ -4510,7 +4510,6 @@
     "gallery.mode.name": "Mode de la galerie",
     "gallery.mode.view": "Afficher",
     "gallery.mode.tag": "Étiqueter",
-    "gallery.mode.tagUnavailable": "L’étiquetage parcourt la file d’étiquetage. Ajoutez ces médias avec « Ajouter à la file d’étiquetage », puis continuez depuis la page Étiquetage.",
     "gallery.mode.announce.tag": "Mode étiquetage : favori, évaluation et étiquettes sont dans le panneau des étiquettes.",
     "gallery.mode.announce.view": "Mode affichage.",
     "viewer.playback.status.tagHold": "Le diaporama attend pendant que vous étiquetez — il reprend avec ce média quand vous quittez le panneau des étiquettes",

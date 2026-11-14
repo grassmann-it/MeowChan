@@ -266,7 +266,7 @@ internal sealed partial class GalleryViewer
     }
 
     // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
-    private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, _tagging != null);
+    private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, IsTagMode);
 
     // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
     private void RefreshPanelCounter()

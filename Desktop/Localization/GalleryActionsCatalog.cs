@@ -32,7 +32,6 @@ internal static class GalleryActionsCatalog
         ("gallery.mode.name", "Gallery mode", "Galeriemodus"),
         ("gallery.mode.view", "View", "Ansehen"),
         ("gallery.mode.tag", "Tag", "Taggen"),
-        ("gallery.mode.tagUnavailable", "Tagging walks the tagging queue. Add these media with “Add to tagging queue”, then continue from the Tagging page.", "Getaggt wird die Tagging-Warteschlange. Füge diese Medien mit „Zur Tagging-Warteschlange hinzufügen“ hinzu und setze dann auf der Seite Taggen fort."),
         ("gallery.mode.announce.tag", "Tag mode: favorite, rating and tags are in the tag panel.", "Modus Taggen: Favorit, Bewertung und Tags stehen im Tag-Panel."),
         ("gallery.mode.announce.view", "View mode.", "Modus Ansehen."),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),

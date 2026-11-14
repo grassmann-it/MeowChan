@@ -201,7 +201,7 @@ internal sealed partial class GalleryViewer
         _entry != null && _entry.Kind != SavedMediaKind.Other, _mediaFailed,
         _navigationPending || _entry != null && (_entry.Kind == SavedMediaKind.Video ? _videoReadyRequest != _request : _imageReadyRequest != _request),
         SlideshowBlockedByPanel, _helpOpen || IsFavoriteConfirmOpen, HasGalleryPopup || HasGalleryDialog,
-        _interactionAvailable && IsGalleryWindowActive && !_videoSuspended, false, Tagging: IsTaggingMode, TagHold: _taggingHold).Resolve();
+        _interactionAvailable && IsGalleryWindowActive && !_videoSuspended, false, Tagging: IsTagMode, TagHold: _taggingHold).Resolve();
 
     private string SlideshowStatusText(SlideshowStatus state)
     {
