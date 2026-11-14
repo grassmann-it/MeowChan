@@ -1,19 +1,24 @@
 # MeowChan 1.1.0 — Umsetzung und Abnahme, noch nicht releasefertig
 
-**Abgleich: 14.11.2026, Rootstatus `eb015068`.**
-Der feste Wave3-Stapel **`0fc7c5cf148dbbd25765451ba045231744503930`** ist im
-Root vollständig enthalten. Kandidaten, Nachläufe und Laufbelege bleiben nach
-Herkunft und Ausführungsstand getrennt:
+**Abgleich: 14.11.2026, 13:47 CET; Rootstatus `ce26b8af2be7478f9beeea47861cfd16e8f68fcf`.**
+Der Root wurde im G0129-Fast-forward von `eb0150683ae1f5f5f29e9e687339e2a5ad2b68d0` auf
+`ce26b8af2be7478f9beeea47861cfd16e8f68fcf` gebracht. Der feste Wave3-Stapel
+**`0fc7c5cf148dbbd25765451ba045231744503930`** ist darin vollständig enthalten.
+Kandidaten, Nachläufe und Laufbelege bleiben nach Herkunft und Ausführungsstand getrennt:
 
 | Stand | Exakter SHA / Beleg | Tatsächlicher Status / Grenze |
 | --- | --- | --- |
-| Aktueller Root-Bezugsstand | `eb0150683ae1f5f5f29e9e687339e2a5ad2b68d0` | Wave3 `0fc7c5cf` vollständig enthalten; kein Freeze-, Vollsuite-, GUI-, Plattform- oder Release-PASS daraus ableiten. |
-| Final gelieferter Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Vollständig in Root `eb015068` enthalten; seine separaten Vorläufe bleiben an ihre eigenen Quellen gebunden. |
-| G0121 Root-Appbuild | Root `eb015068` | **PASS: 0 Fehler, 5 Warnungen.** Appbuild-/Compilebeleg, kein Runtime-, GUI- oder Release-PASS. |
-| G0120 fokussierter Wave3-/Desktop-Lauf | Root `eb015068` | **293 total, 285 PASS, 8 FAIL, 0 SKIP; 77 Booru-PASS.** Die acht Fails sind offen und werden nicht als behoben behauptet. |
-| Separater Follow-up-Kandidat | `3479d67e6487cbe97d2f28a5dc3ff41c667dc442` | Enthält Nachläufe und den Reauth-Runner, ist **nicht Root** und ersetzt den Root-Bezugsstand nicht. |
-| Frisch gelieferte, zentrale Integration | `85e41557` (Help), `31ed0352` (Booru OutcomeTests) | Werden gerade integriert; bislang kein Runtime-PASS. |
-| G0122 Reauth-Matrix | `/home/tomka/.cache/claude-ssd-tmp/g0122-reauth-matrix-20261114-125118/RESULT.json` | Wegen abgelaufener `heavy.lock`-Wartezeit vor der Ausführung beendet; keine Produkt-Rotprobe. Die geplanten **14 Fälle / 98 Prozessaufrufe** bleiben offen. |
+| Aktueller Root-Bezugsstand | `ce26b8af2be7478f9beeea47861cfd16e8f68fcf` | G0129-FF von `eb015068`; Wave3 `0fc7c5cf` vollständig enthalten. Root-Neubau **PASS: 0 Fehler, 5 Warnungen**; daraus kein Runtime-, GUI-, Plattform- oder Release-PASS. |
+| Final gelieferter Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Vollständig in Root `ce26b8af` enthalten; separate Vorläufe bleiben an ihre eigenen Quellen gebunden. |
+| G0121 Root-Appbuild (historisch) | Root `eb015068` | **PASS: 0 Fehler, 5 Warnungen.** Vorgängerbeleg, kein Runtime-, GUI- oder Release-PASS. |
+| G0120 fokussierter Wave3-/Desktop-Lauf | Root `eb015068` | **293 total, 285 PASS, 8 FAIL, 0 SKIP; 77 Booru-PASS.** Die acht Fails werden nicht durch spätere Quellen als behoben behauptet. |
+| G0126 fokussierte Isolation | `ce26b8af2be7478f9beeea47861cfd16e8f68fcf`; `/home/tomka/.cache/claude-ssd-tmp/g0126-focused-isolation-20261114-133738/` | **PASS:** App/DesktopTests-Build 0 Fehler, 159 Warnungen; **308 PASS, 0 FAIL, 0 SKIP**. Beide Desktop-Reauth-Fälle grün. Fokussierter Lauf, keine Vollsuite-/GUI-/Release-Abnahme. |
+| G0127 SDK-Paketconsumer | `ce26b8af2be7478f9beeea47861cfd16e8f68fcf`; `g0127-sdk-package-consumer-20261114-134220/RESULT.json` | **PASS:** echter package-only Consumer, `hashesMatch: true`, Paket-SHA `57c7e32d5f2a48742bfb9700f5936b984724d6f15c31a43b7e847949670f79ed`, dauerhaft erhaltene DLL unter `consumer-evidence/MeowChan.PluginSdk.Consumer.dll`. Kein Altpluginrunner-/Host-/Release-PASS. |
+| API-Inventar | `/home/tomka/.cache/claude-ssd-tmp/sdk-package-repeat-input-20261114-133955/api-inventory.json` | Statischer Inventory-PASS mit `releaseReady: true` im JSON; ausdrücklich **kein** Binary-Compatibility-, Compile- oder Release-Nachweis. |
+| G0128 Reauth-Matrix | `/home/tomka/.cache/claude-ssd-tmp/g0128-reauth-matrix-20261114-134220/RESULT.json` | **FAIL vor Restore** wegen RNG/Sandbox-Problem, Exit 82. Parent-Reparaturworker bleibt im eigenen Scope; keine Produkt-Rotprobe und kein PASS. Die 14 Fälle / 98 Prozessaufrufe bleiben offen. |
+| G0129 Root-FF/Neubau | `/home/tomka/.cache/claude-ssd-tmp/g0129-root-fixture-dogfood-20261114-134526/` | Vorhandene Marker: FF auf `ce26b8af`, Root-Neubau **PASS: 0 Fehler, 5 Warnungen**. Kein daraus abgeleiteter Runtime-, GUI- oder Release-PASS. |
+| Wave4 / Help / Booru-Nachläufe | `f19f6da5d75f75cdb7ae6f54434a605c0e3859b7`; Help `17923d5a` + `7daae014`; Booru `31ed0352` | Wave4 `f19f6da5` ist noch nicht übernommen oder freigegeben. Beide Help-Commits bleiben bis Wave4 unverändert und unintegriert; `31ed0352` ist kein Runtime-PASS. |
+| G0122 Reauth-Matrix | `/home/tomka/.cache/claude-ssd-tmp/g0122-reauth-matrix-20261114-125118/RESULT.json` | Wegen abgelaufener `heavy.lock`-Wartezeit vor der Ausführung beendet; keine Produkt-Rotprobe. Durch G0126 ist nur der fokussierte Desktop-Reauth-Teil neu grün, nicht diese Matrix. |
 
 Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme aus Quellintegration oder
 älteren Zwischenbelegen ableiten; kein Push, Tag oder Upload. Historische
@@ -22,34 +27,44 @@ DesktopSessionHost-Brücken bleiben wegen der zwei G0120-Fehler offen.
 
 Der frühere kombinierte Kandidat `b0989074`, der Root-Vorläufer `cf147f7f`
 und der alte Appbuild `66296fd9` bleiben als historische Herkunft erhalten.
-Der aktuelle Root-Bezug ist `eb015068`; der separate Kandidat `3479d67e` ist
+Der aktuelle Root-Bezug ist `ce26b8af`; der separate Kandidat `3479d67e` ist
 kein Root-Status. Ältere G0105- bis G0109-Läufe bleiben eigenständige historische
 Belege und werden nicht zur aktuellen Root-Abnahme umetikettiert.
 
 ## Integrationsnachlauf und aktueller Rootstatus
 
-Die frühere G0117-/Kandidatenbeschreibung bleibt historische Herkunft. Der
-aktuelle Root-Bezugsstand ist `eb015068`; Wave3 `0fc7c5cf` ist vollständig
-enthalten. G0121 belegt darauf den Root-Appbuild mit **0 Fehlern und 5
-Warnungen**. G0120 belegt den fokussierten Lauf mit **293 total, 285 PASS,
-8 FAIL, 0 SKIP**; die acht Fails werden nicht durch spätere Quellintegration
-still als behoben markiert. Sie umfassen vier HelpDocumentation-Fälle, je einen
-StatusNavigation- und WorkViewOverview-Fall sowie zwei
-DesktopPluginSessionIntegration-Timeouts (die beiden DesktopSessionHost-Brücken).
+Der aktuelle Root-Bezugsstand ist `ce26b8af`; G0129 brachte ihn per Fast-forward von
+`eb015068` auf diesen Stand und baute die Root-App mit 0 Fehlern und 5 Warnungen.
+Wave3 `0fc7c5cf` ist vollständig enthalten. G0120 bleibt ein historischer fokussierter
+Beleg mit **293 total, 285 PASS, 8 FAIL, 0 SKIP**; seine acht Fails werden nicht durch
+G0126 oder den Root-Neubau still als behoben markiert.
 
-Die Nachläufe seit dem früheren Kandidaten umfassen unter anderem Booru-
-Outcome-/Lifetime-Korrekturen, Hilfe und Reauth-Runner. `3479d67e` ist dafür ein
-separater Follow-up-Kandidat, nicht der Root-Bezugsstand. `85e41557` (Help) und
-`31ed0352` (Booru OutcomeTests) sind frisch geliefert und werden zentral
-integriert; daraus folgt noch kein Runtime-PASS. Der Claude-eigene Wave4-Stapel
-bleibt unfertig; die Koordinationsnotiz
-`.claude/coordination/UX-WAVE4-STAPEL-2026-11-14.md` wurde nur zur Einordnung
-gelesen.
+G0126 ist ein neuer, fokussierter Lauf auf `ce26b8af`: App/DesktopTests bauten mit
+0 Fehlern und 159 Warnungen; 308 von 308 gefilterten Tests bestanden ohne FAIL/SKIP.
+Die beiden Desktop-Reauth-Fälle sind darin wieder grün. Das ersetzt keine Vollsuite,
+keine GUI-/Plattformabnahme und keine Reauth-Matrix.
 
-G0122 endete wegen abgelaufener `heavy.lock`-Wartezeit vor der Reauth-Matrix;
-es gibt daraus keine Produkt-Rotprobe. Die genannten Wave3-/Booru-/Reauth-
-Nachläufe benötigen ihre jeweils vorgesehenen zentralen Laufbelege. Compile-
-first für Dogfooding ist keine Abnahme dieser Daten-/I/O-/Reauth-Pfade.
+G0127 ist ein echter frischer package-only SDK-Consumer auf demselben SHA. Restore,
+Build und Consumer liefen durch; Paket- und Vorher/Nachher-Hashes stimmen überein und
+die ausgeführte Consumer-DLL ist unter der Evidenzablage dauerhaft vorhanden. Das
+schließt nur diesen Paketconsumer-Beleg; Altpluginrunner, Host-/Childworkerpfad und
+finale Analyzer-/Kompatibilitätsabnahme bleiben getrennt offen. Das API-Inventar ist
+nur ein statischer PASS und kein Release-Nachweis.
+
+G0128 scheiterte vor Restore an der RNG/Sandbox-Initialisierung (Exit 82). Das ist
+keine Produkt-Rotprobe und kein PASS; der Parent-Reparaturworker bleibt für diesen
+Fehler zuständig. Die Matrix mit 14 Fällen und 98 Prozessaufrufen ist weiterhin offen.
+G0129 hatte zum Zeitpunkt dieses Abgleichs fertige Marker für FF und Root-Neubau; aus
+dem Build allein folgt keine Laufzeit- oder Releaseabnahme.
+
+Die Help-Lieferung `17923d5a` plus `7daae014` bleibt bis zur Wave4-Integration
+unverändert und unintegriert. Der feste Vergleichspunkt `f19f6da5` ist noch nicht
+übernommen oder freigegeben; `31ed0352` bleibt ein zentral zu integrierender Booru-
+Outcome-/Testnachlauf ohne Runtime-PASS.
+
+G0122 endete wegen abgelaufener `heavy.lock`-Wartezeit vor der Reauth-Matrix; daraus
+gibt es keine Produkt-Rotprobe. Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme aus
+Quellintegration, G0126, G0127, G0129 oder älteren Zwischenbelegen ableiten.
 
 ## Entscheidung und Umfang
 
@@ -69,7 +84,7 @@ Profile. Keine Live-Providerabnahme und keine Tests gegen das persönliche Profi
 Die folgende Tabelle bewahrt den Quellstand des früheren Kandidaten `b0989074`.
 „Enthalten“ bezeichnet dort die damalige Quelle, nicht den aktuellen Root und
 nicht eine bestandene vollständige Abnahme. Der aktuelle Bezugsstand ist oben
-mit `eb015068` dokumentiert; Wave3 `0fc7c5cf` ist darin vollständig enthalten.
+mit `ce26b8af` dokumentiert; Wave3 `0fc7c5cf` ist darin vollständig enthalten.
 Keine doppelte offene Implementierung aus der historischen Herkunft ableiten.
 
 | Bereich | Im Kandidaten enthaltener Quellstand | Abgrenzung |
@@ -90,7 +105,7 @@ Keine doppelte offene Implementierung aus der historischen Herkunft ableiten.
 
 Der frühere Zwischenanker `2a117ebf` und der damalige bewegliche Arbeitsstatus
 sind keine aktuelle Resteliste mehr. Claude hat den festen Stapel `0fc7c5cf`
-final geliefert; er ist im Root `eb015068` vollständig enthalten. Der frühere
+final geliefert; er ist im Root `ce26b8af` vollständig enthalten. Der frühere
 Merge-Kandidat `b0989074` bleibt historische Herkunft, der Follow-up-Kandidat
 `3479d67e` ist nicht Root. Die separaten Claude-Läufe und ihre Baseline-
 Einordnung bleiben Belege nur für ihre eigenen Stände. Insbesondere werden die
@@ -114,14 +129,15 @@ Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
   Medien-Termset angepasst; Codex-M5 (Preloader/stat) und Claude-M5
   (Medienfilterraster) sind verschiedene enthaltene Pakete.
 
-**Noch kein Abschlussclaim:** G0121 belegt auf Root `eb015068` den Appbuild mit
-0 Fehlern und 5 Warnungen. G0120 belegt nur den fokussierten Lauf mit 293 total,
-285 PASS, 8 FAIL und 0 SKIP; die acht Fails und die zwei DesktopSessionHost-
-Brücken bleiben offen. Das ersetzt keine Vollsuite, private GUI- oder
-Plattformabnahme.
+**Noch kein Abschlussclaim:** G0129 belegt auf Root `ce26b8af` nur den Neubau mit
+0 Fehlern und 5 Warnungen. G0126 belegt einen fokussierten Lauf mit 308 PASS,
+0 FAIL und 0 SKIP sowie zwei grüne Desktop-Reauth-Fälle; G0120s acht historische
+Fails und die zwei DesktopSessionHost-Brücken werden dadurch nicht umetikettiert.
+Das ersetzt keine Vollsuite, private GUI- oder Plattformabnahme.
 
-Die frisch gelieferten Änderungen `85e41557` (Help) und `31ed0352` (Booru
-OutcomeTests) sind noch zentrale Integrationsarbeit ohne Runtime-PASS. Die
+Die Help-Lieferungen `17923d5a` und `7daae014` bleiben bis Wave4 unintegriert;
+`f19f6da5` ist noch nicht übernommen oder freigegeben. `31ed0352` (Booru
+OutcomeTests) bleibt zentrale Integrationsarbeit ohne Runtime-PASS. Die
 Booru-Outcome-Korrektur aus `b5e16f2e` ist sachlich bestätigt; ihre native
 Runtime-/Shellgrenze bleibt ausdrücklich offen. Die gelieferte Smoke-Registry
 (unter anderem `tagging-page`, `reader-media-sidebar`, `reader-inline-video`,
@@ -350,12 +366,13 @@ Probe-/Verifier-SHA **`7001acc9b4eb26cb83b00db7387d9eef33ff555b`**:
 
 Die Nachläufe für begrenzte SDK-Consumer-Prozesse samt dauerhafter
 Artefakterhaltung (`cb5156fe`), Prozess-Interrupt-/Timeout-Cleanup (`7aa182be`)
-und reproduzierbaren Host-/Childworker-Runner (`cf147f7f`) sind inzwischen im
-Root-Quellstand enthalten. Die 34 gezielten Python-PASS laut Übernahmenachtrag
-prüfen diese Helfer. **Der positive Runner-/Paketconsumer-Wiederholungslauf mit
-dauerhaft erhaltener ausgeführter Consumer-DLL steht weiterhin offen.**
-Vorhandener Code und Python-Fixtures sind keine nachträglich erzeugte DLL-
-Evidenz des ersten Runs; Windows-Cleanup ist nicht nativ abgenommen.
+und reproduzierbaren Host-/Childworker-Runner (`cf147f7f`) sind im Root-Quellstand
+enthalten. G0127 liefert nun den frischen package-only SDK-Consumer-PASS mit
+identischen Paket-Hashes und dauerhaft erhaltener ausgeführter Consumer-DLL.
+Damit ist dieser konkrete Wiederholungslauf belegt; der Altpluginrunner-/Host-/
+Childworkerpfad, finale Analyzer-/Kompatibilitätsprüfungen und der Release-Endbeleg
+bleiben offen. Vorhandener Code und Python-Fixtures sind keine Ersatzabnahme für
+diese offenen Pfade; Windows-Cleanup ist nicht nativ abgenommen.
 
 Lokale Nachweise (nur gelesen; keine erneuten Builds oder Produkt-/Gateläufe
 in dieser Dokumentfortschreibung):
@@ -376,22 +393,25 @@ Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
 
 ## Offene Gates
 
-1. **Aktueller Root-/Herkunftsbeleg:** Root `eb015068` ist der Dokumentations-
-   bezugsstand. G0121 ist nur ein Root-Appbuild-PASS (0 Fehler, 5 Warnungen);
-   der separate Kandidat `3479d67e` ist nicht Root. Die frischen Lieferungen
-   `85e41557` und `31ed0352` sind noch zentral zu integrieren.
+1. **Aktueller Root-/Herkunftsbeleg:** Root `ce26b8af` ist durch G0129 der
+   aktuelle Dokumentationsbezugsstand; Wave3 `0fc7c5cf` ist enthalten. G0129 ist
+   nur ein Root-Appbuild-PASS (0 Fehler, 5 Warnungen). Wave4 `f19f6da5` ist nicht
+   übernommen oder freigegeben; die Help-Commits `17923d5a` und `7daae014` sowie
+   `31ed0352` bleiben zentrale Integrationsarbeit.
 2. **G0120-Fehler:** Die acht fokussierten Fails (darunter die zwei
    DesktopSessionHost-Brücken) bleiben sichtbar offen; kein späterer Quell-
    oder Compilebeleg darf sie als behoben umetikettieren. Vollsuiten müssen
    Core, Desktop sowie Plugin-/Runtime-/Packaging-Suiten zentral ausführen und
    FAIL/SKIP vollständig bewerten. Ein gefilterter PASS ersetzt die Vollsuite
    nicht.
-3. **SDK-/Altpluginrunner:** positiver Wiederholungslauf mit dauerhaft
-   erhaltener ausgeführter DLL; der bisherige Zwischenbeleg und die Runner-
-   Helfer ersetzen diese Evidenz nicht.
-4. **Reautorisierung:** die Matrix mit **14 Fällen / 98 Prozessaufrufen** muss
-   tatsächlich laufen. G0122 endete vor der Ausführung wegen `heavy.lock` und
-   liefert keine Produkt-Rotprobe.
+3. **SDK-/Altpluginrunner:** G0127 schließt den package-only SDK-Consumer-
+   Wiederholungslauf mit identischen Hashes und dauerhaft erhaltener Consumer-DLL.
+   Altpluginrunner, Host-/Childworkerpfad sowie finale Analyzer-/Kompatibilitäts-
+   und Releaseprüfung bleiben offen.
+4. **Reautorisierung:** G0126 zeigt zwei fokussierte Desktop-Reauth-Fälle grün,
+   ersetzt aber nicht die Matrix mit **14 Fällen / 98 Prozessaufrufen**. G0128
+   scheiterte vor Restore an RNG/Sandbox (Exit 82); G0122 endete früher vor der
+   Ausführung wegen `heavy.lock`. Beide liefern keine Produkt-Rotprobe.
 5. **AP04:** exakter released 1.0.2-Code
    `eec6c0169f8d52f7481ea0bf7febfd20981e97c3`, synthetisch damit geschriebenes
    Profil, Upgrade und zwei Offline-Neustarts; danach Writes/Readbacks und
@@ -405,10 +425,11 @@ Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
    Tastatur, Screenreader und die privaten GUI-/Plattformpfade mit Tom. Linux-
    Unit- oder Xvfb-Tests ersetzen diese nicht. Auch die native Booru-Runtime-
    Grenze bleibt offen.
-8. **Weitere Smoke-/API-/Bestandsdaten:** Registry-Smokes einschließlich
-   Reader-/Galerie-/Statistik- und Kompositionspfaden, Release-Inventarchecker,
-   Compiler-Analyzer und package-only Consumer am finalen SHA/Paket mit
-   dauerhaft erhaltenen ausführbaren Artefakten. Die Zwischenstände ersetzen
+8. **Weitere Smoke-/API-/Bestandsdaten:** G0127 belegt den package-only Consumer
+   mit dauerhafter DLL; das API-Inventar ist nur ein statischer PASS. Registry-
+   Smokes einschließlich Reader-/Galerie-/Statistik- und Kompositionspfaden,
+   Release-Inventarchecker, Compiler-Analyzer und finale package-only-/Upgrade-
+   Belege am freigegebenen SHA/Paket bleiben offen. Die Zwischenstände ersetzen
    keine finale Kompatibilitäts-, Upgrade- oder Releaseabnahme.
 9. **Reautorisierung/material-change:** echten PluginSession-/Prozessablauf
    einschließlich Repair/Draft/Version/Rollback und geänderter Konfiguration
