@@ -125,7 +125,7 @@ internal static partial class MediaPageChecks
             window.Width = 640;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Compact);
             Require(sort.IsEffectivelyVisible && direction.IsEffectivelyVisible && search.IsEffectivelyVisible && filters.IsEffectivelyVisible && more.IsEffectivelyVisible
-                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.booru-mode", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 "At 640 the order must stay and Refresh and the Booru mode switch must be under More: " + string.Join(",", page.HeaderMoreIds));
             Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.NarrowSearchMinWidth }
                 && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and shrink search and order to their narrow minimum.");

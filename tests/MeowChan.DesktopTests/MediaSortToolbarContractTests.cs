@@ -150,11 +150,14 @@ public sealed class MediaSortToolbarContractTests
     public void ANarrowRowMovesTheLessImportantToolsUnderMoreAndNeverTheOrderTheSearchOrTheFilterToggle()
     {
         Assert.Empty(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Wide));
-        // N6: Reduced moves the three first tools; Compact adds the Booru mode switch and drops the "Sort" label.
+        // N6: Reduced moves the three first tools; Compact adds the tag list switch (MP5, formerly "Booru mode") and the Layout menu and drops the "Sort" label.
         Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
-        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.booru-mode"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
-        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, "media.toolbar.booru-mode"));
-        Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.toolbar.booru-mode"));
+        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+        foreach (string layoutTool in new[] { "media.toolbar.tag-list", "media.toolbar.layout" })
+        {
+            Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, layoutTool));
+            Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, layoutTool));
+        }
         Assert.True(MediaToolbarLayout.ShowsSortLabel(MediaToolbarLayout.Level.Wide) && MediaToolbarLayout.ShowsSortLabel(MediaToolbarLayout.Level.Reduced));
         Assert.False(MediaToolbarLayout.ShowsSortLabel(MediaToolbarLayout.Level.Compact));
         foreach (MediaToolbarLayout.Level level in new[] { MediaToolbarLayout.Level.Reduced, MediaToolbarLayout.Level.Compact })

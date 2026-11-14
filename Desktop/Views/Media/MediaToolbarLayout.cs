@@ -34,8 +34,9 @@ internal static class MediaToolbarLayout
     // The work-view ids of the tools that leave the row first, in the order they leave (the order they have under More follows the policy).
     // The focus mode (M4) leaves the row first: it stays a shortcut (Shift+F) and an entry under More, so nothing is lost.
     private static readonly string[] DemotableReduced = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"];
-    // N6: the Booru mode switch (a Direct tool from Simple on) is the last one to leave, with the Compact stage; under More it keeps its checked entry.
-    private static readonly string[] DemotableCompact = [.. DemotableReduced, "media.toolbar.booru-mode"];
+    // N6: the Booru mode switch (a Direct tool from Simple on; since MP5 the "Tag list" switch, id media.toolbar.tag-list) is the last one to
+    // leave, with the Compact stage; under More it keeps its checked entry. MP5's "Layout" menu sits right behind the switch and leaves with it.
+    private static readonly string[] DemotableCompact = [.. DemotableReduced, "media.toolbar.tag-list", "media.toolbar.layout"];
 
     /// <summary>Whether the width moves this tool (by its work-view id) under More. The order, search and filter toggle never move.</summary>
     internal static bool IsMovedUnderMore(Level level, string? id) =>

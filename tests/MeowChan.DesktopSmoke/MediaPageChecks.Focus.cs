@@ -130,7 +130,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => page.ToolbarLevel != MediaToolbarLayout.Level.Wide);
             window.UpdateLayout();
             Require(!focus.IsVisible && page.HeaderMoreIds.Contains("media.toolbar.focus")
-                && page.HeaderMoreIds.First(id => id != "media.toolbar.booru-mode") == "media.toolbar.focus", // N6: the Booru mode switch (order 3) joins at the Compact stage
+                && page.HeaderMoreIds.First(id => id is not "media.toolbar.tag-list" and not "media.toolbar.layout") == "media.toolbar.focus", // N6/MP5: the tag list switch (order 3) and the Layout menu (4) join at the Compact stage
                 state + ": a narrow page must move the tool under More, first (after the Booru mode switch): " + string.Join(", ", page.HeaderMoreIds));
             page.SetFocusMode(true);
             window.UpdateLayout();
