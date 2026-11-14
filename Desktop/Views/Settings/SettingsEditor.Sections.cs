@@ -34,7 +34,7 @@ public partial class SettingsEditor
         yield return ("settings.shortcuts", ShortcutsEditor);
     }
 
-    private void SelectCategory(string id)
+    private void SelectCategory(string id, bool resetWorkViewOverview = true)
     {
         if (!CategoryPages().Any(item => item.Id == id)) return;
         bool changed = _selectedCategoryId != id;
@@ -46,6 +46,8 @@ public partial class SettingsEditor
             button.IsChecked = selected;
         }
         if (id == "settings.workviews") EnsureWorkViewOverview();
+        // A regular category entry is not WV12 Details: leave no stale diff, page or text restriction behind.
+        if (id == "settings.workviews" && resetWorkViewOverview) _workViewOverview?.SetDifferenceFilter(null);
         if (changed) SettingsScrollViewer.Offset = default;
     }
 
@@ -168,7 +170,8 @@ public partial class SettingsEditor
             button.Click += (_, _) => SettingsSections.Navigate(section.Id);
             SettingsCategoryLinks.Children.Add(button);
         }
-        SelectCategory(_selectedCategoryId);
+        // Rebuilding labels must not turn an already-open WV12 Details visit into a normal entry.
+        SelectCategory(_selectedCategoryId, resetWorkViewOverview: false);
         if (focused != null && SettingsCategories.IsVisible)
             SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, focused))?.Focus();
     }

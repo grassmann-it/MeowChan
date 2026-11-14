@@ -291,6 +291,7 @@ namespace MeowChan
             LoadViewerDraft(config);
             LoadQuickTagDraft(config);
             LoadLimitsDraft(config);
+            LoadWorkViewSwitchNoticeDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -844,6 +845,7 @@ namespace MeowChan
             MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
+            LoadWorkViewSwitchNoticeDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
@@ -890,6 +892,7 @@ namespace MeowChan
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
+            LoadWorkViewSwitchNoticeDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1009,7 +1012,8 @@ namespace MeowChan
                 foreach (string property in new[]
                 {
                     nameof(BusyStatusMessage), nameof(NotificationsTitle), nameof(InformationNotificationsLabel), nameof(WarningNotificationsLabel), nameof(ErrorNotificationsLabel), nameof(NotificationsHint), nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
-                    nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
+                    nameof(UpdateDisabledReason), nameof(WorkViewSwitchNoticeSecondsLabel), nameof(WorkViewSwitchNoticeSecondsHint),
+                    nameof(WorkViewSwitchNoticeSecondsHelp), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
@@ -1040,6 +1044,7 @@ namespace MeowChan
                 RaiseViewerTextsChanged();
                 RaiseQuickTagTextsChanged();
                 RaiseLimitsTextsChanged();
+                RaiseWorkViewNoticeTextsChanged();
                 RaiseTransferTextsChanged();
                 RefreshWorkViewOverviewTexts();
                 RaiseResetTextsChanged();
@@ -1269,6 +1274,7 @@ namespace MeowChan
                 candidate.MonitorClipboardUrls = MonitorClipboardUrls;
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
                 candidate.ShowInformationNotifications = ShowInformationNotifications;
+                ApplyWorkViewSwitchNoticeDraft(candidate);
                 candidate.ShowWarningNotifications = ShowWarningNotifications;
                 candidate.ShowErrorNotifications = ShowErrorNotifications;
                 candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
@@ -1390,6 +1396,7 @@ namespace MeowChan
             MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
+            LoadWorkViewSwitchNoticeDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
@@ -1436,6 +1443,7 @@ namespace MeowChan
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
+            LoadWorkViewSwitchNoticeDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
