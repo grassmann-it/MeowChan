@@ -1,7 +1,7 @@
 """Offline safety checks for the synthetic reauthorization matrix runner.
 
-These tests use stdlib fixtures/fakes only.  They never invoke dotnet, bwrap,
-restore, build, testhost, a worker, a provider, or a network namespace.
+These tests use stdlib fixtures/fakes plus one synthetic Python/bwrap probe.
+They never invoke dotnet, restore, build, testhost, a worker, a provider, or live sources.
 """
 from __future__ import annotations
 
@@ -10,7 +10,10 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 from types import SimpleNamespace
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -312,12 +315,69 @@ class PluginReauthorizationRunnerTests(unittest.TestCase):
             )
             self.assertIn("--unshare-net", command)
             self.assertIn("--clearenv", command)
+            mount_pairs = {(command[index], command[index + 1]) for index in range(len(command) - 1)}
+            for pair in (("--proc", "/proc"), ("--dev", "/dev"), ("--tmpfs", "/sys"), ("--tmpfs", "/tmp")):
+                self.assertIn(pair, mount_pairs)
+            self.assertNotIn("--share-net", command)
             self.assertNotIn("DISPLAY", environment)
             self.assertNotIn("MEOWCHAN_PROFILE", environment)
             self.assertNotIn("OCHAN_AUTHSTORE", environment)
             self.assertTrue(Path(environment["HOME"]).is_relative_to(evidence))
             self.assertTrue(Path(environment["TMPDIR"]).is_relative_to(evidence))
             self.assertEqual(SHA, environment["OCHAN_TEST_SOURCE_SHA"])
+
+    def test_bwrap_namespace_supplies_real_entropy_and_hides_host_interfaces(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            evidence = root / "evidence"
+            work = evidence / "work"
+            work.mkdir(parents=True)
+            feed = root / "feed"
+            feed.mkdir()
+            packages = work / "private" / "nuget-packages"
+            packages.mkdir(parents=True)
+            environment = RUNNER._private_environment(
+                work, evidence, SHA, "/usr/share/dotnet/dotnet", packages)
+            environment["SYNTHETIC_FEED"] = str(feed)
+            probe = (
+                "import json, os, socket\n"
+                "from pathlib import Path\n"
+                "private = {key: Path(os.environ[key]).is_dir() for key in (\n"
+                "    'HOME', 'TMPDIR', 'NUGET_PACKAGES', 'OCHAN_REAUTH_EVIDENCE') }\n"
+                "Path(os.environ['HOME'], 'entropy-marker').write_bytes(b'ok')\n"
+                "feed_write = True\n"
+                "try:\n"
+                "    Path(os.environ['SYNTHETIC_FEED'], 'must-not-write').write_text('no')\n"
+                "except OSError:\n"
+                "    feed_write = False\n"
+                "sysfs = Path('/sys/class/net')\n"
+                "sysfs_interfaces = sorted(path.name for path in sysfs.iterdir()) if sysfs.exists() else []\n"
+                "route_lines = [line for line in Path('/proc/net/route').read_text().splitlines()[1:] if line.strip()]\n"
+                "print(json.dumps({\n"
+                "    'urandom': len(os.urandom(32)), 'getrandom': len(os.getrandom(32)),\n"
+                "    'devUrandom': Path('/dev/urandom').is_char_device(), 'private': private,\n"
+                "    'feedWrite': feed_write, 'sysfsInterfaces': sysfs_interfaces,\n"
+                "    'ifNames': [name for _, name in socket.if_nameindex()], 'routes': route_lines,\n"
+                "}))\n"
+            )
+            bwrap = shutil.which("bwrap")
+            self.assertIsNotNone(bwrap)
+            command = RUNNER._bwrap_command(
+                [sys.executable, "-c", probe], work, evidence, feed, work,
+                environment, bwrap,
+            )
+            completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=10)
+            self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
+            observation = json.loads(completed.stdout)
+            self.assertEqual(32, observation["urandom"])
+            self.assertEqual(32, observation["getrandom"])
+            self.assertTrue(observation["devUrandom"])
+            self.assertEqual({key: True for key in observation["private"]}, observation["private"])
+            self.assertFalse(observation["feedWrite"])
+            self.assertEqual([], observation["sysfsInterfaces"])
+            self.assertEqual(["lo"], observation["ifNames"])
+            self.assertEqual([], observation["routes"])
+            self.assertEqual(b"ok", (Path(environment["HOME"]) / "entropy-marker").read_bytes())
 
     def test_fresh_mock_execution_pins_artifacts_and_uses_no_real_child(self):
         with tempfile.TemporaryDirectory() as temporary:

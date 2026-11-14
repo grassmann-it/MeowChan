@@ -417,7 +417,12 @@ def _bwrap_command(inner: list[str], work: Path, evidence: Path, feed: Path, cwd
                    environment: dict[str, str], bwrap: str) -> list[str]:
     command = [
         bwrap, "--die-with-parent", "--unshare-net", "--ro-bind", "/", "/",
-        "--tmpfs", "/tmp", "--bind", str(evidence), str(evidence),
+        # Do not inherit host /dev, /proc, or /sys through the readonly root.
+        # The fresh device namespace supplies the runtime entropy devices;
+        # procfs reflects the isolated network namespace and tmpfs hides host
+        # interface metadata while retaining the explicit private mounts below.
+        "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/sys", "--tmpfs", "/tmp",
+        "--bind", str(evidence), str(evidence),
         "--ro-bind", str(feed), str(feed), "--chdir", str(cwd), "--clearenv",
     ]
     for key, value in sorted(environment.items()):
