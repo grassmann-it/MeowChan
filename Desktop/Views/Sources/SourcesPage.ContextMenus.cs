@@ -11,6 +11,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using Serilog;
+using Ursa.Controls;
 
 namespace MeowChan;
 
