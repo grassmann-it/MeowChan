@@ -27,6 +27,16 @@ public partial class SettingsEditor
     public int ReaderPageSizeMaximum => Config.ReaderPageSizeMaximum;
     public int ReaderThreadingDepthMinimum => Config.ReaderThreadingDepthMinimum;
     public int ReaderThreadingDepthMaximum => Config.ReaderThreadingDepthMaximum;
+    public int ReadingHistoryLimitMinimum => Config.ReadingHistoryLimitMinimum;
+    public int ReadingHistoryLimitMaximum => Config.ReadingHistoryLimitMaximum;
+    public int ReaderTextlessMediaWidthMinimum => Config.ReaderTextlessMediaWidthMinimum;
+    public int ReaderTextlessMediaWidthMaximum => Config.ReaderTextlessMediaWidthMaximum;
+    public int ReaderFocusedMediaScalePercentMinimum => Config.ReaderFocusedMediaScalePercentMinimum;
+    public int ReaderFocusedMediaScalePercentMaximum => Config.ReaderFocusedMediaScalePercentMaximum;
+    public int ReaderHoverEnlargeSizeMinimum => Config.ReaderHoverEnlargeSizeMinimum;
+    public int ReaderHoverEnlargeSizeMaximum => Config.ReaderHoverEnlargeSizeMaximum;
+    public int ReaderHoverEnlargeDelayMsMinimum => Config.ReaderHoverEnlargeDelayMsMinimum;
+    public int ReaderHoverEnlargeDelayMsMaximum => Config.ReaderHoverEnlargeDelayMsMaximum;
     public int GalleryFitMaxUpscalePercentMinimum => Config.GalleryFitMaxUpscalePercentMinimum;
     public int GalleryFitMaxUpscalePercentMaximum => Config.GalleryFitMaxUpscalePercentMaximum;
     public int PostFilterRuleLimitMinimum => Config.PostFilterRuleLimitMinimum;
@@ -90,6 +100,43 @@ public partial class SettingsEditor
     public string HiddenPostLimitLabel => Texts.T("settings.limits.hiddenPosts");
     public string HiddenPostLimitHint => Texts.T("settings.limits.hiddenPosts.hint") + " " + Texts.T("settings.reader.range", Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum);
     public string HiddenPostLimitHelp => FieldHelp(nameof(HiddenPostLimitInput), HiddenPostLimitHint);
+    private decimal? _readingHistoryLimit;
+    public decimal? ReadingHistoryLimit { get => _readingHistoryLimit; set => SetField(ref _readingHistoryLimit, value, nameof(ReadingHistoryLimit)); }
+    public string ReadingHistoryLimitLabel => Texts.T("settings.reader.historyLimit");
+    public string ReadingHistoryLimitHint => Texts.T("settings.reader.historyLimit.hint") + " " + Texts.T("settings.reader.range", Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum);
+    public string ReadingHistoryLimitHelp => FieldHelp(nameof(ReadingHistoryLimitInput), ReadingHistoryLimitHint);
+    private decimal? _readerTextlessMediaWidth;
+    public decimal? ReaderTextlessMediaWidth { get => _readerTextlessMediaWidth; set => SetField(ref _readerTextlessMediaWidth, value, nameof(ReaderTextlessMediaWidth)); }
+    public string ReaderTextlessMediaWidthLabel => Texts.T("settings.reader.textlessWidth");
+    public string ReaderTextlessMediaWidthHint => Texts.T("settings.reader.textlessWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum);
+    public string ReaderTextlessMediaWidthHelp => FieldHelp(nameof(ReaderTextlessMediaWidthInput), ReaderTextlessMediaWidthHint);
+    private decimal? _readerFocusedMediaScalePercent;
+    public decimal? ReaderFocusedMediaScalePercent { get => _readerFocusedMediaScalePercent; set => SetField(ref _readerFocusedMediaScalePercent, value, nameof(ReaderFocusedMediaScalePercent)); }
+    public string ReaderFocusedMediaScalePercentLabel => Texts.T("settings.reader.focusedScale");
+    public string ReaderFocusedMediaScalePercentHint => Texts.T("settings.reader.focusedScale.hint") + " " + Texts.T("settings.reader.range", Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum);
+    public string ReaderFocusedMediaScalePercentHelp => FieldHelp(nameof(ReaderFocusedMediaScalePercentInput), ReaderFocusedMediaScalePercentHint);
+    private decimal? _readerHoverEnlargeSize;
+    public decimal? ReaderHoverEnlargeSize { get => _readerHoverEnlargeSize; set => SetField(ref _readerHoverEnlargeSize, value, nameof(ReaderHoverEnlargeSize)); }
+    public string ReaderHoverEnlargeSizeLabel => Texts.T("settings.reader.hoverSize");
+    public string ReaderHoverEnlargeSizeHint => Texts.T("settings.reader.hoverSize.hint") + " " + Texts.T("settings.reader.range", Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum);
+    public string ReaderHoverEnlargeSizeHelp => FieldHelp(nameof(ReaderHoverEnlargeSizeInput), ReaderHoverEnlargeSizeHint);
+    private decimal? _readerHoverEnlargeDelayMs;
+    public decimal? ReaderHoverEnlargeDelayMs { get => _readerHoverEnlargeDelayMs; set => SetField(ref _readerHoverEnlargeDelayMs, value, nameof(ReaderHoverEnlargeDelayMs)); }
+    public string ReaderHoverEnlargeDelayMsLabel => Texts.T("settings.reader.hoverDelay");
+    public string ReaderHoverEnlargeDelayMsHint => Texts.T("settings.reader.hoverDelay.hint") + " " + Texts.T("settings.reader.range", Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum);
+    public string ReaderHoverEnlargeDelayMsHelp => FieldHelp(nameof(ReaderHoverEnlargeDelayMsInput), ReaderHoverEnlargeDelayMsHint);
+    private bool _readerTextlessLargeImages;
+    public bool ReaderTextlessLargeImages { get => _readerTextlessLargeImages; set => SetField(ref _readerTextlessLargeImages, value, nameof(ReaderTextlessLargeImages)); }
+    public string ReaderTextlessLargeImagesLabel => Texts.T("settings.reader.textlessLarge");
+    public string ReaderTextlessLargeImagesHint => Texts.T("settings.reader.textlessLarge.hint");
+    private bool _readerFocusedMediaEnlarge;
+    public bool ReaderFocusedMediaEnlarge { get => _readerFocusedMediaEnlarge; set => SetField(ref _readerFocusedMediaEnlarge, value, nameof(ReaderFocusedMediaEnlarge)); }
+    public string ReaderFocusedMediaEnlargeLabel => Texts.T("settings.reader.focusedEnlarge");
+    public string ReaderFocusedMediaEnlargeHint => Texts.T("settings.reader.focusedEnlarge.hint");
+    private bool _readerHoverEnlarge;
+    public bool ReaderHoverEnlarge { get => _readerHoverEnlarge; set => SetField(ref _readerHoverEnlarge, value, nameof(ReaderHoverEnlarge)); }
+    public string ReaderHoverEnlargeLabel => Texts.T("settings.reader.hoverEnlarge");
+    public string ReaderHoverEnlargeHint => Texts.T("settings.reader.hoverEnlarge.hint");
     private SettingsChoice? _selectedReaderDateStyle;
     public SettingsChoice? SelectedReaderDateStyle
     {
@@ -176,7 +223,32 @@ public partial class SettingsEditor
         ResetNumber(PostFilterRuleLimitInput, PostFilterRuleLimit.Value);
         HiddenPostLimit = config.HiddenPostLimit;
         ResetNumber(HiddenPostLimitInput, HiddenPostLimit.Value);
+        ReadingHistoryLimit = config.ReadingHistoryLimit;
+        ResetNumber(ReadingHistoryLimitInput, ReadingHistoryLimit.Value);
+        ReaderTextlessMediaWidth = config.ReaderTextlessMediaWidth;
+        ResetNumber(ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth.Value);
+        ReaderFocusedMediaScalePercent = config.ReaderFocusedMediaScalePercent;
+        ResetNumber(ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent.Value);
+        ReaderHoverEnlargeSize = config.ReaderHoverEnlargeSize;
+        ResetNumber(ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize.Value);
+        ReaderHoverEnlargeDelayMs = config.ReaderHoverEnlargeDelayMs;
+        ResetNumber(ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs.Value);
+        ReaderTextlessLargeImages = config.ReaderTextlessLargeImages;
+        ReaderFocusedMediaEnlarge = config.ReaderFocusedMediaEnlarge;
+        ReaderHoverEnlarge = config.ReaderHoverEnlarge;
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
+    }
+
+    /// <summary>
+    /// The three reader media switches are also quick toggles of the reader's View menu. After one of them changed there, the draft shows
+    /// the confirmed value again (an unsaved edit of the same switch is replaced; every other field of the draft stays).
+    /// </summary>
+    internal void RefreshConfirmedReaderMedia()
+    {
+        if (_isClosed) return;
+        ReaderTextlessLargeImages = _config.ReaderTextlessLargeImages;
+        ReaderFocusedMediaEnlarge = _config.ReaderFocusedMediaEnlarge;
+        ReaderHoverEnlarge = _config.ReaderHoverEnlarge;
     }
 
     private void ApplyReaderDraft(Config candidate)
@@ -192,6 +264,14 @@ public partial class SettingsEditor
         candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
         candidate.PostFilterRuleLimit = GetInteger(PostFilterRuleLimit, PostFilterRuleLimitLabel, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
         candidate.HiddenPostLimit = GetInteger(HiddenPostLimit, HiddenPostLimitLabel, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum);
+        candidate.ReadingHistoryLimit = GetInteger(ReadingHistoryLimit, ReadingHistoryLimitLabel, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum);
+        candidate.ReaderTextlessMediaWidth = GetInteger(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum);
+        candidate.ReaderFocusedMediaScalePercent = GetInteger(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum);
+        candidate.ReaderHoverEnlargeSize = GetInteger(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum);
+        candidate.ReaderHoverEnlargeDelayMs = GetInteger(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum);
+        candidate.ReaderTextlessLargeImages = ReaderTextlessLargeImages;
+        candidate.ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge;
+        candidate.ReaderHoverEnlarge = ReaderHoverEnlarge;
         candidate.ReaderDateStyle = SelectedReaderDateStyle?.Value ?? _config.ReaderDateStyle;
         candidate.ReaderSpoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         candidate.GalleryFitUpscaleLimited = IsGalleryFitLimited;
@@ -224,6 +304,11 @@ public partial class SettingsEditor
         yield return (GalleryFitMaxUpscalePercentInput, GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentLabel, string.Empty, Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum, true);
         yield return (PostFilterRuleLimitInput, PostFilterRuleLimit, PostFilterRuleLimitLabel, string.Empty, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum, true);
         yield return (HiddenPostLimitInput, HiddenPostLimit, HiddenPostLimitLabel, string.Empty, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum, true);
+        yield return (ReadingHistoryLimitInput, ReadingHistoryLimit, ReadingHistoryLimitLabel, string.Empty, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum, true);
+        yield return (ReaderTextlessMediaWidthInput, ReaderTextlessMediaWidth, ReaderTextlessMediaWidthLabel, string.Empty, Config.ReaderTextlessMediaWidthMinimum, Config.ReaderTextlessMediaWidthMaximum, true);
+        yield return (ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, string.Empty, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum, true);
+        yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
+        yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
     }
 
     private void RaiseReaderTextsChanged() => Raise(new[]
@@ -240,6 +325,14 @@ public partial class SettingsEditor
         nameof(GalleryFitMaxUpscalePercentLabel), nameof(GalleryFitMaxUpscalePercentHint), nameof(GalleryFitMaxUpscalePercentHelp),
         nameof(PostFilterRuleLimitLabel), nameof(PostFilterRuleLimitHint), nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitLabel), nameof(HiddenPostLimitHint), nameof(HiddenPostLimitHelp),
+        nameof(ReadingHistoryLimitLabel), nameof(ReadingHistoryLimitHint), nameof(ReadingHistoryLimitHelp),
+        nameof(ReaderTextlessMediaWidthLabel), nameof(ReaderTextlessMediaWidthHint), nameof(ReaderTextlessMediaWidthHelp),
+        nameof(ReaderFocusedMediaScalePercentLabel), nameof(ReaderFocusedMediaScalePercentHint), nameof(ReaderFocusedMediaScalePercentHelp),
+        nameof(ReaderHoverEnlargeSizeLabel), nameof(ReaderHoverEnlargeSizeHint), nameof(ReaderHoverEnlargeSizeHelp),
+        nameof(ReaderHoverEnlargeDelayMsLabel), nameof(ReaderHoverEnlargeDelayMsHint), nameof(ReaderHoverEnlargeDelayMsHelp),
+        nameof(ReaderTextlessLargeImagesLabel), nameof(ReaderTextlessLargeImagesHint),
+        nameof(ReaderFocusedMediaEnlargeLabel), nameof(ReaderFocusedMediaEnlargeHint),
+        nameof(ReaderHoverEnlargeLabel), nameof(ReaderHoverEnlargeHint),
         nameof(ReaderDateStyleLabel), nameof(ReaderDateStyleHint),
         nameof(ReaderSpoilersLabel), nameof(ReaderSpoilersHint),
         nameof(GalleryFitUpscaleLabel), nameof(GalleryFitUpscaleHint),
@@ -257,5 +350,10 @@ public partial class SettingsEditor
         nameof(GalleryFitMaxUpscalePercentHelp),
         nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitHelp),
+        nameof(ReadingHistoryLimitHelp),
+        nameof(ReaderTextlessMediaWidthHelp),
+        nameof(ReaderFocusedMediaScalePercentHelp),
+        nameof(ReaderHoverEnlargeSizeHelp),
+        nameof(ReaderHoverEnlargeDelayMsHelp),
     });
 }

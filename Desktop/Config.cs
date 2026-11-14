@@ -375,6 +375,30 @@ namespace MeowChan
         internal const int ReaderThreadingDepthDefault = ReaderConversationTree.DepthDefault;
         internal const int ReaderThreadingDepthMinimum = ReaderConversationTree.DepthMinimum;
         internal const int ReaderThreadingDepthMaximum = ReaderConversationTree.DepthMaximum;
+        // Reading history and reader media size (R5/R6): every number has default/minimum/maximum; the switches are quick view toggles too.
+        public int ReadingHistoryLimit { get; set; } = ReadingHistoryLimitDefault;
+        internal const int ReadingHistoryLimitDefault = ReaderDisplayPreferences.ReadingHistoryLimitDefault;
+        internal const int ReadingHistoryLimitMinimum = ReaderDisplayPreferences.ReadingHistoryLimitMinimum;
+        internal const int ReadingHistoryLimitMaximum = ReaderDisplayPreferences.ReadingHistoryLimitMaximum;
+        public int ReaderTextlessMediaWidth { get; set; } = ReaderTextlessMediaWidthDefault;
+        internal const int ReaderTextlessMediaWidthDefault = ReaderDisplayPreferences.TextlessMediaWidthDefault;
+        internal const int ReaderTextlessMediaWidthMinimum = ReaderDisplayPreferences.TextlessMediaWidthMinimum;
+        internal const int ReaderTextlessMediaWidthMaximum = ReaderDisplayPreferences.TextlessMediaWidthMaximum;
+        public int ReaderHoverEnlargeSize { get; set; } = ReaderHoverEnlargeSizeDefault;
+        internal const int ReaderHoverEnlargeSizeDefault = ReaderDisplayPreferences.HoverEnlargeSizeDefault;
+        internal const int ReaderHoverEnlargeSizeMinimum = ReaderDisplayPreferences.HoverEnlargeSizeMinimum;
+        internal const int ReaderHoverEnlargeSizeMaximum = ReaderDisplayPreferences.HoverEnlargeSizeMaximum;
+        public int ReaderHoverEnlargeDelayMs { get; set; } = ReaderHoverEnlargeDelayMsDefault;
+        internal const int ReaderHoverEnlargeDelayMsDefault = ReaderDisplayPreferences.HoverEnlargeDelayDefault;
+        internal const int ReaderHoverEnlargeDelayMsMinimum = ReaderDisplayPreferences.HoverEnlargeDelayMinimum;
+        internal const int ReaderHoverEnlargeDelayMsMaximum = ReaderDisplayPreferences.HoverEnlargeDelayMaximum;
+        public int ReaderFocusedMediaScalePercent { get; set; } = ReaderFocusedMediaScalePercentDefault;
+        internal const int ReaderFocusedMediaScalePercentDefault = ReaderDisplayPreferences.FocusedMediaScaleDefault;
+        internal const int ReaderFocusedMediaScalePercentMinimum = ReaderDisplayPreferences.FocusedMediaScaleMinimum;
+        internal const int ReaderFocusedMediaScalePercentMaximum = ReaderDisplayPreferences.FocusedMediaScaleMaximum;
+        public bool ReaderTextlessLargeImages { get; set; } = true;
+        public bool ReaderHoverEnlarge { get; set; } = false;
+        public bool ReaderFocusedMediaEnlarge { get; set; } = false;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -556,6 +580,11 @@ namespace MeowChan
             ReaderReplyLines = Math.Clamp(ReaderReplyLines, ReaderReplyLinesMinimum, ReaderReplyLinesMaximum);
             ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
+            ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
+            ReaderTextlessMediaWidth = Math.Clamp(ReaderTextlessMediaWidth, ReaderTextlessMediaWidthMinimum, ReaderTextlessMediaWidthMaximum);
+            ReaderHoverEnlargeSize = Math.Clamp(ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeMinimum, ReaderHoverEnlargeSizeMaximum);
+            ReaderHoverEnlargeDelayMs = Math.Clamp(ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsMinimum, ReaderHoverEnlargeDelayMsMaximum);
+            ReaderFocusedMediaScalePercent = Math.Clamp(ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentMinimum, ReaderFocusedMediaScalePercentMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
@@ -1064,6 +1093,16 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderPageSize), "ReaderPageSize is outside its supported range.");
             if (ReaderThreadingDepth is < ReaderThreadingDepthMinimum or > ReaderThreadingDepthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
+            if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReadingHistoryLimit), "ReadingHistoryLimit is outside its supported range.");
+            if (ReaderTextlessMediaWidth is < ReaderTextlessMediaWidthMinimum or > ReaderTextlessMediaWidthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderTextlessMediaWidth), "ReaderTextlessMediaWidth is outside its supported range.");
+            if (ReaderHoverEnlargeSize is < ReaderHoverEnlargeSizeMinimum or > ReaderHoverEnlargeSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeSize), "ReaderHoverEnlargeSize is outside its supported range.");
+            if (ReaderHoverEnlargeDelayMs is < ReaderHoverEnlargeDelayMsMinimum or > ReaderHoverEnlargeDelayMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderHoverEnlargeDelayMs), "ReaderHoverEnlargeDelayMs is outside its supported range.");
+            if (ReaderFocusedMediaScalePercent is < ReaderFocusedMediaScalePercentMinimum or > ReaderFocusedMediaScalePercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderFocusedMediaScalePercent), "ReaderFocusedMediaScalePercent is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (PostFilterRuleLimit is < PostFilterRuleLimitMinimum or > PostFilterRuleLimitMaximum)
@@ -1221,6 +1260,14 @@ namespace MeowChan
                 ReaderReplyLines = ReaderReplyLines,
                 ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
+                ReadingHistoryLimit = ReadingHistoryLimit,
+                ReaderTextlessMediaWidth = ReaderTextlessMediaWidth,
+                ReaderHoverEnlargeSize = ReaderHoverEnlargeSize,
+                ReaderHoverEnlargeDelayMs = ReaderHoverEnlargeDelayMs,
+                ReaderFocusedMediaScalePercent = ReaderFocusedMediaScalePercent,
+                ReaderTextlessLargeImages = ReaderTextlessLargeImages,
+                ReaderHoverEnlarge = ReaderHoverEnlarge,
+                ReaderFocusedMediaEnlarge = ReaderFocusedMediaEnlarge,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
@@ -1398,6 +1445,14 @@ namespace MeowChan
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
+            ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
+            ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
+            ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
+            ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
+            ReaderHoverEnlarge = source.ReaderHoverEnlarge;
+            ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
@@ -1534,6 +1589,14 @@ namespace MeowChan
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
+            ReadingHistoryLimit = source.ReadingHistoryLimit;
+            ReaderTextlessMediaWidth = source.ReaderTextlessMediaWidth;
+            ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize;
+            ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs;
+            ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent;
+            ReaderTextlessLargeImages = source.ReaderTextlessLargeImages;
+            ReaderHoverEnlarge = source.ReaderHoverEnlarge;
+            ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
@@ -1581,7 +1644,12 @@ namespace MeowChan
         }
 
         // Compatibility settings host uses its existing isolated config owner.
-        internal void ForgetReadingPositionFile() => File.Delete(Path.Combine(_profileDirectory ?? GetConfigDirectory(), "reading-position.json"));
+        internal void ForgetReadingPositionFile()
+        {
+            string directory = _profileDirectory ?? GetConfigDirectory();
+            try { File.Delete(Path.Combine(directory, "reading-history.json")); }
+            finally { File.Delete(Path.Combine(directory, "reading-position.json")); }
+        }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());
 

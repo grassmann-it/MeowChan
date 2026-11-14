@@ -263,6 +263,58 @@
                                 </Grid>
                                 <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderTextlessLargeImagesInput" Content="{Binding ReaderTextlessLargeImagesLabel}" IsChecked="{Binding ReaderTextlessLargeImages, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderTextlessLargeImagesHint}" />
+                                <TextBlock Text="{Binding ReaderTextlessLargeImagesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderTextlessMediaWidthFieldLabel" Text="{Binding ReaderTextlessMediaWidthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderTextlessMediaWidthInput" Value="{Binding ReaderTextlessMediaWidth, Mode=TwoWay}" Minimum="{Binding ReaderTextlessMediaWidthMinimum}" Maximum="{Binding ReaderTextlessMediaWidthMaximum}" Increment="20" AutomationProperties.LabeledBy="{Binding ElementName=ReaderTextlessMediaWidthFieldLabel}" AutomationProperties.Name="{Binding ReaderTextlessMediaWidthLabel}" AutomationProperties.HelpText="{Binding ReaderTextlessMediaWidthHelp}" />
+                                        <TextBlock x:Name="ReaderTextlessMediaWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderTextlessMediaWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderFocusedMediaEnlargeInput" Content="{Binding ReaderFocusedMediaEnlargeLabel}" IsChecked="{Binding ReaderFocusedMediaEnlarge, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderFocusedMediaEnlargeHint}" />
+                                <TextBlock Text="{Binding ReaderFocusedMediaEnlargeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderFocusedMediaScalePercentFieldLabel" Text="{Binding ReaderFocusedMediaScalePercentLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderFocusedMediaScalePercentInput" Value="{Binding ReaderFocusedMediaScalePercent, Mode=TwoWay}" Minimum="{Binding ReaderFocusedMediaScalePercentMinimum}" Maximum="{Binding ReaderFocusedMediaScalePercentMaximum}" Increment="25" AutomationProperties.LabeledBy="{Binding ElementName=ReaderFocusedMediaScalePercentFieldLabel}" AutomationProperties.Name="{Binding ReaderFocusedMediaScalePercentLabel}" AutomationProperties.HelpText="{Binding ReaderFocusedMediaScalePercentHelp}" />
+                                        <TextBlock x:Name="ReaderFocusedMediaScalePercentInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderFocusedMediaScalePercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderHoverEnlargeInput" Content="{Binding ReaderHoverEnlargeLabel}" IsChecked="{Binding ReaderHoverEnlarge, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderHoverEnlargeHint}" />
+                                <TextBlock Text="{Binding ReaderHoverEnlargeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderHoverEnlargeSizeFieldLabel" Text="{Binding ReaderHoverEnlargeSizeLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderHoverEnlargeSizeInput" Value="{Binding ReaderHoverEnlargeSize, Mode=TwoWay}" Minimum="{Binding ReaderHoverEnlargeSizeMinimum}" Maximum="{Binding ReaderHoverEnlargeSizeMaximum}" Increment="40" AutomationProperties.LabeledBy="{Binding ElementName=ReaderHoverEnlargeSizeFieldLabel}" AutomationProperties.Name="{Binding ReaderHoverEnlargeSizeLabel}" AutomationProperties.HelpText="{Binding ReaderHoverEnlargeSizeHelp}" />
+                                        <TextBlock x:Name="ReaderHoverEnlargeSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderHoverEnlargeSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderHoverEnlargeDelayMsFieldLabel" Text="{Binding ReaderHoverEnlargeDelayMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderHoverEnlargeDelayMsInput" Value="{Binding ReaderHoverEnlargeDelayMs, Mode=TwoWay}" Minimum="{Binding ReaderHoverEnlargeDelayMsMinimum}" Maximum="{Binding ReaderHoverEnlargeDelayMsMaximum}" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=ReaderHoverEnlargeDelayMsFieldLabel}" AutomationProperties.Name="{Binding ReaderHoverEnlargeDelayMsLabel}" AutomationProperties.HelpText="{Binding ReaderHoverEnlargeDelayMsHelp}" />
+                                        <TextBlock x:Name="ReaderHoverEnlargeDelayMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderHoverEnlargeDelayMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />
@@ -364,6 +416,16 @@
                         <Button x:Name="ForgetReadingPositionButton" Content="{Binding ForgetReadingPositionLabel}" AutomationProperties.Name="{Binding ForgetReadingPositionLabel}" Click="OnForgetReadingPositionClick" IsEnabled="{Binding CanForgetReadingPosition}" VerticalAlignment="Center" />
                     </WrapPanel>
                     <TextBlock Text="{Binding ReadingPositionHint}" Classes="workspace-help" />
+                    <StackPanel Spacing="4" Margin="0,4,0,0">
+                            <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                <TextBlock x:Name="ReadingHistoryLimitFieldLabel" Text="{Binding ReadingHistoryLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                    <desktop:SettingsNumberInput x:Name="ReadingHistoryLimitInput" Value="{Binding ReadingHistoryLimit, Mode=TwoWay}" Minimum="{Binding ReadingHistoryLimitMinimum}" Maximum="{Binding ReadingHistoryLimitMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReadingHistoryLimitFieldLabel}" AutomationProperties.Name="{Binding ReadingHistoryLimitLabel}" AutomationProperties.HelpText="{Binding ReadingHistoryLimitHelp}" />
+                                    <TextBlock x:Name="ReadingHistoryLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="{Binding ReadingHistoryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
                         </StackPanel>
                     </Expander>
