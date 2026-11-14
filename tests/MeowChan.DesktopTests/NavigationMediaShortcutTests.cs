@@ -109,33 +109,40 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     [InlineData("de", "Medien", "Strg", "Umschalt")]
     public void TheFooterButtonTooltipNamesTheShortcutAndFollowsRebinding(string language, string label, string ctrl, string shift)
     {
-        Texts.SetLanguage(language);
-        SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
-        Button footer = new();
-        CommandBindings.Apply(footer, "navigation.media");
-        string initial = Assert.IsType<string>(ToolTip.GetTip(footer));
-        Assert.StartsWith(label + " · " + ctrl + "+3", initial);
-        Assert.Equal(CommandBindings.Tooltip("navigation.media"), initial);
+        // ToolTip.SetTip verifies the process-primary UIThread, which may belong to another xunit worker ("Localization" is non-parallel).
+        OwnedUiDispatcher.Run(() =>
+        {
+            Texts.SetLanguage(language);
+            SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
+            Button footer = new();
+            CommandBindings.Apply(footer, "navigation.media");
+            string initial = Assert.IsType<string>(ToolTip.GetTip(footer));
+            Assert.StartsWith(label + " · " + ctrl + "+3", initial);
+            Assert.Equal(CommandBindings.Tooltip("navigation.media"), initial);
 
-        Rebind(new ShortcutBindingsSection().Set("navigation.media", [ShortcutGesture.Parse("Primary+Shift+M")]));
-        string moved = Assert.IsType<string>(ToolTip.GetTip(footer));
-        Assert.StartsWith(label + " · " + ctrl + "+" + shift + "+M", moved);
-        Assert.DoesNotContain(ctrl + "+3", moved);
+            Rebind(new ShortcutBindingsSection().Set("navigation.media", [ShortcutGesture.Parse("Primary+Shift+M")]));
+            string moved = Assert.IsType<string>(ToolTip.GetTip(footer));
+            Assert.StartsWith(label + " · " + ctrl + "+" + shift + "+M", moved);
+            Assert.DoesNotContain(ctrl + "+3", moved);
 
-        Rebind(new ShortcutBindingsSection().Set("navigation.media", []));
-        Assert.DoesNotContain(ctrl, Assert.IsType<string>(ToolTip.GetTip(footer)));
+            Rebind(new ShortcutBindingsSection().Set("navigation.media", []));
+            Assert.DoesNotContain(ctrl, Assert.IsType<string>(ToolTip.GetTip(footer)));
+        });
     }
 
     [Fact]
     public void EveryFooterPageButtonTooltipShowsItsShortcut()
     {
-        SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
-        foreach (string page in Pages)
+        OwnedUiDispatcher.Run(() =>
         {
-            Button footer = new();
-            CommandBindings.Apply(footer, page);
-            Assert.Contains(CommandCatalog.ShortcutDisplay(page, false)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
-        }
+            SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
+            foreach (string page in Pages)
+            {
+                Button footer = new();
+                CommandBindings.Apply(footer, page);
+                Assert.Contains(CommandCatalog.ShortcutDisplay(page, false)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
+            }
+        });
     }
 
     // Publish posts to the UI dispatcher, which does not run here: swap the snapshot and run the observers directly.
