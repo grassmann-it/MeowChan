@@ -14,11 +14,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `color-hex` | 0 | 0 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
 | `spacing-off-grid` | 170 | 52 | P7: 0/2/4/8/12/16/24/32 or Inset token |
-| `glyph-icon` | 11 | 6 | P6: catalog path icon |
+| `glyph-icon` | 9 | 4 | P6: catalog path icon |
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 11 | 7 | P1: Workspace.Size token |
 | `page-inset` | 2 | 2 | P2: Workspace.Inset.Page |
-| **total** | **196** | 60 | |
+| **total** | **194** | 58 | |
 
 ## Counts per file
 
@@ -63,10 +63,8 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/GalleryViewer.FileOnly.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/GalleryViewer.Playback.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/GalleryViewer.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
-| `Desktop/MediaLibraryStateText.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
 | `Desktop/Shell/MainWindow.DownloadsHeader.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Shell/MainWindow.axaml.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/ThreadRow.cs` |  |  |  |  |  | 1 |  |  |  | 1 |
 | `Desktop/Views/About/AboutWindow.axaml` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Admission/BoardAdmissionWindow.cs` |  |  |  |  |  |  |  | 1 |  | 1 |
 | `Desktop/Views/Archive/ArchivePage.Export.Choice.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
@@ -147,10 +145,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 - `glyph-icon`: L109 `"↑(U+2191) Previous post"`, L109 `"↑(U+2191) Voriger Post"`, L111 `"←(U+2190) Previous thread"`, L111 `"←(U+2190) Voriger Thread"`, L115 `"←(U+2190) Previous"`, L115 `"←(U+2190) Zurü(U+00FC)ck"`
 
-### `Desktop/MediaLibraryStateText.cs` (1)
-
-- `glyph-icon`: L30 `"★(U+2605)"`
-
 ### `Desktop/MediaLibraryTileView.cs` (5)
 
 - `spacing-off-grid`: L157 `Spacing=3`, L172 `RowSpacing=3`, L172 `Margin=new Thickness(6, 6, 6, 4)`, L187 `ItemSpacing=6`, L331 `Spacing=6`
@@ -179,10 +173,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 ### `Desktop/Shell/MainWindow.axaml.cs` (1)
 
 - `spacing-off-grid`: L646 `Padding=new Thickness(10, 2)`
-
-### `Desktop/ThreadRow.cs` (1)
-
-- `glyph-icon`: L83 `"↑(U+2191)"`
 
 ### `Desktop/Views/About/AboutWindow.axaml` (1)
 

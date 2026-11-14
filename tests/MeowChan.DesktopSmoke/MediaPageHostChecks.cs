@@ -183,7 +183,7 @@ internal static partial class MediaPageChecks
             await shell.GalleryCleanupTask.WaitAsync(Deadline);
             Require(Row("100").State!.Favorite == MediaLibraryFlag.Yes && Row("100").State!.UserRating == 3,
                 "Closing the gallery did not refresh the page's own state: " + Row("100").State!.Favorite + "/" + Row("100").State!.UserRating);
-            Require(Row("100").DetailWithState.Contains('★') && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
+            Require(Row("100").DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
             MediaLibraryTileView after = await TileViewAsync("100");
             await UntilAsync(() => ToolTip.GetTip(after) is string tip && tip.Contains(Texts.T("media.state.rating", Texts.T("media.state.ratingValue", 3))));
             await UntilAsync(FocusInGrid);

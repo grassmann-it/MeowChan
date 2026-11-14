@@ -394,7 +394,7 @@ internal static partial class MediaPageChecks
                 // AP-01b: a loose file is taggable as its own local occurrence; it starts without media tags (none from its thread).
                 Require(s3.TagsKnown && s3.CanEditMediaTags && s3.TagSubject is MediaTagSubject.Local && s3.MediaTags.Count == 0
                     && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A loose file must be taggable as a local file and start untagged.");
-                Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+                Require(Row(one).DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
 
                 // T2: own tags are chips beside the thread link; a chip filters by its tag (a thread tag reaches the whole thread),
                 // a second chip narrows further, and the chip in the filter row removes it again.

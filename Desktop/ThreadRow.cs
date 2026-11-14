@@ -80,7 +80,6 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     /// <summary>The next step for this row is the retry command (the generic "needs a retry" state).</summary>
     public bool NeedsIntervention { get; private set; }
     public bool IsHighPriority { get; private set; }
-    public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
     public string PriorityDescription => IsHighPriority
         ? Texts.T("priority.rowDescription") : string.Empty;
 
@@ -90,7 +89,6 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (IsHighPriority == high) return;
         IsHighPriority = high;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsHighPriority)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityBadge)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityDescription)));
     }
 
