@@ -53,7 +53,7 @@ public partial class ArchivePage
             bool CanExecute() => ThreadMenuReady && (eligible?.Invoke() ?? true);
             string? Reason() => !ThreadMenuReady ? Texts.T("archive.command.busy")
                 : eligible?.Invoke() == false ? whyNot?.Invoke() : null;
-            builder.Command(commandId, execute, CanExecute(), Reason(), label?.Invoke(), showShortcut,
+            builder.Command(commandId, execute, CanExecute(), Reason(), label?.Invoke(), showShortcut: showShortcut,
                 availableWhen: CanExecute, reasonWhen: Reason, labelWhen: label);
         }
 

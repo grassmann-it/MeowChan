@@ -355,7 +355,7 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         string window = File.ReadAllText(Root("Desktop/Shell/ReadingHistoryWindow.cs"));
         Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId)", window);
         // The archive list's thread menu entry and the macOS menu bar.
-        Assert.Matches(@"CreateMenuItem\(""navigation\.continue-reading""", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Commands.cs")));
+        Assert.Matches(@"builder\.Command\(""navigation\.continue-reading""", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Commands.cs")));
         Assert.Contains("\"navigation.continue-reading\"", File.ReadAllText(Root("Desktop/Commands/MacMenuModel.cs")));
         Assert.Contains("shell.header.continue-reading", File.ReadAllText(Root("Desktop/WorkViews/WorkViewPolicy.Shell.cs")));
 
