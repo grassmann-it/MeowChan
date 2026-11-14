@@ -8,15 +8,16 @@ using Xunit.Abstractions;
 namespace MeowChan.Tests;
 
 /// <summary>
-/// The counters are process-wide, so every test counts under its own unique source key and
-/// asserts exact values for that key only.
+/// Each test owns its registry so unrelated tests cannot consume its source capacity or overflow counters.
 /// </summary>
 public sealed class TransferMeteringTests(ITestOutputHelper output)
 {
+    private readonly SourceRegistry _registry = new(TransferMeter.MaximumSources);
+
     private static string NewKey() => "meter-" + Guid.NewGuid().ToString("N");
 
-    private static HttpClient Metered(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> inner)
-        => new(new MeteringHandler(new DelegateHandler(inner)));
+    private HttpClient Metered(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> inner)
+        => new(new MeteringHandler(new DelegateHandler(inner), _registry));
 
     private static HttpRequestMessage Get(string key, string url = "https://meter.test/file", HttpMethod? method = null)
     {
@@ -83,7 +84,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         // A second buffered read of the same content never reads the transport again.
         if (path is "bytes" or "buffered-by-client") await response.Content.ReadAsByteArrayAsync();
 
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(payload.Length, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Requests));
@@ -108,7 +109,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         Assert.Equal("image/png", response.Content.Headers.ContentType!.MediaType);
         Assert.Equal("a.png", response.Content.Headers.ContentDisposition!.FileName);
         Assert.Equal("\"abc\"", response.Headers.ETag!.Tag);
-        Assert.Equal(0, Read(ref TransferMeter.For(key).NetDown));
+        Assert.Equal(0, Read(ref _registry.For(key).NetDown));
     }
 
     [Fact]
@@ -142,7 +143,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpClient client = Metered((_, _) => Task.FromResult(new HttpResponseMessage((HttpStatusCode)status) { Content = new ByteArrayContent([1, 2, 3]) }));
         using HttpResponseMessage response = await client.SendAsync(Get(key), HttpCompletionOption.ResponseHeadersRead);
         await response.Content.ReadAsByteArrayAsync();
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(errors, Read(ref counters.Errors));
         Assert.Equal(1, Read(ref counters.Requests));
@@ -155,7 +156,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         string key = NewKey();
         using HttpClient client = Metered((_, _) => throw new HttpRequestException("connection refused"));
         await Assert.ThrowsAsync<HttpRequestException>(() => client.SendAsync(Get(key)));
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(1, Read(ref counters.Errors));
@@ -174,7 +175,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
             return new HttpResponseMessage();
         });
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.SendAsync(Get(key), cancellation.Token));
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(0, Read(ref counters.Errors));
@@ -187,7 +188,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpClient client = Metered((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
         using HttpResponseMessage response = await client.SendAsync(Get(key, method: HttpMethod.Head), HttpCompletionOption.ResponseHeadersRead);
         Assert.Empty(await response.Content.ReadAsByteArrayAsync());
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(0, Read(ref counters.NetDown));
@@ -207,7 +208,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         Task<int> pending = body.ReadAsync(buffer, cancellation.Token).AsTask();
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1000, Read(ref counters.NetDown));
         Assert.Equal(0, Read(ref counters.Errors));
@@ -225,7 +226,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         Assert.Equal(500, await body.ReadAsync(buffer));
         await Assert.ThrowsAsync<IOException>(async () => await body.ReadAsync(buffer));
         await Assert.ThrowsAsync<IOException>(async () => await body.ReadAsync(buffer));
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(500, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Errors));
@@ -244,7 +245,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
             using HttpResponseMessage response = await client.SendAsync(Get(key), HttpCompletionOption.ResponseHeadersRead);
             Assert.Equal(payload, await response.Content.ReadAsByteArrayAsync());
         }));
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal((long)Responses * Length, Read(ref counters.NetDown));
         Assert.Equal(Responses, Read(ref counters.Requests));
@@ -258,10 +259,10 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpClient client = Metered((_, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2]) }));
         using (await client.SendAsync(Get(optioned, "https://" + host + "/a"), HttpCompletionOption.ResponseHeadersRead)) { }
         using (await client.GetAsync("https://" + host + "/b")) { }
-        Assert.Equal(1, Read(ref TransferMeter.For(optioned).Requests));
-        Assert.Equal(1, Read(ref TransferMeter.For(host).Requests));
-        Assert.Equal(2, Read(ref TransferMeter.For(host).NetDown));
-        Assert.Contains(TransferMeter.All, pair => pair.Key == host && ReferenceEquals(pair.Value, TransferMeter.For(host)));
+        Assert.Equal(1, Read(ref _registry.For(optioned).Requests));
+        Assert.Equal(1, Read(ref _registry.For(host).Requests));
+        Assert.Equal(2, Read(ref _registry.For(host).NetDown));
+        Assert.Contains(_registry.All, pair => pair.Key == host && ReferenceEquals(pair.Value, _registry.For(host)));
     }
 
     [Fact]
@@ -273,7 +274,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         using HttpClient client = ProviderHttpClientFactory.CreatePolicyClient(transport, key, new RequestPolicyState());
         using HttpResponseMessage response = await client.GetAsync("https://meter-" + Guid.NewGuid().ToString("N") + ".test/media.bin");
         Assert.Equal(777, (await response.Content.ReadAsByteArrayAsync()).Length);
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(1, Read(ref counters.Requests));
         Assert.Equal(777, Read(ref counters.NetDown));
@@ -281,7 +282,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task TheDefaultClientCountsDecompressedBodyBytesAgainstItsSource()
+    public async Task TheDecompressingTransportCountsBodyBytesAgainstItsSource()
     {
         string key = NewKey();
         byte[] plain = new byte[300_000];
@@ -301,15 +302,21 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
                 await context.Response.OutputStream.WriteAsync(wire);
                 context.Response.Close();
             });
-            HttpClient client = ProviderHttpClientFactory.GetDefaultClient(key);
+            using HttpClient transport = new(new MeteringHandler(new SocketsHttpHandler
+            {
+                AllowAutoRedirect = false,
+                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10)
+            }, _registry));
+            using HttpClient client = ProviderHttpClientFactory.CreatePolicyClient(transport, key, new RequestPolicyState());
             using HttpResponseMessage response = await client.GetAsync(prefix + "file.bin");
             Assert.Equal(plain.Length, (await response.Content.ReadAsByteArrayAsync()).Length);
             await serving;
         }
         finally { listener.Close(); }
 
-        // The default transport decompresses below the metering handler: bytes are counted after decompression.
-        SourceCounters counters = TransferMeter.For(key);
+        // Like the default transport, this isolated transport decompresses below the meter; count decoded bytes.
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(plain.Length, Read(ref counters.NetDown));
         Assert.Equal(1, Read(ref counters.Requests));

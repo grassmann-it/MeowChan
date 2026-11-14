@@ -20,7 +20,13 @@ internal sealed class MeteringHandler : DelegatingHandler
     /// <summary>The source a request belongs to, read by the metering handler at the transport.</summary>
     internal static readonly HttpRequestOptionsKey<string> SourceKey = new("MeowChan.TransferMeterSource");
 
-    public MeteringHandler(HttpMessageHandler innerHandler) : base(innerHandler) { }
+    private readonly SourceRegistry _registry;
+
+    public MeteringHandler(HttpMessageHandler innerHandler) : this(innerHandler, TransferMeter.Shared) { }
+
+    /// <summary>Uses an isolated registry without changing the process-wide production counters.</summary>
+    internal MeteringHandler(HttpMessageHandler innerHandler, SourceRegistry registry) : base(innerHandler)
+        => _registry = registry ?? throw new ArgumentNullException(nameof(registry));
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -40,12 +46,12 @@ internal sealed class MeteringHandler : DelegatingHandler
         return Complete(request, response, counters);
     }
 
-    private static SourceCounters Begin(HttpRequestMessage request)
+    private SourceCounters Begin(HttpRequestMessage request)
     {
         string? key = null;
         if (!request.Options.TryGetValue(SourceKey, out key))
             key = request.RequestUri is { IsAbsoluteUri: true } uri ? uri.IdnHost : null;
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Interlocked.Increment(ref counters.Requests);
         if (request.Content is { } content)
         {

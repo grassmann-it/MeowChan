@@ -12,6 +12,7 @@ namespace MeowChan.DesktopTests;
 /// </summary>
 public sealed class IoDirectionalPipelineTests
 {
+    private readonly SourceRegistry _registry = new(TransferMeter.MaximumSources);
     private static readonly DateTimeOffset Noon = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);
     private static IoStatsOptions Options => new() { Persist = false, SampleIntervalMs = 2000, HistorySamples = 30 };
 
@@ -20,11 +21,11 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-upload-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new SelectedSource(sourceKey), clock, Options);
+        using IoStatsHub hub = new(new RegistrySource(_registry), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
         LocalHandler transport = new();
-        using HttpClient client = new(new MeteringHandler(transport));
+        using HttpClient client = new(new MeteringHandler(transport, _registry));
         byte[][] chunks = [[1, 2, 3], [4, 5], [6, 7, 8, 9]];
         using (HttpRequestMessage upload = Request(sourceKey, HttpMethod.Post, new ChunkedContent(chunks)))
         using (HttpResponseMessage response = await client.SendAsync(upload, HttpCompletionOption.ResponseHeadersRead))
@@ -47,9 +48,9 @@ public sealed class IoDirectionalPipelineTests
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot snapshot = hub.Snapshot();
 
-        Assert.Equal(new IoCounts(0, uploadedBytes, 0, 0, 2, 0), snapshot.Total.Session);
-        Assert.Equal(new IoCounts(0, uploadedBytes, 0, 0, 2, 0), Assert.Single(snapshot.Sources).Session);
-        Assert.Equal(new IoRates(0, uploadedBytes / 2d, 0, 0, 1), snapshot.Rate);
+        Assert.Equal(new IoCounts(NetDown: 0, NetUp: uploadedBytes, DiskWritten: 0, DiskRead: 0, Requests: 2, Errors: 0), snapshot.Total.Session);
+        Assert.Equal(new IoCounts(NetDown: 0, NetUp: uploadedBytes, DiskWritten: 0, DiskRead: 0, Requests: 2, Errors: 0), Assert.Single(snapshot.Sources).Session);
+        Assert.Equal(new IoRates(NetDown: 0, NetUp: uploadedBytes / 2d, DiskWrite: 0, DiskRead: 0, Requests: 1), snapshot.Rate);
         Assert.Equal([0f], snapshot.Series.NetDown);
         Assert.Equal([uploadedBytes / 2f], snapshot.Series.NetUp);
         Assert.Equal([0f], snapshot.Series.DiskWrite);
@@ -72,18 +73,18 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-disk-read-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new SelectedSource(sourceKey), clock, Options);
+        using IoStatsHub hub = new(new RegistrySource(_registry), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
-        SourceCounters counters = TransferMeter.For(sourceKey);
+        SourceCounters counters = _registry.For(sourceKey);
         const long readBytes = 8192;
         Interlocked.Add(ref counters.DiskRead, readBytes);
 
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot snapshot = hub.Snapshot();
 
-        Assert.Equal(new IoCounts(0, 0, 0, readBytes, 0, 0), snapshot.Total.Session);
-        Assert.Equal(new IoRates(0, 0, 0, readBytes / 2d, 0), snapshot.Rate);
+        Assert.Equal(new IoCounts(NetDown: 0, NetUp: 0, DiskWritten: 0, DiskRead: readBytes, Requests: 0, Errors: 0), snapshot.Total.Session);
+        Assert.Equal(new IoRates(NetDown: 0, NetUp: 0, DiskWrite: 0, DiskRead: readBytes / 2d, Requests: 0), snapshot.Rate);
         Assert.Equal([0f], snapshot.Series.NetDown);
         Assert.Equal([0f], snapshot.Series.NetUp);
         Assert.Equal([0f], snapshot.Series.DiskWrite);
@@ -97,19 +98,20 @@ public sealed class IoDirectionalPipelineTests
         Assert.Equal(readBytes / 2d, graph.TrafficPeak); // max direction, never write + read or network + disk
     }
 
-    // The production meter is process-wide and retains counters from other desktop tests. Keep the real
-    // TransferMeterSource mapper, but select this test's key AFTER it has read the real counters. A GUID
-    // alone does not isolate Snapshot.Total or its ring, and globally resetting counters would race other tests.
-    private sealed class SelectedSource(string key) : IIoCounterSource
+    // Keep all counters local, including the cap and overflow bucket. This test-only adapter bridges
+    // the actual handler counters into the hub without changing the production TransferMeterSource.
+    private sealed class RegistrySource(SourceRegistry registry) : IIoCounterSource
     {
-        private readonly TransferMeterSource source = new();
-
         public void Read(List<IoCounterReading> into)
         {
-            int start = into.Count;
-            source.Read(into);
-            for (int index = into.Count - 1; index >= start; index--)
-                if (!string.Equals(into[index].Key, key, StringComparison.Ordinal)) into.RemoveAt(index);
+            foreach (KeyValuePair<string, SourceCounters> pair in registry.All)
+            {
+                SourceCounters counters = pair.Value;
+                into.Add(new IoCounterReading(Key: pair.Key,
+                    NetDown: Volatile.Read(ref counters.NetDown), NetUp: Volatile.Read(ref counters.NetUp),
+                    DiskWritten: Volatile.Read(ref counters.DiskWritten), DiskRead: Volatile.Read(ref counters.DiskRead),
+                    Requests: Volatile.Read(ref counters.Requests), Errors: Volatile.Read(ref counters.Errors)));
+            }
         }
     }
 

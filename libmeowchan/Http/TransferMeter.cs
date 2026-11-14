@@ -56,7 +56,7 @@ internal static class TransferMeter
     public const string OtherKey = "other";
     public const string UnknownKey = "unknown";
 
-    private static readonly SourceRegistry Shared = new(MaximumSources);
+    internal static SourceRegistry Shared { get; } = new(MaximumSources);
 
     /// <summary>The counters of <paramref name="key"/>, created on first use.</summary>
     public static SourceCounters For(string? key) => Shared.For(key);

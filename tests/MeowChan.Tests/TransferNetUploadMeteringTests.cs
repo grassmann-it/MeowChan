@@ -7,6 +7,10 @@ namespace MeowChan.Tests;
 /// <summary>In-memory transport/serialization tests only: no sockets, listener or live source.</summary>
 public sealed class TransferNetUploadMeteringTests
 {
+    private readonly SourceRegistry _registry = new(TransferMeter.MaximumSources);
+
+    private MeteringHandler Metered(HttpMessageHandler inner) => new(inner, _registry);
+
     private static string NewKey() => "upload-" + Guid.NewGuid().ToString("N");
     private static long Read(ref long field) => Volatile.Read(ref field);
 
@@ -47,18 +51,18 @@ public sealed class TransferNetUploadMeteringTests
         long? length = original.Headers.ContentLength;
         string headers = original.Headers.ToString();
         using MemoryStream sent = new();
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             Assert.Equal(length, request.Content!.Headers.ContentLength);
             Assert.Equal(headers, request.Content.Headers.ToString());
-            Assert.Equal(0, Read(ref TransferMeter.For(key).NetUp));
+            Assert.Equal(0, Read(ref _registry.For(key).NetUp));
             await request.Content.CopyToAsync(sent, token);
             return Response();
         }, (request, token) =>
         {
             Assert.Equal(length, request.Content!.Headers.ContentLength);
             Assert.Equal(headers, request.Content.Headers.ToString());
-            Assert.Equal(0, Read(ref TransferMeter.For(key).NetUp));
+            Assert.Equal(0, Read(ref _registry.For(key).NetUp));
             request.Content.CopyTo(sent, null, token);
             return Response();
         })));
@@ -90,7 +94,7 @@ public sealed class TransferNetUploadMeteringTests
         string key = NewKey();
         using MixedWritesContent content = new();
         using YieldingSink sent = new();
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(sent, token);
             return Response();
@@ -113,7 +117,7 @@ public sealed class TransferNetUploadMeteringTests
     {
         string firstKey = NewKey(), secondKey = NewKey();
         using ScriptedContent content = new([1, 2, 3]);
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, token) =>
         {
             for (int attempt = 0; attempt < 2; attempt++)
             {
@@ -138,7 +142,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task ANonReplayableStreamStillFailsOnTheNextAttemptWithoutInventingBytes()
     {
         string key = NewKey();
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(Stream.Null, token);
             return Response();
@@ -154,7 +158,7 @@ public sealed class TransferNetUploadMeteringTests
     {
         string key = NewKey();
         using ScriptedContent content = new([1, 2, 3]);
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, _) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, _) =>
         {
             Assert.Equal(new byte[] { 1, 2, 3 }, await request.Content!.ReadAsByteArrayAsync());
             Assert.Equal(new byte[] { 1, 2, 3 }, await request.Content.ReadAsByteArrayAsync());
@@ -174,7 +178,7 @@ public sealed class TransferNetUploadMeteringTests
     {
         string key = NewKey();
         using ScriptedContent content = new([1, 2, 3]);
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, _) =>
+        using HttpClient client = new(Metered(new Handler(async (request, _) =>
         {
             using Stream source = sync ? request.Content!.ReadAsStream() : await request.Content!.ReadAsStreamAsync();
             using MemoryStream sent = new();
@@ -195,7 +199,7 @@ public sealed class TransferNetUploadMeteringTests
         using ScriptedContent content = new([1, 2, 3]);
         content.Headers.ContentLength = 99;
         List<long?> lengths = new();
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, token) =>
         {
             lengths.Add(request.Content!.Headers.ContentLength);
             await request.Content.CopyToAsync(Stream.Null, token);
@@ -214,7 +218,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task HeaderEditsBetweenSendsAreNotLostWhenReplacingThePreviousMeter()
     {
         string key = NewKey();
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(Stream.Null, token);
             return Response();
@@ -239,7 +243,7 @@ public sealed class TransferNetUploadMeteringTests
         string key = NewKey();
         HttpResponseMessage reply = Response();
         HttpContent originalResponseContent = reply.Content;
-        using HttpClient client = new(new MeteringHandler(new Handler((request, _) =>
+        using HttpClient client = new(Metered(new Handler((request, _) =>
         {
             Assert.Null(request.Content);
             return Task.FromResult(reply);
@@ -261,7 +265,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task ContentWhichTheTransportNeverConsumesCountsNothingEvenWithAKnownLength()
     {
         string key = NewKey();
-        using HttpClient client = new(new MeteringHandler(new Handler((request, _) =>
+        using HttpClient client = new(Metered(new Handler((request, _) =>
         {
             Assert.Equal(1234, request.Content!.Headers.ContentLength);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.Forbidden));
@@ -281,7 +285,7 @@ public sealed class TransferNetUploadMeteringTests
         InvalidOperationException failure = new("synthetic producer failure");
         using ScriptedContent content = new([1, 2, 3], failure: failure);
         using MemoryStream sent = new();
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(sent, token);
             return Response();
@@ -310,7 +314,7 @@ public sealed class TransferNetUploadMeteringTests
         using CancellationTokenSource cancellation = new();
         using ScriptedContent content = new([1, 2, 3], afterPrefix: cancellation.Cancel);
         using MemoryStream sent = new();
-        using HttpMessageInvoker invoker = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpMessageInvoker invoker = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(sent, token);
             return Response();
@@ -343,7 +347,7 @@ public sealed class TransferNetUploadMeteringTests
         using CancellationTokenSource cancellation = new();
         using MixedWritesContent content = new();
         using YieldingSink sent = new(failAfterFirstWrite: true, cancellation: cancel ? cancellation : null);
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(sent, token);
             return Response();
@@ -371,7 +375,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task EmptyContentAndFailureBeforeConsumptionNeverCountTheDeclaredLength()
     {
         string key = NewKey();
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             if (request.Content!.Headers.ContentLength > 0) throw new HttpRequestException("before serialization");
             await request.Content.CopyToAsync(Stream.Null, token);
@@ -388,9 +392,9 @@ public sealed class TransferNetUploadMeteringTests
     public async Task UploadUsesTheSameInterlockedLongWraparoundAsDownload()
     {
         string key = NewKey();
-        SourceCounters counters = TransferMeter.For(key);
+        SourceCounters counters = _registry.For(key);
         Interlocked.Exchange(ref counters.NetUp, long.MaxValue - 1);
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(Stream.Null, token);
             return Response();
@@ -404,7 +408,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task ParallelUploadsAddUpAndKeepDiskCountersUntouched()
     {
         string key = NewKey();
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             using YieldingSink sent = new();
             await request.Content!.CopyToAsync(sent, token);
@@ -422,7 +426,7 @@ public sealed class TransferNetUploadMeteringTests
     public async Task UploadUsesTheExistingHostFallbackWhenThereIsNoSourceOption()
     {
         string host = NewKey() + ".test";
-        using HttpClient client = new(new MeteringHandler(new Handler(async (request, token) =>
+        using HttpClient client = new(Metered(new Handler(async (request, token) =>
         {
             await request.Content!.CopyToAsync(Stream.Null, token);
             return Response();
@@ -432,9 +436,68 @@ public sealed class TransferNetUploadMeteringTests
         AssertCounters(host, 2, requests: 1, errors: 0);
     }
 
-    private static void AssertCounters(string key, long up, long requests, long errors, long down = 0)
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task IsolatedRegistryKeepsItsOwnCountersAndOverflowAfterAnotherRegistryIsSaturated(bool sync)
     {
-        SourceCounters counters = TransferMeter.For(key);
+        // Model a process-wide registry filled by unrelated tests, without touching Shared at all.
+        SourceRegistry saturated = new(TransferMeter.MaximumSources);
+        for (int index = 0; index < TransferMeter.MaximumSources; index++) saturated.For("foreign-" + index);
+        SourceCounters foreignOverflow = saturated.For("kept");
+        Interlocked.Add(ref foreignOverflow.NetUp, 4711);
+
+        SourceRegistry isolated = new(1);
+        SourceCounters kept = isolated.For("kept");
+        using HttpMessageInvoker foreign = new(CreateMeter(saturated));
+        using HttpMessageInvoker local = new(CreateMeter(isolated));
+        await Send(foreign, "kept", [1, 2, 3]);
+        await Send(local, "kept", [1, 2, 3]);
+        await Send(local, "overflow-a", [4, 5]);
+        await Send(local, "overflow-b", [6, 7, 8, 9]);
+
+        SourceCounters overflow = isolated.For("overflow-a");
+        Assert.Same(kept, isolated.For("kept"));
+        Assert.Same(overflow, isolated.For("overflow-b"));
+        Assert.NotSame(kept, overflow);
+        Assert.NotSame(foreignOverflow, overflow);
+        Assert.Equal(3, Read(ref kept.NetUp));
+        Assert.Equal(2, Read(ref kept.NetDown));
+        Assert.Equal(1, Read(ref kept.Requests));
+        Assert.Equal(6, Read(ref overflow.NetUp));
+        Assert.Equal(4, Read(ref overflow.NetDown));
+        Assert.Equal(2, Read(ref overflow.Requests));
+        Assert.Equal(0, Read(ref overflow.Errors));
+        Assert.Equal(0, Read(ref overflow.DiskRead));
+        Assert.Equal(0, Read(ref overflow.DiskWritten));
+        Assert.Equal(4714, Read(ref foreignOverflow.NetUp));
+        Assert.Equal(1, Read(ref foreignOverflow.Requests));
+        Assert.Equal(TransferMeter.MaximumSources + 1, saturated.All.Count);
+        Assert.Equal(new[] { "kept", TransferMeter.OtherKey }, isolated.All.Select(pair => pair.Key).Order());
+
+        static MeteringHandler CreateMeter(SourceRegistry registry) => new(new Handler(async (request, token) =>
+        {
+            await request.Content!.CopyToAsync(Stream.Null, token);
+            return Response();
+        }, (request, token) =>
+        {
+            request.Content!.CopyTo(Stream.Null, null, token);
+            return Response();
+        }), registry);
+
+        async Task Send(HttpMessageInvoker invoker, string key, byte[] payload)
+        {
+            using HttpRequestMessage request = Request(key, new ByteArrayContent(payload));
+            using HttpResponseMessage response = sync
+                ? invoker.Send(request, CancellationToken.None)
+                : await invoker.SendAsync(request, CancellationToken.None);
+            Assert.Equal(new byte[] { 9, 8 }, await response.Content.ReadAsByteArrayAsync());
+        }
+    }
+
+    private void AssertCounters(string key, long up, long requests, long errors, long down = 0)
+    {
+        SourceCounters counters = _registry.For(key);
         Assert.Equal(up, Read(ref counters.NetUp));
         Assert.Equal(down, Read(ref counters.NetDown));
         Assert.Equal(requests, Read(ref counters.Requests));
