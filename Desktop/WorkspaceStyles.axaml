@@ -522,17 +522,17 @@
                     <SolidColorBrush x:Key="TextBoxSelectionForeground">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="ToggleButtonPrimaryIndeterminateBorderBrush">#803B06</SolidColorBrush>
                     <!-- Check box: checked fill and border are the accent (hover AccentHover, pressed the pressed accent), the check mark is OnAccent, the unchecked outline is ControlBorder, disabled is the disabled outline tone. -->
-                    <SolidColorBrush x:Key="CheckBoxCheckedDisabledBackground">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="CheckBoxCheckedDisabledBorderBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedDisabledBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCheckedDisabledBorderBrush">#948A7D</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxGlyphFill">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxCardCheckedBackground">#E7D4BE</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxCardCheckedBorderBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxCardCheckedPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
                     <SolidColorBrush x:Key="CheckBoxCardCheckedPressedBorderBrush">#662F05</SolidColorBrush>
-                    <SolidColorBrush x:Key="CheckBoxCardCheckedDisabledBorderBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="CheckBoxCardCheckedDisabledBorderBrush">#948A7D</SolidColorBrush>
                     <!-- Radio button: same scheme as the check box. -->
-                    <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBackground">#A89F92</SolidColorBrush>
-                    <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBorderBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBackground">#948A7D</SolidColorBrush>
+                    <SolidColorBrush x:Key="RadioButtonCheckIconDisabledBorderBrush">#948A7D</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCheckGlyphFill">#FFFFFF</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonButtonCheckedForeground">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonButtonCheckedBackground">#E7D4BE</SolidColorBrush>
@@ -541,7 +541,7 @@
                     <SolidColorBrush x:Key="RadioButtonCardCheckPointeroverBorderBrush">#9A4B0B</SolidColorBrush>
                     <SolidColorBrush x:Key="RadioButtonCardCheckPressedBorderBrush">#662F05</SolidColorBrush>
                     <!-- Slider and progress: the fill and the thumb edge are the accent; the disabled thumb edge is the disabled outline tone. -->
-                    <SolidColorBrush x:Key="SliderThumbDisabledBorderBrush">#A89F92</SolidColorBrush>
+                    <SolidColorBrush x:Key="SliderThumbDisabledBorderBrush">#948A7D</SolidColorBrush>
                     <SolidColorBrush x:Key="ProgressBarIndicatorBrush">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="ProgressBarPrimaryForeground">#803B06</SolidColorBrush>
                     <!-- Pagination, line and button tabs, breadcrumb: selected = AccentSurface fill with the accent label; hover/pressed breadcrumb labels use AccentHover and the pressed accent. -->

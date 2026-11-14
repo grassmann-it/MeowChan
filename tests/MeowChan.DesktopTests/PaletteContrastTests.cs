@@ -506,6 +506,33 @@ public sealed class PaletteContrastTests
         Assert.True(Contrast("#FFFFFF", "#C42B1C") >= 4.5);
     }
 
+    // A11y review A12 (plugin lifecycle step chips, banner severity icons): the chip text and outline pairs of WorkspaceStyles.axaml.
+    // Done step: Success text and 1-px outline on SuccessSurface; next step: Accent 2-px outline on AccentSurface (a graphic: 3:1,
+    // its text is Workspace.Text); neutral step: ChipBorder on its AccentSurface fill; every outline also against the panel and the raised
+    // chip surface it sits next to. The banner severity icons are drawn in the edge colour on the banner's own tint (3:1, a graphic).
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void StepChipsAndBannerSeverityIconsReadInBothThemes(string theme)
+    {
+        // Done: text 4.5:1, outline 3:1 on the fill and against the page it sits on.
+        AssertContrast(theme, "Workspace.Success", "Workspace.SuccessSurface", 4.5);
+        foreach (string around in new[] { "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.ChipSurface" })
+            AssertContrast(theme, "Workspace.Success", around, 3.0);
+        // Next: the outline separates the chip from the panel and from its own fill; the label is Workspace.Text (checked on every surface).
+        AssertContrast(theme, "Workspace.Accent", "Workspace.AccentSurface", 3.0);
+        foreach (string around in new[] { "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.ChipSurface" })
+            AssertContrast(theme, "Workspace.Accent", around, 3.0);
+        AssertContrast(theme, "Workspace.Text", "Workspace.AccentSurface", 4.5);
+        // Neutral and later steps: the chip outline on the accent fill the chip-badge style uses.
+        AssertContrast(theme, "Workspace.ChipBorder", "Workspace.AccentSurface", 3.0);
+        AssertContrast(theme, "Workspace.ChipBorder", "Workspace.ChipSurface", 3.0);
+        // Banner severity icons: error, warning, information (accent) and success strokes on their own tint and on the panel.
+        foreach (var (tone, surface) in new[] { ("Error", "ErrorSurface"), ("Warning", "WarningSurface"), ("Accent", "AccentSurface"), ("Success", "SuccessSurface") })
+        {
+            AssertContrast(theme, "Workspace." + tone, "Workspace." + surface, 3.0);
+            AssertContrast(theme, "Workspace." + tone, "Workspace.Panel", 3.0);
+        }
+    }
+
     private static int Channel(string hex, int index) =>
         int.Parse(hex.AsSpan(1 + index * 2, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
