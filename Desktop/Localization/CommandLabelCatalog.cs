@@ -163,7 +163,7 @@ internal static class CommandLabelCatalog
         ("command.table.choose-columns", "Choose columns…", "Spalten auswählen…"),
         ("command.table.reset-layout", "Reset view layout", "Ansicht zurücksetzen"),
         ("command.reader.font-size", "Reading font size", "Leseschriftgröße"),
-        ("command.watch.follow-live", "Follow live", "Live folgen"),
+        ("command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen"),
         ("command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen"),
         ("command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen"),
         ("command.thread.tags", "Tags…", "Tags…"),

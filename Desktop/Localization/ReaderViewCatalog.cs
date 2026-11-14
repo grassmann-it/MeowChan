@@ -7,6 +7,9 @@ internal static class ReaderViewCatalog
     public static readonly (string Key, string English, string German)[] Entries =
     {
         ("reader.view.menu", "View", "Ansicht"),
+        // R2: the "Thread" menu next to "View" (capture, check now, retry media, media rules, details, folder, source, link, watch).
+        ("reader.thread.menu", "Thread", "Thread"),
+        ("reader.thread.copyLink", "Copy link", "Link kopieren"),
         ("command.reader.view.hide-media", "Hide media", "Medien ausblenden"),
         ("command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien"),
         ("command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen"),
