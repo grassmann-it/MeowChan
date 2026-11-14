@@ -890,7 +890,7 @@
     "wizard.title": "Selecionar tópicos da board",
     "wizard.semantics": "“Contém” procura o texto literal, ignorando maiúsculas e minúsculas. Regras de inclusão: basta uma correspondência; sem inclusões, todos se qualificam. Regras de exclusão prevalecem. Escolhas individuais substituem as regras. Tópicos removidos anteriormente permanecem excluídos até você selecioná-los explicitamente.",
     "wizard.rulesHelp": "Como funcionam as regras de texto",
-    "wizard.intro": "Pré-visualize o catálogo atual antes de começar o monitoramento. As regras também valem para descobertas futuras. Acompanhamentos existentes continuam; remova-os separadamente em Downloads. Apenas o texto do catálogo é carregado; nenhuma página de tópico ou mídia é baixada.",
+    "wizard.intro": "Veja a prévia do catálogo atual antes de começar o acompanhamento. As regras também valem para descobertas futuras. Acompanhamentos existentes continuam; remova-os separadamente em Downloads. Apenas o texto do catálogo é carregado; nenhuma página de tópico ou mídia é baixada.",
     "wizard.rulesTitle": "Regras para esta board",
     "wizard.previewTitle": "Prévia do catálogo",
     "wizard.previewLoaded": "Prévia carregada",
