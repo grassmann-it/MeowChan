@@ -107,6 +107,13 @@ namespace MeowChan
         public bool WorkViewNoticePending { get; set; }
         /// <summary>Lifetime of the work-view switch toast in seconds; zero disables it, including Undo and Details.</summary>
         public int WorkViewSwitchNoticeSeconds { get; set; } = 8;
+        /// <summary>
+        /// Whether Booru pages and tools are offered in this profile. This is a presentation preference only:
+        /// hiding the tools never changes plugin enablement, integrity permissions, saved watchers or downloads.
+        /// Existing profiles keep the currently visible tools unless the user explicitly hides them.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShowBooruTools { get; set; } = true;
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
@@ -1138,6 +1145,7 @@ namespace MeowChan
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
                 WorkViewNoticePending = WorkViewNoticePending,
                 WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
+                ShowBooruTools = ShowBooruTools,
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -1314,6 +1322,7 @@ namespace MeowChan
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewNoticePending = source.WorkViewNoticePending;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
+            ShowBooruTools = source.ShowBooruTools;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1450,6 +1459,7 @@ namespace MeowChan
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
+            ShowBooruTools = source.ShowBooruTools;
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;
