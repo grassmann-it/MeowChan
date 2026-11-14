@@ -301,10 +301,10 @@ public sealed class ViewerTransportTests : IDisposable
     [Fact]
     public void TheLoopClockUsesMinutesAndSecondsAndHoursOnlyWhenNeeded()
     {
-        Assert.Equal("0:04", GalleryVideoPlayer.Clock(4_200));
-        Assert.Equal("12:05", GalleryVideoPlayer.Clock(725_000));
-        Assert.Equal("1:00:00", GalleryVideoPlayer.Clock(3_600_000));
-        Assert.Equal("0:00", GalleryVideoPlayer.Clock(-5));
+        Assert.Equal("0:04", GalleryVideoPlayer.FormatVideoTime(4_200));
+        Assert.Equal("12:05", GalleryVideoPlayer.FormatVideoTime(725_000));
+        Assert.Equal("1:00:00", GalleryVideoPlayer.FormatVideoTime(3_600_000));
+        Assert.Equal("0:00", GalleryVideoPlayer.FormatVideoTime(-5));
     }
 
     private static string[] Placeholders(string text) =>
