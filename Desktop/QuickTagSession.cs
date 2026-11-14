@@ -64,24 +64,33 @@ internal sealed class DelegateQuickTagSuggestions(Func<QuickTagSuggestionRequest
 }
 
 /// <summary>
-/// Limits of the quick tag surface. Each one becomes a setting in TP5 (<c>QuickTagUndoDepth</c>, <c>QuickTagSuggestionCount</c>);
-/// until then the defaults apply. Out-of-range values are clamped, never refused.
+/// Limits of the quick tag surface. Each one is a setting (TP5: <c>QuickTagUndoDepth</c>, <c>QuickTagSuggestionCount</c>,
+/// <c>QuickTagMarkedMediaLimit</c>); a host without the setting uses the defaults. Out-of-range values are clamped, never refused.
 /// </summary>
 internal sealed record QuickTagOptions
 {
     internal const int DefaultUndoDepth = 20, MinimumUndoDepth = 1, MaximumUndoDepth = 100;
     internal const int DefaultSuggestionCount = 9, MinimumSuggestionCount = 3, MaximumSuggestionCount = 18;
+    /// <summary>Media the gallery lets the user mark for one tag change (<c>QuickTagMarkedMediaLimit</c>, E4). The write stays
+    /// under <c>PrivateTagStore.MaximumMediaAssignments</c>, which the maximum never exceeds.</summary>
+    internal const int DefaultMarkedMediaLimit = 500, MinimumMarkedMediaLimit = 10, MaximumMarkedMediaLimit = 5000;
     /// <summary>Suggestions 1–9 get a number and the Alt/⌘ shortcut; more chips are shown without one.</summary>
     internal const int NumberedSuggestions = 9;
     internal static readonly QuickTagOptions Default = new();
 
     internal int UndoDepth { get; init; } = DefaultUndoDepth;
     internal int SuggestionCount { get; init; } = DefaultSuggestionCount;
+    internal int MarkedMediaLimit { get; init; } = DefaultMarkedMediaLimit;
+
+    /// <summary>The marked-media limit inside its range and below what one tag write accepts.</summary>
+    internal static int ClampMarkedMediaLimit(int value) =>
+        Math.Clamp(value, MinimumMarkedMediaLimit, Math.Min(MaximumMarkedMediaLimit, PrivateTagStore.MaximumMediaAssignments));
 
     internal QuickTagOptions Normalized() => this with
     {
         UndoDepth = Math.Clamp(UndoDepth, MinimumUndoDepth, MaximumUndoDepth),
-        SuggestionCount = Math.Clamp(SuggestionCount, MinimumSuggestionCount, MaximumSuggestionCount)
+        SuggestionCount = Math.Clamp(SuggestionCount, MinimumSuggestionCount, MaximumSuggestionCount),
+        MarkedMediaLimit = ClampMarkedMediaLimit(MarkedMediaLimit)
     };
 }
 
