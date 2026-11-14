@@ -1,48 +1,55 @@
 # MeowChan 1.1.0 — Umsetzung und Abnahme, noch nicht releasefertig
 
-**Abgleich: 14.11.2026, Übernahme des final gelieferten Wave3-Stapels.**
-Diese Fortschreibung ist an den kombinierten Merge-Kandidaten
-**`b098907402cd34661c72d73a3559df68bfcd3cc4`** gebunden, nicht an einen
-beweglichen Claude-Zweig. Herkunft und Ausführungsstand sind getrennt:
+**Abgleich: 14.11.2026, Rootstatus `eb015068`.**
+Der feste Wave3-Stapel **`0fc7c5cf148dbbd25765451ba045231744503930`** ist im
+Root vollständig enthalten. Kandidaten, Nachläufe und Laufbelege bleiben nach
+Herkunft und Ausführungsstand getrennt:
 
-| Stand | Exakter SHA | Beleg / Grenze |
+| Stand | Exakter SHA / Beleg | Tatsächlicher Status / Grenze |
 | --- | --- | --- |
-| Aktueller Root vor Übernahme des kombinierten Kandidaten | `cf147f7f78ec1cf228915c25619bb16bd89127df` | Enthält die drei Python-Runner-/Prozesshelper-Nachläufe seit `66296fd9`; **34 gezielte Python-Tests bestanden** laut Übernahmenachtrag. Kein neuer Appbuild daraus abzuleiten. |
-| Zuletzt tatsächlich gebaute Root-App | `66296fd9d6c5b50e45f39c7ecc9be7fa53d645eb` | G0115, fertig **11:40:42 CET**, **0 Fehler / 4 Avalonia-Warnungen**. Compile-/Dogfood-Anker, kein Release- oder GUI-PASS. |
-| Final von Claude gelieferter UX-Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Explizit zur Integration geliefert; dessen separate Compile-/Testmeldungen sind kein Beleg für den kombinierten Kandidaten. |
-| Kombinierter Integrationskandidat | `b098907402cd34661c72d73a3559df68bfcd3cc4` | Merge von `cf147f7f` und `0fc7c5cf`; **App, DesktopTests und DesktopSmoke gemeinsam kompiliert: jeweils 0 Fehler**, G0117 fertig 12:06:12 CET. Noch kein Root-Fast-Forward; keine Testausführung/GUI-Abnahme dieses Laufs. |
+| Aktueller Root-Bezugsstand | `eb0150683ae1f5f5f29e9e687339e2a5ad2b68d0` | Wave3 `0fc7c5cf` vollständig enthalten; kein Freeze-, Vollsuite-, GUI-, Plattform- oder Release-PASS daraus ableiten. |
+| Final gelieferter Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Vollständig in Root `eb015068` enthalten; seine separaten Vorläufe bleiben an ihre eigenen Quellen gebunden. |
+| G0121 Root-Appbuild | Root `eb015068` | **PASS: 0 Fehler, 5 Warnungen.** Appbuild-/Compilebeleg, kein Runtime-, GUI- oder Release-PASS. |
+| G0120 fokussierter Wave3-/Desktop-Lauf | Root `eb015068` | **293 total, 285 PASS, 8 FAIL, 0 SKIP; 77 Booru-PASS.** Die acht Fails sind offen und werden nicht als behoben behauptet. |
+| Separater Follow-up-Kandidat | `3479d67e6487cbe97d2f28a5dc3ff41c667dc442` | Enthält Nachläufe und den Reauth-Runner, ist **nicht Root** und ersetzt den Root-Bezugsstand nicht. |
+| Frisch gelieferte, zentrale Integration | `85e41557` (Help), `31ed0352` (Booru OutcomeTests) | Werden gerade integriert; bislang kein Runtime-PASS. |
+| G0122 Reauth-Matrix | `/home/tomka/.cache/claude-ssd-tmp/g0122-reauth-matrix-20261114-125118/RESULT.json` | Wegen abgelaufener `heavy.lock`-Wartezeit vor der Ausführung beendet; keine Produkt-Rotprobe. Die geplanten **14 Fälle / 98 Prozessaufrufe** bleiben offen. |
 
-Kein finaler Freeze und keine Releasefreigabe. Keine Vollsuite-/GUI-/Plattform-/
-Endpaketabnahme aus Quellintegration oder älteren Zwischenbelegen ableiten;
-kein Push, Tag oder Upload. Insbesondere werden historische Testergebnisse
-nicht auf `b0989074` umetikettiert.
+Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme aus Quellintegration oder
+älteren Zwischenbelegen ableiten; kein Push, Tag oder Upload. Historische
+Testergebnisse werden nicht auf `eb015068` umetikettiert. Die zwei
+DesktopSessionHost-Brücken bleiben wegen der zwei G0120-Fehler offen.
 
-Der frühere Hauptcheckout-Anker `6e8e4437` und der damals getrennte Codex-Stand
-`88627d6b` sind Vorfahren dieses Bezugsstands. „Codex noch nicht nach goal
-übernommen“ vom 13.11. und „Wave3 noch nicht final geliefert“ vom früheren
-14.11.-Abgleich sind überholt. Die Fortschreibung bewahrt die Herkunft des
-früher erhaltenen Root-WIP und alle commitgebundenen Nachweise unten, ohne
-Root-WIP zu verändern. G0105 und G0106–G0109 bleiben eigenständige historische
-Läufe; sie sind keine Abnahme des neuen Merge-Kandidaten.
+Der frühere kombinierte Kandidat `b0989074`, der Root-Vorläufer `cf147f7f`
+und der alte Appbuild `66296fd9` bleiben als historische Herkunft erhalten.
+Der aktuelle Root-Bezug ist `eb015068`; der separate Kandidat `3479d67e` ist
+kein Root-Status. Ältere G0105- bis G0109-Läufe bleiben eigenständige historische
+Belege und werden nicht zur aktuellen Root-Abnahme umetikettiert.
 
-## Integrationsnachlauf nach dem gemeinsamen Compile
+## Integrationsnachlauf und aktueller Rootstatus
 
-Nach G0117 kamen im Integrationszweig hinzu: Booru-Werkbank auf der modelessen
-Dialogfabrik (`4dba3f42`, Vertragsnachlauf `3eda084b`), M2/BP3-Filter- und
-asynchrone Hinweis-Lifetime-Korrekturen (`f3fffbd5`, `13b376e6`, `46728f32`),
-AP04-Prozesscleanup (`9c802626`) sowie die konkrete Wave3-Hilfe für Galerie,
-Markierung/Stempel, Tagging, Reader, Profile und Ordnerquellen (`945191be`).
-Diese Nachläufe benötigen ihren eigenen kombinierten Compile; G0117 wird ihnen
-nicht als bereits ausgeführter Nachweis zugeschrieben. Die alten Help-Tests mit
-expliziten Nichtverfügbarkeitsaussagen müssen an die nun vorhandenen Funktionen
-angepasst werden, ohne die Dokumentation zurückzudrehen.
+Die frühere G0117-/Kandidatenbeschreibung bleibt historische Herkunft. Der
+aktuelle Root-Bezugsstand ist `eb015068`; Wave3 `0fc7c5cf` ist vollständig
+enthalten. G0121 belegt darauf den Root-Appbuild mit **0 Fehlern und 5
+Warnungen**. G0120 belegt den fokussierten Lauf mit **293 total, 285 PASS,
+8 FAIL, 0 SKIP**; die acht Fails werden nicht durch spätere Quellintegration
+still als behoben markiert. Sie umfassen vier HelpDocumentation-Fälle, je einen
+StatusNavigation- und WorkViewOverview-Fall sowie zwei
+DesktopPluginSessionIntegration-Timeouts (die beiden DesktopSessionHost-Brücken).
 
-Der separate Wave3-Review meldet drei konkrete Pflichtkorrekturen: Tagging-Undo
-bei entfernten Einträgen/fehlgeschlagenen Writes sowie abbrechbares, begrenztes
-Ordner-Hashing und entlastende Katalogoperationen bei voller Datei. Claude hat
-hierfür eigene Fixpakete gestartet; im hier beschriebenen Kandidaten sind diese
-noch nicht als erledigt nachgewiesen. Compile-first für Dogfooding ist keine
-Freigabe dieser Daten-/I/O-Pfade und kein Release-PASS.
+Die Nachläufe seit dem früheren Kandidaten umfassen unter anderem Booru-
+Outcome-/Lifetime-Korrekturen, Hilfe und Reauth-Runner. `3479d67e` ist dafür ein
+separater Follow-up-Kandidat, nicht der Root-Bezugsstand. `85e41557` (Help) und
+`31ed0352` (Booru OutcomeTests) sind frisch geliefert und werden zentral
+integriert; daraus folgt noch kein Runtime-PASS. Der Claude-eigene Wave4-Stapel
+bleibt unfertig; die Koordinationsnotiz
+`.claude/coordination/UX-WAVE4-STAPEL-2026-11-14.md` wurde nur zur Einordnung
+gelesen.
+
+G0122 endete wegen abgelaufener `heavy.lock`-Wartezeit vor der Reauth-Matrix;
+es gibt daraus keine Produkt-Rotprobe. Die genannten Wave3-/Booru-/Reauth-
+Nachläufe benötigen ihre jeweils vorgesehenen zentralen Laufbelege. Compile-
+first für Dogfooding ist keine Abnahme dieser Daten-/I/O-/Reauth-Pfade.
 
 ## Entscheidung und Umfang
 
@@ -57,12 +64,13 @@ stillschweigend Teil dieses Kandidaten.
 Alle Tests verwenden synthetische Daten, Fake-HTTP oder Loopback und isolierte
 Profile. Keine Live-Providerabnahme und keine Tests gegen das persönliche Profil.
 
-## Quellstand im kombinierten Kandidaten
+## Historischer Quellstand im kombinierten Kandidaten
 
-„Enthalten“ bezeichnet hier die Quellen in `b0989074`, nicht eine bestandene
-vollständige Abnahme oder schon erfolgte Root-Übernahme. Die bisherigen
-Codex-Funktionen sind über Root `cf147f7f`, Wave3 über den festen Liefer-SHA
-`0fc7c5cf` enthalten; keine doppelte offene Implementierung daraus ableiten.
+Die folgende Tabelle bewahrt den Quellstand des früheren Kandidaten `b0989074`.
+„Enthalten“ bezeichnet dort die damalige Quelle, nicht den aktuellen Root und
+nicht eine bestandene vollständige Abnahme. Der aktuelle Bezugsstand ist oben
+mit `eb015068` dokumentiert; Wave3 `0fc7c5cf` ist darin vollständig enthalten.
+Keine doppelte offene Implementierung aus der historischen Herkunft ableiten.
 
 | Bereich | Im Kandidaten enthaltener Quellstand | Abgrenzung |
 | --- | --- | --- |
@@ -78,14 +86,16 @@ Codex-Funktionen sind über Root `cf147f7f`, Wave3 über den festen Liefer-SHA
 | Help / Locales | EN/DE-Hilfe für Settings/WP/Status/WV12, konfigurierbaren Cooldown (`9563892e`) und tatsächliche BP2-Seite/Anzeige/Navigation (`d211c18c`) sowie Footer-/Mehr-/Settings-/Header-Nachpflege (`e6ab24da`). Neue Settings-/WV-/Quellen-/BP2-/BP3-Schlüssel in EN/DE und zehn zusätzlichen Packs; auch HTML-Export-Ergänzungen aus `5b467df1` sind Vorfahren des Bezugsstands. | Wave3-Sprach-/Plural-/Icon-Nachläufe sind enthalten; die unten genannten neuen Help-Sätze bleiben nachzupflegen. Kein globaler Help-/Sprach-/Muttersprachler-PASS. F1 kann eine wirksame Belegung trotz ausgeblendeter Booru-Seite weiter nennen; das macht das Ziel nicht verfügbar. |
 | Paketierung / API | Öffentliche Plugin-Allowlist und physische Alias-/Zielbaumkontrolle (`a32f203b`), AP04 strikt gegen unbekannte Assets; dokumentierte Coreconsumer-Migration über `StartAsync(lease)`, [API-Review](releases/v1.1.0-api-review-current-2026-11-14.md) und echte SDK-/Core-/Host-/Paketconsumer-Zwischenbelege (unten). Die drei Python-Nachläufe sind in `cf147f7f` enthalten. | Private Plugins bleiben außerhalb öffentlicher Repo-/Releaseinputs. Alter profilgebundener Core-Startup wird beabsichtigt abgewiesen. Kein Endpaket-/Apphost-/echtes-1.0.2-Upgrade-PASS; finale Analyzer-/Consumerprüfung offen. |
 
-## Wave3 geliefert und zusammengeführt — gemeinsame Abnahme noch offen
+## Wave3 vollständig im Root enthalten — gemeinsame Abnahme noch offen
 
 Der frühere Zwischenanker `2a117ebf` und der damalige bewegliche Arbeitsstatus
 sind keine aktuelle Resteliste mehr. Claude hat den festen Stapel `0fc7c5cf`
-final geliefert; `b0989074` führt ihn mit dem neueren Codex-Root zusammen.
-Die separaten Claude-Läufe und deren Baseline-Einordnung bleiben Belege nur
-für ihre eigenen Stände. Insbesondere keine roten Tests durch bloße Berufung
-auf eine ältere Baseline als auf dem Merge-Kandidaten gelöst zählen.
+final geliefert; er ist im Root `eb015068` vollständig enthalten. Der frühere
+Merge-Kandidat `b0989074` bleibt historische Herkunft, der Follow-up-Kandidat
+`3479d67e` ist nicht Root. Die separaten Claude-Läufe und ihre Baseline-
+Einordnung bleiben Belege nur für ihre eigenen Stände. Insbesondere werden die
+acht G0120-Fails nicht durch Berufung auf ältere oder frisch gelieferte Quellen
+als gelöst gezählt.
 
 Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
 
@@ -104,16 +114,19 @@ Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
   Medien-Termset angepasst; Codex-M5 (Preloader/stat) und Claude-M5
   (Medienfilterraster) sind verschiedene enthaltene Pakete.
 
-**Noch kein Abschlussclaim:** Gemeinsamer Compile auf `b0989074` ist belegt; Root-FF und die Abnahme der danach integrierten Nachläufe stehen aus.
-Der Booru-Workbench-Window-Host ist auf diesem Pin noch nicht auf die
-MD3-Dialogfabrik portiert; der separate Nachlauf ist nicht als integriert zu
-zählen. Help-Nachpflege zu Markieren/Stempel und Stempelgröße, Tagging-Seite,
-Tagging-Modus und -Karten, Reader R8/R10, Viewer V4 Zoom/Drehen, Ordnerquellen, Profilen
-und Shortcuts-Fenster bleibt mit den tatsächlichen Produktpfaden abzugleichen.
-Die gelieferte neue Smoke-Registry (unter anderem `tagging-page`,
-`reader-media-sidebar`, `reader-inline-video`, `profile-switch`,
-`folder-source`, `status-deep-links`) braucht zentrale Ausführung, nicht nur
-Quellvorhandensein.
+**Noch kein Abschlussclaim:** G0121 belegt auf Root `eb015068` den Appbuild mit
+0 Fehlern und 5 Warnungen. G0120 belegt nur den fokussierten Lauf mit 293 total,
+285 PASS, 8 FAIL und 0 SKIP; die acht Fails und die zwei DesktopSessionHost-
+Brücken bleiben offen. Das ersetzt keine Vollsuite, private GUI- oder
+Plattformabnahme.
+
+Die frisch gelieferten Änderungen `85e41557` (Help) und `31ed0352` (Booru
+OutcomeTests) sind noch zentrale Integrationsarbeit ohne Runtime-PASS. Die
+Booru-Outcome-Korrektur aus `b5e16f2e` ist sachlich bestätigt; ihre native
+Runtime-/Shellgrenze bleibt ausdrücklich offen. Die gelieferte Smoke-Registry
+(unter anderem `tagging-page`, `reader-media-sidebar`, `reader-inline-video`,
+`profile-switch`, `folder-source`, `status-deep-links`) braucht zentrale
+Ausführung, nicht nur Quellvorhandensein.
 
 BooruMedia- und BooruComposition-Smoke-Fixtures sind auf den Seitenhost
 portiert (`dd6af97b`, `6e567e7a`). Die nachfolgenden Fixturekorrekturen
@@ -122,7 +135,7 @@ Clipboard mit exaktem kanonischem Inhalt und echtem Copy-Aufruf statt
 Fehlerstatus als Erfolg; Anzeige-Aus über den echten Shell-Schalter. Die
 frühere Aussage „Fixture-Nachlauf noch nicht integriert“ ist damit überholt.
 Ein kompilierendes Smokeprojekt auf älteren Ständen und diese Quellorakel sind
-**kein ausgeführter Smoke** des kombinierten Kandidaten. Native Pause-/
+**kein ausgeführter Smoke** des Root-Bezugsstands. Native Pause-/
 Serviceverlust-/Lifetime-Regressionen bleiben auszuführen.
 
 Produktiver Booru-Nachlauf auf dem Bezugsstand: Interaktions-/Auswahlrevisionen
@@ -143,7 +156,7 @@ andere Ignore-Änderungen werden weder pauschal übernommen noch zurückgesetzt.
 Kein belastbares Gesamtprozent und kein RC-Datum; Umfang und finale Abnahme
 werden nicht durch einen kompilierenden Dogfood-Build ersetzt.
 
-## Fertige commitgebundene Teilnachweise — keine Gesamtfreigabe
+## Commitgebundene Teilnachweise — aktuelle und historische Grenzen
 
 | Lauf / SHA | Fertiger, belegter Umfang | Ergebnis / Grenze |
 | --- | --- | --- |
@@ -361,51 +374,52 @@ Migration. Die Zwischenbelege schließen weder die finalen Analyzer-/Inventar-/
 Paketconsumer-Wiederholungen noch AP04, zwei Neustarts, material-change/
 Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
 
-## Offene Schritte bis zur finalen Release-Abnahme
+## Offene Gates
 
-1. **Gemeinsamer Build, Freeze und Herkunft:** zunächst `b0989074` gemeinsam
-   kompilieren und geschützt nach Root übernehmen; beides hier noch offen.
-   Danach eindeutiger SHA/Tree, frischer isolierter Candidate,
-   Quell-/Plugininventar, lokale Release-Pakete und Prüfsummen an denselben SHA
-   binden. Den absichtlich dirty Hauptcheckout nicht für ein Gate „aufräumen“.
-2. **Vollsuiten:** Core, Desktop und sämtliche Plugin-/Runtime-/Packaging-Suiten
-   einmal zentral auf diesem Stand; FAIL/SKIP vollständig bewerten. Ein
-   gefilterter PASS ersetzt die Vollsuite nicht.
-3. **Alle Registry-Smokes:** einschließlich Reader-/Galerie-/Statistik- und
-   Kompositionspfaden. `ui-refinement` war bereits vor b10 rot (selektierte
-   Antwortkarte im Light-Modus). Audio-Smokes benötigen die private
-   Audio-Umgebung; fehlt sie, ist das kein PASS. Die laufenden Smoke-Fixes müssen
-   anschließend auf dem endgültigen Kandidaten nachgeprüft werden.
-4. **AP04 Upgrade:** exakter released 1.0.2-Code
+1. **Aktueller Root-/Herkunftsbeleg:** Root `eb015068` ist der Dokumentations-
+   bezugsstand. G0121 ist nur ein Root-Appbuild-PASS (0 Fehler, 5 Warnungen);
+   der separate Kandidat `3479d67e` ist nicht Root. Die frischen Lieferungen
+   `85e41557` und `31ed0352` sind noch zentral zu integrieren.
+2. **G0120-Fehler:** Die acht fokussierten Fails (darunter die zwei
+   DesktopSessionHost-Brücken) bleiben sichtbar offen; kein späterer Quell-
+   oder Compilebeleg darf sie als behoben umetikettieren. Vollsuiten müssen
+   Core, Desktop sowie Plugin-/Runtime-/Packaging-Suiten zentral ausführen und
+   FAIL/SKIP vollständig bewerten. Ein gefilterter PASS ersetzt die Vollsuite
+   nicht.
+3. **SDK-/Altpluginrunner:** positiver Wiederholungslauf mit dauerhaft
+   erhaltener ausgeführter DLL; der bisherige Zwischenbeleg und die Runner-
+   Helfer ersetzen diese Evidenz nicht.
+4. **Reautorisierung:** die Matrix mit **14 Fällen / 98 Prozessaufrufen** muss
+   tatsächlich laufen. G0122 endete vor der Ausführung wegen `heavy.lock` und
+   liefert keine Produkt-Rotprobe.
+5. **AP04:** exakter released 1.0.2-Code
    `eec6c0169f8d52f7481ea0bf7febfd20981e97c3`, synthetisch damit geschriebenes
    Profil, Upgrade und zwei Offline-Neustarts; danach Writes/Readbacks und
-   byteidentisches `private-tags.v1.bak`. Runner/Checker liegen bereits im
-   Repository. Ein fehlender finaler Paketsatz bedeutet **SOURCE-ONLY**, niemals
-   Release-PASS. Keine echten Nutzerprofile.
-5. **AP04 Paketbezug:** Der veröffentlichte 1.0.2-Quellstand ist lokal gepinnt.
-   Ein optional mitgeliefertes Release-Artefakt wird lediglich gegen seine
-   Prüfsummen geprüft; dessen Apphost wird vom aktuellen Runner nicht gestartet.
-   Auch die 1.1.0-Paketbindung ist bislang ein Herkunftsnachweis, kein Ausführen
-   des gepackten Kandidaten. Der Runner weist diese Grenze ausdrücklich aus.
-   Endpakete und tatsächliche Packaged-Apphost-Abnahme bleiben separat offen.
-6. **API/Bestandsdaten:** Release-Inventarchecker, Compiler-Analyzer und
-   package-only Consumer erneut am finalen SHA/Paket mit dauerhaft erhaltenen
-   ausführbaren Artefakten. Die oben genannten Alt-SDK-/Core-/Hostbelege sind
-   Zwischenstände, kein finaler Kompatibilitäts- oder Upgrade-PASS. Aktuelle
-   Transfer-/Backupgrenzen (insbesondere Postfilter), Fehler- und Recoverypfade
-   prüfen; alle offenen Muss-Befunde ausräumen.
-7. **Nutzer-/Plattformabnahme:** Windows, macOS, Hardware, Skalierung, Tastatur
-   und Screenreader mit Tom. Linux-Unit- oder Xvfb-Tests ersetzen diese nicht.
-8. **Reautorisierung/material-change:** echten PluginSession-/Prozessablauf
+   byteidentisches `private-tags.v1.bak`. Runner/Checker liegen im Repository,
+   der finale Lauf bleibt offen. Keine echten Nutzerprofile.
+6. **AP04 Paketbezug:** Der veröffentlichte 1.0.2-Quellstand ist lokal gepinnt.
+   Ein optionales Release-Artefakt wird nur gegen Prüfsummen geprüft; die
+   Packaged-Apphost-Abnahme bleibt separat offen. SOURCE-ONLY ist kein
+   Release-PASS.
+7. **Private GUI-/Plattformabnahme:** Windows, macOS, Hardware, Skalierung,
+   Tastatur, Screenreader und die privaten GUI-/Plattformpfade mit Tom. Linux-
+   Unit- oder Xvfb-Tests ersetzen diese nicht. Auch die native Booru-Runtime-
+   Grenze bleibt offen.
+8. **Weitere Smoke-/API-/Bestandsdaten:** Registry-Smokes einschließlich
+   Reader-/Galerie-/Statistik- und Kompositionspfaden, Release-Inventarchecker,
+   Compiler-Analyzer und package-only Consumer am finalen SHA/Paket mit
+   dauerhaft erhaltenen ausführbaren Artefakten. Die Zwischenstände ersetzen
+   keine finale Kompatibilitäts-, Upgrade- oder Releaseabnahme.
+9. **Reautorisierung/material-change:** echten PluginSession-/Prozessablauf
    einschließlich Repair/Draft/Version/Rollback und geänderter Konfiguration
    ohne geerbte Zustimmung auf dem finalen Stand abnehmen. Altplugin-Load,
    Childworker-Aufruf und SDK-Paketconsumer ersetzen diesen Ablauf nicht.
-9. **Restentscheidungen:** Light-Fortschrittsspur auf Raised/Hover/AccentSurface
-   erreicht mit bisheriger Füllung nicht überall 3:1; keine stillschweigende
-   Abnahme. Die sieben zusätzlichen HTML-Export-Sprachen aus `5b467df1`
-   sind Vorfahren des Kandidaten, aber nicht dadurch
-   muttersprachlich abgenommen. Sprach- und Kontrastgrenzen dürfen nicht durch
-   einen pauschalen Release-PASS verdeckt werden.
+10. **Restentscheidungen:** Light-Fortschrittsspur auf Raised/Hover/AccentSurface
+    erreicht mit bisheriger Füllung nicht überall 3:1; keine stillschweigende
+    Abnahme. Die sieben zusätzlichen HTML-Export-Sprachen aus `5b467df1`
+    sind Vorfahren des Kandidaten, aber nicht dadurch muttersprachlich
+    abgenommen. Sprach- und Kontrastgrenzen dürfen nicht durch einen pauschalen
+    PASS verdeckt werden.
 
 ## Historische Belege bleiben historisch
 
