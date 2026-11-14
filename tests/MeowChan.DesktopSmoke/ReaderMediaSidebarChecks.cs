@@ -37,6 +37,12 @@ internal static class ReaderMediaSidebarChecks
             "Without the sidebar the pane lost its own Tab cycle.");
 
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        // R11: while the sidebar is off and the reader wide enough, its View-menu entry names the shortcut (and nothing turned it on).
+        MenuItem viewEntry = page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => (string?)item.Tag == "reader.sidebar.toggle");
+        string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("reader.sidebar.toggle");
+        Require(shortcut == null || ToolTip.GetTip(viewEntry) is string entryTip && entryTip.Contains(shortcut, StringComparison.Ordinal),
+            "The View entry of the sidebar does not show its shortcut while the sidebar is off.");
+        Require(!page.ReaderMedia.Sidebar && !page.IsMediaSidebarShown, "The discovery hint turned the sidebar on.");
         try
         {
             page.ToggleMediaSidebar();
@@ -74,6 +80,43 @@ internal static class ReaderMediaSidebarChecks
                 || sidebar.LiveText.Contains(Desktop.Localization.Texts.T("reader.sidebar.noMedia", last.Id), StringComparison.Ordinal));
             if (!last.ShowsMedia) Require(sidebar.StatusText.Length > 0, "A post without media shows no reason.");
 
+            // R11: several files in one post: the strip shows all of them (at most the configured number), the current one is marked and
+            // counted, a click or Enter on a thumbnail shows that file, a single-file post has no strip.
+            ArchivePostRow? several = rows.FirstOrDefault(row => row.ShowsMedia && row.Attachments.Count > 1);
+            if (several != null)
+            {
+                posts.SelectedItem = several;
+                await Program.WaitUntilAsync(() => page.MediaSidebarTask.IsCompleted);
+                await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
+                await page.MediaSidebarTask;
+                await page.MediaSidebarStripTask;
+                int count = several.Attachments.Count;
+                int shownFiles = Math.Min(count, page.ReaderMedia.Clamped().StripLimit);
+                Require(sidebar.StripVisible && sidebar.StripIndexes.Count == shownFiles, "The strip does not show the files of a post with several media.");
+                Require(sidebar.StripCurrent == page.MediaSidebarIndex && sidebar.Strip.SelectedIndex >= 0, "The strip does not mark the current file.");
+                Require(sidebar.StripCounterText == ReaderMediaMultiRules.CounterText(page.MediaSidebarIndex, count), "The strip counter is wrong.");
+                int next = Math.Min(count - 1, page.MediaSidebarIndex + 1);
+                sidebar.Strip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, Source = sidebar.Strip });
+                await Program.WaitUntilAsync(() => page.MediaSidebarIndex == next);
+                await page.MediaSidebarTask;
+                Require(sidebar.StripCurrent == next && sidebar.StripCounterText == ReaderMediaMultiRules.CounterText(next, count),
+                    "Choosing the next thumbnail did not move the mark and the counter.");
+                page.SelectMediaSidebarIndex(0);
+                await Program.WaitUntilAsync(() => page.MediaSidebarIndex == 0 && sidebar.StripCurrent == 0);
+                if (ReaderMediaMultiRules.UseGrid(page.ReaderMedia, count, several.Body))
+                    Require(several.MediaWidth > 0 && several.Attachments.All(row => row.ThumbnailWidth == ReaderMediaMultiRules.TileWidth(several.MediaWidth)),
+                        "A post with several images and little text is not laid out as a grid.");
+            }
+            ArchivePostRow? single = rows.FirstOrDefault(row => row.ShowsMedia && row.Attachments.Count == 1);
+            if (single != null)
+            {
+                posts.SelectedItem = single;
+                await Program.WaitUntilAsync(() => page.MediaSidebarTask.IsCompleted);
+                await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
+                await page.MediaSidebarTask;
+                Require(!sidebar.StripVisible && sidebar.StripCounterText.Length == 0, "A post with one file shows a strip.");
+            }
+
             // Right side.
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarRight = true });
             await Flush();
@@ -105,7 +148,7 @@ internal static class ReaderMediaSidebarChecks
         await Program.WaitUntilAsync(() => !host.IsVisible);
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
-        Console.WriteLine("SMOKE reader media sidebar: off by default, framed large reader, View-menu switch, follow with throttle, live region, right side, width collapse, Escape and return passed.");
+        Console.WriteLine("SMOKE reader media sidebar: off by default, framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
     }
 
     private static async Task Flush() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

@@ -573,8 +573,13 @@ public partial class ArchivePage : UserControl
         int textlessWidth = !stub && !context.HideMedia && post.Attachments is { Count: > 0 } && string.IsNullOrWhiteSpace(text)
             ? ReaderDisplayPreferences.EffectiveTextlessWidth(ReaderThumbnailWidth, _readerDisplayPreferences.Media, _largeReader)
             : 0;
+        // R11: several images and little text make a two-column grid (the media column keeps its width; each tile is half of it).
+        int shownImages = stub || context.HideMedia ? 0 : post.Attachments?.Count ?? 0;
+        bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text);
+        int columnWidth = textlessWidth > 0 ? textlessWidth : ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, _largeReader);
+        int tileWidth = grid ? ReaderMediaMultiRules.TileWidth(columnWidth) : textlessWidth;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
-            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task, textlessWidth)).ToArray());
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task, tileWidth)).ToArray());
         return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
@@ -596,7 +601,7 @@ public partial class ArchivePage : UserControl
             IsHighlighted = (verdict.Marks & ReaderPostMarks.Highlight) != 0,
             IsRevealed = (verdict.Marks & ReaderPostMarks.Revealed) != 0,
             MediaHidden = context.HideMedia && attachments.Count > 0,
-            MediaWidth = textlessWidth,
+            MediaWidth = grid ? columnWidth : textlessWidth,
             SuppressReplyToggle = context.SuppressReplyToggle
         };
     }
@@ -716,7 +721,7 @@ public partial class ArchivePage : UserControl
         ArchiveAttachmentRow row = new(attachment);
         // One decode at explicit bounds serves the ordinary preview, the enlarged focused card and the hover preview. Only the ordinary
         // size is kept by its bytes (a kept preview is leased at once, with no slot); the enlarged ones are held by their one view.
-        async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken)
+        async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken, bool small = false)
         {
             using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
             IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
@@ -729,7 +734,8 @@ public partial class ArchivePage : UserControl
             // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
             // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
             bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
-            string? key = large || !keep ? null : MediaTileThumbnails.ByteKey(match.Asset,
+            // The strip's small previews (a few KiB each) are kept even in the large reader; its large decodes are not.
+            string? key = large && !small || !keep ? null : MediaTileThumbnails.ByteKey(match.Asset,
                 video ? $"@poster{maximumWidth}x{maximumHeight}"
                     : maximumWidth == 240 && maximumHeight == 180 ? string.Empty
                     : $"@reader{maximumWidth}x{maximumHeight}");
@@ -752,6 +758,7 @@ public partial class ArchivePage : UserControl
                 ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
             LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
             LoadSized = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: false, cancellationToken),
+            LoadStripThumbnail = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: true, cancellationToken, small: true),
             ResolveEntry = async cancellationToken =>
             {
                 IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(cancellationToken);

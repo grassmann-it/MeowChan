@@ -1,0 +1,258 @@
+using System.Text.Json;
+using Avalonia.Input;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
+
+namespace MeowChan.DesktopTests;
+
+/// <summary>Posts with several files (R11): the two-column grid rules, the sidebar's thumbnail strip window, the settings and the discovery hint.</summary>
+[Collection("Localization")]
+public sealed class ReaderMultiMediaTests : IDisposable
+{
+    public ReaderMultiMediaTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
+    public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
+
+    // ---- settings ------------------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheDefaultsAreTwelveThumbnailsAndAGridForTwoHundredEightyCharacters()
+    {
+        Config config = new();
+        Assert.Equal(12, config.ReaderMediaStripLimit);
+        Assert.True(config.ReaderMediaGrid);
+        Assert.Equal(280, config.ReaderMediaGridTextLimit);
+        ReaderMediaPreferences media = ReaderMediaPreferences.From(config);
+        Assert.Equal(12, media.StripLimit);
+        Assert.True(media.MediaGrid);
+        Assert.Equal(280, media.GridTextLimit);
+        Assert.Equal(ReaderMediaPreferences.Default, media);
+    }
+
+    [Fact]
+    public void LimitsHaveDefaultMinimumAndMaximumAndAreClampedOnLoadAndRejectedByValidation()
+    {
+        Assert.Equal((2, 12, 40), (Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitDefault, Config.ReaderMediaStripLimitMaximum));
+        Assert.Equal((0, 280, 2000), (Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitDefault, Config.ReaderMediaGridTextLimitMaximum));
+        ReaderMediaPreferences clamped = (ReaderMediaPreferences.Default with { StripLimit = 1, GridTextLimit = 99999 }).Clamped();
+        Assert.Equal(2, clamped.StripLimit);
+        Assert.Equal(2000, clamped.GridTextLimit);
+        Config loaded = JsonSerializer.Deserialize<Config>("{\"ReaderMediaStripLimit\":999,\"ReaderMediaGridTextLimit\":-5}")!;
+        Assert.Equal(40, loaded.ReaderMediaStripLimit);
+        Assert.Equal(0, loaded.ReaderMediaGridTextLimit);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderMediaStripLimit = 1 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderMediaStripLimit = 41 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderMediaGridTextLimit = -1 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new Config { ReaderMediaGridTextLimit = 2001 }.Validate());
+    }
+
+    [Fact]
+    public void CloneAndBothCopiesKeepTheValues()
+    {
+        Config source = new() { ReaderMediaStripLimit = 7, ReaderMediaGrid = false, ReaderMediaGridTextLimit = 40 };
+        Config clone = source.Clone(), copy = new(), settings = new();
+        copy.CopyFrom(source);
+        settings.CopySettingsFieldsFrom(source);
+        foreach (Config config in new[] { clone, copy, settings })
+        {
+            Assert.Equal(7, config.ReaderMediaStripLimit);
+            Assert.False(config.ReaderMediaGrid);
+            Assert.Equal(40, config.ReaderMediaGridTextLimit);
+        }
+    }
+
+    [Fact]
+    public void TheGridChoicesRebuildThePostsAndTheStripLimitActsLive()
+    {
+        ReaderMediaPreferences baseline = ReaderMediaPreferences.Default;
+        Assert.True(baseline.SamePostImages(baseline with { StripLimit = 30 }));
+        Assert.False(baseline.SamePostImages(baseline with { MediaGrid = false }));
+        Assert.False(baseline.SamePostImages(baseline with { GridTextLimit = 100 }));
+        ReaderMediaPreferences off = baseline with { MediaGrid = false };
+        Assert.True(off.SamePostImages(off with { GridTextLimit = 100 }));
+    }
+
+    [Fact]
+    public void TheSettingsAreInTheReaderQuickSettings()
+    {
+        string[] ids = ReaderQuickSettings.Fields.Select(field => field.Id).ToArray();
+        Assert.Contains(SettingsFieldId.ReaderMediaStripLimit, ids);
+        Assert.Contains(SettingsFieldId.ReaderMediaGrid, ids);
+        Assert.Contains(SettingsFieldId.ReaderMediaGridTextLimit, ids);
+    }
+
+    // ---- the grid --------------------------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(2, "", true)]
+    [InlineData(4, "short text", true)]
+    [InlineData(2, "  padded  ", true)]
+    [InlineData(1, "", false)]
+    [InlineData(0, "", false)]
+    public void SeveralImagesAndLittleTextMakeAGrid(int files, string text, bool expected) =>
+        Assert.Equal(expected, ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default, files, text));
+
+    [Fact]
+    public void TheTextLimitIsInclusiveCountsTrimmedCharactersAndZeroMeansNoText()
+    {
+        ReaderMediaPreferences media = ReaderMediaPreferences.Default with { GridTextLimit = 10 };
+        Assert.True(ReaderMediaMultiRules.UseGrid(media, 3, new string('x', 10)));
+        Assert.False(ReaderMediaMultiRules.UseGrid(media, 3, new string('x', 11)));
+        Assert.True(ReaderMediaMultiRules.UseGrid(media, 3, "   " + new string('x', 10) + "\n\n"));
+        ReaderMediaPreferences none = ReaderMediaPreferences.Default with { GridTextLimit = 0 };
+        Assert.True(ReaderMediaMultiRules.UseGrid(none, 2, " \n "));
+        Assert.False(ReaderMediaMultiRules.UseGrid(none, 2, "a"));
+        Assert.True(ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default, 2, null));
+    }
+
+    [Fact]
+    public void TheGridSwitchTurnsItOffAndAnOutOfRangeLimitIsClamped()
+    {
+        Assert.False(ReaderMediaMultiRules.UseGrid(ReaderMediaPreferences.Default with { MediaGrid = false }, 4, ""));
+        ReaderMediaPreferences wild = ReaderMediaPreferences.Default with { GridTextLimit = int.MaxValue };
+        Assert.True(ReaderMediaMultiRules.UseGrid(wild, 2, new string('x', 2000)));
+        Assert.False(ReaderMediaMultiRules.UseGrid(wild, 2, new string('x', 2001)));
+    }
+
+    [Theory]
+    [InlineData(360, 176)]
+    [InlineData(240, 116)]
+    [InlineData(540, 266)]
+    [InlineData(17, 4)]
+    [InlineData(8, 1)]
+    [InlineData(0, 1)]
+    public void TwoTilesAndTheGapFillTheMediaColumn(int column, int tile)
+    {
+        Assert.Equal(tile, ReaderMediaMultiRules.TileWidth(column));
+        if (column >= 17) Assert.True(2 * tile + ReaderMediaMultiRules.GridSpacing <= column);
+    }
+
+    // ---- the strip window --------------------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(0, 4, 12, -1, 0, 4)]
+    [InlineData(3, 4, 12, -1, 0, 4)]
+    [InlineData(0, 30, 12, -1, 0, 12)]
+    [InlineData(15, 30, 12, -1, 9, 12)]
+    [InlineData(29, 30, 12, -1, 18, 12)]
+    [InlineData(5, 30, 12, 0, 0, 12)]
+    [InlineData(12, 30, 12, 0, 6, 12)]
+    [InlineData(8, 30, 12, 3, 3, 12)]
+    [InlineData(2, 30, 12, 3, 0, 12)]
+    [InlineData(1, 30, 1, -1, 0, 2)]
+    [InlineData(4, 100, 999, -1, 0, 40)]
+    [InlineData(0, 0, 12, -1, 0, 0)]
+    public void TheWindowKeepsTheCurrentFileInsideAndStaysPutWhileItDoes(int current, int count, int limit, int previous, int start, int length) =>
+        Assert.Equal((start, length), ReaderMediaMultiRules.Window(current, count, limit, previous));
+
+    [Fact]
+    public void SteppingThroughAPostNeverLeavesTheWindowWithoutMovingItOnce()
+    {
+        int start = -1;
+        List<int> starts = new();
+        for (int current = 0; current < 30; current++)
+        {
+            (int next, int length) = ReaderMediaMultiRules.Window(current, 30, 10, start);
+            Assert.InRange(current, next, next + length - 1);
+            if (next != start) starts.Add(next);
+            start = next;
+        }
+        Assert.Equal(starts.Order(), starts);
+        Assert.Equal(starts.Distinct().Count(), starts.Count);
+        Assert.True(starts.Count <= 30 / 5 + 2, string.Join(",", starts));
+    }
+
+    [Fact]
+    public void TheStripAppearsForMoreThanOneFile()
+    {
+        Assert.False(ReaderMediaMultiRules.ShowsStrip(0));
+        Assert.False(ReaderMediaMultiRules.ShowsStrip(1));
+        Assert.True(ReaderMediaMultiRules.ShowsStrip(2));
+    }
+
+    [Theory]
+    [InlineData(Key.Left, 2, 4, 1)]
+    [InlineData(Key.Right, 2, 4, 3)]
+    [InlineData(Key.Right, 3, 4, 3)]
+    [InlineData(Key.Left, 0, 4, 0)]
+    [InlineData(Key.Home, 2, 4, 0)]
+    [InlineData(Key.End, 0, 4, 3)]
+    [InlineData(Key.A, 2, 4, 2)]
+    public void StripKeysMoveThroughTheWholePostWithoutWrapping(Key key, int current, int count, int expected) =>
+        Assert.Equal(expected, ReaderMediaMultiRules.KeyTarget(current, count, key));
+
+    [Fact]
+    public void TheCounterAndTheItemNamesAreLocalized()
+    {
+        Assert.Equal("2 of 4", ReaderMediaMultiRules.CounterText(1, 4));
+        Assert.Equal("4 of 4", ReaderMediaMultiRules.CounterText(99, 4));
+        Assert.Equal("File 2 of 4: cat.jpg", ReaderMediaMultiRules.ItemName(1, 4, "cat.jpg"));
+        Assert.Equal("File 1 of 2: —", ReaderMediaMultiRules.ItemName(0, 2, ""));
+        Texts.SetLanguage("de");
+        Assert.Equal("2 von 4", ReaderMediaMultiRules.CounterText(1, 4));
+        Assert.Equal("Datei 2 von 4: cat.jpg", ReaderMediaMultiRules.ItemName(1, 4, "cat.jpg"));
+    }
+
+    // ---- discoverability -----------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void WhileTheSidebarIsOffAndTheReaderWideEnoughTheViewEntryNamesTheShortcut()
+    {
+        ReaderMediaPreferences off = ReaderMediaPreferences.Default;
+        string? hint = ReaderMediaMultiRules.DiscoveryHint(off, largeReader: true, readerWidth: 1600, "Ctrl+Shift+M");
+        Assert.NotNull(hint);
+        Assert.Contains("Ctrl+Shift+M", hint);
+        // An unknown width (not laid out yet) counts as wide enough; a user who removed the shortcut still gets the sentence.
+        Assert.Contains("Ctrl+Shift+M", ReaderMediaMultiRules.DiscoveryHint(off, true, 0, "Ctrl+Shift+M"));
+        string? withoutKey = ReaderMediaMultiRules.DiscoveryHint(off, true, 1600, null);
+        Assert.NotNull(withoutKey);
+        Assert.DoesNotContain("{", withoutKey);
+        Assert.Equal(withoutKey, ReaderMediaMultiRules.DiscoveryHint(off, true, 1600, "  "));
+    }
+
+    [Fact]
+    public void NoHintWhenTheSidebarIsOnTheReaderIsNarrowOrNotTheLargeReaderAndNothingTurnsOnByItself()
+    {
+        ReaderMediaPreferences off = ReaderMediaPreferences.Default;
+        Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off with { Sidebar = true }, true, 1600, "Ctrl+Shift+M"));
+        Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, largeReader: false, 1600, "Ctrl+Shift+M"));
+        Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, true, 1279, "Ctrl+Shift+M"));
+        Assert.NotNull(ReaderMediaMultiRules.DiscoveryHint(off, true, 1280, "Ctrl+Shift+M"));
+        // The default stays off and the hint never changes a preference.
+        Assert.False(new Config().ReaderMediaSidebar);
+        Assert.False(ReaderMediaSidebarRules.IsShown(off, true, 1920));
+    }
+
+    // ---- texts and work views ------------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void EveryNewTextExistsInEnglishAndGermanWithTheSamePlaceholders()
+    {
+        (string Key, int Placeholders)[] keys =
+        [
+            ("reader.sidebar.strip", 0), ("reader.sidebar.stripItem", 3), ("reader.sidebar.discover", 1), ("reader.sidebar.discoverNoKey", 0),
+            ("settings.reader.mediaStripLimit", 0), ("settings.reader.mediaStripLimit.hint", 0), ("settings.reader.mediaGrid", 0),
+            ("settings.reader.mediaGrid.hint", 0), ("settings.reader.mediaGridText", 0), ("settings.reader.mediaGridText.hint", 0)
+        ];
+        foreach (string language in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(language);
+            foreach ((string key, int placeholders) in keys)
+            {
+                string text = Texts.T(key, "a", "b", "c");
+                Assert.NotEqual(key, text);
+                Assert.True(text.Length > 3, key);
+                if (placeholders == 0) Assert.DoesNotContain("{", text);
+            }
+        }
+    }
+
+    // The strip is content of the sidebar the user turned on, like the inline video: no reader work-view row can reduce or hide it.
+    [Fact]
+    public void NoReaderWorkViewRowCanReduceTheStripOrTheImageGrid()
+    {
+        Assert.DoesNotContain(WorkViewPolicy.Entries, entry => entry.Page == WorkViewPage.Reader
+            && (entry.Id.Contains("strip", StringComparison.Ordinal) || entry.Id.Contains("grid", StringComparison.Ordinal)
+                || entry.Id.Contains("sidebar", StringComparison.Ordinal)));
+    }
+}
