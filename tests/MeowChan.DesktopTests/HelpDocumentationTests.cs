@@ -9,6 +9,8 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
+using MeowChan.Desktop.WorkViews;
+using MeowChan.Gallery;
 using MeowChan.Import;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
@@ -132,6 +134,53 @@ public sealed class HelpDocumentationTests
         Assert.Contains("**Plugins → Review bundled repairs**", text);
         Assert.DoesNotContain("Review bundled updates", text);
         Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
+    }
+
+    [Fact]
+    public void FooterAndIntegratedWorkViewHelpMatchesTheCurrentNavigationPolicies()
+    {
+        string defaults = Plain(Section(Read(Help), "Desktop view defaults"));
+        string[] groups = MainPageOrder.Groups
+            .Select(group => string.Join(", ", group.Select(id => CommandCatalog.Get(id).LabelEn)))
+            .ToArray();
+        foreach (string group in groups) Assert.Contains(group, defaults, StringComparison.Ordinal);
+        Assert.Contains("followed by More (German: Mehr) and Settings", defaults, StringComparison.Ordinal);
+        Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
+        Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
+
+        string workViews = Plain(Section(Read(Help), "Integrated work-view behavior (WV1–WV6)"));
+        (WorkViewPage Page, string Marker)[] integrated =
+        [
+            (WorkViewPage.Downloads, "WV1 Downloads"),
+            (WorkViewPage.Archive, "WV2 Archive"),
+            (WorkViewPage.Reader, "WV3 Reader"),
+            (WorkViewPage.Media, "WV5 Media"),
+            (WorkViewPage.Rules, "WV6 setup pages Rules"),
+            (WorkViewPage.Sources, "Sources"),
+            (WorkViewPage.Plugins, "Plugins")
+        ];
+        foreach ((WorkViewPage page, string marker) in integrated)
+        {
+            Assert.NotEmpty(WorkViewPolicy.Entries.Where(entry => entry.Page == page));
+            Assert.Contains(marker, workViews, StringComparison.Ordinal);
+        }
+
+        // These policies are still empty on the integrated checkout; Help must not turn their
+        // planned identifiers into shipped work-view claims.
+        foreach (WorkViewPage page in new[] { WorkViewPage.Gallery, WorkViewPage.Diagnostics, WorkViewPage.Statistics,
+            WorkViewPage.Settings, WorkViewPage.Dialogs })
+            Assert.Empty(WorkViewPolicy.Entries.Where(entry => entry.Page == page));
+        Assert.DoesNotContain("WV7", workViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("WV8", workViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("WV9", workViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("Gallery", workViews, StringComparison.Ordinal);
+
+        var showPlugin = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.manageSource");
+        var showSources = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.watches");
+        Assert.Contains(showPlugin.English, workViews, StringComparison.Ordinal);
+        Assert.Contains(showSources.English, workViews, StringComparison.Ordinal);
+        Assert.Contains("German: " + showPlugin.German, workViews, StringComparison.Ordinal);
+        Assert.Contains("German: " + showSources.German, workViews, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -296,6 +345,38 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
+    public void MediaSortBarHelpMatchesTheImplementedCriteriaAndDirectionRules()
+    {
+        string text = Plain(Section(Read(Help), "Images, search and navigation"));
+        Match list = Capture(text, @"On Media, the Order selector \(German: Sortierung\) offers (?<sorts>.*?)\. Every order");
+        string[] documented = Regex.Split(list.Groups["sorts"].Value, @",\s*|\s+and\s+");
+        Dictionary<string, string> labels = MediaLibraryCatalog.Entries
+            .Where(entry => entry.Key.StartsWith("media.sort.", StringComparison.Ordinal)
+                && entry.Key is not "media.sort.direction" and not "media.sort.direction.ascending"
+                and not "media.sort.direction.descending" and not "media.sort.direction.unavailable")
+            .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
+        string Key(MediaLibrarySort sort) => sort switch
+        {
+            MediaLibrarySort.ByThread => "media.sort.thread",
+            MediaLibrarySort.Newest => "media.sort.newest",
+            MediaLibrarySort.Random => "media.sort.random",
+            MediaLibrarySort.Captured => "media.sort.captured",
+            MediaLibrarySort.Name => "media.sort.name",
+            MediaLibrarySort.Size => "media.sort.size",
+            MediaLibrarySort.References => "media.sort.references",
+            MediaLibrarySort.TagCount => "media.sort.tagCount",
+            MediaLibrarySort.Rating => "media.sort.rating",
+            _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, null)
+        };
+        string[] expected = Enum.GetValues<MediaLibrarySort>().Select(sort => labels[Key(sort)]).ToArray();
+        Assert.Equal(expected, documented);
+        Assert.All(Enum.GetValues<MediaLibrarySort>(), sort => Assert.Equal(sort != MediaLibrarySort.Random, MediaLibraryView.HasDirection(sort)));
+        Assert.Contains("Every order except Random has a direction toggle between its default and reversed order", text, StringComparison.Ordinal);
+        Assert.Contains("Random has no direction toggle", text, StringComparison.Ordinal);
+        Assert.Contains("Shuffle again (German: Neu mischen) changes its stable shuffle seed", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void StatisticsHelpNamesTheDirectionalHeaderContractAndMeasurementLimits()
     {
         // The directional graph sources are part of the integrated I/O contract. This is a
@@ -309,6 +390,8 @@ public sealed class HelpDocumentationTests
         Assert.Contains("Auto keeps both available in every work view where the layout fits", text, StringComparison.Ordinal);
         Assert.Contains("application-payload and media-I/O counters, not operating-system totals", text, StringComparison.Ordinal);
         Assert.Contains("explicit layout can select Network, Disk or text without summing the categories", text, StringComparison.Ordinal);
+        Assert.Contains("The header renders Network as ↓ Down and ↑ Up, and Disk as R Read before W Write", text, StringComparison.Ordinal);
+        Assert.Contains("The visible header keeps the Network arrows (↓ Down, ↑ Up) and the Disk order (R Read, W Write)", text, StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
@@ -318,13 +401,20 @@ public sealed class HelpDocumentationTests
     [Fact]
     public void StatisticsCatalogAndHeaderValuesNameTheMeasurementLimits()
     {
-        // The catalogs are read as data (no language state); the display seams are the production header rules.
-        string[] names = ["stats.header.networkTitle", "stats.header.diskTitle", "stats.header.netValues", "stats.header.diskValues", "stats.footnote"];
+        // The catalogs are read as data (no language state), and the visible Help wording is pinned alongside the display seams.
+        string[] names = ["stats.header.networkTitle", "stats.header.diskTitle", "stats.header.netValues", "stats.header.diskValues",
+            "stats.header.readMark", "stats.header.writeMark", "stats.footnote"];
         Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
             .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
         Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
         Assert.Equal("Network", english["stats.header.networkTitle"]);
         Assert.Equal("Disk", english["stats.header.diskTitle"]);
+        Assert.Equal("↓ {0} ↑ {1}", english["stats.header.netValues"]);
+        Assert.Equal("R {0} W {1}", english["stats.header.diskValues"]);
+        Assert.Equal("R", english["stats.header.readMark"]);
+        Assert.Equal("W", english["stats.header.writeMark"]);
+        string documented = Plain(Section(Read(Help), "Statistics and disk traffic"));
+        Assert.Contains("The header renders Network as ↓ Down and ↑ Up, and Disk as R Read before W Write", documented, StringComparison.Ordinal);
         Assert.Contains("request payload", english["stats.footnote"], StringComparison.Ordinal);
         Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
         Assert.DoesNotContain("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);

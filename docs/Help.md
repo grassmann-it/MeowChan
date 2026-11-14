@@ -18,7 +18,7 @@ The supplied payload contains **24 plugins**: **19 source-plugin entries**
 with their source code available in the repository, not the application package.
 See the [packaged inventory](plugins/README.md#packaged-inventory) for the split;
 the entry count is not a count of usable or enabled sources. Open **Plugins**
-from the app menu or footer (under **Tools** in compact views), then select a
+from the app menu or footer (under **More** in compact views), then select a
 plugin to see its purpose, status and actions. The [plugin guide](plugins/README.md)
 and [first-session recipe](plugins/using-plugins.md#first-session) explain the
 supplied examples and how to add a trusted source file.
@@ -63,7 +63,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
 The header can show two separate I/O graphs: **Network I/O** (Down ↓ and Up ↑)
-and **Disk I/O** (Write and Read). Each direction remains a separate series; the
+and **Disk I/O** (Read R and Write W). Each direction remains a separate series; the
 categories are not summed. **Auto** keeps both categories available in every work
 view where the header layout fits; click the header rates or graphs to open
 **Statistics**. These are MeowChan application-payload and media-I/O measurements,
@@ -78,14 +78,50 @@ back to **Barebones**. A valid saved **Barebones**, **Simple** or **Advanced**
 choice, including one recovered from a valid settings backup, remains unchanged.
 Use the footer view selector to switch.
 
-In 1.0, **Tools** contains only destinations that are not already shown in the
-footer. Advanced shows all destinations, including Plugins, directly when there
-is enough room; a narrow window moves the extra destinations into Tools.
+The footer groups destinations as **Work** (Downloads, Archive, Media), **Set up**
+(Rules, Sources, Plugins) and **Observe** (Diagnostics, Statistics), followed by
+**More** (German: **Mehr**) and **Settings**. The current work view and available
+width decide which destinations stay directly in the footer. **More** contains
+only destinations moved out of the footer; it does not duplicate Downloads or
+Settings. Advanced shows all main destinations directly when there is enough room;
+a narrow window moves the extra destinations into More. The app menu uses the same
+page order and groups.
+
 **Continue reading** (German: **Weiterlesen**) is a book icon immediately left
 of Pause in the header, with a labelled entry in the app menu. The icon appears
 when the feature is enabled and a saved reading position is known; it is hidden
 while the reader or gallery is visible. When no icon is shown on Downloads or
 the archive list, use the app-menu entry to check the reading-position state.
+
+### Integrated work-view behavior (WV1–WV6)
+
+The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
+**WV3 Reader**, **WV5 Media**, and the **WV6** setup pages **Rules**, **Sources**
+and **Plugins**. Barebones, Simple and Advanced change how much of these pages is
+shown, not whether their data can be reached. A reduced action remains under the
+page's **More** (German: **Mehr**) or **More filters** surface, and its shortcut
+continues to work. Data, applied filters, validation or integrity warnings, and
+other safety state stay reachable on the page.
+
+- **Downloads:** the URL intake, thread identity and progress remain available;
+  list tools such as search, columns, copied URLs and details can move into **More**.
+- **Archive:** search, applied filters and result state remain visible. Reduced
+  filter fields use **More filters**; result actions such as layout, favorites,
+  columns, HTML export, reader groups, saved searches and bookmarks remain
+  reachable from the page.
+- **Reader:** the way back, state messages, tabs and saved-media data stay
+  available. Reader tools and media-tab actions can move into the same **More**
+  menu without hiding capture, live-follow, errors or active state.
+- **Media:** search, filter state and the **Order** bar stay available. Refresh,
+  shuffling, export and less common filters move to **More** or **More filters**;
+  active filters and selections remain visible.
+- **Rules, Sources and Plugins:** the edited scope, fields and Save/Discard
+  remain available in Rules; source identity, integrity consent, observed watches
+  and errors remain available in Sources; plugin repair, activation and draft
+  safety state remain available in Plugins. Less common actions have a labelled
+  **More** route. In Sources, **Show plugin** (German: **Plugin anzeigen**) opens
+  the providing plugin; in Plugins, **Show in Sources** (German: **In Quellen
+  anzeigen**) returns to its sources.
 
 ### Language packs
 
@@ -356,7 +392,7 @@ original and **Ctrl+O** the file in its folder. In the large reader, **F3** and
 Text fields and embedded controls retain their own keys. Across the workspace,
 Ctrl+L focuses the URL input, Ctrl+, opens Settings and Ctrl+F focuses the active
 page's local search field. Ctrl+1 through Ctrl+8 open Downloads, Archive, Media,
-Rules, Sources, Diagnostics, Plugins and Statistics in exactly that order; the footer, the menus
+Rules, Sources, Plugins, Diagnostics and Statistics in exactly that order; the footer, the menus
 and the F1 help use the same order, and every footer button names its shortcut in
 its tooltip. Ctrl+Shift+P pauses and resumes like the header button; it remains
 unavailable while a pause transition is in progress. These direct page and pause
@@ -587,7 +623,7 @@ exact diagnostic text; changed error details can represent a separate occurrence
 
 ### Statistics and disk traffic
 
-Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **Tools** or the app
+Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **More** or the app
 menu, or by clicking the header graph. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
 media-I/O counters, not operating-system totals. **Network I/O (`NetworkIo`)** keeps
@@ -595,8 +631,10 @@ Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Write and Read
 separate as well. Each category has its own scale, and retries or failed transfers
 can contribute bytes without a saved file. The header uses the same directional
 categories; **Auto** keeps both available in every work view where the layout fits.
-These counters are separate from saved/selected media progress.
-**Reset statistics** asks for confirmation before clearing the counters, not media.
+These counters are separate from saved/selected media progress. The header renders
+Network as **↓** Down and **↑** Up, and Disk as **R** Read before **W** Write;
+the directions are never combined. **Reset statistics** asks for confirmation before
+clearing the counters, not media.
 
 Settings → **Behavior → Statistics** controls the sampling and persistence:
 
@@ -624,8 +662,10 @@ Further sources beyond the row limit are grouped as **Other sources**.
 (`DiskIo`)** available in every work view where the layout fits. Down and Up remain
 separate network directions; Write and Read remain separate disk directions. An
 explicit layout can select Network, Disk or text without summing the categories or
-claiming system-wide traffic. The Statistics page keeps its directional histories
-regardless of this setting.
+claiming system-wide traffic. The visible header keeps the Network arrows (**↓** Down,
+**↑** Up) and the Disk order (**R** Read, **W** Write) even when the graph layout
+changes. The Statistics page keeps its directional histories regardless of this
+setting.
 These controls do not alter
 provider limits, download rules or the saved-media progress count.
 
@@ -830,6 +870,12 @@ available images, including images from posts that did not match the text.
 Double-clicking one result thread opens only that thread. Changing filters or
 new archive arrivals does not silently replace an already opened sequence;
 close and reopen to take a new result snapshot.
+
+On **Media**, the **Order** selector (German: **Sortierung**) offers **By thread**,
+**Newest first**, **Random**, **Captured**, **File name**, **Size**, **References**,
+**Tag count** and **Rating**. Every order except **Random** has a direction toggle
+between its default and reversed order. **Random** has no direction toggle;
+**Shuffle again** (German: **Neu mischen**) changes its stable shuffle seed.
 
 ### Reading posts as cards
 
