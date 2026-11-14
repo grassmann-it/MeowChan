@@ -538,6 +538,7 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p 'test_macos*.py' -v
           python3 -m unittest discover -s tests -p test_desktop_package.py -v
+          python3 -m unittest discover -s tests -p test_public_package_alias_privacy.py -v
           python3 -m unittest discover -s tests -p test_plugin_packaging.py -v
           python3 -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Read product version
@@ -766,6 +767,7 @@ jobs:
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_documentation.py -v
           # Offline alias/freeze composition only; these are not a real AP04 upgrade run.
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_check_desktop_package_root_alias_regressions.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_public_package_alias_privacy.py -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_package_plugins_alias_frozen_regressions.py -v
       - name: Read product version
         id: metadata
