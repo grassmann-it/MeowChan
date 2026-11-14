@@ -1349,7 +1349,7 @@ public sealed class HelpDocumentationTests
             Assert.Contains(phrase, text, StringComparison.Ordinal);
         string media = Read("Desktop/Booru/MainWindow.BooruMedia.cs");
         Assert.Contains("ConfigureBooruMediaLinks(BooruPage page) => ConfigureBooruMediaLinks(page.View)", media, StringComparison.Ordinal);
-        Assert.Contains("view.ShowInMedia = ShowBooruPostInMediaAsync;", media, StringComparison.Ordinal);
+        Assert.Contains("view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);", media, StringComparison.Ordinal);
         Assert.Contains("page.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench)", media, StringComparison.Ordinal);
         Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
         Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);

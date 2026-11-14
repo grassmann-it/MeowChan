@@ -153,9 +153,12 @@ public sealed partial class MediaPage
             _returnRun = null;
             NoteBooruHandoffInteraction();
         }
-        // Text may arrive through IME/accessibility without a key event, before the debounced query.
-        _nameFilter.TextChanged += (_, _) => NoteBooruHandoffInteraction();
-        _sort.SelectionChanged += (_, _) => NoteBooruHandoffInteraction();
+        // The filter row owns the synchronous TextChanging hook. A deferred TextChanged from an
+        // expected programmatic reset must not cancel the navigation after _localizing has ended.
+        _sort.SelectionChanged += (_, _) =>
+        {
+            if (!_restoringSort) NoteBooruHandoffInteraction();
+        };
         AddHandler(PointerPressedEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerWheelChangedEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);

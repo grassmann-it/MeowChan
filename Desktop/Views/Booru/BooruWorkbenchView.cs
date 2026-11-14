@@ -894,6 +894,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private bool IsCurrentLinkAction(long revision) =>
         !_closed && Volatile.Read(ref _linkActionRevision) == revision;
 
+    /// <summary>
+    /// Retires only the current host navigation's notice continuation. User takeover is not a
+    /// missing original, and an old cancellation must never invalidate a newer link action.
+    /// </summary>
+    internal Action CaptureLinkActionCancellation()
+    {
+        long revision = Volatile.Read(ref _linkActionRevision);
+        return () => Interlocked.CompareExchange(ref _linkActionRevision, unchecked(revision + 1), revision);
+    }
+
     private void SetLinkNote((string Key, string Argument, bool Problem)? state)
     {
         if (!TryBeginLinkAction(out long revision)) return;

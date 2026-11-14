@@ -24,7 +24,7 @@ public partial class MainWindow
 
     private void ConfigureBooruMediaLinks(BooruWorkbenchView view)
     {
-        view.ShowInMedia = ShowBooruPostInMediaAsync;
+        view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
     }
 
@@ -51,24 +51,37 @@ public partial class MainWindow
         { return null; }
     }
 
-    private async Task<bool> ShowBooruPostInMediaAsync(string postId)
+    private async Task<bool> ShowBooruPostInMediaAsync(BooruWorkbenchView origin, string postId)
     {
-        if (!CanOpenBooru || !IsSavedBooruPost(postId) || _mediaPage is not { } page
-            || _booruPage is not { } sourcePage) return false;
+        Action cancelNotice = origin.CaptureLinkActionCancellation();
+        bool Cancelled() { cancelNotice(); return false; }
+        if (!CanOpenBooru || _mediaPage is not { } page || _booruPage is not { } sourcePage
+            || !ReferenceEquals(sourcePage.View, origin)) return Cancelled();
+        // Only an admitted, current click may report that its saved original is missing.
+        if (!IsSavedBooruPost(postId)) return false;
         BooruWorkbenchServices services = sourcePage.Services;
-        if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return false;
+        if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return Cancelled();
         Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();
         Func<bool> interactionCurrent = page.CaptureBooruHandoffInteraction();
         bool Current() => navigationCurrent() && CanOpenBooru
             && ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services);
         // This is a local page-to-page handoff. If navigation or source composition changes
         // while Media activates, the old click must not reset the user's new filters or focus.
-        Activate();
-        await page.ActivateAsync().ConfigureAwait(true);
-        // The user may have edited the still-visible library while activation rebuilt its index.
-        // Those edits win over the old Booru click. The page's present/focus guard takes over below.
-        if (!Current() || !interactionCurrent()) return false;
-        bool shown = await page.ShowBooruPostAsync(postId, Current).ConfigureAwait(true);
-        return Current() && shown;
+        try
+        {
+            Activate();
+            await page.ActivateAsync().ConfigureAwait(true);
+            // User edits win even when the old workbench remains alive behind the Media page.
+            if (!Current() || !interactionCurrent()) return Cancelled();
+            bool shown = await page.ShowBooruPostAsync(postId, Current).ConfigureAwait(true);
+            if (!Current() || !interactionCurrent()) return Cancelled();
+            return shown;
+        }
+        catch (Exception error) when (error is not OutOfMemoryException && (!Current() || !interactionCurrent()))
+        {
+            // A retired navigation has no authority to publish either a missing-file or an error
+            // notice. A current failure still propagates to the view's honest navigationFailed path.
+            return Cancelled();
+        }
     }
 }
