@@ -260,7 +260,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
         Content = _column;
-        DataContextChanged += (_, _) => { _missing = false; Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        DataContextChanged += (_, _) => { _missing = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             Rect bounds = new(Bounds.Size);
@@ -282,7 +282,21 @@ public sealed class ArchiveAttachmentView : UserControl
     }
 
     private readonly AttachmentColumn _column;
+    private ArchiveAttachmentRow? _aspectSource;
     private ReaderInlineVideoSlot? _inlineVideo;
+
+    // A size the reader learns while the row is shown (header read, preload) reserves the frame at once, before the pixels arrive.
+    private void WatchAspect(ArchiveAttachmentRow? row)
+    {
+        if (_aspectSource != null) _aspectSource.KnownAspectChanged -= OnKnownAspectChanged;
+        _aspectSource = row;
+        if (row != null) row.KnownAspectChanged += OnKnownAspectChanged;
+    }
+
+    private void OnKnownAspectChanged()
+    {
+        if (DataContext is ArchiveAttachmentRow row && ReferenceEquals(row, _aspectSource)) SetFrame(row.LargePreview, row.KnownAspect);
+    }
     private DispatcherTimer? _autoplay;
 
     /// <summary>The inline video of this attachment (smoke seam); null until it was offered once.</summary>
@@ -466,7 +480,9 @@ public sealed class ArchiveAttachmentView : UserControl
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             _missing = false;
             UpdateLabel();
-            if (MediaSlotGeometry.AspectOf(bitmap) is { } aspect) { row.KnownAspect = aspect; SetFrame(row.LargePreview, aspect); }
+            // A reserved size this picture agrees with stays exact (no fractional move); only a different picture changes the frame.
+            if (bitmap != null && ReaderPreviewReservation.Settle(row.KnownAspect, bitmap.PixelSize.Width, bitmap.PixelSize.Height) is { } aspect)
+            { row.KnownAspect = aspect; SetFrame(row.LargePreview, aspect); }
             _bitmap = bitmap;
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;

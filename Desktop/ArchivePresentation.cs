@@ -72,10 +72,32 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     /// </summary>
     public Func<CancellationToken, Task<MeowChan.Gallery.GalleryEntry?>>? ResolveEntry { get; init; }
     /// <summary>
-    /// Width over height of the thumbnail once one was loaded (the capture records no pixel size). The preview frame follows it and keeps
-    /// it when the pixels are released, so a post's height changes once on the first load and not again on scrolling.
+    /// Width over height of the picture as shown (the capture records no pixel size). The reader sets it before the row is shown from
+    /// the session's size memory or a header read of the saved file (<see cref="ReaderPreviewReservation"/>), otherwise the first loaded
+    /// thumbnail does. The preview frame follows it and keeps it when the pixels are released, so a post's height does not change when
+    /// the picture arrives or on scrolling. A change notifies <see cref="KnownAspectChanged"/> and is remembered through <see cref="RememberAspect"/>.
     /// </summary>
-    public double? KnownAspect { get; set; }
+    public double? KnownAspect
+    {
+        get => _knownAspect;
+        set
+        {
+            if (Nullable.Equals(_knownAspect, value)) return;
+            _knownAspect = value;
+            if (value is double aspect) RememberAspect?.Invoke(aspect);
+            KnownAspectChanged?.Invoke();
+        }
+    }
+    private double? _knownAspect;
+    /// <summary>Raised on the UI thread when <see cref="KnownAspect"/> changes (a shown view reserves the new frame at once).</summary>
+    public event Action? KnownAspectChanged;
+    /// <summary>Stores a learned aspect in the session's size memory (set by the reader page; null elsewhere).</summary>
+    public Action<double>? RememberAspect { get; set; }
+    /// <summary>
+    /// Decodes the ordinary preview ahead of time at background priority, kept in the shared preview cache like a visible one; null where
+    /// nothing is preloaded (the lists, the large reader). The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
+    /// </summary>
+    public Func<CancellationToken, Task<Bitmap?>>? PrefetchThumbnail { get; init; }
     /// <summary>
     /// Decodes a small preview at explicit bounds that is kept by its bytes even in the large reader (the sidebar's thumbnail strip);
     /// null in the lists. The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
