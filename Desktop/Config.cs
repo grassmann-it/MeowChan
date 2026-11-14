@@ -557,6 +557,16 @@ namespace MeowChan
         public string? PluginEditorExecutable { get; set; }
         public string[] PluginEditorArguments { get; set; } = ["{file}"];
 
+        /// <summary>
+        /// The stamp set of quick tagging (PT5): own tag names in stamp order that every tag surface offers first and gives to the
+        /// shown medium with one key. A direct view preference (saved when the stamp changes), not a limit; its length is bounded by
+        /// the stamp size, and invalid or repeated names are dropped when it is read (<c>QuickTagStamp</c>). Replaced by the stamp of
+        /// <c>tag-queue.json</c> once the tagging queue ships.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] TagStamp { get => _tagStamp; set => _tagStamp = value ?? []; }
+        private string[] _tagStamp = [];
+
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string Theme
@@ -1366,6 +1376,7 @@ namespace MeowChan
                 ShortcutBindings = ShortcutBindings.Clone(),
                 PluginEditorExecutable = PluginEditorExecutable,
                 PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
+                TagStamp = (string[])TagStamp.Clone(),
                 Theme = Theme,
                 Animations = Animations,
                 Language = Language,
@@ -1588,6 +1599,7 @@ namespace MeowChan
             StatusPageSegment = source.StatusPageSegment;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
+            TagStamp = (string[])source.TagStamp.Clone();
             LoadWarning = source.LoadWarning;
             LoadProblem = source.LoadProblem;
             LoadDisabledSourceGrants = source.LoadDisabledSourceGrants;
@@ -2002,6 +2014,40 @@ namespace MeowChan
         }
 
         public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) => writer.WriteStringValue(value);
+    }
+
+    /// <summary>
+    /// A list of names kept as a view preference (the tag stamp): a damaged value (not an array, other element types) never fails the
+    /// whole settings file; it reads as the strings that are there, at most <see cref="MaximumItems"/> of them.
+    /// </summary>
+    internal sealed class DesktopPreferenceNameListConverter : JsonConverter<string[]>
+    {
+        internal const int MaximumItems = 64;
+        public DesktopPreferenceNameListConverter() { }
+        public override bool HandleNull => true;
+
+        public override string[] Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartArray)
+            {
+                reader.Skip();
+                return [];
+            }
+            List<string> items = new();
+            while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+            {
+                if (reader.TokenType == JsonTokenType.String && items.Count < MaximumItems && reader.GetString() is { } text) items.Add(text);
+                else reader.Skip();
+            }
+            return items.ToArray();
+        }
+
+        public override void Write(Utf8JsonWriter writer, string[] value, JsonSerializerOptions options)
+        {
+            writer.WriteStartArray();
+            foreach (string item in value ?? []) writer.WriteStringValue(item);
+            writer.WriteEndArray();
+        }
     }
 
     internal sealed class DesktopPreferenceBooleanConverter : JsonConverter<bool>
