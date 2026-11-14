@@ -427,7 +427,12 @@ internal sealed class VideoScrubPreviewCache
     internal async Task<byte[]?> ReadAsync(VideoScrubFrameKey key, CancellationToken token)
     {
         if (_readOverride is { } readOverride)
-            return await readOverride(key, token).ConfigureAwait(false);
+        {
+            // The seam stands in for the file read, so it gets the same optional-miss handling as the real one below.
+            try { return await readOverride(key, token).ConfigureAwait(false); }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+        }
 
         string path = PathOf(key);
         SharedDirectoryState state = _state;
