@@ -306,7 +306,7 @@ public static class CommandCatalog
         new("about.show-credits", "command.about.show-credits", "Acknowledgements", "Danksagungen", "heart", null, CommandScope.About, new[] { "about-navigation" }),
         new("about.show-licenses", "command.about.show-licenses", "Licenses", "Lizenzen", "file-text", null, CommandScope.About, new[] { "about-navigation" }),
         new("export.start-originals", "command.export.start-originals", "Export originals", "Originale exportieren", "download", null, CommandScope.Dialog, new[] { "original-export-dialog" }),
-        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list" }, new[] { "downloads", "archive", "plugins" }),
+        new("menu.context-open", "command.menu.context-open", "Open context menu", "Kontextmenü öffnen", "more-horizontal", "Shift+F10", CommandScope.Archive | CommandScope.Downloads | CommandScope.Settings, new[] { "downloads-thread-list", "downloads-board-list", "archive-card-list", "archive-table", "plugins-list", "header-io-monitor" }, new[] { "downloads", "archive", "plugins", "header-io-monitor" }),
     };
     private static readonly IReadOnlyDictionary<string, CommandDefinition> ById =
         new ReadOnlyDictionary<string, CommandDefinition>(Entries.ToDictionary(x => x.Id, StringComparer.Ordinal));

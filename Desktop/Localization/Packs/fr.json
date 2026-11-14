@@ -4285,6 +4285,9 @@
     "help.shortcuts.p1": "Deux actions sont en conflit lorsqu’elles peuvent être actives en même temps et utilisent la même combinaison de touches. Elles restent alors toutes deux désactivées jusqu’à ce que vous en modifiiez une.",
     "help.shortcuts.li1": "Réattribuer donne la combinaison à l’action que vous modifiez et la retire à l’autre.",
     "help.shortcuts.li2": "Une nouvelle touche par défaut ne remplace jamais une touche que vous avez enregistrée vous-même.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "Ouvrir les statistiques",
+    "header.io.menu.settings": "Paramètres : statistiques…",
+    "header.io.menu.name": "Affichage réseau et disque"
   }
 }

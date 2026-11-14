@@ -197,6 +197,10 @@ internal static partial class SmokeScenarios
             Configure = config => { config.WorkspaceMode = "Advanced"; config.StatsSampleIntervalMs = StatisticsChecks.SampleIntervalMs; }
         },
         ["status-deep-links"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatusDeepLinkChecks.RunAsync(mainWindow)),
+        ["context-menus-header"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ContextMenusHeaderChecks.RunAsync(mainWindow))
+        {
+            Configure = config => { config.WorkspaceMode = "Advanced"; config.StatsHeaderGraph = "Auto"; }
+        },
         ["picker-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPickerLifetimeChecks.RunAsync(mainWindow)),
         ["settings-category"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsCategoryChecks.RunAsync(mainWindow)),
         ["settings-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsSearchChecks.RunAsync(mainWindow)),

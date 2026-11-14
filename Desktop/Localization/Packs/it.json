@@ -4291,6 +4291,9 @@
     "help.shortcuts.p1": "Due azioni sono in conflitto quando possono essere attive nello stesso momento e usano la stessa combinazione di tasti. Restano entrambe disattivate finché non ne modifichi una.",
     "help.shortcuts.li1": "Rileva assegna la combinazione all’azione che stai modificando e la toglie all’altra.",
     "help.shortcuts.li2": "Un nuovo tasto predefinito non sostituisce mai un tasto che hai salvato tu.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "Apri statistiche",
+    "header.io.menu.settings": "Impostazioni: statistiche…",
+    "header.io.menu.name": "Indicatore di rete e disco"
   }
 }

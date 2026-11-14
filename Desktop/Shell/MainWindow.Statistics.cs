@@ -16,6 +16,7 @@ public partial class MainWindow
         _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
         _statisticsPage.DiagnosticsRequested += OnStatisticsDiagnosticsRequested;
         _statusPage?.AttachStatistics(_statisticsPage); // the statistics segment of the Status page
+        InitializeHeaderIoMenu(); // right-click / Menu key on the header display (MainWindow.HeaderMenu.cs)
     }
 
     // An error count of the statistics table leads to the diagnostics segment: the source's problems (the source filter set,

@@ -4200,6 +4200,9 @@
     "help.shortcuts.p1": "两个操作若可能同时生效且使用相同的组合键，就会产生冲突。此时两者都保持关闭，直到您修改其中一个。",
     "help.shortcuts.li1": "“接管”会把该组合键分给您正在编辑的操作，并从另一个操作上移除。",
     "help.shortcuts.li2": "新的默认组合键绝不会取代您自己保存的组合键。",
-    "help.workviews.item": "{0}：{1}"
+    "help.workviews.item": "{0}：{1}",
+    "header.io.menu.openStatistics": "打开统计",
+    "header.io.menu.settings": "设置：统计…",
+    "header.io.menu.name": "网络和磁盘显示"
   }
 }

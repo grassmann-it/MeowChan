@@ -4285,6 +4285,9 @@
     "help.shortcuts.p1": "Dos acciones entran en conflicto cuando pueden estar activas a la vez y usan la misma combinación de teclas. Ambas quedan desactivadas hasta que cambie una de ellas.",
     "help.shortcuts.li1": "Reasignar da la combinación a la acción que está editando y se la quita a la otra.",
     "help.shortcuts.li2": "Una tecla predeterminada nueva nunca sustituye a una que usted haya guardado.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "Abrir estadísticas",
+    "header.io.menu.settings": "Configuración: estadísticas…",
+    "header.io.menu.name": "Indicador de red y disco"
   }
 }

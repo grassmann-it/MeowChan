@@ -4291,6 +4291,9 @@
     "help.shortcuts.p1": "Duas ações entram em conflito quando podem estar ativas ao mesmo tempo e usam a mesma combinação de teclas. As duas ficam desativadas até você alterar uma delas.",
     "help.shortcuts.li1": "Assumir dá a combinação à ação que você está editando e a remove da outra.",
     "help.shortcuts.li2": "Uma nova tecla padrão nunca substitui uma tecla que você mesmo salvou.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "Abrir estatísticas",
+    "header.io.menu.settings": "Configurações: estatísticas…",
+    "header.io.menu.name": "Indicador de rede e disco"
   }
 }

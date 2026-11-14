@@ -2,6 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.LogicalTree;
+using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
@@ -50,6 +54,31 @@ public partial class SettingsEditor
             RaiseStatsHeaderGraphChanged(property);
         string normalized = IoStatsDisplay.NormalizeHeaderGraph(value);
         SelectedStatsHeaderGraph = StatsHeaderGraphChoices.First(item => item.Value == normalized);
+    }
+
+    /// <summary>
+    /// The header's context menu changed the stored arrangement: the row shows it too. Only this row follows; an unrelated draft stays.
+    /// </summary>
+    internal void RefreshConfirmedStatsHeaderGraph()
+    {
+        if (_isClosed) return;
+        string value = IoStatsDisplay.NormalizeHeaderGraph(_config.StatsHeaderGraph);
+        SelectedStatsHeaderGraph = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == value) ?? SelectedStatsHeaderGraph;
+    }
+
+    /// <summary>Opens the page that holds the "Header graph" row, unfolds its groups and puts the focus on the row (the header menu's "Settings: Statistics…").</summary>
+    internal void RevealStatsHeaderGraph()
+    {
+        if (_isClosed) return;
+        SelectCategoryContaining(StatsHeaderGraphInput);
+        foreach (Expander group in StatsHeaderGraphInput.GetLogicalAncestors().OfType<Expander>()) group.IsExpanded = true;
+        // The groups were just unfolded: scrolling and focus need their layout.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosed) return;
+            StatsHeaderGraphInput.BringIntoView();
+            StatsHeaderGraphInput.Focus(NavigationMethod.Tab);
+        }, DispatcherPriority.Loaded);
     }
 
     private void RaiseStatsHeaderGraphChanged(string property) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));

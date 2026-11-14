@@ -4328,6 +4328,9 @@
     "help.shortcuts.p1": "Dvě akce kolidují, pokud mohou být aktivní zároveň a používají stejnou kombinaci kláves. Obě pak zůstanou vypnuté, dokud jednu z nich nezměníte.",
     "help.shortcuts.li1": "Převzetí přidělí kombinaci upravované akci a druhé ji odebere.",
     "help.shortcuts.li2": "Nová výchozí klávesa nikdy nenahradí klávesu, kterou jste si sami uložili.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "Otevřít statistiky",
+    "header.io.menu.settings": "Nastavení: statistiky…",
+    "header.io.menu.name": "Zobrazení sítě a disku"
   }
 }

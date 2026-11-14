@@ -4200,6 +4200,9 @@
     "help.shortcuts.p1": "2つの操作が同時に使える状態にあり、同じキーの組み合わせを使っていると競合します。どちらか一方を変更するまで、両方とも無効のままです。",
     "help.shortcuts.li1": "引き継ぐと、そのキーの組み合わせが編集中の操作に割り当てられ、もう一方からは外されます。",
     "help.shortcuts.li2": "新しい既定のキーが、ご自身で保存したキーを置き換えることはありません。",
-    "help.workviews.item": "{0}：{1}"
+    "help.workviews.item": "{0}：{1}",
+    "header.io.menu.openStatistics": "統計を開く",
+    "header.io.menu.settings": "設定：統計…",
+    "header.io.menu.name": "ネットワークとディスクの表示"
   }
 }

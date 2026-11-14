@@ -4200,6 +4200,9 @@
     "help.shortcuts.p1": "두 동작이 동시에 활성화될 수 있고 같은 키 조합을 사용하면 충돌합니다. 그러면 둘 중 하나를 바꿀 때까지 두 동작 모두 꺼진 상태로 유지됩니다.",
     "help.shortcuts.li1": "가져오기를 선택하면 해당 키 조합이 편집 중인 동작에 지정되고 다른 동작에서는 제거됩니다.",
     "help.shortcuts.li2": "새 기본 키가 직접 저장한 키를 대체하는 일은 없습니다.",
-    "help.workviews.item": "{0}: {1}"
+    "help.workviews.item": "{0}: {1}",
+    "header.io.menu.openStatistics": "통계 열기",
+    "header.io.menu.settings": "설정: 통계…",
+    "header.io.menu.name": "네트워크 및 디스크 표시"
   }
 }

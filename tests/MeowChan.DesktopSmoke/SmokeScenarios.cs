@@ -202,6 +202,7 @@ internal static partial class SmokeScenarios
         Root("saved-searches", "MEOWCHAN_SAVED_SEARCHES_ONLY") with { NightlySkip = "restart journey across processes with an explicit disposable MEOWCHAN_SAVED_SEARCH_TEST_PROFILE" },
         Root("footer-navigation", "MEOWCHAN_FOOTER_NAVIGATION_ONLY"),
         Root("statistics", "MEOWCHAN_STATISTICS_ONLY", "statistics: header graph in every work view and the Header graph setting, the statistics page with synthetic counters, reset question, sampling claim and light/dark/German captures; no request leaves the process"),
+        Root("context-menus-header", "MEOWCHAN_CONTEXT_MENUS_HEADER_ONLY", "context menus header: the header display menu opens from the Menu key and a context request, six arrangements with the stored one checked, a choice applies at once and persists and shows in Settings, the statistics and settings entries, Escape closes, focus returns"),
         Root("picker-lifetime", "MEOWCHAN_PICKER_LIFETIME_ONLY"),
         Root("settings-category", "MEOWCHAN_SETTINGS_CATEGORY_ONLY"),
         Root("settings-search", "MEOWCHAN_SETTINGS_SEARCH_ONLY", "settings search: typo, abbreviation, synonym and English-name hits across groups with group names, arrow keys, Enter into a collapsed section, empty state, Escape clears then leaves, EN/DE light/dark captures"),
