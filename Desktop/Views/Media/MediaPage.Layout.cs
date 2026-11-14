@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
@@ -6,6 +7,8 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -16,7 +19,8 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan;
 
 // MP5: the user composes the media page (a booru or "grabber" view if they like). The toolbar's "Layout ▾" button (under More in Barebones),
-// the right-click on empty grid space and the entries under More share one menu (MediaLayoutMenu): the tag list (switch, side, a drag handle
+// the right-click on empty grid space and the entries under More share one menu, GL3's layout menu (C15): MediaLayoutMenu describes the rows
+// and what each does, the flyout is a LayoutMenuPanel, the other two are LayoutMenuBuilder.ToContextMenu forms of the same rows: the tag list (switch, side, a drag handle
 // on its edge for the width), the rows above the grid (filter chips, status line, subtitle), the parts of a tile's caption and the tile size,
 // three ready-made layouts and "Reset layout". The layout is a pure value (MediaPageLayout) turned into what is visible by a pure plan
 // (MediaPageLayoutPlan: state in, blocks out) and kept per profile. Applying a plan only changes visibility, the columns of the body row and the
@@ -30,7 +34,10 @@ public sealed partial class MediaPage
     /// <summary>The width of the drag handle between the tag list and the grid.</summary>
     internal const double HandleWidth = 6;
 
-    private readonly Button _layoutButton = new() { Name = "MediaLayout", Flyout = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight } };
+    private readonly Button _layoutButton = new() { Name = "MediaLayout" };
+    private readonly Flyout _layoutFlyout = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
+    private LayoutMenuPanel _layoutPanel = null!;
+    private bool _layoutMenuHadFocus, _layoutMenuKeyboard;
     private readonly TextBlock _layoutLabel = new() { Name = "MediaLayoutLabel", VerticalAlignment = VerticalAlignment.Center };
     private readonly GridSplitter _tagHandle = new() { Name = "MediaTagListHandle", IsVisible = false };
     private MediaPageLayout _layout = MediaPageLayout.Standard;
@@ -50,6 +57,10 @@ public sealed partial class MediaPage
     internal MediaPageLayoutPlan? LayoutPlan => _plan;
     /// <summary>The "Layout ▾" button of the toolbar.</summary>
     internal Button LayoutButton => _layoutButton;
+    /// <summary>The flyout of the "Layout ▾" button (smokes and tests).</summary>
+    internal Flyout LayoutFlyout => _layoutFlyout;
+    /// <summary>The rows of that flyout (smokes and tests).</summary>
+    internal LayoutMenuPanel LayoutMenuRows => _layoutPanel;
     /// <summary>The drag handle on the edge of the tag list (smokes).</summary>
     internal GridSplitter TagListHandle => _tagHandle;
     /// <summary>What the tiles look like now.</summary>
@@ -65,19 +76,53 @@ public sealed partial class MediaPage
         chevron.AttachedToVisualTree += (_, _) => chevron.Data ??= Geometry.Parse("M 1,1 L 5,5 L 9,1");
         AutomationProperties.SetAccessibilityView(chevron, AccessibilityView.Raw);
         _layoutButton.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _layoutLabel, chevron } };
-        ((MenuFlyout)_layoutButton.Flyout!).Opening += (_, _) => FillLayoutFlyout((MenuFlyout)_layoutButton.Flyout!);
+        _layoutPanel = new LayoutMenuPanel("MediaLayoutMenu", () => MediaLayoutMenu.Rows(_layout), ApplyLayoutRow);
+        _layoutPanel.CloseRequested += () => _layoutFlyout.Hide();
+        _layoutFlyout.FlyoutPresenterClasses.Add("gallery-overflow");
+        _layoutFlyout.Content = new ScrollViewer
+        {
+            Content = _layoutPanel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        };
+        _layoutButton.Flyout = _layoutFlyout;
+        _layoutPanel.AddHandler(KeyDownEvent, (_, e) =>
+        {
+            _layoutMenuKeyboard = true;
+            if (_layoutPanel.HandleMenuKey(e)) e.Handled = true;
+        }, RoutingStrategies.Tunnel);
+        _layoutPanel.GotFocus += (_, _) => _layoutMenuHadFocus = true;
+        _layoutFlyout.Opening += (_, _) =>
+        {
+            _layoutMenuHadFocus = _layoutMenuKeyboard = false;
+            if (_layoutFlyout.Content is ScrollViewer scroller) scroller.MaxHeight = Math.Max(160, Bounds.Height - 72);
+            _layoutPanel.Refresh(); // the rows show the layout as it is at this moment
+        };
+        // The keyboard continues in the menu: the first usable row.
+        _layoutFlyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => _layoutPanel.FocusFirst(), DispatcherPriority.Loaded);
+        _layoutFlyout.Closed += (_, _) =>
+        {
+            if (!_layoutMenuHadFocus || _lifetime.IsCancellationRequested || !_layoutButton.IsEffectivelyVisible) return;
+            _layoutMenuHadFocus = false;
+            // The focus returns to the button the menu came from.
+            _layoutButton.Focus(_layoutMenuKeyboard ? NavigationMethod.Tab : NavigationMethod.Pointer);
+        };
     }
 
-    private void FillLayoutFlyout(MenuFlyout flyout)
+    // A row was chosen (flyout, submenu or right-click): the layout it asks for is applied and saved.
+    private void ApplyLayoutRow(LayoutMenuRow row)
     {
-        flyout.Items.Clear();
-        foreach (Control item in MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout))) flyout.Items.Add(item);
+        if (!row.Enabled) return;
+        if (MediaLayoutMenu.Apply(row.Id, _layout) is { } next) ApplyLayout(next);
     }
+
+    // The same rows as menu items (new at every call: a control has one parent, the submenu under More and the context menu each take their own).
+    internal IReadOnlyList<Control> LayoutMenuItems() =>
+        ContextMenuBuilder.Build(LayoutMenuBuilder.ToContextMenu(MediaLayoutMenu.Rows(_layout), ApplyLayoutRow, MediaLayoutMenu.MenuName).ToModel())?.ItemsSource
+            is IEnumerable<Control> items ? items.ToArray() : [];
 
     // The entries of the layout menu as a submenu of the toolbar's More ("Layout" while the view or the width keeps the button under it).
     private MenuItem LayoutSubmenu()
     {
-        MenuItem item = new() { Header = Texts.T("media.layout.name"), Name = "MediaLayoutSubmenu", ItemsSource = MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout)).ToArray() };
+        MenuItem item = new() { Header = Texts.T("media.layout.name"), Name = "MediaLayoutSubmenu", ItemsSource = LayoutMenuItems() };
         AutomationProperties.SetName(item, Texts.T("media.layout.name"));
         if (ToolTip.GetTip(_layoutButton) is string tip) ToolTip.SetTip(item, tip);
         return item;

@@ -134,7 +134,7 @@ internal sealed class LayoutMenuPanel : StackPanel
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
     }
 
-    /// <summary>An action row ran: the owner closes the flyout.</summary>
+    /// <summary>An action row ran (or Escape was pressed, <see cref="HandleMenuKey"/>): the owner closes the flyout.</summary>
     internal event Action? CloseRequested;
 
     /// <summary>The buttons of the usable and unusable rows, in order (tests and smokes).</summary>
@@ -145,6 +145,46 @@ internal sealed class LayoutMenuPanel : StackPanel
 
     /// <summary>The model the panel shows now.</summary>
     internal LayoutMenuModel? Model { get; private set; }
+
+    private IEnumerable<Button> UsableButtons() =>
+        Buttons.Where(button => button.Focusable && button.IsEffectivelyVisible && button.IsEffectivelyEnabled);
+
+    /// <summary>Puts the keyboard focus on the first usable row (a flyout that just opened); false when there is none.</summary>
+    internal bool FocusFirst()
+    {
+        Button? first = UsableButtons().FirstOrDefault();
+        first?.Focus(NavigationMethod.Tab);
+        return first != null;
+    }
+
+    /// <summary>
+    /// The keys of an open flyout for an owner that does not bring its own: Escape raises <see cref="CloseRequested"/>, Up, Down, Home and End
+    /// move through the usable rows (cycling). True when the key was used (the owner marks the event handled). Call it from a tunnelling
+    /// key handler on the panel.
+    /// </summary>
+    internal bool HandleMenuKey(KeyEventArgs e)
+    {
+        ArgumentNullException.ThrowIfNull(e);
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None) return false;
+        if (e.Key == Key.Escape)
+        {
+            CloseRequested?.Invoke();
+            return true;
+        }
+        if (e.Key is not (Key.Down or Key.Up or Key.Home or Key.End)) return false;
+        Button[] rows = UsableButtons().ToArray();
+        if (rows.Length == 0) return false;
+        int current = Array.FindIndex(rows, row => row.IsKeyboardFocusWithin);
+        int next = e.Key switch
+        {
+            Key.Home => 0,
+            Key.End => rows.Length - 1,
+            Key.Down => current < 0 ? 0 : (current + 1) % rows.Length,
+            _ => current < 0 ? rows.Length - 1 : (current - 1 + rows.Length) % rows.Length
+        };
+        rows[next].Focus(NavigationMethod.Tab);
+        return true;
+    }
 
     /// <summary>Reads the model again: rows are updated in place, or rebuilt when the set of rows changed.</summary>
     internal void Refresh()

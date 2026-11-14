@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -9,10 +7,12 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan;
 
 /// <summary>
-/// MP5: the entries of the media page's "Layout" menu, composed as plain data (a <see cref="ContextMenuBuilder"/>), so the same entries serve the
-/// "Layout" button's flyout, its submenu under More (Barebones, narrow pages) and the right-click on empty grid space, and a test can read what
-/// the menu offers and what each entry would change without a window. Every entry computes the whole next layout from the current one and hands
-/// it to <c>choose</c>; the page applies it (visibility and sizes only) and saves it. The gallery's own Layout menu is a separate factory.
+/// MP5 on GL3's shared layout menu (C15): the media page's half of the "Layout" menu, pure and without a control, like <c>GalleryLayoutMenu</c>.
+/// <see cref="Rows"/> describes the menu for a layout as a <see cref="LayoutMenuModel"/>; <see cref="Apply"/> says which layout a row asks for.
+/// The "Layout" button's flyout (<see cref="LayoutMenuPanel"/>), its submenu under More (Barebones, narrow pages) and the right-click on empty
+/// grid space (<see cref="LayoutMenuBuilder.ToContextMenu"/>) are all made from the rows, so they cannot disagree, and a test can read what the
+/// menu offers and what each row would change without a window. Every row computes the whole next layout from the current one; the page applies
+/// it (visibility and sizes only) and saves it.
 /// Sections: the tag list (switch and side; the width is the drag handle on its edge), the rows above the grid, the parts of a tile's caption,
 /// the tile size, the ready-made layouts (the one that matches is checked) and "Reset layout".
 /// </summary>
@@ -26,33 +26,8 @@ internal static class MediaLayoutMenu
         SizeLargeId = IdPrefix + "size.large", PresetStandardId = IdPrefix + "preset.standard", PresetBooruId = IdPrefix + "preset.booru",
         PresetGridId = IdPrefix + "preset.grid", ResetId = IdPrefix + "reset";
 
-    /// <summary>The menu for the layout as it is now; <paramref name="choose"/> receives the layout an entry asks for.</summary>
-    internal static ContextMenuBuilder Compose(MediaPageLayout current, Action<MediaPageLayout> choose)
-    {
-        ArgumentNullException.ThrowIfNull(current);
-        ArgumentNullException.ThrowIfNull(choose);
-        MediaPageLayout now = current.Normalized();
-        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("media.layout.menuName"));
-        menu.Check(TagListId, Texts.T("media.tagList"), now.TagList, () => choose(now with { TagList = !now.TagList }))
-            .Radio("side", SideLeftId, Texts.T("media.layout.side.left"), now.TagListSide == MediaTagListSide.Left, () => choose(now with { TagListSide = MediaTagListSide.Left }))
-            .Radio("side", SideRightId, Texts.T("media.layout.side.right"), now.TagListSide == MediaTagListSide.Right, () => choose(now with { TagListSide = MediaTagListSide.Right }));
-        menu.Section()
-            .Check(ChipsId, Texts.T("media.layout.chips"), now.FilterChips, () => choose(now with { FilterChips = !now.FilterChips }))
-            .Check(StatusId, Texts.T("media.layout.status"), now.StatusLine, () => choose(now with { StatusLine = !now.StatusLine }))
-            .Check(SubtitleId, Texts.T("media.layout.subtitle"), now.Subtitle, () => choose(now with { Subtitle = !now.Subtitle }));
-        menu.Section();
-        foreach ((string id, string key, MediaTileCaption part) in Captions)
-            menu.Check(id, Texts.T(key), now.Caption.HasFlag(part), () => choose(now with { Caption = now.Caption ^ part }));
-        menu.Section();
-        foreach ((string id, string key, MediaTileSize size) in Sizes)
-            menu.Radio("size", id, Texts.T(key), now.TileSize == size, () => choose(now with { TileSize = size }));
-        menu.Section();
-        MediaLayoutPreset? matching = now.MatchingPreset;
-        foreach ((string id, string key, MediaLayoutPreset preset) in Presets)
-            menu.Radio("preset", id, Texts.T(key), matching == preset, () => choose(MediaPageLayout.For(preset, now)));
-        menu.Section().Item(ResetId, Texts.T("media.layout.reset"), () => choose(MediaPageLayout.Reset));
-        return menu;
-    }
+    /// <summary>The exclusive groups of the side, the size and the presets.</summary>
+    internal const string SideGroup = "side", SizeGroup = "size", PresetGroup = "preset";
 
     private static readonly (string Id, string Key, MediaTileCaption Part)[] Captions =
     [
@@ -76,10 +51,59 @@ internal static class MediaLayoutMenu
         (PresetGridId, "media.layout.preset.grid", MediaLayoutPreset.GridOnly)
     ];
 
-    /// <summary>
-    /// The entries as controls, new at every call (a control has one parent: the flyout, the submenu under More and the context menu each take
-    /// their own copy). Composed fresh at every opening so the checked entries are current.
-    /// </summary>
-    internal static IReadOnlyList<Control> BuildItems(MediaPageLayout current, Action<MediaPageLayout> choose) =>
-        ContextMenuBuilder.Build(Compose(current, choose).ToModel())?.ItemsSource is IEnumerable<Control> items ? items.ToArray() : [];
+    /// <summary>The accessible name of the menu in its context-menu form.</summary>
+    internal static string MenuName => Texts.T("media.layout.menuName");
+
+    /// <summary>The menu for the layout as it is now. It has no title line (the button and the menu's name say what it edits).</summary>
+    internal static LayoutMenuModel Rows(MediaPageLayout current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        MediaPageLayout now = current.Normalized();
+        List<LayoutMenuRow> rows = [];
+        void Toggle(string id, string label, bool on) => rows.Add(new(LayoutMenuRowKind.Toggle, id, label) { Checked = on });
+        void Choice(string group, string id, string label, bool on) => rows.Add(new(LayoutMenuRowKind.Choice, id, label) { Checked = on, Group = group });
+        void Separator() => rows.Add(new(LayoutMenuRowKind.Separator, IdPrefix + "separator." + rows.Count, string.Empty));
+
+        Toggle(TagListId, Texts.T("media.tagList"), now.TagList);
+        Choice(SideGroup, SideLeftId, Texts.T("media.layout.side.left"), now.TagListSide == MediaTagListSide.Left);
+        Choice(SideGroup, SideRightId, Texts.T("media.layout.side.right"), now.TagListSide == MediaTagListSide.Right);
+        Separator();
+        Toggle(ChipsId, Texts.T("media.layout.chips"), now.FilterChips);
+        Toggle(StatusId, Texts.T("media.layout.status"), now.StatusLine);
+        Toggle(SubtitleId, Texts.T("media.layout.subtitle"), now.Subtitle);
+        Separator();
+        foreach ((string id, string key, MediaTileCaption part) in Captions) Toggle(id, Texts.T(key), now.Caption.HasFlag(part));
+        Separator();
+        foreach ((string id, string key, MediaTileSize size) in Sizes) Choice(SizeGroup, id, Texts.T(key), now.TileSize == size);
+        Separator();
+        MediaLayoutPreset? matching = now.MatchingPreset;
+        foreach ((string id, string key, MediaLayoutPreset preset) in Presets) Choice(PresetGroup, id, Texts.T(key), matching == preset);
+        Separator();
+        rows.Add(new(LayoutMenuRowKind.Action, ResetId, Texts.T("media.layout.reset")));
+        return new LayoutMenuModel(string.Empty, rows);
+    }
+
+    /// <summary>The layout the row <paramref name="rowId"/> asks for, computed from <paramref name="current"/>; null for an unknown row.</summary>
+    internal static MediaPageLayout? Apply(string rowId, MediaPageLayout current)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        MediaPageLayout now = current.Normalized();
+        switch (rowId)
+        {
+            case TagListId: return now with { TagList = !now.TagList };
+            case SideLeftId: return now with { TagListSide = MediaTagListSide.Left };
+            case SideRightId: return now with { TagListSide = MediaTagListSide.Right };
+            case ChipsId: return now with { FilterChips = !now.FilterChips };
+            case StatusId: return now with { StatusLine = !now.StatusLine };
+            case SubtitleId: return now with { Subtitle = !now.Subtitle };
+            case ResetId: return MediaPageLayout.Reset;
+        }
+        foreach ((string id, _, MediaTileCaption part) in Captions)
+            if (id == rowId) return now with { Caption = now.Caption ^ part };
+        foreach ((string id, _, MediaTileSize size) in Sizes)
+            if (id == rowId) return now with { TileSize = size };
+        foreach ((string id, _, MediaLayoutPreset preset) in Presets)
+            if (id == rowId) return MediaPageLayout.For(preset, now);
+        return null;
+    }
 }

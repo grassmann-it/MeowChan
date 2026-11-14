@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -30,18 +31,28 @@ internal static partial class MediaPageChecks
         page.SaveLayoutAsync = layout => { saved.Add(layout); return Task.CompletedTask; };
         Require(page.PageLayout == MediaPageLayout.Standard && page.LayoutButton.IsEffectivelyVisible && !page.IsBooruMode && page.TileAppearance == MediaTileMetrics.Standard,
             state + ": the page must start with the standard layout and its Layout button on the toolbar.");
-        Require(ToolTip.GetTip(page.LayoutButton) as string == Texts.T("media.layout.tip") && page.LayoutButton.Flyout is MenuFlyout, state + ": the button must explain itself and open a menu.");
+        Require(ToolTip.GetTip(page.LayoutButton) as string == Texts.T("media.layout.tip") && page.LayoutButton.Flyout == page.LayoutFlyout, state + ": the button must explain itself and open a menu.");
         int presents = page.PresentCount, counts = page.TagCountRuns, tiles = page.Tiles.Count;
         MediaLibraryTileView[] Realized() => page.Grid.GetVisualDescendants().OfType<MediaLibraryTileView>().ToArray();
         Require(Realized().Length > 0 && Realized().All(tile => tile.Appearance == MediaTileMetrics.Standard && tile.Height == MediaLibraryTileView.TileHeight), state + ": the tiles start standard.");
 
-        // The menu opens from the button: the same entries as the model says, the matching preset checked.
+        // The menu opens from the button (C15: GL3's LayoutMenuPanel): the rows as the model says, the matching preset checked, no tag list.
         page.LayoutButton.Flyout!.ShowAt(page.LayoutButton);
-        await UntilAsync(() => ((MenuFlyout)page.LayoutButton.Flyout!).Items.Count > 0);
-        Require(((MenuFlyout)page.LayoutButton.Flyout!).Items.OfType<MenuItem>().Any(item => item.Tag as string == MediaLayoutMenu.TagListId && item.IsChecked)
-            == false && ((MenuFlyout)page.LayoutButton.Flyout!).Items.OfType<MenuItem>().Any(item => item.Tag as string == MediaLayoutMenu.PresetStandardId && item.IsChecked),
-            state + ": the menu must show the standard preset and an off tag list.");
-        page.LayoutButton.Flyout!.Hide();
+        await UntilAsync(() => page.LayoutFlyout.IsOpen && page.LayoutMenuRows.Buttons.Count == MediaLayoutMenu.Rows(page.PageLayout).Interactive.Count());
+        Require(page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.TagListId) is ToggleButton { IsChecked: false } && page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.PresetStandardId) is ToggleButton { IsChecked: true }
+            && page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.ResetId) is { } reset && AutomationProperties.GetName(reset) == Texts.T("media.layout.reset"),
+            state + ": the menu must show the standard preset, an off tag list and Reset layout.");
+        // A switch keeps the menu open and shows its new state at once; Escape closes it and the focus returns to the button.
+        page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.SubtitleId)!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await UntilAsync(() => !page.PageLayout.Subtitle && page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.SubtitleId) is ToggleButton { IsChecked: false });
+        Require(page.LayoutFlyout.IsOpen, state + ": a switch must keep the menu open.");
+        page.ApplyLayout(MediaPageLayout.Standard);
+        page.LayoutMenuRows.Refresh();
+        page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.StatusId)!.Focus(Avalonia.Input.NavigationMethod.Tab);
+        page.LayoutMenuRows.ButtonOf(MediaLayoutMenu.StatusId)!.RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = Avalonia.Input.Key.Escape });
+        await UntilAsync(() => !page.LayoutFlyout.IsOpen);
+        await UntilAsync(() => page.LayoutButton.IsKeyboardFocusWithin);
+        saved.Clear();
 
         // Booru view: tag list on the left (256 dip, with its handle), subtitle off, small tiles with the tag count, status line and chips on.
         page.ApplyLayout(MediaPageLayout.For(MediaLayoutPreset.BooruView, page.PageLayout));
