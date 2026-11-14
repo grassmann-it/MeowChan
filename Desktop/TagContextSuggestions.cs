@@ -94,8 +94,9 @@ internal sealed record TypedTagSuggestions(IReadOnlyList<RankedTagSuggestion> Ow
 /// </summary>
 internal sealed class TagContextOptions
 {
-    /// <summary>Suggestions shown for an empty field.</summary>
-    internal const int DefaultSuggestionCount = 9, MinimumSuggestionCount = 3, MaximumSuggestionCount = 18;
+    /// <summary>Suggestions shown for an empty field: the one setting of the quick tag surface (<see cref="QuickTagOptions"/>).</summary>
+    internal const int DefaultSuggestionCount = QuickTagOptions.DefaultSuggestionCount,
+        MinimumSuggestionCount = QuickTagOptions.MinimumSuggestionCount, MaximumSuggestionCount = QuickTagOptions.MaximumSuggestionCount;
     /// <summary>Recently used tags considered; 0 switches the "recent" source off.</summary>
     internal const int DefaultRecentCount = 50, MinimumRecentCount = 0, MaximumRecentCount = 500;
     /// <summary>Neighbour media examined around the current one; the scan alternates outwards and stops at this many.</summary>

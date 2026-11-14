@@ -504,6 +504,15 @@ public sealed class TagContextSuggestionTests
         Assert.Equal((18, 500, 20_000, 32, 200), (high.SuggestionCount, high.RecentCount, high.NeighbourScan, high.FilenameTokens, high.SourceTagsPerMedium));
     }
 
+    // R19 (review 14.11. night): one source of truth for the suggestion count of the surface and of the context ranking.
+    [Fact]
+    public void TheSuggestionCountRangeIsTheQuickTagSettingsRange()
+    {
+        Assert.Equal((QuickTagOptions.DefaultSuggestionCount, QuickTagOptions.MinimumSuggestionCount, QuickTagOptions.MaximumSuggestionCount),
+            (TagContextOptions.DefaultSuggestionCount, TagContextOptions.MinimumSuggestionCount, TagContextOptions.MaximumSuggestionCount));
+        Assert.Equal(QuickTagOptions.Default.SuggestionCount, TagContextOptions.Default.SuggestionCount);
+    }
+
     [Fact]
     public void SourceTagsPerMediumIsBoundedAndSkipsInvalidNames()
     {
