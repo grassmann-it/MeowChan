@@ -204,6 +204,119 @@ public sealed class MediaBadgeTests : IDisposable
         Assert.Equal(VideoPlayMark.Diameter(new Size(64, 64), VideoPlayMark.DenseRatio), Mark(MediaBadgeOptions.Filmstrip, 64).Width, 6);
     }
 
+    // ---- anchor: picture or slot ----
+
+    private static readonly MediaBadgeOptions SlotOptions = MediaBadgeOptions.Everything with { Anchor = MediaBadgeAnchor.Slot };
+
+    private static Rect[] Corners(MediaBadgePlan plan) =>
+        plan.Badges.Where(placed => placed.Badge.Id != MediaBadgeId.PlayMark).Select(placed => placed.Bounds).ToArray();
+
+    [Fact]
+    public void ThePresetsKeepThePictureAnchorUntilASurfaceChoosesTheSlot()
+    {
+        Assert.Equal(MediaBadgeAnchor.Picture, MediaBadgeOptions.Default.Anchor);
+        Assert.Equal(MediaBadgeAnchor.Picture, MediaBadgeOptions.Everything.Anchor);
+        foreach (MediaBadgeOptions options in new[] { MediaBadgeOptions.Archive, MediaBadgeOptions.Filmstrip, MediaBadgeOptions.Sidebar })
+            Assert.Equal(MediaBadgeAnchor.Picture, options.Anchor);
+    }
+
+    [Fact]
+    public void InTheSlotAnchorTheCornerBadgesOfPortraitLandscapeAndSquarePicturesSitAtTheSamePlaces()
+    {
+        Size slot = new(174, 120);
+        Size portrait = new(67.5, 120), landscape = new(174, 97.9), square = new(120, 120);
+        Rect[] expected = Corners(MediaBadgeLayout.Plan(Full, square, slot, SlotOptions, Defaults));
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected, Corners(MediaBadgeLayout.Plan(Full, portrait, slot, SlotOptions, Defaults)));
+        Assert.Equal(expected, Corners(MediaBadgeLayout.Plan(Full, landscape, slot, SlotOptions, Defaults)));
+        // Every corner is the slot's corner (margin from the slot's edge), not the picture's: the badge of a landscape picture lies above it.
+        PlacedBadge video = MediaBadgeLayout.Plan(Full, landscape, slot, SlotOptions, Defaults).Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Video);
+        Assert.Equal(slot.Height - MediaBadgeLayout.Margin(20) - 20, video.Bounds.Y, 6);
+        PlacedBadge favorite = MediaBadgeLayout.Plan(Full, landscape, slot, SlotOptions, Defaults).Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Favorite);
+        Assert.Equal(MediaBadgeLayout.Margin(20), favorite.Bounds.Y, 6);
+        Assert.True(favorite.Bounds.Y < (slot.Height - landscape.Height) / 2);   // outside the picture, over the slot
+        // The picture anchor is the contrast: there the same badge hugs the letterboxed picture and its place depends on the picture.
+        Assert.NotEqual(Corners(MediaBadgeLayout.Plan(Full, portrait, Everything, Defaults)), Corners(MediaBadgeLayout.Plan(Full, landscape, Everything, Defaults)));
+    }
+
+    [Fact]
+    public void TheSlotAnchorKeepsThePlayMarkCentredOnThePicture()
+    {
+        Size slot = new(174, 120);
+        MediaBadgeState video = new(Kind: MediaBadgeKind.Video, Duration: TimeSpan.FromSeconds(9));
+        foreach (Size picture in new[] { new Size(67.5, 120), new Size(174, 97.9), new Size(120, 120) })
+        {
+            Rect mark = MediaBadgeLayout.Plan(video, picture, slot, SlotOptions, Defaults).Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark).Bounds;
+            Assert.Equal(slot.Width / 2, mark.Center.X, 6);
+            Assert.Equal(slot.Height / 2, mark.Center.Y, 6);
+            Assert.Equal(VideoPlayMark.Diameter(picture), mark.Width, 6);   // its size follows the picture, not the slot
+        }
+        // Without a usable picture (a placeholder) the mark is centred on the slot.
+        Rect none = MediaBadgeLayout.Plan(video, default, slot, SlotOptions, Defaults).Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark).Bounds;
+        Assert.Equal(slot.Width / 2, none.Center.X, 6);
+    }
+
+    [Fact]
+    public void TheSlotAnchorMeasuresTheUnitAndTheThresholdsAgainstTheSlot()
+    {
+        MediaBadgeState state = new(Missing: true, Favorite: true);
+        // A thin picture (30 dip high) in a 120 dip slot: the slot decides, so full badges at the slot's unit; with the picture anchor it would be hidden.
+        Size thin = new(160, 30), slot = new(160, 120);
+        Assert.Equal(MediaBadgeMode.Hidden, MediaBadgeLayout.Plan(state, thin, slot, Everything, Defaults).Mode);
+        MediaBadgePlan inSlot = MediaBadgeLayout.Plan(state, thin, slot, SlotOptions, Defaults);
+        Assert.Equal(MediaBadgeMode.Full, inSlot.Mode);
+        Assert.Equal(MediaBadgeLayout.Unit(120), inSlot.Unit);
+        // The other way round: a big picture in a small slot collapses to dots with the slot (40 dip is below the collapse limit 48).
+        Assert.Equal(MediaBadgeMode.Dots, MediaBadgeLayout.Plan(state, new Size(200, 200), new Size(40, 40), SlotOptions, Defaults).Mode);
+        Assert.Equal(MediaBadgeMode.Full, MediaBadgeLayout.Plan(state, new Size(200, 200), new Size(40, 40), Everything, Defaults).Mode);
+        Assert.Equal(MediaBadgeMode.Hidden, MediaBadgeLayout.Plan(state, new Size(200, 200), new Size(31, 90), SlotOptions, Defaults).Mode);
+        // The limits are the settings: a collapse limit of 24 makes the 40 dip slot full again.
+        Assert.Equal(MediaBadgeMode.Full, MediaBadgeLayout.Plan(state, new Size(200, 200), new Size(40, 40), SlotOptions, new MediaBadgeLimits(24, 16, 2)).Mode);
+        // Every badge lies inside the slot and none overlaps another.
+        PlacedBadge[] chips = MediaBadgeLayout.Plan(Full, new Size(50, 120), new Size(174, 120), SlotOptions, Defaults).Badges.Where(placed => placed.Badge.Id != MediaBadgeId.PlayMark).ToArray();
+        Assert.All(chips, placed => Assert.True(new Rect(0, 0, 174, 120).Contains(placed.Bounds.BottomRight)));
+        for (int a = 0; a < chips.Length; a++)
+            for (int b = a + 1; b < chips.Length; b++) Assert.False(chips[a].Bounds.Intersects(chips[b].Bounds));
+    }
+
+    [Fact]
+    public void ThePictureAnchorIgnoresTheSlotAndIsUnchanged()
+    {
+        Size picture = new(67.5, 120);
+        MediaBadgePlan alone = MediaBadgeLayout.Plan(Full, picture, Everything, Defaults);
+        MediaBadgePlan withSlot = MediaBadgeLayout.Plan(Full, picture, new Size(174, 120), Everything, Defaults);
+        Assert.Equal(alone.Mode, withSlot.Mode);
+        Assert.Equal(alone.Unit, withSlot.Unit);
+        Assert.Equal(alone.Badges, withSlot.Badges);
+        Assert.All(withSlot.Badges, placed => Assert.True(new Rect(0, 0, 67.5, 120).Contains(placed.Bounds.TopLeft) && new Rect(0, 0, 67.5, 120).Contains(placed.Bounds.BottomRight)));
+        Assert.Equal(new Size(67.5, 120), MediaBadgeLayout.Area(picture, new Size(174, 120), MediaBadgeAnchor.Picture));
+        Assert.Equal(new Size(174, 120), MediaBadgeLayout.Area(picture, new Size(174, 120), MediaBadgeAnchor.Slot));
+        Assert.Equal(picture, MediaBadgeLayout.Area(picture, default, MediaBadgeAnchor.Slot));   // an unusable slot falls back to the picture
+    }
+
+    [Fact]
+    public void TheViewIsAsLargeAsTheSlotAndReplansOnlyWhenTheSlotMattersAndChanges()
+    {
+        MediaBadgeView view = new();
+        Size picture = new(67.5, 120), slot = new(174, 120);
+        view.Apply(Full, picture, slot, SlotOptions);
+        Assert.Equal((174d, 120d), (view.Width, view.Height));
+        MediaBadgePlan first = view.Plan;
+        view.Apply(Full, picture, slot, SlotOptions);
+        Assert.Same(first, view.Plan);
+        view.Apply(Full, new Size(174, 97.9), slot, SlotOptions);   // another picture: the corners stay, the plan is made again for the mark
+        Assert.NotSame(first, view.Plan);
+        Assert.Equal(Corners(first), Corners(view.Plan));
+        view.Apply(Full, picture, new Size(174, 100), SlotOptions);
+        Assert.Equal(100, view.Height);
+        // With the picture anchor the slot is not part of the state: a changed slot costs nothing and the view stays as large as the picture.
+        view.Apply(Full, picture, slot, Everything);
+        MediaBadgePlan hugging = view.Plan;
+        Assert.Equal((67.5, 120d), (view.Width, view.Height));
+        view.Apply(Full, picture, new Size(300, 300), Everything);
+        Assert.Same(hugging, view.Plan);
+    }
+
     // ---- unit ----
 
     [Theory]

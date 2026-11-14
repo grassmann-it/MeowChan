@@ -45,6 +45,13 @@ internal enum MediaBadgeDensity { Normal, Dense }
 /// </summary>
 internal enum MediaPlayMarkMode { Drawn, External, None }
 
+/// <summary>
+/// What the corner badges are measured and placed against. <b>Picture</b>: the shown picture (the badges hug a letterboxed picture, so a portrait
+/// and a landscape tile carry them at different heights). <b>Slot</b>: the tile's own slot, independent of the letterbox: every tile of a row
+/// carries the same badge at the same place, and a badge may lie outside the picture over the dark slot. The centred play mark stays on the picture.
+/// </summary>
+internal enum MediaBadgeAnchor { Picture, Slot }
+
 /// <summary>How much a picture of this size can carry: nothing, one dot per corner, or the full badges.</summary>
 internal enum MediaBadgeMode { Hidden, Dots, Full }
 
@@ -67,8 +74,10 @@ internal readonly record struct MediaBadgeState(
 /// <param name="ShowBooru">The booru source mark (media page and tagging grid only, F6).</param>
 /// <param name="PlayMark">Who draws the play mark.</param>
 /// <param name="Density">The size of the play mark.</param>
+/// <param name="Anchor">What the corner badges, the unit and the limits follow: the shown picture (default) or the tile's slot.</param>
 internal readonly record struct MediaBadgeOptions(
-    bool ShowUntagged = false, bool ShowBooru = false, MediaPlayMarkMode PlayMark = MediaPlayMarkMode.Drawn, MediaBadgeDensity Density = MediaBadgeDensity.Normal)
+    bool ShowUntagged = false, bool ShowBooru = false, MediaPlayMarkMode PlayMark = MediaPlayMarkMode.Drawn, MediaBadgeDensity Density = MediaBadgeDensity.Normal,
+    MediaBadgeAnchor Anchor = MediaBadgeAnchor.Picture)
 {
     /// <summary>No opt-in badge, a drawn mark: the base of every surface.</summary>
     internal static MediaBadgeOptions Default => new();
@@ -188,7 +197,7 @@ internal static class MediaBadgeModel
         tags > MaximumShownTags ? MaximumShownTags.ToString(CultureInfo.InvariantCulture) + "+" : tags.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>A badge with its place on the picture (picture coordinates, dip). <paramref name="Dot"/>: only the dot of a collapsed corner.</summary>
+/// <summary>A badge with its place on its area: the picture, or the slot with <see cref="MediaBadgeAnchor.Slot"/> (area coordinates, dip). <paramref name="Dot"/>: only the dot of a collapsed corner.</summary>
 internal readonly record struct PlacedBadge(MediaBadge Badge, Rect Bounds, bool Dot);
 
 /// <summary>The plan of one picture's badges: the mode its size allows, the unit and the badges with their places.</summary>
@@ -281,21 +290,48 @@ internal static class MediaBadgeLayout
         Plan(state, picture, options, MediaBadgeLimits.Current);
 
     /// <summary>
-    /// The badges of a medium on a picture of this size: the badges that apply, the corners' capacity (<see cref="MediaBadgeLimits.MaxPerCorner"/>,
+    /// The area the badges are measured and placed on: the picture, or with <see cref="MediaBadgeAnchor.Slot"/> the slot when it is usable (a slot
+    /// that is not falls back to the picture).
+    /// </summary>
+    internal static Size Area(Size picture, Size slot, MediaBadgeAnchor anchor) =>
+        anchor == MediaBadgeAnchor.Slot && ShortSide(slot) > 0 ? slot : picture;
+
+    /// <summary>
+    /// The picture's rectangle in the coordinates of the area: the whole area when the anchor is the picture or the picture is not usable,
+    /// otherwise the picture centred in the slot (the letterbox centres it) and never larger than the slot.
+    /// </summary>
+    internal static Rect PictureIn(Size area, Size picture)
+    {
+        if (ShortSide(picture) <= 0) return new Rect(default, area);
+        double width = Math.Min(picture.Width, area.Width), height = Math.Min(picture.Height, area.Height);
+        return new Rect((area.Width - width) / 2, (area.Height - height) / 2, width, height);
+    }
+
+    /// <summary>The plan of a picture in a slot (the slot matters only with <see cref="MediaBadgeAnchor.Slot"/>) with the limits in force.</summary>
+    internal static MediaBadgePlan Plan(in MediaBadgeState state, Size picture, Size slot, in MediaBadgeOptions options) =>
+        Plan(state, picture, slot, options, MediaBadgeLimits.Current);
+
+    internal static MediaBadgePlan Plan(in MediaBadgeState state, Size picture, in MediaBadgeOptions options, MediaBadgeLimits limits) =>
+        Plan(state, picture, picture, options, limits);
+
+    /// <summary>
+    /// The badges of a medium on a picture of this size (or in this slot, <see cref="MediaBadgeAnchor.Slot"/>): the badges that apply, the corners' capacity (<see cref="MediaBadgeLimits.MaxPerCorner"/>,
     /// the most important first and next to the corner), the collapse to dots and the hiding of everything below the limits. When two stacks of
     /// one edge would meet, the least important badge of either drops out (an edge keeps at least one badge).
     /// </summary>
-    internal static MediaBadgePlan Plan(in MediaBadgeState state, Size picture, in MediaBadgeOptions options, MediaBadgeLimits limits)
+    internal static MediaBadgePlan Plan(in MediaBadgeState state, Size picture, Size slotSize, in MediaBadgeOptions options, MediaBadgeLimits limits)
     {
         limits = limits.Normalize();
-        double shorter = ShortSide(picture);
+        // With the slot as anchor the unit, the limits and the corners follow the slot (the same for every picture of a tile row); the centred play mark follows the picture.
+        Size area = Area(picture, slotSize, options.Anchor);
+        double shorter = ShortSide(area);
         MediaBadgeMode mode = ModeFor(shorter, limits);
         if (mode == MediaBadgeMode.Hidden) return MediaBadgePlan.Empty;
         MediaBadge[] badges = MediaBadgeModel.Resolve(state, options);
         if (badges.Length == 0) return MediaBadgePlan.Empty;
 
         double unit = Unit(shorter), font = FontSize(unit), margin = Margin(unit);
-        double width = picture.Width, height = picture.Height;
+        double width = area.Width, height = area.Height;
         int capacity = mode == MediaBadgeMode.Dots ? 1 : limits.MaxPerCorner;
         List<PlacedBadge> placed = new(badges.Length);
 
@@ -303,7 +339,7 @@ internal static class MediaBadgeLayout
             if (badge.Corner == MediaBadgeCorner.Center)
             {
                 double ratio = options.Density == MediaBadgeDensity.Dense ? VideoPlayMark.DenseRatio : VideoPlayMark.Ratio;
-                placed.Add(new(badge, VideoPlayMark.Place(new Rect(0, 0, width, height), ratio), false));
+                placed.Add(new(badge, VideoPlayMark.Place(PictureIn(area, picture), ratio), false));
             }
 
         // The members of each corner, most important first, up to its capacity.
@@ -450,7 +486,7 @@ internal sealed class MediaBadgeView : Control
     private static Geometry? s_triangle, s_untagged;
 
     private MediaBadgeState _state;
-    private Size _picture;
+    private Size _picture, _slot;
     private MediaBadgeOptions _options;
     private MediaBadgeLimits? _limits;
     private bool _applied;
@@ -476,33 +512,45 @@ internal sealed class MediaBadgeView : Control
     /// <summary>The state that is drawn.</summary>
     internal MediaBadgeState State => _state;
 
-    internal void Apply(in MediaBadgeState state, Size picture) => Apply(state, picture, _options);
+    internal void Apply(in MediaBadgeState state, Size picture) => Apply(state, picture, picture, _options);
+
+    internal void Apply(in MediaBadgeState state, Size picture, in MediaBadgeOptions options) => Apply(state, picture, picture, options);
+
+    /// <summary>Shows the badges on a picture in a slot with the options of the view (the slot matters only with <see cref="MediaBadgeAnchor.Slot"/>).</summary>
+    internal void Apply(in MediaBadgeState state, Size picture, Size slot) => Apply(state, picture, slot, _options);
 
     /// <summary>
-    /// Shows the badges of <paramref name="state"/> on a picture of this size (its shown size, not its slot's). Nothing happens, and nothing is
-    /// allocated, when state, size, options and the limits in force are the ones that are already drawn. A picture that carries no badge hides
-    /// the view.
+    /// Shows the badges of <paramref name="state"/> on a picture of this size. With <see cref="MediaBadgeAnchor.Slot"/> the corners follow
+    /// <paramref name="slot"/> instead, and the view's own size is the slot's: the owner then arranges it on the whole slot, not on the picture.
+    /// Nothing happens, and nothing is allocated, when state, sizes, options and the limits in force are the ones that are already drawn. A
+    /// picture that carries no badge hides the view.
     /// </summary>
-    internal void Apply(in MediaBadgeState state, Size picture, in MediaBadgeOptions options)
+    internal void Apply(in MediaBadgeState state, Size picture, Size slot, in MediaBadgeOptions options)
     {
         MediaBadgeLimits limits = MediaBadgeLimits.Current;
-        if (_applied && state.Equals(_state) && picture == _picture && options == _options && ReferenceEquals(limits, _limits)) return;
+        Size effectiveSlot = options.Anchor == MediaBadgeAnchor.Slot ? slot : picture; // the slot is part of the state only when it is the anchor
+        if (_applied && state.Equals(_state) && picture == _picture && effectiveSlot == _slot && options == _options && ReferenceEquals(limits, _limits)) return;
         _applied = true;
         _state = state;
         _picture = picture;
+        _slot = effectiveSlot;
         _options = options;
         _limits = limits;
-        _plan = MediaBadgeLayout.Plan(state, picture, options, limits);
+        _plan = MediaBadgeLayout.Plan(state, picture, slot, options, limits);
         _texts = null;
-        bool usable = double.IsFinite(picture.Width) && double.IsFinite(picture.Height) && picture.Width > 0 && picture.Height > 0;
-        Width = usable ? picture.Width : 0;
-        Height = usable ? picture.Height : 0;
+        Size area = MediaBadgeLayout.Area(picture, slot, options.Anchor);
+        bool usable = double.IsFinite(area.Width) && double.IsFinite(area.Height) && area.Width > 0 && area.Height > 0;
+        Width = usable ? area.Width : 0;
+        Height = usable ? area.Height : 0;
         IsVisible = _plan.Badges.Length > 0;
         InvalidateVisual();
     }
 
     /// <summary>Takes the badges off (a recycled tile with no medium).</summary>
-    internal void Clear() => Apply(default, default, _options);
+    internal void Clear() => Apply(default, default, default, _options);
+
+    /// <summary>The slot the plan was made for (the picture's size unless the anchor is the slot).</summary>
+    internal Size Slot => _slot;
 
     public override void Render(DrawingContext context)
     {
