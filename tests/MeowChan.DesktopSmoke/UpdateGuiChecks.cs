@@ -102,7 +102,7 @@ internal static class UpdateGuiChecks
             // Settings drafts change no live preference until Save, and Discard restores all update/budget fields.
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             SettingsEditor editor = window.SettingsEditor;
-            Require(editor.FindControl<CheckBox>("AutomaticUpdatesInput")!.IsEffectivelyEnabled,
+            Require(editor.FindControl<ToggleSwitch>("AutomaticUpdatesInput")!.IsEffectivelyEnabled,
                 "Update settings did not use their actual profile session's enabled state.");
             editor.AutomaticUpdateChecks = false;
             editor.IncludePrereleaseUpdates = true;
@@ -235,7 +235,7 @@ internal static class UpdateGuiChecks
         await Program.WaitUntilAsync(() => window.SettingsPageVisible);
         window.UpdateLayout();
         TextBlock privacy = window.SettingsEditor.FindControl<TextBlock>("UpdatePrivacyText")!;
-        CheckBox automatic = window.SettingsEditor.FindControl<CheckBox>("AutomaticUpdatesInput")!;
+        ToggleSwitch automatic = window.SettingsEditor.FindControl<ToggleSwitch>("AutomaticUpdatesInput")!;
         ScrollViewer scroll = window.SettingsEditor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
         privacy.BringIntoView();
         await Program.WaitUntilAsync(() => privacy.TranslatePoint(default, scroll) is { } bottom

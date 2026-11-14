@@ -102,7 +102,7 @@ public sealed class IoStatsSettingsEditorTests : IDisposable
             Assert.Equal("{Binding " + property + ", Mode=TwoWay}", (string?)box.Attribute("IsChecked"));
             Assert.Equal("{Binding " + property + "Label}", (string?)box.Attribute("AutomationProperties.Name"));
             Assert.Equal("{Binding " + property + "Hint}", (string?)box.Attribute("AutomationProperties.HelpText"));
-            Assert.Contains(box.Descendants(), e => (string?)e.Attribute("Text") == "{Binding " + property + "Label}");
+            Assert.Contains(box.Parent!.Descendants(), e => (string?)e.Attribute("Text") == "{Binding " + property + "Label}");
             Assert.Contains(order, e => (string?)e.Attribute("Text") == "{Binding " + property + "Hint}");
         }
         foreach ((string property, _, string? dependsOn) in Numbers.Where(n => n.DependsOn != null))

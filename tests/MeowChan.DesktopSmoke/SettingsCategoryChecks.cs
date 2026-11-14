@@ -39,7 +39,7 @@ internal static class SettingsCategoryChecks
             window.Activate();
             await Wait(() => window.IsActive);
             var timer = Find<NumericUpDown>(editor, "RecheckTimerInput");
-            var checkbox = Find<CheckBox>(editor, "MinimizeToTrayInput");
+            var checkbox = Find<ToggleSwitch>(editor, "MinimizeToTrayInput");
             var shortcuts = Find<ShortcutEditor>(editor, "ShortcutsEditor");
             decimal? initialTimer = editor.RecheckTimer;
             bool initialTray = config.MinimizeToTray;

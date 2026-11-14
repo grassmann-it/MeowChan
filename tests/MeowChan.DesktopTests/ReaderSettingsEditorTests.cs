@@ -64,8 +64,9 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         XElement expander = Named(markup, "ReaderLongPostsSettings");
         Assert.Equal("False", (string?)expander.Attribute("IsExpanded"));
         Assert.Equal("{Binding ReaderLongPostsTitle}", (string?)expander.Attribute("Header"));
+        // SP1: the row only exists while the fit is limited (a conditional row under its parent), instead of a hidden container.
         Assert.Equal("{Binding IsGalleryFitLimited}", (string?)Named(markup, "GalleryFitMaxUpscalePercentInput")
-            .Ancestors().Select(ancestor => ancestor.Attribute("IsVisible")).First(attribute => attribute != null));
+            .Ancestors().Select(ancestor => ancestor.Attribute(XName.Get("SettingsConditional.When", "clr-namespace:MeowChan.Desktop"))).First(attribute => attribute != null));
         Assert.Equal("{Binding IsGalleryFitLimited}", (string?)Named(markup, "GalleryFitMaxUpscalePercentInput").Attribute("IsEnabled"));
     }
 

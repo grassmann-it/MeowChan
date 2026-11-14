@@ -169,15 +169,17 @@ public sealed class ClipboardMonitorSettingsTests
         XDocument markup = XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement checkbox = Assert.Single(markup.Descendants().Where(e => (string?)e.Attribute(x + "Name") == "MonitorClipboardUrlsInput"));
-        Assert.Equal("CheckBox", checkbox.Name.LocalName);
-        // The switch sits in the behaviour group ("More settings") of the page, which carries the editability binding.
-        Assert.Equal("SettingsBehaviorBody", (string?)checkbox.Parent!.Attribute(x + "Name"));
+        Assert.Equal("ToggleSwitch", checkbox.Name.LocalName);
+        // The switch is the control of a uniform row (SP1) in the behaviour group ("More settings") of the page, which carries the editability binding.
+        XElement row = checkbox.Parent!;
+        Assert.Equal("settings-row", ((string?)row.Attribute("Classes"))!.Split(' ').Single(c => c == "settings-row"));
+        Assert.Equal("SettingsBehaviorBody", (string?)row.Parent!.Parent!.Attribute(x + "Name"));
         XElement page = Assert.Single(checkbox.Ancestors(), e => (string?)e.Attribute(x + "Name") == "SettingsBehaviorPage");
         Assert.Equal("{Binding IsEditable}", (string?)page.Attribute("IsEnabled"));
         Assert.Equal("{Binding MonitorClipboardUrls, Mode=TwoWay}", (string?)checkbox.Attribute("IsChecked"));
         Assert.Equal("{Binding MonitorClipboardLabel}", (string?)checkbox.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding MonitorClipboardHint}", (string?)checkbox.Attribute("AutomationProperties.HelpText"));
-        Assert.Contains(checkbox.Parent.Elements(), e => e.Name.LocalName == "TextBlock"
+        Assert.Contains(row.Descendants(), e => e.Name.LocalName == "TextBlock"
             && (string?)e.Attribute("Text") == "{Binding MonitorClipboardHint}"
             && (string?)e.Attribute("TextWrapping") == "Wrap");
     }

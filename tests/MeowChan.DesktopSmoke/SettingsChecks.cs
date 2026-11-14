@@ -81,7 +81,7 @@ internal static class SettingsChecks
                 "Legacy auto-hide ON failed to enable the same pair.");
             window.Editor.GalleryOverlayPostContext = true;
             window.UpdateLayout();
-            CheckBox[] controlsChoices = window.Editor.GetVisualDescendants().OfType<CheckBox>()
+            ToggleSwitch[] controlsChoices = window.Editor.GetVisualDescendants().OfType<ToggleSwitch>()
                 .Where(c => c.Name is "GalleryOverlayControlsInput" or "GalleryAutoHideControlsInput")
                 .Where(c => c.IsEffectivelyVisible).ToArray();
             Require(controlsChoices.Length == 1 && controlsChoices[0].IsEffectivelyEnabled
@@ -552,7 +552,7 @@ internal static class SettingsChecks
         window.Editor.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.Editor.ThemeChoices.Single(choice => choice.Value == "Light");
         window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Advanced");
         window.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.Editor.LanguageChoices.Single(choice => choice.Code == "de");
-        window.Editor.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
+        window.Editor.FindControl<ToggleSwitch>("CompactDensityInput")!.IsChecked = true;
         Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Advanced"
             && window.Editor.SelectedLanguage?.Code == "de" && window.Editor.CompactDensity,
             "Appearance controls did not update the detached settings edit.");

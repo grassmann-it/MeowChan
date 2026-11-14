@@ -77,7 +77,7 @@ public sealed class WorkViewSettingsTests
         "ShowBooruActionsInput",
     ];
 
-    private static readonly string[] InputElements = ["CheckBox", "ComboBox", "TextBox", "NumericUpDown", "SettingsNumberInput", "AccessibleNumberInput"];
+    private static readonly string[] InputElements = ["CheckBox", "ToggleSwitch", "ComboBox", "TextBox", "NumericUpDown", "SettingsNumberInput", "AccessibleNumberInput"];
 
     [Fact]
     public void EverySettingIsCoreOrInAGroupAndCoreFieldsAreNeverInOne()

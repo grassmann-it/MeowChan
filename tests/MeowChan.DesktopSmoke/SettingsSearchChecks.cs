@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Testing;
@@ -38,6 +39,18 @@ internal static class SettingsSearchChecks
             Require(!panel.IsVisible && box.PlaceholderText == Texts.T("settings.search.placeholder"), "Search starts closed and named.");
             Require(!advanced.IsExpanded, "The advanced limits start collapsed.");
             decimal? timer = editor.RecheckTimer;
+
+            // SP1: the search sits in the page header, to the right of the title, 240-480 dip wide, and Ctrl+F and "/" focus it.
+            TextBlock title = editor.FindControl<TextBlock>("SettingsTitleBlock")!;
+            Control searchHost = editor.FindControl<Control>("SettingsSearchHost")!;
+            Control moreButton = editor.FindControl<Control>("SettingsMoreButton")!;
+            Require(searchHost.Bounds.Width is >= 240 and <= 480.5 && searchHost.Bounds.Left > title.Bounds.Left && searchHost.Bounds.Right <= moreButton.Bounds.Left + 0.5
+                && Math.Abs(searchHost.Bounds.Top - title.Bounds.Top) < title.Bounds.Height + 24,
+                "The search is not in the header row between the title and the menu, 240-480 wide: " + searchHost.Bounds + " / " + moreButton.Bounds);
+            editor.FindControl<Button>("SettingsMoreButton")?.Focus();
+            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemQuestion, KeySymbol = "/", Source = editor });
+            Require(box.IsKeyboardFocusWithin, "'/' did not focus the search.");
+            editor.FindControl<Button>("SettingsMoreButton")?.Focus();
 
             // A typo finds the setting; typing only lists it. Enter jumps: the page opens and the row is marked.
             Control downloadsPage = editor.FindControl<Control>("SettingsDownloadsPage")!;
@@ -150,7 +163,7 @@ internal static class SettingsSearchChecks
     private static string HitLabel(ListBox list, int index) => Row(list, index)?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty;
 
     private static IEnumerable<string> Groups(ListBox list) => Enumerable.Range(0, list.ItemCount)
-        .Select(i => Row(list, i)?.GetVisualDescendants().OfType<TextBlock>().Skip(1).FirstOrDefault()?.Text ?? string.Empty);
+        .Select(i => Row(list, i)?.GetVisualDescendants().OfType<Border>().FirstOrDefault(b => b.Classes.Contains(SettingsSearchChip.ChipClass))?.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault()?.Text ?? string.Empty);
 
     private static Control? Row(ListBox list, int index) => list.ContainerFromIndex(index);
 
