@@ -16,8 +16,10 @@ internal static class ReaderNavigationLayout
     internal const double RightInset = 24;
     // The pointer counts as near the cross inside its rectangle grown by this much on every side.
     internal const double NearMargin = 64;
-    // Idle time without pointer movement before the cross fades out.
-    internal const int IdleHideDelayMsDefault = 2000, IdleHideDelayMsMinimum = 500, IdleHideDelayMsMaximum = 30_000;
+    // Idle time without pointer movement before the cross fades out: the "Hide controls after" setting
+    // (Config.ControlsIdleHideMs), shared with the gallery's overlay controls.
+    internal const int IdleHideDelayMsDefault = Config.ControlsIdleHideMsDefault, IdleHideDelayMsMinimum = Config.ControlsIdleHideMsMinimum,
+        IdleHideDelayMsMaximum = Config.ControlsIdleHideMsMaximum;
     // Post width "fit to content": a card is as wide as its content needs, up to this reading width. The same number
     // is the MaxWidth setter of the "ListBox.reader-fit-width ListBoxItem" style in ArchivePage.axaml (a test pins both).
     internal const double CardMaxWidth = 1120;

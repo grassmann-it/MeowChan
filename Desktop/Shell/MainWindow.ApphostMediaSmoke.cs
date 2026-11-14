@@ -273,8 +273,9 @@ public partial class MainWindow
             postCloseRestarts = (await player.InspectPlaybackAsync()).LoopRestarts;
             RequireMediaSmoke(postCloseRestarts == afterCloseRepeats,
                 "A pending EndReached callback restarted a closed video.");
-            persistedMode = Config.LoadConfig(profile).GalleryPlaybackMode;
-            RequireMediaSmoke(persistedMode == "Repeat", "Gallery close did not persist the chosen repeat mode.");
+            Config persisted = Config.LoadConfig(profile);
+            persistedMode = persisted.GalleryPlaybackMode + (persisted.GalleryVideoRepeat ? "+repeat" : string.Empty);
+            RequireMediaSmoke(persisted.GalleryVideoRepeat, "Gallery close did not persist the chosen \"Repeat video\".");
             checks.Add("repeat-close-no-restart");
             // Also exercise ordinary app shutdown while a fresh native player is actively playing.
             await OpenMediaGalleryAsync(entries, entries[1].EntryKey);

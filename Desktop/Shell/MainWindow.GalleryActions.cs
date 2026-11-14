@@ -51,6 +51,24 @@ public partial class MainWindow
         _gallery.ProviderPostCopyRequested += entry => _ = RunGalleryActionAsync(() => CopyGalleryProviderPostAsync(entry), entry.Key.ToString());
         _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
             NotificationType.Information, operation: "gallery.menu");
+        _gallery.SaveFrameRequested += entry => _ = RunGalleryActionAsync(SaveGalleryFrameAsync, entry.Key.ToString());
+    }
+
+    /// <summary>The folder a saved video frame goes to: the last export folder, else Pictures, else the download folder.</summary>
+    internal string GalleryFrameDirectory()
+    {
+        foreach (string? candidate in new[] { _config.LastExportDirectory, Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), _config.DownloadPath })
+            if (!string.IsNullOrWhiteSpace(candidate) && Directory.Exists(candidate)) return candidate;
+        return _config.DownloadPath;
+    }
+
+    private async Task SaveGalleryFrameAsync()
+    {
+        if (_gallery is not { } gallery) return;
+        string? path = await gallery.SaveVideoFrameAsync(GalleryFrameDirectory());
+        if (_isClosing) return;
+        if (path != null) ShowNotification(Texts.T("gallery.frame.saved"), path, NotificationType.Information, operation: "video.snapshot");
+        else ShowNotification(Texts.T("notification.error"), Texts.T("gallery.frame.failed"), NotificationType.Warning, operation: "video.snapshot");
     }
 
     // Test seam: no program is ever started; the path that would have been handed to the desktop is passed instead.

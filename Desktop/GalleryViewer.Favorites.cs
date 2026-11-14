@@ -21,10 +21,9 @@ internal sealed partial class GalleryViewer
 
     internal static Border CreateFavoriteIndicator(string name) => new Border
     {
-        Name = name, HorizontalAlignment = HorizontalAlignment.Left,
-        // The expandable post context is docked on the right. Keep the passive
-        // persisted-state badge in the opposite, fixed safe area so opening the
-        // context can never paint it underneath an opaque panel.
+        Name = name, HorizontalAlignment = HorizontalAlignment.Right,
+        // The top left belongs to the way back. The passive persisted-state badge sits at the top right of the picture and
+        // moves left of an open post panel (UpdateFavoriteIndicators), so the panel never paints over it.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
         Padding = new Thickness(7, 3),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
@@ -78,6 +77,12 @@ internal sealed partial class GalleryViewer
         bool visible = _entry != null && _favoriteKnown && !_terminalRetirement;
         _favoriteIndicator.IsVisible = visible && !_nativeOverlayActive;
         _nativeFavoriteIndicator.IsVisible = visible && _nativeOverlayActive;
+        // Keep the badge left of an open post panel: the docked panel takes its column (+ spacing) from the managed root,
+        // the panel over the picture its own width; inside the native overlay only the latter covers the video.
+        double panel = !_contextOpen || _contextPanel == null ? 0
+            : _contextOverPicture ? (double.IsFinite(_contextPanel.Width) ? _contextPanel.Width : 0) + 12 : 320 + 8;
+        _favoriteIndicator.Margin = new Thickness(12, 12, 12 + panel, 12);
+        _nativeFavoriteIndicator.Margin = new Thickness(12, 12, 12 + (_contextOverPicture ? panel : 0), 12);
         // Row 0 is deliberately outside the native video in transparency fallback mode.
         Grid.SetRow(_favoriteIndicator, 0);
     }

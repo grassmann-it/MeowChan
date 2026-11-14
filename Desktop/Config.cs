@@ -77,6 +77,9 @@ namespace MeowChan
         private int _videoVolume = 70;
         private string _galleryPlaybackMode = "Manual";
         private int _gallerySlideshowSeconds = 5;
+        private string _gallerySlideshowVideoRule = nameof(Desktop.SlideshowVideoRule.PlayOnce);
+        private int _gallerySlideshowVideoSeconds = GallerySlideshowVideoSecondsDefault;
+        private int _gallerySlideshowVideoRepeats = GallerySlideshowVideoRepeatsDefault;
         private double _windowWidth = 1380;
         private double _windowHeight = 850;
         private double? _windowPositionX;
@@ -555,11 +558,44 @@ namespace MeowChan
         public string GalleryPlaybackMode
         {
             get => _galleryPlaybackMode;
-            set => _galleryPlaybackMode = string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase) ? "Repeat"
-                : string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+            set
+            {
+                // Read migration: "Repeat video" was the third playback mode until it became its own choice. An old
+                // profile's "Repeat" turns it on and leaves the mode Manual; the file changes only on its next save.
+                if (string.Equals(value?.Trim(), "Repeat", StringComparison.OrdinalIgnoreCase)) GalleryVideoRepeat = true;
+                _galleryPlaybackMode = string.Equals(value?.Trim(), "Slideshow", StringComparison.OrdinalIgnoreCase) ? "Slideshow" : "Manual";
+            }
         }
         [JsonConverter(typeof(DesktopPreferenceSlideshowSecondsConverter))]
         public int GallerySlideshowSeconds { get => _gallerySlideshowSeconds; set => _gallerySlideshowSeconds = Math.Clamp(value, 1, 300); }
+        /// <summary>Repeat the shown video outside a slideshow (the transport's loop button).</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryVideoRepeat { get; set; }
+        /// <summary>What a running slideshow does with a video: play it once, loop it for at least
+        /// <see cref="GallerySlideshowVideoSeconds"/> or repeat it <see cref="GallerySlideshowVideoRepeats"/> times.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GallerySlideshowVideoRule
+        {
+            get => _gallerySlideshowVideoRule;
+            set => _gallerySlideshowVideoRule = Desktop.GalleryPlaybackPreferences.ParseVideoRule(value).ToString();
+        }
+        [JsonConverter(typeof(DesktopPreferenceSlideshowVideoSecondsConverter))]
+        public int GallerySlideshowVideoSeconds
+        {
+            get => _gallerySlideshowVideoSeconds;
+            set => _gallerySlideshowVideoSeconds = Math.Clamp(value, GallerySlideshowVideoSecondsMinimum, GallerySlideshowVideoSecondsMaximum);
+        }
+        internal const int GallerySlideshowVideoSecondsDefault = 10, GallerySlideshowVideoSecondsMinimum = 1, GallerySlideshowVideoSecondsMaximum = 600;
+        [JsonConverter(typeof(DesktopPreferenceSlideshowVideoRepeatsConverter))]
+        public int GallerySlideshowVideoRepeats
+        {
+            get => _gallerySlideshowVideoRepeats;
+            set => _gallerySlideshowVideoRepeats = Math.Clamp(value, GallerySlideshowVideoRepeatsMinimum, GallerySlideshowVideoRepeatsMaximum);
+        }
+        internal const int GallerySlideshowVideoRepeatsDefault = 2, GallerySlideshowVideoRepeatsMinimum = 1, GallerySlideshowVideoRepeatsMaximum = 50;
+        /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
+        public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
+        internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -862,6 +898,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardUrlLimit), "ClipboardUrlLimit is outside its supported range (" + ClipboardUrlLimitMinimum + " to " + ClipboardUrlLimitMaximum + ").");
             if (ClipboardTextLimitKiB is < ClipboardTextLimitKiBMinimum or > ClipboardTextLimitKiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
+            if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -998,6 +1036,7 @@ namespace MeowChan
                 ClipboardUrlLimit = ClipboardUrlLimit,
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
+                ControlsIdleHideMs = ControlsIdleHideMs,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1060,6 +1099,10 @@ namespace MeowChan
                 VideoVolume = VideoVolume,
                 GalleryPlaybackMode = GalleryPlaybackMode,
                 GallerySlideshowSeconds = GallerySlideshowSeconds,
+                GalleryVideoRepeat = GalleryVideoRepeat,
+                GallerySlideshowVideoRule = GallerySlideshowVideoRule,
+                GallerySlideshowVideoSeconds = GallerySlideshowVideoSeconds,
+                GallerySlideshowVideoRepeats = GallerySlideshowVideoRepeats,
                 GalleryMediaFocus = GalleryMediaFocus,
                 GalleryOverlayControls = GalleryOverlayControls,
                 GalleryAutoHideControls = GalleryOverlayControls,
@@ -1150,6 +1193,7 @@ namespace MeowChan
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            ControlsIdleHideMs = source.ControlsIdleHideMs;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1265,6 +1309,7 @@ namespace MeowChan
             ClipboardUrlLimit = source.ClipboardUrlLimit;
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
+            ControlsIdleHideMs = source.ControlsIdleHideMs;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1639,6 +1684,32 @@ namespace MeowChan
                 return Math.Clamp(value, 1, 300);
             reader.Skip();
             return 5;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowVideoSecondsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
+            reader.Skip();
+            return Config.GallerySlideshowVideoSecondsDefault;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceSlideshowVideoRepeatsConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
+            reader.Skip();
+            return Config.GallerySlideshowVideoRepeatsDefault;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }

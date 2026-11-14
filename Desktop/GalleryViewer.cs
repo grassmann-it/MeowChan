@@ -44,6 +44,9 @@ internal sealed class GalleryAssociationIndex
         _entries.TryGetValue(key, out GalleryEntry[]? entries) ? Array.AsReadOnly(entries) : Array.Empty<GalleryEntry>();
 }
 
+/// <summary>Where the gallery's way back returns to; it only names the target (the command stays gallery.close).</summary>
+internal enum GalleryReturnTarget { None, Media, Thread, Archive, Downloads }
+
 // A diagnostic is data for the owning shell, never an instruction to the transport.
 internal sealed record GalleryDiagnosticNotice(string Operation, GalleryEntry? Entry, long Revision,
     string Message, bool MediaUnavailable);
@@ -81,11 +84,15 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly Button _zoomIn;
     private readonly Button _zoomOut;
     private readonly Button _exportOriginal;
+    // "Save frame as image" (⋯ and Shift+S): the shown video frame as a PNG; only while a video is shown.
+    private readonly Button _saveFrame;
     private readonly ToggleButton _favorite;
     private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
     private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Classes = { "workspace-section" }, IsVisible = false };
     private readonly StackPanel _helpContent = new() { Spacing = 6 };
+    private readonly TextBlock _helpTitle = new();
+    private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
         Margin = new Thickness(8, 8, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
@@ -302,7 +309,19 @@ internal sealed partial class GalleryViewer : UserControl
         StackPanel media = ToolGroup("GalleryMediaTools");
         StackPanel view = ToolGroup("GalleryViewTools");
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
+        // The way back is not a toolbar button: it floats at the top left of the picture (the one rule for every surface that
+        // replaced another), names where it returns to and stays reachable, dimmed, while auto-hidden controls are away.
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
+        navigation.Children.Remove(_close);
+        _close.HorizontalAlignment = HorizontalAlignment.Left;
+        _close.VerticalAlignment = VerticalAlignment.Top;
+        _close.Margin = new Thickness(12);
+        _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
+        _close.Classes.Add("gallery-back");
+        _close.PointerEntered += (_, _) => UpdateBackButtonOpacity();
+        _close.PointerExited += (_, _) => UpdateBackButtonOpacity();
+        _close.GotFocus += (_, _) => UpdateBackButtonOpacity();
+        _close.LostFocus += (_, _) => UpdateBackButtonOpacity();
         _previous = Command(navigation, "GalleryPrevious", Texts.T("gallery.viewer1"), () => Move(-1));
         navigation.Children.Add(_compactPosition);
         _next = Command(navigation, "GalleryNext", Texts.T("gallery.viewer2"), () => Move(1));
@@ -325,6 +344,8 @@ internal sealed partial class GalleryViewer : UserControl
         CreateTagsButton(_overflowPanel);
         _exportOriginal = Command(_overflowPanel, "GalleryExportOriginal", Texts.T("viewer.menu.exportOriginal"), () =>
         { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); }, overflow: true);
+        _saveFrame = Command(_overflowPanel, "GallerySaveFrame", CommandCatalog.Label("video.snapshot"), RequestSaveFrame, overflow: true);
+        _saveFrame.IsEnabled = false; // Only a shown video has a frame to save.
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
         _focusTools = ToolGroup("GalleryFocusTools");
         _toolsToggle = (ToggleButton)Command(_focusTools, "GalleryToolsToggle", string.Empty, () => SetMediaFocus(!_mediaFocus));
@@ -359,8 +380,19 @@ internal sealed partial class GalleryViewer : UserControl
         infoContent.Children.Add(_slideshowStatus);
         AutomationProperties.SetLiveSetting(_favoriteError, AutomationLiveSetting.Assertive);
         _infoOverlay.Child = infoContent;
-        _helpPanel.Child = new ScrollViewer { Content = _helpContent,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        // Close sits at the top right of the surface it closes (× · Esc), outside the scrolling list of shortcuts.
+        _helpTitle.Classes.Add("section-title");
+        _helpTitle.VerticalAlignment = VerticalAlignment.Center;
+        _helpTitle.TextWrapping = TextWrapping.Wrap;
+        Grid helpHeader = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 0, 0, 6) };
+        helpHeader.Children.Add(_helpTitle);
+        _helpClose = CloseLayerButton("GalleryHelpClose", () => SetHelp(false));
+        helpHeader.Children.Add(_helpClose); Grid.SetColumn(_helpClose, 1);
+        ScrollViewer helpScroll = new() { Content = _helpContent, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid helpRoot = new() { RowDefinitions = new RowDefinitions("Auto,*") };
+        helpRoot.Children.Add(helpHeader);
+        helpRoot.Children.Add(helpScroll); Grid.SetRow(helpScroll, 1);
+        _helpPanel.Child = helpRoot;
         _helpPanel.HorizontalAlignment = HorizontalAlignment.Right;
         _helpPanel.VerticalAlignment = VerticalAlignment.Top;
         _helpPanel.Margin = new Thickness(12);
@@ -383,6 +415,8 @@ internal sealed partial class GalleryViewer : UserControl
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
         };
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
+        root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
+        GalleryControlTransfer.Track(_close, () => !_terminalRetirement);
         root.Children.Add(_body);
         root.Children.Add(_chrome); Grid.SetRow(_chrome, 1);
         root.Children.Add(_infoOverlay); Grid.SetRow(_infoOverlay, 2);
@@ -398,6 +432,8 @@ internal sealed partial class GalleryViewer : UserControl
         SizeChanged += (_, _) =>
         {
             _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
+            bool compactBack = Bounds.Width > 0 && Bounds.Width < CompactBackWidth;
+            if (compactBack != _compactBack) { _compactBack = compactBack; ApplyCloseLabel(); }
             UpdateToolbarDensity();
             LayoutContext();
         };
@@ -448,6 +484,7 @@ internal sealed partial class GalleryViewer : UserControl
         UpdateHelp();
         UpdateHelpButtonTooltip();
         SetImageCommands(false);
+        ApplyCloseLabel();
     }
 
 
@@ -512,10 +549,10 @@ internal sealed partial class GalleryViewer : UserControl
         "GalleryPlus" => "gallery.zoom-in", "GalleryToggleContext" => "gallery.context-toggle",
         "GalleryReadPosts" => "thread.read", "GalleryFullscreen" => "window.fullscreen",
         "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle",
-        "GalleryExportOriginal" => "media.export-original",
+        "GalleryExportOriginal" => "media.export-original", "GallerySaveFrame" => "video.snapshot",
         "GalleryOpenExternal" => "media.open-external", "GalleryFileOnlyFolder" => "media.show-in-folder",
         "GalleryToolsToggle" => "gallery.tools-toggle",
-        "GalleryReturnImage" => "gallery.context-close", "GalleryReadPost" => "gallery.show-in-thread",
+        "GalleryReadPost" => "gallery.show-in-thread",
         _ => null
     };
 
@@ -535,33 +572,69 @@ internal sealed partial class GalleryViewer : UserControl
         _ => null
     };
 
-    // MEDIA103-NAV P1: a gallery the host opened from the Medien page closes back to it, so its close action says
-    // where it goes. Presentation only: the command (gallery.close), Escape and the key binding stay the same.
-    private bool _closesToMedia;
-    internal bool ClosesToMedia
+    // MEDIA103-NAV P1 and the back rule: the gallery's way back says where it goes (the Medien page, the thread, the Archive
+    // or Downloads list it was opened from). Presentation only: the command (gallery.close), Escape and the key binding stay.
+    private GalleryReturnTarget _returnTarget;
+    internal GalleryReturnTarget ReturnTarget
     {
-        get => _closesToMedia;
+        get => _returnTarget;
         set
         {
-            if (_closesToMedia == value) return;
-            _closesToMedia = value;
+            if (_returnTarget == value) return;
+            _returnTarget = value;
             ApplyCloseLabel();
             UpdateHelp();
         }
     }
 
-    internal string CloseLabel => _closesToMedia ? Texts.T("command.gallery.close.media") : CommandCatalog.Label("gallery.close");
+    internal bool ClosesToMedia
+    {
+        get => _returnTarget == GalleryReturnTarget.Media;
+        set
+        {
+            if (value) ReturnTarget = GalleryReturnTarget.Media;
+            else if (_returnTarget == GalleryReturnTarget.Media) ReturnTarget = GalleryReturnTarget.None;
+        }
+    }
+
+    internal string CloseLabel => _returnTarget switch
+    {
+        GalleryReturnTarget.Media => Texts.T("command.gallery.close.media"),
+        GalleryReturnTarget.Thread => Texts.T("command.gallery.close.thread"),
+        GalleryReturnTarget.Archive => Texts.T("command.gallery.close.archive"),
+        GalleryReturnTarget.Downloads => Texts.T("command.gallery.close.downloads"),
+        _ => CommandCatalog.Label("gallery.close")
+    };
+
+    /// <summary>Below this viewer width the way back shows only its arrow; its name and tooltip keep the target.</summary>
+    internal const double CompactBackWidth = 640;
 
     private void ApplyCloseLabel()
     {
         CommandBindings.Apply(_close, "gallery.close");
-        if (!_closesToMedia) { ApplyCompactLabel(_close, "GalleryClose"); return; }
         string label = CloseLabel;
-        ApplyCompactLabel(_close, "GalleryClose", label);
         string tip = CommandBindings.Tooltip("gallery.close", visibleLabel: label);
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+        Border icon = (Border)CommandBindings.Icon("archive.back-to-list", 16); // the arrow-left of every "back"
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
+        content.Children.Add(icon);
+        if (Bounds.Width <= 0 || Bounds.Width >= CompactBackWidth)
+            content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        _close.Content = content;
         ToolTip.SetTip(_close, tip);
         AutomationProperties.SetName(_close, label);
         AutomationProperties.SetHelpText(_close, tip);
+    }
+
+    private bool _compactBack;
+
+    // Rule 5: auto-hide never hides the only way out. While the overlay controls are away the back button stays at 30 %
+    // and returns to full strength under the pointer or the keyboard focus.
+    private void UpdateBackButtonOpacity()
+    {
+        if (_close == null) return;
+        bool dimmed = OverlayControlsEffective && _overlayHidden && !_close.IsPointerOver && !_close.IsKeyboardFocusWithin;
+        _close.Opacity = dimmed ? 0.3 : 1;
     }
 
     private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
@@ -651,7 +724,7 @@ internal sealed partial class GalleryViewer : UserControl
         CancelLoads(); UnbindVideoPlaybackSignals();
         _mediaFailed = true; _navigationPending = false;
         _imageReadyRequest = _videoReadyRequest = -1;
-        SetImageCommands(false); _exportOriginal.IsEnabled = false;
+        SetImageCommands(false); _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _info = null; ClearBitmaps();
         StopSlideshow();
         HideFileOnlyPlate();
@@ -792,19 +865,19 @@ internal sealed partial class GalleryViewer : UserControl
     {
         _helpPanel.IsVisible = _helpOpen;
         _helpContent.Children.Clear();
+        _helpTitle.Text = Texts.T("viewer.help.title");
+        RefreshCloseLayerButton(_helpClose, Texts.T("viewer.help.close"));
         if (!_helpOpen) return;
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T("viewer.help.title"), Classes = { "section-title" } });
         string[] ids = _helpExpanded
             ? new[] { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "favorites.add", "favorites.remove", "favorites.toggle", "gallery.context-toggle", "video.play-pause", "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" }
             : new[] { "gallery.previous", "gallery.next", "gallery.fit", "favorites.add", "favorites.remove", "gallery.context-toggle", "gallery.slideshow-toggle" };
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
-        _helpContent.Children.Add(new TextBlock { Text = Texts.T(_closesToMedia ? "viewer.help.escape.media" : "viewer.help.escape"), Classes = { "workspace-help" } });
+        _helpContent.Children.Add(new TextBlock { Text = Texts.T(_returnTarget == GalleryReturnTarget.Media ? "viewer.help.escape.media" : "viewer.help.escape"), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
-        Command(actions, "GalleryHelpClose", Texts.T("action.close"), () => SetHelp(false));
-        _helpContent.Children.Add(actions);
+        if (actions.Children.Count > 0) _helpContent.Children.Add(actions);
     }
 
     // Unlike _viewerInteractionStopped (also used for reusable detachment), this
@@ -915,6 +988,7 @@ internal sealed partial class GalleryViewer : UserControl
         HideFileOnlyPlate();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
+        _saveFrame.IsEnabled = entry.Kind == SavedMediaKind.Video;
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
@@ -956,7 +1030,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_nativeOverlayUnsupported) SetVideoFallbackLayout(true);
             _videoDiagnosticEntry = entry; _videoDiagnosticRevision = AssociationRevision;
             BindVideoPlaybackSignals(request);
-            _video.SetLoopEnabled(_playbackPreferences.Mode == GalleryPlaybackMode.Repeat);
+            ApplyEffectiveVideoLoop();
             _video.Configure(resumeAutoplay ?? EffectiveVideoAutoplay, _videoStartMuted, _videoVolume);
             _image.IsVisible = _status.IsVisible = false; _video.IsVisible = true;
             ApplyOverlayPlacement();
@@ -967,6 +1041,7 @@ internal sealed partial class GalleryViewer : UserControl
             await _video.ShowAsync(entry, cancellationToken);
             if (request != _request || cancellationToken.IsCancellationRequested) return;
             _videoReadyRequest = request;
+            _slideshow.VideoReady(_slideshowGeneration);
             // Initial selection already honored autoplay. Only a slideshow explicitly started
             // during loading may still need Play; never Pause because progression is stopped.
             if (_slideshow.IsRunning) await _video.PlayForSlideshowAsync();
@@ -1131,7 +1206,14 @@ internal sealed partial class GalleryViewer : UserControl
         {
             if (generation == _contextGeneration && _contextOpen) action();
         });
-        ContextCommand("GalleryReturnImage", Texts.T("gallery.viewer7"), () => SetContextOpen(false));
+        // The panel closes with × at its top right (and Esc); its name says where it returns to (the picture).
+        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        TextBlock title = new() { Text = Texts.T("gallery.context"), Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
+        header.Children.Add(title);
+        Button returnImage = CloseLayerButton("GalleryReturnImage", () => { if (generation == _contextGeneration && _contextOpen) SetContextOpen(false); });
+        RefreshCloseLayerButton(returnImage, Texts.T("gallery.viewer7"));
+        header.Children.Add(returnImage); Grid.SetColumn(returnImage, 1);
+        _context.Children.Add(header);
         try
         {
             AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread);
@@ -1186,6 +1268,28 @@ internal sealed partial class GalleryViewer : UserControl
             }
         }
     }
+    /// <summary>A "×" that closes the layer it sits in (help, post panel): 32×32, top right, tooltip "{what it does} · Esc".</summary>
+    private static Button CloseLayerButton(string name, Action close)
+    {
+        Button button = new() { Name = name, Classes = { "command-icon" }, Width = 32, Height = 32, MinWidth = 32,
+            Padding = new Thickness(8), HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
+            HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+        Border icon = (Border)CommandBindings.Icon("gallery.close", 14); // the "x" glyph
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
+        button.Content = icon;
+        button.Click += (_, _) => close();
+        return button;
+    }
+
+    private static void RefreshCloseLayerButton(Button? button, string label)
+    {
+        if (button == null) return;
+        string tip = Texts.T("viewer.closeLayer", label);
+        AutomationProperties.SetName(button, label);
+        AutomationProperties.SetHelpText(button, tip);
+        ToolTip.SetTip(button, tip);
+    }
+
     private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
     private void LayoutContext()
     {
@@ -1217,6 +1321,8 @@ internal sealed partial class GalleryViewer : UserControl
         // actual owned transport sliders may opt into these four effective commands.
         if (_entry?.Kind == SavedMediaKind.Video && _video?.IsTransportInput(e.Source) == true)
         {
+            foreach (var (id, seconds) in SeekCommands)
+                if (_video.MatchesTransportShortcut(e, id)) { SeekVideo(seconds); e.Handled = true; return; }
             if (_video.MatchesTransportShortcut(e, "gallery.previous")) { Move(-1); e.Handled = true; return; }
             if (_video.MatchesTransportShortcut(e, "gallery.next")) { Move(1); e.Handled = true; return; }
             if (_video.MatchesTransportShortcut(e, "video.volume-up")) { AdjustVideoVolume(1); e.Handled = true; return; }
@@ -1243,6 +1349,12 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.volume-up")) { AdjustVideoVolume(1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.mute")) { _ = _video.ToggleMuteAsync(); e.Handled = true; return; }
+            foreach (var (id, seconds) in SeekCommands)
+                if (CommandBindings.Matches(e, id)) { SeekVideo(seconds); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.speed-down")) { _video.StepRate(-1); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.speed-up")) { _video.StepRate(1); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.speed-reset")) { _video.StepRate(0); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.snapshot")) { RequestSaveFrame(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
@@ -1262,6 +1374,38 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
         else { CommandBindings.RouteVisibleActions(this, e); return; }
         e.Handled = true;
+    }
+
+    private static readonly (string Id, int Seconds)[] SeekCommands =
+    {
+        ("video.seek-back", -5), ("video.seek-forward", 5), ("video.seek-back-far", -30), ("video.seek-forward-far", 30)
+    };
+
+    private bool CanUseVideoTransport => _interactionAvailable && !_viewerInteractionStopped && !_videoSuspended && !_mediaFailed
+        && !_navigationPending && !_sessionCancellation.IsCancellationRequested && _entry?.Kind == SavedMediaKind.Video && _video != null;
+
+    private void SeekVideo(int seconds)
+    {
+        if (CanUseVideoTransport) _video!.SeekRelative(TimeSpan.FromSeconds(seconds));
+    }
+
+    /// <summary>Raised for "Save frame as image"; the owner picks the folder and calls <see cref="SaveVideoFrameAsync"/>.</summary>
+    internal event Action<GalleryEntry>? SaveFrameRequested;
+
+    private void RequestSaveFrame()
+    {
+        if (CanUseVideoTransport && _videoReadyRequest == _request && _entry != null) SaveFrameRequested?.Invoke(_entry);
+    }
+
+    /// <summary>
+    /// Saves the shown frame of the current video into <paramref name="directory"/> as "{file name}-{m-ss-mmm}.png" (a free
+    /// name, never an existing file) and returns its path, or null when no frame could be saved.
+    /// </summary>
+    internal async Task<string?> SaveVideoFrameAsync(string directory)
+    {
+        if (!CanUseVideoTransport || _entry is not { } entry || _video is not { } video || !System.IO.Directory.Exists(directory)) return null;
+        string path = GalleryFrameFile.Path(directory, entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, video.PositionMs);
+        return await video.SaveFrameAsync(path) && ReferenceEquals(entry, _entry) ? path : null;
     }
 
     private void AdjustVideoVolume(int direction)
@@ -1447,7 +1591,7 @@ internal sealed partial class GalleryViewer : UserControl
         // Permanently close both owners' placement admission before the FIRST await.
         // In particular, player disposal happens only after GIF retirement below.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
-            _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator })
+            _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator, _close })
             GalleryControlTransfer.Cancel(control);
         _video?.RetireTransportPlacement();
         StopViewerInteraction();
@@ -1457,7 +1601,7 @@ internal sealed partial class GalleryViewer : UserControl
         InvalidateMediaMenu();
         ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
-        _exportOriginal.IsEnabled = false;
+        _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
         _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
         _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();

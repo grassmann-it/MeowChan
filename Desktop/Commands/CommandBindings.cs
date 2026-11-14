@@ -400,7 +400,8 @@ public static class CommandBindings
     internal static bool MatchesGalleryTransport(KeyEventArgs e, string id, Control seek, Control volume)
     {
         if (e.Handled || ShortcutService.IsCapturing) return false;
-        bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down";
+        bool transportAction = id is "gallery.previous" or "gallery.next" or "video.volume-up" or "video.volume-down"
+            or "video.seek-back" or "video.seek-forward" or "video.seek-back-far" or "video.seek-forward-far";
         if (transportAction && e.Source is Visual visual)
         {
             foreach (var parent in visual.GetSelfAndVisualAncestors())

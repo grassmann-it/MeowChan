@@ -174,6 +174,7 @@ public partial class SettingsEditor
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
+        NotifyViewerHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -270,6 +271,7 @@ public partial class SettingsEditor
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
+        foreach (var field in ViewerNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()

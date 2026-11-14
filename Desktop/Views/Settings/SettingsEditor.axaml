@@ -295,6 +295,36 @@
                         </Grid>
                         <TextBlock Text="{Binding GalleryFitMaxUpscalePercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
+                    <!-- What a running slideshow does with a video; the number row belongs to the chosen rule. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshow}">
+                        <TextBlock x:Name="GallerySlideshowVideoRuleFieldLabel" Text="{Binding GallerySlideshowVideoRuleLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <ComboBox x:Name="GallerySlideshowVideoRuleInput" Grid.Column="1" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                                  ItemsSource="{Binding GallerySlideshowVideoRuleChoices}" SelectedItem="{Binding SelectedGallerySlideshowVideoRule, Mode=TwoWay}"
+                                  AutomationProperties.LabeledBy="{Binding ElementName=GallerySlideshowVideoRuleFieldLabel}" AutomationProperties.Name="{Binding GallerySlideshowVideoRuleLabel}" AutomationProperties.HelpText="{Binding GallerySlideshowVideoRuleHint}">
+                            <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock Text="{Binding GallerySlideshowVideoRuleHint}" Classes="workspace-help" TextWrapping="Wrap" IsVisible="{Binding IsGallerySlideshow}" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshowVideoSeconds}">
+                        <TextBlock x:Name="GallerySlideshowVideoSecondsFieldLabel" Text="{Binding GallerySlideshowVideoSecondsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GallerySlideshowVideoSecondsInput" Value="{Binding GallerySlideshowVideoSeconds, Mode=TwoWay}" Minimum="1" Maximum="600" Increment="1" IsEnabled="{Binding IsGallerySlideshowVideoSeconds}"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GallerySlideshowVideoSecondsFieldLabel}" AutomationProperties.Name="{Binding GallerySlideshowVideoSecondsLabel}" AutomationProperties.HelpText="{Binding GallerySlideshowVideoSecondsHelp}" />
+                            <TextBlock x:Name="GallerySlideshowVideoSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GallerySlideshowVideoSecondsHint}" Classes="workspace-help" TextWrapping="Wrap" IsVisible="{Binding IsGallerySlideshowVideoSeconds}" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshowVideoRepeats}">
+                        <TextBlock x:Name="GallerySlideshowVideoRepeatsFieldLabel" Text="{Binding GallerySlideshowVideoRepeatsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GallerySlideshowVideoRepeatsInput" Value="{Binding GallerySlideshowVideoRepeats, Mode=TwoWay}" Minimum="1" Maximum="50" Increment="1" IsEnabled="{Binding IsGallerySlideshowVideoRepeats}"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GallerySlideshowVideoRepeatsFieldLabel}" AutomationProperties.Name="{Binding GallerySlideshowVideoRepeatsLabel}" AutomationProperties.HelpText="{Binding GallerySlideshowVideoRepeatsHelp}" />
+                            <TextBlock x:Name="GallerySlideshowVideoRepeatsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GallerySlideshowVideoRepeatsHint}" Classes="workspace-help" TextWrapping="Wrap" IsVisible="{Binding IsGallerySlideshowVideoRepeats}" />
+                    <CheckBox x:Name="GalleryVideoRepeatInput" IsChecked="{Binding GalleryVideoRepeat, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryVideoRepeatLabel}" AutomationProperties.HelpText="{Binding GalleryVideoRepeatHint}"><TextBlock Text="{Binding GalleryVideoRepeatLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding GalleryVideoRepeatHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="8">
                         <CheckBox x:Name="GalleryOverlayControlsInput" IsChecked="{Binding GalleryOverlayControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayControlsLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayControlsLabel}" TextWrapping="Wrap" /></CheckBox>
@@ -303,6 +333,16 @@
                         <CheckBox x:Name="GalleryOverlayPostContextInput" IsChecked="{Binding GalleryOverlayPostContext, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayPostContextLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayPostContextLabel}" TextWrapping="Wrap" /></CheckBox>
                         <TextBlock Text="{Binding GalleryOverlayHelp}" Classes="workspace-help" />
                     </StackPanel>
+                    <!-- One idle time for the gallery's overlay controls and the reader's arrow cross. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ControlsIdleHideMsFieldLabel" Text="{Binding ControlsIdleHideMsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="ControlsIdleHideMsInput" Value="{Binding ControlsIdleHideMs, Mode=TwoWay}" Minimum="500" Maximum="30000" Increment="100"
+                                AutomationProperties.LabeledBy="{Binding ElementName=ControlsIdleHideMsFieldLabel}" AutomationProperties.Name="{Binding ControlsIdleHideMsLabel}" AutomationProperties.HelpText="{Binding ControlsIdleHideMsHelp}" />
+                            <TextBlock x:Name="ControlsIdleHideMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ControlsIdleHideMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
