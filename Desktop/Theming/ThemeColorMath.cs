@@ -14,7 +14,7 @@ internal readonly record struct PickerHsv(double Hue, double Saturation, double 
 /// <summary>
 /// TH3: the arithmetic of the colour picker and its hex field, as pure functions. HSV is the picker's model (hue, saturation,
 /// brightness sliders); the colour itself is always an opaque RGB colour, stored as <c>#RRGGBB</c>. Going from a colour to HSV
-/// and back gives the same colour (every one of the 16.7 million colours, see the round-trip test); going from HSV to a colour
+/// and back gives the same colour (sampled in the round-trip test: a coarse grid of the whole cube plus 200000 random colours); going from HSV to a colour
 /// and back may move a slider by less than the step of one colour, so the picker keeps its own sliders while the user drags.
 /// </summary>
 internal static class ThemeColorMath

@@ -16,6 +16,7 @@ internal static class SettingsSearchAliases
         ["WorkspaceMode"] = "view mode minimal simple advanced barebones ansicht modus einfach erweitert arbeitsansicht",
         ["Language"] = "locale translation sprache übersetzung deutsch english",
         ["Theme"] = "dark mode light mode dark light dunkel hell dunkelmodus nachtmodus farbschema appearance design color scheme darstellung",
+        ["ThemeColors"] = "accent color colour customize palette presets contrast orange blue green violet pink grey akzent akzentfarbe farben anpassen vorlagen kontrast orange blau grün violett rosa grau",
         ["Animations"] = "motion effects transitions reduce motion bewegung effekte animation weniger bewegung",
         ["CompactDensity"] = "density spacing dense kompakt dichte abstand zeilenabstand",
         ["ReadingFontSize"] = "font text size zoom schrift schriftgröße lesen lesbarkeit",

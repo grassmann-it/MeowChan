@@ -186,4 +186,173 @@ public sealed class ThemeConfiguratorTests : IDisposable
         Assert.True(view.IsTextPair);
         Assert.True(view.Errors > 0);
     }
+
+    // ---- reset, save, commit ------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ResettingARoleThatIsAtItsDefaultChangesNothing()
+    {
+        ThemeConfiguratorModel model = Model();
+        int raised = 0;
+        model.Changed += (_, _) => raised++;
+        foreach (ThemeTokenTheme theme in Themes)
+            foreach (ThemeUserColor role in ThemeUserColors.All)
+                Assert.False(model.ResetRole(theme, role.Id), role.Id);
+        Assert.False(model.ResetAll());
+        Assert.Equal(0, raised);
+        Assert.False(model.IsDirty);
+    }
+
+    [Fact]
+    public void ResettingARoleTouchesThatRoleInThatVariantOnly()
+    {
+        ThemeConfiguratorModel model = Model();
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#6DC793"));
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Favorite, C("#8A5A00"));
+        Assert.True(model.ResetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent));
+        Assert.False(model.Role(ThemeTokenTheme.Light, ThemeUserColors.Accent).IsCustom);
+        Assert.True(model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Accent).IsCustom);
+        Assert.True(model.Role(ThemeTokenTheme.Light, ThemeUserColors.Favorite).IsCustom);
+        Assert.True(model.ResetAll());
+        Assert.True(model.Draft.IsEmpty);
+        Assert.False(model.IsDirty);
+    }
+
+    [Fact]
+    public void ResetAllAfterASavedCustomisationIsADirtyDraftThatCanBeApplied()
+    {
+        ThemeColorOverrides saved = ThemeColorOverrides.Empty.WithRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#6DC793"));
+        ThemeConfiguratorModel model = Model(saved);
+        Assert.False(model.IsDirty);
+        Assert.False(model.CanApply);
+        Assert.True(model.ResetAll());
+        Assert.True(model.IsDirty);
+        Assert.True(model.CanApply);
+        // Saving makes the draft the baseline again; going back to the saved colours is then the change.
+        model.MarkSaved(model.Draft);
+        Assert.False(model.IsDirty);
+        Assert.False(model.CanApply);
+        Assert.True(model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Accent, C("#6DC793")));
+        Assert.True(model.CanApply);
+    }
+
+    [Fact]
+    public void AnEditedDraftThatPassesCanBeAppliedAndOneThatFailsInEitherVariantCannot()
+    {
+        ThemeConfiguratorModel model = Model();
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        Assert.True(model.CanApply);
+        // A refused Dark does not hide behind a good Light: the first failing variant is named.
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Text, model.Preview(ThemeTokenTheme.Dark).Palette.Colors["Workspace.Panel"]);
+        Assert.False(model.CanApply);
+        Assert.Equal(ThemeTokenTheme.Dark, model.Block!.Theme);
+        model.ResetRole(ThemeTokenTheme.Dark, ThemeUserColors.Text);
+        Assert.True(model.CanApply);
+    }
+
+    [Fact]
+    public async Task TheCommitPutsOnlyTheColoursIntoTheProfileThroughTheSettingsPath()
+    {
+        var committed = new Config { RecheckTimer = 77 };
+        ThemeColorOverrides draft = ThemeColorOverrides.Empty.WithRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        Config? applied = null;
+        await ThemeColorsCommit.CommitAsync(committed, draft, candidate => { applied = candidate; return Task.CompletedTask; });
+        Assert.NotNull(applied);
+        Assert.NotSame(committed, applied);
+        Assert.Equal(77, applied!.RecheckTimer);
+        Assert.Equal(draft, applied.ThemeOverrides);
+        Assert.Equal(draft, committed.ThemeOverrides);
+    }
+
+    [Fact]
+    public async Task AFailingSettingsPathLeavesTheCommittedProfileAlone()
+    {
+        var committed = new Config();
+        ThemeColorOverrides draft = ThemeColorOverrides.Empty.WithRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1C5C36"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            ThemeColorsCommit.CommitAsync(committed, draft, _ => throw new InvalidOperationException("disk full")));
+        Assert.True(committed.ThemeOverrides.IsEmpty);
+    }
+
+    // ---- the sentences ------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheContrastIsWrittenOutAndTheRatioIsCutNotRounded()
+    {
+        ThemeConfiguratorModel model = Model();
+        ThemeRoleView ok = model.Role(ThemeTokenTheme.Light, ThemeUserColors.Text);
+        Assert.Matches(@"^\d+\.\d : 1 – good$", ThemeColorsText.Contrast(ok));
+        model.SetRole(ThemeTokenTheme.Light, ThemeUserColors.Text, model.Preview(ThemeTokenTheme.Light).Palette.Colors["Workspace.Panel"]);
+        ThemeRoleView weak = model.Role(ThemeTokenTheme.Light, ThemeUserColors.Text);
+        Assert.EndsWith(" : 1 – too weak for text", ThemeColorsText.Contrast(weak));
+        Assert.Matches(@"^1\.\d : 1 – too weak for text$", ThemeColorsText.Contrast(weak));
+        Assert.Equal("Measured against: Background", ThemeColorsText.Against(weak));
+        Assert.Equal("Default", ThemeColorsText.State(ok));
+        Assert.Equal("Changed", ThemeColorsText.State(weak));
+    }
+
+    [Fact]
+    public void TheGermanSentencesUseTheCommaAndTheBlockNamesVariantAndRole()
+    {
+        Texts.SetLanguage("de");
+        ThemeConfiguratorModel model = Model();
+        model.SetRole(ThemeTokenTheme.Dark, ThemeUserColors.Text, model.Preview(ThemeTokenTheme.Dark).Palette.Colors["Workspace.Panel"]);
+        ThemeRoleView weak = model.Role(ThemeTokenTheme.Dark, ThemeUserColors.Text);
+        Assert.Matches(@"^1,\d : 1 – zu schwach für Text$", ThemeColorsText.Contrast(weak));
+        Assert.Equal("Übernehmen nicht möglich: In „Dunkel“ ist die Farbe „Text“ zu schwach für Text.", ThemeColorsText.BlockText(model.Block));
+        Assert.Equal("4,8", ThemeColorsText.Ratio(4.87));
+        Assert.Null(ThemeColorsText.BlockText(null));
+    }
+
+    [Fact]
+    public void AGenericBlockSentenceIsUsedWhenNoRoleOwnsTheFailure()
+    {
+        Assert.Equal("Can’t apply yet: some text colors in Light are too weak.", ThemeColorsText.BlockText(new ThemeApplyBlock(ThemeTokenTheme.Light, null, 3)));
+        Assert.Equal("Can’t apply yet: in Dark, the color “Accent” is too weak for text.",
+            ThemeColorsText.BlockText(new ThemeApplyBlock(ThemeTokenTheme.Dark, ThemeUserColors.Accent, 1)));
+    }
+
+    // ---- languages ----------------------------------------------------------------------------------------------------
+
+    public static TheoryData<string> AllLanguages()
+    {
+        TheoryData<string> data = new() { "en", "de" };
+        foreach (string code in Texts.BundledPackCodes()) data.Add(code);
+        return data;
+    }
+
+    [Theory, MemberData(nameof(AllLanguages))]
+    public void EveryDialogKeyIsTranslatedWithItsPlaceholders(string code)
+    {
+        Texts.Initialize();
+        Texts.SetLanguage(code);
+        foreach (var (key, english, _) in ThemeColorsCatalog.Entries)
+        {
+            string text = Texts.T(key);
+            Assert.NotEqual(key, text);
+            Assert.False(string.IsNullOrWhiteSpace(text), $"{code} {key}");
+            foreach (string placeholder in new[] { "{0}", "{1}" })
+                Assert.Equal(english.Contains(placeholder), text.Contains(placeholder));
+        }
+        Assert.Equal(55, ThemeColorsCatalog.Entries.Length);
+    }
+
+    [Fact]
+    public void TheGermanAndEnglishPackTextsDifferAndEveryRoleAndPresetHasAName()
+    {
+        foreach (ThemeUserColor role in ThemeUserColors.All)
+            Assert.Contains(ThemeColorsCatalog.Entries, entry => entry.Key == "theme.color." + role.Id);
+        foreach (ThemeAccentPreset preset in ThemeAccentPresets.All)
+            Assert.Contains(ThemeColorsCatalog.Entries, entry => entry.Key == "theme.accent." + preset.Id);
+        Assert.All(ThemeColorsCatalog.Entries.Where(entry => entry.Key.StartsWith("theme.colors.", StringComparison.Ordinal) && entry.Key is not ("theme.colors.hex" or "theme.colors.picker.degrees" or "theme.colors.picker.percent" or "theme.colors.preview.chip")),
+            entry => Assert.NotEqual(entry.English, entry.German));
+    }
+
+    [Fact]
+    public void TheGermanIntroKeepsTheSentenceOfTheCustomisationSettings()
+    {
+        Texts.SetLanguage("de");
+        Assert.StartsWith("Eigene Farben gelten getrennt für Hell und Dunkel und wirken sofort, ohne Neustart.", Texts.T("theme.colors.intro"));
+    }
 }

@@ -1078,7 +1078,7 @@ namespace MeowChan
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
                     nameof(RecheckLabel), nameof(BandwidthLabel), nameof(BandwidthHint), nameof(ParallelLabel), nameof(ParallelHint), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
                     nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
-                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
+                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(ThemeColorsLabel), nameof(ThemeColorsHint), nameof(ThemeColorsOpenLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
                     nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
                     nameof(CancelLabel), nameof(RememberReadingPositionLabel), nameof(ReadingPositionHint), nameof(ForgetReadingPositionLabel),

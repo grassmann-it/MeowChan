@@ -116,6 +116,15 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <Border x:Name="ThemeColors" Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
+                                <TextBlock x:Name="ThemeColorsFieldLabel" Text="{Binding ThemeColorsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ThemeColorsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button x:Name="ThemeColorsButton" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" Content="{Binding ThemeColorsOpenLabel}" AutomationProperties.Name="{Binding ThemeColorsOpenLabel}" AutomationProperties.HelpText="{Binding ThemeColorsHint}" Click="OnThemeColorsClick" IsEnabled="{Binding IsEditable}" />
+                        </Grid>
+                    </Border>
                     <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
                         <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
                     <CheckBox x:Name="ShrinkWindowForBarebonesInput" IsChecked="{Binding ShrinkWindowForBarebones, Mode=TwoWay}" AutomationProperties.Name="{Binding ShrinkWindowForBarebonesLabel}" AutomationProperties.HelpText="{Binding ShrinkWindowForBarebonesHint}">
