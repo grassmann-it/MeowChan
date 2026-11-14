@@ -15,7 +15,7 @@ public sealed class BooruWorkbenchViewContractTests
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         FieldInfo[] viewNames = typeof(BooruWorkbenchView).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
         FieldInfo[] windowNames = typeof(BooruWorkbenchWindow).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
-        Assert.Equal(36, viewNames.Length); // all 35 original top-level selectors plus CatalogStorageName
+        Assert.Equal(38, viewNames.Length); // original selectors, CatalogStorageName and both local-media actions
         Assert.Equal(viewNames.Select(field => field.Name).Order(), windowNames.Select(field => field.Name).Order());
         foreach (FieldInfo field in viewNames)
         {
@@ -55,7 +55,7 @@ public sealed class BooruWorkbenchViewContractTests
         Assert.Contains("Header = BuildHeader();", view);
         Assert.Contains("Body = BuildBody();", view);
         Assert.Contains("Footer = BuildFooter();", view);
-        Assert.DoesNotContain("_close", view);
+        Assert.DoesNotMatch(@"\b_close\b", view); // _closed is the view lifetime flag, not a host Close button.
         Assert.Contains("BuildFooter(footer), DialogFrame.ErrorStrip(new TextBlock())", WindowSource());
         Assert.Contains("_view.ChromeChanged += OnChromeChanged;", WindowSource());
         Assert.Contains("_view.ChromeChanged -= OnChromeChanged;", WindowSource());

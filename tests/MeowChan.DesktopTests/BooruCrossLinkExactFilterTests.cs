@@ -267,7 +267,7 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.DoesNotContain("FocusGrid(", focus);
         Assert.DoesNotContain("FirstTileInView(", focus);
         string navigation = Source("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs");
-        Assert.Contains("await PresentTask.ConfigureAwait(true);\n        if (!Current()) return false;", navigation);
+        Assert.Contains("await PresentTask.ConfigureAwait(true);\n            if (!Current()) return Cancelled();", navigation);
         Assert.Contains("if (!Current() || !focused) return Cancelled();", navigation);
         Assert.Contains("run, stillRequested).ConfigureAwait(true)", navigation);
         Assert.DoesNotContain("SetTextSilently(postId)", navigation);

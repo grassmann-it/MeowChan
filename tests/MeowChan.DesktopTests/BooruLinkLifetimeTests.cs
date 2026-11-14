@@ -70,7 +70,9 @@ public sealed class BooruLinkLifetimeTests
         Assert.NotNull(cancelFirst);
         cancelFirst(); // CAS must leave the second action's revision intact.
         second.SetResult(false);
-        await AwaitClickHandlersAsync();
+        // The first handler is deliberately still awaiting its host. Wait for the second
+        // handler's causal completion, not for both (which would deadlock this test).
+        await AwaitClickHandlersAsync(remainingOperations: 1);
         string missing = Texts.T("booru.crossLinks.missingLocal", PostId);
         Assert.Equal(missing, LinkNote(view).Text);
         first.SetException(new InvalidOperationException("old host retired"));
@@ -330,10 +332,10 @@ public sealed class BooruLinkLifetimeTests
 
     // async-void Click handlers announce completion through SynchronizationContext. Wait for
     // that causal completion, rather than checking an unchanged notice before the handler ran.
-    private static async Task AwaitClickHandlersAsync()
+    private static async Task AwaitClickHandlersAsync(int remainingOperations = 0)
     {
         ActionContext context = Assert.IsType<ActionContext>(SynchronizationContext.Current);
-        while (context.PendingOperations != 0) await Task.Delay(1);
+        while (context.PendingOperations != remainingOperations) await Task.Delay(1);
     }
 
     private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
