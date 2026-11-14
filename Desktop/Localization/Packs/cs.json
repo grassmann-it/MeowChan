@@ -2275,6 +2275,7 @@
     "transfer.interrupted.discard": "Zahodit přerušený import…",
     "transfer.interrupted.confirm": "Potvrdit: zahodit přerušené operace ({0}) a smazat {1:N0} bajtů",
     "transfer.interrupted.keep": "Ponechat a zastavit",
+    "transfer.interrupted.list": "Přerušené operace",
     "transfer.conflicts.reclaim": "Uvolnit místo po zahozených alternativách…",
     "transfer.conflicts.reclaim.confirm": "Potvrdit: trvale smazat {0:N0} bajtů (uložené kopie z importu: {1})",
     "transfer.conflicts.reclaim.none": "Není co uvolnit: žádná zahozená alternativa není uložena samostatně.",

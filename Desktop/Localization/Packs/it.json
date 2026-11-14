@@ -2265,6 +2265,7 @@
     "transfer.interrupted.discard": "Scarta importazione interrotta…",
     "transfer.interrupted.confirm": "Conferma: scarta le operazioni interrotte ({0}) ed elimina {1:N0} byte",
     "transfer.interrupted.keep": "Mantieni e interrompi",
+    "transfer.interrupted.list": "Operazioni interrotte",
     "transfer.conflicts.reclaim": "Libera lo spazio delle alternative scartate…",
     "transfer.conflicts.reclaim.confirm": "Conferma: elimina definitivamente {0:N0} byte (copie di importazione archiviate: {1})",
     "transfer.conflicts.reclaim.none": "Niente da liberare: nessuna alternativa scartata è archiviata separatamente.",

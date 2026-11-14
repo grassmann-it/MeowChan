@@ -54,6 +54,8 @@ internal sealed class MediaOccurrencesWindow : Window
             Button show = new() { Name = "MediaOccurrenceShow", Content = Texts.T("media.showInThread"), IsEnabled = canJump(entry),
                 HorizontalAlignment = HorizontalAlignment.Left };
             show.Click += (_, _) => showInThread(entry);
+            // Every row has its own Show in thread: the name says which occurrence it opens.
+            AutomationProperties.SetName(show, ShowName((string)show.Content, where.Text));
             string description = string.Join(Environment.NewLine, new[] { where.Text, file.Text, tags.Text, claims.Text }.Where(part => !string.IsNullOrEmpty(part)));
             StackPanel row = new() { Name = "MediaOccurrence", Spacing = 4, Children = { where, file, claims, tags, show } };
             // Extra content of a row (the hint about a changed folder file) can ask for the row's own tags to be shown again.
@@ -63,8 +65,14 @@ internal sealed class MediaOccurrencesWindow : Window
         }
         // The title (the file) stands in the title bar; the summary is the header. Read-only with Close as its only way
         // out, so there is no footer: × at the top right and Escape close it.
+        // The list carries the window title (the file), which otherwise stands in the title bar only.
+        AutomationProperties.SetName(rows, Title);
         StackPanel header = new() { Spacing = 2, Children = { summary, favorite } };
         DialogWindow.Frame(this, DialogFrame.Build(header, rows, footer: null), modal: false);
         DialogEscape.Attach(this);
     }
+
+    /// <summary>The accessible name of a row's action: the action, then the occurrence it applies to.</summary>
+    internal static string ShowName(string action, string? where) =>
+        string.IsNullOrEmpty(where) ? action : action + ", " + where;
 }

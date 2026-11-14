@@ -156,6 +156,11 @@ internal sealed class MediaConflictsDialog : Window
         _close.Content = Texts.T("action.close");
         _more.Content = Texts.T("transfer.conflicts.more", _loaded.Count, _total);
         _more.IsVisible = _loaded.Count < _total;
+        // Reclaim and More change their words (confirmation, counts); the accessible names follow them.
+        AutomationProperties.SetName(_reclaim, (string)_reclaim.Content);
+        AutomationProperties.SetName(_close, (string)_close.Content);
+        AutomationProperties.SetName(_more, (string)_more.Content);
+        AutomationProperties.SetName(_rows, Title);
         _rows.Children.Clear();
         // Resolve at render time so a language switch re-renders the pending outcome as well.
         _status.Text = _statusBoard.Display.Resolve();
@@ -195,6 +200,9 @@ internal sealed class MediaConflictsDialog : Window
             if (_confirmingPromote == row.Id) await DecideAsync(row, MediaConflictUserAction.Promote);
             else { _confirming = null; _confirmingPromote = row.Id; Render(); }
         };
+        // Every row repeats Keep, Promote and Discard: each name says which alternative it decides.
+        foreach (Button action in new[] { keep, promote, discard })
+            AutomationProperties.SetName(action, RowActionName((string)action.Content!, row));
         actions.Children.Add(keep); actions.Children.Add(promote); actions.Children.Add(discard);
         StackPanel panel = new() { Spacing = 4 };
         panel.Children.Add(text); panel.Children.Add(actions);
@@ -202,6 +210,10 @@ internal sealed class MediaConflictsDialog : Window
         border.Classes.Add("workspace-card");
         return border;
     }
+
+    /// <summary>The accessible name of a row action: the action, then the place and the alternative's hash prefix.</summary>
+    internal static string RowActionName(string action, MediaConflictRow row) =>
+        action + ", " + row.Resource.Source + " /" + row.Resource.Board + "/ " + row.Resource.Thread + " (" + row.CandidateSha256[..12] + "…)";
 
     private static string StatusLabel(MediaConflictUserStatus status) => Texts.T(status switch
     {

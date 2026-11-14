@@ -81,17 +81,24 @@ internal sealed class InterruptedTransfersDialog : Window
         _discard.Content = _confirming
             ? Texts.T("transfer.interrupted.confirm", _operations.Count, bytes) : Texts.T("transfer.interrupted.discard");
         _keep.Content = Texts.T("transfer.interrupted.keep");
+        // The second press renames Discard to what it will delete; the accessible names follow the visible words.
+        AutomationProperties.SetName(_discard, (string)_discard.Content);
+        AutomationProperties.SetName(_keep, (string)_keep.Content);
+        AutomationProperties.SetName(_rows, Texts.T("transfer.interrupted.list"));
         _rows.Children.Clear();
         foreach (InterruptedNativeMediaOperation operation in _operations)
         {
             string resource = operation.Resource.Source + "/" + operation.Resource.Board + "/" + operation.Resource.Thread;
             string at = operation.ImportedAtUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
-            _rows.Children.Add(new TextBlock
+            TextBlock row = new()
             {
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = Texts.T(operation.Merge ? "transfer.interrupted.row.merge" : "transfer.interrupted.row.import",
                     resource, at, operation.CandidateBytes)
-            });
+            };
+            // Each entry is named by its own line (what, where, when, how much), never by the list.
+            AutomationProperties.SetName(row, row.Text);
+            _rows.Children.Add(row);
         }
     }
 }

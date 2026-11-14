@@ -1043,6 +1043,7 @@
     "transfer.interrupted.discard": "中断されたインポートを破棄…",
     "transfer.interrupted.confirm": "確認: 中断された操作{0}件を破棄し、{1:N0}バイトを削除",
     "transfer.interrupted.keep": "保持して停止",
+    "transfer.interrupted.list": "中断された操作",
     "transfer.conflicts.reclaim": "破棄した代替の領域を解放…",
     "transfer.conflicts.reclaim.confirm": "確認: {0:N0}バイト（保存されたインポートコピー{1}件）を完全に削除",
     "transfer.conflicts.reclaim.none": "解放できるものはありません。単独で保存されている破棄済みの代替はありません。",

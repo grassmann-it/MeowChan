@@ -1154,6 +1154,7 @@
     "transfer.interrupted.discard": "Abandonner l’import interrompu…",
     "transfer.interrupted.confirm": "Confirmer : abandonner les opérations interrompues ({0}) et supprimer {1:N0} octets",
     "transfer.interrupted.keep": "Conserver et arrêter",
+    "transfer.interrupted.list": "Opérations interrompues",
     "transfer.conflicts.reclaim": "Libérer l’espace des alternatives rejetées…",
     "transfer.conflicts.reclaim.confirm": "Confirmer : supprimer définitivement {0:N0} octets (copies d’import stockées : {1})",
     "transfer.conflicts.reclaim.none": "Rien à libérer : aucune alternative rejetée n’est stockée seule.",

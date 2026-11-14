@@ -2265,6 +2265,7 @@
     "transfer.interrupted.discard": "Descartar importação interrompida…",
     "transfer.interrupted.confirm": "Confirmar: descartar as operações interrompidas ({0}) e excluir {1:N0} bytes",
     "transfer.interrupted.keep": "Manter e parar",
+    "transfer.interrupted.list": "Operações interrompidas",
     "transfer.conflicts.reclaim": "Liberar espaço das alternativas descartadas…",
     "transfer.conflicts.reclaim.confirm": "Confirmar: excluir permanentemente {0:N0} bytes (cópias de importação armazenadas: {1})",
     "transfer.conflicts.reclaim.none": "Nada a liberar: nenhuma alternativa descartada está armazenada separadamente.",

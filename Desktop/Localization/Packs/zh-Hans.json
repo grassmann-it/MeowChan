@@ -1043,6 +1043,7 @@
     "transfer.interrupted.discard": "丢弃中断的导入…",
     "transfer.interrupted.confirm": "确认：丢弃 {0} 个中断的操作并删除 {1:N0} 字节",
     "transfer.interrupted.keep": "保留并停止",
+    "transfer.interrupted.list": "中断的操作",
     "transfer.conflicts.reclaim": "释放已丢弃备选版本的空间…",
     "transfer.conflicts.reclaim.confirm": "确认：永久删除 {0:N0} 字节（{1} 个已存储的导入副本）",
     "transfer.conflicts.reclaim.none": "无可释放的空间：没有单独存储的已丢弃备选版本。",

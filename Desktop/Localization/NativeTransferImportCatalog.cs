@@ -71,6 +71,7 @@ internal static class NativeTransferImportCatalog
         ("transfer.interrupted.discard", "Discard interrupted import…", "Unterbrochenen Import verwerfen…"),
         ("transfer.interrupted.confirm", "Confirm: discard the interrupted operations ({0}) and delete {1:N0} bytes", "Bestätigen: unterbrochene Operationen verwerfen ({0}) und {1:N0} Bytes löschen"),
         ("transfer.interrupted.keep", "Keep and stop", "Behalten und beenden"),
+        ("transfer.interrupted.list", "Interrupted operations", "Unterbrochene Operationen"),
         ("transfer.conflicts.reclaim", "Free space of discarded alternatives…", "Platz verworfener Alternativen freigeben…"),
         ("transfer.conflicts.reclaim.confirm", "Confirm: permanently delete {0:N0} bytes (stored import copies: {1})", "Bestätigen: {0:N0} Bytes (gespeicherte Importkopien: {1}) endgültig löschen"),
         ("transfer.conflicts.reclaim.none", "Nothing to free: no discarded alternative is stored on its own.", "Nichts freizugeben: keine verworfene Alternative liegt allein gespeichert."),

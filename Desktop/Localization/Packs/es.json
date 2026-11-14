@@ -1154,6 +1154,7 @@
     "transfer.interrupted.discard": "Descartar la importación interrumpida…",
     "transfer.interrupted.confirm": "Confirmar: descartar las operaciones interrumpidas ({0}) y eliminar {1:N0} bytes",
     "transfer.interrupted.keep": "Conservar y detener",
+    "transfer.interrupted.list": "Operaciones interrumpidas",
     "transfer.conflicts.reclaim": "Liberar espacio de alternativas descartadas…",
     "transfer.conflicts.reclaim.confirm": "Confirmar: eliminar definitivamente {0:N0} bytes (copias de importación guardadas: {1})",
     "transfer.conflicts.reclaim.none": "Nada que liberar: ninguna alternativa descartada está guardada por separado.",

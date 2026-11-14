@@ -77,7 +77,10 @@ public partial class ExperimentalActivationDialog : Window
         C<TextBlock>("ActivationHeading").Text = Title;
         C<TextBlock>("ActivationExplanation").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.explanation" : "activation.strictExplanation", _original.SourceName);
         C<TextBlock>("ActivationScope").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.scope" : "activation.strictScope", _original.SourceId, _original.PluginOwnerId);
-        C<Button>("ActivationCancel").Content = Texts.T(_failure != null || _unexpectedError != null ? "activation.close" : "wizard.cancel");
+        string cancel = Texts.T(_failure != null || _unexpectedError != null ? "activation.close" : "wizard.cancel");
+        C<Button>("ActivationCancel").Content = cancel;
+        // Cancel turns into Close after a failure; its accessible name follows the visible word like Confirm's.
+        AutomationProperties.SetName(C<Button>("ActivationCancel"), cancel);
         string confirm = Texts.T(!_original.RequestsMismatchPermission
             ? _failure == null && _unexpectedError == null ? "activation.strictConfirm" : "activation.strictRetry"
             : _failure == null && _unexpectedError == null ? "activation.confirm"

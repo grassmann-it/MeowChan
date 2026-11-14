@@ -1158,6 +1158,7 @@
     "transfer.interrupted.discard": "Отменить прерванный импорт…",
     "transfer.interrupted.confirm": "Подтвердить: отменить прерванные операции ({0}) и удалить {1:N0} байт",
     "transfer.interrupted.keep": "Оставить и завершить",
+    "transfer.interrupted.list": "Прерванные операции",
     "transfer.conflicts.reclaim": "Освободить место от отклонённых альтернатив…",
     "transfer.conflicts.reclaim.confirm": "Подтвердить: безвозвратно удалить {0:N0} байт (сохранённых копий импорта: {1})",
     "transfer.conflicts.reclaim.none": "Освобождать нечего: отклонённые альтернативы отдельно не хранятся.",

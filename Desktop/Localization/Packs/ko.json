@@ -1043,6 +1043,7 @@
     "transfer.interrupted.discard": "중단된 가져오기 버리기…",
     "transfer.interrupted.confirm": "확인: 중단된 작업 {0}개를 버리고 {1:N0}바이트 삭제",
     "transfer.interrupted.keep": "유지하고 중지",
+    "transfer.interrupted.list": "중단된 작업",
     "transfer.conflicts.reclaim": "버려진 대체본의 공간 확보…",
     "transfer.conflicts.reclaim.confirm": "확인: {0:N0}바이트(저장된 가져오기 복사본 {1}개) 영구 삭제",
     "transfer.conflicts.reclaim.none": "확보할 공간이 없습니다. 별도로 저장된 버려진 대체본이 없습니다.",

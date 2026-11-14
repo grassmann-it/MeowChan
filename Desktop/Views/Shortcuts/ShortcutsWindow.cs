@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.CompilerServices;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
@@ -32,6 +33,7 @@ internal sealed class ShortcutsWindow : Window
             IsSaveBlocked = () => host.IsShortcutCommitBlocked
         };
         Editor.ApplyContext(context);
+        ApplyTexts();
         DialogWindow.Frame(this, DialogFrame.Build(header: null, Editor, footer: null, fillBody: true), modal: false);
         DialogEscape.Attach(this, Editor.TryCancelLocal, () => Editor.IsSaving);
         KeyDown += OnKeyDown;
@@ -120,7 +122,14 @@ internal sealed class ShortcutsWindow : Window
         });
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e) => Title = Texts.T("shortcuts.title");
+    private void OnLanguageChanged(object? sender, EventArgs e) => ApplyTexts();
+
+    // The title stands in the title bar only (no header), so the window body, the editor, carries it as its accessible name.
+    private void ApplyTexts()
+    {
+        Title = Texts.T("shortcuts.title");
+        AutomationProperties.SetName(Editor, Title);
+    }
 }
 
 internal enum ShortcutsWindowToggle { Open, Close }

@@ -2275,6 +2275,7 @@
     "transfer.interrupted.discard": "Odrzuć przerwany import…",
     "transfer.interrupted.confirm": "Potwierdź: odrzuć przerwane operacje ({0}) i usuń {1:N0} bajtów",
     "transfer.interrupted.keep": "Zachowaj i zatrzymaj",
+    "transfer.interrupted.list": "Przerwane operacje",
     "transfer.conflicts.reclaim": "Zwolnij miejsce po odrzuconych alternatywach…",
     "transfer.conflicts.reclaim.confirm": "Potwierdź: trwale usuń {0:N0} bajtów (przechowywane kopie importu: {1})",
     "transfer.conflicts.reclaim.none": "Nie ma czego zwalniać: żadna odrzucona alternatywa nie jest przechowywana osobno.",

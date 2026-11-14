@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -13,6 +14,7 @@ namespace MeowChan.Desktop;
 /// <summary>Keeps profile and initialization failures visible even when MainWindow cannot be created.</summary>
 public sealed class StartupErrorWindow : Window
 {
+    private readonly Border _errorPanel;
     private readonly Button _exitButton;
     private bool _closed;
 
@@ -34,16 +36,16 @@ public sealed class StartupErrorWindow : Window
         detail.Classes.Add("workspace-error");
         // The failure is the window's whole subject, so it is the scrolling body rather than
         // a capped local strip; heading and exit stay fixed around it.
-        Border errorPanel = new Border
+        _errorPanel = new Border
         {
             Margin = new Thickness(16, 0, 16, 16),
             Child = detail
         };
-        errorPanel.Classes.Add("workspace-section");
+        _errorPanel.Classes.Add("workspace-section");
         _exitButton = new Button();
         _exitButton.Click += (_, _) => Close();
         // No owner: keeps minimize so the error stays reachable from the taskbar. The title stands in the title bar only.
-        DialogWindow.Frame(this, DialogFrame.Build(header: null, errorPanel, DialogFooter.Build(_exitButton)), modal: false);
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, _errorPanel, DialogFooter.Build(_exitButton)), modal: false);
         DialogEscape.Attach(this);
 
         // Texts has built-in English before Initialize, including for profile startup failures.
@@ -60,6 +62,10 @@ public sealed class StartupErrorWindow : Window
     {
         Title = Texts.T("startup.title");
         _exitButton.Content = Texts.T("action.exit");
+        // The title stands in the title bar only, so the region that carries the failure is named after it;
+        // the failure text itself keeps the name of its own text.
+        AutomationProperties.SetName(_errorPanel, Title);
+        AutomationProperties.SetName(_exitButton, Texts.T("action.exit"));
     }
 
     private void OnTextsChanged(object? sender, EventArgs e)
