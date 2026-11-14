@@ -61,6 +61,8 @@ public sealed class DanbooruWatcherCooldownResetTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
+        // Seed the explicit baseline this test later verifies survives pause/cooldown recovery.
+        search.Publish("cat", 100);
         await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string watcherId = scheduler.AddWatcher("cat").Watcher!.WatcherId;
