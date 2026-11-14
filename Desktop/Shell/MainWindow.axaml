@@ -552,7 +552,7 @@
                 <ComboBoxItem x:Name="SimpleModeItem" Tag="Simple" Content="Simple" />
                 <ComboBoxItem x:Name="AdvancedModeItem" Tag="Advanced" Content="Advanced" />
             </ComboBox>
-            <CheckBox x:Name="ShowBooruToolsToggle" Grid.Column="2" IsVisible="False" VerticalAlignment="Center"
+            <CheckBox x:Name="ShowBooruToolsToggle" wv:WorkViewElement.Id="shell.footer.booru-toggle" Grid.Column="2" IsVisible="False" VerticalAlignment="Center"
                       IsCheckedChanged="OnBooruToolsToggleChanged"
                       ToolTip.Tip="Show or hide Booru pages and actions.">
                 <TextBlock x:Name="ShowBooruToolsLabel" Tag="workview.booru.show" Classes="localized" Text="Show Booru" />
