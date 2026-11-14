@@ -258,7 +258,7 @@
                                             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                                                 <TextBlock Text="{Binding CompactStatus}" IsVisible="{Binding ShowCompactStatus}" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Meta}" Classes="muted compact-work-status" TextTrimming="CharacterEllipsis" AutomationProperties.Name="{Binding CompactStatus}" />
                                                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center" ToolTip.Tip="{Binding Progress}" AutomationProperties.Name="{Binding SavedProgress}">
-                                                    <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                                    <TextBlock Text="{Binding CompletedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" FontWeight="SemiBold" />
                                                     <TextBlock Text="/" Classes="muted mono" FontSize="{StaticResource Workspace.Text.Meta}" />
                                                     <TextBlock Text="{Binding SelectedMedia}" Classes="mono" FontSize="{StaticResource Workspace.Text.Meta}" />
                                                 </StackPanel>

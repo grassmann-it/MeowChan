@@ -63,8 +63,8 @@ public partial class ArchivePage
         {
             if (item is SplitButton split)
             {
-                // AP2: the saved-searches split button overflows like every other feature action.
-                ToolBar.SetOverflowMode(split, _archiveColumnMode == "Barebones" ? OverflowMode.Always : OverflowMode.AsNeeded);
+                // AP2: the saved-searches split button overflows like every other feature action (policy row archive.results.other).
+                WorkViewPresenter.ApplyToolBarItem(split, ArchiveWorkView, "archive.results.other");
                 if (split.Name == "ArchiveSavedSearches") ApplySavedSearchSplit();
                 continue;
             }
