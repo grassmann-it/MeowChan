@@ -33,6 +33,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     private readonly Func<Uri, Task> _copy;
     private readonly Func<string, Task> _copyText;
     private readonly Func<string, bool>? _useAsSearch;
+    private readonly Func<bool>? _isSearchAvailable;
     private readonly List<ListBox> _tagLists = new();
     private readonly TextBlock _tagStatus = new() { Name = "BooruSourceTagStatus", TextWrapping = TextWrapping.Wrap, MinHeight = 0 };
     private readonly TextBlock _tagSelection = new() { Name = "BooruSourceTagSelection", TextWrapping = TextWrapping.Wrap };
@@ -43,15 +44,19 @@ internal sealed class BooruMediaDetailsDialog : Window
     /// <param name="details">The catalog's data for the post, or null when the catalog cannot be read right now.</param>
     /// <param name="open">Opens the post page in the browser; injected so tests never start a browser.</param>
     /// <param name="copyText">Puts source tags (or a search query) on the clipboard.</param>
-    /// <param name="useAsSearch">Puts a checked query into the Danbooru window's search field and returns true, or returns
-    /// false (or is null) when that window cannot be reached; the query is then copied instead.</param>
+    /// <param name="useAsSearch">Puts a checked query into the Danbooru window's search field and returns true. It is
+    /// never called when <paramref name="isSearchAvailable"/> reports that the originating Booru composition is gone.</param>
+    /// <param name="isSearchAvailable">A live presentation/lifetime gate. It is evaluated while the source-tag action is
+    /// built and again immediately before the handoff, so a hidden, unavailable or replaced Booru cannot receive a stale query.</param>
     internal BooruMediaDetailsDialog(string postId, IReadOnlyList<string> fileLines, BooruMediaDetails? details,
-        Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, bool>? useAsSearch)
+        Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, bool>? useAsSearch,
+        Func<bool>? isSearchAvailable = null)
     {
         _open = open ?? throw new ArgumentNullException(nameof(open));
         _copy = copy ?? throw new ArgumentNullException(nameof(copy));
         _copyText = copyText ?? throw new ArgumentNullException(nameof(copyText));
         _useAsSearch = useAsSearch;
+        _isSearchAvailable = isSearchAvailable;
         Name = DialogName;
         Title = Texts.T("booru.media.detail.title", postId);
         Width = 640; Height = 620; MinWidth = 380; MinHeight = 320;
@@ -93,6 +98,25 @@ internal sealed class BooruMediaDetailsDialog : Window
 
     internal TextBlock Status => _status;
     internal TextBlock TagStatus => _tagStatus;
+
+    /// <summary>
+    /// The source-tag handoff is a presentation action, not a fallback provider operation. The
+    /// live gate belongs to the host because only it knows whether the profile/plugin composition
+    /// that opened this dialog still owns the target page.
+    /// </summary>
+    internal static bool IsSearchActionAvailable(Func<bool>? availability, Func<string, bool>? handoff) =>
+        handoff != null && (availability?.Invoke() ?? true);
+
+    internal static bool TryUseAsSearch(Func<bool>? availability, Func<string, bool>? handoff, string query) =>
+        IsSearchActionAvailable(availability, handoff) && handoff!(query);
+
+    private bool IsSearchActionAvailable() => IsSearchActionAvailable(_isSearchAvailable, _useAsSearch);
+
+    private void RemoveUnavailableSearchAction()
+    {
+        _useAsSearchButton.IsEnabled = false;
+        _useAsSearchButton.IsVisible = false;
+    }
 
     private static Control Badges(BooruMediaDetails? details)
     {
@@ -199,12 +223,18 @@ internal sealed class BooruMediaDetailsDialog : Window
         copyAll.Click += async (_, _) => await CopyTagsAsync(details.Tags.Select(tag => tag.Name).ToArray());
         _copySelectedTags.Content = Texts.T("booru.media.tags.copySelected");
         _copySelectedTags.Click += async (_, _) => await CopyTagsAsync(SelectedTagNames());
-        _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
-        ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
-        AutomationProperties.SetHelpText(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
-        _useAsSearchButton.Click += (_, _) => UseSelectionAsSearch();
-        panel.Children.Add(new WrapPanel { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 6,
-            Children = { copyAll, _copySelectedTags, _useAsSearchButton } });
+        WrapPanel actions = new() { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 6 };
+        actions.Children.Add(copyAll);
+        actions.Children.Add(_copySelectedTags);
+        if (IsSearchActionAvailable())
+        {
+            _useAsSearchButton.Content = Texts.T("booru.media.tags.useAsSearch");
+            ToolTip.SetTip(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
+            AutomationProperties.SetHelpText(_useAsSearchButton, Texts.T("booru.media.tags.useAsSearch.tip"));
+            _useAsSearchButton.Click += (_, _) => UseSelectionAsSearch();
+            actions.Children.Add(_useAsSearchButton);
+        }
+        panel.Children.Add(actions);
         _tagSelection.Classes.Add("workspace-meta");
         panel.Children.Add(_tagSelection);
         panel.Children.Add(_tagStatus);
@@ -270,7 +300,9 @@ internal sealed class BooruMediaDetailsDialog : Window
     {
         int count = SelectedTagNames().Count;
         _copySelectedTags.IsEnabled = count > 0;
-        _useAsSearchButton.IsEnabled = count > 0;
+        bool searchAvailable = IsSearchActionAvailable();
+        _useAsSearchButton.IsEnabled = count > 0 && searchAvailable;
+        if (!searchAvailable) _useAsSearchButton.IsVisible = false;
         _tagSelection.Text = count == 0 ? Texts.T("booru.media.tags.selection.none")
             : count > BooruSourceTagSearch.MaximumTags ? Texts.T("booru.media.tags.selection.tooMany", count, BooruSourceTagSearch.MaximumTags)
             : Texts.T("booru.media.tags.selection.count", count);
@@ -303,7 +335,23 @@ internal sealed class BooruMediaDetailsDialog : Window
                 _tagStatus.Text = Texts.T("booru.media.tags.search.unusable", plan.Tag!); return;
         }
         string query = plan.Query!;
-        if (_useAsSearch?.Invoke(query) == true) { Close(); return; }
+        // Re-check immediately before invoking the host. A dialog can outlive a disabled plugin,
+        // profile switch or the presentation preference; none of those states may hand a stale
+        // query to the newly composed page (or silently turn this action into a copy operation).
+        if (!IsSearchActionAvailable())
+        {
+            RemoveUnavailableSearchAction();
+            return;
+        }
+        if (TryUseAsSearch(_isSearchAvailable, _useAsSearch, query)) { Close(); return; }
+        // A host handoff that became stale while it was being resolved is not allowed to fall
+        // through to the old copy fallback. Copying remains available through the explicit copy
+        // actions above, but this button is no longer a Booru search action.
+        if (!IsSearchActionAvailable())
+        {
+            RemoveUnavailableSearchAction();
+            return;
+        }
         try
         {
             await _copyText(query);
