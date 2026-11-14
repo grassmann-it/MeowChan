@@ -216,9 +216,33 @@ internal sealed class ReaderMediaSidebar : Border
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
+    // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
+    private readonly ListBox _strip = new()
+    {
+        Name = "ReaderMediaSidebarStrip", SelectionMode = SelectionMode.Single, Background = Brushes.Transparent,
+        Padding = new Thickness(0), BorderThickness = new Thickness(0),
+        ItemsPanel = new Avalonia.Controls.Templates.FuncTemplate<Panel?>(() => new StackPanel
+        { Orientation = Orientation.Horizontal, Spacing = ReaderMediaMultiRules.ThumbnailSpacing })
+    };
+    private readonly TextBlock _stripCounter = new TextBlock { VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.NoWrap }.MetaText();
+    private readonly Grid _stripRow = new() { Name = "ReaderMediaSidebarStripRow", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, IsVisible = false };
+    private readonly List<StripThumbnail> _thumbnails = new();
+    private readonly Dictionary<int, (Bitmap Bitmap, Action<Bitmap> Release)> _stripBitmaps = new();
+    private int _stripStart = -1, _stripCount, _stripCurrent;
+    private bool _stripSyncing;
     private Bitmap? _bitmap;
     private Action<Bitmap>? _release;
     private bool _hover;
+
+    /// <summary>One thumbnail of the strip: the list item, its frame (the current one has the accent edge) and its picture.</summary>
+    private sealed class StripThumbnail
+    {
+        internal required int Index;
+        internal required ListBoxItem Item;
+        internal required Border Frame;
+        internal required Image Picture;
+        internal required Border Placeholder;
+    }
 
     internal Button Previous { get; } = new() { Name = "ReaderMediaSidebarPrevious", Classes = { "icon-square" } };
     internal Button Next { get; } = new() { Name = "ReaderMediaSidebarNext", Classes = { "icon-square" } };
@@ -239,6 +263,21 @@ internal sealed class ReaderMediaSidebar : Border
 
     /// <summary>Raised by a click on the picture (the page opens the gallery, as "Open").</summary>
     internal event EventHandler? PictureActivated;
+
+    /// <summary>The strip is on screen (a post with several shown files).</summary>
+    internal bool StripVisible => _stripRow.IsVisible;
+    internal ListBox Strip => _strip;
+    /// <summary>The counter beside the strip ("2 of 4"); empty while the strip is hidden.</summary>
+    internal string StripCounterText => _stripRow.IsVisible ? _stripCounter.Text ?? string.Empty : string.Empty;
+    /// <summary>The files (0-based, within the post) the strip shows now, in order.</summary>
+    internal IReadOnlyList<int> StripIndexes => _thumbnails.ConvertAll(thumbnail => thumbnail.Index);
+    /// <summary>The current file as the strip marks it (-1 without a strip).</summary>
+    internal int StripCurrent => _stripRow.IsVisible ? _stripCurrent : -1;
+    /// <summary>Whether the thumbnail of this file already holds a picture.</summary>
+    internal bool HasStripPicture(int index) => _stripBitmaps.ContainsKey(index);
+
+    /// <summary>A thumbnail was chosen (click, Enter, Space or an arrow key): the file's index within the post.</summary>
+    internal event EventHandler<int>? StripSelected;
 
     internal ReaderMediaSidebar()
     {
@@ -280,19 +319,29 @@ internal sealed class ReaderMediaSidebar : Border
         meta[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
         meta.Child = new StackPanel { Spacing = 4, Children = { _fileLine, _detailLine } };
 
+        ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+        KeyboardNavigation.SetTabNavigation(_strip, KeyboardNavigationMode.Once);
+        _strip.SelectionChanged += OnStripSelectionChanged;
+        _strip.AddHandler(KeyDownEvent, OnStripKeyDown, RoutingStrategies.Tunnel);
+        _stripRow.Children.Add(_strip);
+        Grid.SetColumn(_stripCounter, 1);
+        _stripRow.Children.Add(_stripCounter);
+
         Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto,Auto"), ColumnSpacing = 8 };
         actions.Children.Add(Previous);
         Grid.SetColumn(Next, 1); actions.Children.Add(Next);
         Grid.SetColumn(_favorite, 3); actions.Children.Add(_favorite);
         Grid.SetColumn(Open, 4); actions.Children.Add(Open);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto"), RowSpacing = 8 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 8 };
         layout.Children.Add(header);
         Grid.SetRow(_frame, 1); layout.Children.Add(_frame);
-        Grid.SetRow(_videoRow, 2); layout.Children.Add(_videoRow);
-        Grid.SetRow(meta, 3); layout.Children.Add(meta);
-        Grid.SetRow(actions, 4); layout.Children.Add(actions);
-        Grid.SetRow(_live, 5); layout.Children.Add(_live);
+        Grid.SetRow(_stripRow, 2); layout.Children.Add(_stripRow);
+        Grid.SetRow(_videoRow, 3); layout.Children.Add(_videoRow);
+        Grid.SetRow(meta, 4); layout.Children.Add(meta);
+        Grid.SetRow(actions, 5); layout.Children.Add(actions);
+        Grid.SetRow(_live, 6); layout.Children.Add(_live);
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -321,6 +370,9 @@ internal sealed class ReaderMediaSidebar : Border
         Open.Content = open;
         ToolTip.SetTip(Open, open);
         AutomationProperties.SetName(Open, open);
+        string stripName = Texts.T("reader.sidebar.strip");
+        AutomationProperties.SetName(_strip, stripName);
+        ToolTip.SetTip(_strip, stripName);
         string close = Texts.T("reader.sidebar.close");
         ToolTip.SetTip(Close, CommandBindings.Tooltip("reader.sidebar.toggle", null, close));
         AutomationProperties.SetName(Close, close);
@@ -406,8 +458,149 @@ internal sealed class ReaderMediaSidebar : Border
     internal void ShowEmpty()
     {
         ShowPlaceholder(Texts.T("reader.sidebar.empty"));
+        ClearStrip();
         Describe(string.Empty, string.Empty, string.Empty, false, false, false);
         ConfigureFavorite(null);
+    }
+
+    // ---- the thumbnail strip (R11) ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Shows the strip for a post with <paramref name="count"/> files, marking <paramref name="current"/>. Returns true when the thumbnails
+    /// were laid out anew (another post, another window): the caller then loads the pictures of <see cref="StripIndexes"/> that
+    /// <see cref="HasStripPicture"/> does not have. Stepping within the window only moves the mark. One file or none hides the strip.
+    /// </summary>
+    internal bool ShowStrip(int count, int current, int limit, Func<int, string> nameOf, bool samePost)
+    {
+        if (!ReaderMediaMultiRules.ShowsStrip(count)) { ClearStrip(); return false; }
+        current = ReaderMediaSidebarRules.ClampIndex(current, count);
+        (int start, int length) = ReaderMediaMultiRules.Window(current, count, limit, samePost && _stripCount == count ? _stripStart : -1);
+        bool rebuilt = !_stripRow.IsVisible || !samePost || count != _stripCount || start != _stripStart || length != _thumbnails.Count;
+        bool hadFocus = _strip.IsKeyboardFocusWithin;
+        _stripSyncing = true;
+        try
+        {
+            if (rebuilt) RebuildStrip(start, length, count, nameOf);
+            _stripCount = count;
+            _stripCurrent = current;
+            _stripCounter.Text = ReaderMediaMultiRules.CounterText(current, count);
+            _stripRow.IsVisible = true;
+            MarkStripCurrent();
+        }
+        finally { _stripSyncing = false; }
+        if (hadFocus && _strip.SelectedItem is Control selected) selected.Focus();
+        return rebuilt;
+    }
+
+    private void RebuildStrip(int start, int length, int count, Func<int, string> nameOf)
+    {
+        // Pictures of files that stay in the window stay; the others are given back.
+        HashSet<int> keep = new();
+        for (int index = start; index < start + length; index++) keep.Add(index);
+        foreach (int index in new List<int>(_stripBitmaps.Keys))
+        {
+            if (keep.Contains(index)) continue;
+            (Bitmap bitmap, Action<Bitmap> release) = _stripBitmaps[index];
+            _stripBitmaps.Remove(index);
+            release(bitmap);
+        }
+        _strip.Items.Clear();
+        _thumbnails.Clear();
+        for (int index = start; index < start + length; index++)
+        {
+            Border placeholder = new() { IsHitTestVisible = false };
+            placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
+            Image picture = new() { Stretch = Stretch.UniformToFill, IsHitTestVisible = false, IsVisible = false };
+            Grid content = new() { ClipToBounds = true };
+            content.Children.Add(placeholder);
+            content.Children.Add(picture);
+            Border frame = new()
+            {
+                Name = "ReaderMediaSidebarThumbnail" + (index + 1), Width = ReaderMediaMultiRules.ThumbnailWidth,
+                Height = ReaderMediaMultiRules.ThumbnailHeight, Child = content, ClipToBounds = true
+            };
+            frame[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
+            string name = ReaderMediaMultiRules.ItemName(index, count, nameOf(index));
+            ListBoxItem item = new() { Content = frame, Padding = new Thickness(2), MinWidth = 0, MinHeight = 0, Tag = index };
+            AutomationProperties.SetName(item, name);
+            ToolTip.SetTip(item, name);
+            if (_stripBitmaps.TryGetValue(index, out (Bitmap Bitmap, Action<Bitmap> Release) held))
+            {
+                picture.Source = held.Bitmap;
+                picture.IsVisible = true;
+                placeholder.IsVisible = false;
+            }
+            _thumbnails.Add(new StripThumbnail { Index = index, Item = item, Frame = frame, Picture = picture, Placeholder = placeholder });
+            _strip.Items.Add(item);
+        }
+        _stripStart = start;
+    }
+
+    // The current thumbnail has the accent edge and is the list's selection; the others have the quiet card edge.
+    private void MarkStripCurrent()
+    {
+        foreach (StripThumbnail thumbnail in _thumbnails)
+        {
+            bool current = thumbnail.Index == _stripCurrent;
+            thumbnail.Frame.BorderThickness = new Thickness(current ? 2 : 1);
+            thumbnail.Frame[!Border.BorderBrushProperty] = new DynamicResourceExtension(current ? "Workspace.Accent" : "Workspace.CardEdge");
+            thumbnail.Item.Opacity = current ? 1 : 0.8;
+        }
+        int at = _thumbnails.FindIndex(thumbnail => thumbnail.Index == _stripCurrent);
+        _strip.SelectedIndex = at;
+        if (at >= 0) _thumbnails[at].Item.BringIntoView();
+    }
+
+    /// <summary>The picture of one thumbnail; given back at once when that file is no longer in the strip.</summary>
+    internal void SetStripPicture(int index, Bitmap bitmap, Action<Bitmap> release)
+    {
+        StripThumbnail? thumbnail = _thumbnails.Find(candidate => candidate.Index == index);
+        if (thumbnail == null || !_stripRow.IsVisible || _stripBitmaps.ContainsKey(index)) { release(bitmap); return; }
+        _stripBitmaps[index] = (bitmap, release);
+        thumbnail.Picture.Source = bitmap;
+        thumbnail.Picture.IsVisible = true;
+        thumbnail.Placeholder.IsVisible = false;
+    }
+
+    /// <summary>Hides the strip and gives every thumbnail back.</summary>
+    internal void ClearStrip()
+    {
+        foreach (StripThumbnail thumbnail in _thumbnails) thumbnail.Picture.Source = null;
+        foreach ((Bitmap bitmap, Action<Bitmap> release) in _stripBitmaps.Values) release(bitmap);
+        _stripBitmaps.Clear();
+        _thumbnails.Clear();
+        _stripSyncing = true;
+        try { _strip.Items.Clear(); }
+        finally { _stripSyncing = false; }
+        _stripRow.IsVisible = false;
+        _stripStart = -1;
+        _stripCount = 0;
+        _stripCurrent = 0;
+        _stripCounter.Text = string.Empty;
+    }
+
+    private void OnStripSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_stripSyncing || _strip.SelectedItem is not ListBoxItem { Tag: int index } || index == _stripCurrent) return;
+        StripSelected?.Invoke(this, index);
+    }
+
+    // ← → move to the neighbouring file of the whole post (also beyond the window), Home and End to its ends; Enter and Space choose
+    // the focused thumbnail. A single selection model, so the list's own arrow handling steps aside.
+    private void OnStripKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyModifiers != KeyModifiers.None || !_stripRow.IsVisible) return;
+        if (e.Key is Key.Left or Key.Right or Key.Home or Key.End)
+        {
+            e.Handled = true;
+            int target = ReaderMediaMultiRules.KeyTarget(_stripCurrent, _stripCount, e.Key);
+            if (target != _stripCurrent) StripSelected?.Invoke(this, target);
+        }
+        else if (e.Key is Key.Enter or Key.Space && e.Source is ListBoxItem { Tag: int index })
+        {
+            e.Handled = true;
+            if (index != _stripCurrent) StripSelected?.Invoke(this, index);
+        }
     }
 
     /// <summary>The polite announcement of the shown medium (and the region's name).</summary>

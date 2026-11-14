@@ -74,6 +74,11 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     /// it when the pixels are released, so a post's height changes once on the first load and not again on scrolling.
     /// </summary>
     public double? KnownAspect { get; set; }
+    /// <summary>
+    /// Decodes a small preview at explicit bounds that is kept by its bytes even in the large reader (the sidebar's thumbnail strip);
+    /// null in the lists. The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
+    /// </summary>
+    public Func<int, int, CancellationToken, Task<Bitmap?>>? LoadStripThumbnail { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public MediaAttachmentBinding? Binding { get; set; }

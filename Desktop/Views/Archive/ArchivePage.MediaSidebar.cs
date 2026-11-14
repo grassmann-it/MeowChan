@@ -14,6 +14,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -38,6 +39,7 @@ public partial class ArchivePage
     private readonly Stopwatch _sidebarClock = Stopwatch.StartNew();
     private DispatcherTimer? _sidebarFollowTimer, _sidebarAnnounceTimer, _sidebarPlaceholderTimer;
     private CancellationTokenSource? _sidebarLoading;
+    private CancellationTokenSource? _sidebarStripLoading;
     private int _sidebarRequest, _sidebarPlaceholderRequest;
     private string? _sidebarPostKey;
     private int _sidebarIndex;
@@ -63,6 +65,8 @@ public partial class ArchivePage
     internal bool IsMediaSidebarShown => _mediaSidebarShown;
     /// <summary>The latest sidebar load (smoke seam).</summary>
     internal Task MediaSidebarTask { get; private set; } = Task.CompletedTask;
+    /// <summary>The latest load of the strip's thumbnails (smoke seam).</summary>
+    internal Task MediaSidebarStripTask { get; private set; } = Task.CompletedTask;
     /// <summary>The medium of the focused post the sidebar shows (0-based).</summary>
     internal int MediaSidebarIndex => _sidebarIndex;
 
@@ -120,6 +124,7 @@ public partial class ArchivePage
         sidebar.Previous.Click += (_, e) => { e.Handled = true; StepMediaSidebar(-1); };
         sidebar.Next.Click += (_, e) => { e.Handled = true; StepMediaSidebar(1); };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
+        sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
@@ -206,6 +211,7 @@ public partial class ArchivePage
         _sidebarPostKey = null;
         _sidebarSource = null;
         _mediaSidebarDirty = false;
+        CancelSidebarStripLoad();
         OfferSidebarVideo(null, null);
         _mediaSidebar?.ShowEmpty();
     }
@@ -229,8 +235,10 @@ public partial class ArchivePage
     {
         if (!_largeReader) return Texts.T("reader.sidebar.largeOnly");
         double width = _largeReaderFrame?.Bounds.Width ?? 0;
-        return ReaderMediaSidebarRules.IsCollapsedByWidth(ReaderMedia, width)
-            ? Texts.T("reader.sidebar.collapsed", ReaderMedia.Clamped().SidebarMinimumReaderWidth) : null;
+        if (ReaderMediaSidebarRules.IsCollapsedByWidth(ReaderMedia, width))
+            return Texts.T("reader.sidebar.collapsed", ReaderMedia.Clamped().SidebarMinimumReaderWidth);
+        // Off and wide enough: the entry says what it does and which shortcut turns it on (nothing turns on by itself).
+        return ReaderMediaMultiRules.DiscoveryHint(ReaderMedia, _largeReader, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
     }
 
     internal bool CanToggleMediaSidebar => !_ended && !IsFilenameSearchOpen && !IsReaderDialogOpen;
@@ -271,6 +279,16 @@ public partial class ArchivePage
     {
         if (!CanStepMediaSidebar(delta) || ArchivePosts.SelectedItem is not ArchivePostRow post) return;
         _sidebarIndex = ReaderMediaSidebarRules.Step(_sidebarIndex, post.Attachments.Count, delta);
+        RefreshMediaSidebar();
+    }
+
+    /// <summary>A click, Enter or an arrow key on a thumbnail of the strip: that file of the focused post is shown.</summary>
+    internal void SelectMediaSidebarIndex(int index)
+    {
+        if (_ended || !_mediaSidebarShown || IsReaderDialogOpen || ArchivePosts.SelectedItem is not ArchivePostRow { ShowsMedia: true } post) return;
+        int target = ReaderMediaSidebarRules.ClampIndex(index, post.Attachments.Count);
+        if (target == _sidebarIndex) return;
+        _sidebarIndex = target;
         RefreshMediaSidebar();
     }
 
@@ -348,9 +366,11 @@ public partial class ArchivePage
         int request = _sidebarRequest;
         ArchivePostRow? post = ArchivePosts.SelectedItem as ArchivePostRow;
         string? key = post == null ? null : _thread?.Summary.Id + "\n" + post.Id;
-        if (!string.Equals(key, _sidebarPostKey, StringComparison.Ordinal)) { _sidebarIndex = 0; _sidebarPostKey = key; }
+        bool samePost = string.Equals(key, _sidebarPostKey, StringComparison.Ordinal);
+        if (!samePost) { _sidebarIndex = 0; _sidebarPostKey = key; }
         if (post == null || post.IsStub)
         {
+            CancelSidebarStripLoad();
             OfferSidebarVideo(null, null);
             sidebar.ShowEmpty();
             ScheduleSidebarAnnouncement(Texts.T("reader.sidebar.regionEmpty"));
@@ -358,6 +378,8 @@ public partial class ArchivePage
         }
         if (!post.ShowsMedia)
         {
+            CancelSidebarStripLoad();
+            sidebar.ClearStrip();
             OfferSidebarVideo(null, null);
             string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, false, false);
@@ -375,11 +397,62 @@ public partial class ArchivePage
         sidebar.Describe(postLine, file.Name, size, ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, -1),
             ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, 1), row.OpenPreview != null);
         sidebar.ConfigureFavorite(row);
+        UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);
         ScheduleSidebarAnnouncement(ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file));
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarLoading = loading;
         MediaSidebarTask = LoadMediaSidebarAsync(sidebar, post, row, size, request, loading.Token);
+    }
+
+    // ---- the thumbnail strip of a post with several files (R11) ----------------------------------------------------------------------
+
+    private void CancelSidebarStripLoad()
+    {
+        CancellationTokenSource? loading = _sidebarStripLoading;
+        _sidebarStripLoading = null;
+        try { loading?.Cancel(); } catch (ObjectDisposedException) { }
+        loading?.Dispose();
+    }
+
+    // The strip shows the files of the focused post (at most the configured number at once); only a new layout (another post, another
+    // window) loads thumbnails, and only the missing ones. They are decoded small, through the reader's thumbnail gate and cache.
+    private void UpdateSidebarStrip(ReaderMediaSidebar sidebar, ArchivePostRow post, bool samePost)
+    {
+        int count = post.Attachments.Count;
+        if (!sidebar.ShowStrip(count, _sidebarIndex, ReaderMedia.Clamped().StripLimit, index => CapturedAttachmentText.Of(post.Attachments[index]).Name, samePost))
+        {
+            if (!sidebar.StripVisible) CancelSidebarStripLoad();
+            return;
+        }
+        CancelSidebarStripLoad();
+        List<int> missing = sidebar.StripIndexes.Where(index => !sidebar.HasStripPicture(index)).ToList();
+        if (missing.Count == 0) return;
+        CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _sidebarStripLoading = loading;
+        MediaSidebarStripTask = LoadSidebarStripAsync(sidebar, post, missing, loading.Token);
+    }
+
+    private async Task LoadSidebarStripAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, IReadOnlyList<int> indexes, CancellationToken token)
+    {
+        async Task LoadOne(int index)
+        {
+            if (post.Attachments[index].LoadStripThumbnail is not { } load) return;
+            try
+            {
+                Bitmap? bitmap = await load(ReaderMediaMultiRules.ThumbnailDecodeWidth, ReaderMediaMultiRules.ThumbnailDecodeHeight, token);
+                if (bitmap == null) return;
+                if (token.IsCancellationRequested || _ended || !_mediaSidebarShown) { MediaTileThumbnails.Release(bitmap); return; }
+                sidebar.SetStripPicture(index, bitmap, MediaTileThumbnails.Release);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error)
+            {
+                // A thumbnail that cannot be made stays a quiet placeholder; the shown medium reports its own failure.
+                Serilog.Log.Debug(error, "A media sidebar strip thumbnail could not be shown");
+            }
+        }
+        await Task.WhenAll(indexes.Select(LoadOne));
     }
 
     private void ScheduleSidebarAnnouncement(string text)
