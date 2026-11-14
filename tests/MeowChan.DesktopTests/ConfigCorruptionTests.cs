@@ -54,7 +54,9 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.FolderSourceHashMaxFileGiB), Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum),
         (nameof(Config.FolderSourceRescanMinutes), Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum),
         (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
-        (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum)
+        (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum),
+        (nameof(Config.TagQueueWalkWindow), Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum),
+        (nameof(Config.TagStampSize), Config.TagStampSizeMinimum, Config.TagStampSizeMaximum)
     };
 
     public static IEnumerable<object[]> LimitCases() =>

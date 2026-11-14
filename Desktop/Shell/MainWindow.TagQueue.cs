@@ -18,8 +18,8 @@ namespace MeowChan;
 // Nothing here assigns a tag, favorite or rating by itself.
 public partial class MainWindow
 {
-    /// <summary>How many open entries one walk opens at once; the next walk continues behind them.</summary>
-    internal const int TagQueueWalkWindow = 200;
+    /// <summary>How many open entries one walk opens at once (the setting <c>TagQueueWalkWindow</c>); the next walk continues behind them.</summary>
+    internal int TagQueueWalkWindow => TaggingSettings.WalkWindow(_config);
 
     private MenuItem? _tagQueueMenu;
     private System.IDisposable? _tagQueueRegistration;

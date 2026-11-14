@@ -256,6 +256,21 @@ namespace MeowChan
         internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
         internal const int ProfileRegistryLimitMinimum = Persistence.ProfileRegistry.MinimumLimit;
         internal const int ProfileRegistryLimitMaximum = Persistence.ProfileRegistry.LimitCeiling;
+        /// <summary>
+        /// How many open entries of the tagging queue one walk opens at once (the gallery is built over them); the next walk continues behind them.
+        /// Nothing is dropped from the queue: a smaller window only walks the queue in more rounds.
+        /// </summary>
+        public int TagQueueWalkWindow { get; set; } = TagQueueWalkWindowDefault;
+        internal const int TagQueueWalkWindowDefault = 200;
+        internal const int TagQueueWalkWindowMinimum = 10;
+        internal const int TagQueueWalkWindowMaximum = 5_000;
+        /// <summary>
+        /// Tags the stamp set of quick tagging holds (PT5). Lowering it cuts the stamp from its end; the cut names are gone, nothing else changes.
+        /// </summary>
+        public int TagStampSize { get; set; } = TagStampSizeDefault;
+        internal const int TagStampSizeDefault = Desktop.QuickTagOptions.DefaultStampSize;
+        internal const int TagStampSizeMinimum = Desktop.QuickTagOptions.MinimumStampSize;
+        internal const int TagStampSizeMaximum = Desktop.QuickTagOptions.MaximumStampSize;
         /// <summary>Rows in a source's watch list on the Sources page before "Show all in Downloads" takes over. Every watch stays reachable under Downloads.</summary>
         public int SourcesWatchPreviewRows { get; set; } = SourcesWatchPreviewRowsDefault;
         internal const int SourcesWatchPreviewRowsDefault = 8;
@@ -1230,6 +1245,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
+            if (TagQueueWalkWindow is < TagQueueWalkWindowMinimum or > TagQueueWalkWindowMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueWalkWindow), "TagQueueWalkWindow is outside its supported range (" + TagQueueWalkWindowMinimum + " to " + TagQueueWalkWindowMaximum + ").");
+            if (TagStampSize is < TagStampSizeMinimum or > TagStampSizeMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagStampSize), "TagStampSize is outside its supported range (" + TagStampSizeMinimum + " to " + TagStampSizeMaximum + ").");
             if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SourcesWatchPreviewRows), "SourcesWatchPreviewRows is outside its supported range (" + SourcesWatchPreviewRowsMinimum + " to " + SourcesWatchPreviewRowsMaximum + ").");
             if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
@@ -1443,6 +1462,8 @@ namespace MeowChan
                 TagQueueHistory = TagQueueHistory,
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 ProfileRegistryLimit = ProfileRegistryLimit,
+                TagQueueWalkWindow = TagQueueWalkWindow,
+                TagStampSize = TagStampSize,
                 SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
@@ -1657,6 +1678,8 @@ namespace MeowChan
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
+            TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagStampSize = source.TagStampSize;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
@@ -1830,6 +1853,12 @@ namespace MeowChan
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
+            TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagStampSize = source.TagStampSize;
+            // The card mode choices are edited on the settings page (Tagging); K in the gallery still saves the start choice as a view preference.
+            TaggingCardsDefault = source.TaggingCardsDefault;
+            TaggingCards = (string[])source.TaggingCards.Clone();
+            TaggingCardCount = source.TaggingCardCount;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
