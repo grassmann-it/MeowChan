@@ -4431,6 +4431,18 @@
     "viewer.view.rotationOff": "Sans rotation",
     "viewer.view.rotationState": "Pivoté de {0}°",
     "settings.gallery.maxZoom": "Zoom maximal (%)",
-    "settings.gallery.maxZoom.hint": "Jusqu’où une image ou une vidéo peut être agrandie, en pourcentage de sa taille. L’ajustement n’est pas concerné."
+    "settings.gallery.maxZoom.hint": "Jusqu’où une image ou une vidéo peut être agrandie, en pourcentage de sa taille. L’ajustement n’est pas concerné.",
+    "settings.tagging.group": "Étiquetage",
+    "settings.tagging.stampSize": "Tampon : étiquettes contenues",
+    "settings.tagging.stampSize.hint": "Nombre d’étiquettes que contient le tampon de l’étiquetage rapide. Un nombre plus petit raccourcit le tampon par la fin ; rien d’autre ne change.",
+    "settings.tagging.walkWindow": "File d’étiquetage : médias par parcours",
+    "settings.tagging.walkWindow.hint": "Nombre d’entrées ouvertes de la file d’étiquetage qu’un parcours ouvre d’un coup. Le parcours suivant continue après elles ; rien n’est retiré de la file.",
+    "settings.tagging.cardCount": "Cartes du mode cartes",
+    "settings.tagging.cardCount.hint": "Nombre de cartes que montre le mode cartes, en comptant depuis la gauche. Chaque carte a sa propre touche, de 1 à 5. S’applique dès le prochain parcours.",
+    "settings.tagging.cardsStart": "Commencer les parcours en mode cartes",
+    "settings.tagging.cardsStart.hint": "Un parcours de la file d’étiquetage s’ouvre avec les cartes au lieu du panneau d’étiquettes. La touche K pendant un parcours modifie ce choix.",
+    "settings.tagging.cards": "Cartes de décision",
+    "settings.tagging.cards.hint": "Ce que fait chaque carte, de gauche à droite (touches 1 à 5). Choisir une décision qu’une autre carte a déjà échange les deux cartes. S’applique dès le prochain parcours.",
+    "settings.tagging.cardSlot": "Carte {0}"
   }
 }

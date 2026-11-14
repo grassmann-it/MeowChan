@@ -4474,6 +4474,18 @@
     "viewer.view.rotationOff": "Bez otočení",
     "viewer.view.rotationState": "Otočeno o {0}°",
     "settings.gallery.maxZoom": "Maximální zvětšení (%)",
-    "settings.gallery.maxZoom.hint": "Jak moc lze obrázek nebo video zvětšit, v procentech jeho velikosti. Přizpůsobení oknu to neovlivní."
+    "settings.gallery.maxZoom.hint": "Jak moc lze obrázek nebo video zvětšit, v procentech jeho velikosti. Přizpůsobení oknu to neovlivní.",
+    "settings.tagging.group": "Štítkování",
+    "settings.tagging.stampSize": "Razítko: počet štítků",
+    "settings.tagging.stampSize.hint": "Kolik štítků obsahuje razítko rychlého štítkování. Menší číslo zkrátí razítko od konce; nic dalšího se nemění.",
+    "settings.tagging.walkWindow": "Fronta štítkování: médií na jeden průchod",
+    "settings.tagging.walkWindow.hint": "Kolik otevřených položek fronty štítkování otevře jeden průchod najednou. Další průchod pokračuje za nimi; z fronty se nic neodebírá.",
+    "settings.tagging.cardCount": "Karet v režimu karet",
+    "settings.tagging.cardCount.hint": "Kolik karet režim karet zobrazuje, počítáno zleva. Každá karta má vlastní klávesu, 1 až 5. Platí od dalšího průchodu.",
+    "settings.tagging.cardsStart": "Zahajovat průchody v režimu karet",
+    "settings.tagging.cardsStart.hint": "Průchod frontou štítkování se otevře s kartami místo panelu štítků. Klávesa K během průchodu tuto volbu mění.",
+    "settings.tagging.cards": "Karty rozhodnutí",
+    "settings.tagging.cards.hint": "Co která karta dělá, zleva doprava (klávesy 1 až 5). Zvolíte-li rozhodnutí, které už má jiná karta, obě karty si vymění místa. Platí od dalšího průchodu.",
+    "settings.tagging.cardSlot": "Karta {0}"
   }
 }

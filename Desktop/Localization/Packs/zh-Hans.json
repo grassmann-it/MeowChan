@@ -4346,6 +4346,18 @@
     "viewer.view.rotationOff": "未旋转",
     "viewer.view.rotationState": "已旋转 {0}°",
     "settings.gallery.maxZoom": "最大缩放 (%)",
-    "settings.gallery.maxZoom.hint": "图片或视频最多可放大到原始尺寸的百分之几。“适应窗口”不受影响。"
+    "settings.gallery.maxZoom.hint": "图片或视频最多可放大到原始尺寸的百分之几。“适应窗口”不受影响。",
+    "settings.tagging.group": "打标签",
+    "settings.tagging.stampSize": "印章：包含的标签数",
+    "settings.tagging.stampSize.hint": "快速打标签的印章最多包含多少个标签。数字调小会从末尾缩短印章，其他内容不变。",
+    "settings.tagging.walkWindow": "标签队列：每次浏览的媒体数",
+    "settings.tagging.walkWindow.hint": "每次浏览一次打开标签队列中多少个未处理条目。下一次浏览从这些条目之后继续；队列中不会删除任何内容。",
+    "settings.tagging.cardCount": "卡片模式中的卡片数",
+    "settings.tagging.cardCount.hint": "卡片模式从左数起显示多少张卡片。每张卡片有各自的按键，1 至 5。从下一次浏览起生效。",
+    "settings.tagging.cardsStart": "以卡片模式开始浏览",
+    "settings.tagging.cardsStart.hint": "浏览标签队列时先显示卡片，而不是标签面板。浏览过程中按 K 键可改变此选择。",
+    "settings.tagging.cards": "决定卡片",
+    "settings.tagging.cards.hint": "从左起每张卡片的作用（按键 1 至 5）。如果选择的决定已被另一张卡片使用，两张卡片会互换。从下一次浏览起生效。",
+    "settings.tagging.cardSlot": "卡片 {0}"
   }
 }

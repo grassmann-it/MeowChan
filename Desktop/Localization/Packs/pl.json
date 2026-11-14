@@ -4477,6 +4477,18 @@
     "viewer.view.rotationOff": "Bez obrotu",
     "viewer.view.rotationState": "Obrócono o {0}°",
     "settings.gallery.maxZoom": "Maksymalne powiększenie (%)",
-    "settings.gallery.maxZoom.hint": "Do jakiej wielkości można powiększyć obraz lub wideo, w procentach jego rozmiaru. Dopasowanie do okna nie ulega zmianie."
+    "settings.gallery.maxZoom.hint": "Do jakiej wielkości można powiększyć obraz lub wideo, w procentach jego rozmiaru. Dopasowanie do okna nie ulega zmianie.",
+    "settings.tagging.group": "Tagowanie",
+    "settings.tagging.stampSize": "Stempel: liczba tagów",
+    "settings.tagging.stampSize.hint": "Ile tagów mieści stempel szybkiego tagowania. Mniejsza liczba skraca stempel od końca; nic więcej się nie zmienia.",
+    "settings.tagging.walkWindow": "Kolejka tagowania: media na jedno przejście",
+    "settings.tagging.walkWindow.hint": "Ile otwartych wpisów kolejki tagowania otwiera naraz jedno przejście. Następne przejście kontynuuje za nimi; z kolejki nic nie jest usuwane.",
+    "settings.tagging.cardCount": "Karty w trybie kart",
+    "settings.tagging.cardCount.hint": "Ile kart pokazuje tryb kart, licząc od lewej. Każda karta ma własny klawisz, od 1 do 5. Obowiązuje od następnego przejścia.",
+    "settings.tagging.cardsStart": "Zaczynaj przejścia w trybie kart",
+    "settings.tagging.cardsStart.hint": "Przejście przez kolejkę tagowania otwiera się z kartami zamiast z panelem tagów. Klawisz K podczas przejścia zmienia ten wybór.",
+    "settings.tagging.cards": "Karty decyzji",
+    "settings.tagging.cards.hint": "Co robi każda karta, od lewej (klawisze od 1 do 5). Wybranie decyzji, którą ma już inna karta, zamienia te dwie karty miejscami. Obowiązuje od następnego przejścia.",
+    "settings.tagging.cardSlot": "Karta {0}"
   }
 }

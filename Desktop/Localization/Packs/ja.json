@@ -4346,6 +4346,18 @@
     "viewer.view.rotationOff": "回転なし",
     "viewer.view.rotationState": "{0}°回転",
     "settings.gallery.maxZoom": "最大ズーム (%)",
-    "settings.gallery.maxZoom.hint": "画像や動画を元のサイズの何%まで拡大できるかを指定します。「ウィンドウに合わせる」には影響しません。"
+    "settings.gallery.maxZoom.hint": "画像や動画を元のサイズの何%まで拡大できるかを指定します。「ウィンドウに合わせる」には影響しません。",
+    "settings.tagging.group": "タグ付け",
+    "settings.tagging.stampSize": "スタンプ: 含まれるタグ数",
+    "settings.tagging.stampSize.hint": "クイックタグ付けのスタンプに入るタグの数です。小さくすると、スタンプが末尾から短くなります。ほかは変わりません。",
+    "settings.tagging.walkWindow": "タグ付けキュー: 1 回に見るメディア数",
+    "settings.tagging.walkWindow.hint": "タグ付けキューの未処理の項目を、1 回の巡回でいくつまとめて開くかを指定します。次の巡回はその続きから始まり、キューからは何も削除されません。",
+    "settings.tagging.cardCount": "カードモードのカード数",
+    "settings.tagging.cardCount.hint": "カードモードが左から数えて何枚のカードを表示するかを指定します。カードにはそれぞれキー 1～5 が割り当てられます。次の巡回から有効です。",
+    "settings.tagging.cardsStart": "巡回をカードモードで開始",
+    "settings.tagging.cardsStart.hint": "タグ付けキューの巡回を、タグパネルではなくカードで開始します。巡回中に K キーを押すと、この選択が変わります。",
+    "settings.tagging.cards": "判断カード",
+    "settings.tagging.cards.hint": "各カードの動作を左から順に指定します（キー 1～5）。ほかのカードが使っている判断を選ぶと、2 枚のカードが入れ替わります。次の巡回から有効です。",
+    "settings.tagging.cardSlot": "カード {0}"
   }
 }

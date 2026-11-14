@@ -4437,6 +4437,18 @@
     "viewer.view.rotationOff": "Sem rotação",
     "viewer.view.rotationState": "Girado {0}°",
     "settings.gallery.maxZoom": "Zoom máximo (%)",
-    "settings.gallery.maxZoom.hint": "Até quanto uma imagem ou um vídeo pode ser ampliado, em porcentagem do seu tamanho. “Ajustar” não é afetado."
+    "settings.gallery.maxZoom.hint": "Até quanto uma imagem ou um vídeo pode ser ampliado, em porcentagem do seu tamanho. “Ajustar” não é afetado.",
+    "settings.tagging.group": "Marcação de tags",
+    "settings.tagging.stampSize": "Carimbo: tags que ele guarda",
+    "settings.tagging.stampSize.hint": "Quantas tags o carimbo da marcação rápida guarda. Um número menor encurta o carimbo pelo final; nada mais muda.",
+    "settings.tagging.walkWindow": "Fila de tags: mídias por percurso",
+    "settings.tagging.walkWindow.hint": "Quantas entradas abertas da fila de tags um percurso abre de uma vez. O próximo percurso continua depois delas; nada é removido da fila.",
+    "settings.tagging.cardCount": "Cartões no modo de cartões",
+    "settings.tagging.cardCount.hint": "Quantos cartões o modo de cartões mostra, contando da esquerda. Cada cartão tem sua própria tecla, de 1 a 5. Vale a partir do próximo percurso.",
+    "settings.tagging.cardsStart": "Iniciar percursos no modo de cartões",
+    "settings.tagging.cardsStart.hint": "Um percurso pela fila de tags abre com os cartões em vez do painel de tags. A tecla K durante um percurso altera esta escolha.",
+    "settings.tagging.cards": "Cartões de decisão",
+    "settings.tagging.cards.hint": "O que cada cartão faz, da esquerda para a direita (teclas 1 a 5). Escolher uma decisão que outro cartão já tem troca os dois cartões de lugar. Vale a partir do próximo percurso.",
+    "settings.tagging.cardSlot": "Cartão {0}"
   }
 }

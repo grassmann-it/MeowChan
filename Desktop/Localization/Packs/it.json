@@ -4437,6 +4437,18 @@
     "viewer.view.rotationOff": "Non ruotato",
     "viewer.view.rotationState": "Ruotato di {0}°",
     "settings.gallery.maxZoom": "Zoom massimo (%)",
-    "settings.gallery.maxZoom.hint": "Fino a che punto si può ingrandire un’immagine o un video, in percentuale della sua dimensione. «Adatta» non cambia."
+    "settings.gallery.maxZoom.hint": "Fino a che punto si può ingrandire un’immagine o un video, in percentuale della sua dimensione. «Adatta» non cambia.",
+    "settings.tagging.group": "Tagging",
+    "settings.tagging.stampSize": "Timbro: tag contenuti",
+    "settings.tagging.stampSize.hint": "Quanti tag contiene il timbro del tagging rapido. Un numero minore accorcia il timbro dalla fine; nient’altro cambia.",
+    "settings.tagging.walkWindow": "Coda di tagging: media per scorrimento",
+    "settings.tagging.walkWindow.hint": "Quante voci aperte della coda di tagging apre in una volta un solo scorrimento. Lo scorrimento successivo prosegue dopo di esse; dalla coda non viene rimosso nulla.",
+    "settings.tagging.cardCount": "Schede nella modalità schede",
+    "settings.tagging.cardCount.hint": "Quante schede mostra la modalità schede, contando da sinistra. Ogni scheda ha il proprio tasto, da 1 a 5. Vale dal prossimo scorrimento.",
+    "settings.tagging.cardsStart": "Avvia gli scorrimenti nella modalità schede",
+    "settings.tagging.cardsStart.hint": "Uno scorrimento della coda di tagging si apre con le schede invece del pannello dei tag. Il tasto K durante uno scorrimento cambia questa scelta.",
+    "settings.tagging.cards": "Schede di decisione",
+    "settings.tagging.cards.hint": "Che cosa fa ogni scheda, da sinistra (tasti da 1 a 5). Se scegli una decisione che ha già un’altra scheda, le due schede si scambiano. Vale dal prossimo scorrimento.",
+    "settings.tagging.cardSlot": "Scheda {0}"
   }
 }

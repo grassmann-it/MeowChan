@@ -4431,6 +4431,18 @@
     "viewer.view.rotationOff": "Sin girar",
     "viewer.view.rotationState": "Girado {0}°",
     "settings.gallery.maxZoom": "Zoom máximo (%)",
-    "settings.gallery.maxZoom.hint": "Hasta dónde se puede ampliar una imagen o un vídeo, en porcentaje de su tamaño. «Ajustar» no se ve afectado."
+    "settings.gallery.maxZoom.hint": "Hasta dónde se puede ampliar una imagen o un vídeo, en porcentaje de su tamaño. «Ajustar» no se ve afectado.",
+    "settings.tagging.group": "Etiquetado",
+    "settings.tagging.stampSize": "Sello: etiquetas que contiene",
+    "settings.tagging.stampSize.hint": "Cuántas etiquetas contiene el sello del etiquetado rápido. Un número menor acorta el sello desde el final; nada más cambia.",
+    "settings.tagging.walkWindow": "Cola de etiquetado: medios por recorrido",
+    "settings.tagging.walkWindow.hint": "Cuántas entradas abiertas de la cola de etiquetado abre de una vez un recorrido. El siguiente recorrido continúa tras ellas; no se elimina nada de la cola.",
+    "settings.tagging.cardCount": "Tarjetas en el modo de tarjetas",
+    "settings.tagging.cardCount.hint": "Cuántas tarjetas muestra el modo de tarjetas, contando desde la izquierda. Cada tarjeta tiene su propia tecla, de 1 a 5. Se aplica desde el siguiente recorrido.",
+    "settings.tagging.cardsStart": "Iniciar los recorridos en el modo de tarjetas",
+    "settings.tagging.cardsStart.hint": "Un recorrido por la cola de etiquetado se abre con las tarjetas en lugar del panel de etiquetas. La tecla K durante un recorrido cambia esta elección.",
+    "settings.tagging.cards": "Tarjetas de decisión",
+    "settings.tagging.cards.hint": "Qué hace cada tarjeta, de izquierda a derecha (teclas 1 a 5). Si eliges una decisión que ya tiene otra tarjeta, ambas tarjetas se intercambian. Se aplica desde el siguiente recorrido.",
+    "settings.tagging.cardSlot": "Tarjeta {0}"
   }
 }
