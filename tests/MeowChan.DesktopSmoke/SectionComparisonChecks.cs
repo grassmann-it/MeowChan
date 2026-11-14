@@ -156,11 +156,11 @@ internal static partial class SectionComparisonChecks
             (_, _, _, _, _) => throw new InvalidOperationException("Comparison must not query a site"));
         var page = new PluginsPage(); page.Attach(services);
         using var scenario = new Scenario(owner, page, variant, task,
-            page.FindControl<SectionNavigationControl>("PluginSections")!, page.FindControl<ScrollViewer>("PluginDetailsPane")!,
-            () => Private<SectionNavigationController>(page, "_pluginSectionNavigation"),
+            null, page.FindControl<ScrollViewer>("PluginDetailsPane")!,
+            null,
             () => new { candidate = page.Selected?.Key, sources = page.CurrentDraft?.Sources.ToDictionary(p => p.Key, p => p.Value.EditorFingerprint),
                 plugin = page.CurrentDraft?.Plugin.EditorFingerprint, workerCalls, profile = HashFiles(profileRoot),
-                sourceNames = page.Selected?.Description?.Sources.Select(s => new { s.SourceId, s.Name }).ToArray() }, presentation);
+                sourceNames = page.Selected?.Description?.Sources.Select(s => new { s.SourceId, s.Name }).ToArray() }, presentation, plugin: page);
         scenario.Window.Show(owner); await page.ActivateAsync(); page.Select(Candidate); await Settle();
         try
         {
@@ -174,9 +174,9 @@ internal static partial class SectionComparisonChecks
                     .ToDictionary(pair => pair.Key, pair => pair.Value.EditorFingerprint, StringComparer.Ordinal);
                 string pluginFingerprint = page.CurrentDraft.Plugin.EditorFingerprint;
                 scenario.Expect("Three sources source-a/source-b/source-c; a/b share a display name. Change only source-b/limit, then read information/grants; invalid Save must focus source-b and preserve every draft/file.");
-                string sourceB = scenario.Controller.Sections.Single(s => s.Id.EndsWith("settings/source/source-b", StringComparison.Ordinal)).Id;
+                string sourceB = scenario.Targets.Single(s => s.Id.EndsWith("settings/source/source-b", StringComparison.Ordinal)).Id;
                 await scenario.Navigate(sourceB);
-                var group = (Expander)scenario.Controller.Sections.Single(s => s.Id == sourceB).ResolveTarget()!;
+                var group = (Expander)scenario.Targets.Single(s => s.Id == sourceB).ResolveTarget()!;
                 if (!group.IsExpanded) await scenario.Toggle(group);
                 var form = (PluginSettingsEditor)group.Content!;
                 TextBox limit = (TextBox)form.FindField("limit")!;
@@ -187,7 +187,7 @@ internal static partial class SectionComparisonChecks
                 await scenario.Edit(limit, "invalid source-b draft");
                 string fingerprint = page.CurrentDraft!.Sources["source-b"].EditorFingerprint;
                 foreach (string suffix in new[] { "/information", "/grants" })
-                    await scenario.Navigate(scenario.Controller.Sections.Single(s => s.Id.EndsWith(suffix, StringComparison.Ordinal)).Id);
+                    await scenario.Navigate(scenario.Targets.Single(s => s.Id.EndsWith(suffix, StringComparison.Ordinal)).Id);
                 await scenario.Navigate(sourceB);
                 Require(page.CurrentDraft.Sources["source-b"].EditorFingerprint == fingerprint && workerCalls == 0,
                     "Scope navigation changed a draft or called a worker.");
@@ -214,7 +214,7 @@ internal static partial class SectionComparisonChecks
                 scenario.Reproject();
                 // Localize rebuilds views while retaining scoped drafts and cached validation messages.
                 // Resolve the current target by stable scope/field identity; the detached old view cannot own focus.
-                group = (Expander)scenario.Controller.Sections.Single(s => s.Id == sourceB).ResolveTarget()!;
+                group = (Expander)scenario.Targets.Single(s => s.Id == sourceB).ResolveTarget()!;
                 form = (PluginSettingsEditor)group.Content!;
                 limit = (TextBox)form.FindField("limit")!;
                 bool sameCandidate = page.Selected?.Key == Candidate;
@@ -258,44 +258,46 @@ internal static partial class SectionComparisonChecks
                 scenario.Detail("navigation-persistence-gate", new { beforeFiles, beforeTransitionFiles, unchanged = beforeFiles == beforeTransitionFiles });
                 Require(beforeFiles == beforeTransitionFiles, "Navigation or invalid Save changed persisted plugin metadata.");
                 // Remove a Source through a controlled catalog fixture transition while the old item exists.
-                SectionDescriptor oldSection = scenario.Controller.Sections.Single(s => s.Id == sourceB);
-                var oldTarget = oldSection.ResolveTarget();
-                Require(oldTarget != null, "Source-b removal fixture did not start with an existing target.");
                 scenario.Window.Width = 1100; scenario.Window.Height = 760;
                 await Program.WaitUntilAsync(() => Math.Abs(scenario.Window.ClientSize.Width - 1100) <= 1 && !page.FindControl<Button>("PluginBack")!.IsVisible);
-                page.Select(Candidate); await Settle(); scenario.Reproject();
-                if (variant != "A") await scenario.OpenContents();
-                var removed = description with { Sources = description.Sources.Where(s => s.SourceId != "source-b").ToArray() };
+                page.Select(Candidate); await Settle();
+                string? navigatedSource = null;
+                page.OpenSourceWatches = source => navigatedSource = source;
+                await scenario.OpenContents();
+                ContextMenu oldMenu = page.PluginActionMenu!;
+                MenuItem oldSource = oldMenu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "plugins.watches"))
+                    .Items.OfType<MenuItem>().Single(item => item.Header as string == "Same source name · source-b");
+                Require(oldSource.Command?.CanExecute(oldSource.CommandParameter) == true,
+                    "Source-b removal fixture did not start with a current source action.");
+                var removed = description with { Sources = description.Sources.Where(source => source.SourceId != "source-b").ToArray() };
                 PluginProfileSnapshot previous = await store.ReadAsync();
                 await store.ObserveCandidateAsync(new PluginCandidateObservation(Candidate, description.PluginId, artifact, removed,
                     CandidatePath: Path.Combine(profileRoot, "fixture.cs")), previous.Revision);
                 await page.RefreshAsync(); await Settle(); scenario.Reproject();
-                scenario.Observe("source-removed (fixture transition; old item must not resolve to source-a)");
-                // Dirty drafts keep their schema/raw value; only current catalog scopes remain navigation targets.
-                bool stillOffered = scenario.Controller.Sections.Any(s => s.Id == sourceB);
-                bool staleResolverInvalidated = oldSection.ResolveTarget() == null;
-                bool removedCannotNavigate = !scenario.Controller.CanNavigate(sourceB);
+                scenario.Observe("source-removed (fixture transition; old source action must not resolve to source-a)");
+                bool staleResolverInvalidated = oldSource.Command?.CanExecute(oldSource.CommandParameter) == false;
+                string beforeStaleAction = HashFiles(profileRoot);
+                // Already queued command from the old revision: still must not act, even after its menu closes.
+                oldSource.Command!.Execute(oldSource.CommandParameter); await Settle();
+                bool removedCannotNavigate = navigatedSource == null && HashFiles(profileRoot) == beforeStaleAction;
+                await scenario.OpenContents();
+                MenuItem watches = page.PluginActionMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "plugins.watches"));
+                bool stillOffered = watches.Items.OfType<MenuItem>().Any(item => (item.Header as string)?.EndsWith(" · source-b", StringComparison.Ordinal) == true);
                 bool retainedRemovedDraft = ReferenceEquals(page.CurrentDraft?.Sources.GetValueOrDefault("source-b"), sourceDraft)
                     && sourceDraft.EditorFingerprint == fingerprint;
                 scenario.Detail("source-removal-observation", new { stillOffered, staleResolverInvalidated, removedCannotNavigate,
-                    retainedRemovedDraft, originalTargetRetained = ReferenceEquals(oldTarget,
-                    scenario.Controller.Sections.FirstOrDefault(s => s.Id == sourceB)?.ResolveTarget()),
-                    explanation = "Dirty draft retention is distinct from target invalidation; no click on a similarly named source is substituted." });
-                if (stillOffered && variant != "A")
-                {
-                    await scenario.Navigate(sourceB);
-                    scenario.Detail("removed-source-activation", new { offeredId = sourceB, state = page.CurrentDraft?.Sources.Keys.ToArray() });
-                    throw new InvalidOperationException("Removed source remains offered and reachable by explicit contents; raw draft preservation does not satisfy target-invalidation gate.");
-                }
-                Require(!stillOffered && staleResolverInvalidated && removedCannotNavigate,
-                    "Removed source remains in contents, its captured resolver, or available navigation commands.");
+                    retainedRemovedDraft, oldMenuClosed = !oldMenu.IsOpen,
+                    explanation = "Dirty settings remain a draft; current watch menu and captured revisioned source commands must invalidate removed targets, never retarget the duplicate name." });
+                Require(!stillOffered && staleResolverInvalidated && removedCannotNavigate && !oldMenu.IsOpen,
+                    "Removed source remains offered, its captured command is current, or an obsolete command navigated/wrote metadata.");
                 Require(retainedRemovedDraft, "Source target invalidation replaced or changed the retained dirty source-b draft.");
+                page.PluginActionMenu.Close();
             }
             else
             {
                 scenario.Expect("Short no-parameter page, A headings only; measure actual scroller extent and available viewport without extra navigation.");
                 scenario.Detail("short-page", new { settingsScopes = page.CurrentDraft?.Sources.Count, extent = scenario.Scroll.Extent.Height,
-                    viewport = scenario.Scroll.Viewport.Height, navigationOffered = scenario.Navigation.IsVisible });
+                    viewport = scenario.Scroll.Viewport.Height, navigationOffered = page.FindControl<SectionNavigationControl>("PluginSections") != null });
             }
             // Catalog-removal fixture deliberately writes profile metadata; normal navigation before that point is captured independently.
             scenario.Detail("persistence", new { beforeFiles, afterFiles = HashFiles(profileRoot), workerCalls,
@@ -352,11 +354,14 @@ internal static partial class SectionComparisonChecks
     private sealed partial class Scenario : IDisposable
     {
         public Window Window { get; }
-        public SectionNavigationControl Navigation { get; }
+        private readonly SectionNavigationControl? _navigation;
+        public SectionNavigationControl Navigation => _navigation ?? throw new InvalidOperationException("Plugin details have no section navigator.");
+        private readonly PluginsPage? _plugin;
+        public IReadOnlyList<SectionDescriptor> Targets => _plugin == null ? Controller.Sections : PluginTargets();
         public ScrollViewer Scroll { get; }
-        public SectionNavigationController Controller => _controller();
+        public SectionNavigationController Controller => _controller?.Invoke() ?? throw new InvalidOperationException("Plugin details have no section controller.");
         private readonly Control _page;
-        private readonly Func<SectionNavigationController> _controller;
+        private readonly Func<SectionNavigationController>? _controller;
         private readonly Func<object> _state;
         private readonly object? _originalContent;
         private readonly string _task;
@@ -368,11 +373,11 @@ internal static partial class SectionComparisonChecks
         private int _screenshot;
         private bool _changingContent;
         private TestAnchor? _anchor;
-        public Scenario(Window owner, Control page, string variant, string task, SectionNavigationControl navigation,
-            ScrollViewer scroll, Func<SectionNavigationController> controller, Func<object> state, PresentationCell? presentation = null)
+        public Scenario(Window owner, Control page, string variant, string task, SectionNavigationControl? navigation,
+            ScrollViewer scroll, Func<SectionNavigationController>? controller, Func<object> state, PresentationCell? presentation = null, PluginsPage? plugin = null)
         {
-            _page = page; _variant = variant; _task = task; Navigation = navigation; Scroll = scroll;
-            _controller = controller; _state = state; _originalContent = navigation.Content; _presentation = presentation;
+            _page = page; _variant = variant; _task = task; _navigation = navigation; _plugin = plugin; Scroll = scroll;
+            _controller = controller; _state = state; _originalContent = navigation?.Content; _presentation = presentation;
             Window = new Window { Title = "URSA17 " + task + " " + variant, Width = presentation?.Width ?? 1100, Height = presentation?.Height ?? 760,
                 MinWidth = presentation?.Width ?? 640, MinHeight = presentation?.Height ?? 480 };
             var toolbar = new WrapPanel();
@@ -387,19 +392,30 @@ internal static partial class SectionComparisonChecks
             var observe = new Button { Content = "Record observation", Margin = new Thickness(4) };
             observe.Click += async (_, _) => { Expect(_prediction.Text ?? "(no human prediction entered)"); Observe("manual observer checkpoint"); await Capture("manual"); };
             toolbar.Children.Add(observe);
-            var instructions = new TextBlock { Text = task + ": A headings; B product contents; C Anchor. Same form/draft/errors; predictions before actions. Native AT remains separate.", TextWrapping = TextWrapping.Wrap };
+            var instructions = new TextBlock { Text = task + (plugin == null
+                ? ": A headings; B product contents; C Anchor."
+                : ": A actual headings; B shipped action-menu commands; C keyboard action menu. No plugin section navigator.")
+                + " Same form/draft/errors; predictions before actions. Native AT remains separate.", TextWrapping = TextWrapping.Wrap };
             if (presentation == null)
             {
                 var root = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
                 root.Children.Add(toolbar); Grid.SetRow(instructions, 1); root.Children.Add(instructions); Grid.SetRow(page, 2); root.Children.Add(page); Window.Content = root;
             }
             else Window.Content = page;
-            navigation.SizeChanged += (_, _) => ApplyWidth();
+            if (navigation != null) navigation.SizeChanged += (_, _) => ApplyWidth();
             Window.Closed += (_, _) => _closed.TrySetResult();
         }
         public async Task PrepareAsync()
         {
             Reproject();
+            if (_plugin != null)
+            {
+                Require(_plugin.FindControl<SectionNavigationControl>("PluginSections") == null,
+                    "The removed plugin section navigator was recreated by the fixture.");
+                await Settle(); Scroll.Offset = default; await Settle();
+                Observe("fixture ready: actual plugin menu/expanders; no replacement section navigator");
+                return;
+            }
             Navigation.IsExpanded = false;
             await Settle();
             Scroll.Offset = default; // identical start-state fixture setup, never counted as user scroll
@@ -412,6 +428,8 @@ internal static partial class SectionComparisonChecks
         public Task WaitForManualClose() => _closed.Task;
         public void Reproject()
         {
+            // Plugin variants retain all original tasks but use the shipped headings/menu routes, never an invented navigator.
+            if (_plugin != null) return;
             if (_changingContent) return;
             _changingContent = true;
             try
@@ -455,11 +473,19 @@ internal static partial class SectionComparisonChecks
         public void Expect(string intent) => Detail("prediction-before-action", new { intent, state = _state(), offset = Scroll.Offset.Y });
         public async Task OpenContents()
         {
+            if (_plugin != null)
+            {
+                _plugin.PluginActionMenu?.Close();
+                await Click(_plugin.FindControl<Button>("PluginMoreActions")!);
+                await Program.WaitUntilAsync(() => _plugin.PluginActionMenu?.IsOpen == true);
+                return;
+            }
             await ScrollToControl(Navigation);
             if (!Navigation.IsExpanded) await Toggle(Navigation);
         }
         public async Task Navigate(string id)
         {
+            if (_plugin != null) { await NavigatePlugin(id); return; }
             SectionDescriptor section = Controller.Sections.Single(s => s.Id == id);
             Expect("Reach exact section " + id + "; keep same draft and do not commit.");
             if (_variant == "A")
@@ -507,6 +533,87 @@ internal static partial class SectionComparisonChecks
             if (_variant != "A") Require(target.IsFocused || target.IsKeyboardFocusWithin, "Navigation did not focus exact target: " + id);
             Detail("destination", new { id, focus = Focus(), targetFocused = target.IsFocused || target.IsKeyboardFocusWithin,
                 offset = Scroll.Offset.Y, targetTop = target.TranslatePoint(default, Scroll)?.Y, viewport = Scroll.Viewport.Height, state = _state() });
+            if (_presentation == null) await Capture("destination-" + Uri.EscapeDataString(id));
+        }
+        private IReadOnlyList<SectionDescriptor> PluginTargets()
+        {
+            PluginsPage page = _plugin!;
+            var targets = new List<SectionDescriptor>();
+            // Resolve actual materialized expanders by draft identity, not by a translated/duplicate source name.
+            foreach (Expander group in page.FindControl<StackPanel>("PluginSettings")!.Children.OfType<Expander>())
+            {
+                if (group.Content is not PluginSettingsEditor editor) continue;
+                string? scope = ReferenceEquals(editor.Draft, page.CurrentDraft?.Plugin) ? string.Empty
+                    : page.CurrentDraft?.Sources.FirstOrDefault(pair => ReferenceEquals(pair.Value, editor.Draft)).Key;
+                if (scope == null) continue;
+                string id = "settings/" + (scope.Length == 0 ? "plugin" : "source/" + Uri.EscapeDataString(scope));
+                string captured = id;
+                targets.Add(new(id, group.Header?.ToString() ?? id, () => PluginTargetsCore(captured)));
+            }
+            foreach ((string suffix, string name) in new[] { ("information", "PluginInfoExpander"), ("grants", "PluginGrantExpander"), ("developer", "PluginDeveloperExpander") })
+                if (page.FindControl<Expander>(name) is { IsVisible: true } expander)
+                    targets.Add(new("plugin/" + suffix, expander.Header?.ToString() ?? suffix, () => page.FindControl<Expander>(name)));
+            return targets;
+        }
+        private Control? PluginTargetsCore(string id)
+        {
+            foreach (Expander group in _plugin!.FindControl<StackPanel>("PluginSettings")!.Children.OfType<Expander>())
+            {
+                if (group.Content is not PluginSettingsEditor editor) continue;
+                string? scope = ReferenceEquals(editor.Draft, _plugin.CurrentDraft?.Plugin) ? string.Empty
+                    : _plugin.CurrentDraft?.Sources.FirstOrDefault(pair => ReferenceEquals(pair.Value, editor.Draft)).Key;
+                if (scope != null && id == "settings/" + (scope.Length == 0 ? "plugin" : "source/" + Uri.EscapeDataString(scope))) return group;
+            }
+            return null;
+        }
+        private async Task NavigatePlugin(string id)
+        {
+            _plugin!.PluginActionMenu?.Close();
+            SectionDescriptor target = Targets.Single(section => section.Id == id);
+            Expect("Reach actual plugin detail " + id + " via headings or the shipped action menu; retain every draft and file.");
+            string? action = id.StartsWith("settings/", StringComparison.Ordinal) ? "plugins.show-settings"
+                : id.EndsWith("/grants", StringComparison.Ordinal) ? "plugins.show-grants"
+                : id.EndsWith("/developer", StringComparison.Ordinal) ? "plugins.show-developer-tools" : null;
+            if (_variant != "A" && action != null)
+            {
+                await OpenContents();
+                MenuItem item = _plugin!.PluginActionMenu!.Items.OfType<MenuItem>().Single(menu => Equals(menu.Tag, action));
+                Require(item.IsEffectivelyEnabled && item.Command?.CanExecute(item.CommandParameter) == true,
+                    "Actual plugin menu target is disabled: " + action);
+                if (_variant == "C") await PressKey(item, Key.Enter);
+                else
+                {
+                    // Command-backed MenuItem; disclosed in-process invocation, not an OS click.
+                    // Like normal menu dispatch, retire the popup before entering the background-page routing guard.
+                    _plugin!.PluginActionMenu!.Close(); await Settle();
+                    item.Command!.Execute(item.CommandParameter); await Settle();
+                    Action(new { kind = "MenuCommand", command = action, input = "actual materialized MenuItem.Command" });
+                }
+                await Program.WaitUntilAsync(() => _plugin.PluginActionMenu?.IsOpen != true);
+                if (action == "plugins.show-settings")
+                {
+                    Expander firstScope = _plugin.FindControl<StackPanel>("PluginSettings")!.Children.OfType<Expander>().First();
+                    Require(firstScope.IsExpanded && (firstScope.IsFocused || firstScope.IsKeyboardFocusWithin),
+                        "The plugin Settings menu did not expose and focus its actual first scope.");
+                }
+                if (action == "plugins.show-grants" || action == "plugins.show-developer-tools")
+                    Require(target.ResolveTarget() is { } menuTarget && (menuTarget.IsFocused || menuTarget.IsKeyboardFocusWithin),
+                        "Plugin menu did not focus its actual detail target.");
+            }
+            Control control = target.ResolveTarget() ?? throw new InvalidOperationException("Plugin detail disappeared: " + id);
+            await ScrollToControl(control);
+            if (control is Expander expander)
+            {
+                if (!expander.IsExpanded) await Toggle(expander);
+                // The menu opens the first settings scope. Other scopes and Information are ordinary expanders now;
+                // targeting their real header is explicit harness setup, never reported as automatic navigator focus.
+                ToggleButton header = expander.GetVisualDescendants().OfType<ToggleButton>().First(toggle =>
+                    ReferenceEquals(toggle.GetVisualAncestors().OfType<Expander>().FirstOrDefault(), expander));
+                header.Focus(); await Settle();
+            }
+            Require(InViewport(control) && (control.IsFocused || control.IsKeyboardFocusWithin), "Plugin heading/scope is not visible and focusable: " + id);
+            Detail("destination", new { id, route = _variant == "A" ? "headings" : "plugin action menu + actual scope expander",
+                focusSetup = "harness header targeting is not native Tab or automatic scope navigation", focus = Focus(), offset = Scroll.Offset.Y, state = _state() });
             if (_presentation == null) await Capture("destination-" + Uri.EscapeDataString(id));
         }
         public async Task ScrollToControl(Control control)
@@ -601,8 +708,8 @@ internal static partial class SectionComparisonChecks
         private void Action(object action) { _actions.Add(action); Detail("actual-action", new { actionIndex = _actions.Count, action, state = _state() }); }
         public void Observe(string note) => Detail("observation", new { note, focus = Focus(), offset = Scroll.Offset.Y, extent = Scroll.Extent.Height,
             viewport = Scroll.Viewport.Height, horizontalExtent = Scroll.Extent.Width, horizontalViewport = Scroll.Viewport.Width,
-            navigationWidth = Navigation.Bounds.Width, contentBounds = _page.Bounds.ToString(),
-            headings = Controller.Sections.Select(section => new { section.Id, section.Title, bounds = section.ResolveTarget()?.Bounds.ToString(),
+            navigationWidth = _navigation?.Bounds.Width, contentBounds = _page.Bounds.ToString(),
+            headings = Targets.Select(section => new { section.Id, section.Title, bounds = section.ResolveTarget()?.Bounds.ToString(),
                 top = section.ResolveTarget()?.TranslatePoint(default, Scroll)?.Y }).ToArray(),
             clipping = "unassessed; inspect captured images and actual bounds", state = _state() });
         public void Detail(string kind, object data) => Console.WriteLine("SECTION_COMPARISON " + JsonSerializer.Serialize(new {

@@ -12,6 +12,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using Ursa.Controls;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -44,8 +45,8 @@ internal static class SourceIntegrityChecks
         Config initial = session.Config.Clone();
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         double originalWidth = window.Width, originalHeight = window.Height;
-        ContentControl sourcesHost = C<ContentControl>(window, "SourcesPageHost"), pluginsHost = C<ContentControl>(window, "PluginsPageHost");
-        object? retainedSources = sourcesHost.Content, retainedPlugins = pluginsHost.Content;
+        ContentControl sourcesHost = C<ContentControl>(window, "SourcesPageHost");
+        object? retainedSources = sourcesHost.Content;
         SourceMediaIntegrityPolicyService first = session.GetOrCreateSourceMediaIntegrityPolicy(PluginUxFixture.SourcePluginId, PluginUxFixture.SourceId);
         SourceMediaIntegrityPolicyService second = session.GetOrCreateSourceMediaIntegrityPolicy(PluginUxFixture.SourcePluginId, OtherSource);
         // Fixture activation is explicit. The separate live-host chain verifies production adapter ownership.
@@ -73,7 +74,7 @@ internal static class SourceIntegrityChecks
         ];
         SourcesPage sources = new() { GetSourceMediaIntegrityPolicies = Policies, SetSourceMediaIntegrityPermission = SaveAsync };
         sources.Refresh(providers, session.GetView(), true);
-        PluginsPage plugins = new();
+        PluginsPage plugins = sources.PluginManagement;
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(session.ProfileDirectory, "source-integrity-ui-fixture"));
         var description = fixture.Source.Description!;
         var observation = fixture.Source with { Description = description with
@@ -86,9 +87,9 @@ internal static class SourceIntegrityChecks
         string? navigatedSource = null;
         plugins.OpenSourceWatches = source =>
         {
-            navigatedSource = source; Navigate(window, "nav.sources"); sources.SelectSource(source);
+            navigatedSource = source; sources.SelectSource(source);
         };
-        sourcesHost.Content = sources; pluginsHost.Content = plugins;
+        sourcesHost.Content = sources;
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
@@ -125,7 +126,10 @@ internal static class SourceIntegrityChecks
             Require(sources.IsBusy && invocations.Count == before + 1 && invocations[^1].Source == PluginUxFixture.SourceId && invocations[^1].Allow,
                 "The pending action did not freeze its original source and intent.");
             // Programmatic selection/refresh models an external source projection change while saving.
-            sources.SelectSource(OtherSource); sources.Refresh(providers, session.GetView(), true);
+            sources.SelectSource(OtherSource);
+            Require(C<TextBlock>(sources, "SourceHeading").Text == providers[0].DisplayName,
+                "A pending consent save allowed an interactive selection change.");
+            sources.Refresh(providers.Where(provider => provider.SourceId != PluginUxFixture.SourceId).ToArray(), session.GetView(), true);
             pending.SetResult(); pending = null;
             await Program.WaitUntilAsync(() => !sources.IsBusy);
             Require(first.GetSnapshot().AllowProviderSizeMd5Mismatch && second.GetSnapshot().AllowProviderSizeMd5Mismatch
@@ -133,11 +137,12 @@ internal static class SourceIntegrityChecks
                 "Selection or refresh retargeted a pending save or rendered the wrong source's consent.");
             Observation(window, sources, "selection-switch-during-save", new { action = invocations[^1], first = first.GetView(), second = second.GetView() });
 
+            sources.Refresh(providers, session.GetView(), true);
             sources.SelectSource(PluginUxFixture.SourceId); failSave = true;
             pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
             await ActivatePermissionAsync(window, sources);
             Require(sources.IsBusy && !invocations[^1].Allow, "The controlled late failure did not capture the revoke intent.");
-            sources.SelectSource(OtherSource);
+            sources.Refresh(providers.Where(provider => provider.SourceId != PluginUxFixture.SourceId).ToArray(), session.GetView(), true);
             pending.SetResult(); pending = null;
             await Program.WaitUntilAsync(() => !sources.IsBusy);
             Require(first.GetView().IsGranted && second.GetView().IsGranted && permission.IsChecked == true
@@ -146,6 +151,7 @@ internal static class SourceIntegrityChecks
                 "A late failure changed durable permission or moved an old source's error onto the new selection.");
             Observation(window, sources, "failure-after-selection-switch", new { action = invocations[^1], first = first.GetView(), second = second.GetView() });
             failSave = false;
+            sources.Refresh(providers, session.GetView(), true);
             // Leave both controls strict before the passive presentation matrix.
             sources.SelectSource(PluginUxFixture.SourceId); await ToggleAsync(window, sources, false);
             sources.SelectSource(OtherSource); await ToggleAsync(window, sources, false);
@@ -209,7 +215,12 @@ internal static class SourceIntegrityChecks
                         "Switching sources retained an old source's permission error.");
                 }
 
-                Navigate(window, "nav.plugins"); plugins.Select(PluginUxFixture.SourceKey);
+                sources.SelectSource(PluginUxFixture.SourceId);
+                Button pluginDetails = C<Button>(sources, "SourcePluginButton");
+                await RevealAsync(window, pluginDetails);
+                await ActivateAsync(pluginDetails);
+                Require(plugins.ShowingSourcePluginDetails && plugins.Filter == SourcesPluginsFilter.Sources,
+                    "Plugin details did not open as the second layer of the selected source.");
                 await Settle();
                 // The chip carries one compact classification per described source (unverified maintenance plus
                 // the typed Experimental maturity), not the bare maturity word.
@@ -236,7 +247,9 @@ internal static class SourceIntegrityChecks
                 navigatedSource = null;
                 await ActivateAsync(manage);
                 await Program.WaitUntilAsync(() => navigatedSource == PluginUxFixture.SourceId && sources.IsEffectivelyVisible);
-                Require(C<TextBlock>(sources, "SourceHeading").Text == providers[0].DisplayName,
+                Require(window.SelectedPage == MainWindow.WorkspacePage.Sources && ReferenceEquals(sourcesHost.Content, sources)
+                    && !plugins.ShowingSourcePluginDetails && C<TextBlock>(sources, "SourceHeading").IsEffectivelyVisible
+                    && C<TextBlock>(sources, "SourceHeading").Text == providers[0].DisplayName,
                     "The frozen plugin source action navigated to a different source.");
                 Observation(window, sources, "plugin-link-navigation", new { cell, source = navigatedSource, expectedScale });
             }
@@ -248,8 +261,8 @@ internal static class SourceIntegrityChecks
         finally
         {
             pending?.TrySetResult(); first.SetActive(false); second.SetActive(false);
-            sources.EndLifetime(); plugins.EndLifetime();
-            sourcesHost.Content = retainedSources; pluginsHost.Content = retainedPlugins;
+            sources.EndLifetime();
+            sourcesHost.Content = retainedSources;
             Texts.SetLanguage(initial.Language); Application.Current.RequestedThemeVariant = originalTheme;
             await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
             window.Width = originalWidth; window.Height = originalHeight;
@@ -282,10 +295,10 @@ internal static class SourceIntegrityChecks
     // The list is sorted by maturity, so a card is found by its name, never by its position.
     private static async Task SelectSourceCardAsync(MainWindow window, SourcesPage page, string name)
     {
-        Button card = C<StackPanel>(page, "SourceCards").Children.OfType<Button>().Single(candidate =>
+        SelectionListItem card = C<SelectionList>(page, "SourceCards").Items.OfType<SelectionListItem>().Single(candidate =>
             candidate.Content is StackPanel labels && labels.Children.OfType<TextBlock>().First().Text == name);
         if (!card.IsEffectivelyVisible) await ActivateAsync(C<Button>(page, "SourceBackButton"));
-        await RevealAsync(window, card); await ActivateAsync(card);
+        await RevealAsync(window, card); MergedSourcesSmoke.OpenSourceRow(page, card); await Settle();
     }
     private static async Task ActivatePermissionAsync(MainWindow window, SourcesPage page)
     {

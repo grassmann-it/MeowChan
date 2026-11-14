@@ -43,8 +43,10 @@ internal static class EarlyArchiveChecks
             "The readable hold is not a pending startup.");
         Require(!C<Button>(window, "AddUrlButton").IsEnabled && !C<TextBox>(window, "UrlInput").IsEnabled && !C<Button>(window, "PauseButton").IsEnabled,
             "Early page choice enabled a session command.");
-        Require(!C<Button>(window, "RulesNavigationButton").IsEnabled && !C<Button>(window, "PluginsNavigationButton").IsEnabled
+        Require(!C<Button>(window, "RulesNavigationButton").IsEnabled
             && !C<Button>(window, "SourcesNavigationButton").IsEnabled, "A page that needs plugins or the registry was offered early.");
+        Require(window.FindControl<Button>("PluginsNavigationButton") == null && window.FindControl<ContentControl>("PluginsPageHost") == null,
+            "The removed Plugins workspace was recreated during startup.");
         Require(C<Border>(window, "StartupPreviewPanel").IsVisible && window.HistoricThreads.Count == 1, "The historical rows are not on the Downloads page before navigation.");
 
         archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

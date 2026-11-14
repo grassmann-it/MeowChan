@@ -22,12 +22,13 @@ internal static class PluginGroupChecks
         state = await fixture.Store.SetEnabledAsync(PluginUxFixture.FilterPluginId, true, state.Revision);
         await fixture.Store.SetEnabledAsync(PluginUxFixture.SourcePluginId, false, state.Revision);
         string language = Texts.Language;
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
         object? retained = host.Content;
-        PluginsPage page = new(); page.Attach(fixture.Services); host.Content = page;
+        SourcesPage sources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage page); host.Content = sources;
         try
         {
             Texts.SetLanguage("en");
+            MergedSourcesSmoke.OpenPlugins(window);
             await page.ActivateAsync();
             SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
             Require(list.Items.Count == 2, $"Three files of two plugins must give two cards, not {list.Items.Count}.");
@@ -64,7 +65,7 @@ internal static class PluginGroupChecks
             Require(fixture.ForbiddenCalls == 0, "The group checks compiled, described, started or probed a plugin.");
             Console.WriteLine("PLUGIN_GROUP_CHECKS PASS: one card per plugin, state order, files in the detail, attention chip.");
         }
-        finally { page.EndLifetime(); host.Content = retained; Texts.SetLanguage(language); }
+        finally { sources.EndLifetime(); host.Content = retained; Texts.SetLanguage(language); }
     }
 
     private static async Task Settle()

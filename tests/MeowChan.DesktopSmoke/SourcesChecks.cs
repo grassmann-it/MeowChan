@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Notifications;
+using NotificationCard = Avalonia.Controls.Notifications.NotificationCard;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
@@ -8,8 +8,10 @@ using Avalonia.Input;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Http;
+using Ursa.Controls;
 using SourceMaturity = MeowChan.PluginSdk.SourceMaturity;
 using SourceWording = MeowChan.Desktop.Plugins.SourceWording;
 using SourceWordingMaintenance = MeowChan.Desktop.Plugins.SourceWordingMaintenance;
@@ -35,6 +37,7 @@ internal static class SourcesChecks
         if (previous is SourcesPage livePage)
         {
             Texts.SetLanguage("en");
+            await CheckMergedCommandRoutesAsync(window, livePage);
             MenuItem sourcesNavigation = window.FindControl<MenuItem>("SourcesMenuItem")!;
             await Program.WaitUntilAsync(() => sourcesNavigation.IsEnabled && !window.SessionRowsApplying);
             sourcesNavigation.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -46,10 +49,10 @@ internal static class SourcesChecks
             ProviderDescriptor selectedSource = window.SessionHost.GetProviderDescriptors().SingleOrDefault(provider =>
                 selectedIdentity == Texts.T("sources.identity", provider.SourceId, provider.BaseUri.AbsoluteUri))
                 ?? throw new InvalidOperationException("The productive Sources selection did not identify a registered canonical source: " + selectedIdentity);
-            Button selectedCard = livePage.FindControl<StackPanel>("SourceCards")!.Children.OfType<Button>()
+            SelectionListItem selectedCard = livePage.FindControl<SelectionList>("SourceCards")!.Items.OfType<SelectionListItem>()
                 .Single(card => card.Classes.Contains("selected"));
             // Navigation refreshes the card's Content synchronously, before its
-            // button template necessarily materializes a visual ContentPresenter.
+            // row template necessarily materializes a visual ContentPresenter.
             StackPanel selectedLabels = selectedCard.Content as StackPanel
                 ?? throw new InvalidOperationException("The selected source card lost its label content.");
             string[] selectedText = selectedLabels.Children.OfType<TextBlock>().Select(text => text.Text ?? string.Empty).ToArray();
@@ -131,7 +134,8 @@ internal static class SourcesChecks
                 {
                     Texts.SetLanguage(language);
                     page.Refresh(providers, view, true);
-                    Button firstSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[0];
+                    await CheckSourceListKeyboardAsync(page);
+                    SelectionListItem firstSource = (SelectionListItem)page.FindControl<SelectionList>("SourceCards")!.Items[0]!;
                     Require(firstSource.Content is StackPanel && !firstSource.GetVisualDescendants().OfType<Button>().Any(),
                         "Source row still requires a separate Select button.");
                     if (page.FindControl<Button>("SourceBackButton")!.IsVisible)
@@ -142,8 +146,8 @@ internal static class SourcesChecks
                             && !page.FindControl<Border>("SourceDetailsPanel")!.IsVisible,
                             "Narrow Sources did not start with the source list.");
                         firstSource.Focus();
-                        firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                        await Program.WaitUntilAsync(() => page.FindControl<Button>("SourceBackButton")!.IsFocused);
+                        MergedSourcesSmoke.OpenSourceRow(page, firstSource);
+                        await Program.WaitUntilAsync(() => page.FindControl<TextBlock>("SourceHeading")!.IsFocused);
                         Require(page.FindControl<Border>("SourceDetailsPanel")!.IsVisible
                             && !page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
                             "Narrow row activation did not open details.");
@@ -151,7 +155,7 @@ internal static class SourcesChecks
                         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                         Require(firstSource.IsFocused && page.FindControl<StackPanel>("SourcesListPane")!.IsVisible,
                             "Narrow Back did not restore source focus.");
-                        firstSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        MergedSourcesSmoke.OpenSourceRow(page, firstSource);
                     }
                     await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                     Require(window.SelectedPage == MainWindow.WorkspacePage.Sources, "Sources navigation did not retain its page.");
@@ -212,8 +216,9 @@ internal static class SourcesChecks
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - targetWidth) <= 1);
             await Program.WaitUntilAsync(() => page.Bounds.Width >= 760
                 && page.FindControl<Grid>("SourcesSplit")!.ColumnDefinitions.Count == 2);
-            Button selectedSource = (Button)page.FindControl<StackPanel>("SourceCards")!.Children[1];
-            selectedSource.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            SelectionListItem selectedSource = (SelectionListItem)page.FindControl<SelectionList>("SourceCards")!.Items[1]!;
+            MergedSourcesSmoke.OpenSourceRow(page, selectedSource);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             selectedSource.Focus();
             page.Refresh(providers, view, true);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -260,6 +265,59 @@ internal static class SourcesChecks
         }
         Console.WriteLine("SMOKE sources: passive capabilities, current cooldowns, exact watch actions, the Downloads hand-off and compact EN/DE views passed.");
     }
+    private static async Task CheckMergedCommandRoutesAsync(MainWindow window, SourcesPage page)
+    {
+        var original = window.SessionHost.Config.ShortcutBindings;
+        Button origin = window.FindControl<Button>("DownloadsNavigationButton")!;
+        try
+        {
+            // Disposable routing snapshot only: no preference save or hidden Plugins button.
+            ShortcutService.Publish(original.Set("navigation.plugins", new[] { ShortcutGesture.Parse("Ctrl+Shift+F11") }));
+            origin.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            origin.Focus();
+            var compatibility = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Source = origin,
+                Key = Key.F11, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift };
+            origin.RaiseEvent(compatibility);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Sources
+                && page.PluginManagement.Filter == SourcesPluginsFilter.AllPlugins);
+            Require(compatibility.Handled && ReferenceEquals(window.FindControl<ContentControl>("SourcesPageHost")!.Content, page),
+                "The saved navigation.plugins shortcut did not reach All plugins in the real merged host.");
+            Require(MainPageOrder.Digit("navigation.status") == 7 && MainPageOrder.Digit("navigation.plugins") == null,
+                "Removing Plugins displaced Status+7 or gave the compatibility route a digit slot.");
+            // Default main-page digits come only from MainPageOrder, not from the page's ordinal position.
+            ShortcutPlatform platform = OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS
+                : OperatingSystem.IsWindows() ? ShortcutPlatform.Windows : ShortcutPlatform.Linux;
+            KeyGesture sourceGesture = ShortcutGesture.Parse(MainPageOrder.DefaultShortcut("navigation.sources")).Resolve(platform);
+            origin.Focus();
+            var source = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Source = origin,
+                Key = sourceGesture.Key, KeyModifiers = sourceGesture.KeyModifiers };
+            origin.RaiseEvent(source);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Sources
+                && page.PluginManagement.Filter == SourcesPluginsFilter.Sources);
+            Require(source.Handled && window.FindControl<ContentControl>("PluginsPageHost") == null,
+                "The normal Sources command did not restore the Sources dropdown in the merged workspace.");
+        }
+        finally { ShortcutService.Publish(original); }
+    }
+
+    private static async Task CheckSourceListKeyboardAsync(SourcesPage page)
+    {
+        SelectionList list = page.FindControl<SelectionList>("SourceCards")!;
+        Require(list.Items.Count == 2, "The source keyboard fixture requires both actual source rows.");
+        if (page.FindControl<Border>("SourceDetailsPanel")!.IsVisible && page.FindControl<Button>("SourceBackButton")!.IsVisible)
+            page.FindControl<Button>("SourceBackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        foreach ((Key key, int index) in new[] { (Key.Home, 0), (Key.Down, 1), (Key.Up, 0), (Key.End, 1), (Key.Home, 0) })
+        {
+            list.Focus();
+            var input = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Source = list, Key = key };
+            list.RaiseEvent(input);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(input.Handled && list.SelectedIndex == index && list.SelectedItem is SelectionListItem row && row.IsFocused
+                && page.FindControl<StackPanel>("SourcesListPane")!.IsEffectivelyVisible,
+                "Source list keyboard navigation lost row selection/focus or opened narrow details for " + key);
+        }
+    }
+
     // Light and dark captures of the same state; the page itself has no theme-specific logic, so this is evidence only.
     private static async Task CaptureBothThemesAsync(MainWindow window, string name)
     {
@@ -296,7 +354,7 @@ internal static class SourcesChecks
             {
                 Texts.SetLanguage(wideLanguage);
                 page.Refresh(providers, view, true);
-                ((Button)page.FindControl<StackPanel>("SourceCards")!.Children[0]).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                MergedSourcesSmoke.OpenSourceRow(page, (SelectionListItem)page.FindControl<SelectionList>("SourceCards")!.Items[0]!);
                 page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 await CaptureBothThemesAsync(window, $"smoke-sources-wide-{wideLanguage}");
@@ -338,9 +396,9 @@ internal static class SourcesChecks
         Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? original = page.GetSourceMediaIntegrityPolicies;
         string language = Texts.Language;
         double restoreHeight = window.Height;
-        StackPanel cards = page.FindControl<StackPanel>("SourceCards")!;
-        static string NameOf(Button card) => ((StackPanel)card.Content!).Children.OfType<TextBlock>().First().Text ?? string.Empty;
-        static string[] ChipsOf(Button card) => ((StackPanel)card.Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
+        SelectionList cards = page.FindControl<SelectionList>("SourceCards")!;
+        static string NameOf(SelectionListItem card) => ((StackPanel)card.Content!).Children.OfType<TextBlock>().First().Text ?? string.Empty;
+        static string[] ChipsOf(SelectionListItem card) => ((StackPanel)card.Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
             .Select(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Single().Text ?? string.Empty).ToArray();
         Exception? failureBeforeCleanup = null;
         try
@@ -352,43 +410,43 @@ internal static class SourcesChecks
             {
                 Texts.SetLanguage(badgeLanguage);
                 page.Refresh(providers, view, true);
-                Button[] ordered = cards.Children.OfType<Button>().ToArray();
-                Require(ordered.Select(NameOf).SequenceEqual(["Third stable", "Zeta stable", "Mid plain", "Alpha experimental"]),
-                    "The source list was not sorted stable, unclassified, experimental and alphabetical: " + string.Join(", ", ordered.Select(NameOf)));
+                SelectionListItem[] ordered = cards.Items.OfType<SelectionListItem>().ToArray();
+                Require(ordered.Select(NameOf).SequenceEqual(["Third stable", "Zeta stable", "Alpha experimental", "Mid plain"]),
+                    "The source list was not sorted active first, then stable/unclassified/experimental and alphabetical: " + string.Join(", ", ordered.Select(NameOf)));
                 Require(ChipsOf(ordered[0]).Length == 0 && ChipsOf(ordered[1]).Length == 0
-                    && ChipsOf(ordered[2]).SequenceEqual([Texts.T("sources.maintenance.unverified"), Texts.T("sources.badge.status.inactive")])
-                    && ChipsOf(ordered[3]).SequenceEqual([Texts.T("sources.maturity.experimental")]),
+                    && ChipsOf(ordered[3]).SequenceEqual([Texts.T("sources.maintenance.unverified"), Texts.T("sources.badge.status.inactive")])
+                    && ChipsOf(ordered[2]).SequenceEqual([Texts.T("sources.maturity.experimental")]),
                     "A source that follows the norm showed a chip, or a deviating one did not: " + string.Join(" / ", ordered.Select(card => string.Join(",", ChipsOf(card)))));
-                Border warning = ((StackPanel)ordered[3].Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>().Single();
+                Border warning = ((StackPanel)ordered[2].Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>().Single();
                 Require(warning.Classes.Contains("chip-warning") && warning.Classes.Contains("chip-badge"),
                     "The Experimental chip lost its warning tone.");
                 Require(!ordered.Select(NameOf).Any(name => name.Contains('●')), "A source name still carries the old text marker.");
 
                 // Zeta is the norm: complete meta line, no sentence. Alpha is experimental: the sentence explains it.
-                ordered[1].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                MergedSourcesSmoke.OpenSourceRow(page, ordered[1]);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                Require(ordered[1].Classes.Contains("selected") && !ordered[3].Classes.Contains("selected")
+                Require(ordered[1].Classes.Contains("selected") && !ordered[2].Classes.Contains("selected")
                     && page.FindControl<TextBlock>("SourceMeta")!.Text == SourceWording.DescribeMeta(SourceWording.Badges(
                         policies[0].Classification, true, false))
                     && !page.FindControl<TextBlock>("SourceExperimental")!.IsVisible,
                     "A source that follows the norm did not show its complete meta line without the Experimental sentence: " + page.FindControl<TextBlock>("SourceMeta")!.Text);
-                ordered[3].RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                MergedSourcesSmoke.OpenSourceRow(page, ordered[2]);
                 page.FindControl<ScrollViewer>("SourcesScroll")!.ScrollToHome();
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                Require(ordered[3].Classes.Contains("selected") && !ordered[1].Classes.Contains("selected")
+                Require(ordered[2].Classes.Contains("selected") && !ordered[1].Classes.Contains("selected")
                     && page.FindControl<TextBlock>("SourceExperimental")!.IsVisible
                     && page.FindControl<TextBlock>("SourceExperimental")!.Text == Texts.T("sources.experimentalNote")
                     && page.FindControl<TextBlock>("SourceMeta")!.Text!.Contains(Texts.T("sources.maturity.experimental")),
                     "The Experimental source did not show its meta line and the sentence that explains it.");
                 await CaptureBothThemesAsync(window, $"smoke-sources-badges-{badgeLanguage}");
                 // A refresh keeps the cards (and their focus) and only moves them when the order changes.
-                Button[] again = cards.Children.OfType<Button>().ToArray();
+                SelectionListItem[] again = cards.Items.OfType<SelectionListItem>().ToArray();
                 page.Refresh(providers, view, true);
-                Require(cards.Children.OfType<Button>().SequenceEqual(again), "A refresh with the same order rebuilt or moved the source cards.");
+                Require(cards.Items.OfType<SelectionListItem>().SequenceEqual(again), "A refresh with the same order rebuilt or moved the source cards.");
                 policies[2] = Policy("mid", "Mid plain", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Stable, true);
                 page.Refresh(providers, view, true);
-                Require(cards.Children.OfType<Button>().Select(NameOf).SequenceEqual(["Mid plain", "Third stable", "Zeta stable", "Alpha experimental"])
-                    && cards.Children.OfType<Button>().First() == again[2] && ChipsOf(again[2]).Length == 0,
+                Require(cards.Items.OfType<SelectionListItem>().Select(NameOf).SequenceEqual(["Mid plain", "Third stable", "Zeta stable", "Alpha experimental"])
+                    && cards.Items.OfType<SelectionListItem>().First() == again[3] && ChipsOf(again[3]).Length == 0,
                     "A source whose maturity changed was not moved with its card, or kept a stale chip.");
                 policies[2] = Policy("mid", "Mid plain", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Unclassified, false);
             }

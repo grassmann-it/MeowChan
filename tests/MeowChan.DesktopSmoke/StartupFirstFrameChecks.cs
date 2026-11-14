@@ -12,6 +12,7 @@ using Avalonia.Rendering.Composition;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Diagnostics;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -219,17 +220,11 @@ internal static class StartupFirstFrameChecks
 
 internal sealed class StartupFirstFrameMeasurement : IDisposable
 {
-    private static readonly (string Page, string Button, string Host)[] Pages =
-    [
-        ("Downloads", "DownloadsNavigationButton", "WorkspaceBody"),
-        ("Archive", "ArchiveNavigationButton", "ArchivePageHost"),
-        ("Media", "MediaNavigationButton", "MediaPageHost"),
-        ("Rules", "RulesNavigationButton", "RulesPageHost"),
-        ("Sources", "SourcesNavigationButton", "SourcesPageHost"),
-        ("Status", "StatusNavigationButton", "StatusPageHost"),
-        ("Plugins", "PluginsNavigationButton", "PluginsPageHost"),
-        ("Settings", "SettingsNavigationButton", "SettingsPageHost")
-    ];
+    // MainPageOrder owns workspace order; Settings remains the unnumbered destination.
+    private static readonly (string Page, string Button, string Host)[] Pages = MainPageOrder.CommandIds
+        .Select(id => (Page: MainPageOrder.ControlStem(id), Button: MainPageOrder.ControlStem(id) + "NavigationButton",
+            Host: id == "navigation.downloads" ? "WorkspaceBody" : MainPageOrder.ControlStem(id) + "PageHost"))
+        .Append(("Settings", "SettingsNavigationButton", "SettingsPageHost")).ToArray();
     private sealed record PageGate(string Page, bool Enabled, bool EffectivelyEnabled, bool Visible,
         bool ToolsEnabled, bool ToolsVisible, bool OverflowItemEnabled, bool OverflowItemVisible, string? OfferedVia);
     private sealed record NavigationObservation(long Timestamp, string Stage, string HostState, bool CatalogReadable,
@@ -372,7 +367,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
         "Downloads" => StartupTimingPoint.DownloadsOffered, "Archive" => StartupTimingPoint.ArchiveOffered,
         "Media" => StartupTimingPoint.MediaOffered, "Rules" => StartupTimingPoint.RulesOffered,
         "Sources" => StartupTimingPoint.SourcesOffered, "Status" => StartupTimingPoint.DiagnosticsOffered, // the Status page (its Diagnostics segment is the recovery route)
-        "Plugins" => StartupTimingPoint.PluginsOffered, "Settings" => StartupTimingPoint.SettingsOffered,
+        "Settings" => StartupTimingPoint.SettingsOffered,
         _ => throw new ArgumentOutOfRangeException(nameof(page))
     };
 

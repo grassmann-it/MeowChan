@@ -34,6 +34,7 @@ public partial class MainWindow
         };
         // One quiet information notification per finished automatic check that queued new originals.
         _session.BooruWatcherQueued += OnBooruWatcherQueued;
+        InitializeBooruMedia();
         Closed += (_, _) =>
         {
             _session.BooruWatcherQueued -= OnBooruWatcherQueued;
@@ -76,6 +77,7 @@ public partial class MainWindow
         if (_booruWindow is { } open) { open.Activate(); return; }
         BooruWorkbenchServices services = _session.BooruServices!;
         BooruWorkbenchWindow window = new(services);
+        ConfigureBooruMediaLinks(window);
         _booruWindow = window;
         window.Closed += (_, _) => { if (ReferenceEquals(_booruWindow, window)) _booruWindow = null; };
         window.Show(this);

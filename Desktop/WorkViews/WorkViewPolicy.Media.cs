@@ -20,6 +20,8 @@ public static partial class WorkViewPolicy
         Same("media.toolbar.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
+        // The existing Booru workbench is optional; when available its launcher is appended to this same More surface.
+        new("media.toolbar.booru", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 30),
         // Since S3 the header holds search, filter toggle, order and refresh; exporting every match is under More in every view
         // (showing missing files moved to the filter fields below: it is a filter, and its chip shows while it is on).
         new("media.toolbar.export-all", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 40),

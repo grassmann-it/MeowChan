@@ -83,7 +83,7 @@ internal static class PluginSettingsPostUrsaChecks
 
         async Task LongHelpAsync()
         {
-            ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
+            ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
             object? retained = host.Content;
             try
             {

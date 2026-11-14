@@ -366,6 +366,27 @@ MeowChan shows one information notification titled **Danbooru watcher**. It name
 the watcher and the number of originals added. This follows the information-popup
 setting; it is not a notification for every provider hit.
 
+#### Local links to Media
+
+**English:** A saved result can offer **Show in Media**; a watcher's latest post
+can offer the same action when its original is saved locally. It applies the
+Danbooru source and post-ID filters and focuses the matching local media tile.
+This does not fetch the post or download its original. A stale saved link or a
+missing/filtered-out local tile is reported rather than replaced with another
+post. In Media → **More**, **Open Booru** is available when Danbooru is ready and
+composed; it opens the existing window without starting a search. This is not a
+new Booru footer page or a settings toggle.
+
+**Deutsch:** Ein gespeichertes Ergebnis kann **In Medien zeigen** anbieten; beim
+letzten Post einer Suchbeobachtung erscheint die Aktion ebenfalls, wenn sein
+Original lokal gespeichert ist. Sie setzt den Danbooru-Quellenfilter und den
+Post-ID-Filter und fokussiert die passende lokale Medienkachel. Dabei wird weder
+der Post abgerufen noch sein Original heruntergeladen. Ein veralteter Speicherlink
+oder eine fehlende/ausgefilterte lokale Kachel wird gemeldet, nicht durch einen
+anderen Post ersetzt. Unter Medien → **Mehr** öffnet **Booru öffnen** das bestehende
+Fenster, wenn Danbooru bereit und eingebunden ist, ohne eine Suche zu starten.
+Das ist keine neue Booru-Fußleistenseite und kein Einstellungsschalter.
+
 #### Waiting, local data and offline use
 
 Metadata sends start at least one second apart. HTTP 429 causes a provider-wide
@@ -734,7 +755,12 @@ names the setting that can be raised.
 **English (additional limits):** **Archive tag filters per list** bounds each
 include/exclude list independently; lowering it does not truncate stored filters.
 **URL text export size (MiB)** limits new URL text output, not HTML or original-file
-exports, and does not remove the separate per-record/format safety bounds.
+exports: it is the writer budget, not a larger file format. The URL text format
+still has a fixed **1 MiB** ceiling, **4096 lines** and **8192 UTF-16 code units per
+line**; the current archive plan exports exactly one thread page URL. Raising the
+writer budget to 64 MiB does not enable a 64-MiB URL export. Separate identity and
+target-path checks still apply. See the [settings and export limits reference
+(German)](user-guide/settings-export-and-limits.md).
 **Slash-tag suggestions** bounds detected slash-tag suggestions, not the number of
 tags you can store or the separate quick-tag chip count. **Video scrub preview
 cache size (MiB)** budgets derived timeline previews on disk, not original videos.
@@ -745,6 +771,12 @@ Einschluss-/Ausschlussliste einzeln (Standard 32, 8 bis 128); ein niedrigerer We
 kürzt gespeicherte Filter nicht. **Größe des URL-Textexports (MiB)** begrenzt neue
 URL-Textausgaben (Standard 1 MiB, 1 bis 64 MiB), nicht HTML- oder Originaldatei-
 Exporte; zusätzliche Schutzgrenzen je Eintrag und Format bleiben bestehen.
+Der Wert ist das Writerbudget, keine Erweiterung des Dateiformats: Das URL-Textformat
+bleibt auf **1 MiB**, **4096 Zeilen** und **8192 UTF-16-Codeeinheiten je Zeile**
+begrenzt. Der heutige Archivplan exportiert genau eine Thread-Seiten-URL.
+64 MiB Writerbudget ermöglichen keinen 64-MiB-URL-Export; Identitäts- und
+Zielpfadprüfungen gelten weiterhin. Details findest du in der [Referenz zu
+Einstellungen und Exportgrenzen](user-guide/settings-export-and-limits.md).
 **Slash-Tagvorschläge** begrenzt erkannte Slash-Tagvorschläge (Standard 8, 3 bis 20),
 nicht deine gespeicherten Tags oder die separate Zahl der Schnell-Taggen-Chips.
 **Größe des Video-Scrub-Vorschau-Caches (MiB)** begrenzt abgeleitete Zeitleisten-
@@ -872,12 +904,21 @@ The overview does not edit your view or draft and is not a custom-view editor.
 After an applied view switch, a **Work view changed** toast summarizes changed
 defaults and column defaults. **Undo** restores the previous view, not unrelated
 settings or data; a newer switch invalidates the older notice's actions. The
-notice requires information popups and an available session. Its Config setting
-`WorkViewSwitchNoticeSeconds` defaults to 8 seconds, allows 0 to 60, and 0 disables
-the toast including Undo/Details. This checkout has no settings input for that
-duration yet. **Details** is present but its navigation host is not connected in
-this checkout: it reports that the overview is not connected instead of opening
-the changed rows. Open Work views manually for the full comparison. The one-time
+notice requires information popups and an available session. Under **Settings →
+Notifications**, **Work-view switch notice (seconds)** (`WorkViewSwitchNoticeSeconds`)
+defaults to 8 seconds, allows 0 to 60, and 0 disables the toast including Undo/Details.
+The duration stays in the draft until **Save**; **Discard draft** restores the saved
+value, and resetting Notifications loads the default into the draft.
+
+**Details** opens **Settings → Work views** through the normal protected Settings
+route, without saving or discarding your existing settings draft. While the session
+is restoring, closing or busy, the route cannot open. The overview shows only the
+policy rows changed by that switch, across all pages; its active column follows the
+currently applied view, not an unsaved view choice or a forced return to the old
+view. Keyboard focus moves to **Find an element** (or the table if the field is
+unavailable). Page/text filters narrow the changed rows further. **Clear filters**
+removes the difference restriction too; entering Work views normally also clears
+the previous difference, page and text filters for the full comparison. The one-time
 notice for older profiles is separate from this switch toast.
 
 | Setting | Default | Allowed |
@@ -902,13 +943,25 @@ Nach einem angewandten Ansichtswechsel fasst **Arbeitsansicht gewechselt** geän
 Vorgaben und Spaltenvorgaben zusammen. **Rückgängig** stellt die vorige Ansicht
 wieder her, nicht andere Einstellungen oder Daten. Ein neuer Wechsel macht die
 Aktionen des alten Hinweises ungültig. Der Hinweis braucht Informations-Popups und
-eine verfügbare Sitzung. Der Config-Wert `WorkViewSwitchNoticeSeconds` hat den
+eine verfügbare Sitzung. Unter **Einstellungen → Benachrichtigungen** findest du
+**Hinweis beim Ansichtswechsel (Sekunden)** (`WorkViewSwitchNoticeSeconds`):
 Standard 8 Sekunden und den Bereich 0 bis 60; 0 schaltet den Toast einschließlich
-Rückgängig/Details aus. Ein Eingabefeld für die Dauer fehlt in diesem Stand noch.
-**Details** ist vorhanden, aber der Navigationsanschluss an die Übersicht fehlt in
-diesem Stand: Du erhältst einen Hinweis statt der geänderten Zeilen. Öffne
-Arbeitsansichten für den vollständigen Vergleich selbst. Der Einmalhinweis für
-ältere Profile ist vom Wechsel-Toast unabhängig.
+Rückgängig/Details aus. Die Dauer bleibt bis **Speichern** im Entwurf. Mit **Entwurf
+verwerfen** holst du den gespeicherten Wert zurück; Zurücksetzen der
+Benachrichtigungen lädt den Standard in den Entwurf.
+
+**Details** öffnet **Einstellungen → Arbeitsansichten** über den normalen geschützten
+Einstellungsweg, ohne deinen vorhandenen Einstellungsentwurf zu speichern oder zu
+verwerfen. Während Wiederherstellung, Schließen oder einer laufenden geschützten
+Aktion öffnet sich dieser Weg nicht. Die Übersicht zeigt nur die durch diesen
+Wechsel geänderten Policy-Zeilen über alle Seiten. Die aktive Spalte folgt der
+aktuell angewandten Ansicht, nicht einer ungespeicherten Ansichtswahl; sie schaltet
+nicht zur alten Ansicht zurück. Der Tastaturfokus geht zu **Element suchen** (oder
+zur Tabelle, falls das Feld nicht verfügbar ist). Seiten-/Textfilter schränken die
+geänderten Zeilen weiter ein. **Filter zurücksetzen** entfernt auch die
+Differenzeinschränkung. Öffnest du Arbeitsansichten normal, werden die vorherigen
+Differenz-, Seiten- und Textfilter für den vollständigen Vergleich gelöscht. Der
+Einmalhinweis für ältere Profile ist vom Wechsel-Toast unabhängig.
 
 **Fenster beim Wechsel zu Minimal verkleinern** ist unter Oberfläche standardmäßig
 an. Schalte es aus und speichere, wenn du beim Wechsel die Fenstergröße behalten

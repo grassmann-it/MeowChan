@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -46,6 +47,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string ResultTagPrefix = BooruWorkbenchView.ResultTagPrefix;
     internal const string DetailsPrefix = BooruWorkbenchView.DetailsPrefix;
     internal const string MoreTagsPrefix = BooruWorkbenchView.MoreTagsPrefix;
+    internal const string ShowInMediaPrefix = BooruWorkbenchView.ShowInMediaPrefix;
+    internal const string WatcherShowInMediaPrefix = BooruWorkbenchView.WatcherShowInMediaPrefix;
     internal const string CatalogStorageName = BooruWorkbenchView.CatalogStorageName;
 
     private readonly BooruWorkbenchView _view;
@@ -74,6 +77,8 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     }
 
     internal BooruWorkbenchModel Model => _view.Model;
+    internal Func<string, Task<bool>>? ShowInMedia { get => _view.ShowInMedia; set => _view.ShowInMedia = value; }
+    internal Func<string, bool>? IsPostSavedInMedia { get => _view.IsPostSavedInMedia; set => _view.IsPostSavedInMedia = value; }
     internal void ShowQuery(string query) => _view.ShowQuery(query);
     internal void AddTagToSearch(string tag) => _view.AddTagToSearch(tag);
 

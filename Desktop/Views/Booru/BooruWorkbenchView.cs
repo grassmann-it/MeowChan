@@ -65,6 +65,8 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     internal const string ResultTagPrefix = "BooruResultTag:";
     internal const string DetailsPrefix = "BooruResultDetails:";
     internal const string MoreTagsPrefix = "BooruResultMoreTags:";
+    internal const string ShowInMediaPrefix = "BooruShowInMedia:";
+    internal const string WatcherShowInMediaPrefix = "BooruWatcherShowInMedia:";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
@@ -127,6 +129,8 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     // A focused control that a running command disabled; focus returns to it once it is enabled again.
     private (Panel Panel, string Name, int Card)? _pendingFocus;
     private string? _watchersKey;
+    private Func<string, Task<bool>>? _showInMedia;
+    private Func<string, bool>? _isPostSavedInMedia;
     private bool _paused;
     private string _cooling = string.Empty;
     private bool _applying;
@@ -212,6 +216,20 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     }
 
     internal BooruWorkbenchModel Model => _model;
+
+    /// <summary>Host navigation to the local media entry of an already saved post. The callback never performs provider I/O.</summary>
+    internal Func<string, Task<bool>>? ShowInMedia
+    {
+        get => _showInMedia;
+        set { _showInMedia = value; Render(force: true); }
+    }
+
+    /// <summary>Passive local predicate used for watcher cards; it must require the exact Danbooru post identity.</summary>
+    internal Func<string, bool>? IsPostSavedInMedia
+    {
+        get => _isPostSavedInMedia;
+        set { _isPostSavedInMedia = value; Render(force: true); }
+    }
 
     /// <summary>
     /// Puts a query into the search field of the Search tab and brings that tab forward. The field itself is set (not only the
@@ -712,6 +730,10 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         original.Classes.Add(post.OriginalAccess == BooruOriginalAccess.Available ? "workspace-status-success" : "workspace-warning");
         info.Children.Add(original);
         info.Children.Add(CreateTags(post));
+        if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
+            && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
+            info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
+                Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
         // Secondary links after the content; the primary action (load original) keeps its place on the right.
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
@@ -748,6 +770,21 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         grid.Children.Add(load);
         card.Child = grid;
         return card;
+    }
+
+    private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
+    {
+        Button show = new() { Name = name, Content = Texts.T("booru.ui.result.showInMedia") };
+        show.Classes.Add("ghost");
+        AutomationProperties.SetName(show, accessibleName);
+        ToolTip.SetTip(show, accessibleName);
+        show.Click += async (_, _) =>
+        {
+            if (_showInMedia is not { } navigate) return;
+            bool shown = await navigate(postId);
+            if (!shown) SetLinkNote(("booru.crossLinks.missingLocal", postId, true));
+        };
+        return show;
     }
 
     /// <summary>"Open in browser" and "Copy link" for one canonical post URL; nothing else is ever opened or copied.</summary>
@@ -1069,11 +1106,15 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         {
             Text = Texts.T("booru.ui.watcher.hits", watcher.HitCount, watcher.QueuedCount), Classes = { "workspace-meta" }
         });
-        if (watcher.LatestPostId is { } latest && BooruPostLinks.TryCanonical(latest, out string latestUrl))
+        if (watcher.LatestPostId is { } latest)
         {
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.latest", latest), Classes = { "workspace-meta" } });
-            panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
-                Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query)));
+            if (_showInMedia != null && _isPostSavedInMedia?.Invoke(latest) == true)
+                panel.Children.Add(CreateShowInMediaAction(WatcherShowInMediaPrefix + watcher.WatcherId,
+                    Texts.T("booru.ui.watcher.showInMediaFor", latest, watcher.Query), latest));
+            if (BooruPostLinks.TryCanonical(latest, out string latestUrl))
+                panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
+                    Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query)));
         }
         if (!watcher.BaselineEstablished)
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.baseline"), Classes = { "workspace-help" } });
