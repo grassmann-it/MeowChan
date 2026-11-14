@@ -94,6 +94,18 @@ The harness creates and removes its own temporary `MEOWCHAN_PROFILE`, including 
 
 It starts the real application, waits for session restoration, renders passive thread and board snapshots, and verifies the final title after a burst of 1,000 updates posted from a worker onto the dispatcher. It also checks request admission/cooldown display, typed queued/active counts, retained check errors, terminal source state, board request progress, and rejection of updates after row disposal. The fixtures create no provider watches or HTTP requests. Host lifecycle and watch identity are covered separately by the desktop contract tests; this burst check does not establish end-to-end host notification coalescing. Normal `MainWindow.Close()` must finish, after which the harness reacquires the profile lease to verify shutdown released it. Avalonia binding warnings and errors fail the smoke run.
 
+The normal run's command-button contrast check uses `MediaNativeInput` for real
+pointer motion and press/release (XTest on the runner-owned private Xvfb). It
+settles layout and verifies that the command is hit-testable before pointing at
+it; it does not set `IsPointerOver`, `IsPressed` or pseudo-classes, or raise a
+window `PointerMoved` event. Hover/press states and rendered Light/Dark contrast
+remain assertions. Releases occur away from the command, and unexpected clicks
+fail the check. Linux needs `libXtst.so.6`; there is no personal-display or
+synthetic-state fallback. This is source-built/software-rendered harness coverage,
+not native-platform or published-apphost acceptance. The separate custom archive
+favorite fixture checks checked/unchecked vector content in normal/disabled
+states only; it does not claim native hover/press acceptance for that star.
+
 The normal run also checks numeric sorting with values 2 and 10, context targeting for two thread/board rows (including Ctrl-right-click through a hit-tested cell), clearing stale selection on blank space, and visibility of the Active column in the advanced view. Settings checks use temporary profiles and a scoped fake storage provider to cover pending/duplicate saves, close behavior, validation, save failures and retries, appearance preferences committed with settings or discarded on cancel, and folder-picker cancellation/errors/results. These checks never open a native file picker.
 
 Presentation checks assert Simple as the initial view, persist all three view choices, verify that Barebones becomes smaller while keeping intake and view/application controls reachable, and roundtrip Dark/Light and English/German through the real settings flow. Pending URL text and a selected passive row must survive. Both a 760×500 regular window and Barebones at its 640×480 minimum, with expanded batch results, must retain URL intake and a full data row, with an inspector drawer that closes through its reachable button or Escape. Thread and board inspectors must display the selected snapshot's exact URL, assigned directory and current status; thread queue counts and errors must remain distinct from board data. These synthetic rows exercise presentation state, not live downloading across preference changes. Screenshots include compact, light, German, small-window and inspector views.
