@@ -1,4 +1,3 @@
-using System.Linq;
 using Avalonia.Media.Imaging;
 using MeowChan.Desktop;
 
@@ -16,6 +15,9 @@ public partial class MainWindow
     private void StartGalleryPreload(GalleryViewer viewer)
     {
         if (!ReferenceEquals(_gallery, viewer) || _isClosing || _gallerySuspended) return;
-        _ = _galleryPreloader.Schedule(_galleryEntries.ToArray(), _galleryIndex, viewer.PreloadFitRequest);
+        int ahead = GalleryImageCache.PreloadAhead;
+        int behind = GalleryImageCache.PreloadBehind;
+        GalleryPreloadWindow window = GalleryPreloadWindow.Capture(_galleryEntries, _galleryIndex, ahead, behind);
+        _ = _galleryPreloader.Schedule(window, viewer.PreloadFitRequest);
     }
 }

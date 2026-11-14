@@ -8,6 +8,43 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>
+/// An immutable, bounded view of the gallery around the shown image. The shell creates it on the UI thread before starting
+/// background work, so the preloader never observes the mutable live gallery list.
+/// </summary>
+internal sealed class GalleryPreloadWindow
+{
+    private GalleryPreloadWindow(IReadOnlyList<GalleryEntry> entries, int index, int ahead, int behind)
+    {
+        Entries = entries;
+        Index = index;
+        Ahead = ahead;
+        Behind = behind;
+    }
+
+    internal IReadOnlyList<GalleryEntry> Entries { get; }
+    internal int Index { get; }
+    internal int Ahead { get; }
+    internal int Behind { get; }
+
+    /// <summary>Copies only the shown image and its configured neighbors, preserving their gallery order.</summary>
+    internal static GalleryPreloadWindow Capture(IReadOnlyList<GalleryEntry> source, int index, int ahead, int behind)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        int count = source.Count;
+        int safeAhead = Math.Max(0, ahead);
+        int safeBehind = Math.Max(0, behind);
+        if (count == 0 || index < 0 || index >= count)
+            return new(Array.AsReadOnly(Array.Empty<GalleryEntry>()), -1, safeAhead, safeBehind);
+
+        int start = (int)Math.Max(0L, (long)index - safeBehind);
+        int end = (int)Math.Min((long)count - 1, (long)index + safeAhead);
+        GalleryEntry[] snapshot = new GalleryEntry[end - start + 1];
+        for (int position = start; position <= end; position++) snapshot[position - start] = source[position];
+        return new(Array.AsReadOnly(snapshot), index - start, safeAhead, safeBehind);
+    }
+}
+
+/// <summary>
 /// After the gallery shows an image, decodes the images around it (a number after it and a number before it, nearest first) into
 /// the shared <see cref="GalleryImageCache"/> in the background, so stepping either way shows them at once. It works one image at a
 /// time behind the decode of the shown image, never decodes videos, animations (GIF) or other files, stays inside the memory budget
@@ -46,18 +83,29 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
     }
 
     /// <summary>
-    /// Replaces the running preload by one around <paramref name="index"/> with the configured counts. The returned task ends
-    /// when the work is done or cancelled and never throws.
+    /// Replaces the running preload with the immutable bounded window. The returned task ends when the work is done or cancelled
+    /// and never throws.
+    /// </summary>
+    internal Task Schedule(GalleryPreloadWindow window, GalleryDecodeRequest.Fit fit)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        Cancel();
+        if ((window.Ahead <= 0 && window.Behind <= 0) || _cache.BudgetBytes <= 0
+            || window.Index < 0 || window.Index >= window.Entries.Count) return Task.CompletedTask;
+        CancellationTokenSource source = new();
+        _active = source;
+        return RunAsync(window, fit, source);
+    }
+
+    /// <summary>
+    /// Compatibility seam for callers that already have a complete list. It snapshots only the configured neighborhood before
+    /// handing work to the background runner; the runner never receives the caller's potentially mutable list.
     /// </summary>
     internal Task Schedule(IReadOnlyList<GalleryEntry> entries, int index, GalleryDecodeRequest.Fit fit,
         int? ahead = null, int? behind = null)
     {
-        Cancel();
         int after = ahead ?? GalleryImageCache.PreloadAhead, before = behind ?? GalleryImageCache.PreloadBehind;
-        if ((after <= 0 && before <= 0) || _cache.BudgetBytes <= 0 || index < 0 || index >= entries.Count) return Task.CompletedTask;
-        CancellationTokenSource source = new();
-        _active = source;
-        return RunAsync(entries, index, fit, after, before, source);
+        return Schedule(GalleryPreloadWindow.Capture(entries, index, after, before), fit);
     }
 
     private async Task<long> TouchVerifiedAsync(GalleryEntry entry, GalleryDecodeRequest.Fit fit, CancellationToken token)
@@ -71,8 +119,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
         return _cache.Touch(key, fit, validity.IsCurrent);
     }
 
-    private async Task RunAsync(IReadOnlyList<GalleryEntry> entries, int index, GalleryDecodeRequest.Fit fit,
-        int ahead, int behind, CancellationTokenSource source)
+    private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source)
     {
         CancellationToken token = source.Token;
         try
@@ -82,11 +129,12 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
             // The memory of the window: the shown image plus what was kept or decoded for its neighbors. Upper bound of an image
             // not decoded yet: the whole viewport.
             long viewportBytes = (long)Math.Ceiling(Math.Max(1, fit.PhysicalWidth) * Math.Max(1, fit.PhysicalHeight)) * 4;
-            long window = Math.Max(0, await TouchVerifiedAsync(entries[index], fit, token).ConfigureAwait(false));
-            foreach (int position in GalleryPreload.Plan(entries.Count, index, ahead, behind))
+            long window = Math.Max(0, await TouchVerifiedAsync(preloadWindow.Entries[preloadWindow.Index], fit, token).ConfigureAwait(false));
+            foreach (int position in GalleryPreload.Plan(preloadWindow.Entries.Count, preloadWindow.Index,
+                preloadWindow.Ahead, preloadWindow.Behind))
             {
                 token.ThrowIfCancellationRequested();
-                GalleryEntry entry = entries[position];
+                GalleryEntry entry = preloadWindow.Entries[position];
                 if (!GalleryPreload.Eligible(entry) || GalleryImageCache.KeyOf(entry) is not { } key) continue;
                 long kept = await TouchVerifiedAsync(entry, fit, token).ConfigureAwait(false);
                 if (kept >= 0) { window += kept; continue; }

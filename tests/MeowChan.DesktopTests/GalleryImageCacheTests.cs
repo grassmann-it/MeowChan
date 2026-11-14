@@ -218,6 +218,46 @@ public sealed class GalleryImageCacheTests
     }
 
     [Fact]
+    public async Task APreloadWindowCopiesOnlyItsNeighborsAndKeepsTheSourceIsolated()
+    {
+        using TempDirectory temp = new();
+        List<GalleryEntry> live = (await EntriesAsync(temp.Path, "a.png", "b.png", "c.png", "d.png", "e.png", "f.png", "g.png", "h.png")).ToList();
+        GalleryPreloadWindow window = GalleryPreloadWindow.Capture(live, index: 4, ahead: 2, behind: 1);
+
+        live.Clear();
+
+        Assert.Equal(4, window.Entries.Count);
+        Assert.Equal(new[] { "d.png", "e.png", "f.png", "g.png" },
+            window.Entries.Select(entry => Path.GetFileName(entry.Asset.Path)));
+        Assert.Equal(1, window.Index);
+        Assert.Throws<NotSupportedException>(() => ((IList<GalleryEntry>)window.Entries).Clear());
+
+        GalleryPreloadWindow first = GalleryPreloadWindow.Capture(window.Entries, 0, ahead: 2, behind: 3);
+        GalleryPreloadWindow last = GalleryPreloadWindow.Capture(window.Entries, window.Entries.Count - 1, ahead: 3, behind: 2);
+        Assert.Equal(new[] { "d.png", "e.png", "f.png" }, first.Entries.Select(entry => Path.GetFileName(entry.Asset.Path)));
+        Assert.Equal(new[] { "e.png", "f.png", "g.png" }, last.Entries.Select(entry => Path.GetFileName(entry.Asset.Path)));
+    }
+
+    [Fact]
+    public async Task PreloaderRunsFromTheBoundedSnapshotAfterTheLiveListChanges()
+    {
+        using TempDirectory temp = new();
+        List<GalleryEntry> live = (await EntriesAsync(temp.Path, "a.png", "b.png", "c.png", "d.png", "e.png", "f.png")).ToList();
+        GalleryPreloadWindow window = GalleryPreloadWindow.Capture(live, index: 3, ahead: 2, behind: 1);
+        live.Clear();
+        List<string> decoded = new();
+        GalleryPreloader<Img> preloader = new(Cache(Hundred * 20), (entry, _, _) =>
+        {
+            decoded.Add(Path.GetFileName(entry.Asset.Path));
+            return Task.FromResult((new Img(100, 100), Info()));
+        }, TimeSpan.Zero);
+
+        await preloader.Schedule(window, Fit());
+
+        Assert.Equal(new[] { "e.png", "c.png", "f.png" }, decoded);
+    }
+
+    [Fact]
     public void PreloadingGoesOutwardFromTheShownImageAndAlternatesTheDirections()
     {
         Assert.Equal(new[] { 6, 4, 7, 3, 8 }, GalleryPreload.Plan(10, 5, 3, 2));
