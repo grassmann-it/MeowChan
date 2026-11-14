@@ -59,6 +59,203 @@ public sealed class PluginImportStagingTests : IDisposable
     }
 
     [Fact]
+    public async Task ARealFileStreamIsFlushedToDiskAndClosedBeforePublication()
+    {
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        RecordingPayloadStream? output = null;
+        byte[] bytes = "// flushed source"u8.ToArray();
+        await stage.WriteAsync(bytes, CancellationToken.None, path => output = new(path, "none"));
+
+        Assert.NotNull(output);
+        Assert.Equal(new[] { "written", "flush-to-disk", "closed" }, output.Events);
+        string destination = Path.Combine(_plugins, "flushed.cs");
+        stage.Publish(destination, CancellationToken.None);
+        Assert.Equal(bytes, File.ReadAllBytes(destination));
+    }
+
+    [Theory]
+    [InlineData("write")]
+    [InlineData("flush")]
+    [InlineData("close")]
+    public async Task AWriteFlushOrCloseFailureNeverMakesThePartialPayloadPublishable(string failure)
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        RecordingPayloadStream? output = null;
+        string destination = Path.Combine(_plugins, "failed.cs");
+        try
+        {
+            await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// incomplete source"u8.ToArray(),
+                CancellationToken.None, path => output = new(path, failure)));
+            Assert.NotNull(output);
+            Assert.Contains("closed", output.Events);
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(destination, CancellationToken.None));
+            Assert.False(File.Exists(destination));
+            PluginImportStaging.CleanupAbandoned(_plugins);
+            Assert.True(File.Exists(stage.PayloadPath)); // The live lease still protects the failed write.
+            await Assert.ThrowsAsync<InvalidOperationException>(() => stage.WriteAsync("// retry"u8.ToArray(), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Fact]
+    public async Task DisposalJoinsTheWriterBeforeItReleasesFileOwnership()
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource disposalEntered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task write = stage.WriteAsync("// complete after barrier"u8.ToArray(), CancellationToken.None,
+            path => new PausedPayloadStream(path, entered, resume));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Task dispose = Task.Run(() => { disposalEntered.SetResult(); stage.Dispose(); });
+        try
+        {
+            await disposalEntered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(dispose.IsCompleted);
+            PluginImportStaging.CleanupAbandoned(_plugins);
+            Assert.True(File.Exists(stage.PayloadPath));
+            Assert.True(File.Exists(Path.ChangeExtension(stage.PayloadPath, ".lock")));
+        }
+        finally
+        {
+            resume.TrySetResult();
+            await write.WaitAsync(TimeSpan.FromSeconds(10));
+            await dispose.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+        Assert.Throws<ObjectDisposedException>(() => stage.Publish(Path.Combine(_plugins, "late.cs"), CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task CancellationDuringWriteCannotPublishEvenWhenSomeBytesWereWritten()
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        using CancellationTokenSource cancellation = new();
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        try
+        {
+            Task write = stage.WriteAsync("// partial cancelled source"u8.ToArray(), cancellation.Token,
+                path => new PausedPayloadStream(path, entered, resume));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => write);
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "cancelled.cs"), CancellationToken.None));
+            Assert.False(File.Exists(Path.Combine(_plugins, "cancelled.cs")));
+            PluginImportStaging.CleanupAbandoned(_plugins);
+            Assert.True(File.Exists(stage.PayloadPath));
+        }
+        finally { resume.TrySetResult(); stage.Dispose(); }
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Staging));
+    }
+
+    [Fact]
+    public async Task ATruncatedOwnedPayloadIsNotPublished()
+    {
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        await stage.WriteAsync("// complete source"u8.ToArray(), CancellationToken.None);
+        File.WriteAllBytes(stage.PayloadPath, []);
+        string destination = Path.Combine(_plugins, "truncated.cs");
+        Assert.Throws<IOException>(() => stage.Publish(destination, CancellationToken.None));
+        Assert.False(File.Exists(destination));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NeitherPublishNorDisposeClaimsAFileThatCreateNewDidNotCreate(bool attemptWrite)
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        string lease = Path.ChangeExtension(stage.PayloadPath, ".lock");
+        File.WriteAllText(stage.PayloadPath, "foreign bytes");
+        try
+        {
+            if (attemptWrite)
+                await Assert.ThrowsAsync<IOException>(() => stage.WriteAsync("// must not replace"u8.ToArray(), CancellationToken.None));
+            Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "foreign.cs"), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+
+        Assert.False(File.Exists(lease)); // No crash-pair authority over the foreign entry is left behind.
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("foreign bytes", File.ReadAllText(stage.PayloadPath));
+        Assert.False(File.Exists(Path.Combine(_plugins, "foreign.cs")));
+    }
+
+    [Fact]
+    public async Task PublicationAndDisposalDoNotClaimAReplacementRegularPayload()
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        await stage.WriteAsync("// owned bytes"u8.ToArray(), CancellationToken.None);
+        string retained = Path.Combine(_root, "retained-original.tmp");
+        File.Move(stage.PayloadPath, retained); // Keep the original inode alive; never rely on inode reuse timing.
+        File.WriteAllText(stage.PayloadPath, "foreign replacement");
+        try
+        {
+            Assert.Throws<IOException>(() => stage.Publish(Path.Combine(_plugins, "foreign.cs"), CancellationToken.None));
+        }
+        finally { stage.Dispose(); }
+
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("foreign replacement", File.ReadAllText(stage.PayloadPath));
+        Assert.Equal("// owned bytes", File.ReadAllText(retained)); // No deletion outside our owned pathname.
+        Assert.False(File.Exists(Path.ChangeExtension(stage.PayloadPath, ".lock")));
+    }
+
+    [Fact]
+    public async Task SuccessfulPublicationReleasesTheStagingPathAndDisposalIsIdempotent()
+    {
+        PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        await stage.WriteAsync("// published"u8.ToArray(), CancellationToken.None);
+        string destination = Path.Combine(_plugins, "published.cs");
+        string lease = Path.ChangeExtension(stage.PayloadPath, ".lock");
+        stage.Publish(destination, CancellationToken.None);
+        File.WriteAllText(stage.PayloadPath, "new unowned occupant");
+        Assert.Throws<InvalidOperationException>(() => stage.Publish(Path.Combine(_plugins, "again.cs"), CancellationToken.None));
+        stage.Dispose();
+        PluginImportStaging.CleanupAbandoned(_plugins);
+        Assert.Equal("new unowned occupant", File.ReadAllText(stage.PayloadPath));
+        Assert.Equal("// published", File.ReadAllText(destination));
+        Assert.False(File.Exists(lease));
+
+        File.WriteAllText(lease, "foreign lease after disposal");
+        stage.Dispose();
+        Assert.Equal("foreign lease after disposal", File.ReadAllText(lease));
+        Assert.Equal("new unowned occupant", File.ReadAllText(stage.PayloadPath));
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => stage.WriteAsync("// too late"u8.ToArray(), CancellationToken.None));
+        Assert.Throws<ObjectDisposedException>(() => stage.Publish(Path.Combine(_plugins, "late.cs"), CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PostInspectionDiscardDeletesOnlyTheExactPublishedFile(bool replace)
+    {
+        using PluginImportStaging stage = PluginImportStaging.Create(_plugins);
+        await stage.WriteAsync("// owned publication"u8.ToArray(), CancellationToken.None);
+        string destination = Path.Combine(_plugins, "reviewed.cs");
+        string retained = Path.Combine(_root, "retained-publication.cs");
+        stage.Publish(destination, CancellationToken.None);
+        if (replace)
+        {
+            File.Move(destination, retained);
+            File.WriteAllText(destination, "foreign publication");
+        }
+
+        stage.DiscardPublished();
+        if (replace)
+        {
+            Assert.Equal("foreign publication", File.ReadAllText(destination));
+            Assert.Equal("// owned publication", File.ReadAllText(retained));
+        }
+        else Assert.False(File.Exists(destination));
+        File.WriteAllText(destination, "later publication");
+        stage.DiscardPublished(); // Even a second rejection has no authority over a new occupant.
+        Assert.Equal("later publication", File.ReadAllText(destination));
+    }
+
+    [Fact]
     public async Task CancellationAfterWritingDoesNotPublishAndDisposalRemovesOnlyOwnedFiles()
     {
         string payload;
@@ -252,30 +449,36 @@ public sealed class PluginImportStagingTests : IDisposable
         Assert.Throws<IOException>(() => PluginImportStaging.Create(_plugins));
 
         Assert.False(Directory.Exists(missing));
-        Assert.NotNull(new DirectoryInfo(Staging).LinkTarget);
-        Directory.Delete(Staging);
+        Assert.Equal(missing, new DirectoryInfo(Staging).LinkTarget);
+        // On Unix a dangling directory symlink is an unlinkable file entry, not an existing directory.
+        File.Delete(Staging);
+        Assert.Null(new FileInfo(Staging).LinkTarget);
+        Assert.False(Directory.Exists(missing));
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void CleanupDoesNotFollowLeaseOrPayloadSymlinks(bool linkLease)
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    [InlineData(false, true)]
+    public void CleanupDoesNotFollowLeaseOrPayloadSymlinks(bool linkLease, bool dangling)
     {
         if (OperatingSystem.IsWindows()) return;
         CreatePrivateStaging();
         (string lease, string payload) = CrashPair();
         string outside = Path.Combine(_root, "external.txt");
-        File.WriteAllText(outside, "external bytes");
+        if (!dangling) File.WriteAllText(outside, "external bytes");
         string linked = linkLease ? lease : payload;
         File.Delete(linked);
         File.CreateSymbolicLink(linked, outside);
 
         PluginImportStaging.CleanupAbandoned(_plugins);
 
-        Assert.Equal("external bytes", File.ReadAllText(outside));
-        Assert.NotNull(new FileInfo(linked).LinkTarget);
-        Assert.True(File.Exists(lease));
-        Assert.True(File.Exists(payload));
+        if (dangling) Assert.False(File.Exists(outside));
+        else Assert.Equal("external bytes", File.ReadAllText(outside));
+        Assert.Equal(outside, new FileInfo(linked).LinkTarget);
+        Assert.Contains(lease, Directory.EnumerateFileSystemEntries(Staging));
+        Assert.Contains(payload, Directory.EnumerateFileSystemEntries(Staging));
         File.Delete(linked);
     }
 
@@ -357,5 +560,51 @@ public sealed class PluginImportStagingTests : IDisposable
         // That one-line host hook is outside the permitted file scope; see the handoff report.
         Assert.Empty(scan.Candidates);
         Assert.Empty(scan.Diagnostics);
+    }
+
+    private sealed class PausedPayloadStream(string path, TaskCompletionSource entered, TaskCompletionSource resume)
+        : FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous)
+    {
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await base.WriteAsync(buffer, cancellationToken);
+            entered.SetResult();
+            await resume.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    // Real temporary FileStream handles: no plugin execution, public endpoint or private profile.
+    private sealed class RecordingPayloadStream(string path, string failure)
+        : FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous)
+    {
+        internal List<string> Events { get; } = [];
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (failure == "write")
+            {
+                await base.WriteAsync(buffer[..Math.Max(1, buffer.Length / 2)], cancellationToken);
+                throw new IOException("Synthetic partial write failure.");
+            }
+            await base.WriteAsync(buffer, cancellationToken);
+            Events.Add("written");
+        }
+
+        public override void Flush(bool flushToDisk)
+        {
+            if (flushToDisk)
+            {
+                Events.Add("flush-to-disk");
+                if (failure == "flush") throw new IOException("Synthetic durable flush failure.");
+            }
+            base.Flush(flushToDisk);
+        }
+
+        public override async ValueTask DisposeAsync()
+        {
+            await base.DisposeAsync();
+            Events.Add("closed");
+            if (failure == "close") throw new IOException("Synthetic close failure.");
+        }
     }
 }

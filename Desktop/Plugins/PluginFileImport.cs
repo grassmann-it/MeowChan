@@ -76,7 +76,7 @@ internal static class PluginFileImport
 
             // The copy is what will be built: inspect it the way the inventory will.
             PluginInstallationCandidate copy = await PluginInstallationInventory.InspectAsync(destination, cancellationToken: CancellationToken.None).ConfigureAwait(false);
-            if (Rejection(copy) is { } copyRejected) { TryDelete(destination); return copyRejected; }
+            if (Rejection(copy) is { } copyRejected) { staging.DiscardPublished(); return copyRejected; }
             return new(PluginFileImportStatus.Imported, fileName, destination, copy.CandidateId);
         }
         catch (OperationCanceledException) { throw; }
@@ -103,10 +103,4 @@ internal static class PluginFileImport
 
     /// <summary>The size limit in MiB the inventory applies to a source file (for the "too large" sentence).</summary>
     internal static int SourceLimitMiB => PluginInstallationInventory.DefaultMaximumSourceBytes / (1024 * 1024);
-
-    private static void TryDelete(string path)
-    {
-        try { File.Delete(path); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-    }
 }

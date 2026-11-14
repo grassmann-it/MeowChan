@@ -124,11 +124,18 @@ public sealed class PluginConsentGenerationRegressionTests
         BundledCandidateRepair rowC = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows, row => row.PluginId == "alpha");
         Assert.Equal(third.Candidate.Artifact!.ExecutionRevision, rowC.NewExecutionRevision);
         Assert.NotEqual(rowB.NewExecutionRevision, rowC.NewExecutionRevision);
-        Assert.NotEqual(rowB.ChangeFingerprint, rowC.ChangeFingerprint);
+        // ChangeFingerprint covers declarations/settings/rights, not executable identity. These builds
+        // intentionally share that payload; the public lifecycle binds execution separately in the frozen row.
+        Assert.Equal(rowB.ChangeReviewJson, rowC.ChangeReviewJson);
+        Assert.Equal(rowB.ChangeFingerprint, rowC.ChangeFingerprint);
+        Assert.NotEqual(rowB, rowC);
         Dictionary<string, byte[]> before = await Fixture.FilesAsync(store);
         PluginMultiApproval session = new(store);
         await session.SubmitAsync([oldChoice], () => true);
+        Assert.Equal(PluginApprovalState.NeedsReview, Assert.Single(session.Receipts).State);
+        await Fixture.AssertFilesAsync(store, before);
         await session.SubmitAsync([oldChoice with { Revision = afterC.Revision }], () => true);
+        Assert.Equal(PluginApprovalState.NeedsReview, session.Receipts[1].State);
         Assert.All(session.Receipts, receipt => Assert.Equal(PluginApprovalState.NeedsReview, receipt.State));
         await Fixture.AssertFilesAsync(store, before);
 
@@ -166,6 +173,49 @@ public sealed class PluginConsentGenerationRegressionTests
             Assert.Equal(f.TargetExecution("alpha"), f.Plugin(saved, "alpha").Active!.ExecutionRevision);
             Assert.Equal(SdkJson.Serialize(current.ChangeConfiguration!), SdkJson.Serialize(f.Plugin(saved, "alpha").Active!.Configuration));
             Assert.Null(f.Plugin(saved, "beta").Active);
+        }
+    }
+
+    [Fact]
+    public async Task ConsentGeneration_SameReviewPayloadStillRequiresTheCurrentExecutableRow()
+    {
+        using Fixture f = await Fixture.CreateAsync();
+        BundledCandidateRepair previous = f.Row("alpha");
+        PluginApprovalChoice stale = Dialog.Open(previous, f.Revision, acknowledged: true).Save(authorizePermissions: true);
+        var replacement = await f.DeliverTargetAsync("alpha", "c");
+        var targets = f.TargetsWith("alpha", replacement.Candidate);
+        var proofs = f.ProofsWith("alpha", replacement.Proof);
+        var state = await f.Store.ApplyBundledStartupAsync(targets, proofs, [], f.Revision);
+        var preview = await f.Store.PreviewBundledRepairsAsync();
+        BundledCandidateRepair current = Assert.Single(preview.Rows, row => row.PluginId == "alpha");
+        Assert.Equal(previous.ChangeReviewJson, current.ChangeReviewJson);
+        Assert.Equal(previous.ChangeFingerprint, current.ChangeFingerprint);
+        Assert.NotEqual(previous.NewExecutionRevision, current.NewExecutionRevision);
+        Assert.NotEqual(previous, current);
+
+        PluginMultiApproval session = new(f.Store);
+        var before = await Fixture.FilesAsync(f.Store);
+        await session.SubmitAsync([stale with { Revision = state.Revision }], () => true);
+        Assert.Equal(PluginApprovalState.NeedsReview, Assert.Single(session.Receipts).State);
+        await Fixture.AssertFilesAsync(f.Store, before);
+        Assert.Null(f.Plugin(await f.Store.ReadAsync(), "alpha").Active);
+
+        Dialog reopened = Dialog.Open(current, preview.ProfileRevision, acknowledged: false);
+        reopened.Consent.SetAcknowledged(true);
+        PluginApprovalChoice decision = reopened.Save(authorizePermissions: true);
+        await session.SubmitAsync([decision], () => true);
+        Assert.Equal(PluginApprovalState.Saved, session.Receipts[1].State);
+        state = await f.Store.ReadAsync();
+        Assert.Null(f.Plugin(state, "alpha").Active);
+        Assert.Equal(replacement.Candidate.Artifact!.ExecutionRevision, f.Plugin(state, "alpha").Pending!.ExecutionRevision);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await new PluginProfileStore(f.Root).ApplyBundledStartupAsync(targets, proofs, [], state.Revision);
+            Assert.Equal(current.NewExecutionRevision, f.Plugin(state, "alpha").Active!.ExecutionRevision);
+            Assert.Equal(SdkJson.Serialize(decision.ChangeConfiguration!), SdkJson.Serialize(f.Plugin(state, "alpha").Active!.Configuration));
+            Assert.False(f.Plugin(state, "alpha").Enabled);
+            Assert.Null(f.Plugin(state, "alpha").Pending);
+            Assert.Null(f.Plugin(state, "beta").Active);
         }
     }
 

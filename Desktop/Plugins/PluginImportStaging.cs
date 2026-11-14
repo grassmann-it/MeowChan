@@ -18,10 +18,19 @@ internal sealed class PluginImportStaging : IDisposable
     private readonly string _directory;
     private readonly string _leasePath;
     private readonly FileStream _lease;
+    private readonly RegularProfileFileIdentity _leaseIdentity;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private RegularProfileFileIdentity? _payloadIdentity;
+    private (string Path, RegularProfileFileIdentity Identity)? _published;
+    private bool _writeStarted, _payloadReady, _disposed;
     internal string PayloadPath { get; }
 
-    private PluginImportStaging(string plugins, string directory, string leasePath, string payloadPath, FileStream lease)
-    { _plugins = plugins; _directory = directory; _leasePath = leasePath; PayloadPath = payloadPath; _lease = lease; }
+    private PluginImportStaging(string plugins, string directory, string leasePath, string payloadPath, FileStream lease,
+        RegularProfileFileIdentity leaseIdentity)
+    {
+        _plugins = plugins; _directory = directory; _leasePath = leasePath; PayloadPath = payloadPath;
+        _lease = lease; _leaseIdentity = leaseIdentity;
+    }
 
     internal static PluginImportStaging Create(string pluginDirectory)
     {
@@ -36,26 +45,85 @@ internal sealed class PluginImportStaging : IDisposable
         if (OperatingSystem.IsWindows()) File.SetAttributes(directory, File.GetAttributes(directory) | FileAttributes.Hidden);
         string stem = Path.Combine(directory, Prefix + Guid.NewGuid().ToString("N"));
         FileStream lease = new(stem + ".lock", FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
-        return new(plugins, directory, stem + ".lock", stem + ".tmp", lease);
+        try { return new(plugins, directory, stem + ".lock", stem + ".tmp", lease, Identity(stem + ".lock")); }
+        catch { lease.Dispose(); throw; }
     }
 
-    internal async Task WriteAsync(byte[] bytes, CancellationToken cancellationToken)
+    internal Task WriteAsync(byte[] bytes, CancellationToken cancellationToken) =>
+        WriteAsync(bytes, cancellationToken, static path => new FileStream(path, FileMode.CreateNew,
+            FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous));
+
+    // The factory seam lets regressions exercise real FileStream write/Flush(true)/close failures.
+    // It must acquire this exact path with CreateNew; production always uses the overload above.
+    internal async Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        ValidateStaging(_plugins, _directory);
-        await using FileStream output = new(PayloadPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous);
-        await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_writeStarted) throw new InvalidOperationException("A staging payload can only be written once.");
+            _writeStarted = true;
+            ValidateStaging(_plugins, _directory);
+            // Acquire ownership only after CreateNew succeeds, never from the reserved pathname alone.
+            await using (FileStream output = createPayload(PayloadPath))
+            {
+                _payloadIdentity = Identity(PayloadPath);
+                await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                output.Flush(flushToDisk: true);
+            }
+            // Closing/flush failure leaves an owned partial file for disposal, but never a publishable payload.
+            RequireOwnedFile(PayloadPath, _payloadIdentity);
+            _payloadIdentity = Identity(PayloadPath);
+            cancellationToken.ThrowIfCancellationRequested();
+            _payloadReady = true;
+        }
+        finally { _gate.Release(); }
     }
 
     internal void Publish(string destination, CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        ValidateStaging(_plugins, _directory);
-        StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(destination)), _plugins, comparison))
-            throw new IOException("Plugin import destination must be directly inside the plugin directory.");
-        ValidateFile(PayloadPath);
-        File.Move(PayloadPath, destination, overwrite: false);
+        _gate.Wait(cancellationToken);
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!_payloadReady) throw new InvalidOperationException("The staging payload has not completed writing and flushing.");
+            ValidateStaging(_plugins, _directory);
+            StringComparison comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            if (!string.Equals(Path.GetDirectoryName(Path.GetFullPath(destination)), _plugins, comparison))
+                throw new IOException("Plugin import destination must be directly inside the plugin directory.");
+            RequireOwnedFile(PayloadPath, _payloadIdentity);
+            if (Identity(PayloadPath).Size != _payloadIdentity!.Value.Size)
+                throw new IOException("The staged payload size changed before publication.");
+            File.Move(PayloadPath, destination, overwrite: false);
+            _published = (Path.GetFullPath(destination), _payloadIdentity.Value);
+            // A successful rename releases this pathname. Dispose must not claim a later occupant of it.
+            _payloadIdentity = null;
+            _payloadReady = false;
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>Post-inspection rejection may discard only the exact file we published, never a replacement.</summary>
+    internal void DiscardPublished()
+    {
+        _gate.Wait();
+        try
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_published is not { } published) return;
+            try
+            {
+                ValidateStaging(_plugins, _directory);
+                RequireOwnedFile(published.Path, published.Identity);
+                File.Delete(published.Path);
+            }
+            catch (Exception exception) when (IsFileError(exception)) { }
+            finally { _published = null; }
+        }
+        finally { _gate.Release(); }
     }
 
     /// <summary>
@@ -150,27 +218,61 @@ internal sealed class PluginImportStaging : IDisposable
 
     private static bool IsFileError(Exception exception) => exception is IOException or InvalidDataException or UnauthorizedAccessException or NotSupportedException or ArgumentException;
 
+    private static RegularProfileFileIdentity Identity(string path)
+    {
+        RegularProfileFileIdentity identity = RegularProfileFile.TryGetIdentity(path)
+            ?? throw new IOException("Plugin import file ownership could not be verified.");
+        // The path-only Windows fallback is a cache hint, not evidence of ownership.
+        if (identity.Device == 0 && identity.Inode == 0 && identity.InodeHigh == 0)
+            throw new IOException("Plugin import requires a stable file identity.");
+        return identity;
+    }
+
+    private static void RequireOwnedFile(string path, RegularProfileFileIdentity? owned)
+    {
+        ValidateFile(path);
+        RegularProfileFileIdentity current = Identity(path);
+        if (owned is not { } expected || !SameObject(current, expected))
+            throw new IOException("Plugin import staging entry is no longer owned by this import.");
+    }
+
+    private static bool SameObject(RegularProfileFileIdentity left, RegularProfileFileIdentity right) =>
+        left.Device == right.Device && left.Inode == right.Inode && left.InodeHigh == right.InodeHigh;
+
     public void Dispose()
     {
-        // Remove the payload before releasing its lease; cleanup can never mistake a live payload for a crash remnant.
-        bool payloadRemoved = false;
+        // Join an in-flight write before releasing its lease. A partial/failed flush never becomes publishable.
+        _gate.Wait();
         try
         {
-            ValidateStaging(_plugins, _directory);
-            if (File.Exists(PayloadPath) || Directory.Exists(PayloadPath) || new FileInfo(PayloadPath).LinkTarget != null)
-            { ValidateFile(PayloadPath); File.Delete(PayloadPath); }
-            payloadRemoved = true;
+            if (_disposed) return;
+            _disposed = true;
+            bool payloadRemoved = false;
+            try
+            {
+                ValidateStaging(_plugins, _directory);
+                if (_payloadIdentity is { } owned &&
+                    (File.Exists(PayloadPath) || Directory.Exists(PayloadPath) || new FileInfo(PayloadPath).LinkTarget != null))
+                {
+                    ValidateFile(PayloadPath);
+                    // A different regular file is not ours. Remove our lease below as well, so startup cleanup
+                    // cannot later mistake that foreign entry for our crash remnant.
+                    if (SameObject(Identity(PayloadPath), owned)) File.Delete(PayloadPath);
+                }
+                payloadRemoved = true;
+            }
+            catch (Exception exception) when (IsFileError(exception)) { }
+            finally { _lease.Dispose(); }
+            // Keep a discoverable crash pair if removing the owned payload failed. Never strand it unpaired.
+            if (!payloadRemoved) return;
+            try
+            {
+                ValidateStaging(_plugins, _directory);
+                RequireOwnedFile(_leasePath, _leaseIdentity);
+                File.Delete(_leasePath);
+            }
+            catch (Exception exception) when (IsFileError(exception)) { }
         }
-        catch (Exception exception) when (IsFileError(exception)) { }
-        finally { _lease.Dispose(); }
-        // Keep a discoverable crash pair if removing the payload failed. Never strand an unpaired payload.
-        if (!payloadRemoved) return;
-        try
-        {
-            ValidateStaging(_plugins, _directory);
-            ValidateFile(_leasePath);
-            File.Delete(_leasePath);
-        }
-        catch (Exception exception) when (IsFileError(exception)) { }
+        finally { _gate.Release(); }
     }
 }
