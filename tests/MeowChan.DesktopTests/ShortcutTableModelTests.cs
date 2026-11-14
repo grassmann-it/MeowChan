@@ -48,6 +48,16 @@ public sealed class ShortcutTableModelTests : IDisposable
     }
 
     [Fact]
+    public void TheGalleryAreaPutsItsTagPanelDirectlyAfterIt()
+    {
+        string[] order = ShortcutGroups.OrderFor(ShortcutGroups.Gallery).ToArray();
+        Assert.Equal(new[] { ShortcutGroups.Gallery, ShortcutGroups.TagPanel }, order.Take(2));
+        Assert.Equal(ShortcutGroups.Order.Order(), order.Order());
+        Assert.Equal(ShortcutGroups.Reader, ShortcutGroups.OrderFor(ShortcutGroups.Reader)[0]);
+        Assert.Equal(ShortcutGroups.Order, ShortcutGroups.OrderFor(null));
+    }
+
+    [Fact]
     public void ACommandOfSeveralAreasListsUnderTheCurrentOneAndFixedGroupsKeepTheirCommands()
     {
         CommandDefinition rating = CommandCatalog.Get("media.rating.edit"); // media, reader, gallery

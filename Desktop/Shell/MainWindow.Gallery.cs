@@ -200,6 +200,7 @@ public partial class MainWindow
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
+        _gallery.ShortcutHelpRequested += context => { if (!_isClosing) ShowShellHelp(context); };
         _gallery.ShellKeyRequested += OnShellKeyDown;
         GalleryViewer preferenceOwner = _gallery;
         _gallery.ContextOpenChanged += open =>

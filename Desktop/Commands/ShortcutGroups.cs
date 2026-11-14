@@ -34,9 +34,16 @@ public static class ShortcutGroups
     /// <summary>The group key of a main page command ("navigation.media" gives "media").</summary>
     public static string PageKey(string navigationCommandId) => navigationCommandId["navigation.".Length..];
 
-    /// <summary>Table order with <paramref name="current"/> first (when it is a group).</summary>
-    public static IReadOnlyList<string> OrderFor(string? current) => current != null && Order.Contains(current, StringComparer.Ordinal)
-        ? Order.Where(g => g == current).Concat(Order.Where(g => g != current)).ToArray() : Order;
+    /// <summary>
+    /// Table order with <paramref name="current"/> first (when it is a group). The gallery's tag panel is part of that surface
+    /// and follows the gallery directly.
+    /// </summary>
+    public static IReadOnlyList<string> OrderFor(string? current)
+    {
+        if (current == null || !Order.Contains(current, StringComparer.Ordinal)) return Order;
+        string[] first = current == Gallery ? new[] { Gallery, TagPanel } : new[] { current };
+        return first.Concat(Order.Where(g => !first.Contains(g))).ToArray();
+    }
 
     /// <summary>The area an execution context belongs to; null for a context that names no area (a planned surface).</summary>
     public static string? AreaOf(string executionContext)

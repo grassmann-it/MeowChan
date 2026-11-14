@@ -159,6 +159,8 @@ internal sealed partial class GalleryViewer : UserControl
     internal event Action<GalleryEntry>? AssociationRequested;
     internal event Action<bool>? ContextOpenChanged;
     internal event Action? FullscreenRequested;
+    /// <summary>F1 and the Help tool: the owner opens (or closes) the one shortcuts window on <see cref="ShortcutHelp"/>.</summary>
+    internal event Action<Views.Shortcuts.ShortcutHelpContext>? ShortcutHelpRequested;
     internal event EventHandler<KeyEventArgs>? ShellKeyRequested;
     internal event Action<GalleryEntry>? FavoriteToggleRequested;
     internal event Action<GalleryEntry>? RatingEditRequested;
@@ -371,7 +373,7 @@ internal sealed partial class GalleryViewer : UserControl
         AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
         AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
         _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
-        _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen), overflow: true);
+        _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), RequestShortcutHelp, overflow: true);
         InitializeOverflowMenu();
         PlaceSlideshowToggle();
         UpdateMediaFocusPresentation();
@@ -891,6 +893,29 @@ internal sealed partial class GalleryViewer : UserControl
         if (!open && wasOpen) FocusGallerySurface();
     }
 
+    // F1 and the Help tool open the one shortcuts window of the owner (toggle) instead of the former in-gallery panel.
+    private void RequestShortcutHelp() => ShortcutHelpRequested?.Invoke(ShortcutHelp());
+
+    /// <summary>
+    /// The context of F1 in the gallery: the Gallery group on top and expanded, the tag panel's group after it, the gallery's
+    /// commands in the order of the former help list, which of them the current work view keeps under More, and the
+    /// way-back note (it depends on where the gallery returns to and is no shortcut, so it stays as a note).
+    /// </summary>
+    internal Views.Shortcuts.ShortcutHelpContext ShortcutHelp()
+    {
+        string[] ids = { "gallery.previous", "gallery.next", "gallery.tools-toggle", "gallery.fit", "gallery.actual-size", "gallery.zoom-in",
+            "gallery.zoom-out", "favorites.add", "favorites.remove", "favorites.toggle", "gallery.context-toggle", "video.play-pause",
+            "gallery.slideshow-toggle", "gallery.overlay-toggle", "gallery.post-overlay-toggle", "window.fullscreen", "gallery.close" };
+        string[] preferred = ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
+                && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id))
+            .Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _)).ToArray();
+        WorkView view = _workView;
+        WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
+        return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
+            CommandScope.None, new[] { _returnTarget == GalleryReturnTarget.Media ? "viewer.help.escape.media" : "viewer.help.escape" },
+            ExpandedAreas: new[] { ShortcutGroups.TagPanel });
+    }
+
     private void UpdateHelp()
     {
         _helpPanel.IsVisible = _helpOpen;
@@ -1371,7 +1396,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (RevealForKeyboard(e)) return;
         if (CommandBindings.Matches(e, "window.fullscreen")) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "viewer.shortcut-help"))
-        { SetHelp(!_helpOpen); e.Handled = true; return; }
+        { RequestShortcutHelp(); e.Handled = true; return; }
         if (_helpOpen) return;
         if (IsFavoriteConfirmOpen) { RouteFavoriteConfirmKey(e); return; }
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
@@ -1507,7 +1532,7 @@ internal sealed partial class GalleryViewer : UserControl
         // The native video overlay is an authorized gallery surface, not a dialog.
         // Other owned windows must not leave this viewer's tunnel handler active.
         return TopLevel.GetTopLevel(this) is not Window host
-            || !host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window));
+            || !host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window) && !Views.Shortcuts.ShortcutsWindow.IsPassive(window));
     }
 
     internal static bool IsUnfocusedWindowKey(KeyEventArgs e, Window window, IInputElement? focused) =>

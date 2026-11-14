@@ -104,16 +104,16 @@ internal static partial class MediaPageChecks
             GalleryViewer fromMedia = await GalleryAsync("612");
             RequireCloseLabel(fromMedia, "Back to media", "Gallery from Medien");
             Require(Shown(Close(fromMedia)).Contains("Back to media", StringComparison.Ordinal), "The visible close label must say 'To media': " + Shown(Close(fromMedia)));
-            // The help lists the close action under its media name, and Escape's last step leads back to media.
+            // The Help tool opens the shortcuts window on the Gallery group; its note keeps the way back to media (the former panel's
+            // Escape line) (KS3).
             GalleryViewerChecksAccess.Click(fromMedia, "GalleryHelp");
-            await UntilAsync(() => fromMedia.GetGalleryVisualDescendants().OfType<Button>().Any(button => button.Name == "GalleryHelpMore"));
-            GalleryViewerChecksAccess.Click(fromMedia, "GalleryHelpMore");
-            string[] help = Array.Empty<string>();
-            await UntilAsync(() => (help = fromMedia.GetGalleryVisualDescendants().OfType<TextBlock>().Select(text => text.Text ?? string.Empty).ToArray())
-                .Contains(Texts.T("viewer.help.escape.media")));
-            Require(help.Contains(CommandBindings.Tooltip("gallery.close", visibleLabel: "Back to media")) && !help.Contains(CommandBindings.Tooltip("gallery.close"))
-                && !help.Contains(Texts.T("viewer.help.escape")), "The help must name the close action 'To media': " + string.Join(" | ", help));
-            GalleryViewerChecksAccess.Click(fromMedia, "GalleryHelpClose");
+            MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow? helpWindow = null;
+            await UntilAsync(() => (helpWindow = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(shell)) is { IsVisible: true });
+            string help = helpWindow!.PlainText;
+            Require(help.Contains(Texts.T("viewer.help.escape.media"), StringComparison.Ordinal)
+                && helpWindow.Editor.Context.NoteKeys!.SequenceEqual(new[] { "viewer.help.escape.media" }),
+                "The help must name the way back to media: " + help);
+            helpWindow.CloseWithoutAsking();
             // A language switch keeps the media name (in that language).
             Texts.SetLanguage("de");
             await UntilAsync(() => AutomationProperties.GetName(Close(fromMedia)) == "Zurück zu Medien");

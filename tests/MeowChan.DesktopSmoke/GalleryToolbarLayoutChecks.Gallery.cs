@@ -46,11 +46,12 @@ internal static partial class GalleryToolbarLayoutChecks
 
             viewer.Focus();
             PressKey(viewer, Key.F1);
-            await UntilAsync(() => Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+            await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true, Bounds.Width: > 0 });
             await LayoutAsync(window);
-            DialogGallery.Record(window, "gallery-shortcut-help", "main window", "F1 shortcut overlay inside the gallery");
+            DialogGallery.Record(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!, "gallery-shortcut-help", "shortcuts window",
+                "F1 shortcuts window on the Gallery group from inside the gallery");
             PressKey(viewer, Key.F1);
-            await UntilAsync(() => !Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+            await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
 
             Grid viewport = Find<Grid>(viewer, "GalleryViewport");
             await RightClickAsync(viewport, window);

@@ -289,7 +289,7 @@ public partial class MainWindow
         {
             // A refreshed/recycled container is no longer the old keyboard origin.
             page.RestoreMediaMenuActionFocus(ReferenceEquals(rows, page.Grid.ItemsSource) ? origin : null,
-                () => hostCurrent() && !OwnedWindows.Any(window => window.IsVisible));
+                () => hostCurrent() && !OwnedWindows.Any(window => window.IsVisible && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window)));
         }
     }
 

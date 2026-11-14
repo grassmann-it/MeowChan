@@ -170,7 +170,7 @@ public sealed class ShortcutBindingsEditor : UserControl
         finally { _syncingFilters = false; }
         _collapsed.Clear();
         if (context.Area is { } area)
-            foreach (string group in ShortcutGroups.Order.Where(g => g != area)) _collapsed.Add(group);
+            foreach (string group in ShortcutGroups.Order.Where(g => g != area && context.ExpandedAreas?.Contains(g) != true)) _collapsed.Add(group);
         RefreshList();
     }
 

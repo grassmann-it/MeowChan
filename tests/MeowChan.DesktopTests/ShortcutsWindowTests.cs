@@ -166,8 +166,9 @@ public sealed class ShortcutsWindowTests : IDisposable
     public void F1TheMacHelpMenuAndSettingsShareOneWindowAndOneCommitPath()
     {
         string fullscreen = Source("Desktop/Shell/MainWindow.Fullscreen.cs");
-        string show = Between(fullscreen, "private void ShowShellHelp()", "private void OnShortcutsWindowClosed(");
-        Assert.Contains("ShortcutsWindow.Open(this, SettingsEditor, ShellHelpContext())", show);
+        string show = Between(fullscreen, "private void ShowShellHelp(", "private void OnShortcutsWindowClosed(");
+        Assert.Contains("ShortcutsWindow.Open(this, SettingsEditor, context", show);
+        Assert.Contains("_gallery.ShortcutHelp() : ShellHelpContext()", show);
         Assert.Contains("ShortcutsWindow.IsPassive(window)", fullscreen);
         Assert.Contains("case \"viewer.shortcut-help\": ShowShellHelp(); return;", Source("Desktop/Shell/MainWindow.MacMenu.cs"));
         string settings = Source("Desktop/Views/Settings/SettingsEditor.axaml.cs");
@@ -180,6 +181,45 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Contains("DialogEscape.Attach(this, Editor.TryCancelLocal, () => Editor.IsSaving);", window);
         Assert.Contains("e.CloseReason != WindowCloseReason.WindowClosing", window);
     }
+
+    [Fact]
+    public void TheGalleryContextOpensTheGalleryGroupThenTheTagPanelAndKeepsTheWayBackNote()
+    {
+        var context = new ShortcutHelpContext(ShortcutGroups.Gallery, new[] { "gallery.next", "gallery.previous" },
+            NoteKeys: new[] { "viewer.help.escape" }, ExpandedAreas: new[] { ShortcutGroups.TagPanel });
+        var editor = new ShortcutBindingsEditor();
+        editor.ApplyContext(context);
+        Assert.Equal(ShortcutGroups.Order.Where(g => g is not (ShortcutGroups.Gallery or ShortcutGroups.TagPanel)).Order(),
+            editor.CollapsedGroups.Order());
+        string[] groups = editor.Model.Query(new ShortcutTableQuery()).Select(g => g.Key).ToArray();
+        Assert.Equal(new[] { ShortcutGroups.Gallery, ShortcutGroups.TagPanel }, groups.Take(2));
+        ListBoxItem[] items = editor.ActionList.Items.OfType<ListBoxItem>().ToArray();
+        Assert.Equal("gallery.next", items[1].Tag); // the first preferred command leads the gallery group
+        // The tag panel's commands wait for their handlers (QuickTagCommands) and "Assigned only" hides them until then.
+        Assert.All(items.Where(i => i.Tag is string), i => Assert.Contains(editor.Model.Rows.Single(r => r.CommandId == (string)i.Tag!).Group,
+            new[] { ShortcutGroups.Gallery, ShortcutGroups.TagPanel }));
+        // The note of the former gallery help is no shortcut and stays reachable in the window.
+        Assert.Contains(Texts.T("viewer.help.escape"), editor.PlainText);
+        Assert.Contains(Texts.T("viewer.help.escape"), ((TextBlock)Field(editor, "_notes")).Text!);
+    }
+
+    [Fact]
+    public void TheGalleryAsksTheOwnerForTheWindowAndNeitherItNorTheMediaMenuTreatsItAsABlockingDialog()
+    {
+        string gallery = Source("Desktop/GalleryViewer.cs");
+        Assert.Contains("{ RequestShortcutHelp(); e.Handled = true; return; }", gallery);
+        Assert.Contains("\"GalleryHelp\", Texts.T(\"viewer.help\"), RequestShortcutHelp, overflow: true);", gallery);
+        Assert.Contains("ShortcutGroups.Gallery, preferred", gallery);
+        Assert.Contains("ExpandedAreas: new[] { ShortcutGroups.TagPanel }", gallery);
+        Assert.Contains("\"viewer.help.escape.media\" : \"viewer.help.escape\"", gallery);
+        Assert.Equal(1, CountOf(gallery, "ShortcutsWindow.IsPassive(window)")); // CanRouteGalleryShortcut
+        Assert.Equal(1, CountOf(Source("Desktop/GalleryViewer.Overlay.cs"), "ShortcutsWindow.IsPassive(window)")); // HasGalleryDialog
+        Assert.Contains("ShortcutsWindow.IsPassive(window)", Source("Desktop/MediaActions/MediaMenuBuilder.cs"));
+        Assert.Contains("ShortcutsWindow.IsPassive(window)", Source("Desktop/Shell/MainWindow.Media.cs"));
+        Assert.Contains("_gallery.ShortcutHelpRequested += context =>", Source("Desktop/Shell/MainWindow.Gallery.cs"));
+    }
+
+    private static int CountOf(string text, string needle) => (text.Length - text.Replace(needle, "", StringComparison.Ordinal).Length) / needle.Length;
 
     private static object Field(object target, string name) =>
         target.GetType().GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(target)!;

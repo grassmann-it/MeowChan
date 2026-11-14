@@ -75,7 +75,7 @@ internal sealed partial class GalleryViewer
         || Commands.CommandRouter.HasOpenPopup((Control?)TopLevel.GetTopLevel(_nativeVideoOverlay) ?? _nativeVideoOverlay);
 
     private bool HasGalleryDialog => TopLevel.GetTopLevel(this) is Window host
-        && host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window));
+        && host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window) && !Views.Shortcuts.ShortcutsWindow.IsPassive(window));
 
     private bool IsGalleryWindowActive
     {

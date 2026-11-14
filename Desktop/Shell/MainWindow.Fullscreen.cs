@@ -679,12 +679,13 @@ public partial class MainWindow
         _helpOrigin = null;
     }
 
-    /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2).</summary>
-    private void ShowShellHelp()
+    /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2); the gallery passes its own context.</summary>
+    private void ShowShellHelp(MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext? context = null)
     {
         if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true }) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
-        var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, ShellHelpContext());
+        var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, context
+            ?? (_gallery != null && !_gallerySuspended ? _gallery.ShortcutHelp() : ShellHelpContext()));
         window.Closed -= OnShortcutsWindowClosed;
         window.Closed += OnShortcutsWindowClosed;
     }

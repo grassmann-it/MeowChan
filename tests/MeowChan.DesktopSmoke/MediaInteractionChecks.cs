@@ -478,11 +478,15 @@ internal static class MediaInteractionChecks
             {
                 if (expected == "Playing") await SeekClickAsync(.05);
                 await native.ClickAsync(Named<Button>(panel));
-                Require(panel == "GalleryHelp" ? viewer!.IsOverlayOpen : viewer!.CaptureState().ContextOpen,
+                // The Help tool opens the one modeless shortcuts window (KS3); the context panel stays in the gallery.
+                if (panel == "GalleryHelp") await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+                Require(panel == "GalleryHelp" ? MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true } : viewer!.CaptureState().ContextOpen,
                     "Native panel action failed to open its actual panel: " + panel);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, panel + " open");
                 await native.KeyAsync(MediaNativeInput.Escape);
-                Require(!viewer!.CaptureState().ContextOpen && !viewer.IsOverlayOpen,
+                if (panel == "GalleryHelp") await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
+                Require(!viewer!.CaptureState().ContextOpen && !viewer.IsOverlayOpen
+                    && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null,
                     "Native Escape did not dismiss only the active panel.");
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, panel + " dismissed");
                 Require(window.FindControl<ContentControl>("GalleryHost")!.IsVisible && viewer.CaptureState().PostId == "2000",

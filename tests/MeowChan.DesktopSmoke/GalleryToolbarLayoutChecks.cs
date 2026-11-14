@@ -130,12 +130,14 @@ internal static partial class GalleryToolbarLayoutChecks
                     mode.SelectedIndex = 0;
                     await LayoutAsync(window);
                     Require(!chrome.IsVisualAncestorOf(slideshow), "The slideshow control did not return to the menu.");
-                    // A shortcut of a menu command works with the menu closed: F1 opens the shortcut help.
+                    // A shortcut of a menu command works with the menu closed: F1 opens the one shortcuts window on the gallery group.
                     viewer.Focus();
                     PressKey(viewer, Key.F1);
-                    await UntilAsync(() => Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+                    await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+                    Require(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!.Editor.Context.Area == MeowChan.Desktop.Commands.ShortcutGroups.Gallery,
+                        "F1 in the gallery did not open the shortcuts window on the Gallery group.");
                     PressKey(viewer, Key.F1);
-                    await UntilAsync(() => !Find<Border>(viewer, "GalleryShortcutHelp").IsVisible);
+                    await UntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
                 }
                 viewer.SetOverflowOpen(false);
                 await LayoutAsync(window);
