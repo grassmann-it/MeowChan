@@ -37,6 +37,8 @@ public partial class MainWindow
         _workViews.Changed += (_, view) => ApplyWorkViewToRulesSourcesPlugins(view, viewChanged: true);
         // Diagnostics and Statistics are built lazily: a built page follows every later change of the view.
         _workViews.Changed += (_, current) => ApplyWorkViewToLazyPages(current);
+        // The open gallery follows a change of the view at once (WV4); a gallery opened later reads the configured view itself.
+        _workViews.Changed += (_, current) => _gallery?.ApplyWorkView(current);
     }
 
     // Rules, Sources and Plugins are built after the first frame: a page applies the view when it appears and again on every change (R13).

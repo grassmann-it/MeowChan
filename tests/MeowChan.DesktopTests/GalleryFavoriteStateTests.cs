@@ -316,12 +316,12 @@ public sealed class GalleryFavoriteStateTests
     }
 
     [Fact]
-    public void FavoriteIndicatorSitsTopRightBecauseTheTopLeftIsTheWayBack()
+    public void FavoriteIndicatorSitsTopRightDirectlyLeftOfTheWayBack()
     {
         Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
 
-        // The top left of the picture belongs to the gallery's way back. The passive badge sits top right and moves
-        // left of an open post panel (UpdateFavoriteIndicators) instead of relying on a Z-index above post text.
+        // The top right edge belongs to the gallery's way back (Tom's rule); the passive badge sits directly left of it
+        // (UpdateFavoriteIndicators sets the margin from the button's width) and the post panel starts below that row.
         Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);

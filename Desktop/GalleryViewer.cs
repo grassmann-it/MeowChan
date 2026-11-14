@@ -17,6 +17,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Archive;
 using MeowChan.Desktop.Commands;
@@ -89,6 +90,7 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly ToggleButton _favorite;
     private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
+    private Button _fullscreenButton = null!;
     private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Classes = { "workspace-section" }, IsVisible = false };
     private readonly StackPanel _helpContent = new() { Spacing = 8 };
     private readonly TextBlock _helpTitle = new();
@@ -280,6 +282,8 @@ internal sealed partial class GalleryViewer : UserControl
 
     internal GalleryViewer()
     {
+        // The "where am I" line goes through the work-view gate (UpdateMediaFocusVisibility), which needs its id from the first frame.
+        WorkViewElement.SetId(_scope, "gallery.info.scope");
         // Subscribe before any of these subtrees can enter a presentation root.
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
             _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator })
@@ -307,13 +311,17 @@ internal sealed partial class GalleryViewer : UserControl
         StackPanel navigation = ToolGroup("GalleryNavigationTools");
         StackPanel zoom = ToolGroup("GalleryZoomTools");
         StackPanel media = ToolGroup("GalleryMediaTools");
+        // The tools a work view brings onto the bar (rating, tags, slideshow numbers, mode, help): a group of its own, away from
+        // the favourite and the way back; empty (hidden) in Barebones.
+        _workViewTools = ToolGroup("GalleryWorkViewTools");
         StackPanel view = ToolGroup("GalleryViewTools");
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
-        // The way back is not a toolbar button: it floats at the top left of the picture (the one rule for every surface that
-        // replaced another), names where it returns to and stays reachable, dimmed, while auto-hidden controls are away.
+        // The way back is not a toolbar button: it floats alone at the top right edge of the picture (Tom's gallery rule), names
+        // where it returns to and stays reachable, dimmed, while auto-hidden controls are away. The favourite star sits directly
+        // left of it (UpdateFavoriteIndicators); every other action is in the toolbar group below, apart from both.
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         navigation.Children.Remove(_close);
-        _close.HorizontalAlignment = HorizontalAlignment.Left;
+        _close.HorizontalAlignment = HorizontalAlignment.Right;
         _close.VerticalAlignment = VerticalAlignment.Top;
         _close.Margin = new Thickness(12);
         _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
@@ -356,7 +364,7 @@ internal sealed partial class GalleryViewer : UserControl
         AddOverflowSeparator();
         AddOverflowItem(_overlayToggle, "gallery.overlay-toggle", check: true);
         AddOverflowItem(_postOverlayToggle, "gallery.post-overlay-toggle", check: true);
-        Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
+        _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
         _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), () => SetHelp(!_helpOpen), overflow: true);
         InitializeOverflowMenu();
         PlaceSlideshowToggle();
@@ -395,7 +403,7 @@ internal sealed partial class GalleryViewer : UserControl
         _helpPanel.Child = helpRoot;
         _helpPanel.HorizontalAlignment = HorizontalAlignment.Right;
         _helpPanel.VerticalAlignment = VerticalAlignment.Top;
-        _helpPanel.Margin = new Thickness(12);
+        _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the way back and the star
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
         _viewport.Children.Add(_image);
@@ -478,6 +486,10 @@ internal sealed partial class GalleryViewer : UserControl
             _scaleOwner = null;
             StopViewerInteraction();
         };
+        // The star keeps its place beside the way back, and the panels start below the top row, whatever width the label gives it.
+        _close.SizeChanged += (_, _) => { UpdateFavoriteIndicators(); if (_contextOpen) LayoutContextPlacement(); };
+        InitializeWorkViewTools();
+        RegisterWorkViewIds();
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
         UpdateContextButton();
@@ -529,6 +541,7 @@ internal sealed partial class GalleryViewer : UserControl
         }
         ApplyCloseLabel();
         UpdateFavorite(); UpdateContextButton(); UpdateMediaFocusPresentation();
+        PresentMovableTools();
         RefreshOverflowItems();
     }
 
@@ -762,7 +775,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (_mediaFocus == enabled) return;
         // A disappearing control must never retain keyboard focus. Navigation and
         // the reveal toggle remain in the same visual tree, including native video.
-        if (enabled && (_secondaryTools.Any(control => control.IsKeyboardFocusWithin) || _infoOverlay.IsKeyboardFocusWithin))
+        if (enabled && (_secondaryTools.Any(control => control.IsKeyboardFocusWithin) || _workViewTools.IsKeyboardFocusWithin || _infoOverlay.IsKeyboardFocusWithin))
             _toolsToggle.Focus(_keyboardInteraction ? NavigationMethod.Tab : NavigationMethod.Pointer);
         _mediaFocus = enabled;
         _playbackPreferences = _playbackPreferences with { MediaFocus = enabled };
@@ -788,12 +801,15 @@ internal sealed partial class GalleryViewer : UserControl
     private void UpdateMediaFocusVisibility()
     {
         foreach (Control control in _secondaryTools) control.IsVisible = !_mediaFocus;
+        _workViewTools.IsVisible = !_mediaFocus && _workViewTools.Children.Count > 0;
         // The legacy action remains routable, but must never reappear as duplicate chrome.
         _autoHideToggle.IsVisible = false;
         // The position sits between the arrows, always; the caption no longer repeats it.
         _compactPosition.IsVisible = true;
         _position.IsVisible = false;
-        _quality.IsVisible = _scope.IsVisible = !_mediaFocus;
+        _quality.IsVisible = !_mediaFocus;
+        // "Where am I" (thread or result list): Barebones leaves it to the details; the position between the arrows stays.
+        WorkViewGate.Apply(_scope, _workView, stateVisible: !_mediaFocus);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
         _ratingStatus.IsVisible = !_mediaFocus;
         // Diagnostic notices have no visibility or auto-hide authority. The capability
@@ -920,7 +936,8 @@ internal sealed partial class GalleryViewer : UserControl
         Grid.SetRow(_body, fallback ? 1 : 0);
         Grid.SetRow(_chrome, fallback ? 2 : 1);
         Grid.SetRow(_infoOverlay, fallback ? 3 : 2);
-        _helpPanel.Margin = new Thickness(12);
+        // In the fallback row 0 lies above the picture and the way back is in the picture row, so the help needs no clearance there.
+        _helpPanel.Margin = fallback ? new Thickness(12) : new Thickness(12, TopRowClearance, 12, 12);
         ApplyOverlayPlacement();
     }
 
@@ -1023,6 +1040,7 @@ internal sealed partial class GalleryViewer : UserControl
                 _video.VolumeChanged += volume => { _videoVolume = volume; VideoVolumeChanged?.Invoke(volume); };
                 _video.LoopChanged += OnVideoLoopChanged;
                 _video.TransportControl.SizeChanged += (_, _) => { if (_contextOpen) LayoutContextPlacement(); };
+                WorkViewElement.SetId(_video.TransportControl, "gallery.video.transport"); Mark(_video.TransportControl);
                 UseNativeVideoOverlay(true);
                 _viewport.Children.Add(_video);
             }
