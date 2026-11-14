@@ -192,6 +192,7 @@ public partial class MainWindow
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "media-done");
         InitializeReadingResume();
         InitializePostBookmarks();
+        InitializeTagQueue();
         InitializePostFilters();
         InitializeBooru();
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "resume-bookmarks-booru-done");

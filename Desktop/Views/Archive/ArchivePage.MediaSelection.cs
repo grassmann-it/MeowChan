@@ -30,10 +30,16 @@ public partial class ArchivePage
     internal MediaSelectionTagServices? MediaTagServices { get; set; }
     internal Window? MediaSelectionTagWindow => _mediaSelectionTagDialog;
 
-    private void AttachMediaSelectionTags(DesktopSessionHost host) =>
+    /// <summary>Adds gallery entries to the tagging queue and returns the sentence for the status line; null disables the queue actions.</summary>
+    internal Func<IReadOnlyList<GalleryEntry>, Task<string>>? AddToTagQueue { get; set; }
+
+    private void AttachMediaSelectionTags(DesktopSessionHost host)
+    {
+        AddToTagQueue = entries => TagQueueActions.AddAsync(host, entries);
         MediaTagServices = new(host.GetPublishedPrivateTagSnapshot,
             (name, subjects, expectedRevision, token) => host.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
             (tag, subjects, assigned, expectedRevision, token) => host.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token));
+    }
 
     private void InitializeMediaSelection()
     {
@@ -142,6 +148,7 @@ public partial class ArchivePage
     private void LocalizeMediaSelection()
     {
         ArchiveMediaSelectionTag.Content = Texts.T("media.selection.tag");
+        ArchiveMediaSelectionQueue.Content = Texts.T("media.selection.queue");
         ArchiveMediaSelectionGallery.Content = Texts.T("media.selection.gallery");
         ArchiveMediaSelectionExport.Content = Texts.T("media.selection.export");
         ArchiveMediaSelectionClear.Content = Texts.T("media.selection.clear");
@@ -161,6 +168,7 @@ public partial class ArchivePage
         ArchiveMediaSelectionStatus.Text = ArchiveMediaSelection.Status(count);
         bool ready = _available && !_busy && !_ended && !IsReaderDialogOpen && !_mediaSelectionBusy && _thread != null;
         SetMediaSelectionAction(ArchiveMediaSelectionTag, ready && MediaTagServices != null, MediaTagServices != null, "media.selection.tag.hint");
+        SetMediaSelectionAction(ArchiveMediaSelectionQueue, ready && AddToTagQueue != null, AddToTagQueue != null, "media.selection.queue.hint");
         SetMediaSelectionAction(ArchiveMediaSelectionGallery, ready && OpenMediaGallery != null, OpenMediaGallery != null, "media.selection.gallery.hint");
         SetMediaSelectionAction(ArchiveMediaSelectionExport, ready, true, "media.selection.export.hint");
         ArchiveMediaSelectionClear.IsEnabled = !_ended;
@@ -189,6 +197,9 @@ public partial class ArchivePage
 
     private async void OnMediaSelectionTagClick(object? sender, RoutedEventArgs e) =>
         await RunMediaSelectionButtonAsync(ArchiveMediaSelectionTag, (thread, rows, entries, origin) => TagMediaSelectionAsync(thread, rows, entries, origin));
+
+    private async void OnMediaSelectionQueueClick(object? sender, RoutedEventArgs e) =>
+        await RunMediaSelectionButtonAsync(ArchiveMediaSelectionQueue, (thread, rows, entries, origin) => AddMediaSelectionToQueueAsync(thread, rows, entries));
 
     private async void OnMediaSelectionGalleryClick(object? sender, RoutedEventArgs e) =>
         await RunMediaSelectionButtonAsync(ArchiveMediaSelectionGallery, (thread, rows, entries, origin) => OpenMediaSelectionGalleryAsync(thread, rows, entries, origin));
@@ -271,6 +282,15 @@ public partial class ArchivePage
             _mediaSelectionBusy = false;
             if (!_ended) UpdateActions();
         }
+    }
+
+    /// <summary>Adds the selected files (one per file, in the tab's order) to the tagging queue and says what happened.</summary>
+    private async Task AddMediaSelectionToQueueAsync(ArchivedThreadView thread, ArchiveAssetRow[] rows, GalleryEntry[] entries)
+    {
+        if (AddToTagQueue is not { } add) return;
+        IReadOnlyList<GalleryEntry> selected = ArchiveMediaSelection.GalleryEntries(thread.Summary, rows, entries);
+        string message = await add(selected);
+        if (!_ended) Message(message);
     }
 
     /// <summary>Opens the gallery with exactly the selected files in the tab's order, starting at the first.</summary>

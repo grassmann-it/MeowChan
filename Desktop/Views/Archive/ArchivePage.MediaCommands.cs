@@ -221,6 +221,8 @@ public partial class ArchivePage
             TagsWired = EditArchiveMediaTagsAsync != null || TagPopoverAsync != null,
             TagsBlocked = tagsBlocked,
             TagsBlockedExplained = true,
+            QueueWired = AddToTagQueue != null,
+            QueueBlocked = TagQueueActions.BlockedReason(target != null, BooruMediaIdentity.IsBooruThread(threadId)),
             FolderWired = _openFolder != null,
             CopyPathWired = CopyFilePathAsync != null,
             Posts = severalPosts ? MediaMenuPostScope.Several : postIds.Length == 1 ? MediaMenuPostScope.Single : MediaMenuPostScope.None
@@ -253,6 +255,10 @@ public partial class ArchivePage
                 else if (TagPopoverAsync != null)
                     await TagPopoverAsync(tagEntry, origin, QuickTagPopoverContext.ContextOf(tagEntry, galleryEntries, thread.Summary.Title), PopoverCurrent);
                 else if (EditArchiveMediaTagsAsync != null) await EditArchiveMediaTagsAsync(tagEntry);
+            },
+            [MediaMenuAction.Queue] = async () =>
+            {
+                if (target != null && AddToTagQueue is { } add) { string message = await add(new[] { target }); if (!_ended) Message(message); }
             },
             [MediaMenuAction.Export] = async () =>
             {
@@ -297,6 +303,8 @@ public partial class ArchivePage
             string unavailable = Texts.T("media.selection.reason.unavailable");
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.tag", () => TagMediaSelectionAsync(thread, selection, entries, origin),
                 () => MediaTagServices != null && !_mediaSelectionBusy, Run, unavailable));
+            context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.queue", () => AddMediaSelectionToQueueAsync(thread, selection, entries),
+                () => AddToTagQueue != null && !_mediaSelectionBusy, Run, unavailable));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.gallery", () => OpenMediaSelectionGalleryAsync(thread, selection, entries, origin),
                 () => OpenMediaGallery != null, Run, unavailable));
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.export", () => ExportMediaSelectionAsync(thread, selection, origin),

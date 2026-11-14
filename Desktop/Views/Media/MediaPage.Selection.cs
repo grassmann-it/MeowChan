@@ -53,13 +53,13 @@ public sealed partial class MediaPage
         AutomationProperties.SetLiveSetting(_selectionNote, AutomationLiveSetting.Polite);
         // The action row exists only while something is selected: the counter and the actions share one line (the how-to is the tag action's tooltip).
         _selectionRow.IsVisible = false;
-        foreach (Control control in new Control[] { _selectionText, _selTag, _selGallery, _selExport, _selMore, _selClear })
+        foreach (Control control in new Control[] { _selectionText, _selTag, _selQueue, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
-        return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote } };
+        return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote, BuildQueueAsk() } };
     }
 
     private void LocalizeSelection()
@@ -68,6 +68,7 @@ public sealed partial class MediaPage
         _selGallery.Content = Texts.T("media.selection.gallery");
         _selExport.Content = Texts.T("media.selection.export");
         _selClear.Content = Texts.T("media.selection.clear");
+        LocalizeQueue();
         LocalizeExportAll();
         UpdateSelectionBar();
     }
@@ -77,6 +78,12 @@ public sealed partial class MediaPage
     // Escape (fixed) clears and media.select-all (Ctrl/Cmd+A by default) selects every shown tile; clicks and Shift/Ctrl ranges are the ListBox's own.
     private bool OnSelectionKey(KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _queueAsk.IsVisible)
+        {
+            DismissQueueAsk();
+            e.Handled = true;
+            return true;
+        }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && _exportAllAsk.IsVisible)
         {
             DismissExportAllAsk();
@@ -122,6 +129,7 @@ public sealed partial class MediaPage
               + (building ? " · " + Texts.T("media.selection.reason.building") : string.Empty);
         bool ready = reason == null && !_selectionBusy && !_lifetime.IsCancellationRequested;
         SetAction(_selTag, ready && TagServices != null, reason, TagServices != null, "media.selection.tag.hint", Texts.T("media.selection.howTo"));
+        UpdateQueueActions(ready, reason);
         SetAction(_selGallery, ready && OpenGallery != null, reason, OpenGallery != null, "media.selection.gallery.hint");
         SetAction(_selExport, ready && ExportOriginals != null, reason, ExportOriginals != null, "media.selection.export.hint");
         _selClear.IsEnabled = count > 0;

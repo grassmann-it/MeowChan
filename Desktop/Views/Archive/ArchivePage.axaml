@@ -670,6 +670,7 @@
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="8" LineSpacing="8" IsVisible="False">
                                             <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
                                             <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
+                                            <Button x:Name="ArchiveMediaSelectionQueue" Click="OnMediaSelectionQueueClick" />
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />

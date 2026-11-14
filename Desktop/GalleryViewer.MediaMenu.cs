@@ -59,6 +59,8 @@ internal sealed partial class GalleryViewer
             TagsBlocked = _tagNames == null ? _tagsUnavailableReason ?? MediaMenuReasons.TagsUnknown
                 : CanRequestFavorite ? null : MediaMenuReasons.Unavailable,
             ExportWired = ExportOriginalRequested != null,
+            QueueWired = QueueRequested != null,
+            QueueBlocked = TagQueueActions.BlockedReason(true, provider),
             FolderWired = ShowInFolderRequested != null,
             CopyPathWired = CopyPathRequested != null,
             DetailsWired = DetailsRequested != null,
@@ -85,6 +87,7 @@ internal sealed partial class GalleryViewer
             [MediaMenuAction.Favorite] = Sync(() => FavoriteToggleRequested?.Invoke(entry)),
             [MediaMenuAction.Rating] = Sync(() => RatingEditRequested?.Invoke(entry)),
             [MediaMenuAction.Tags] = Sync(() => { PauseSlideshow(); TagsRequested?.Invoke(entry); }),
+            [MediaMenuAction.Queue] = Sync(() => QueueRequested?.Invoke(entry)),
             [MediaMenuAction.Export] = Sync(() => ExportOriginalRequested?.Invoke(entry)),
             [MediaMenuAction.ShowInFolder] = Sync(() => ShowInFolderRequested?.Invoke(entry)),
             [MediaMenuAction.CopyPath] = Sync(() => CopyPathRequested?.Invoke(entry)),

@@ -27,6 +27,7 @@ internal enum MediaMenuAction
     Favorite,
     Rating,
     Tags,
+    Queue,
     Export,
     ShowInFolder,
     CopyPath,
@@ -97,6 +98,10 @@ internal sealed record MediaMenuFacts(MediaMenuSurface Surface, MediaMenuTarget?
     /// popover states <see cref="TagsBlocked"/> as text (plan §1.4) instead of a disabled entry with a tooltip.
     /// </summary>
     internal bool TagsBlockedExplained { get; init; }
+    /// <summary>The surface can add the target (or its selection) to the tagging queue.</summary>
+    internal bool QueueWired { get; init; } = true;
+    /// <summary>Null when the target can be queued; otherwise the localized reason it cannot (see <see cref="TagQueueActions.BlockedReason"/>).</summary>
+    internal string? QueueBlocked { get; init; }
     internal bool ExportWired { get; init; } = true;
     internal bool FolderWired { get; init; } = true;
     internal bool CopyPathWired { get; init; } = true;
@@ -118,7 +123,7 @@ internal sealed record MediaMenuItemModel(MediaMenuAction Action, string? Comman
     /// <summary>Open and show-in-thread group the first section, the file actions the second, the post actions the third.</summary>
     internal int Group => Action switch
     {
-        MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags => 0,
+        MediaMenuAction.Open or MediaMenuAction.Favorite or MediaMenuAction.Rating or MediaMenuAction.Tags or MediaMenuAction.Queue => 0,
         MediaMenuAction.Export or MediaMenuAction.ShowInFolder or MediaMenuAction.CopyPath or MediaMenuAction.Details => 1,
         _ => 2
     };
@@ -196,6 +201,9 @@ internal static class MediaMenuComposition
         Add(MediaMenuAction.Tags, "media.tags.edit", CommandCatalog.Label("media.tags.edit"),
             facts.Present && facts.TagsWired && (facts.TagsBlocked == null || facts.TagsBlockedExplained),
             NeedsFile() ?? facts.TagsBlocked ?? MediaMenuReasons.Unavailable);
+        Add(MediaMenuAction.Queue, "media.queue.add", CommandCatalog.Label("media.queue.add"),
+            facts.Present && facts.QueueWired && facts.QueueBlocked == null,
+            NeedsFile() ?? facts.QueueBlocked ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.Export, "media.export-original", CommandCatalog.Label("media.export-original"),
             facts.Present && facts.ExportWired, NeedsFile() ?? MediaMenuReasons.Unavailable);
         Add(MediaMenuAction.ShowInFolder, "media.show-in-folder", CommandCatalog.Label("media.show-in-folder"),

@@ -77,6 +77,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_selMore, "media.selection.more");
         WorkViewElement.SetId(_selTag, "media.selection.tag");
         WorkViewElement.SetId(_selExport, "media.selection.export");
+        WorkViewElement.SetId(_selQueue, "media.selection.queue");
         ((MenuFlyout)_more.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
@@ -142,13 +143,14 @@ public sealed partial class MediaPage
         // Selection bar: the row itself is state (something is selected), so its More needs no state of its own.
         WorkViewGate.Apply(_selTag, view);
         WorkViewGate.Apply(_selExport, view);
+        WorkViewGate.Apply(_selQueue, view);
         UpdateMore(_selMore, SelectionOverflow());
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
     private List<Control> HeaderOverflow() => Overflowed(_refresh, _shuffle, _exportAll, _manageRatings);
 
-    private List<Control> SelectionOverflow() => Overflowed(_selTag, _selExport);
+    private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 
     private static List<Control> Overflowed(params Control[] controls) => controls.Where(WorkViewGate.HiddenByView)
         .OrderBy(control => WorkViewPolicy.Get(WorkViewElement.GetId(control)!).OverflowOrder).ToList();

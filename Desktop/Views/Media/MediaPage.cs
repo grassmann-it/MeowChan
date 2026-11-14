@@ -504,6 +504,7 @@ public sealed partial class MediaPage : UserControl
         PresentCount++;
         InvalidateSharedMediaMenu();
         DismissExportAllAsk(); // A pending "export all" question was about tiles that may no longer be shown.
+        DismissQueueAsk();
         _filterActive = result.FilterActive;
         _filterFailed = result.ErrorKey != null;
         _untaggedTiles = result.UntaggedTiles;
@@ -752,6 +753,13 @@ public sealed partial class MediaPage : UserControl
                 await EditTagsByShortcutAsync();
                 return;
             }
+            // media.queue.add: the selection (or nothing when nothing is selected) goes to the tagging queue, like the selection bar's action.
+            if (CommandBindings.Matches(e, "media.queue.add"))
+            {
+                e.Handled = true;
+                if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
+                return;
+            }
             // Rating, details, export and folder of the medium (menu commands): the same actions and gates as the tile menu.
             foreach (string id in MediaShortcutCommands)
                 if (CommandBindings.Matches(e, id))
@@ -931,7 +939,9 @@ public sealed partial class MediaPage : UserControl
             Task RunBlank(Func<Task> action) => RunMenuActionAsync(action, blank);
             ContextMenu blankMenu = new() { ItemsSource = new Control[]
             {
-                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank)
+                MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank),
+                MediaMenuBuilder.ContextItem(blank, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, RunBlank,
+                    MediaMenuReasons.Unavailable)
             } };
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
@@ -945,6 +955,7 @@ public sealed partial class MediaPage : UserControl
         int selectedCount = _grid.Selection.Count;
         bool several = selectedCount > 1;
         bool hostActions = ExecuteMediaMenuActionAsync != null;
+        IReadOnlyList<MediaLibraryTile>? queueTiles = several ? SelectedTiles : null;
         MediaMenuFacts facts = new(MediaMenuSurface.MediaPage, MediaMenuTarget.Of(entry))
         {
             Present = entry.Presence == MediaLibraryPresence.Present,
@@ -962,6 +973,8 @@ public sealed partial class MediaPage : UserControl
             TagsWired = EditTagsForMenuAsync != null || TagPopoverAsync != null || hostActions,
             TagsBlocked = TagsBlockedReason(entry, state),
             TagsBlockedExplained = true,
+            QueueWired = AddToTagQueue != null,
+            QueueBlocked = TagQueueActions.BlockedReason(entry.Presence == MediaLibraryPresence.Present, entry.BooruPostId != null),
             ExportWired = hostActions,
             FolderWired = hostActions,
             CopyPathWired = hostActions,
@@ -980,6 +993,8 @@ public sealed partial class MediaPage : UserControl
             [MediaMenuAction.Favorite] = () => ExecuteMediaActionAsync("favorites.toggle", entry, Current),
             [MediaMenuAction.Rating] = () => ExecuteMediaActionAsync("media.rating.edit", entry, Current),
             [MediaMenuAction.Tags] = () => OpenTagsAsync(entry, row, origin, Current),
+            // One tile: that tile. Several selected: the selection frozen now, like the selection actions below.
+            [MediaMenuAction.Queue] = queueTiles is { Count: > 1 } ? () => AddTilesToQueueAsync(queueTiles) : () => AddEntryToQueueAsync(entry),
             [MediaMenuAction.Export] = () => ExecuteMediaActionAsync("media.export-original", entry, Current),
             [MediaMenuAction.ShowInFolder] = () => ExecuteMediaActionAsync("media.show-in-folder", entry, Current),
             [MediaMenuAction.CopyPath] = () => ExecuteMediaActionAsync("media.copy-path", entry, Current),
@@ -1009,6 +1024,8 @@ public sealed partial class MediaPage : UserControl
             }, () => selectedAction.IsEnabled, Run, ToolTip.GetTip(selectedAction) as string ?? MediaMenuReasons.Unavailable));
         }
         context.Add(MediaMenuBuilder.ContextItem(session, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, Run));
+        context.Add(MediaMenuBuilder.ContextItem(session, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, Run,
+            MediaMenuReasons.Unavailable));
         ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, ShowSelectionNote);
         _mediaMenuPresenter.Show(menu, session, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
     }

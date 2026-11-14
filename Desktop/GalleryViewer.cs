@@ -203,6 +203,8 @@ internal sealed partial class GalleryViewer : UserControl
     }
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
+    /// <summary>"Add to tagging queue" for the shown medium (menu and shortcut); the owner writes the queue and tells the person what happened.</summary>
+    internal event Action<GalleryEntry>? QueueRequested;
     internal event Action<GalleryEntry>? DetailsRequested;
     /// <summary>
     /// Extra context lines for an entry that is not a chan post (a downloaded provider medium), or null. The owner supplies
@@ -1429,6 +1431,7 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "gallery.zoom-out")) Zoom(1 / 1.1);
         else if (CommandBindings.Matches(e, "gallery.close")) CloseRequested?.Invoke();
         else if (CommandBindings.Matches(e, "media.tags.edit")) RequestTags();
+        else if (CommandBindings.Matches(e, "media.queue.add")) { if (_entry != null && QueueRequested != null) QueueRequested.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.export-original")) { if (_entry != null) ExportOriginalRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.show-in-folder")) { if (_entry != null) ShowInFolderRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.copy-path")) { if (_entry != null) CopyPathRequested?.Invoke(_entry); }

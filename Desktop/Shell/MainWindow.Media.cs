@@ -54,6 +54,8 @@ public partial class MainWindow
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),
             ExportOriginals = ExportMediaLibraryOriginalsAsync,
+            AddToTagQueue = entries => TagQueueActions.AddAsync(_session, entries),
+            TagQueueConfirmAboveSource = () => _session.Config.TagQueueConfirmAbove,
             GoToDownloadsRequested = GoToDownloads,
             // AP2 search carry-over: Media file name search -> the archive field's File name scope.
             SearchInArchiveRequested = query =>

@@ -51,6 +51,7 @@ public static partial class WorkViewPolicy
         Same("media.selection.clear", WorkViewPage.Media, WorkViewKind.Action, Required),
         Same("media.selection.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         new("media.selection.tag", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
+        new("media.selection.queue", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 15),
         new("media.selection.export", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),
     ];
 }
