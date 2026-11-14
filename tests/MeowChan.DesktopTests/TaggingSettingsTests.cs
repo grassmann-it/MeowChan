@@ -160,7 +160,7 @@ public sealed class TaggingSettingsTests : IDisposable
         Assert.Contains(".Take(TagQueueWalkWindow)", queue);
         string tags = Source("Desktop", "Shell", "MainWindow.GalleryTags.cs");
         Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", tags);
-        Assert.Contains("public QuickTagOptions Options => TaggingSettings.StampOptions(window._config);", tags);
+        Assert.Contains("public QuickTagOptions Options => QuickTagSettings.SurfaceOptions(window._config);", tags); // TP5 limits and the PT7 stamp size in one place
         Assert.DoesNotContain("QuickTagOptions.Default.CreateStamp", tags);
         // Saving the settings reaches the live stamp through the gallery preferences every settings save already runs.
         Assert.Contains("_quickTagStamp.Capacity = _config.TagStampSize;", tags);

@@ -34,10 +34,16 @@ public partial class MainWindow
         get
         {
             if (_quickTagStamp != null) return _quickTagStamp;
-            _quickTagStamp = QuickTagSettings.SurfaceOptions(_config).CreateStamp(_config.TagStamp);
+            _quickTagStamp = TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp);
             _quickTagStamp.Changed += OnQuickTagStampChanged;
             return _quickTagStamp;
         }
+    }
+
+    // The stamp size is a setting (Config.TagStampSize, PT7): saving the settings shortens or lengthens the live stamp at once.
+    private void ApplyTaggingPreferences()
+    {
+        if (_quickTagStamp != null) _quickTagStamp.Capacity = _config.TagStampSize;
     }
 
     private async void OnQuickTagStampChanged()
