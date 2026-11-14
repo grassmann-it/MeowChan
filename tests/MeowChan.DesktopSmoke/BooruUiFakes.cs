@@ -165,6 +165,7 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
 
     internal List<string> Calls { get; } = new();
     internal int Checks { get; private set; }
+    internal BooruCatalogUsageView? CatalogUsage { get; set; }
     internal Func<string, BooruWatcherCommandResult>? OnCheck { get; set; }
     internal Func<string, BooruWatcherCommandResult>? OnCreate { get; set; }
     internal Func<IReadOnlyList<BooruWatcherView>>? OnList { get; set; }
@@ -185,6 +186,9 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
     internal void RaiseChanged() => Changed?.Invoke();
 
     private void Record(string call) { lock (_gate) Calls.Add(call); }
+
+    public Task<BooruCatalogUsageView?> GetCatalogUsageAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(CatalogUsage);
 
     public Task<IReadOnlyList<BooruWatcherView>> ListAsync(CancellationToken cancellationToken)
     {

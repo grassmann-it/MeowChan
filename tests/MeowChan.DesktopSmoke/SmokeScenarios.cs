@@ -50,7 +50,7 @@ internal static partial class SmokeScenarios
 
     // The pages of the work-views smoke, in capture order (declared before All, which reads it); each has its own alternative run (work-views-<page>).
     internal static readonly string[] WorkViewPages =
-        ["downloads", "archive", "reader", "gallery", "media", "rules", "sources", "plugins", "diagnostics", "statistics", "settings", "dialogs"];
+        ["downloads", "archive", "reader", "gallery", "media", "booru", "rules", "sources", "plugins", "diagnostics", "statistics", "settings", "dialogs"];
 
     // Modes in their historical usage order; roots and branches in their former dispatch order.
     internal static readonly SmokeScenario[] All =
@@ -253,7 +253,9 @@ internal static partial class SmokeScenarios
         Root("work-views", "MEOWCHAN_WORK_VIEWS_ONLY", env => "work views: offline showcase fixture, "
             + (WorkViewPageSelector(env) ?? "every page") + " in Barebones/Simple/Advanced, "
             + (env("MEOWCHAN_WORK_VIEWS_MATRIX") ?? (WorkViewPageSelector(env) == null ? "full" : "reduced"))
-            + " theme/language/size matrix with index.html, reduced-toolbar shortcut probe; managed input only, no network"),
+            + " theme/language/size matrix with index.html, reduced-toolbar shortcut probe; managed input only, no network"
+            + (WorkViewPageSelector(env) is null or "booru"
+                ? "; Booru: fake ports only, real shell navigation, result and watcher controls/captures" : "")),
         .. WorkViewPages.Select(page => Alternative("work-views-" + page, WorkViewSelector(page), "MEOWCHAN_WORK_VIEWS_ONLY"))
     ];
 

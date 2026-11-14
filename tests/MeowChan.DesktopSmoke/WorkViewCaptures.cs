@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
@@ -22,7 +23,7 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>
 /// Work views (AP5/WV0): every page in Barebones, Simple and Advanced, in Light and Dark, English and German, wide and at the
 /// minimum size, written as smoke-wv-&lt;page&gt;-&lt;view&gt;-&lt;theme&gt;-&lt;lang&gt;-&lt;W&gt;x&lt;H&gt;.png plus an index.html matrix.
-/// Offline showcase archive (no providers), passive synthetic download rows; no watches, no network.
+/// Offline showcase archive (no providers), passive synthetic download rows and in-memory Booru ports/rows; no live watches or network.
 /// Before the captures a probe presses a bound shortcut of a toolbar action that the view moved into the toolbar's closed
 /// "More" menu and records whether the action still ran (R2 of the work-view plan).
 /// Environment: MEOWCHAN_WORK_VIEWS_&lt;PAGE&gt;_ONLY=1 runs one page (registry alternative work-views-&lt;page&gt;),
@@ -52,6 +53,7 @@ internal static class WorkViewCaptures
             ("reader", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_READER_ONLY")),
             ("gallery", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_GALLERY_ONLY")),
             ("media", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_MEDIA_ONLY")),
+            ("booru", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_BOORU_ONLY")),
             ("rules", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_RULES_ONLY")),
             ("sources", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_SOURCES_ONLY")),
             ("plugins", Environment.GetEnvironmentVariable("MEOWCHAN_WORK_VIEWS_PLUGINS_ONLY")),
@@ -74,9 +76,16 @@ internal static class WorkViewCaptures
         string languageBefore = window.SessionHost.Config.Language;
         List<Cell> cells = new();
         SyntheticShellRows? rows = null;
+        WorkViewBooruChecks? booru = null;
+        Exception? failure = null;
         try
         {
             rows = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
+            if (pages.Contains("booru"))
+            {
+                booru = new WorkViewBooruChecks(window);
+                await booru.InitializeAsync();
+            }
             CheckRegistrations(window);
             await ShortcutProbeAsync(window);
             await ViewCycleProbeAsync(window);
@@ -99,6 +108,7 @@ internal static class WorkViewCaptures
                                 await ResizeAsync(window, w, h);
                                 await EnterAsync(window, page); // a resize may relayout the archive into its narrow reader layout
                                 await SettleAsync(window, page);
+                                if (page == "booru") await booru!.MaterializeAsync();
                                 RequireState(window, page, view, theme, language);
                                 CheckPageRegistrations(window, page);
                                 CheckPresence(window, page, view);
@@ -106,6 +116,7 @@ internal static class WorkViewCaptures
                                 CheckSectionsAndMore(window, page, view);
                                 if (page == "settings") WorkViewSettingsChecks.CheckGroups(window, view);
                                 if (page == "gallery") await WorkViewGalleryChecks.CheckAsync(window, WorkViewSetting.Parse(view), view);
+                                if (page == "booru") await booru!.CheckAsync(view);
                                 if (page == "dialogs") CheckExportOptions(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
@@ -116,6 +127,13 @@ internal static class WorkViewCaptures
                                     await WorkViewArchiveChecks.CaptureFilterSurfaceAsync(window, view, file.Replace("smoke-wv-archive-", "smoke-wv-archive-filters-"), output);
                                 }
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
+                                if (page == "booru")
+                                {
+                                    string watcherFile = file.Replace("smoke-wv-booru-", "smoke-wv-booru-watchers-");
+                                    await booru!.CaptureWatchersAsync(watcherFile, output);
+                                    cells.Add(new("booru-watchers", view, theme, language, sizeName, watcherFile,
+                                        $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
+                                }
                                 // The second dialog of the plan (§1.14): the board admission, opened in this view over the export card's page.
                                 if (page == "dialogs" && sizeName == "wide")
                                     cells.Add(await CaptureBoardAdmissionAsync(window, view, theme, language, output));
@@ -127,17 +145,32 @@ internal static class WorkViewCaptures
                 }
             }
         }
+        catch (Exception exception) { failure = exception; throw; }
         finally
         {
-            await LeaveAsync(window);
-            WriteIndex(output, cells, only, matrix);
-            await SetThemeAsync(window, themeBefore);
-            await FooterNavigationChecks.PersistLanguageAsync(window, languageBefore);
-            await PresentationChecks.SwitchModeAsync(window, modeBefore);
-            if (rows != null) await rows.DisposeAsync();
+            // A failed capture/check must not strand the service override or prevent the remaining restores.
+            List<Exception> cleanup = new();
+            async Task RestoreAsync(Func<Task> restore)
+            {
+                try { await restore(); }
+                catch (Exception exception) { cleanup.Add(exception); }
+            }
+            await RestoreAsync(() => LeaveAsync(window));
+            await RestoreAsync(() => { WriteIndex(output, cells, only, matrix); return Task.CompletedTask; });
+            await RestoreAsync(() => SetThemeAsync(window, themeBefore));
+            await RestoreAsync(() => FooterNavigationChecks.PersistLanguageAsync(window, languageBefore));
+            await RestoreAsync(() => PresentationChecks.SwitchModeAsync(window, modeBefore));
+            if (rows != null) await RestoreAsync(() => rows.DisposeAsync().AsTask());
+            if (booru != null) await RestoreAsync(() => booru.DisposeAsync().AsTask());
+            if (cleanup.Count > 0)
+            {
+                if (failure != null) cleanup.Insert(0, failure);
+                throw new AggregateException("Work-view restoration failed.", cleanup);
+            }
         }
         int perPage = matrix == "full" ? Views.Length * Themes.Length : Views.Length + 1;
         int expected = pages.Length * Languages.Length * Sizes.Length * perPage
+            + (pages.Contains("booru") ? Languages.Length * Sizes.Length * perPage : 0) // both real Booru tabs
             + (pages.Contains("dialogs") ? Languages.Length * perPage : 0); // one board-admission capture per dialogs cell at the wide size
         if (cells.Count != expected)
             throw new InvalidOperationException($"The work-view matrix wrote {cells.Count} captures instead of {expected}.");
@@ -162,6 +195,9 @@ internal static class WorkViewCaptures
         await LeaveAsync(window);
         switch (page)
         {
+            case "booru":
+                await WorkViewBooruChecks.EnterAsync(window);
+                return;
             case "downloads":
                 Click(window.FindControl<Button>("DownloadsNavigationButton")!);
                 window.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = 0;
@@ -484,8 +520,7 @@ internal static class WorkViewCaptures
     private static void CheckRegistrations(MainWindow window)
     {
         _ = window.RulesPage; // builds every deferred page (Rules, Sources, Plugins), so their ids are registered before the check
-        Control[] mine = WorkViewElement.All().Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window)
-            || control.FindLogicalAncestorOfType<MainWindow>() == window).ToArray();
+        Control[] mine = WorkViewElement.All().Where(control => BelongsToWindow(control, window)).ToArray();
         HashSet<string> registered = mine.Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
@@ -497,6 +532,16 @@ internal static class WorkViewCaptures
         if (orphaned.Length > 0)
             throw new InvalidOperationException("Work-view rows without a registered control: " + string.Join(", ", orphaned));
         Console.WriteLine($"SMOKE work-views registrations: {registered.Count} ids registered, no orphaned policy row.");
+    }
+
+    private static bool BelongsToWindow(Control control, MainWindow window)
+    {
+        // SearchBox replaces a view-hidden scope chip with its magnifier. It still owns that exact chip;
+        // unrelated detached controls (or chips whose field belongs to another window) must not count.
+        Control owner = control is SearchScopeChip { Owner: { } field } chip && ReferenceEquals(field.ScopeChip, chip)
+            ? field : control;
+        return ReferenceEquals(TopLevel.GetTopLevel(owner), window)
+            || owner.FindLogicalAncestorOfType<MainWindow>() == window;
     }
 
     // The media page has no ActionToolBar: its header and selection bar keep what the view reduces under their own "More"
@@ -532,16 +577,17 @@ internal static class WorkViewCaptures
         Console.WriteLine($"SMOKE work-views media: view={view}; More=[{string.Join(", ", page.HeaderMoreIds)}].");
     }
 
-    // Pages the window builds lazily (EnsureDeferredWorkspacePages); their rows are checked once the page was entered.
+    // Pages the window builds lazily (deferred batch or Booru navigation); check their rows after the visit.
     // The gallery viewer exists only while a gallery is open (WorkViewGalleryChecks.CheckRegistrations runs against it).
-    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics, WorkViewPage.Gallery];
+    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics, WorkViewPage.Gallery, WorkViewPage.Booru];
 
     private static void CheckPageRegistrations(MainWindow window, string page)
     {
         if (!Enum.TryParse(page, ignoreCase: true, out WorkViewPage workViewPage) || !LazyPages.Contains(workViewPage)) return;
         if (workViewPage == WorkViewPage.Gallery) { WorkViewGalleryChecks.CheckRegistrations(window); return; }
+        if (workViewPage == WorkViewPage.Booru) { WorkViewBooruChecks.CheckRegistrations(window); return; }
         HashSet<string> registered = WorkViewElement.For(workViewPage)
-            .Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window) || control.FindLogicalAncestorOfType<MainWindow>() == window)
+            .Where(control => BelongsToWindow(control, window))
             .Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Page == workViewPage && entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
