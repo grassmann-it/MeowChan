@@ -32,7 +32,10 @@ public sealed class QuickSettingsTests : IDisposable
         Assert.Equal(new[]
         {
             SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReaderThumbnailWidth, SettingsFieldId.ReadingFontSize,
-            SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers, SettingsFieldId.ReaderPageSize
+            SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers, SettingsFieldId.ReaderPageSize,
+            SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
+            SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
+            SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs
         }, Reader.Fields.Select(field => field.Id));
         Assert.Equal(Reader.Fields.Count, Reader.Fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.True(QuickSettingsSurfaces.Contains(SettingsFieldId.ReaderPostWidth));

@@ -15,6 +15,14 @@ internal static class SettingsFieldId
     internal const string ReaderDateStyle = nameof(ReaderDateStyle);
     internal const string ReaderSpoilers = nameof(ReaderSpoilers);
     internal const string ReaderPageSize = nameof(ReaderPageSize);
+    internal const string ReadingHistoryLimit = nameof(ReadingHistoryLimit);
+    internal const string ReaderTextlessLargeImages = nameof(ReaderTextlessLargeImages);
+    internal const string ReaderTextlessMediaWidth = nameof(ReaderTextlessMediaWidth);
+    internal const string ReaderFocusedMediaEnlarge = nameof(ReaderFocusedMediaEnlarge);
+    internal const string ReaderFocusedMediaScalePercent = nameof(ReaderFocusedMediaScalePercent);
+    internal const string ReaderHoverEnlarge = nameof(ReaderHoverEnlarge);
+    internal const string ReaderHoverEnlargeSize = nameof(ReaderHoverEnlargeSize);
+    internal const string ReaderHoverEnlargeDelayMs = nameof(ReaderHoverEnlargeDelayMs);
 
     /// <summary>The suffix of an input control's name on the settings page.</summary>
     internal const string InputSuffix = "Input";
