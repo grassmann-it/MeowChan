@@ -31,10 +31,16 @@ public sealed class BooruWorkbenchViewContractTests
         Assert.True(typeof(IDisposable).IsAssignableFrom(typeof(BooruWorkbenchView)));
         string host = WindowSource();
         foreach (string required in new[] { "BooruWorkbenchWindow(BooruWorkbenchServices services)", "BooruWorkbenchWindow(BooruWorkbenchModel model, bool ownsModel)",
-            "Model => _view.Model", "ShowQuery(string query) => _view.ShowQuery(query)", "AddTagToSearch(string tag) => _view.AddTagToSearch(tag)",
-            "DialogFit.OnOpen(this)", "DialogFrame.Build(", "WindowChrome.Frame(this, _view)", "Closed += (_, _) => Dispose()", "_view.Dispose();" })
+            "Model => _view.Model", "ShowInMedia { get => _view.ShowInMedia; set => _view.ShowInMedia = value; }",
+            "IsPostSavedInMedia { get => _view.IsPostSavedInMedia; set => _view.IsPostSavedInMedia = value; }",
+            "ApplyWorkView(WorkView view, bool viewChanged) => _view.ApplyWorkView(view, viewChanged)",
+            "ShowQuery(string query) => _view.ShowQuery(query)", "AddTagToSearch(string tag) => _view.AddTagToSearch(tag)",
+            "DialogWindow.Configure(this, DialogSize.XL, modal: false);", "DialogWindow.Frame(this, _view, modal: false);",
+            "DialogFrame.Build(", "DialogFooter.Build(_close, status: notes)",
+            "DialogEscape.Attach(this, tryCancelLocal: CancelEscapeLocally);", "Closed += (_, _) => Dispose()", "_view.Dispose();" })
             Assert.Contains(required, host);
-        foreach (string forbidden in new[] { "Search.SubmitAsync", "Watchers.Changed", "Search.Changed", "DispatcherTimer", "Bitmap", "SKCodec", "Texts.Changed" })
+        foreach (string forbidden in new[] { "Search.SubmitAsync", "Watchers.Changed", "Search.Changed", "DispatcherTimer", "Bitmap", "SKCodec", "Texts.Changed",
+            "DialogFit.OnOpen(this)", "WindowChrome.Frame(this, _view)", "WindowChromeKind.Dialog", "Width = 1000", "MinWidth = 600" })
             Assert.DoesNotContain(forbidden, host);
         string view = ViewSource();
         foreach (string forbidden in new[] { "WindowChrome.", "DialogFrame.", "DialogFit.", "Close();", "SourceMediaIntegrityPermissions" })
@@ -61,6 +67,7 @@ public sealed class BooruWorkbenchViewContractTests
         string view = ViewSource();
         string activate = Between(view, "internal Task ActivateAsync()", "protected override void OnAttachedToVisualTree(");
         Assert.Contains("if (_closed) return Task.CompletedTask;", activate);
+        Assert.Contains("FocusSearchInput();", activate);
         Assert.Contains("if (_attached) _clock.Start();", activate);
         Assert.Contains("return _initialization ??= _model.InitializeAsync();", activate);
         string attach = Between(view, "protected override void OnAttachedToVisualTree(", "protected override void OnDetachedFromVisualTree(");
@@ -97,18 +104,22 @@ public sealed class BooruWorkbenchViewContractTests
     public void QueryClearAndEscapeDoNotSubmitAndKeepTheOriginalSafetyOrdering()
     {
         string host = WindowSource();
-        string escape = Between(host, "private void OnKeyDown(", "public void Dispose()");
-        Assert.Contains("if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;", escape);
-        Assert.Contains("e.Key == Key.Escape && !_view.IsModeDropDownOpen", escape);
-        Assert.Contains("e.KeyModifiers == KeyModifiers.None && SearchBox.OwnsEscape(e.Source) && _view.TryClearQuery()", escape);
-        Assert.Contains("if (!_view.TryCancelRemoval()) Close();", escape);
+        Assert.Contains("DialogEscape.Attach(this, tryCancelLocal: CancelEscapeLocally);", host);
+        Assert.Contains("private bool CancelEscapeLocally() =>", host);
+        Assert.Contains("ShortcutService.IsCapturing || _view.IsModeDropDownOpen || _view.TryCancelRemoval();", host);
+        Assert.DoesNotContain("private void OnKeyDown", host);
+        Assert.DoesNotContain("Key.Escape", host);
+
+        // The field owns the first Escape while it has text; the shared dialog policy receives the empty-field level.
+        string searchBox = ControlSource("SearchBox.cs");
+        Assert.Contains("if (HasText) { ClearAndFocus(); e.Handled = true; return; }", searchBox);
         string clear = Between(ViewSource(), "internal bool TryClearQuery()", "// ---- render");
         Assert.Contains("_input.ClearAndFocus();", clear);
         Assert.Contains("_model.Search.SetInput(_input.Text);", clear);
         Assert.Contains("!ReferenceEquals(_tabs.SelectedItem, _watchersTab)", clear);
         Assert.Contains("_model.Watchers.CancelRemoval(asking.WatcherId);", clear);
         foreach (string forbidden in new[] { "SubmitAsync(", "RetryAsync(", "LoadOriginalAsync(", "CheckNowAsync(", "Search.Cancel(" })
-            Assert.DoesNotContain(forbidden, clear + escape);
+            Assert.DoesNotContain(forbidden, clear);
     }
 
     [Fact]
@@ -149,6 +160,8 @@ public sealed class BooruWorkbenchViewContractTests
 
     private static string WindowSource() => Source("BooruWorkbenchWindow.cs");
     private static string ViewSource() => Source("BooruWorkbenchView.cs");
+    private static string ControlSource(string file, [CallerFilePath] string path = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../../Desktop/Controls", file)));
     private static string Source(string file, [CallerFilePath] string path = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../../Desktop/Views/Booru", file)));
 }
