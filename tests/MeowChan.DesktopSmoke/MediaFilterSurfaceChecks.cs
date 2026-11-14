@@ -274,6 +274,24 @@ internal static partial class MediaPageChecks
             state + ": applied chips or status moved or are hidden by the open section.");
         Require(page.GetVisualDescendants().OfType<Control>().All(control => control.Name != "MediaFilterClose") && surface.ZIndex == 0
             && !surface.Classes.Contains("workspace-overlay"), state + ": the media filter section must have no Close button and no overlay level.");
+        // M5: the fields stand in the column grid of this width, every combo under its label, nothing wider than the section, and the tab key
+        // walks down one column and on to the next.
+        await UntilAsync(() => { window.UpdateLayout(); return page.FilterGridColumns == MediaFilterGridLayout.Columns(page.Bounds.Width); });
+        Rect viewport = Bounds(scroll);
+        Control[] cells = page.FilterGrid.GetVisualDescendants().OfType<Control>().Where(control => control is ComboBox or CheckBox && control.IsEffectivelyVisible).ToArray();
+        Require(cells.Length >= 2 && cells.All(cell => Bounds(cell).Left >= viewport.Left - 1 && Bounds(cell).Right <= viewport.Right + 1),
+            state + ": a filter field is wider than the section (" + page.FilterGridColumns + " columns): " + string.Join(" ", cells.Select(cell => cell.Name + Bounds(cell))));
+        TextBlock[] labels = page.FilterGrid.GetVisualDescendants().OfType<TextBlock>().Where(text => text.Classes.Contains("workspace-field-label") && text.IsEffectivelyVisible).ToArray();
+        Require(labels.Length >= 1 && labels.All(label => !string.IsNullOrWhiteSpace(label.Text) && Bounds(label).Right <= viewport.Right + 1)
+            && cells.OfType<ComboBox>().All(combo => combo.HorizontalAlignment == Avalonia.Layout.HorizontalAlignment.Stretch
+                && labels.Any(label => Math.Abs(Bounds(label).Left - Bounds(combo).Left) <= 1 && Bounds(label).Bottom <= Bounds(combo).Top + 1)),
+            state + ": a combo has no label above it or is not stretched to its column.");
+        for (int index = 1; index < cells.Length; index++)
+        {
+            Point before = Bounds(cells[index - 1]).TopLeft, at = Bounds(cells[index]).TopLeft;
+            Require((Math.Abs(at.X - before.X) <= 1 && at.Y > before.Y) || (at.X > before.X + 1 && at.Y < before.Y + 1),
+                state + ": the field order is not column by column at " + cells[index].Name + ": " + before + " then " + at);
+        }
         // Long content scrolls inside the surface; the last field stays reachable.
         Button reset = C<Button>(page, "MediaTagAdd"); // the last field of the section since M5 (the tag button; the reset button is gone)
         scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
