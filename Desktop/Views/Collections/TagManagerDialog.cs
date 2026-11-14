@@ -192,7 +192,7 @@ internal sealed class TagManagerDialog : Window
         Title = Texts.T("tags.manage.title");
         _intro.Text = Texts.T("tags.manage.intro");
         AutomationProperties.SetName(_list, Texts.T("tags.manage.list"));
-        _name.Watermark = Texts.T("tags.manage.name");
+        _name.PlaceholderText = Texts.T("tags.manage.name");
         AutomationProperties.SetName(_name, Texts.T("tags.manage.name"));
         void Label(Button button, string key) { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         Label(_rename, "tags.manage.rename"); Label(_delete, "tags.manage.delete");

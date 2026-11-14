@@ -42,6 +42,8 @@ public sealed class BooruPreviewHttp : IDisposable
 
     /// <param name="transport">Borrowed transport; it must not follow redirects and must not attach credentials.</param>
     /// <param name="source">The post-search source whose declared preview hosts form the allowlist.</param>
+    /// <param name="productVersion">Product version for the User-Agent; null uses <see cref="BooruUserAgent.ProductVersion"/>.</param>
+    /// <param name="timeProvider">Time provider for the response deadline; null uses <see cref="TimeProvider.System"/>.</param>
     public BooruPreviewHttp(HttpClient transport, SourceDescription source, string? productVersion = null,
         TimeProvider? timeProvider = null)
     {

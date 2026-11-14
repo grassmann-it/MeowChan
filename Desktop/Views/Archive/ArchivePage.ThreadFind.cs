@@ -189,7 +189,7 @@ public partial class ArchivePage
     private void LocalizeThreadFind()
     {
         ReaderFindOpen.Content = Texts.T("readerFind.open");
-        ReaderFindQuery.Watermark = Texts.T("readerFind.query");
+        ReaderFindQuery.PlaceholderText = Texts.T("readerFind.query");
         ReaderFindPrevious.Content = Texts.T("readerFind.previous");
         ReaderFindNext.Content = Texts.T("readerFind.next");
         ReaderFindClose.Content = Texts.T("readerFind.close");
