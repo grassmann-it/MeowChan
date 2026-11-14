@@ -1,7 +1,6 @@
 using Pointer = Avalonia.Input.Pointer;
 using System.ComponentModel;
 using System.Reflection;
-using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -356,7 +355,7 @@ internal static class DiagnosticsScopedRetryChecks
         grid.AddHandler(InputElement.GotFocusEvent, ObserveFocus, RoutingStrategies.Bubble, handledEventsToo: true);
         try
         {
-            await NativeRightClickAsync(native, window, rowPoint);
+            await native.RightClickAsync(window, rowPoint);
             // Opening the popup may move focus onward to its menu. Observe the actual
             // grid focus transition during the press, not an incidental final owner.
             await Program.WaitUntilAsync(() => rowPressed && rowFocused && grid.ContextMenu!.IsOpen,
@@ -386,7 +385,7 @@ internal static class DiagnosticsScopedRetryChecks
             }, () => $"no visible blank diagnostic viewport after single-row filter; grid={grid.Bounds}; client={window.ClientSize}");
             Require(grid.SelectedItems.Count == 1 && query.IsKeyboardFocusWithin,
                 "Native blank gesture did not start with a selected row and focus outside the grid.");
-            await NativeRightClickAsync(native, window, blankPoint);
+            await native.RightClickAsync(window, blankPoint);
             await Program.WaitUntilAsync(() => blankPressed && grid.SelectedItems.Count == 0 && !grid.ContextMenu!.IsOpen,
                 () => $"blankPress={blankPressed}; selected={grid.SelectedItems.Count}; menu={grid.ContextMenu!.IsOpen}");
             Require(query.IsKeyboardFocusWithin, "Native blank context click stole focus from the filter.");
@@ -412,63 +411,5 @@ internal static class DiagnosticsScopedRetryChecks
         return result;
     }
 
-    // MediaNativeInput supplies the safety gate, native movement and left-button focus
-    // click. Keep this test-local right-button adapter here (shared helper is out of scope).
-    private static async Task NativeRightClickAsync(MediaNativeInput native, Window window, Point point)
-    {
-        await native.MoveAsync(window, point);
-        Require(window.IsActive, "Refusing native diagnostic input: the harness window is not active.");
-        nint display = OperatingSystem.IsLinux() ? XOpenDisplay(0) : 0;
-        if (OperatingSystem.IsLinux()) Require(display != 0, "Cannot open private diagnostic X display.");
-        void Send(bool down)
-        {
-            if (OperatingSystem.IsLinux())
-            {
-                Require(XTestFakeButtonEvent(display, 3, down ? 1 : 0, 0) != 0, "XTEST rejected diagnostic right button.");
-                XSync(display, 0);
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                WinInput input = new() { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = down ? 0x0008u : 0x0010u } } };
-                Require(SendInput(1, new[] { input }, Marshal.SizeOf<WinInput>()) == 1, "SendInput rejected diagnostic right button.");
-            }
-            else if (OperatingSystem.IsMacOS())
-            {
-                PixelPoint pixel = window.PointToScreen(point);
-                var screen = window.Screens.All.Single(); // Mapping validated by MediaNativeInput.MoveAsync.
-                MacRect bounds = CGDisplayBounds(CGMainDisplayID());
-                MacPoint location = new(bounds.X + (pixel.X - screen.Bounds.X) / screen.Scaling,
-                    bounds.Y + (pixel.Y - screen.Bounds.Y) / screen.Scaling);
-                nint e = CGEventCreateMouseEvent(0, down ? 3u : 4u, location, 1);
-                Require(e != 0, "Cannot create diagnostic right-button CGEvent.");
-                try { CGEventPost(0, e); } finally { CFRelease(e); }
-            }
-            else throw new PlatformNotSupportedException("No native diagnostic right-button backend; no synthetic fallback.");
-        }
-        try
-        {
-            try { Send(true); await Task.Delay(40); }
-            finally { Send(false); } // Never leave an OS button held, including a failed assertion/press.
-            await Task.Delay(90);
-        }
-        finally { if (display != 0) XCloseDisplay(display); }
-    }
-
-    [StructLayout(LayoutKind.Sequential)] private struct WinMouse { internal int X, Y; internal uint Data, Flags, Time; internal nuint Extra; }
-    [StructLayout(LayoutKind.Explicit)] private struct WinInputUnion { [FieldOffset(0)] internal WinMouse Mouse; }
-    [StructLayout(LayoutKind.Sequential)] private struct WinInput { internal uint Type; internal WinInputUnion Data; }
-    [DllImport("user32.dll")] private static extern uint SendInput(uint count, WinInput[] inputs, int size);
-    [DllImport("libX11.so.6")] private static extern nint XOpenDisplay(nint name);
-    [DllImport("libX11.so.6")] private static extern int XCloseDisplay(nint display);
-    [DllImport("libX11.so.6")] private static extern int XSync(nint display, int discard);
-    [DllImport("libXtst.so.6")] private static extern int XTestFakeButtonEvent(nint display, uint button, int down, nuint delay);
-    [StructLayout(LayoutKind.Sequential)] private readonly record struct MacPoint(double X, double Y);
-    [StructLayout(LayoutKind.Sequential)] private readonly record struct MacRect(double X, double Y, double Width, double Height);
-    private const string CG = "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics";
-    [DllImport(CG)] private static extern uint CGMainDisplayID();
-    [DllImport(CG)] private static extern MacRect CGDisplayBounds(uint display);
-    [DllImport(CG)] private static extern nint CGEventCreateMouseEvent(nint source, uint type, MacPoint position, uint button);
-    [DllImport(CG)] private static extern void CGEventPost(uint tap, nint e);
-    [DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")] private static extern void CFRelease(nint value);
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

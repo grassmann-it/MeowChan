@@ -142,7 +142,7 @@ internal static partial class SmokeScenarios
         Root("first-run-setup", "MEOWCHAN_FIRST_RUN_SETUP_ONLY", "first-profile setup: EN/DE Light/Dark explicit accept/Later/X/errors/probe retirement; private fixtures, no package claim"),
         Root("preference-startup", "MEOWCHAN_PREFERENCE_STARTUP_ONLY", "startup preferences: private held-restore/Ready/native column input/reopen, current source; platform limits explicit"),
         Root("native-drain-boundary", "MEOWCHAN_NATIVE_DRAIN_BOUNDARY_ONLY", "native drain boundary: a faulted native gallery cleanup keeps the shell open and the profile lease held against a second process; the lease is free after the child ends; no decoder"),
-        Root("compact-diagnostics", "MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY", "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; routed harness input"),
+        Root("compact-diagnostics", "MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY", "compact and diagnostics: all-mode projection, frozen scope/revalidation/context/acknowledgement; native XTest/SendInput/CGEvent row-and-blank pointer/focus check on an explicitly disposable desktop plus managed checks"),
         Root("gallery-error", "MEOWCHAN_GALLERY_ERROR_ONLY", "gallery diagnostics-only notices: central acknowledgement, no transport/focus/autohide side effects; true failure safe") with { NightlyEnvironment = [Video] },
         Root("feedback", "MEOWCHAN_FEEDBACK_ONLY", "feedback: real rendered banner/toast dismissal, matching duplicates, queue, stale close and passive expiry"),
         Root("gallery-playback-features", "MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY", env => env("MEOWCHAN_GALLERY_EDGE_ONLY") == "1"

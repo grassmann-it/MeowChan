@@ -11,7 +11,7 @@ internal sealed class MediaNativeInput : IDisposable
     private readonly Window _owner;
     private int _x, _y;
     private readonly HashSet<uint> _heldKeys = new();
-    private bool _buttonHeld;
+    private uint _heldButton;
     internal const ulong Left = 0xff51, Right = 0xff53, Up = 0xff52, Down = 0xff54, Enter = 0xff0d, Tab = 0xff09, Escape = 0xff1b, Space = 0x20, ControlLeft = 0xffe3, ShiftLeft = 0xffe1, F6 = 0xffc3, Home = 0xff50, End = 0xff57, F7 = 0xffc4, F8 = 0xffc5;
     internal string Backend => OperatingSystem.IsWindows() ? "Windows Win32 SendInput; explicit disposable desktop"
         : OperatingSystem.IsMacOS() ? "macOS CGEvent; explicit disposable single-display desktop" : "X11 XTest (libXtst.so.6); private Xvfb; Linux software video";
@@ -66,7 +66,7 @@ internal sealed class MediaNativeInput : IDisposable
                     throw new PlatformNotSupportedException("Ambiguous Quartz/Avalonia display coordinate mapping.");
                 _macPoint = new(bounds.X + (pixel.X - screenInfo.Bounds.X) / screenInfo.Scaling,
                     bounds.Y + (pixel.Y - screenInfo.Bounds.Y) / screenInfo.Scaling);
-                PostMouse(_buttonHeld ? 6u : 5u);
+                PostMouse(_heldButton != 0 ? 6u : 5u);
             }
             await Task.Delay(70); return;
         }
@@ -84,13 +84,31 @@ internal sealed class MediaNativeInput : IDisposable
         await ButtonAsync(true); await ButtonAsync(false);
     }
 
-    internal async Task ButtonAsync(bool down)
+    internal async Task RightClickAsync(Control target, Point? point = null)
     {
-        if (down) EnsureOwnActiveWindow();
-        if (_display != 0) Require(XTestFakeButtonEvent(_display, 1, down ? 1 : 0, 0));
-        else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = down ? 0x0002u : 0x0004u } } });
-        else PostMouse(down ? 1u : 2u);
-        _buttonHeld = down; Flush(); await Task.Delay(down ? 40 : 90);
+        if (!target.IsEffectivelyEnabled) throw new InvalidOperationException("Native click target is disabled: " + target.Name);
+        await MoveAsync(target, point);
+        try { await ButtonAsync(3, true); }
+        finally { if (_heldButton == 3) await ButtonAsync(3, false); }
+    }
+
+    internal Task ButtonAsync(bool down) => ButtonAsync(1, down);
+
+    private async Task ButtonAsync(uint button, bool down)
+    {
+        if (down)
+        {
+            EnsureOwnActiveWindow();
+            if (_heldButton != 0) throw new InvalidOperationException("Native input already holds mouse button " + _heldButton + ".");
+            // Mark before dispatch so Dispose can release even if the native call throws
+            // after the OS accepted the down event.
+            _heldButton = button;
+        }
+        if (_display != 0) Require(XTestFakeButtonEvent(_display, button, down ? 1 : 0, 0));
+        else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = button == 3 ? (down ? 0x0008u : 0x0010u) : (down ? 0x0002u : 0x0004u) } } });
+        else PostMouse(down ? (button == 3 ? 3u : 1u) : (button == 3 ? 4u : 2u), button == 3 ? 1u : 0u);
+        if (!down) _heldButton = 0;
+        Flush(); await Task.Delay(down ? 40 : 90);
     }
 
     internal async Task KeyAsync(ulong key, bool modified = false)
@@ -136,11 +154,13 @@ internal sealed class MediaNativeInput : IDisposable
             else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 1, Data = new WinInputUnion { Keyboard = new WinKeyboard { VirtualKey = (ushort)code, Flags = 2 | (IsExtendedWindowsKey(code) ? 1u : 0u) } } });
             else PostMac(CGEventCreateKeyboardEvent(0, (ushort)code, false));
         }
-        if (_buttonHeld)
+        if (_heldButton != 0)
         {
-            if (_display != 0) XTestFakeButtonEvent(_display, 1, 0, 0);
-            else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = 4 } } });
-            else PostMouse(2);
+            uint button = _heldButton;
+            if (_display != 0) XTestFakeButtonEvent(_display, button, 0, 0);
+            else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = button == 3 ? 0x0010u : 0x0004u } } });
+            else PostMouse(button == 3 ? 4u : 2u, button == 3 ? 1u : 0u);
+            _heldButton = 0;
         }
         Flush(); if (_display != 0) XCloseDisplay(_display);
     }
@@ -173,7 +193,7 @@ internal sealed class MediaNativeInput : IDisposable
     [StructLayout(LayoutKind.Sequential)] private readonly record struct MacPoint(double X, double Y);
     [StructLayout(LayoutKind.Sequential)] private readonly record struct MacRect(double X, double Y, double Width, double Height);
     private MacPoint _macPoint;
-    private void PostMouse(uint type) => PostMac(CGEventCreateMouseEvent(0, type, _macPoint, 0));
+    private void PostMouse(uint type, uint button = 0) => PostMac(CGEventCreateMouseEvent(0, type, _macPoint, button));
     private void PostMac(nint e)
     {
         if (e == 0) throw new InvalidOperationException("CGEvent creation failed.");
