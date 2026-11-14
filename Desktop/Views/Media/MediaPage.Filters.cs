@@ -120,6 +120,7 @@ public sealed partial class MediaPage
     private void FilterEdited()
     {
         if (_localizing) return;
+        NoteBooruHandoffInteraction();
         // This pass reads the name as typed; a debounced run for the same text would only repeat it.
         _nameFilter.CancelPendingQuery();
         RenderFilterChips();

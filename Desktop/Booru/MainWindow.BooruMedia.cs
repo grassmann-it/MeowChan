@@ -58,13 +58,16 @@ public partial class MainWindow
         BooruWorkbenchServices services = sourcePage.Services;
         if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return false;
         Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();
+        Func<bool> interactionCurrent = page.CaptureBooruHandoffInteraction();
         bool Current() => navigationCurrent() && CanOpenBooru
             && ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services);
         // This is a local page-to-page handoff. If navigation or source composition changes
         // while Media activates, the old click must not reset the user's new filters or focus.
         Activate();
         await page.ActivateAsync().ConfigureAwait(true);
-        if (!Current()) return false;
+        // The user may have edited the still-visible library while activation rebuilt its index.
+        // Those edits win over the old Booru click. The page's present/focus guard takes over below.
+        if (!Current() || !interactionCurrent()) return false;
         bool shown = await page.ShowBooruPostAsync(postId, Current).ConfigureAwait(true);
         return Current() && shown;
     }

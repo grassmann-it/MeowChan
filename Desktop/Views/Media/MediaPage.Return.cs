@@ -19,6 +19,22 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private object? _returnRun;
+    private long _booruHandoffInteractionRevision;
+
+    // Unlike the present/focus guard, this spans an expected activation/build. Refreshing the
+    // index may replace snapshots and tasks; only a user edit/selection or ending the page revokes it.
+    internal Func<bool> CaptureBooruHandoffInteraction()
+    {
+        long interaction = _booruHandoffInteractionRevision;
+        long selection = _selectionStamp;
+        return () => !_lifetime.IsCancellationRequested
+            && interaction == _booruHandoffInteractionRevision && selection == _selectionStamp;
+    }
+
+    private void NoteBooruHandoffInteraction()
+    {
+        if (!_localizing) ++_booruHandoffInteractionRevision;
+    }
 
     /// <summary>The page's state for the way back, taken before <see cref="ShowInThread"/> leaves it.</summary>
     internal MediaLibraryReturnPoint CaptureReturnPoint(MediaLibraryEntry occurrence)
@@ -52,7 +68,11 @@ public sealed partial class MediaPage
     }
 
     /// <summary>Ends a pending second restore, e.g. when a gallery opened from this page now owns selection and focus.</summary>
-    internal void EndPendingReturn() => _returnRun = null;
+    internal void EndPendingReturn()
+    {
+        _returnRun = null;
+        NoteBooruHandoffInteraction();
+    }
 
     /// <summary>Focuses exactly one already-present tile, without falling back to an ID substring or a neighbouring tile.</summary>
     internal Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
@@ -126,7 +146,14 @@ public sealed partial class MediaPage
     // Any own input on the page ends a pending second restore: the user has taken over.
     private void InstallReturnInterruption()
     {
-        void Interrupt(object? sender, RoutedEventArgs e) => _returnRun = null;
+        void Interrupt(object? sender, RoutedEventArgs e)
+        {
+            _returnRun = null;
+            NoteBooruHandoffInteraction();
+        }
+        // Text may arrive through IME/accessibility without a key event, before the debounced query.
+        _nameFilter.TextChanged += (_, _) => NoteBooruHandoffInteraction();
+        _sort.SelectionChanged += (_, _) => NoteBooruHandoffInteraction();
         AddHandler(PointerPressedEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(PointerWheelChangedEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, Interrupt, RoutingStrategies.Tunnel, handledEventsToo: true);
