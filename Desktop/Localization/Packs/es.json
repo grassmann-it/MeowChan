@@ -3655,6 +3655,21 @@
     "tags.quick.reason.sameFileIn": "mismo archivo en {0}",
     "tags.quick.reason.fileName": "del nombre de archivo",
     "tags.quick.reason.title": "del título del hilo",
-    "tags.quick.reason.sourceTag": "etiqueta de origen"
+    "tags.quick.reason.sourceTag": "etiqueta de origen",
+    "budgets.group.quickTag": "Etiquetado rápido",
+    "budgets.quickTagSuggestions": "Sugerencias de etiquetas mostradas",
+    "budgets.quickTagSuggestionsHint": "Cuántos chips de sugerencias muestra el campo de etiquetado rápido mientras está vacío. Solo los nueve primeros tienen una tecla numérica. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagRecent": "Etiquetas recientes recordadas",
+    "budgets.quickTagRecentHint": "Cuántas etiquetas propias usadas recientemente se recuerdan hasta que se cierra la aplicación y aparecen más arriba en las sugerencias. 0 lo desactiva. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagUndo": "Pasos para deshacer cambios de etiquetas",
+    "budgets.quickTagUndoHint": "Cuántos cambios de etiquetas de un mismo panel se pueden deshacer uno tras otro. Los pasos más antiguos se descartan. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagNeighbours": "Medios cercanos revisados para buscar etiquetas",
+    "budgets.quickTagNeighboursHint": "Cuántas entradas de medios alrededor de la mostrada se revisan para buscar etiquetas adecuadas. Un valor mayor encuentra más, pero tarda más en listas muy grandes. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagFilename": "Palabras del nombre de archivo usadas para etiquetas",
+    "budgets.quickTagFilenameHint": "Cuántas palabras del nombre de archivo y del título se comparan con sus etiquetas propias. 0 desactiva la comparación de palabras. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagSourceTags": "Etiquetas de origen por archivo multimedia",
+    "budgets.quickTagSourceTagsHint": "Cuántas de las etiquetas que una fuente como Danbooru indica para un archivo multimedia se ofrecen como nuevas etiquetas propias. 0 las desactiva. Predeterminado: {0}, permitido: de {1} a {2}.",
+    "budgets.quickTagMarked": "Medios marcados para etiquetar",
+    "budgets.quickTagMarkedHint": "Cuántos medios se pueden marcar en la galería y etiquetar en un solo paso. El archivo de etiquetas mantiene su propio límite fijo de asignaciones. Predeterminado: {0}, permitido: de {1} a {2}."
   }
 }

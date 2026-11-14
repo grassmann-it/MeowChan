@@ -3655,6 +3655,21 @@
     "tags.quick.reason.sameFileIn": "même fichier dans {0}",
     "tags.quick.reason.fileName": "du nom de fichier",
     "tags.quick.reason.title": "du titre du fil",
-    "tags.quick.reason.sourceTag": "étiquette source"
+    "tags.quick.reason.sourceTag": "étiquette source",
+    "budgets.group.quickTag": "Étiquetage rapide",
+    "budgets.quickTagSuggestions": "Suggestions d’étiquettes affichées",
+    "budgets.quickTagSuggestionsHint": "Le nombre de pastilles de suggestion affichées par le champ d’étiquetage rapide lorsqu’il est vide. Seules les neuf premières ont une touche numérique. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagRecent": "Étiquettes récentes mémorisées",
+    "budgets.quickTagRecentHint": "Le nombre d’étiquettes personnelles récemment utilisées qui sont mémorisées jusqu’à la fermeture de l’application et placées plus haut dans les suggestions. 0 désactive cette fonction. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagUndo": "Étapes d’annulation des changements d’étiquettes",
+    "budgets.quickTagUndoHint": "Le nombre de changements d’étiquettes d’un même panneau qui peuvent être annulés successivement. Les étapes les plus anciennes sont abandonnées. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagNeighbours": "Médias voisins examinés pour les étiquettes",
+    "budgets.quickTagNeighboursHint": "Le nombre d’entrées de médias autour de celle affichée qui sont examinées pour trouver des étiquettes adaptées. Une valeur plus élevée en trouve davantage, mais prend plus de temps dans les très grandes listes. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagFilename": "Mots du nom de fichier utilisés pour les étiquettes",
+    "budgets.quickTagFilenameHint": "Le nombre de mots du nom de fichier et du titre comparés à vos étiquettes personnelles. 0 désactive la comparaison des mots. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagSourceTags": "Étiquettes source par média",
+    "budgets.quickTagSourceTagsHint": "Le nombre d’étiquettes qu’une source telle que Danbooru fournit pour un média et qui sont proposées comme nouvelles étiquettes personnelles. 0 les désactive. Par défaut : {0}, autorisé : de {1} à {2}.",
+    "budgets.quickTagMarked": "Médias marqués pour l’étiquetage",
+    "budgets.quickTagMarkedHint": "Le nombre de médias qui peuvent être marqués dans la galerie et étiquetés en une seule étape. Le fichier d’étiquettes conserve sa propre limite fixe d’attributions. Par défaut : {0}, autorisé : de {1} à {2}."
   }
 }
