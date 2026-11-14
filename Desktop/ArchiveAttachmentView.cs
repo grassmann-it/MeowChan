@@ -68,7 +68,6 @@ public sealed class ArchiveAttachmentView : UserControl
     // the star of a favourite, the GIF chip and a missing file. Not hit-testable, not in the accessibility tree: the picture button stays the
     // click target at any size and carries the words (MediaBadgeText.Describe).
     private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
-    private ArchiveBadgeDescription _badgeText;
     private bool _missing;
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     // It takes the block's width and wraps to two lines, then trims (one trimmed line in a compact list row): a long name never widens the block beyond the picture.
@@ -369,7 +368,7 @@ public sealed class ArchiveAttachmentView : UserControl
     // did not change (the view compares, the sentence is cached).
     private void UpdateBadges(ArchiveAttachmentRow? row)
     {
-        if (row == null) { _badges.Clear(); _badgeText.Reset(); return; }
+        if (row == null) { _badges.Clear(); return; }
         _badges.Apply(ArchiveMediaBadges.ForAttachment(row, _missing), _slot.PictureSize);
     }
 
@@ -409,7 +408,7 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         bool inline = row != null && InlineVideoOffered;
         // MB1b: what the badges show (favourite, video or GIF, file missing) is part of the button's name and help, as one short sentence.
-        string badges = row == null ? string.Empty : _badgeText.Get(_badges.State, _badges.Options);
+        string badges = row == null ? string.Empty : MediaBadgeSentences.Get(_badges.State, _badges.Options);
         Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
             ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))
             : row?.Label ?? string.Empty, badges, "\n"));

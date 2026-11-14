@@ -882,6 +882,10 @@ namespace MeowChan
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
+            // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
+            MediaBadgeCollapseBelow = Math.Clamp(MediaBadgeCollapseBelow, MediaBadgeCollapseBelowMinimum, MediaBadgeCollapseBelowMaximum);
+            MediaBadgeHideBelow = Math.Clamp(MediaBadgeHideBelow, MediaBadgeHideBelowMinimum, MediaBadgeHideBelowMaximum);
+            MediaBadgeMaxPerCorner = Math.Clamp(MediaBadgeMaxPerCorner, MediaBadgeMaxPerCornerMinimum, MediaBadgeMaxPerCornerMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.

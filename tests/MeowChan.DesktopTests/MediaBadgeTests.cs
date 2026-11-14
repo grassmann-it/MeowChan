@@ -808,6 +808,173 @@ public sealed class MediaBadgeTests : IDisposable
         Assert.Contains("MediaBadgeLimits.Configure(Config)", File.ReadAllText(Path.Combine(RepoRoot(), "Desktop", "DesktopSessionHost.Favorites.cs")));
     }
 
+    // ---- AP6: live limits, clamp, shared sentence cache, caches ----
+
+    [Fact]
+    public void ADrawnViewFollowsNewLimitsWithoutANewApplyAndTellsItsOwner()
+    {
+        MediaBadgeView view = new();
+        MediaBadgeState state = new(Missing: true);
+        int refreshed = 0;
+        view.PlanRefreshed += () => refreshed++;
+        view.Apply(state, new Size(40, 40), Everything);
+        Assert.Equal(MediaBadgeMode.Dots, view.Plan.Mode);
+
+        int generation = MediaBadgeLimits.Generation;
+        view.RefreshForLimits();                                         // nothing changed: nothing drawn again
+        Assert.Equal(0, refreshed);
+        MediaBadgeLimits.Configure(24, 16, 2);
+        Assert.Equal(generation + 1, MediaBadgeLimits.Generation);
+        view.RefreshForLimits();
+        Assert.Equal(MediaBadgeMode.Full, view.Plan.Mode);
+        Assert.Equal(1, refreshed);
+        view.RefreshForLimits();
+        Assert.Equal(1, refreshed);                                       // once per change
+
+        MediaBadgeLimits.Configure(96, 64, 2);
+        view.RefreshForLimits();
+        Assert.Equal(MediaBadgeMode.Hidden, view.Plan.Mode);
+        Assert.False(view.IsVisible);
+
+        // A view that was never drawn has nothing to refresh.
+        MediaBadgeView fresh = new();
+        MediaBadgeLimits.Configure(48, 32, 2);
+        fresh.RefreshForLimits();
+        Assert.Same(MediaBadgePlan.Empty, fresh.Plan);
+    }
+
+    [Fact]
+    public void ConfiguringTheSameLimitsAgainChangesNothingAndRaisesNothing()
+    {
+        int raised = 0;
+        Action handler = () => raised++;
+        MediaBadgeLimits before = MediaBadgeLimits.Current;
+        int generation = MediaBadgeLimits.Generation;
+        MediaBadgeLimits.Changed += handler;
+        try
+        {
+            MediaBadgeLimits.Configure(before.CollapseBelow, before.HideBelow, before.MaxPerCorner);
+            MediaBadgeLimits.Configure(before.CollapseBelow, before.HideBelow, before.MaxPerCorner);
+            Assert.Equal(0, raised);
+            Assert.Equal(generation, MediaBadgeLimits.Generation);
+            Assert.Same(before, MediaBadgeLimits.Current);               // the views compare by reference: no redraw of a whole window
+            MediaBadgeLimits.Configure(60, 20, 3);
+            Assert.Equal(1, raised);
+        }
+        finally { MediaBadgeLimits.Changed -= handler; }
+    }
+
+    [Fact]
+    public void ARefreshOfAnUnchangedViewAllocatesNothing()
+    {
+        MediaBadgeView view = new();
+        MediaBadgeState state = Full;
+        view.Apply(state, new Size(120, 90), MediaBadgeOptions.MediaPage);
+        for (int index = 0; index < 100; index++) { view.Apply(state, new Size(120, 90), MediaBadgeOptions.MediaPage); view.RefreshForLimits(); }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 50_000; index++) { view.Apply(state, new Size(120, 90), MediaBadgeOptions.MediaPage); view.RefreshForLimits(); }
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated <= 4096, $"50 000 unchanged applications allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void AnOutOfRangeSavedBadgeLimitIsClampedWhenTheProfileLoadsAndTheProfileStaysValid()
+    {
+        string directory = Directory.CreateTempSubdirectory("meowchan-badges-clamp-").FullName;
+        try
+        {
+            foreach ((string name, int stored, int expected) in new[]
+            {
+                (nameof(Config.MediaBadgeCollapseBelow), 500, Config.MediaBadgeCollapseBelowMaximum),
+                (nameof(Config.MediaBadgeCollapseBelow), 3, Config.MediaBadgeCollapseBelowMinimum),
+                (nameof(Config.MediaBadgeHideBelow), 999, Config.MediaBadgeHideBelowMaximum),
+                (nameof(Config.MediaBadgeHideBelow), -4, Config.MediaBadgeHideBelowMinimum),
+                (nameof(Config.MediaBadgeMaxPerCorner), 9, Config.MediaBadgeMaxPerCornerMaximum),
+                (nameof(Config.MediaBadgeMaxPerCorner), 0, Config.MediaBadgeMaxPerCornerMinimum)
+            })
+            {
+                Config config = Config.LoadConfig(directory);
+                config.SaveConfig(directory);
+                string path = Directory.EnumerateFiles(directory, "*.json").First(file => File.ReadAllText(file).Contains(name));
+                File.WriteAllText(path, System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(path),
+                    "\"" + name + "\"\\s*:\\s*-?\\d+", "\"" + name + "\": " + stored));
+                Config loaded = Config.LoadConfig(directory);
+                Assert.Equal(expected, (int)typeof(Config).GetProperty(name)!.GetValue(loaded)!);
+                loaded.Validate();                                        // the profile is valid, not a fallback to a backup or the defaults
+            }
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public void TheSharedSentenceCacheGivesTheDescribeOutputAndTheSameInstanceForTheSameKey()
+    {
+        MediaBadgeOptions[] surfaces = [MediaBadgeOptions.MediaPage, MediaBadgeOptions.TaggingGrid, MediaBadgeOptions.Archive, MediaBadgeOptions.ArchiveTile, MediaBadgeOptions.Filmstrip, MediaBadgeOptions.Everything];
+        MediaBadgeState[] states = [default, Full, new(Favorite: true), new(TagCount: 0), new(Kind: MediaBadgeKind.Video, TagCount: 3, Tagging: MediaTaggingState.Done), new(Booru: true, Rating: 4)];
+        foreach (string language in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(language);
+            foreach (MediaBadgeOptions options in surfaces)
+                foreach (MediaBadgeState state in states)
+                {
+                    string expected = MediaBadgeText.Describe(state, options);
+                    string first = MediaBadgeSentences.Get(state, options);
+                    Assert.Equal(expected, first);
+                    Assert.Same(first, MediaBadgeSentences.Get(state, options));
+                }
+        }
+        // The language is part of the key: the same state reads in the language in force.
+        Texts.SetLanguage("en");
+        Assert.Equal("Favorite", MediaBadgeSentences.Get(new MediaBadgeState(Favorite: true), MediaBadgeOptions.Everything));
+        Texts.SetLanguage("de");
+        Assert.Equal("Favorit", MediaBadgeSentences.Get(new MediaBadgeState(Favorite: true), MediaBadgeOptions.Everything));
+    }
+
+    [Fact]
+    public void TheSharedSentenceCacheStaysBounded()
+    {
+        Texts.SetLanguage("en");
+        for (int seconds = 0; seconds < MediaBadgeSentences.CapacityLimit * 3; seconds++)
+        {
+            MediaBadgeState state = new(Kind: MediaBadgeKind.Video, Duration: TimeSpan.FromSeconds(seconds));
+            Assert.Equal(MediaBadgeText.Describe(state, MediaBadgeOptions.Everything), MediaBadgeSentences.Get(state, MediaBadgeOptions.Everything));
+            Assert.True(MediaBadgeSentences.Count <= MediaBadgeSentences.CapacityLimit);
+        }
+    }
+
+    [Fact]
+    public void TheSharedSentenceCacheAllocatesNothingForAKnownKey()
+    {
+        MediaBadgeState state = Full;
+        string sentence = MediaBadgeSentences.Get(state, MediaBadgeOptions.MediaPage);
+        for (int index = 0; index < 100; index++) _ = MediaBadgeSentences.Get(state, MediaBadgeOptions.MediaPage);
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 50_000; index++)
+            if (!ReferenceEquals(sentence, MediaBadgeSentences.Get(state, MediaBadgeOptions.MediaPage))) throw new Xunit.Sdk.XunitException("built again");
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.True(allocated <= 4096, $"50 000 cached lookups allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void ThereIsOneSentenceCacheAndTheViewKeepsThePen()
+    {
+        string root = RepoRoot();
+        foreach (string file in new[] { "Desktop/ArchiveMediaBadges.cs", "Desktop/MediaLibraryBadges.cs", "Desktop/Views/Tagging/TaggingTileBadges.cs" })
+        {
+            string source = File.ReadAllText(Path.Combine(root, file));
+            Assert.DoesNotContain("MediaLibraryBadgeSentence", source);
+            Assert.DoesNotContain("ArchiveBadgeDescription", source);
+            Assert.DoesNotContain("_described", source);
+        }
+        string badges = File.ReadAllText(Path.Combine(root, "Desktop", "Controls", "MediaBadges.cs"));
+        Assert.Contains("UntaggedPens", badges);
+        Assert.DoesNotContain("Pen pen = new(", badges);
+        Assert.Contains("MediaBadgeLimits.Changed += _limitsChanged", badges);
+        Assert.Contains("MediaBadgeLimits.Changed -= _limitsChanged", badges);
+        string tile = File.ReadAllText(Path.Combine(root, "Desktop", "Views", "Tagging", "TaggingQueueTileView.cs"));
+        Assert.Contains("_preview.SizeChanged +=", tile);
+    }
+
     private static string RepoRoot([System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "..", ".."));
 }

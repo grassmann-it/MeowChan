@@ -107,7 +107,6 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly MediaBadgeView _badges = new() { Name = "MediaTileBadges", Options = MediaBadgeOptions.MediaPage };
     private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0) };
-    private MediaLibraryBadgeSentence _badgeText;
     private string _sentence = string.Empty;
     private readonly ToggleButton _favoriteToggle = CreateQuietFavoriteToggle();
     private readonly TextBlock _favorite = new TextBlock { Name = "MediaTileFavorite", MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.CaptionText();
@@ -209,6 +208,7 @@ internal sealed class MediaLibraryTileView : UserControl
         _topRight.Children.Add(_selectedMark);
         // The check keeps clear of a badge in the same corner; the badges' place follows the slot, so the inset follows its bounds.
         _badges.PropertyChanged += (_, e) => { if (e.Property == BoundsProperty) UpdateTopRightInset(); };
+        _badges.PlanRefreshed += UpdateTopRightInset; // other badge limits can move the badges without moving the view
         // Top left, where the favourite badge sits: the toggle shows only on hover or focus and then takes the badge's place, so it never covers the
         // tag count or the untagged mark of the bottom right corner, nor the kind of the bottom left.
         _favoriteToggle.HorizontalAlignment = HorizontalAlignment.Left; _favoriteToggle.VerticalAlignment = VerticalAlignment.Top;
@@ -326,9 +326,9 @@ internal sealed class MediaLibraryTileView : UserControl
     // parts hide from the picture.
     private void UpdateBadges(MediaLibraryTileRow? row)
     {
-        if (row == null) { _badges.Clear(); _badgeText.Reset(); _sentence = string.Empty; UpdateTopRightInset(); return; }
+        if (row == null) { _badges.Clear(); _sentence = string.Empty; UpdateTopRightInset(); return; }
         MediaBadgeState full = MediaLibraryBadges.ForRow(row, InTagQueue?.Invoke(row.Entry) == true);
-        _sentence = _badgeText.Get(full, _badges.Options);
+        _sentence = MediaBadgeSentences.Get(full, _badges.Options);
         _badges.Apply(MediaLibraryBadges.Visible(full, _appearance), _preview.PictureBounds.Size, _preview.Bounds.Size);
         UpdateTopRightInset();
     }
