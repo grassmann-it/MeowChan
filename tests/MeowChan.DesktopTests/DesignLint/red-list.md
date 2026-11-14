@@ -46,7 +46,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/GalleryViewer.cs` (1)
 
-- `glyph-icon`: L355 `"−(U+2212)"`
+- `glyph-icon`: L362 `"−(U+2212)"`
 
 ### `Desktop/Localization/ArchiveCatalog.cs` (6)
 
