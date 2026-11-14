@@ -9,6 +9,11 @@ namespace MeowChan.Gallery;
 /// the tile at the top of the view with its offset. Transient and never saved; filters, order and the random seed
 /// stay in the page itself, which is hidden, not rebuilt, while the archive is in front.
 /// </summary>
+/// <param name="Target">Identity of the opened tile.</param>
+/// <param name="Occurrence">The occurrence whose thread is opened; for a tile of equal bytes it may be any of them.</param>
+/// <param name="Selected">Identities of the tiles selected when the page was left.</param>
+/// <param name="AnchorTile">Identity of the tile at the top of the view, null when none is known.</param>
+/// <param name="AnchorOffset">How far the anchor tile was scrolled past the top edge.</param>
 internal sealed record MediaLibraryReturnPoint(MediaLibraryTileKey Target, MediaLibraryEntry Occurrence,
     IReadOnlyList<MediaLibraryTileKey> Selected, MediaLibraryTileKey? AnchorTile, double AnchorOffset);
 
