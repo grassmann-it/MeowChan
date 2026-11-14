@@ -282,7 +282,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public async Task TheDecompressingTransportCountsBodyBytesAgainstItsSource()
+    public async Task TheDefaultTransportCountsDecompressedBodyBytesAgainstItsSource()
     {
         string key = NewKey();
         byte[] plain = new byte[300_000];
@@ -302,12 +302,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
                 await context.Response.OutputStream.WriteAsync(wire);
                 context.Response.Close();
             });
-            using HttpClient transport = new(new MeteringHandler(new SocketsHttpHandler
-            {
-                AllowAutoRedirect = false,
-                AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
-                PooledConnectionLifetime = TimeSpan.FromMinutes(10)
-            }, _registry));
+            using HttpClient transport = ProviderHttpClientFactory.CreateTransport(_registry);
             using HttpClient client = ProviderHttpClientFactory.CreatePolicyClient(transport, key, new RequestPolicyState());
             using HttpResponseMessage response = await client.GetAsync(prefix + "file.bin");
             Assert.Equal(plain.Length, (await response.Content.ReadAsByteArrayAsync()).Length);
@@ -315,7 +310,7 @@ public sealed class TransferMeteringTests(ITestOutputHelper output)
         }
         finally { listener.Close(); }
 
-        // Like the default transport, this isolated transport decompresses below the meter; count decoded bytes.
+        // The actual default transport decompresses below the meter; only its counter storage is isolated.
         SourceCounters counters = _registry.For(key);
         Assert.Equal(0, Read(ref counters.NetUp));
         Assert.Equal(plain.Length, Read(ref counters.NetDown));

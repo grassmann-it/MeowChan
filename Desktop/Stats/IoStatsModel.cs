@@ -41,9 +41,16 @@ internal interface IIoCounterSource
 /// <summary>Reads <see cref="TransferMeter"/>, the process-wide counters of the transport and media store capture points.</summary>
 internal sealed class TransferMeterSource : IIoCounterSource
 {
+    private readonly SourceRegistry _registry;
+
+    internal TransferMeterSource() : this(TransferMeter.Shared) { }
+
+    internal TransferMeterSource(SourceRegistry registry)
+        => _registry = registry ?? throw new ArgumentNullException(nameof(registry));
+
     public void Read(List<IoCounterReading> into)
     {
-        foreach (KeyValuePair<string, SourceCounters> pair in TransferMeter.All)
+        foreach (KeyValuePair<string, SourceCounters> pair in _registry.All)
         {
             SourceCounters c = pair.Value;
             into.Add(new IoCounterReading(Key: pair.Key, NetDown: System.Threading.Volatile.Read(ref c.NetDown),

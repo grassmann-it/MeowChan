@@ -21,7 +21,7 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-upload-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new RegistrySource(_registry), clock, Options);
+        using IoStatsHub hub = new(new TransferMeterSource(_registry), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
         LocalHandler transport = new();
@@ -73,7 +73,7 @@ public sealed class IoDirectionalPipelineTests
     {
         string sourceKey = "io-pipeline-disk-read-" + Guid.NewGuid().ToString("N");
         IoManualClock clock = new(Noon);
-        using IoStatsHub hub = new(new RegistrySource(_registry), clock, Options);
+        using IoStatsHub hub = new(new TransferMeterSource(_registry), clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
 
         SourceCounters counters = _registry.For(sourceKey);
@@ -98,21 +98,33 @@ public sealed class IoDirectionalPipelineTests
         Assert.Equal(readBytes / 2d, graph.TrafficPeak); // max direction, never write + read or network + disk
     }
 
-    // Keep all counters local, including the cap and overflow bucket. This test-only adapter bridges
-    // the actual handler counters into the hub without changing the production TransferMeterSource.
-    private sealed class RegistrySource(SourceRegistry registry) : IIoCounterSource
+    [Fact]
+    public void RealMapperPreservesEveryCounterFieldInItsOwnOverflowBucket()
     {
-        public void Read(List<IoCounterReading> into)
-        {
-            foreach (KeyValuePair<string, SourceCounters> pair in registry.All)
-            {
-                SourceCounters counters = pair.Value;
-                into.Add(new IoCounterReading(Key: pair.Key,
-                    NetDown: Volatile.Read(ref counters.NetDown), NetUp: Volatile.Read(ref counters.NetUp),
-                    DiskWritten: Volatile.Read(ref counters.DiskWritten), DiskRead: Volatile.Read(ref counters.DiskRead),
-                    Requests: Volatile.Read(ref counters.Requests), Errors: Volatile.Read(ref counters.Errors)));
-            }
-        }
+        SourceRegistry registry = new(1);
+        SourceCounters kept = registry.For("kept");
+        SourceCounters overflow = registry.For("overflow-a");
+        Assert.Same(overflow, registry.For("overflow-b"));
+        Assert.Same(kept, registry.For("kept"));
+        Assert.NotSame(kept, overflow);
+        Interlocked.Add(ref overflow.NetDown, 3);
+        Interlocked.Add(ref overflow.NetUp, 5);
+        Interlocked.Add(ref overflow.DiskWritten, 7);
+        Interlocked.Add(ref overflow.DiskRead, 11);
+        Interlocked.Add(ref overflow.Requests, 13);
+        Interlocked.Add(ref overflow.Errors, 17);
+
+        TransferMeterSource source = new(registry);
+        List<IoCounterReading> readings = [];
+        source.Read(readings);
+
+        Assert.Equal(2, readings.Count);
+        Assert.Equal(new IoCounterReading(Key: "kept", NetDown: 0, NetUp: 0,
+            DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0),
+            Assert.Single(readings, reading => reading.Key == "kept"));
+        Assert.Equal(new IoCounterReading(Key: TransferMeter.OtherKey, NetDown: 3, NetUp: 5,
+            DiskWritten: 7, DiskRead: 11, Requests: 13, Errors: 17),
+            Assert.Single(readings, reading => reading.Key == TransferMeter.OtherKey));
     }
 
     private static HttpRequestMessage Request(string sourceKey, HttpMethod method, HttpContent? content = null)
