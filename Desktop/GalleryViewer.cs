@@ -178,12 +178,12 @@ internal sealed partial class GalleryViewer : UserControl
         router.Register(new("media.rating.manage", owner, () => owner.IsEffectivelyVisible, () => ManageRatingsRequested != null,
             () => ManageRatingsRequested?.Invoke(), Priority: 200));
         router.Register(new("media.rating.clear", owner, () => owner.IsEffectivelyVisible, Ready,
-            () => { if (_entry != null) RatingSetRequested?.Invoke(_entry, null); }, Priority: 200));
+            () => RequestRating(null), Priority: 200));
         for (int value = 1; value <= 5; value++)
         {
             int selected = value;
             router.Register(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
-                () => { if (_entry != null) RatingSetRequested?.Invoke(_entry, selected); }, Priority: 200));
+                () => RequestRating(selected), Priority: 200));
         }
         return router;
     }
@@ -200,6 +200,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (changedError) ReportDiagnostic("rating", error);
         _ratingButton.IsEnabled = available && _entry != null;
         UpdateMediaFocusVisibility();
+        RefreshDecisionRow(); // the panel's row shows the same rating
     }
     internal event Action<GalleryEntry>? ExportOriginalRequested;
     internal event Action<GalleryEntry>? ShowInFolderRequested;
@@ -245,6 +246,7 @@ internal sealed partial class GalleryViewer : UserControl
         _favoriteSelected = selected;
         ReconcileFavoriteConfirm(selected, pending);
         UpdateFavorite();
+        RefreshDecisionRow(); // the panel's row and the header star stay in step
     }
 
     internal void SetFavoriteError(string? error)

@@ -205,6 +205,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly TextBlock _markedLabel;
     private readonly Button _markedClear = new() { Classes = { "subtle" } };
     private readonly StackPanel _markBar;
+    // The field with what sits around it: an optional decision row above (PT6), the field, the marks bar under it.
+    private readonly StackPanel _fieldArea;
+    private Control? _decisionContent;
+    private IQuickTagExtraUndo? _extraUndo;
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
     private readonly IdentitySuggestionBox _input = new();
@@ -297,6 +301,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         layout.Children.Add(header);
         // The field with the marks bar under it (a single row, so a hidden bar leaves no gap).
         StackPanel fieldArea = new() { Spacing = 8, Children = { _input, _markBar }, Name = _name + "Field" };
+        _fieldArea = fieldArea;
         layout.Children.Add(fieldArea); Grid.SetRow(fieldArea, 1);
         layout.Children.Add(scroll); Grid.SetRow(scroll, 2);
         layout.Children.Add(_status); Grid.SetRow(_status, 3);
@@ -419,6 +424,39 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         get => _extra.Content as Control;
         set { _extra.Content = value; _extra.IsVisible = value != null; }
+    }
+
+    /// <summary>
+    /// A row above the field (the gallery panel's favorite and rating row, PT6); null removes it. It follows the field's tab order
+    /// position visually: Shift+Tab from the field reaches it.
+    /// </summary>
+    internal Control? DecisionContent
+    {
+        get => _decisionContent;
+        set
+        {
+            if (ReferenceEquals(_decisionContent, value)) return;
+            if (_decisionContent != null) _fieldArea.Children.Remove(_decisionContent);
+            _decisionContent = value;
+            if (value != null) _fieldArea.Children.Insert(0, value);
+        }
+    }
+
+    /// <summary>
+    /// A second undo stack that shares the undo key and the undo button (the gallery panel's rating and favorite steps): the newest step of
+    /// the two is undone first. Null: the button and the key undo tag changes only.
+    /// </summary>
+    internal IQuickTagExtraUndo? ExtraUndo
+    {
+        get => _extraUndo;
+        set
+        {
+            if (ReferenceEquals(_extraUndo, value)) return;
+            if (_extraUndo != null) _extraUndo.Changed -= OnSessionUpdated;
+            _extraUndo = value;
+            if (value != null) value.Changed += OnSessionUpdated;
+            if (!_disposed) RefreshTexts();
+        }
     }
 
     /// <summary>Puts the focus into the field when the surface is shown (both hosts want it; off for tests and special hosts).</summary>
@@ -581,8 +619,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_status, status.IsError ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
 
         // Not disabled while a write runs (the session ignores the click), so a focused undo button keeps the focus.
-        _undo.IsEnabled = _session.UndoSteps.Count > 0 && _session.Snapshot != null;
-        AutomationProperties.SetName(_undo, Texts.T("tags.quick.undoName", _session.UndoSteps.Count));
+        int extraSteps = _extraUndo?.Steps ?? 0;
+        _undo.IsEnabled = _session.UndoSteps.Count > 0 && _session.Snapshot != null || extraSteps > 0;
+        AutomationProperties.SetName(_undo, Texts.T("tags.quick.undoName", _session.UndoSteps.Count + extraSteps));
         _stamp.IsEnabled = _session.Snapshot != null && _session.Stamp.Count > 0;
         AutomationProperties.SetName(_stamp, StampName());
         ToolTip.SetTip(_stamp, StampName());
@@ -722,10 +761,19 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         await UndoAsync();
         // The last step is gone and the button with it: the focus goes back to the field instead of nowhere.
-        if (!_disposed && _session.UndoSteps.Count == 0 && _undo.IsKeyboardFocusWithin) _input.Focus();
+        if (!_disposed && _session.UndoSteps.Count == 0 && (_extraUndo?.Steps ?? 0) == 0 && _undo.IsKeyboardFocusWithin) _input.Focus();
     }
 
-    internal Task UndoAsync() => Guard(() => _session.UndoAsync(), "tags.quick.undo");
+    // The newest step of the two stacks goes first: a rating or favorite change made after the last tag change is undone before it.
+    internal Task UndoAsync() => Guard(async () =>
+    {
+        if (_extraUndo is { IsNewest: true } extra)
+        {
+            if (extra.CanUndo) Announce(await extra.UndoAsync());
+            return;
+        }
+        await _session.UndoAsync();
+    }, "tags.quick.undo");
 
     private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
 
@@ -824,6 +872,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             case QuickTagKeyAction.FocusAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button));
             case QuickTagKeyAction.FocusLastAssigned: return FocusFirst(_assignedChips.Select(chip => chip.Button).Reverse());
             case QuickTagKeyAction.Undo:
+                if (_extraUndo is { IsNewest: true } newest)
+                {
+                    if (newest.CanUndo) _ = UndoAsync();
+                    return true;
+                }
                 if (!_session.CanUndo) return _session.UndoSteps.Count > 0 || _session.Busy;
                 _ = UndoAsync();
                 return true;
@@ -963,6 +1016,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (_disposed) return;
         OnDetached(this, null!);
         _disposed = true;
+        if (_extraUndo != null) { _extraUndo.Changed -= OnSessionUpdated; _extraUndo = null; }
         _input.EndSuggestions();
         _sourceTags.End();
         _close.Click -= OnClose; _markedClear.Click -= OnMarkedClear; _undo.Click -= OnUndo; _stamp.Click -= OnStamp; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;

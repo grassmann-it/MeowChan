@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
+using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -55,8 +57,24 @@ public partial class MainWindow
     }
 
     // What the gallery tag panel needs from the window: the frozen targets, the list, limits and the full dialog.
-    private sealed class GalleryTagPanelOwner(MainWindow window) : IGalleryTagPanelOwner
+    private sealed class GalleryTagPanelOwner(MainWindow window) : IGalleryTagPanelOwner, IGalleryDecisionOwner
     {
+        // Favorite and rating of a medium (PT6): the same stores, queues and error paths as the toolbar star and the rating keys. A pending
+        // favorite write counts as its target value. Unreadable stores answer null (the row says so); the session reads again after every
+        // write, so a failure the toolbar path already reported leaves no step.
+        public GalleryDecisionState? Read(GalleryEntry entry)
+        {
+            if (window._isClosing) return null;
+            FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
+            int? rating = window._session.GetMediaRating(key);
+            bool favorite = window._favoriteChanges.Target(key, window._session.IsFavorite(entry));
+            return new GalleryDecisionState(favorite, rating);
+        }
+
+        public Task SetFavoriteAsync(GalleryEntry entry, bool selected, CancellationToken token) => window.SetGalleryFavoriteAsync(entry, selected);
+
+        public Task SetRatingAsync(GalleryEntry entry, int? value, CancellationToken token) => window.SetGalleryRatingAsync(entry, value);
+
         public IQuickTagTarget? OpenTarget(GalleryEntry entry, out string? unavailableReason)
         {
             MediaTagSubject? subject = MediaTagSubjects.Of(entry, out GalleryMediaTagUnavailable reason);

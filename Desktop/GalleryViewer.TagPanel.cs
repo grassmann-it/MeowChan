@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -26,6 +27,8 @@ internal sealed partial class GalleryViewer
     private GalleryThreadTagSection? _threadSection;
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
+    // Favorite and rating of the panel's targets (PT6): the row above the field; null when the owner offers none.
+    private GalleryDecisionRow? _decisionRow;
     private IGalleryTagPanelOwner? _tagOwner;
     // The media marked in the gallery (Shift+Page Down, E4): gallery state, kept while the panel closes and opens again.
     private GalleryMarks? _marks;
@@ -35,6 +38,8 @@ internal sealed partial class GalleryViewer
     internal bool IsTagPanelOpen => _tagPanelOpen;
     internal QuickTagSurface? TagSurface => _tagSurface;
     internal GalleryTagPanelController? TagPanelController => _tagController;
+    /// <summary>The favorite and rating row above the tag field; null while the panel is closed or its owner offers no decisions.</summary>
+    internal GalleryDecisionRow? DecisionRow => _decisionRow;
     /// <summary>The media marked for one tag change; null until the tag panel was opened once.</summary>
     internal GalleryMarks? Marks => _marks;
 
@@ -75,6 +80,16 @@ internal sealed partial class GalleryViewer
         surface.MarksClearRequested += OnTagMarksClearRequested;
         surface.ThreadSectionRequested += OnTagThreadSectionRequested;
         controller.Suggestions.Ready += OnTagSuggestionsReady;
+        if (controller.Decisions is { } decisions)
+        {
+            _decisionRow = new GalleryDecisionRow(TagPanelName + "Decision")
+            { FieldFocused = () => surface.Input.IsKeyboardFocusWithin, ReturnFocus = () => surface.FocusField() };
+            _decisionRow.FavoriteRequested += OnDecisionFavoriteRequested;
+            _decisionRow.RatingRequested += RequestDecisionRating;
+            surface.DecisionContent = _decisionRow;
+            surface.ExtraUndo = controller.ExtraUndo;
+            decisions.Updated += OnDecisionsUpdated;
+        }
         _tagController = controller;
         _tagSurface = surface;
         surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
@@ -82,6 +97,7 @@ internal sealed partial class GalleryViewer
         surface.LoadSourceTags();
         _tagPanelOpen = true;
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
+        RefreshDecisionRow();
         _sidePanel.TagContent = surface;
         _sidePanel.Segment = GallerySidePanelSegment.Tags;
         if (_contextOpen)
@@ -117,6 +133,14 @@ internal sealed partial class GalleryViewer
             surface.ThreadSectionRequested -= OnTagThreadSectionRequested;
         }
         if (controller != null) controller.Suggestions.Ready -= OnTagSuggestionsReady;
+        if (controller?.Decisions != null) controller.Decisions.Updated -= OnDecisionsUpdated;
+        if (_decisionRow != null)
+        {
+            _decisionRow.FavoriteRequested -= OnDecisionFavoriteRequested;
+            _decisionRow.RatingRequested -= RequestDecisionRating;
+            if (surface != null) { surface.ExtraUndo = null; surface.DecisionContent = null; }
+            _decisionRow = null;
+        }
         if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
         _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();
@@ -148,6 +172,7 @@ internal sealed partial class GalleryViewer
         {
             // Only the position may have changed (more threads resolved).
             surface.CounterText = controller.CounterFor(entry);
+            RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
@@ -157,6 +182,7 @@ internal sealed partial class GalleryViewer
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
+        RefreshDecisionRow();
         // The field stays focused while paging: a focus lost with the replaced chips returns to it.
         if (hadFocus && !surface.IsKeyboardFocusWithin) surface.FocusField();
     }
@@ -229,6 +255,67 @@ internal sealed partial class GalleryViewer
         surface.CounterText = controller.CounterFor(controller.ShownEntry());
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
+        RefreshDecisionRow();
+    }
+
+    // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------
+
+    /// <summary>Shows what the panel's targets (every marked medium, else the shown one) carry now; the gallery calls it when a favorite or rating changed elsewhere too.</summary>
+    internal void RefreshDecisionRow()
+    {
+        if (_decisionRow is { } row && _tagController?.DecisionView() is { } view) row.Show(view);
+    }
+
+    private void OnDecisionsUpdated() => RefreshDecisionRow();
+
+    private void OnDecisionFavoriteRequested(bool selected) =>
+        RunDecision((decisions, targets) => decisions.SetFavoriteAsync(targets, selected));
+
+    private void RequestDecisionRating(int? value) =>
+        RunDecision((decisions, targets) => decisions.SetRatingAsync(targets, value));
+
+    /// <summary>
+    /// A rating key or button: with the tag panel open it rates the panel's targets (the marked media, else the shown one) as one undoable
+    /// step and says what it did in the status line; without the panel it rates the shown medium as before.
+    /// </summary>
+    private void RequestRating(int? value)
+    {
+        if (_entry == null) return;
+        if (_tagPanelOpen && _tagController?.Decisions != null) { RequestDecisionRating(value); return; }
+        RatingSetRequested?.Invoke(_entry, value);
+    }
+
+    // The targets are read when the request is made: paging or marking afterwards never redirects the write.
+    private void RunDecision(Func<GalleryDecisionSession, IReadOnlyList<GalleryEntry>, Task<GalleryDecisionStatus>> run)
+    {
+        if (_tagController is not { Decisions: { } decisions } controller || _tagSurface is not { } surface) return;
+        _ = RunDecisionAsync(surface, run(decisions, controller.DecisionTargets()));
+    }
+
+    private async Task RunDecisionAsync(QuickTagSurface surface, Task<GalleryDecisionStatus> request)
+    {
+        try
+        {
+            GalleryDecisionStatus status = await request;
+            if (!ReferenceEquals(surface, _tagSurface)) return;
+            if (status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
+            RefreshDecisionRow();
+        }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.decision")) { /* Logged and shown. */ }
+    }
+
+    // Shift+1…5 and Shift+0 also rate from an empty tag field: a typed "!" or ")" never starts a tag name. With text in the field (or its
+    // suggestion list open) the keys stay typing. Matches reads the effective bindings directly: CommandBindings.Matches leaves text fields.
+    private bool RouteDecisionKeyInField(KeyEventArgs e, QuickTagSurface surface)
+    {
+        if (_tagController?.Decisions == null || !surface.Input.IsKeyboardFocusWithin
+            || !string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen) return false;
+        for (int value = 1; value <= 5; value++)
+            if (ShortcutService.Current.Matches(e, "media.rating.set-" + value)) { RequestRating(value); e.Handled = true; return true; }
+        if (!ShortcutService.Current.Matches(e, "media.rating.clear")) return false;
+        RequestRating(null);
+        e.Handled = true;
+        return true;
     }
 
     // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
@@ -282,6 +369,7 @@ internal sealed partial class GalleryViewer
             e.Handled = true;
             return true;
         }
+        if (RouteDecisionKeyInField(e, surface)) return true;
         // The command that opened the panel closes it again, also from inside the field.
         if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
         foreach (string id in GalleryTagPanelCommands.Handled)
