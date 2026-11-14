@@ -363,9 +363,14 @@ internal static class GalleryFitChecks
             double mediaBottom = mediaOrigin.Y + viewport.Bounds.Height;
             double toolsBottom = toolsOrigin.Y + tools.Bounds.Height;
             double captionBottom = captionOrigin.Y + caption.Bounds.Height;
-            double footerHeight = tools.Bounds.Height + tools.Margin.Top + tools.Margin.Bottom
+            // GL1: a bottom filmstrip band shown in the dock is the dock's first row, so the tools no longer sit directly under the
+            // viewport: the band (its height and margins) sits between them. A hidden or top strip adds nothing.
+            Control? band = viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .FirstOrDefault(control => control.Name == "GalleryFilmstrip" && control.IsEffectivelyVisible && control.Parent is Control { Name: "GalleryDock" });
+            double bandSpace = band == null ? 0 : band.Bounds.Height + band.Margin.Top + band.Margin.Bottom;
+            double footerHeight = bandSpace + tools.Bounds.Height + tools.Margin.Top + tools.Margin.Bottom
                 + caption.Bounds.Height + caption.Margin.Top + caption.Margin.Bottom;
-            return Math.Abs(mediaOrigin.Y) < 1 && Math.Abs(mediaBottom + tools.Margin.Top - toolsOrigin.Y) < 1
+            return Math.Abs(mediaOrigin.Y) < 1 && Math.Abs(mediaBottom + bandSpace + tools.Margin.Top - toolsOrigin.Y) < 1
                 && Math.Abs(toolsBottom + tools.Margin.Bottom + caption.Margin.Top - captionOrigin.Y) < 1
                 && Math.Abs(captionBottom + caption.Margin.Bottom - height) < 1
                 && Math.Abs(viewport.Bounds.Height + footerHeight - height) < 1;

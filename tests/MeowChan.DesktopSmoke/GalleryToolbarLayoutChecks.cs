@@ -146,6 +146,8 @@ internal static partial class GalleryToolbarLayoutChecks
                     mode.SelectedIndex = 0;
                     await LayoutAsync(window);
                     Require(!chrome.IsVisualAncestorOf(slideshow), "The slideshow control did not return to the menu.");
+                    // GL3: the Layout button beside "More": flyout rows, one block per row, right click on free area, reset with undo.
+                    await RequireLayoutMenuAsync(window, viewer, tag, output);
                     // A shortcut of a menu command works with the menu closed: F1 opens the one shortcuts window on the gallery group.
                     viewer.Focus();
                     PressKey(viewer, Key.F1);

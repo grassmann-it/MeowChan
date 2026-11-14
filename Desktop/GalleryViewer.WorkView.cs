@@ -92,6 +92,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_toolsToggle, "gallery.toolbar.tools-toggle"); Mark(_toolsToggle);
         WorkViewElement.SetId(_modeTools, "gallery.mode"); Mark(_modeTools);
         WorkViewElement.SetId(_overflowButton, "gallery.toolbar.more"); Mark(_overflowButton);
+        WorkViewElement.SetId(_layoutButton, "gallery.toolbar.layout"); Mark(_layoutButton);
         WorkViewElement.SetId(_readPosts, "gallery.toolbar.read-posts"); Mark(_readPosts);
         WorkViewElement.SetId(_contextToggle, "gallery.toolbar.post-panel"); Mark(_contextToggle);
         WorkViewElement.SetId(_contextPanel, "gallery.post-panel"); Mark(_contextPanel);
@@ -160,6 +161,7 @@ internal sealed partial class GalleryViewer
         _workView = view;
         ApplyChrome(force: true); // G1: the view is the first layer of the chrome plan; the mode and the width follow in the same pass
         UpdateFilmstripPlacement();
+        RefreshLayoutMenu(); // GL3: an open layout menu follows the new view's defaults
         if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
     }
 

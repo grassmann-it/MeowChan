@@ -74,6 +74,11 @@ public static partial class WorkViewPolicy
         // only for an empty gallery (state) and is then the way on.
         Same("gallery.toolbar.tools-toggle", WorkViewPage.Gallery, WorkViewKind.Action, Required, "gallery.tools-toggle"),
         Same("gallery.toolbar.more", WorkViewPage.Gallery, WorkViewKind.Element, Required),
+        // GL3 (Tom's E2, placement per UX spec S4 GL3+a): the "Layout" button beside "More" opens the layout menu (filmstrip and its position,
+        // tools, info line, hints, reset; the same rows on a right click of free dock area). Advanced puts it on the bar, Simple and
+        // Barebones keep the same rows as a section of "More" (the way back to every block a person switched off is never away); below
+        // CompactWidth every view has the section (GalleryChromePlan.LayoutOnBar). Not a movable tool: its section is its own control.
+        new("gallery.toolbar.layout", WorkViewPage.Gallery, WorkViewKind.Action, Overflow, Overflow, Direct, "gallery.layout-menu", OverflowOrder: 210),
         Same("gallery.toolbar.read-posts", WorkViewPage.Gallery, WorkViewKind.Action, Required, "thread.read"),
 
         // ---- G1: the mode switch "View | Tag" (Tom's E3 addition: tagging is a mode of the gallery, independent of the slideshow). ----

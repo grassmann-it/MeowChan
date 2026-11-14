@@ -22,6 +22,8 @@ internal sealed class ContextMenuHost : IDisposable
 
     private readonly Control _origin;
     private readonly Func<ContextMenuBuilder?> _compose;
+    private readonly Func<Control>? _resolveOrigin;
+    private Control? _openOn;
     private readonly Action? _fallbackFocus;
     private ContextMenu? _menu;
     private DateTime _lastKeyOpen = DateTime.MinValue;
@@ -30,8 +32,11 @@ internal sealed class ContextMenuHost : IDisposable
     /// <param name="origin">The control the menu belongs to; focus returns to it.</param>
     /// <param name="compose">Composes the menu for this opening; null (or an empty composition) opens nothing.</param>
     /// <param name="fallbackFocus">Where focus goes when neither the previous focus nor the origin can take it any more.</param>
-    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null)
+    /// <param name="resolveOrigin">Optional: the control the menu opens on for this opening (a sibling when <paramref name="origin"/> is not on the screen,
+    /// for example a button that moved under "More"); the handlers stay on <paramref name="origin"/>.</param>
+    internal ContextMenuHost(Control origin, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null, Func<Control>? resolveOrigin = null)
     {
+        _resolveOrigin = resolveOrigin;
         _origin = origin ?? throw new ArgumentNullException(nameof(origin));
         _compose = compose ?? throw new ArgumentNullException(nameof(compose));
         _fallbackFocus = fallbackFocus;
@@ -62,24 +67,26 @@ internal sealed class ContextMenuHost : IDisposable
     /// <summary>Opens the menu on the origin: at the pointer, or under the control for the keyboard.</summary>
     internal void Show(bool atPointer = false)
     {
-        if (_disposed || !_origin.IsAttachedToVisualTree() || !_origin.IsEffectivelyVisible || !_origin.IsEffectivelyEnabled) return;
+        Control origin = _resolveOrigin?.Invoke() ?? _origin;
+        if (_disposed || !origin.IsAttachedToVisualTree() || !origin.IsEffectivelyVisible || !origin.IsEffectivelyEnabled) return;
         Close();
         ContextMenu? menu = _compose()?.Build();
         if (menu == null) return;
-        object? previousFocus = TopLevel.GetTopLevel(_origin)?.FocusManager?.GetFocusedElement();
+        object? previousFocus = TopLevel.GetTopLevel(origin)?.FocusManager?.GetFocusedElement();
         if (!atPointer) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _menu = menu;
-        _origin.ContextMenu = menu;
+        _openOn = origin;
+        origin.ContextMenu = menu;
         menu.Closed += (_, _) =>
         {
             if (ReferenceEquals(_menu, menu))
             {
-                if (ReferenceEquals(_origin.ContextMenu, menu)) _origin.ContextMenu = null;
+                if (ReferenceEquals(origin.ContextMenu, menu)) origin.ContextMenu = null;
                 _menu = null;
             }
-            RestoreFocus(menu, previousFocus as Control);
+            RestoreFocus(menu, previousFocus as Control, origin);
         };
-        menu.Open(_origin);
+        menu.Open(origin);
     }
 
     /// <summary>Closes the open menu, if any.</summary>
@@ -89,23 +96,24 @@ internal sealed class ContextMenuHost : IDisposable
         if (previous == null) return;
         _menu = null;
         previous.Close();
-        if (ReferenceEquals(_origin.ContextMenu, previous)) _origin.ContextMenu = null;
+        Control openOn = _openOn ?? _origin;
+        if (ReferenceEquals(openOn.ContextMenu, previous)) openOn.ContextMenu = null;
     }
 
-    private void RestoreFocus(ContextMenu menu, Control? previous)
+    private void RestoreFocus(ContextMenu menu, Control? previous, Control origin)
     {
         Dispatcher.UIThread.Post(() =>
         {
             // A newer menu, or a window or page that the chosen entry opened, owns the focus now.
             if (_disposed || _menu != null || menu.IsOpen) return;
-            TopLevel? top = TopLevel.GetTopLevel(_origin);
+            TopLevel? top = TopLevel.GetTopLevel(origin);
             if (top is Window owner && owner.OwnedWindows.Any(window => window.IsVisible)) return;
             static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled;
             // Focus held by something else that can take it (the page an entry opened) stays; focus left in the closed menu returns.
             object? focused = top?.FocusManager?.GetFocusedElement();
             if (focused is Control current && Usable(current) && !current.GetSelfAndVisualAncestors().OfType<ContextMenu>().Any()) return;
             if (Usable(previous)) previous!.Focus();
-            else if (Usable(_origin)) _origin.Focus();
+            else if (Usable(origin)) origin.Focus();
             else _fallbackFocus?.Invoke();
         }, DispatcherPriority.Background);
     }

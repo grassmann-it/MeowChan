@@ -52,21 +52,24 @@ internal sealed class ContextMenuBuilder
         return Add(new(ContextMenuEntryKind.Command, id, label, null, null, false, available, reason, invoke));
     }
 
-    /// <summary>One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked.</summary>
-    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke)
+    /// <summary>
+    /// One value of an exclusive choice; the entries of one <paramref name="group"/> are the choices, one of them checked. An entry that is
+    /// <paramref name="available"/> = false stays visible with its state, disabled, and says <paramref name="reason"/> as its tooltip and help text.
+    /// </summary>
+    internal ContextMenuBuilder Radio(string group, string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(group);
         ArgumentNullException.ThrowIfNull(invoke);
         if (isChecked && _sections.SelectMany(section => section).Any(entry => entry.Kind == ContextMenuEntryKind.Radio && entry.Group == group && entry.Checked))
             throw new ArgumentException("Only one entry of the group \"" + group + "\" can be checked.", nameof(isChecked));
-        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, true, null, invoke));
+        return Add(new(ContextMenuEntryKind.Radio, id, label, null, group, isChecked, available, reason, invoke));
     }
 
-    /// <summary>A switch.</summary>
-    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke)
+    /// <summary>A switch; a switch that is not <paramref name="available"/> stays visible with its state, disabled, and says <paramref name="reason"/>.</summary>
+    internal ContextMenuBuilder Check(string id, string label, bool isChecked, Action invoke, bool available = true, string? reason = null)
     {
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, true, null, invoke));
+        return Add(new(ContextMenuEntryKind.Check, id, label, null, null, isChecked, available, reason, invoke));
     }
 
     /// <summary>A disabled explanatory sentence.</summary>

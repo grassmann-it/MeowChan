@@ -256,6 +256,7 @@ internal sealed partial class GalleryViewer
             ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
             RefreshSlideshowNumbers();
             SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
+            PresentSlideshowIcon();
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
             SetToggleLabel(_overlayToggle, GalleryPlaybackCatalog.Get("viewer.playback.controlsOverlay"));
@@ -303,6 +304,36 @@ internal sealed partial class GalleryViewer
                 _playbackMode.SelectedIndex = (int)_playbackPreferences.Mode;
         }
         finally { _updatingPlaybackControls = wasUpdating; }
+    }
+
+    // GL3: the slideshow control shows a play icon while stopped and a pause icon while running, like the other tools (catalog icons from
+    // the command's state icons). On the bar it is icon + text (icon only in the compact toolbar); in the "⋯" menu the row's lead icon is
+    // swapped, the row keeps its text. The built content is kept while neither state, label nor density changed.
+    private void PresentSlideshowIcon()
+    {
+        if (_slideshow == null) return;
+        string key = CommandCatalog.IconForState("gallery.slideshow-toggle", _slideshow.IsRunning ? "running" : "stopped");
+        if (_slideshowToggle.Tag is OverflowItem item)
+        {
+            if (item.Root.Children.Count == 0 || item.Root.Children[0].Tag as string == key) return;
+            Border lead = (Border)CommandBindings.Icon("gallery.slideshow-toggle", 16, _slideshow.IsRunning ? "running" : "stopped");
+            lead.HorizontalAlignment = HorizontalAlignment.Center;
+            lead.Bind(Border.BackgroundProperty, lead.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
+            lead.Tag = key;
+            item.Root.Children[0] = lead;
+            return;
+        }
+        string label = AutomationProperties.GetName(_slideshowToggle) ?? string.Empty;
+        string signature = key + "|" + _compactToolbar + "|" + label;
+        if (_slideshowToggle.Content is Control { Tag: string shown } && shown == signature) return;
+        Border icon = (Border)CommandBindings.Icon("gallery.slideshow-toggle", _compactToolbar ? 16 : 14, _slideshow.IsRunning ? "running" : "stopped");
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(Avalonia.Controls.Documents.TextElement.ForegroundProperty));
+        _slideshowToggle.Classes.Set("command-icon", true);
+        if (_compactToolbar) { icon.Tag = signature; _slideshowToggle.Content = icon; return; }
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4, Tag = signature };
+        content.Children.Add(icon);
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        _slideshowToggle.Content = content;
     }
 
     private static void SetToggleLabel(ToggleButton button, string label)

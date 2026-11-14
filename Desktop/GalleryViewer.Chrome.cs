@@ -282,6 +282,9 @@ internal sealed partial class GalleryViewer
         Show(_favorite, plan.Favorite);
         Show(_mediaTools, plan.PanelToggle || plan.Favorite);
         Show(_viewTools, plan.More);
+        // GL3: the Layout button on the bar, or its rows as a section of "More" (placement in the plan, UX spec S4 GL3+a).
+        Show(_layoutButton, plan.LayoutOnBar);
+        Show(_layoutSection, plan.More && !plan.LayoutOnBar);
         Show(_workViewTools, _workViewTools.Children.Count > 0);
         Show(_toolsToggle, plan.ToolsToggle);
         Show(_taggingStrip, plan.DecisionRow);
@@ -305,6 +308,7 @@ internal sealed partial class GalleryViewer
         // The video bar is a plan block (Transport); its docked host is visible only while the dock hosts it and the video is shown (the
         // transport left the player, so the player's own visibility no longer hides it).
         _dockTransportHost.IsVisible = GalleryTransportPlacement.DockRowVisible(plan.Transport, TransportHostKind, _video?.IsVisible == true);
+        RefreshLayoutMenu(); // GL3: an open layout menu shows what the plan now says (a width, mode or state change under it)
         if (focusLost) RescueChromeFocus();
     }
 

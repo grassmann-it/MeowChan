@@ -241,6 +241,7 @@ internal sealed partial class GalleryViewer
             AddOverflowItem(_slideshowToggle, "gallery.slideshow-toggle", host: _slideshowHome);
             ((OverflowItem)_slideshowToggle.Tag!).Label.Text = name;
         }
+        PresentSlideshowIcon(); // GL3: play/pause icon for the new place (bar: icon + text, menu: the row's lead icon)
         if (hadFocus && _slideshowToggle.IsEffectivelyVisible) _slideshowToggle.Focus(NavigationMethod.Tab);
         else if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
     }
@@ -281,6 +282,7 @@ internal sealed partial class GalleryViewer
     {
         // Choosing an action closes the menu; zoom stays open because it is used in steps.
         if (e.Source is Button { Tag: OverflowItem { KeepOpen: true } }) return;
+        if (e.Source is Button { Tag: string } && _layoutSection.IsVisible) return; // a layout row: a switch stays open, "Reset layout" closes it itself
         if (e.Source is Button) _overflowFlyout.Hide();
     }
 
@@ -292,6 +294,8 @@ internal sealed partial class GalleryViewer
         if (compact == _compactToolbar) return;
         _compactToolbar = compact;
         PresentToolbarControls(); // Icon or labelled presentation of the primary controls; no other text changes.
+        PresentLayoutButton();
+        PresentSlideshowIcon();
     }
 
     private bool ContextOverPicture => PostOverlayEffective || Bounds.Width < CompactPostWidth;

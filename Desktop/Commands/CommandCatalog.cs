@@ -184,6 +184,14 @@ public static class CommandCatalog
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        // GL3: the layout menu. All unbound (rebindable); the filmstrip row of the menu is the L command above.
+        new("gallery.layout-menu", "command.gallery.layout-menu", "Open layout menu", "Layout-Menü öffnen", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.tools", "command.gallery.layout.tools", "Layout: show / hide tools", "Layout: Werkzeuge anzeigen / ausblenden", "tool", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.info", "command.gallery.layout.info", "Layout: show / hide info line", "Layout: Infozeile anzeigen / ausblenden", "info", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.hints", "command.gallery.layout.hints", "Layout: show / hide hints", "Layout: Hinweise anzeigen / ausblenden", "help-circle", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.filmstrip-top", "command.gallery.layout.filmstrip-top", "Layout: filmstrip at the top", "Layout: Filmstreifen oben", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.filmstrip-bottom", "command.gallery.layout.filmstrip-bottom", "Layout: filmstrip at the bottom", "Layout: Filmstreifen unten", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.layout.reset", "command.gallery.layout.reset", "Layout: reset to the default of the work view", "Layout: auf den Standard der Arbeitsansicht zurücksetzen", "rotate-ccw", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen", "file-text", "P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Back to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
         new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", "T", CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-page" }),
@@ -385,6 +393,7 @@ public static class CommandCatalog
         { "favorites.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "unmarked", "star" }, { "marked", "star-filled" } } },
         { "favorites.filter", new Dictionary<string, string>(StringComparer.Ordinal) { { "all", "star" }, { "favorites_only", "star" } } },
         { "video.play-pause", new Dictionary<string, string>(StringComparer.Ordinal) { { "paused", "play" }, { "playing", "pause" } } },
+        { "gallery.slideshow-toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "stopped", "play" }, { "running", "pause" } } },
         { "video.mute", new Dictionary<string, string>(StringComparer.Ordinal) { { "audible", "volume-2" }, { "muted", "volume-x" } } },
     };
 

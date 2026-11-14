@@ -359,6 +359,7 @@ internal sealed partial class GalleryViewer : UserControl
         _readPosts = Command(view, "GalleryReadPosts", Texts.T("gallery.read"), () => { PauseSlideshow(); ReadPostsRequested?.Invoke(); });
         _readPosts.IsVisible = false;
         view.Children.Add(_overflowButton);
+        view.Children.Add(_layoutButton); // GL3 (Tom's E2): the Layout menu is a button of its own beside "More" (GalleryViewer.LayoutMenu.cs)
         _zoomIn = Command(_overflowPanel, "GalleryPlus", "+", () => Zoom(1.1), overflow: true, keepOpen: true);
         _zoomOut = Command(_overflowPanel, "GalleryMinus", "−", () => Zoom(1 / 1.1), overflow: true, keepOpen: true);
         _rotate = Command(_overflowPanel, "GalleryRotate", CommandCatalog.Label("gallery.rotate"), () => RotateView(), overflow: true, keepOpen: true);
@@ -387,6 +388,7 @@ internal sealed partial class GalleryViewer : UserControl
         _fullscreenButton = Command(_overflowPanel, "GalleryFullscreen", Texts.T("viewer.fullscreen"), () => FullscreenRequested?.Invoke(), overflow: true);
         _helpButton = Command(_overflowPanel, "GalleryHelp", Texts.T("viewer.help"), RequestShortcutHelp, overflow: true);
         InitializeOverflowMenu();
+        InitializeLayoutMenu();
         PlaceSlideshowToggle();
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
@@ -532,6 +534,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (IsFavoriteConfirmOpen) UpdateFavoriteConfirmText();
         UpdateTagsButton();
         PresentToolbarControls();
+        PresentLayoutButton();
         RefreshFileOnlyText();
         UpdateHelpButtonTooltip();
         UpdateContext(); UpdateQuality(); UpdateHelp();
@@ -1438,7 +1441,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
-        if (HandleFilmstripKey(e)) return;
+        if (HandleFilmstripKey(e) || HandleLayoutKey(e)) return;
         if (CommandBindings.Matches(e, "gallery.mode-toggle")) { RequestGalleryMode(!IsTagMode); e.Handled = true; return; }
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
@@ -1661,6 +1664,8 @@ internal sealed partial class GalleryViewer : UserControl
             _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator, _close })
             GalleryControlTransfer.Cancel(control);
         RetireFilmstrip();
+        CloseLayoutMenu();
+        _layoutContextHost?.Dispose();
         _video?.RetireTransportPlacement();
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();

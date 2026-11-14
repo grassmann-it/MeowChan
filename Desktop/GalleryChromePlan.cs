@@ -94,7 +94,7 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     /// </summary>
     internal static IReadOnlyList<string> Priority { get; } = Array.AsReadOnly(new[]
     {
-        "gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle", "gallery.mode", "gallery.toolbar.fit",
+        "gallery.position", "gallery.toolbar.more", "gallery.toolbar.tools-toggle", "gallery.toolbar.layout", "gallery.mode", "gallery.toolbar.fit",
         "gallery.toolbar.post-panel", "gallery.toolbar.tags", "gallery.favorite", "gallery.toolbar.slideshow", "gallery.toolbar.rating",
         "gallery.toolbar.help"
     });
@@ -117,6 +117,11 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     public bool Slideshow { get; init; }
     public bool Help { get; init; }
     public bool More { get; init; }
+    /// <summary>
+    /// The "Layout" button on the bar (UX spec S4 GL3+a): the work view puts it there (Advanced) and the bar is wide enough
+    /// (<see cref="CompactWidth"/>); otherwise the same rows are a section of "More".
+    /// </summary>
+    public bool LayoutOnBar { get; init; }
     public bool ModeSwitch { get; init; }
     public bool InfoQuality { get; init; }
     /// <summary>The tagging mode's strip breaks into two rows below <see cref="WideWidth"/>.</summary>
@@ -203,6 +208,7 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             Mode = input.Mode,
             Nav = bar,
             More = bar,
+            LayoutOnBar = bar && ViewOffers("gallery.toolbar.layout") && (input.Width <= 0 || input.Width >= CompactWidth),
             Zoom = bar && tools,
             PanelToggle = bar && tools,
             // E1: with the panel's decision row on the screen, the panel is the one favourite surface; without it (panel closed) the

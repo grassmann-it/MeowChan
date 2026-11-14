@@ -215,6 +215,7 @@ public partial class MainWindow
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
         _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);
+        _gallery.LayoutResetPerformed += (mode, previous) => OnGalleryLayoutReset(preferenceOwner, mode, previous);
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.TaggingModeRequested += tag => { if (ReferenceEquals(_gallery, preferenceOwner)) SwitchGalleryTagging(tag); };
         _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
@@ -525,6 +526,7 @@ public partial class MainWindow
         ++_galleryRequest;
         _galleryCancellation?.Cancel(); _galleryCancellation?.Dispose(); _galleryCancellation = null;
         GalleryViewer? retiring = _gallery;
+        CloseGalleryLayoutToast(); // GL3: the undo of "Reset layout" belongs to the gallery that closes
         _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
