@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 
@@ -31,7 +32,13 @@ public sealed class WorkViewElement
     internal static readonly AttachedProperty<bool> GatedProperty =
         AvaloniaProperty.RegisterAttached<WorkViewElement, Control, bool>("Gated", false);
 
+    // Membership uses control identity without keeping controls alive. The list is only for weak iteration;
+    // every access to either collection (and the prune countdown) holds Registered's lock.
+    private static readonly ConditionalWeakTable<Control, object> Membership = new();
+    private static readonly object MembershipMarker = new();
     private static readonly List<WeakReference<Control>> Registered = new();
+    private const int MinimumRegistrationsBetweenPrunes = 256;
+    private static int _registrationsUntilPrune = MinimumRegistrationsBetweenPrunes;
 
     static WorkViewElement()
     {
@@ -57,18 +64,42 @@ public sealed class WorkViewElement
     {
         lock (Registered)
         {
-            if (Registered.Count > 256) Registered.RemoveAll(reference => !reference.TryGetTarget(out _));
-            if (Registered.Any(reference => reference.TryGetTarget(out Control? known) && ReferenceEquals(known, control))) return;
+            if (Membership.TryGetValue(control, out _)) return;
+            Membership.Add(control, MembershipMarker);
             Registered.Add(new(control));
+            if (--_registrationsUntilPrune == 0)
+            {
+                Registered.RemoveAll(reference => !reference.TryGetTarget(out _));
+                ResetPruneCountdown();
+            }
         }
     }
 
-    /// <summary>Every live control with an id (any window). Callers filter by owner or page.</summary>
+    // A registration scan is paid for by as many new registrations as the preceding live population (with a small floor).
+    // A fixed interval would still be quadratic when many controls stay alive. Snapshots already visit every slot,
+    // so they also compact it and restart the countdown. This is housekeeping, not a limit on registered controls.
+    private static void ResetPruneCountdown() =>
+        _registrationsUntilPrune = Math.Max(MinimumRegistrationsBetweenPrunes, Registered.Count);
+
+    /// <summary>Every live control with a nonempty id (any window). Callers filter by owner or page.</summary>
     internal static IReadOnlyList<Control> All()
     {
         lock (Registered)
-            return Registered.Select(reference => reference.TryGetTarget(out Control? control) ? control : null)
-                .OfType<Control>().Where(control => GetId(control) != null).ToArray();
+        {
+            List<Control> controls = new(Registered.Count);
+            int retained = 0;
+            for (int read = 0; read < Registered.Count; read++)
+            {
+                WeakReference<Control> reference = Registered[read];
+                if (!reference.TryGetTarget(out Control? control)) continue;
+                Registered[retained++] = reference;
+                // Keep membership even while an id is cleared: reassigning it must not add a second weak slot.
+                if (!string.IsNullOrEmpty(GetId(control))) controls.Add(control);
+            }
+            Registered.RemoveRange(retained, Registered.Count - retained);
+            ResetPruneCountdown();
+            return controls.ToArray();
+        }
     }
 
     /// <summary>Registered controls whose id belongs to <paramref name="page"/>.</summary>
