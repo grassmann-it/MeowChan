@@ -3379,6 +3379,8 @@
     "stats.header.diskTitle": "Disk",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "Č {0} Z {1}",
+    "stats.header.readMark": "Č",
+    "stats.header.writeMark": "Z",
     "stats.persistError": "Statistiky se nepodařilo uložit: {0}",
     "stats.requestsRate": "{0} za sekundu",
     "stats.reset": "Vynulovat",

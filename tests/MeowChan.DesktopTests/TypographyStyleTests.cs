@@ -26,7 +26,7 @@ public sealed class TypographyStyleTests
         string main = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml"));
         Assert.Contains("x:Name=\"WorkspaceCounts\" Grid.Column=\"2\" Classes=\"muted tnum\"", main);
         // The header rate labels are Codex's directional graph labels: they carry tabular figures directly (FontFeatures), not the mono class.
-        foreach (string label in new[] { "TransferSpeedLabel", "TransferDiskLabel" })
+        foreach (string label in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskReadLabel", "TransferDiskLabel" })
             Assert.Matches("x:Name=\"" + label + "\"[^>]*FontFeatures=\"tnum\"", main);
         string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
         foreach (string name in new[] { "ArchiveThreadPage", "ArchivePostPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })

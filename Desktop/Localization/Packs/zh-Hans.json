@@ -3320,6 +3320,8 @@
     "stats.header.diskTitle": "磁盘",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "读 {0} 写 {1}",
+    "stats.header.readMark": "读",
+    "stats.header.writeMark": "写",
     "stats.persistError": "无法保存统计：{0}",
     "stats.requestsRate": "每秒 {0} 次",
     "stats.reset": "重置",

@@ -3384,6 +3384,8 @@
     "stats.header.diskTitle": "Dysk",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "O {0} Z {1}",
+    "stats.header.readMark": "O",
+    "stats.header.writeMark": "Z",
     "stats.persistError": "Nie udało się zapisać statystyk: {0}",
     "stats.requestsRate": "{0} na sekundę",
     "stats.reset": "Resetuj",

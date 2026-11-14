@@ -3354,6 +3354,8 @@
     "stats.header.diskTitle": "Disco",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "L {0} S {1}",
+    "stats.header.readMark": "L",
+    "stats.header.writeMark": "S",
     "stats.persistError": "Impossibile salvare le statistiche: {0}",
     "stats.requestsRate": "{0} al secondo",
     "stats.reset": "Azzera",

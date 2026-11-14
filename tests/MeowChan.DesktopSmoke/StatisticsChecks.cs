@@ -43,6 +43,7 @@ internal static class StatisticsChecks
             await LayoutsAsync(window, "light");
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
             await HeaderAndPageCapturesAsync(window, "light-de");
+            await LayoutsAsync(window, "light-de");
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
             await SetThemeAsync(window, "Dark");
             await ClaimAsync(window);
@@ -94,6 +95,8 @@ internal static class StatisticsChecks
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
         Require(width >= 1000, "The smoke screen is too narrow for the header graph: " + width);
         Require(window.IoStatsClaim == IoStatsVisibility.Window, "A visible header graph holds no window claim: " + window.IoStatsClaim);
+        await Settle(window);
+        RequireRateCells(window, IoStatsDisplay.ResolveHeaderLayout("Auto", window.Bounds.Width), "initial Auto");
     }
 
     private static double _wideWidth;
@@ -128,12 +131,14 @@ internal static class StatisticsChecks
         // Both blocks carry a written heading and compact values: Network ↓ down ↑ up, Disk R read W write (English at this point).
         string netTitle = TextOf(window, "TransferSpeedTitle"), netValues = TextOf(window, "TransferSpeedLabel");
         string diskTitle = TextOf(window, "TransferDiskTitle"), diskValues = TextOf(window, "TransferDiskLabel");
-        Require(netTitle == Texts.T("stats.header.networkTitle") && netValues.StartsWith("↓ ", StringComparison.Ordinal) && netValues.Contains(" ↑ ") && netValues.EndsWith("/s", StringComparison.Ordinal),
+        Require(netTitle == Texts.T("stats.header.networkTitle") && TextOf(window, "TransferDownMark") == "↓" && TextOf(window, "TransferUpMark") == "↑"
+            && netValues.EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferUploadLabel").EndsWith("/s", StringComparison.Ordinal),
             scenario + ": the network block lacks its heading or its down/up values: '" + netTitle + "' '" + netValues + "'.");
         Require(text.Contains("upload", StringComparison.OrdinalIgnoreCase), scenario + ": the sentence does not name the upload: '" + text + "'.");
         if (disk)
         {
-            Require(diskTitle == Texts.T("stats.header.diskTitle") && diskValues.StartsWith("R ", StringComparison.Ordinal) && diskValues.Contains(" W ") && diskValues.EndsWith("/s", StringComparison.Ordinal),
+            Require(diskTitle == Texts.T("stats.header.diskTitle") && TextOf(window, "TransferReadMark") == "R" && TextOf(window, "TransferWriteMark") == "W"
+                && diskValues.EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferDiskReadLabel").EndsWith("/s", StringComparison.Ordinal),
                 scenario + ": the disk block lacks its heading or its read/write values: '" + diskTitle + "' '" + diskValues + "'.");
             Require(HeaderDiskGraph(window).IsVisible == graph, scenario + ": the disk graph is " + (graph ? "missing" : "drawn") + ".");
             Require(text.Contains("read", StringComparison.OrdinalIgnoreCase) && text.Contains("written", StringComparison.OrdinalIgnoreCase),
@@ -222,7 +227,7 @@ internal static class StatisticsChecks
         foreach (string value in new[] { "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Auto" })
             await CheckLayoutAsync(window, settings, value, _wideWidth, variant, "", v => controlsFromRight = RequireSame(controlsFromRight, v, value));
         // Narrower windows: side by side first loses its full-height graphs (rows), then the graphs (text rows); text blocks lose theirs.
-        foreach ((string value, double width, string tag) in new[] { ("SideBySide", 1280.0, "-w1280"), ("Text", 1000.0, "-w1000"), ("NetworkAndDisk", 1000.0, "-w1000"), ("SideBySide", 1150.0, "-w1150"), ("SideBySide", 900.0, "-w900"), ("Text", 900.0, "-w900"), ("NetworkAndDisk", 900.0, "-w900") })
+        foreach ((string value, double width, string tag) in new[] { ("Auto", 1380.0, "-w1380"), ("Auto", 1280.0, "-w1280"), ("Auto", 1100.0, "-w1100"), ("Auto", 900.0, "-w900"), ("SideBySide", 1280.0, "-w1280"), ("Text", 1000.0, "-w1000"), ("NetworkAndDisk", 1000.0, "-w1000"), ("SideBySide", 1150.0, "-w1150"), ("SideBySide", 900.0, "-w900"), ("Text", 900.0, "-w900"), ("NetworkAndDisk", 900.0, "-w900") })
         {
             window.Width = width;
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - width) <= 1, () => $"width {window.Bounds.Width}, wanted {width}");
@@ -259,28 +264,75 @@ internal static class StatisticsChecks
         controlsMoved(window.Bounds.Width - controlsX);
         Control header = Cell("WorkspaceHeader");
         Require(speed.Bounds.Height <= header.Bounds.Height + 0.5 && origin.Y >= -0.5, $"{value}{tag}: the header button is taller than the title bar ({speed.Bounds.Height} vs {header.Bounds.Height}).");
-        switch (layout.Arrangement)
+        Rect logo = new(Cell("WorkspaceLogo").TranslatePoint(default, window)!.Value, Cell("WorkspaceLogo").Bounds.Size);
+        Rect version = new(Cell("WorkspaceVersion").TranslatePoint(default, window)!.Value, Cell("WorkspaceVersion").Bounds.Size);
+        Require(origin.X >= Math.Max(logo.Right, version.Right) + 11, value + tag + ": the header metrics overlap the brand.");
+        if (layout.TwoLineLabels)
         {
-            case IoStatsDisplay.HeaderArrangement.GraphBlocks:
-                Require(Grid.GetColumn(Cell("TransferDiskGraph")) > Grid.GetColumn(Cell("TransferSpeedGraph")) && Grid.GetRowSpan(Cell("TransferSpeedGraph")) == 2 && Grid.GetRowSpan(Cell("TransferDiskGraph")) == 2,
-                    value + tag + ": the two blocks are not arranged side by side.");
-                Require(Cell("TransferSpeedGraph").Bounds.Height >= header.Bounds.Height * 0.6 && Cell("TransferDiskGraph").Bounds.Height == Cell("TransferSpeedGraph").Bounds.Height,
-                    $"{value}{tag}: the block graphs are not full height ({Cell("TransferSpeedGraph").Bounds.Height} of {header.Bounds.Height}).");
-                Require(Cell("TransferSpeedTitle").Bounds.Y < Cell("TransferSpeedLabel").Bounds.Y && Cell("TransferDiskTitle").Bounds.Y < Cell("TransferDiskLabel").Bounds.Y,
-                    value + tag + ": the label is not two lines (heading above values).");
-                break;
-            case IoStatsDisplay.HeaderArrangement.TextBlocks:
-                Require(!Cell("TransferSpeedGraph").IsVisible && !Cell("TransferDiskGraph").IsVisible && Cell("TransferSpeedTitle").Bounds.Y < Cell("TransferSpeedLabel").Bounds.Y,
-                    value + tag + ": the text blocks show a graph or no two-line label.");
-                break;
-            default:
-                if (layout.NetValue && layout.DiskValue)
-                    Require(Grid.GetRow(Cell("TransferDiskText")) == 1 && Grid.GetRow(Cell("TransferSpeedText")) == 0, value + tag + ": the rows are not stacked.");
-                Require(Math.Abs(Cell("TransferSpeedTitle").Bounds.Y - Cell("TransferSpeedLabel").Bounds.Y) < 2, value + tag + ": a row label is not one line.");
-                break;
+            if (layout.NetValue && layout.DiskValue)
+                Require(Grid.GetColumn(Cell("TransferDiskText")) > Grid.GetColumn(Cell("TransferSpeedText")),
+                    value + tag + ": the directional blocks are not side by side.");
+            foreach (string graph in new[] { "TransferSpeedGraph", "TransferDiskGraph" })
+                if (Cell(graph).IsVisible)
+                    Require(Cell(graph).Bounds.Height >= header.Bounds.Height * 0.6,
+                        value + tag + ": the block graph is not full height: " + graph);
         }
+        else if (layout.NetValue && layout.DiskValue)
+            Require(Grid.GetRow(Cell("TransferDiskText")) == 1 && Grid.GetRow(Cell("TransferSpeedText")) == 0,
+                value + tag + ": the compact rows are not stacked.");
+        RequireRateCells(window, layout, value + tag);
         Program.CaptureWindow(window, $"smoke-statistics-layout-{value.ToLowerInvariant()}{tag}-{variant}.png");
         Console.WriteLine($"SMOKE statistics layout: {value}{tag}/{variant}; net {layout.NetValue}/{layout.NetGraph}, disk {layout.DiskValue}/{layout.DiskGraph}, {layout.Arrangement}; header {speed.Bounds.Width:0}x{speed.Bounds.Height:0}.");
+    }
+
+    private static void RequireRateCells(MainWindow window, IoStatsDisplay.HeaderLayout layout, string scenario)
+    {
+        Rect Bounds(string name)
+        {
+            Control control = window.FindControl<Control>(name)!;
+            Point origin = control.TranslatePoint(default, window)!.Value;
+            return new Rect(origin, control.Bounds.Size);
+        }
+        foreach ((bool shown, bool graph, string graphName, string title, string first, string second, string firstMark, string secondMark) in new[]
+        {
+            (layout.NetValue, layout.NetGraph, "TransferSpeedGraph", "TransferSpeedTitle", "TransferSpeedLabel", "TransferUploadLabel", "TransferDownMark", "TransferUpMark"),
+            (layout.DiskValue, layout.DiskGraph, "TransferDiskGraph", "TransferDiskTitle", "TransferDiskReadLabel", "TransferDiskLabel", "TransferReadMark", "TransferWriteMark")
+        })
+        {
+            if (!shown) continue;
+            Rect a = Bounds(first), b = Bounds(second), markA = Bounds(firstMark), markB = Bounds(secondMark);
+            if (layout.TwoLineLabels)
+            {
+                Require(b.Top >= a.Bottom + 3 && Math.Abs(a.Right - b.Right) < 0.5 && Math.Abs(markA.Left - markB.Left) < 0.5,
+                    $"{scenario}: directional rates are not vertically spaced and column-aligned ({a}, {b}).");
+            }
+            else
+                Require(Math.Abs(a.Top - b.Top) < 0.5 && markB.Left >= a.Right + 8,
+                    scenario + ": compact rates have no common baseline or directional gap.");
+            Require(a.Left >= markA.Right + 3 && b.Left >= markB.Right + 3,
+                scenario + ": direction markers touch their values.");
+            if (graph)
+                Require(Bounds(title).Left >= Bounds(graphName).Right + 11,
+                    scenario + ": graph touches its labels (including the initial layout).");
+        }
+        if (layout.NetValue && layout.DiskValue)
+        {
+            if (layout.TwoLineLabels)
+            {
+                Require(Math.Abs(Bounds("TransferSpeedLabel").Top - Bounds("TransferDiskReadLabel").Top) < 0.5
+                    && Math.Abs(Bounds("TransferUploadLabel").Top - Bounds("TransferDiskLabel").Top) < 0.5,
+                    scenario + ": the network and disk blocks do not share rate baselines.");
+            }
+            else
+            {
+                foreach ((string net, string disk) in new[] { ("TransferSpeedTitle", "TransferDiskTitle"),
+                    ("TransferDownMark", "TransferReadMark"), ("TransferSpeedLabel", "TransferDiskReadLabel"),
+                    ("TransferUpMark", "TransferWriteMark"), ("TransferUploadLabel", "TransferDiskLabel") })
+                    Require(Math.Abs(Bounds(net).Left - Bounds(disk).Left) < 0.5
+                        && Math.Abs(Bounds(net).Right - Bounds(disk).Right) < 0.5,
+                        scenario + ": compact rows do not share aligned columns: " + net + "/" + disk);
+            }
+        }
     }
 
     private static async Task ShowBehaviorAsync(SettingsEditor settings)

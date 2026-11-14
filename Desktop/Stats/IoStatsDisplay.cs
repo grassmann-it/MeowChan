@@ -80,8 +80,8 @@ internal static class IoStatsDisplay
     // --- the header setting and its layouts ---------------------------------------------------------------------------------
 
     /// <summary>
-    /// The values of <c>Config.StatsHeaderGraph</c>. Auto, Network and NetworkAndDisk are the original three and keep their
-    /// behaviour; Disk, SideBySide and Text are the layout choices added later (an older file never holds them).
+    /// The values of <c>Config.StatsHeaderGraph</c>. Auto, Network and NetworkAndDisk are the original three; their source
+    /// selection stays unchanged. Disk, SideBySide and Text were added later. Auto adapts the arrangement to the window width.
     /// </summary>
     internal const string HeaderGraphAuto = "Auto", HeaderGraphNetwork = "Network", HeaderGraphNetworkAndDisk = "NetworkAndDisk",
         HeaderGraphDisk = "Disk", HeaderGraphSideBySide = "SideBySide", HeaderGraphText = "Text";
@@ -106,7 +106,7 @@ internal static class IoStatsDisplay
 
     /// <summary>
     /// How the header is arranged. <see cref="Rows"/>: one row per value, a half-height graph and a one-line label each.
-    /// <see cref="GraphBlocks"/>: two blocks side by side, each a full-height graph and a two-line label (heading, values).
+    /// <see cref="GraphBlocks"/>: two blocks side by side, each a full-height graph, a centred heading and vertically stacked directional rates.
     /// <see cref="TextBlocks"/>: the same two-line labels without graphs. <see cref="TextRows"/>: one-line labels, one under the
     /// other, without graphs (the narrow form).
     /// </summary>
@@ -115,14 +115,14 @@ internal static class IoStatsDisplay
     /// <summary>What the header draws: which values (labelled rates) and which graphs, and how they are arranged.</summary>
     internal readonly record struct HeaderLayout(bool NetValue, bool DiskValue, bool NetGraph, bool DiskGraph, HeaderArrangement Arrangement)
     {
-        /// <summary>Whether the labels are two lines (heading above values).</summary>
+        /// <summary>Whether each block stacks its directional rates on two lines.</summary>
         internal bool TwoLineLabels => Arrangement is HeaderArrangement.GraphBlocks or HeaderArrangement.TextBlocks;
     }
 
     /// <summary>
     /// The layout for a setting and the window width (the work view does not matter). Below <see cref="HeaderGraphsMinimumWidth"/>
-    /// every graph is dropped and the labelled values stay as one-line rows; "SideBySide" needs <see cref="HeaderBlocksMinimumWidth"/>
-    /// and falls back to rows in between. Auto: both values and both graphs whenever there is room, in every work view.
+    /// every graph is dropped; two metrics become compact rows while a single metric keeps its stacked directions.
+    /// Two graph blocks need <see cref="HeaderBlocksMinimumWidth"/> and fall back to rows in between. Auto: two blocks in a wide window, otherwise aligned rows, in every work view.
     /// Network / Disk: that block only. NetworkAndDisk: both rows with graphs. SideBySide: two graph blocks. Text: two text blocks.
     /// </summary>
     internal static HeaderLayout ResolveHeaderLayout(string? setting, double width = double.PositiveInfinity)
@@ -131,12 +131,12 @@ internal static class IoStatsDisplay
         HeaderArrangement rows = graphs ? HeaderArrangement.Rows : HeaderArrangement.TextRows;
         return NormalizeHeaderGraph(setting) switch
         {
-            HeaderGraphNetwork => new(true, false, graphs, false, rows),
-            HeaderGraphDisk => new(false, true, false, graphs, rows),
+            HeaderGraphNetwork => new(true, false, graphs, false, graphs ? HeaderArrangement.GraphBlocks : HeaderArrangement.TextBlocks),
+            HeaderGraphDisk => new(false, true, false, graphs, graphs ? HeaderArrangement.GraphBlocks : HeaderArrangement.TextBlocks),
             HeaderGraphNetworkAndDisk => new(true, true, graphs, graphs, rows),
             HeaderGraphSideBySide => blocks ? new(true, true, true, true, HeaderArrangement.GraphBlocks) : new(true, true, graphs, graphs, rows),
             HeaderGraphText => new(true, true, false, false, graphs ? HeaderArrangement.TextBlocks : HeaderArrangement.TextRows),
-            _ => new(true, true, graphs, graphs, rows)
+            _ => new(true, true, graphs, graphs, blocks ? HeaderArrangement.GraphBlocks : rows)
         };
     }
 

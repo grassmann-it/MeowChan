@@ -1481,6 +1481,8 @@
     "stats.header.diskTitle": "Disque",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "L {0} É {1}",
+    "stats.header.readMark": "L",
+    "stats.header.writeMark": "É",
     "stats.history.note": "Chaque graphique a sa propre échelle. Dans l’en-tête, la réception et l’écriture sont tracées en trait plein avec une surface remplie, l’envoi et la lecture en pointillés.",
     "stats.graph.page.name": "{0} : historique des {1} dernières s, échelle jusqu’à {2}",
     "stats.col.source": "Source",

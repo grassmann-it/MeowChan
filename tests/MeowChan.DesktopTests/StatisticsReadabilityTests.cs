@@ -158,7 +158,7 @@ public sealed class StatisticsReadabilityTests : IDisposable
         XElement graph = Named(shell, "TransferSpeedGraph");
         Assert.True(double.Parse((string)graph.Attribute("Width")!, CultureInfo.InvariantCulture) >= 120);
         Assert.Equal("60", (string?)graph.Attribute("HistoryWindowSeconds"));
-        foreach (string name in new[] { "TransferSpeedLabel", "TransferDiskLabel" })
+        foreach (string name in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskReadLabel", "TransferDiskLabel" })
         {
             XElement label = Named(shell, name);
             Assert.Equal("tnum", (string?)label.Attribute("FontFeatures"));

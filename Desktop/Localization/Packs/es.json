@@ -1481,6 +1481,8 @@
     "stats.header.diskTitle": "Disco",
     "stats.header.netValues": "↓ {0} ↑ {1}",
     "stats.header.diskValues": "L {0} E {1}",
+    "stats.header.readMark": "L",
+    "stats.header.writeMark": "E",
     "stats.history.note": "Cada gráfico tiene su propia escala. En la cabecera, descarga y escritura se dibujan con trazo continuo y área rellena, subida y lectura con trazo discontinuo.",
     "stats.graph.page.name": "{0}: historial de los últimos {1} s, escala hasta {2}",
     "stats.col.source": "Fuente",

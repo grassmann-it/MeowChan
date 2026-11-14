@@ -64,11 +64,14 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [InlineData("Auto", 1100.0, true, true, true, true, "Rows")]
     [InlineData("Auto", 1000.0, true, true, true, true, "Rows")]
     [InlineData("Auto", 900.0, true, true, false, false, "TextRows")]
-    [InlineData("Auto", 1400.0, true, true, true, true, "Rows")]
-    [InlineData("Network", 1100.0, true, false, true, false, "Rows")]
-    [InlineData("Network", 900.0, true, false, false, false, "TextRows")]
-    [InlineData("Disk", 1100.0, false, true, false, true, "Rows")]
-    [InlineData("Disk", 900.0, false, true, false, false, "TextRows")]
+    [InlineData("Auto", 1400.0, true, true, true, true, "GraphBlocks")]
+    [InlineData("Auto", 1380.0, true, true, true, true, "GraphBlocks")]
+    [InlineData("Auto", 1280.0, true, true, true, true, "GraphBlocks")]
+    [InlineData("Auto", 1279.0, true, true, true, true, "Rows")]
+    [InlineData("Network", 1100.0, true, false, true, false, "GraphBlocks")]
+    [InlineData("Network", 900.0, true, false, false, false, "TextBlocks")]
+    [InlineData("Disk", 1100.0, false, true, false, true, "GraphBlocks")]
+    [InlineData("Disk", 900.0, false, true, false, false, "TextBlocks")]
     [InlineData("NetworkAndDisk", 1100.0, true, true, true, true, "Rows")]
     [InlineData("NetworkAndDisk", 900.0, true, true, false, false, "TextRows")]
     [InlineData("SideBySide", 1400.0, true, true, true, true, "GraphBlocks")]
@@ -90,7 +93,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     }
 
     [Fact]
-    public void NoSettingDrawsAGraphBelowTheGraphWidthAndOnlyBlocksNeedTheWiderLimit()
+    public void NarrowWindowsDropGraphsAndWideWindowsStackDirectionsUnlessCompactRowsAreExplicit()
     {
         foreach (string setting in IoStatsDisplay.HeaderGraphChoices)
         {
@@ -98,7 +101,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
             Assert.False(narrow.NetGraph || narrow.DiskGraph, setting);
             Assert.True(narrow.NetValue || narrow.DiskValue, setting);
             IoStatsDisplay.HeaderLayout wide = IoStatsDisplay.ResolveHeaderLayout(setting, IoStatsDisplay.HeaderBlocksMinimumWidth);
-            Assert.Equal(setting == "SideBySide", wide.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks);
+            Assert.Equal(setting != "NetworkAndDisk", wide.TwoLineLabels);
+            Assert.Equal(setting != "Text", wide.NetGraph || wide.DiskGraph);
         }
         Assert.True(IoStatsDisplay.HeaderGraphsMinimumWidth < IoStatsDisplay.HeaderBlocksMinimumWidth);
     }
@@ -131,7 +135,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
         foreach (string language in new[] { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
         {
             Texts.SetLanguage(language);
-            foreach (string key in new[] { "stats.header.networkTitle", "stats.header.diskTitle" })
+            foreach (string key in new[] { "stats.header.networkTitle", "stats.header.diskTitle", "stats.header.readMark", "stats.header.writeMark" })
             {
                 string text = Texts.T(key);
                 Assert.NotEqual(key, text);
