@@ -187,6 +187,9 @@ public sealed class EffectiveShortcutBindings
         ["tags.queue.card-4"] = 9, ["tags.queue.card-5"] = 9,
         // New in revision 9 (V4): turning the shown picture or video (Shift+R).
         ["gallery.rotate"] = 9,
+        // PT7 (decision on the default key): Q puts the shown medium, or the selected media of the media page, in the tagging queue. Q is free in
+        // the contexts it is active in (media page and gallery); it yields to a saved binding of another command like every new default.
+        ["media.queue.add"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

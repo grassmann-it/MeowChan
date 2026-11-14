@@ -25,7 +25,7 @@ public static class CommandCatalog
         new("reader-groups.save", "command.reader-groups.save", "Save group", "Gruppe speichern", "save", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("media.tags.edit", "media.tags.edit", "Tag…", "Tag…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
-        new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", null, CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
+        new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "app-menu" }),
         // PT2: the tagging page under the app menu (not a footer page), and the commands of its queue list (execution context "tagging").
         new("navigation.tagging", "command.navigation.tagging", "Tagging", "Taggen", "edit-2", null, CommandScope.Application, new[] { "app-menu" }),

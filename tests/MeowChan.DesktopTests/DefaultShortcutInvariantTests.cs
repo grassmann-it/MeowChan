@@ -24,7 +24,9 @@ public sealed class DefaultShortcutInvariantTests
         // PT4: K switches the card mode of the tagging mode, 1 to 5 choose its cards (only inside the mode; the cards stay clickable).
         "tags.queue.cards", "tags.queue.card-1", "tags.queue.card-2", "tags.queue.card-3", "tags.queue.card-4", "tags.queue.card-5",
         // Gallery picture and video: Shift+R turns the shown medium by 90°.
-        "gallery.rotate"
+        "gallery.rotate",
+        // PT7: Q puts the open medium in the tag queue (media/gallery contexts, revision 9).
+        "media.queue.add"
     };
 
     [Theory, MemberData(nameof(Platforms))]
