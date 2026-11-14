@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
@@ -11,6 +12,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using Avalonia.Media.TextFormatting;
 using MeowChan.Archive;
 
 namespace MeowChan.Desktop;
@@ -87,6 +90,13 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public static readonly AttachedProperty<int> FoldThresholdLinesProperty =
         AvaloniaProperty.RegisterAttached<ReaderBodyTextBlock, Control, int>("FoldThresholdLines", ReaderDisplayLimits.FoldLinesDefault,
             inherits: true, coerce: (_, value) => ReaderDisplayLimits.ClampFoldLines(value));
+
+    /// <summary>
+    /// The outline of a hidden spoiler: the interactive outline colour of the theme (Light/Dark review 2026-11-13, item 8).
+    /// Bound to <c>Workspace.ControlBorder</c> in the constructor, so a theme switch repaints it.
+    /// </summary>
+    internal static readonly StyledProperty<IBrush?> SpoilerOutlineBrushProperty =
+        AvaloniaProperty.Register<ReaderBodyTextBlock, IBrush?>("SpoilerOutlineBrush");
 
     public static ReaderSpoilerMode GetSpoilerMode(Control control) => control.GetValue(SpoilerModeProperty);
     public static void SetSpoilerMode(Control control, ReaderSpoilerMode value) => control.SetValue(SpoilerModeProperty, value);
@@ -224,9 +234,25 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     private ArchiveQuoteRow? _hoverQuote;
     private bool _linkCursor;
 
-    static ReaderBodyTextBlock() => AffectsMeasure<ReaderBodyTextBlock>(ExpandedProperty, FoldThresholdLinesProperty);
+    // Outline of hidden spoilers: the pen follows the theme brush; the areas are rebuilt only when the text layout or the
+    // render scaling changes (a new document, a reveal, a width change), never per frame.
+    private readonly List<(int Start, int End)> _spoilerRanges = new();
+    private readonly List<Rect> _spoilerOutline = new();
+    private TextLayout? _spoilerOutlineLayout;
+    private double _spoilerOutlineScale;
+    private IPen? _spoilerOutlinePen;
 
-    public ReaderBodyTextBlock() => UpdateReadingMetrics();
+    static ReaderBodyTextBlock()
+    {
+        AffectsMeasure<ReaderBodyTextBlock>(ExpandedProperty, FoldThresholdLinesProperty);
+        AffectsRender<ReaderBodyTextBlock>(SpoilerOutlineBrushProperty);
+    }
+
+    public ReaderBodyTextBlock()
+    {
+        UpdateReadingMetrics();
+        this[!SpoilerOutlineBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
+    }
 
     // A long body is clipped to its first lines inside the same measure pass, so the list never sees the full height.
     protected override Size MeasureOverride(Size availableSize)
@@ -259,6 +285,8 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     {
         base.OnPropertyChanged(change);
         if (change.Property == IsTextOnlyProperty || change.Property == FontSizeProperty) UpdateReadingMetrics();
+        if (change.Property == SpoilerOutlineBrushProperty)
+            _spoilerOutlinePen = change.GetNewValue<IBrush?>() is { } outline ? new ImmutablePen(outline.ToImmutable(), 1) : null;
         if (change.Property == DocumentProperty) ShowDocument(change.GetNewValue<ReaderBodyDocument?>());
         else if ((change.Property == SpoilersRevealedProperty || change.Property == SpoilerModeProperty) && Document is { IsFormatted: true })
         {
@@ -283,6 +311,8 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
         _spoilersHovered = false; // A recycled body starts a new post; its pointer state is unknown until the next enter.
         SetLinkCursor(false);
         SelectionStart = SelectionEnd = 0;
+        ReaderSpoilerOutline.Ranges(document, _spoilerRanges);
+        _spoilerOutlineLayout = null;
         if (document is not { IsFormatted: true })
         {
             // Unformatted bodies keep the plain Text path (and TextBlock.Text) unchanged.
@@ -340,6 +370,56 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
             inlines.Add(run);
         }
         Inlines = inlines;
+    }
+
+    // A hidden spoiler gets a 1-dip outline in the interactive outline colour around the area its run background paints:
+    // the area alone is about 1.1:1 against the active card in both themes, and a run background cannot carry a border.
+    // Drawn after the text and the selection, so selection and copy are unchanged; a shown spoiler (revealed, hover, always)
+    // keeps its plain area without the outline, so the reveal stays a visible change.
+    protected override void RenderTextLayout(DrawingContext context, Point origin)
+    {
+        base.RenderTextLayout(context, origin);
+        if (_spoilerOutlinePen is not { } pen || _spoilerRanges.Count == 0 || SpoilersShown) return;
+        List<Rect> areas = SpoilerOutlineStrokes();
+        if (areas.Count == 0) return;
+        using (context.PushTransform(Matrix.CreateTranslation(origin)))
+            foreach (Rect area in areas) context.DrawRectangle(null, pen, area);
+    }
+
+    /// <summary>The rectangles the hidden-spoiler outline strokes (text layout coordinates); empty while the spoilers are shown.</summary>
+    internal IReadOnlyList<Rect> SpoilerOutlineAreas => _spoilerRanges.Count == 0 || SpoilersShown ? Array.Empty<Rect>() : SpoilerOutlineStrokes();
+
+    internal IBrush? SpoilerOutlineBrush => GetValue(SpoilerOutlineBrushProperty);
+
+    // Each spoiler run paints its background over the glyph run bounds: the run's own height, placed on the line baseline
+    // (TextLine.Draw: line top + line baseline - run baseline). The outline follows exactly that area, per line.
+    private List<Rect> SpoilerOutlineStrokes()
+    {
+        TextLayout layout = TextLayout;
+        double scale = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+        if (ReferenceEquals(layout, _spoilerOutlineLayout) && scale == _spoilerOutlineScale) return _spoilerOutline;
+        _spoilerOutlineLayout = layout;
+        _spoilerOutlineScale = scale;
+        _spoilerOutline.Clear();
+        double top = 0;
+        foreach (TextLine line in layout.TextLines)
+        {
+            int lineStart = line.FirstTextSourceIndex, lineEnd = lineStart + line.Length, lineFirst = _spoilerOutline.Count;
+            foreach ((int start, int end) in _spoilerRanges)
+            {
+                int from = Math.Max(start, lineStart), to = Math.Min(end, lineEnd);
+                if (from >= to) continue;
+                foreach (TextBounds bounds in line.GetTextBounds(from, to - from))
+                    foreach (TextRunBounds run in bounds.TextRunBounds)
+                        if (run.TextRun is DrawableTextRun drawable)
+                            ReaderSpoilerOutline.Add(_spoilerOutline, lineFirst, new Rect(run.Rectangle.X,
+                                top + line.Baseline - drawable.Baseline, run.Rectangle.Width, drawable.Size.Height));
+            }
+            top += line.Height;
+        }
+        for (int index = 0; index < _spoilerOutline.Count; index++)
+            _spoilerOutline[index] = ReaderSpoilerOutline.Stroke(_spoilerOutline[index], scale);
+        return _spoilerOutline;
     }
 
     internal ReaderBodySegment? SegmentAt(Point point)
