@@ -7,7 +7,7 @@ namespace MeowChan.Persistence;
 /// <summary>What a refused write ran into; the desktop turns it into a localized sentence that names the setting.</summary>
 internal enum PrivateStoreLimitKind
 {
-    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups, PostFilterRules, HiddenPosts
+    FavoriteEntries, FavoriteFile, Bookmarks, SavedSearches, ReaderGroups, PostFilterRules, HiddenPosts, TagQueueEntries, TagQueueFile
 }
 
 /// <summary>
@@ -86,6 +86,19 @@ internal sealed class ProfileStoreLimits
     internal const int MinimumHiddenPosts = 1_000;
     internal const int HiddenPostCeiling = 100_000;
 
+    /// <summary>Entries of the tagging queue. Default 2,000. The 64 MiB file and 50,000 entries are the fixed technical ceilings of a read.</summary>
+    internal const int DefaultTagQueueEntries = 2_000;
+    internal const int MinimumTagQueueEntries = 50;
+    internal const int TagQueueEntryCeiling = 50_000;
+    /// <summary>Size of the tagging queue file. Default 8 MiB; a write that does not grow the file is always allowed.</summary>
+    internal const int DefaultTagQueueFileBytes = 8 * 1024 * 1024;
+    internal const int MinimumTagQueueFileBytes = 1024 * 1024;
+    internal const int TagQueueFileCeilingBytes = 64 * 1024 * 1024;
+    /// <summary>Finished entries the tagging queue keeps (older finished entries drop out). Default 500, 0 keeps none.</summary>
+    internal const int DefaultTagQueueHistory = 500;
+    internal const int MinimumTagQueueHistory = 0;
+    internal const int TagQueueHistoryCeiling = 20_000;
+
     private int _favoriteEntries = DefaultFavoriteEntries;
     private long _favoriteFileBytes = DefaultFavoriteFileBytes;
     private int _bookmarks = DefaultBookmarks;
@@ -93,6 +106,9 @@ internal sealed class ProfileStoreLimits
     private int _readerGroups = DefaultReaderGroups;
     private int _postFilterRules = DefaultPostFilterRules;
     private int _hiddenPosts = DefaultHiddenPosts;
+    private int _tagQueueEntries = DefaultTagQueueEntries;
+    private long _tagQueueFileBytes = DefaultTagQueueFileBytes;
+    private int _tagQueueHistory = DefaultTagQueueHistory;
 
     /// <summary>Most entries a write may leave in a favorite or rating list; a new entry at or above it is refused.</summary>
     internal int FavoriteEntries
@@ -141,6 +157,27 @@ internal sealed class ProfileStoreLimits
     {
         get => Volatile.Read(ref _hiddenPosts);
         set => Volatile.Write(ref _hiddenPosts, Checked(value, MinimumHiddenPosts, HiddenPostCeiling));
+    }
+
+    /// <summary>Most entries a write may leave in the tagging queue; adding is refused at it, removing and state changes always work.</summary>
+    internal int TagQueueEntries
+    {
+        get => Volatile.Read(ref _tagQueueEntries);
+        set => Volatile.Write(ref _tagQueueEntries, Checked(value, MinimumTagQueueEntries, TagQueueEntryCeiling));
+    }
+
+    /// <summary>Largest size a write may grow the tagging queue file to.</summary>
+    internal long TagQueueFileBytes
+    {
+        get => Interlocked.Read(ref _tagQueueFileBytes);
+        set => Interlocked.Exchange(ref _tagQueueFileBytes, Checked(value, MinimumTagQueueFileBytes, TagQueueFileCeilingBytes));
+    }
+
+    /// <summary>How many finished entries the tagging queue keeps; older finished entries drop out of the queue.</summary>
+    internal int TagQueueHistory
+    {
+        get => Volatile.Read(ref _tagQueueHistory);
+        set => Volatile.Write(ref _tagQueueHistory, Checked(value, MinimumTagQueueHistory, TagQueueHistoryCeiling));
     }
 
     /// <summary>Current size of a file, or 0 when it is missing or unreadable; a write that does not grow a file is never refused.</summary>
