@@ -57,7 +57,7 @@ internal static class WorkspaceChips
     internal static StackPanel RemovableContent(string name)
     {
         TextBlock label = new() { Text = name, VerticalAlignment = VerticalAlignment.Center };
-        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6,
+        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
             Children = { label, WorkspaceIcons.Create(WorkspaceIcons.CloseSmall) } };
     }
 

@@ -49,7 +49,7 @@ public sealed partial class MediaPage
     private readonly TagFilterPicker _tagAdd = new() { Name = "MediaTagAdd" };
     // The tag mode is a switch "all | any" beside the tag button (M5); index 0 = every included tag, 1 = at least one.
     private readonly TwoWayToggle _tagMode = new() { Name = "MediaTagMode" };
-    private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 6, LineSpacing = 6 };
+    private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 8, LineSpacing = 8 };
     private readonly TextBlock _filterError = new() { Name = "MediaFilterError", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
     // M2: the term set is the one truth of the filter. The section's combos and check boxes show it (SyncFilterControls) and write
     // it (EditTerms); the chips and the "+ Filter" picker read and write it the same way. Two parts stay outside the set: the

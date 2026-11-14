@@ -20,7 +20,7 @@ public sealed partial class MediaPage
     private readonly TextBlock _exportAllText = new() { Name = "MediaExportAllConfirmText", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _exportAllYes = new() { Name = "MediaExportAllConfirmYes" };
     private readonly Button _exportAllNo = new() { Name = "MediaExportAllConfirmNo" };
-    private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 6, IsVisible = false };
+    private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 8, IsVisible = false };
     private IReadOnlyList<MediaLibraryTile>? _exportAllPending;
 
     private (int Files, long Bytes)? _exportAllConfirmAbove;
