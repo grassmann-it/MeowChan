@@ -62,17 +62,23 @@ internal static class TaggingCardsChecks
             RequireCards(viewer, window, "start");
             Program.CaptureWindow(window, "smoke-tagging-cards.png");
 
+            // The tag panel keeps the keyboard in its field while it is open and a key typed there is text (the router leaves it alone), so the
+            // smoke gives the keyboard back to the picture before each card key, like a user who clicks the medium first.
             // Key 4 (Stamp & next): the stamp lands on the bound medium and finishes it.
+            viewer.Focus();
             Raise(viewer, Key.D4, KeyModifiers.None);
             await UntilAsync(() => State(host, 0) == TagQueueState.Done && Shown(viewer) == looseA.EntryKey, "The stamp card did not finish the first medium.");
             PrivateMediaTagTarget target = GalleryMediaTagTarget.Resolve(bound, out _) ?? throw new InvalidOperationException("The bound fixture has no tag target.");
             Require(host.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "stamped" }), "The stamp card did not tag the medium.");
 
             // Key 1 (Back): the newest decision is taken back through the walk's own log and the gallery returns to its medium.
+            await IdleAsync(window);
+            viewer.Focus();
             Raise(viewer, Key.D1, KeyModifiers.None);
             await UntilAsync(() => State(host, 0) == TagQueueState.Open && Shown(viewer) == bound.EntryKey, "The back card did not return to the medium.");
 
             // Key 3 (Favorite & next): one step writes the favorite, then finishes the medium; the sentence names both.
+            viewer.Focus();
             Raise(viewer, Key.D3, KeyModifiers.None);
             await UntilAsync(() => State(host, 0) == TagQueueState.Done && Shown(viewer) == looseA.EntryKey, "The favorite card did not finish the medium.");
             Require(host.IsFavorite(bound), "The favorite card did not make the medium a favorite.");
@@ -80,19 +86,24 @@ internal static class TaggingCardsChecks
                 "The favorite and the decision were not said together: " + viewer.TaggingStatusText.Text);
 
             // Backspace takes the newest step first (the done), then the favorite in place: one log for cards and keys.
+            await IdleAsync(window);
             viewer.Focus();
             Raise(viewer, Key.Back, KeyModifiers.None);
             await UntilAsync(() => State(host, 0) == TagQueueState.Open && Shown(viewer) == bound.EntryKey, "Backspace did not take the done back.");
             Require(host.IsFavorite(bound), "The favorite went with the done.");
+            await IdleAsync(window);
             viewer.Focus();
             Raise(viewer, Key.Back, KeyModifiers.None);
             await UntilAsync(() => !host.IsFavorite(bound), "The second Backspace did not take the favorite back.");
+            viewer.Focus();
             Raise(viewer, Key.D5, KeyModifiers.None); // Done & next on the bound medium again
             await UntilAsync(() => State(host, 0) == TagQueueState.Done && Shown(viewer) == looseA.EntryKey, "The done card did not finish the medium.");
 
             // Key 2 (Skip) and key 5 (Done) finish the rest; a card key never decides while the previous medium is still being shown.
+            viewer.Focus();
             Raise(viewer, Key.D2, KeyModifiers.None);
             await UntilAsync(() => State(host, 1) == TagQueueState.Skipped && Shown(viewer) == looseB.EntryKey, "The skip card did not skip.");
+            viewer.Focus();
             Raise(viewer, Key.D5, KeyModifiers.None);
             await UntilAsync(() => State(host, 2) == TagQueueState.Done, "The done card did not finish the last medium.");
             Require(viewer.TaggingStatusText.Text!.EndsWith("Every medium of this walk is decided.", StringComparison.Ordinal),
@@ -130,6 +141,10 @@ internal static class TaggingCardsChecks
             try { await window.SessionHost.ClearTagQueueAsync(); } catch (Exception error) when (error is IOException or InvalidOperationException) { }
         }
     }
+
+    // An undo is offered once the walk's writes are over (TaggingUndo.CanUndo): the queue file shows a decision a moment before its step is
+    // recorded, so the smoke waits for the walk to be idle like a user who sees the strip settle.
+    private static Task IdleAsync(MainWindow window) => UntilAsync(() => window.GalleryTagging is not { Busy: true }, "The walk's writes did not end.");
 
     // Five buttons, each at least 48 x 120 dip with text and key, named "<label>, key <n>" with the key as accelerator, inside the window.
     private static void RequireCards(GalleryViewer viewer, MainWindow window, string tag)
