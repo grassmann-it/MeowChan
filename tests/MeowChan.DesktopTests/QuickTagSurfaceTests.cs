@@ -596,6 +596,156 @@ public sealed class QuickTagSurfaceTests : IDisposable
         }
     }
 
+    // Quick tag footer (wave 6): three labelled buttons, stacked at full width in the side panel, in a row elsewhere.
+    [Fact]
+    public void TheFooterButtonsShowIconAndTextAndStackAtFullWidthInANarrowHost()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(Single(store, Entry("a", 'a'))));
+        using (session)
+        using (surface)
+        {
+            Button[] buttons = { surface.UndoButton, surface.StampButton, surface.AdvancedButton };
+            string[] icons = { "corner-up-left", "check-square", "external-link" };
+            string[] texts = { "Undo", "Stamp", "Open tag editor" };
+            void AssertLabels()
+            {
+                for (int index = 0; index < buttons.Length; index++)
+                {
+                    (string Icon, string Text)? label = surface.FooterLabelOf(buttons[index]);
+                    Assert.Equal((icons[index], texts[index]), label);
+                    // Never wraps: one line, trimmed with an ellipsis (the tooltip has the full text).
+                    TextBlock text = surface.FooterTextOf(buttons[index])!;
+                    Assert.Equal(1, text.MaxLines);
+                    Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, text.TextWrapping);
+                    Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, text.TextTrimming);
+                    Assert.Equal(HorizontalAlignment.Left, buttons[index].HorizontalContentAlignment);
+                    Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(buttons[index])));
+                    Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(buttons[index])));
+                    Assert.False(string.IsNullOrWhiteSpace(ToolTip.GetTip(buttons[index]) as string));
+                    Assert.True(ToolTip.GetShowOnDisabled(buttons[index]));
+                }
+            }
+
+            // Wide host: one row, the buttons keep their natural width, the last one takes what is left.
+            Assert.False(surface.FooterStacked);
+            Assert.Equal(HorizontalAlignment.Left, surface.Footer.HorizontalAlignment);
+            Assert.Single(surface.Footer.RowDefinitions);
+            Assert.Equal(3, surface.Footer.ColumnDefinitions.Count);
+            Assert.Equal(new[] { 0, 1, 2 }, buttons.Select(Grid.GetColumn));
+            Assert.All(buttons, button => Assert.Equal(0, Grid.GetRow(button)));
+            Assert.All(buttons, button => Assert.Equal(HorizontalAlignment.Left, button.HorizontalAlignment));
+            AssertLabels();
+
+            // Side panel width (the default panel is 320 dip wide): one column, one button per line, each at full width, 8 dip apart.
+            surface.ApplyWidth(QuickTagSurface.CompactWidth - 1);
+            Assert.True(surface.FooterStacked);
+            Assert.Equal(HorizontalAlignment.Stretch, surface.Footer.HorizontalAlignment);
+            Assert.Single(surface.Footer.ColumnDefinitions);
+            Assert.Equal(3, surface.Footer.RowDefinitions.Count);
+            Assert.Equal(new[] { 0, 1, 2 }, buttons.Select(Grid.GetRow));
+            Assert.All(buttons, button => Assert.Equal(0, Grid.GetColumn(button)));
+            Assert.All(buttons, button => Assert.Equal(HorizontalAlignment.Stretch, button.HorizontalAlignment));
+            Assert.Equal(8, surface.Footer.RowSpacing);
+            Assert.Equal(0, surface.Footer.ColumnSpacing);
+            Assert.Equal(buttons, surface.Footer.Children.ToArray()); // the tab order stays undo, stamp, editor
+            AssertLabels();
+
+            // Back to the row from the compact width on; a width of 0 (not laid out yet) changes nothing.
+            surface.ApplyWidth(0);
+            Assert.True(surface.FooterStacked);
+            surface.ApplyWidth(QuickTagSurface.CompactWidth);
+            Assert.False(surface.FooterStacked);
+            Assert.Equal(8, surface.Footer.ColumnSpacing);
+            AssertLabels();
+        }
+    }
+
+    [Fact]
+    public void TheFooterTooltipsExplainTheActionInOneSentenceWithTheShortcutAndStayEnabledAsBefore()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(Single(store, Entry("a", 'a'))));
+        using (session)
+        using (surface)
+        {
+            Assert.Equal("Undo the last tag change · Ctrl+Z", ToolTip.GetTip(surface.UndoButton));
+            Assert.Equal("Open the full tag dialog to choose occurrences, sort and browse long lists", ToolTip.GetTip(surface.AdvancedButton));
+            Assert.Equal("Takes back the last change made here, one step at a time. Shortcut: Ctrl+Z.", AutomationProperties.GetHelpText(surface.UndoButton));
+            Assert.StartsWith("Gives the shown media file or selection every tag of your stamp", AutomationProperties.GetHelpText(surface.StampButton));
+            Assert.EndsWith("Shortcut: Ctrl+Shift+Enter.", AutomationProperties.GetHelpText(surface.StampButton));
+            Assert.StartsWith("Opens the full tag dialog", AutomationProperties.GetHelpText(surface.AdvancedButton));
+            // The names stay what they were: the undo count and the stamp content with its key.
+            Assert.Equal("Open the full tag dialog to choose occurrences, sort and browse long lists", AutomationProperties.GetName(surface.AdvancedButton));
+            Assert.Equal("Ctrl+Shift+Enter", AutomationProperties.GetAcceleratorKey(surface.StampButton));
+            // Enabled state unchanged: no step to undo, an empty stamp; the editor needs the loaded snapshot of the target.
+            Assert.False(surface.UndoButton.IsEnabled);
+            Assert.False(surface.StampButton.IsEnabled);
+            Assert.True(surface.AdvancedButton.IsEnabled == (session.Snapshot != null));
+        }
+    }
+
+    // The footer labels never wrap and are trimmed only as a fallback, so every language keeps them short: a weighted length
+    // (a full-width CJK character counts twice) of at most 14 for undo and stamp (the row), 24 for the editor (a 280 dip panel).
+    [Theory]
+    [InlineData("en", "Undo", "Stamp", "Open tag editor")]
+    [InlineData("de", "Rückgängig", "Stempel", "Tag-Editor öffnen")]
+    [InlineData("es", "Deshacer", "Sello", "Editor de etiquetas")]
+    [InlineData("fr", "Annuler", "Tampon", "Éditeur d’étiquettes")]
+    [InlineData("ru", "Отменить", "Штамп", "Редактор тегов")]
+    [InlineData("zh-Hans", "撤销", "印章", "打开标签编辑器")]
+    [InlineData("ja", "元に戻す", "スタンプ", "タグエディターを開く")]
+    [InlineData("ko", "실행 취소", "스탬프", "태그 편집기 열기")]
+    [InlineData("pt-BR", "Desfazer", "Carimbo", "Abrir editor de tags")]
+    [InlineData("cs", "Zpět", "Razítko", "Otevřít editor štítků")]
+    [InlineData("it", "Annulla", "Timbro", "Apri editor dei tag")]
+    [InlineData("pl", "Cofnij", "Stempel", "Otwórz edytor tagów")]
+    public void TheFooterLabelsAreRealTranslationsThatFitOnOneLineInEveryLanguage(string code, string undo, string stamp, string editor)
+    {
+        Texts.SetLanguage(code);
+        Assert.Equal(undo, Texts.T("tags.quick.undo"));
+        Assert.Equal(stamp, Texts.T("tags.quick.stamp.button"));
+        Assert.Equal(editor, Texts.T("tags.quick.advanced"));
+        Assert.InRange(WeightedLength(undo), 1, 14);
+        Assert.InRange(WeightedLength(stamp), 1, 14);
+        Assert.InRange(WeightedLength(editor), 1, 24);
+        // Not the English text in another pack, no ellipsis left over from the old "Advanced…", and a sentence for the tooltip.
+        if (code != "en") Assert.NotEqual("Open tag editor", editor);
+        Assert.DoesNotContain("…", editor);
+        Assert.Contains("X", Texts.T("tags.quick.undoTip", "X"));
+        Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.advancedHelp")));
+        Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.undoHelp", "X")));
+        Assert.Contains("X", Texts.T("tags.quick.stamp.help", "X"));
+    }
+
+    [Fact]
+    public void TheGermanFooterSaysWhatEachButtonDoes()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        Texts.SetLanguage("de");
+        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(Single(store, Entry("a", 'a'))));
+        using (session)
+        using (surface)
+        {
+            Assert.Equal(("corner-up-left", "Rückgängig"), surface.FooterLabelOf(surface.UndoButton));
+            Assert.Equal(("check-square", "Stempel"), surface.FooterLabelOf(surface.StampButton));
+            Assert.Equal(("external-link", "Tag-Editor öffnen"), surface.FooterLabelOf(surface.AdvancedButton));
+            Assert.Equal("Letzte Tagänderung rückgängig machen · Strg+Z", ToolTip.GetTip(surface.UndoButton));
+            Assert.Equal("Den vollständigen Tagdialog öffnen, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen", ToolTip.GetTip(surface.AdvancedButton));
+            Assert.StartsWith("Öffnet den vollständigen Tagdialog", AutomationProperties.GetHelpText(surface.AdvancedButton));
+            Assert.Equal("Nimmt die letzte hier gemachte Änderung zurück, Schritt für Schritt. Tastenkürzel: Strg+Z.", AutomationProperties.GetHelpText(surface.UndoButton));
+            Assert.InRange(WeightedLength("Tag-Editor öffnen"), 1, 24);
+        }
+    }
+
+    private static int WeightedLength(string text) => text.Sum(character => character >= '\u2E80' ? 2 : 1);
+
     [Fact]
     public async Task ASelectionGetsACounterAndTriStateChipNames()
     {
