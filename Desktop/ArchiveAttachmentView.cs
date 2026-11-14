@@ -26,14 +26,20 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         private const double Spacing = 4;
         internal Control Lead = null!, Frame = null!, Trail = null!;
+        /// <summary>The inline video's row (R10: transport, error, live region) under the frame; null until a video plays here.</summary>
+        internal Control? Video;
 
         protected override Size MeasureOverride(Size availableSize)
         {
             Frame.Measure(new Size(availableSize.Width, double.PositiveInfinity));
             double width = MediaSlotGeometry.BlockWidth(Frame.DesiredSize.Width, availableSize.Width);
+            bool video = Video?.IsVisible == true;
+            // The video's controls keep a usable width under a small picture (never wider than the owner gives).
+            if (video) width = Math.Max(width, Math.Min(ReaderInlineVideoSlot.MinimumRowWidth, double.IsFinite(availableSize.Width) ? availableSize.Width : width));
             Size line = new(width, double.PositiveInfinity);
             Lead.Measure(line); Trail.Measure(line);
             double height = Lead.DesiredSize.Height + Spacing + Frame.DesiredSize.Height;
+            if (video) { Video!.Measure(line); height += Spacing + Video.DesiredSize.Height; }
             if (Trail.IsVisible) height += Spacing + Trail.DesiredSize.Height;
             return new Size(width, height);
         }
@@ -43,6 +49,7 @@ public sealed class ArchiveAttachmentView : UserControl
             double width = Math.Min(finalSize.Width, DesiredSize.Width), y = 0;
             Lead.Arrange(new Rect(0, y, width, Lead.DesiredSize.Height)); y += Lead.DesiredSize.Height + Spacing;
             Frame.Arrange(new Rect(0, y, Math.Min(width, Frame.DesiredSize.Width), Frame.DesiredSize.Height)); y += Frame.DesiredSize.Height + Spacing;
+            if (Video?.IsVisible == true) { Video.Arrange(new Rect(0, y, width, Video.DesiredSize.Height)); y += Video.DesiredSize.Height + Spacing; }
             if (Trail.IsVisible) Trail.Arrange(new Rect(0, y, width, Trail.DesiredSize.Height));
             return finalSize;
         }
@@ -107,6 +114,13 @@ public sealed class ArchiveAttachmentView : UserControl
     internal static readonly AttachedProperty<ReaderHoverEnlarge?> HoverEnlargeProperty =
         AvaloniaProperty.RegisterAttached<ArchiveAttachmentView, Control, ReaderHoverEnlarge?>("HoverEnlarge", null, inherits: true);
 
+    /// <summary>
+    /// Inherited: the reader's inline video players (R10). With one whose setting is on, a click or Enter on a video attachment plays
+    /// it here instead of opening the gallery; without one (lists, other pages) or with the setting off nothing changes.
+    /// </summary>
+    internal static readonly AttachedProperty<ReaderInlineVideoController?> InlineVideoProperty =
+        AvaloniaProperty.RegisterAttached<ArchiveAttachmentView, Control, ReaderInlineVideoController?>("InlineVideo", null, inherits: true);
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -119,6 +133,9 @@ public sealed class ArchiveAttachmentView : UserControl
         // The focused card (the list's selected item) and the enlargement percentage arrive by inheritance from the post list.
         if (change.Property == ReaderPostLayout.FocusedProperty || change.Property == ReaderPostLayout.FocusScalePercentProperty)
             RefreshFocus();
+        // (Inherited values arrive once attached; the guard only covers a property set before the constructor finished.)
+        if (change.Property == InlineVideoProperty && _column != null) { RefreshInlineVideo(); UpdateButtonName(DataContext as ArchiveAttachmentRow); }
+        if (change.Property == ReaderPostLayout.FocusedProperty && _column != null) ScheduleInlineAutoplay();
     }
 
     private double FocusFactor() =>
@@ -222,7 +239,12 @@ public sealed class ArchiveAttachmentView : UserControl
         _button = new Button { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
-        _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
+        _button.Click += (_, _) =>
+        {
+            // R10: with inline video on, a video plays here (click or Enter on it); everything else opens the gallery as before.
+            if (InlineVideoOffered) { GetValue(HoverEnlargeProperty)?.Leave(this); _ = EnsureInlineVideo().PlayAsync(); return; }
+            (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
+        };
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
         _slot.Children.Add(_button); _slot.Children.Add(_play); _slot.Children.Add(_edge);
         // The hover preview of the reader (off unless the option is on; the owner supplies it through HoverEnlargeProperty).
@@ -238,10 +260,17 @@ public sealed class ArchiveAttachmentView : UserControl
         Grid fileLine = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), MinHeight = 0 };
         Grid.SetColumn(_favorite, 1);
         fileLine.Children.Add(_label); fileLine.Children.Add(_favorite);
-        Content = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
+        _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
-        DataContextChanged += (_, _) => { Reset(); UpdateLabel(); if (_visible) _ = LoadAsync(); };
-        EffectiveViewportChanged += (_, e) => SetViewportVisible(new Rect(Bounds.Size).Intersects(e.EffectiveViewport) && IsEffectivelyVisible);
+        Content = _column;
+        DataContextChanged += (_, _) => { Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        EffectiveViewportChanged += (_, e) =>
+        {
+            Rect bounds = new(Bounds.Size);
+            bool intersects = bounds.Intersects(e.EffectiveViewport) && IsEffectivelyVisible;
+            SetViewportVisible(intersects);
+            _inlineVideo?.ApplyViewport(intersects, intersects && e.EffectiveViewport.Contains(bounds));
+        };
         AttachedToVisualTree += (_, _) => Dispatcher.UIThread.Post(RefreshViewport, DispatcherPriority.Loaded);
         SizeChanged += (_, _) => RefreshViewport();
         // Ancestor visibility can change without resizing this reserved slot.
@@ -252,8 +281,66 @@ public sealed class ArchiveAttachmentView : UserControl
             _wasEffectivelyVisible = visible;
             RefreshViewport();
         };
-        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); };
+        DetachedFromVisualTree += (_, _) => { _visible = false; Reset(); _autoplay?.Stop(); _ = _inlineVideo?.ReleaseAsync(); };
     }
+
+    private readonly AttachmentColumn _column;
+    private ReaderInlineVideoSlot? _inlineVideo;
+    private DispatcherTimer? _autoplay;
+
+    /// <summary>The inline video of this attachment (smoke seam); null until it was offered once.</summary>
+    internal ReaderInlineVideoSlot? InlineVideo => _inlineVideo;
+
+    private bool InlineVideoOffered => ReaderInlineVideoRules.CanOffer(GetValue(InlineVideoProperty)?.Options ?? default, DataContext as ArchiveAttachmentRow);
+
+    private ReaderInlineVideoSlot EnsureInlineVideo()
+    {
+        if (_inlineVideo != null) return _inlineVideo;
+        // Posts keep their own thumbnail button as the idle click target (hover preview, media menu); the slot's activator appears
+        // only over a paused older video, whose picture covers that button.
+        ReaderInlineVideoSlot slot = _inlineVideo = new ReaderInlineVideoSlot(_slot, activatorWhenIdle: false);
+        _column.Video = slot.Below;
+        _column.Children.Add(slot.Below);
+        slot.Below.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) _column.InvalidateMeasure(); };
+        RefreshInlineVideo();
+        return slot;
+    }
+
+    // The key is the attachment, not the row object: a rebuilt page (same thread, same post) keeps a running player.
+    private void RefreshInlineVideo()
+    {
+        if (_inlineVideo == null && !InlineVideoOffered) return;
+        ReaderInlineVideoSlot slot = EnsureInlineVideo();
+        ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
+        bool offered = InlineVideoOffered;
+        slot.Offer(offered ? GetValue(InlineVideoProperty) : null, offered ? ReaderInlineVideoSlot.KeyOf(row!.Attachment) : null,
+            row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty);
+    }
+
+    // Autoplay (opt-in, muted) of the focused card's first video, once the selection rested; never while the sidebar presents it.
+    private void ScheduleInlineAutoplay()
+    {
+        _autoplay?.Stop();
+        if (!GetValue(ReaderPostLayout.FocusedProperty) || GetValue(InlineVideoProperty) is not { AutoplayInPosts: true } controller
+            || !ReaderInlineVideoRules.ShouldAutoplay(controller.Options, _visible, presentedElsewhere: false) || !InlineVideoOffered
+            || !IsFirstVideoOfPost()) return;
+        _autoplay ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(ReaderInlineVideoRules.AutoplayDelayMs) };
+        _autoplay.Tick -= OnAutoplayTick;
+        _autoplay.Tick += OnAutoplayTick;
+        _autoplay.Start();
+    }
+
+    private void OnAutoplayTick(object? sender, EventArgs e)
+    {
+        _autoplay?.Stop();
+        if (GetValue(ReaderPostLayout.FocusedProperty) && _visible && InlineVideoOffered && _inlineVideo?.IsLive != true
+            && GetValue(InlineVideoProperty) is { AutoplayInPosts: true })
+            _ = EnsureInlineVideo().PlayAsync(muted: true);
+    }
+
+    private bool IsFirstVideoOfPost() =>
+        this.GetVisualAncestors().OfType<ListBoxItem>().FirstOrDefault()?.DataContext is not ArchivePostRow post
+        || ReferenceEquals(post.Attachments.FirstOrDefault(item => ReaderInlineVideoRules.IsVideo(item.Attachment.OriginalFileName ?? item.Attachment.MediaId)), DataContext);
 
     internal void RefreshFavorite()
     {
@@ -280,7 +367,17 @@ public sealed class ArchiveAttachmentView : UserControl
             == MeowChan.Gallery.SavedMediaKind.Video;
         _status.Text = Texts.T("archive.loadingThumbnail");
         ToolTip.SetTip(_button, row?.Label ?? string.Empty);
-        Avalonia.Automation.AutomationProperties.SetName(_button, row?.Label ?? string.Empty);
+        UpdateButtonName(row);
+    }
+
+    // R10: with inline video on, the thumbnail of a video is its play control and says so.
+    private void UpdateButtonName(ArchiveAttachmentRow? row)
+    {
+        bool inline = row != null && InlineVideoOffered;
+        Avalonia.Automation.AutomationProperties.SetName(_button, inline
+            ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))
+            : row?.Label ?? string.Empty);
+        Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? Texts.T("reader.video.playHint") : null);
     }
 
     // The frame follows the drawn picture: the wide-screen reservation until one is known, then its aspect. The row remembers it, so a
@@ -307,7 +404,12 @@ public sealed class ArchiveAttachmentView : UserControl
         if (_visible == visible) return;
         _visible = visible;
         if (visible) { UpdateLabel(); _ = LoadAsync(); }
-        else Reset();
+        else
+        {
+            Reset();
+            // R10: out of view (scrolled away, another tab, a hidden reader) a video pauses, or is released on a native surface.
+            _inlineVideo?.ApplyViewport(intersects: false, fullyVisible: false);
+        }
     }
 
     private async Task LoadAsync()

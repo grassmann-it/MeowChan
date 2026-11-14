@@ -185,6 +185,8 @@ internal sealed class ReaderMediaSidebar : Border
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
     };
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
+    // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
+    private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow" };
     private readonly TextBlock _fileLine = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
     private readonly TextBlock _detailLine = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis }.MetaText();
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
@@ -201,6 +203,10 @@ internal sealed class ReaderMediaSidebar : Border
 
     /// <summary>The picture frame: its size is the decode target (smoke and page seam).</summary>
     internal Control Frame => _frame;
+    /// <summary>The picture frame as a panel: an inline video (R10) puts its activator and player over the picture here.</summary>
+    internal Panel FrameArea => _frame;
+    /// <summary>The row under the picture for the inline video's transport (R10).</summary>
+    internal Panel VideoRow => _videoRow;
     internal Image Picture => _image;
     internal Bitmap? Shown => _bitmap;
     internal string LiveText => _live.Text ?? string.Empty;
@@ -256,12 +262,13 @@ internal sealed class ReaderMediaSidebar : Border
         Grid.SetColumn(_favorite, 3); actions.Children.Add(_favorite);
         Grid.SetColumn(Open, 4); actions.Children.Add(Open);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto"), RowSpacing = 8 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto"), RowSpacing = 8 };
         layout.Children.Add(header);
         Grid.SetRow(_frame, 1); layout.Children.Add(_frame);
-        Grid.SetRow(meta, 2); layout.Children.Add(meta);
-        Grid.SetRow(actions, 3); layout.Children.Add(actions);
-        Grid.SetRow(_live, 4); layout.Children.Add(_live);
+        Grid.SetRow(_videoRow, 2); layout.Children.Add(_videoRow);
+        Grid.SetRow(meta, 3); layout.Children.Add(meta);
+        Grid.SetRow(actions, 4); layout.Children.Add(actions);
+        Grid.SetRow(_live, 5); layout.Children.Add(_live);
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);

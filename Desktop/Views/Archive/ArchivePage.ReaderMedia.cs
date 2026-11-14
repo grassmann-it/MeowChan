@@ -52,7 +52,8 @@ public partial class ArchivePage
             ? ReaderDisplayPreferences.FocusedScalePercent(media) : 100;
         ArchivePosts.SetValue(ReaderPostLayout.FocusScalePercentProperty, scale);
         _hoverEnlarge?.Configure(media);
-        LayoutMediaSidebar(); // R8: the sidebar switch, side and width act live too
+        LayoutMediaSidebar();
+        ApplyInlineVideoLive(media); // R10: inline video settings act live too // R8: the sidebar switch, side and width act live too
     }
 
     private void InitializeReaderMedia()
@@ -60,6 +61,7 @@ public partial class ArchivePage
         Panel? host = QuotePreviewPopup.Parent as Panel ?? ArchiveReaderPane;
         _hoverEnlarge = new ReaderHoverEnlarge(host);
         ArchivePosts.SetValue(ArchiveAttachmentView.HoverEnlargeProperty, _hoverEnlarge);
+        InitializeInlineVideo();
         ApplyReaderMediaLive();
         // The focused card grows or shrinks with the selection; keep its top where it was so the list does not jump under the eyes.
         ArchivePosts.SelectionChanged += (_, _) => AnchorFocusedCard();

@@ -264,6 +264,7 @@ public partial class ArchivePage
 
     internal Control DetachReader()
     {
+        _ = ReleaseInlineVideos(); // R10: a player never moves between hosts
         InvalidateFilenameSearch();
         ++_readerFocusRequest;
         Grid pane = ArchiveReaderPane;
@@ -291,6 +292,7 @@ public partial class ArchivePage
 
     internal void AttachReader(Control content)
     {
+        _ = ReleaseInlineVideos(); // R10: the large reader closes
         Grid pane = UnwrapLargeReader(content);
         InvalidateFilenameSearch();
         CloseThreadFind();

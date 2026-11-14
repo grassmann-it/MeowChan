@@ -120,7 +120,8 @@ public partial class ArchivePage
         sidebar.Previous.Click += (_, e) => { e.Handled = true; StepMediaSidebar(-1); };
         sidebar.Next.Click += (_, e) => { e.Handled = true; StepMediaSidebar(1); };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
-        sidebar.PictureActivated += (_, _) => OpenMediaSidebarMedia();
+        sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
+        CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the pane's View-menu shortcuts too (the toggle, the reader's other switches).
         frame.AddHandler(KeyDownEvent, (_, e) =>
@@ -205,6 +206,7 @@ public partial class ArchivePage
         _sidebarPostKey = null;
         _sidebarSource = null;
         _mediaSidebarDirty = false;
+        OfferSidebarVideo(null, null);
         _mediaSidebar?.ShowEmpty();
     }
 
@@ -349,12 +351,14 @@ public partial class ArchivePage
         if (!string.Equals(key, _sidebarPostKey, StringComparison.Ordinal)) { _sidebarIndex = 0; _sidebarPostKey = key; }
         if (post == null || post.IsStub)
         {
+            OfferSidebarVideo(null, null);
             sidebar.ShowEmpty();
             ScheduleSidebarAnnouncement(Texts.T("reader.sidebar.regionEmpty"));
             return;
         }
         if (!post.ShowsMedia)
         {
+            OfferSidebarVideo(null, null);
             string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
             sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, false, false);
             sidebar.ConfigureFavorite(null);
@@ -371,6 +375,7 @@ public partial class ArchivePage
         sidebar.Describe(postLine, file.Name, size, ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, -1),
             ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, 1), row.OpenPreview != null);
         sidebar.ConfigureFavorite(row);
+        OfferSidebarVideo(post, row);
         ScheduleSidebarAnnouncement(ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file));
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarLoading = loading;
@@ -443,6 +448,7 @@ public partial class ArchivePage
                 _sidebarSource = null;
                 if (bitmap == null) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
                 else sidebar.ShowPicture(bitmap, MediaTileThumbnails.Release, playable: true, double.PositiveInfinity, double.PositiveInfinity);
+                ScheduleSidebarVideoAutoplay();
             }
             else
             {

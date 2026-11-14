@@ -336,6 +336,7 @@ public partial class ArchivePage : UserControl
         if (resetPage || _selectedThread != id) _postOffset = 0;
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
+        if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
         _selectedThread = id;
         _mediaMenuPresenter.Invalidate();
         CloseThreadFind();
@@ -1147,6 +1148,7 @@ public partial class ArchivePage : UserControl
         CloseQuotePreview();
         CloseQuickSettings();
         _ended = true;
+        _ = ReleaseInlineVideos();
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
         StopObservingReaderMediaKeys();
