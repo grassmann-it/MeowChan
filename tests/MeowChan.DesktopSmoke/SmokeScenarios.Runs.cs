@@ -301,6 +301,12 @@ internal static partial class SmokeScenarios
             await ShortcutRebindingChecks.RunAsync(mainWindow);
             await RulesPageChecks.RunAsync(mainWindow);
         }),
+        // Evidence run over the offline showcase archive (same fixture as work-views).
+        ["ui-catalog"] = new(SmokeStage.AfterCommandRefresh, mainWindow => UiCatalogChecks.RunAsync(mainWindow))
+        {
+            App = AppBuilder.Configure<ShowcaseSmokeApp>,
+            Seed = ShowcaseData.SeedAsync
+        },
         // Offline showcase archive (no providers); downloads rows are passive synthetic snapshots.
         ["work-views"] = new(SmokeStage.AfterCommandRefresh, mainWindow => WorkViewCaptures.RunAsync(mainWindow))
         {

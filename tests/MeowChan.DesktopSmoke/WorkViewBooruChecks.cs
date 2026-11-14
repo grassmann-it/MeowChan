@@ -261,6 +261,9 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         if (failures.Count > 0) throw new AggregateException("Booru work-view fixture restoration failed.", failures);
     }
 
+    // Also the UI catalog run's tab switch (Search 0, Watchers 1).
+    internal async Task SelectTabAsync(int index) => await SelectTabAsync(Page, index);
+
     private static async Task SelectTabAsync(BooruPage page, int index)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);

@@ -179,7 +179,7 @@ internal static class WorkViewCaptures
 
     // ---- Pages ----
 
-    private static async Task EnterAsync(MainWindow window, string page)
+    internal static async Task EnterAsync(MainWindow window, string page)
     {
         ArchivePage archive = window.ArchivePage;
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
@@ -263,7 +263,7 @@ internal static class WorkViewCaptures
         }
     }
 
-    private static async Task OpenArchiveAsync(MainWindow window)
+    internal static async Task OpenArchiveAsync(MainWindow window)
     {
         ArchivePage archive = window.ArchivePage;
         if (window.SelectedPage != MainWindow.WorkspacePage.Archive)
@@ -273,7 +273,7 @@ internal static class WorkViewCaptures
     }
 
     // Closes every overlay this smoke opens: export card, gallery, large reader.
-    private static async Task LeaveAsync(MainWindow window)
+    internal static async Task LeaveAsync(MainWindow window)
     {
         ArchivePage archive = window.ArchivePage;
         if (ExportDialog(archive) is { IsVisible: true } export)
@@ -298,7 +298,7 @@ internal static class WorkViewCaptures
     private static Border? ExportDialog(ArchivePage archive) =>
         archive.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "ArchiveExportDialog");
 
-    private static async Task SettleAsync(MainWindow window, string page)
+    internal static async Task SettleAsync(MainWindow window, string page)
     {
         for (int pass = 0; pass < 3; pass++)
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
@@ -799,7 +799,7 @@ internal static class WorkViewCaptures
 
     // ---- Fixture, helpers, index ----
 
-    private static DesktopThreadEntry[] DownloadEntries()
+    internal static DesktopThreadEntry[] DownloadEntries()
     {
         (string Title, int Saved, int Total, ThreadActivity Activity, int Queued, int Active)[] scenes =
         [
@@ -819,7 +819,7 @@ internal static class WorkViewCaptures
         }).ToArray();
     }
 
-    private static async Task SetThemeAsync(MainWindow window, string theme)
+    internal static async Task SetThemeAsync(MainWindow window, string theme)
     {
         if (window.SessionHost.Config.Theme != theme)
             Click(window.FindControl<Button>("ThemeToggleButton")!);
@@ -827,7 +827,7 @@ internal static class WorkViewCaptures
         await Program.WaitUntilAsync(() => window.SessionHost.Config.Theme == theme && Application.Current?.RequestedThemeVariant == variant);
     }
 
-    private static async Task ResizeAsync(MainWindow window, double width, double height)
+    internal static async Task ResizeAsync(MainWindow window, double width, double height)
     {
         if (window.WindowState != WindowState.Normal) window.WindowState = WindowState.Normal;
         window.Width = width;
@@ -836,7 +836,7 @@ internal static class WorkViewCaptures
             () => $"client={window.ClientSize}; requested={width}x{height}; minimum={window.MinWidth}x{window.MinHeight}");
     }
 
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    internal static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     private static void WriteIndex(string output, IReadOnlyList<Cell> cells, string? only, string matrix)
     {
