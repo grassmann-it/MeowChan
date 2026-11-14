@@ -575,7 +575,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Close", AutomationProperties.GetName(surface.CloseButton));
             Assert.Equal("Close · Esc", ToolTip.GetTip(surface.CloseButton));
             Assert.Equal(HorizontalAlignment.Left, surface.Footer.HorizontalAlignment);
-            Assert.Equal(new Control[] { surface.UndoButton, surface.AdvancedButton }, surface.Footer.Children.ToArray());
+            Assert.Equal(new Control[] { surface.UndoButton, surface.StampButton, surface.AdvancedButton }, surface.Footer.Children.ToArray());
             Assert.DoesNotContain(surface.CloseButton, surface.Footer.Children);
             Assert.False(surface.UndoButton.IsEnabled); // nothing to undo yet
             Assert.Equal("Tags · 1699999999123.jpg", surface.Title.Text);

@@ -3738,6 +3738,7 @@
     "command.tags.quick.mark-previous": "Vrátit se a zrušit označení média",
     "command.tags.quick.thread-section": "Sekce štítků vlákna",
     "command.tags.quick.undo": "Zpět poslední změnu štítků",
+    "command.tags.quick.stamp-apply": "Nastavit razítko štítků",
     "command.tags.quick.suggestion-1": "Přepnout návrh štítku 1",
     "command.tags.quick.suggestion-2": "Přepnout návrh štítku 2",
     "command.tags.quick.suggestion-3": "Přepnout návrh štítku 3",
@@ -3962,6 +3963,18 @@
     "settings.limits.tagQueueConfirm": "Fronta štítkování: ptát se nad (souborů)",
     "settings.limits.tagQueueConfirm.hint": "Při přidání více souborů najednou se aplikace nejdřív zeptá. Po potvrzení se přidají všechny soubory.",
     "limit.tagQueueFile": "Soubor fronty štítkování dosáhl limitu velikosti {0}, takže nelze přidat nic nového. Zvyšte „{1}“ v {2}; odebírání položek stále funguje.",
-    "limit.tagQueueEntries": "Fronta štítkování je plná (limit: {0} položek). Zvyšte „{1}“ v {2}; odebírání položek stále funguje."
+    "limit.tagQueueEntries": "Fronta štítkování je plná (limit: {0} položek). Zvyšte „{1}“ v {2}; odebírání položek stále funguje.",
+    "tags.quick.reason.stamp": "razítko",
+    "tags.quick.stamp.button": "Razítko",
+    "tags.quick.stamp.name": "Nastavit všechny štítky razítka ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "Razítko je prázdné: štítek přidáte kliknutím pravým tlačítkem · {0}",
+    "tags.quick.stamp.menuAdd": "Přidat do razítka",
+    "tags.quick.stamp.menuRemove": "Odebrat z razítka",
+    "tags.quick.stamp.applied": "Razítko nastaveno: {0}.",
+    "tags.quick.stamp.emptyStatus": "Razítko je prázdné. Štítek přidáte kliknutím pravým tlačítkem.",
+    "tags.quick.stamp.complete": "Všechny štítky razítka už jsou nastaveny.",
+    "tags.quick.stamp.added": "„{0}“ přidán do razítka.",
+    "tags.quick.stamp.removed": "„{0}“ odebrán z razítka.",
+    "tags.quick.stamp.full": "Razítko je plné (limit: {0}). Nejdřív z něj odeberte štítek."
   }
 }

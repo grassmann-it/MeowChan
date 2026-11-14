@@ -3691,6 +3691,7 @@
     "command.tags.quick.mark-previous": "Torna indietro e rimuovi il contrassegno",
     "command.tags.quick.thread-section": "Sezione tag del thread",
     "command.tags.quick.undo": "Annulla l’ultima modifica dei tag",
+    "command.tags.quick.stamp-apply": "Applica timbro di tag",
     "command.tags.quick.suggestion-1": "Attiva/disattiva il suggerimento di tag 1",
     "command.tags.quick.suggestion-2": "Attiva/disattiva il suggerimento di tag 2",
     "command.tags.quick.suggestion-3": "Attiva/disattiva il suggerimento di tag 3",
@@ -3930,6 +3931,18 @@
     "settings.limits.tagQueueConfirm": "Coda di tagging: chiedi oltre (file)",
     "settings.limits.tagQueueConfirm.hint": "Se si aggiungono in una volta più file di questo numero, viene chiesta prima una conferma. Dopo la conferma vengono aggiunti tutti i file.",
     "limit.tagQueueFile": "Il file della coda di tagging ha raggiunto il limite di dimensione di {0}, quindi non si può aggiungere nulla di nuovo. Aumenta «{1}» in {2}; rimuovere voci funziona ancora.",
-    "limit.tagQueueEntries": "La coda di tagging è piena (limite: {0} voci). Aumenta «{1}» in {2}; rimuovere voci funziona ancora."
+    "limit.tagQueueEntries": "La coda di tagging è piena (limite: {0} voci). Aumenta «{1}» in {2}; rimuovere voci funziona ancora.",
+    "tags.quick.reason.stamp": "timbro",
+    "tags.quick.stamp.button": "Timbro",
+    "tags.quick.stamp.name": "Applica tutti i tag del timbro ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "Il timbro è vuoto: fare clic con il pulsante destro su un tag per aggiungerlo · {0}",
+    "tags.quick.stamp.menuAdd": "Aggiungi al timbro",
+    "tags.quick.stamp.menuRemove": "Rimuovi dal timbro",
+    "tags.quick.stamp.applied": "Timbro applicato: {0}.",
+    "tags.quick.stamp.emptyStatus": "Il timbro è vuoto. Fare clic con il pulsante destro su un tag per aggiungerlo.",
+    "tags.quick.stamp.complete": "Tutti i tag del timbro sono già impostati.",
+    "tags.quick.stamp.added": "«{0}» aggiunto al timbro.",
+    "tags.quick.stamp.removed": "«{0}» rimosso dal timbro.",
+    "tags.quick.stamp.full": "Il timbro è pieno (limite: {0}). Rimuovere prima un tag."
   }
 }

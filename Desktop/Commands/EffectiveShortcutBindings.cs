@@ -144,7 +144,7 @@ public sealed class EffectiveShortcutBindings
         // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
         // commands are inactive (CommandDefinition.IsAwaitingHandler), their defaults already yield like any new default.
         ["tags.quick.next"] = 6, ["tags.quick.previous"] = 6, ["tags.quick.commit-next"] = 6, ["tags.quick.mark-next"] = 6,
-        ["tags.quick.mark-previous"] = 6, ["tags.quick.undo"] = 6, ["tags.quick.thread-section"] = 6,
+        ["tags.quick.mark-previous"] = 6, ["tags.quick.undo"] = 6, ["tags.quick.thread-section"] = 6, ["tags.quick.stamp-apply"] = 6,
         ["tags.quick.suggestion-1"] = 6, ["tags.quick.suggestion-2"] = 6, ["tags.quick.suggestion-3"] = 6,
         ["tags.quick.suggestion-4"] = 6, ["tags.quick.suggestion-5"] = 6, ["tags.quick.suggestion-6"] = 6,
         ["tags.quick.suggestion-7"] = 6, ["tags.quick.suggestion-8"] = 6, ["tags.quick.suggestion-9"] = 6,

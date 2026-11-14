@@ -3718,6 +3718,7 @@
     "command.tags.quick.mark-previous": "Вернуться и снять отметку с медиафайла",
     "command.tags.quick.thread-section": "Раздел тегов треда",
     "command.tags.quick.undo": "Отменить последнее изменение тегов",
+    "command.tags.quick.stamp-apply": "Применить штамп тегов",
     "command.tags.quick.suggestion-1": "Переключить подсказку тега 1",
     "command.tags.quick.suggestion-2": "Переключить подсказку тега 2",
     "command.tags.quick.suggestion-3": "Переключить подсказку тега 3",
@@ -3942,6 +3943,18 @@
     "settings.limits.tagQueueConfirm": "Очередь тегов: спрашивать при более (файлов)",
     "settings.limits.tagQueueConfirm.hint": "Если за один раз добавляется больше файлов, чем это число, приложение сначала спрашивает. После подтверждения добавляются все файлы.",
     "limit.tagQueueFile": "Файл очереди тегов достиг предела размера {0}, поэтому ничего нового добавить нельзя. Увеличьте «{1}» в разделе {2}; удалять записи по-прежнему можно.",
-    "limit.tagQueueEntries": "Очередь тегов заполнена (лимит: {0} записей). Увеличьте «{1}» в разделе {2}; удалять записи по-прежнему можно."
+    "limit.tagQueueEntries": "Очередь тегов заполнена (лимит: {0} записей). Увеличьте «{1}» в разделе {2}; удалять записи по-прежнему можно.",
+    "tags.quick.reason.stamp": "штамп",
+    "tags.quick.stamp.button": "Штамп",
+    "tags.quick.stamp.name": "Присвоить все теги штампа ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "Штамп пуст: щёлкните тег правой кнопкой, чтобы добавить его · {0}",
+    "tags.quick.stamp.menuAdd": "Добавить в штамп",
+    "tags.quick.stamp.menuRemove": "Убрать из штампа",
+    "tags.quick.stamp.applied": "Штамп применён: {0}.",
+    "tags.quick.stamp.emptyStatus": "Штамп пуст. Щёлкните тег правой кнопкой, чтобы добавить его.",
+    "tags.quick.stamp.complete": "Все теги штампа уже присвоены.",
+    "tags.quick.stamp.added": "Тег «{0}» добавлен в штамп.",
+    "tags.quick.stamp.removed": "Тег «{0}» убран из штампа.",
+    "tags.quick.stamp.full": "Штамп заполнен (предел: {0}). Сначала уберите из него тег."
   }
 }

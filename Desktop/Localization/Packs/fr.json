@@ -3688,6 +3688,7 @@
     "command.tags.quick.mark-previous": "Revenir et démarquer le média",
     "command.tags.quick.thread-section": "Section des étiquettes du fil",
     "command.tags.quick.undo": "Annuler la dernière modification d’étiquettes",
+    "command.tags.quick.stamp-apply": "Appliquer le tampon d’étiquettes",
     "command.tags.quick.suggestion-1": "Basculer la suggestion d’étiquette 1",
     "command.tags.quick.suggestion-2": "Basculer la suggestion d’étiquette 2",
     "command.tags.quick.suggestion-3": "Basculer la suggestion d’étiquette 3",
@@ -3924,6 +3925,18 @@
     "settings.limits.tagQueueConfirm": "File d’étiquetage : demander au-delà de (fichiers)",
     "settings.limits.tagQueueConfirm.hint": "Si l’on ajoute d’un coup plus de fichiers que ce nombre, une confirmation est demandée. Après confirmation, tous les fichiers sont ajoutés.",
     "limit.tagQueueFile": "Le fichier de la file d’étiquetage a atteint sa limite de taille de {0} ; rien de nouveau ne peut être ajouté. Augmentez « {1} » dans {2} ; retirer des entrées fonctionne toujours.",
-    "limit.tagQueueEntries": "La file d’étiquetage est pleine (limite : {0} entrées). Augmentez « {1} » dans {2} ; retirer des entrées fonctionne toujours."
+    "limit.tagQueueEntries": "La file d’étiquetage est pleine (limite : {0} entrées). Augmentez « {1} » dans {2} ; retirer des entrées fonctionne toujours.",
+    "tags.quick.reason.stamp": "tampon",
+    "tags.quick.stamp.button": "Tampon",
+    "tags.quick.stamp.name": "Appliquer toutes les étiquettes du tampon ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "Le tampon est vide : faites un clic droit sur une étiquette pour l’ajouter · {0}",
+    "tags.quick.stamp.menuAdd": "Ajouter au tampon",
+    "tags.quick.stamp.menuRemove": "Retirer du tampon",
+    "tags.quick.stamp.applied": "Tampon appliqué : {0}.",
+    "tags.quick.stamp.emptyStatus": "Le tampon est vide. Faites un clic droit sur une étiquette pour l’ajouter.",
+    "tags.quick.stamp.complete": "Toutes les étiquettes du tampon sont déjà appliquées.",
+    "tags.quick.stamp.added": "« {0} » ajoutée au tampon.",
+    "tags.quick.stamp.removed": "« {0} » retirée du tampon.",
+    "tags.quick.stamp.full": "Le tampon est plein (limite : {0}). Retirez d’abord une étiquette."
   }
 }

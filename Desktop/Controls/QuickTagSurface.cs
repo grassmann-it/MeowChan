@@ -26,7 +26,9 @@ internal enum QuickTagKeyAction
 {
     None, ToggleSuggestion, ToggleBadge, Move, MoveFirst, MoveLast, ToggleFocused, RemoveFocused,
     FocusField, FocusSuggestions, FocusAssigned, FocusLastAssigned, Undo, CloseList, Close,
-    Next, Previous, MarkNext, UnmarkPrevious, CommitAndNext, ThreadSection
+    Next, Previous, MarkNext, UnmarkPrevious, CommitAndNext, ThreadSection,
+    /// <summary>Ctrl+Shift+Enter (⌘⇧↩): give the stamp set to the shown medium or selection.</summary>
+    ApplyStamp
 }
 
 /// <summary>
@@ -71,6 +73,8 @@ internal static class QuickTagKeys
             return focus == QuickTagFocus.Field && !fieldEmpty ? QuickTagKeyRoute.None : new(QuickTagKeyAction.Undo);
         if (key == Key.Escape && modifiers == KeyModifiers.None)
             return new(focus == QuickTagFocus.Field && listOpen ? QuickTagKeyAction.CloseList : QuickTagKeyAction.Close);
+        // The stamp works on every surface and in every focus state (the typed draft stays in the field).
+        if (key == Key.Enter && modifiers == (primary | KeyModifiers.Shift)) return new(QuickTagKeyAction.ApplyStamp);
         if (navigation && !(focus == QuickTagFocus.Field && listOpen))
         {
             if (key == Key.PageDown && modifiers == KeyModifiers.None) return new(QuickTagKeyAction.Next);
@@ -130,6 +134,7 @@ internal static class QuickTagKeys
 
     internal static string UndoGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Z").Display(platform);
     internal static string CommitNextGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Enter").Display(platform);
+    internal static string StampGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Shift+Enter").Display(platform);
 }
 
 /// <summary>Number and letter keys of the suggestion chips.</summary>
@@ -171,6 +176,7 @@ internal static class QuickTagReasons
         QuickTagReason.FileName => Texts.T("tags.quick.reason.fileName"),
         QuickTagReason.Title => Texts.T("tags.quick.reason.title"),
         QuickTagReason.SourceTag => Texts.T("tags.quick.reason.sourceTag"),
+        QuickTagReason.Stamp => Texts.T("tags.quick.reason.stamp"),
         _ => Texts.T("tags.quick.reason.frequent")
     };
 }
@@ -215,10 +221,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly ContentControl _extra = new() { IsVisible = false };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Button _undo = new();
+    private readonly Button _stamp = new();
     private readonly Button _advanced = new();
     private readonly List<SuggestionChip> _suggestionChips = new();
     private readonly List<AssignedChip> _assignedChips = new();
     private IQuickTagSuggestionSource _source = FrequentQuickTagSuggestions.Instance;
+    // The source the strip asks: the stamp set in front of _source, whatever source the host passes.
+    private IQuickTagSuggestionSource _decorated = null!;
     private IReadOnlyList<QuickTagSuggestion> _shown = Array.Empty<QuickTagSuggestion>();
     private string _targetLabel = string.Empty;
     private string? _counterText;
@@ -241,7 +250,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Focusable = false;
         _close.Name = _name + "Close"; _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
-        _undo.Name = _name + "Undo"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
+        _undo.Name = _name + "Undo"; _stamp.Name = _name + "Stamp"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
         _stripEmpty.Name = _name + "SuggestionsEmpty"; _assignedEmpty.Name = _name + "AssignedEmpty";
         _markedClear.Name = _name + "MarkedClear";
 
@@ -280,6 +289,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
         StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left, Name = _name + "Actions" };
         actions.Children.Add(_undo);
+        actions.Children.Add(_stamp);
         actions.Children.Add(_advanced);
         Footer = actions;
 
@@ -302,8 +312,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _close.Click += OnClose;
         _markedClear.Click += OnMarkedClear;
         _undo.Click += OnUndo;
+        _stamp.Click += OnStamp;
         _advanced.Click += OnAdvanced;
         _more.Click += OnMore;
+        _decorated = new QuickTagStampSource(_source, _session.Stamp);
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, _session.OnAll, () => _ = AddTypedAsync(), _sourceTags);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
@@ -319,6 +331,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal IdentitySuggestionBox Input => _input;
     internal Button CloseButton => _close;
     internal Button UndoButton => _undo;
+    /// <summary>The footer button that gives the stamp set to the shown medium or selection.</summary>
+    internal Button StampButton => _stamp;
     internal Button AdvancedButton => _advanced;
     internal Button MoreButton => _more;
     internal TextBlock Status => _status;
@@ -370,11 +384,19 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         RefreshTexts();
     }
 
-    /// <summary>The ranked suggestions of the strip; the most used own tags until the host passes the context source.</summary>
+    /// <summary>
+    /// The ranked suggestions of the strip; the most used own tags until the host passes the context source. The stamp set always
+    /// stands in front of them (<see cref="QuickTagStampSource"/>), so a host never has to decorate its own source.
+    /// </summary>
     internal IQuickTagSuggestionSource Suggestions
     {
         get => _source;
-        set { _source = value ?? FrequentQuickTagSuggestions.Instance; Refresh(); }
+        set
+        {
+            _source = value ?? FrequentQuickTagSuggestions.Instance;
+            _decorated = new QuickTagStampSource(_source, _session.Stamp);
+            Refresh();
+        }
     }
 
     /// <summary>The Danbooru catalog reader for the field's source tag group; read once per <see cref="LoadSourceTags"/>.</summary>
@@ -409,6 +431,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal event Action<QuickTagNavigation>? NavigationRequested;
     /// <summary>Ctrl+T while navigation is on: the panel opens or focuses its thread tags section.</summary>
     internal event Action? ThreadSectionRequested;
+    /// <summary>
+    /// The stamp was applied and gave at least one tag (key or footer button). The tagging mode listens to go on to the next
+    /// medium; the surface itself never moves.
+    /// </summary>
+    internal event Action? StampApplied;
 
     /// <summary>Starts the background read of source tags (each time the host opens the surface).</summary>
     internal void LoadSourceTags() => _sourceTags.Load();
@@ -441,7 +468,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         (QuickTagFocus zone, TagId? tag, string? key, int index) = CurrentFocus();
         PrivateTagStoreSnapshot? snapshot = _session.Snapshot;
         IReadOnlySet<TagId> carried = _session.Carried();
-        _shown = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_source.Suggest(
+        _shown = snapshot == null ? Array.Empty<QuickTagSuggestion>() : Normalize(_decorated.Suggest(
             new QuickTagSuggestionRequest(snapshot, carried, _options.SuggestionCount)), snapshot, carried, _options.SuggestionCount);
         Letters = QuickTagBadges.Letters(_shown.Select(item => item.Name.Display).ToArray());
         BuildSuggestions();
@@ -491,6 +518,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             SuggestionChip chip = SuggestionChip.Create(_name + "Suggestion" + (index + 1), _shown[index], index, Letters[index], _platform);
             chip.Button.Click += OnSuggestionClick;
             AutomationProperties.SetName(chip.Button, AccessibleName(_shown[index], index, _shown.Count));
+            if (_shown[index].Id is { } offered) AttachStampMenu(chip.Button, offered);
             if (QuickTagKeys.SuggestionGesture(index, _platform) is { } gesture) AutomationProperties.SetAcceleratorKey(chip.Button, gesture);
             _suggestionChips.Add(chip);
             _strip.Children.Add(HitZone(chip.Button));
@@ -509,6 +537,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             AssignedChip chip = AssignedChip.Create(_name + "Assigned" + (_assignedChips.Count + 1), assignment, _session.IsSelection);
             chip.Button.Click += OnAssignedClick;
             chip.Remove.Click += OnRemoveClick;
+            AttachStampMenu(chip.Button, assignment.Tag.Id);
             _assignedChips.Add(chip);
             (assignment.State == TagToggleState.All ? _allChips : _someChips).Children.Add(chip.Host);
         }
@@ -554,6 +583,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         // Not disabled while a write runs (the session ignores the click), so a focused undo button keeps the focus.
         _undo.IsEnabled = _session.UndoSteps.Count > 0 && _session.Snapshot != null;
         AutomationProperties.SetName(_undo, Texts.T("tags.quick.undoName", _session.UndoSteps.Count));
+        _stamp.IsEnabled = _session.Snapshot != null && _session.Stamp.Count > 0;
+        AutomationProperties.SetName(_stamp, StampName());
+        ToolTip.SetTip(_stamp, StampName());
         _advanced.IsEnabled = _session.Snapshot != null;
 
         AutomationProperties.SetName(this, Texts.T("tags.quick.name", label.Length == 0 ? Texts.T("tags.quick.heading") : label));
@@ -584,6 +616,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetHelpText(_someChips, Texts.T("tags.quick.assigned.help"));
         _assignedEmpty.Text = Texts.T("tags.quick.assigned.empty");
         ToolTip.SetTip(_undo, Texts.T("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform)));
+        AutomationProperties.SetAcceleratorKey(_stamp, QuickTagKeys.StampGesture(_platform));
         AutomationProperties.SetName(_advanced, Texts.T("tags.quick.advancedName"));
         ToolTip.SetTip(_advanced, Texts.T("tags.quick.advancedName"));
         ApplyFooterMode();
@@ -610,11 +643,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (_compact && _attached)
         {
             _undo.Content = CommandBindings.NamedIcon("corner-up-left");
+            _stamp.Content = CommandBindings.NamedIcon("check-square");
             _advanced.Content = CommandBindings.NamedIcon("external-link");
         }
         else
         {
             _undo.Content = Texts.T("tags.quick.undo");
+            _stamp.Content = Texts.T("tags.quick.stamp.button");
             _advanced.Content = Texts.T("tags.quick.advanced");
         }
     }
@@ -693,6 +728,44 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal Task UndoAsync() => Guard(() => _session.UndoAsync(), "tags.quick.undo");
 
     private void OnMarkedClear(object? sender, RoutedEventArgs e) => MarksClearRequested?.Invoke();
+
+    private async void OnStamp(object? sender, RoutedEventArgs e) => await ApplyStampAsync();
+
+    /// <summary>Gives the stamp set to the shown medium or selection (Ctrl+Shift+Enter, the footer button).</summary>
+    internal async Task ApplyStampAsync()
+    {
+        int given = 0;
+        await Guard(async () => given = await _session.ApplyStampAsync(), "tags.quick.stamp");
+        if (!_disposed && given > 0) StampApplied?.Invoke();
+    }
+
+    // The tooltip and name of the footer button: what it gives (or why it cannot), with its key.
+    private string StampName()
+    {
+        string gesture = QuickTagKeys.StampGesture(_platform);
+        if (_session.Stamp.Count == 0) return Texts.T("tags.quick.stamp.nameEmpty", gesture);
+        string names = string.Join(", ", _session.Stamp.Resolve(_session.Snapshot).Select(tag => tag.Name.Display));
+        return names.Length == 0 ? Texts.T("tags.quick.stamp.nameEmpty", gesture) : Texts.T("tags.quick.stamp.name", names, gesture);
+    }
+
+    // Right click, Menu key or Shift+F10 on a chip of an own tag: put it into the stamp or take it out. The menu is filled when it
+    // opens (on the UI thread, and always with the current stamp), so a chip needs no item collection while the strip is rebuilt.
+    private void AttachStampMenu(Button chip, TagId tag)
+    {
+        ContextMenu menu = new();
+        menu.Opening += (_, _) => menu.ItemsSource = StampMenuItems(tag);
+        chip.ContextMenu = menu;
+    }
+
+    /// <summary>The context menu entries of the chip of <paramref name="tag"/>: "Add to stamp" or "Remove from stamp".</summary>
+    internal IReadOnlyList<MenuItem> StampMenuItems(TagId tag)
+    {
+        bool inStamp = _session.InStamp(tag);
+        MenuItem item = new() { Header = Texts.T(inStamp ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd"), Name = _name + (inStamp ? "StampRemove" : "StampAdd") };
+        item.Click += (_, _) => { if (inStamp) _session.RemoveFromStamp(tag); else _session.AddToStamp(tag); };
+        return new[] { item };
+    }
+
     private void OnAdvanced(object? sender, RoutedEventArgs e) => AdvancedRequested?.Invoke();
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
     private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
@@ -763,6 +836,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             case QuickTagKeyAction.CommitAndNext:
                 if (NavigationRequested == null) return false;
                 _ = AddTypedAsync(thenNext: true);
+                return true;
+            case QuickTagKeyAction.ApplyStamp:
+                _ = ApplyStampAsync();
                 return true;
             case QuickTagKeyAction.ThreadSection:
                 ThreadSectionRequested?.Invoke();
@@ -889,7 +965,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _disposed = true;
         _input.EndSuggestions();
         _sourceTags.End();
-        _close.Click -= OnClose; _markedClear.Click -= OnMarkedClear; _undo.Click -= OnUndo; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;
+        _close.Click -= OnClose; _markedClear.Click -= OnMarkedClear; _undo.Click -= OnUndo; _stamp.Click -= OnStamp; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;
         foreach (SuggestionChip chip in _suggestionChips) chip.Button.Click -= OnSuggestionClick;
         foreach (AssignedChip chip in _assignedChips) { chip.Button.Click -= OnAssignedClick; chip.Remove.Click -= OnRemoveClick; }
         _strip.PropertyChanged -= OnStripPropertyChanged;
@@ -898,7 +974,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         SizeChanged -= OnSizeChanged;
         AttachedToVisualTree -= OnAttached;
         DetachedFromVisualTree -= OnDetached;
-        CloseRequested = null; AdvancedRequested = null; NavigationRequested = null; ThreadSectionRequested = null; MarksClearRequested = null;
+        CloseRequested = null; AdvancedRequested = null; NavigationRequested = null; ThreadSectionRequested = null; MarksClearRequested = null; StampApplied = null;
     }
 
     // ---- chips --------------------------------------------------------------------------------------------------------
@@ -921,6 +997,24 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         TextBlock label = new() { Text = text, Classes = { WorkspaceChips.Label } };
         Border badge = new() { Child = label, Classes = { WorkspaceChips.Chip, WorkspaceChips.Badge, "chip-key" }, IsHitTestVisible = false };
+        AutomationProperties.SetAccessibilityView(badge, AccessibilityView.Raw);
+        return badge;
+    }
+
+    /// <summary>
+    /// The mark of a stamp chip (the ⌁ of the plan, drawn as a path so it needs no font glyph): a small pulse line in the key badge
+    /// shape. The shape marks the chip, the word "Stamp" is in its tooltip and accessible name, so colour is only an addition.
+    /// </summary>
+    internal static Border StampBadge()
+    {
+        Path pulse = new()
+        {
+            Width = 12, Height = 12, Stretch = Stretch.None, IsHitTestVisible = false, StrokeThickness = 1.5,
+            StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round, VerticalAlignment = VerticalAlignment.Center,
+            [!Shape.StrokeProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text")
+        };
+        pulse.AttachedToVisualTree += (_, _) => pulse.Data ??= Geometry.Parse("M1,6 L3.5,6 L5,2 L7,10 L8.5,6 L11,6");
+        Border badge = new() { Child = pulse, Name = "StampBadge", Classes = { WorkspaceChips.Chip, WorkspaceChips.Badge, "chip-key" }, IsHitTestVisible = false };
         AutomationProperties.SetAccessibilityView(badge, AccessibilityView.Raw);
         return badge;
     }
@@ -952,6 +1046,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
                 content.Children.Add(letterBadge);
                 keyed = true;
             }
+            if (suggestion.Reason == QuickTagReason.Stamp) { content.Children.Add(StampBadge()); keyed = true; }
             content.Children.Add(ChipLabel(display));
             Button button = new() { Name = name, Focusable = true };
             if (suggestion.CreatesTag)

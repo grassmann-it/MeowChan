@@ -3691,6 +3691,7 @@
     "command.tags.quick.mark-previous": "Voltar e desmarcar a mídia",
     "command.tags.quick.thread-section": "Seção de tags do tópico",
     "command.tags.quick.undo": "Desfazer a última alteração de tags",
+    "command.tags.quick.stamp-apply": "Aplicar carimbo de tags",
     "command.tags.quick.suggestion-1": "Alternar a sugestão de tag 1",
     "command.tags.quick.suggestion-2": "Alternar a sugestão de tag 2",
     "command.tags.quick.suggestion-3": "Alternar a sugestão de tag 3",
@@ -3930,6 +3931,18 @@
     "settings.limits.tagQueueConfirm": "Fila de tags: perguntar acima de (arquivos)",
     "settings.limits.tagQueueConfirm.hint": "Adicionar de uma vez mais arquivos do que este número pergunta antes. Depois da confirmação, todos os arquivos são adicionados.",
     "limit.tagQueueFile": "O arquivo da fila de tags atingiu o limite de tamanho de {0}, então nada novo pode ser adicionado. Aumente “{1}” em {2}; remover entradas continua funcionando.",
-    "limit.tagQueueEntries": "A fila de tags está cheia (limite: {0} entradas). Aumente “{1}” em {2}; remover entradas continua funcionando."
+    "limit.tagQueueEntries": "A fila de tags está cheia (limite: {0} entradas). Aumente “{1}” em {2}; remover entradas continua funcionando.",
+    "tags.quick.reason.stamp": "carimbo",
+    "tags.quick.stamp.button": "Carimbo",
+    "tags.quick.stamp.name": "Aplicar todas as tags do carimbo ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "O carimbo está vazio: clique com o botão direito em uma tag para adicioná-la · {0}",
+    "tags.quick.stamp.menuAdd": "Adicionar ao carimbo",
+    "tags.quick.stamp.menuRemove": "Remover do carimbo",
+    "tags.quick.stamp.applied": "Carimbo aplicado: {0}.",
+    "tags.quick.stamp.emptyStatus": "O carimbo está vazio. Clique com o botão direito em uma tag para adicioná-la.",
+    "tags.quick.stamp.complete": "Todas as tags do carimbo já estão aplicadas.",
+    "tags.quick.stamp.added": "“{0}” adicionada ao carimbo.",
+    "tags.quick.stamp.removed": "“{0}” removida do carimbo.",
+    "tags.quick.stamp.full": "O carimbo está cheio (limite: {0}). Remova uma tag dele primeiro."
   }
 }

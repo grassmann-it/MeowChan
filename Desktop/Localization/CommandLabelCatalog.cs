@@ -205,6 +205,7 @@ internal static class CommandLabelCatalog
         ("command.tags.quick.mark-previous", "Go back and unmark media", "Zurück und Markierung aufheben"),
         ("command.tags.quick.thread-section", "Thread tags section", "Abschnitt Thread-Tags"),
         ("command.tags.quick.undo", "Undo last tag change", "Letzte Tag-Änderung rückgängig"),
+        ("command.tags.quick.stamp-apply", "Apply tag stamp", "Tag-Stempel setzen"),
         ("command.tags.quick.suggestion-1", "Toggle tag suggestion 1", "Tag-Vorschlag 1 umschalten"),
         ("command.tags.quick.suggestion-2", "Toggle tag suggestion 2", "Tag-Vorschlag 2 umschalten"),
         ("command.tags.quick.suggestion-3", "Toggle tag suggestion 3", "Tag-Vorschlag 3 umschalten"),

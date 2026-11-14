@@ -3688,6 +3688,7 @@
     "command.tags.quick.mark-previous": "Volver y desmarcar el medio",
     "command.tags.quick.thread-section": "Sección de etiquetas del hilo",
     "command.tags.quick.undo": "Deshacer el último cambio de etiquetas",
+    "command.tags.quick.stamp-apply": "Aplicar sello de etiquetas",
     "command.tags.quick.suggestion-1": "Alternar la sugerencia de etiqueta 1",
     "command.tags.quick.suggestion-2": "Alternar la sugerencia de etiqueta 2",
     "command.tags.quick.suggestion-3": "Alternar la sugerencia de etiqueta 3",
@@ -3924,6 +3925,18 @@
     "settings.limits.tagQueueConfirm": "Cola de etiquetado: preguntar a partir de (archivos)",
     "settings.limits.tagQueueConfirm.hint": "Si se añaden de una vez más archivos que esta cifra, se pregunta antes. Tras confirmar, se añaden todos los archivos.",
     "limit.tagQueueFile": "El archivo de la cola de etiquetado ha alcanzado su límite de tamaño de {0}, así que no se puede añadir nada nuevo. Aumente «{1}» en {2}; quitar entradas sigue funcionando.",
-    "limit.tagQueueEntries": "La cola de etiquetado está llena (límite: {0} entradas). Aumente «{1}» en {2}; quitar entradas sigue funcionando."
+    "limit.tagQueueEntries": "La cola de etiquetado está llena (límite: {0} entradas). Aumente «{1}» en {2}; quitar entradas sigue funcionando.",
+    "tags.quick.reason.stamp": "sello",
+    "tags.quick.stamp.button": "Sello",
+    "tags.quick.stamp.name": "Aplicar todas las etiquetas del sello ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "El sello está vacío: haga clic derecho en una etiqueta para añadirla · {0}",
+    "tags.quick.stamp.menuAdd": "Añadir al sello",
+    "tags.quick.stamp.menuRemove": "Quitar del sello",
+    "tags.quick.stamp.applied": "Sello aplicado: {0}.",
+    "tags.quick.stamp.emptyStatus": "El sello está vacío. Haga clic derecho en una etiqueta para añadirla.",
+    "tags.quick.stamp.complete": "Todas las etiquetas del sello ya están asignadas.",
+    "tags.quick.stamp.added": "«{0}» añadida al sello.",
+    "tags.quick.stamp.removed": "«{0}» quitada del sello.",
+    "tags.quick.stamp.full": "El sello está completo (límite: {0}). Quite primero una etiqueta."
   }
 }

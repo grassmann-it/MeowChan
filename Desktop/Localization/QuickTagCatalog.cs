@@ -62,5 +62,17 @@ internal static class QuickTagCatalog
         ("tags.quick.reason.fileName", "from the file name", "aus dem Dateinamen"),
         ("tags.quick.reason.title", "from the thread title", "aus dem Threadtitel"),
         ("tags.quick.reason.sourceTag", "source tag", "Quelltag"),
+        ("tags.quick.reason.stamp", "stamp", "Stempel"),
+        ("tags.quick.stamp.button", "Stamp", "Stempel"),
+        ("tags.quick.stamp.name", "Set all stamp tags ({0}) · {1}", "Alle Stempel-Tags ({0}) setzen · {1}"),
+        ("tags.quick.stamp.nameEmpty", "The stamp is empty: right-click a tag to add it · {0}", "Der Stempel ist leer: Tag per Rechtsklick hinzufügen · {0}"),
+        ("tags.quick.stamp.menuAdd", "Add to stamp", "Zum Stempel hinzufügen"),
+        ("tags.quick.stamp.menuRemove", "Remove from stamp", "Aus Stempel entfernen"),
+        ("tags.quick.stamp.applied", "Stamp set: {0}.", "Stempel gesetzt: {0}."),
+        ("tags.quick.stamp.emptyStatus", "The stamp is empty. Right-click a tag to add it.", "Der Stempel ist leer. Einen Tag per Rechtsklick hinzufügen."),
+        ("tags.quick.stamp.complete", "All stamp tags are already set.", "Alle Stempel-Tags sind schon gesetzt."),
+        ("tags.quick.stamp.added", "“{0}” added to the stamp.", "„{0}“ zum Stempel hinzugefügt."),
+        ("tags.quick.stamp.removed", "“{0}” removed from the stamp.", "„{0}“ aus dem Stempel entfernt."),
+        ("tags.quick.stamp.full", "The stamp is full (limit: {0}). Remove a tag from it first.", "Der Stempel ist voll (Grenze: {0}). Zuerst einen Tag daraus entfernen."),
     };
 }

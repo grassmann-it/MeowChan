@@ -3744,6 +3744,7 @@
     "command.tags.quick.mark-previous": "Wróć i usuń oznaczenie medium",
     "command.tags.quick.thread-section": "Sekcja tagów wątku",
     "command.tags.quick.undo": "Cofnij ostatnią zmianę tagów",
+    "command.tags.quick.stamp-apply": "Ustaw stempel tagów",
     "command.tags.quick.suggestion-1": "Przełącz podpowiedź tagu 1",
     "command.tags.quick.suggestion-2": "Przełącz podpowiedź tagu 2",
     "command.tags.quick.suggestion-3": "Przełącz podpowiedź tagu 3",
@@ -3968,6 +3969,18 @@
     "settings.limits.tagQueueConfirm": "Kolejka tagowania: pytaj powyżej (plików)",
     "settings.limits.tagQueueConfirm.hint": "Przy dodawaniu naraz więcej plików niż ta liczba aplikacja najpierw pyta. Po potwierdzeniu dodawane są wszystkie pliki.",
     "limit.tagQueueFile": "Plik kolejki tagowania osiągnął limit rozmiaru {0}, więc nie można dodać niczego nowego. Zwiększ „{1}” w {2}; usuwanie wpisów nadal działa.",
-    "limit.tagQueueEntries": "Kolejka tagowania jest pełna (limit: {0} wpisów). Zwiększ „{1}” w {2}; usuwanie wpisów nadal działa."
+    "limit.tagQueueEntries": "Kolejka tagowania jest pełna (limit: {0} wpisów). Zwiększ „{1}” w {2}; usuwanie wpisów nadal działa.",
+    "tags.quick.reason.stamp": "stempel",
+    "tags.quick.stamp.button": "Stempel",
+    "tags.quick.stamp.name": "Ustaw wszystkie tagi stempla ({0}) · {1}",
+    "tags.quick.stamp.nameEmpty": "Stempel jest pusty: kliknij tag prawym przyciskiem, aby go dodać · {0}",
+    "tags.quick.stamp.menuAdd": "Dodaj do stempla",
+    "tags.quick.stamp.menuRemove": "Usuń ze stempla",
+    "tags.quick.stamp.applied": "Ustawiono stempel: {0}.",
+    "tags.quick.stamp.emptyStatus": "Stempel jest pusty. Kliknij tag prawym przyciskiem, aby go dodać.",
+    "tags.quick.stamp.complete": "Wszystkie tagi stempla są już ustawione.",
+    "tags.quick.stamp.added": "„{0}” dodano do stempla.",
+    "tags.quick.stamp.removed": "„{0}” usunięto ze stempla.",
+    "tags.quick.stamp.full": "Stempel jest pełny (limit: {0}). Najpierw usuń z niego tag."
   }
 }

@@ -20,7 +20,7 @@ public sealed class QuickTagCommandTests
     [Fact]
     public void EveryQuickTagIdIsACatalogCommandWithLabelsAndNothingElseUsesTheNamespace()
     {
-        Assert.Equal(16, QuickTagCommands.All.Count);
+        Assert.Equal(17, QuickTagCommands.All.Count);
         Assert.Equal(QuickTagCommands.All.Count, QuickTagCommands.All.Distinct().Count());
         foreach (string id in QuickTagCommands.All)
         {

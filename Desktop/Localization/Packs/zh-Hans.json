@@ -3669,6 +3669,7 @@
     "command.tags.quick.mark-previous": "返回并取消标记媒体",
     "command.tags.quick.thread-section": "串标签区域",
     "command.tags.quick.undo": "撤销上一次标签更改",
+    "command.tags.quick.stamp-apply": "应用标签印章",
     "command.tags.quick.suggestion-1": "切换标签建议 1",
     "command.tags.quick.suggestion-2": "切换标签建议 2",
     "command.tags.quick.suggestion-3": "切换标签建议 3",
@@ -3887,6 +3888,18 @@
     "settings.limits.tagQueueConfirm": "标签队列：超过多少个文件时先确认",
     "settings.limits.tagQueueConfirm.hint": "一次加入的文件多于此数量时，会先询问。确认后将加入全部文件。",
     "limit.tagQueueFile": "标签队列文件已达到 {0} 的大小上限，无法再加入新内容。请在 {2} 中提高“{1}”;移除条目仍然可用。",
-    "limit.tagQueueEntries": "标签队列已满（上限：{0} 个条目）。请在 {2} 中提高“{1}”;移除条目仍然可用。"
+    "limit.tagQueueEntries": "标签队列已满（上限：{0} 个条目）。请在 {2} 中提高“{1}”;移除条目仍然可用。",
+    "tags.quick.reason.stamp": "印章",
+    "tags.quick.stamp.button": "印章",
+    "tags.quick.stamp.name": "应用印章的全部标签（{0}）· {1}",
+    "tags.quick.stamp.nameEmpty": "印章为空：右键单击标签即可添加 · {0}",
+    "tags.quick.stamp.menuAdd": "添加到印章",
+    "tags.quick.stamp.menuRemove": "从印章中移除",
+    "tags.quick.stamp.applied": "已应用印章：{0}。",
+    "tags.quick.stamp.emptyStatus": "印章为空。右键单击标签即可添加。",
+    "tags.quick.stamp.complete": "印章中的所有标签均已设置。",
+    "tags.quick.stamp.added": "“{0}”已添加到印章。",
+    "tags.quick.stamp.removed": "“{0}”已从印章中移除。",
+    "tags.quick.stamp.full": "印章已满（上限：{0}）。请先从中移除一个标签。"
   }
 }

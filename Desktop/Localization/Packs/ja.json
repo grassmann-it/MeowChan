@@ -3651,6 +3651,7 @@
     "command.tags.quick.mark-previous": "前へ戻ってマークを解除",
     "command.tags.quick.thread-section": "スレッドタグのセクション",
     "command.tags.quick.undo": "直前のタグ変更を元に戻す",
+    "command.tags.quick.stamp-apply": "タグスタンプを設定",
     "command.tags.quick.suggestion-1": "タグ候補 1 を切り替え",
     "command.tags.quick.suggestion-2": "タグ候補 2 を切り替え",
     "command.tags.quick.suggestion-3": "タグ候補 3 を切り替え",
@@ -3887,6 +3888,18 @@
     "settings.limits.tagQueueConfirm": "タグ付けキュー: 確認する件数のしきい値 （ファイル）",
     "settings.limits.tagQueueConfirm.hint": "一度にこれより多くのファイルを追加するときは、先に確認します。確認後はすべてのファイルが追加されます。",
     "limit.tagQueueFile": "タグ付けキューのファイルがサイズ上限 {0} に達したため、新しく追加できません。{2} の「{1}」を引き上げてください。項目の削除は引き続きできます。",
-    "limit.tagQueueEntries": "タグ付けキューがいっぱいです（上限: {0} 件）。{2} の「{1}」を引き上げてください。項目の削除は引き続きできます。"
+    "limit.tagQueueEntries": "タグ付けキューがいっぱいです（上限: {0} 件）。{2} の「{1}」を引き上げてください。項目の削除は引き続きできます。",
+    "tags.quick.reason.stamp": "スタンプ",
+    "tags.quick.stamp.button": "スタンプ",
+    "tags.quick.stamp.name": "スタンプのタグ（{0}）をすべて設定 · {1}",
+    "tags.quick.stamp.nameEmpty": "スタンプは空です。タグを右クリックして追加できます · {0}",
+    "tags.quick.stamp.menuAdd": "スタンプに追加",
+    "tags.quick.stamp.menuRemove": "スタンプから外す",
+    "tags.quick.stamp.applied": "スタンプを設定しました: {0}。",
+    "tags.quick.stamp.emptyStatus": "スタンプは空です。タグを右クリックして追加してください。",
+    "tags.quick.stamp.complete": "スタンプのタグはすべて設定済みです。",
+    "tags.quick.stamp.added": "「{0}」をスタンプに追加しました。",
+    "tags.quick.stamp.removed": "「{0}」をスタンプから外しました。",
+    "tags.quick.stamp.full": "スタンプがいっぱいです（上限: {0}）。先にタグを1つ外してください。"
   }
 }
