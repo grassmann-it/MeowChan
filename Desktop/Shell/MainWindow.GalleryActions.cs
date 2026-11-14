@@ -239,11 +239,10 @@ public partial class MainWindow
             await ShowBooruMediaDetailsAsync(entry, booruPost, origin);
             return;
         }
-        Window dialog = new()
-        {
-            Name = "GalleryDetailsDialog", Title = CommandCatalog.Label("thread.details"), Width = 600, Height = 360,
-            MinWidth = 340, MinHeight = 280, WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+        // Modals plan MD2: a read-only modal details dialog on the prompt step. The title stands in the title bar only,
+        // and a lone Close button is left out: × at the top right and Escape close it.
+        Window dialog = DialogWindow.Create(CommandCatalog.Label("thread.details"), DialogSize.S, modal: true);
+        dialog.Name = "GalleryDetailsDialog";
         SelectableTextBlock text = new()
         {
             TextWrapping = TextWrapping.Wrap,
@@ -254,13 +253,9 @@ public partial class MainWindow
                 + MediaProvenanceText.Details(entry.AttachmentResolution?.Binding) + Environment.NewLine
                 + (entry.Post?.PostId ?? Texts.T("gallery.noPost"))
         };
-        text.Margin = new Thickness(16, 4, 16, 16);
-        Button close = CommandBindings.CreateButton("window.close", () => dialog.Close());
-        close.HorizontalAlignment = HorizontalAlignment.Right;
-        TextBlock heading = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap };
-        heading.Classes.Add("section-title");
-        dialog.Content = WindowChrome.Frame(dialog, DialogFrame.Build(heading, text, close), WindowChromeKind.Dialog);
-        dialog.KeyDown += (_, key) => { if (key.Key == Key.Escape) { key.Handled = true; dialog.Close(); } };
+        text.Margin = new Thickness(16, 0, 16, 16);
+        DialogWindow.Frame(dialog, DialogFrame.Build(header: null, text, footer: null), modal: true);
+        DialogEscape.Attach(dialog);
         await dialog.ShowDialog(this);
         if (origin?.IsEffectivelyVisible == true) origin.Focus();
     }
