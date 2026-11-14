@@ -73,6 +73,13 @@ internal interface IBooruQueuePort
     Task<BooruLoadResult> LoadOriginalAsync(BooruPostView post, BooruLoadOrigin origin, string? query,
         CancellationToken cancellationToken) => LoadOriginalAsync(post, origin, cancellationToken);
 
+    /// <summary>Durably cancels a queued or in-flight original request without cancelling unrelated queue work.</summary>
+    Task<bool> CancelOriginalAsync(string postId, CancellationToken cancellationToken) => Task.FromResult(false);
+
+    /// <summary>Explicitly re-admits the stored original claim after a cancellation or failed admission.</summary>
+    Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken) =>
+        Task.FromResult(new BooruLoadResult(BooruLoadStatus.Failed, "retry_unavailable"));
+
     /// <summary>Local queue/library state by provider post id; unknown ids may be omitted.</summary>
     Task<IReadOnlyDictionary<string, BooruLocalState>> GetLocalStatesAsync(
         IReadOnlyList<string> postIds, CancellationToken cancellationToken);

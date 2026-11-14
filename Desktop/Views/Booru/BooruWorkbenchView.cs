@@ -48,6 +48,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string RemoveNoteName = "BooruRemoveNote";
     internal const string NoFilterNoteName = "BooruNoFilterNote";
     internal const string LoadPrefix = "BooruLoad:";
+    internal const string CancelLoadPrefix = "BooruCancelLoad:";
+    internal const string RetryLoadPrefix = "BooruRetryLoad:";
     internal const string CheckPrefix = "BooruCheck:";
     internal const string PausePrefix = "BooruPause:";
     internal const string ResumePrefix = "BooruResume:";
@@ -781,18 +783,29 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetColumn(info, 1);
         grid.Children.Add(info);
 
-        Button load = new() { Name = LoadPrefix + post.PostId, Content = Texts.T("booru.ui.load"), VerticalAlignment = VerticalAlignment.Top };
+        bool cancel = row.CanCancel;
+        bool retry = !cancel && row.CanRetry;
+        string actionText = cancel ? Texts.T("booru.ui.cancel")
+            : retry ? Texts.T("booru.ui.status.retry") : Texts.T("booru.ui.load");
+        string actionName = cancel
+            ? $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : retry ? $"{Texts.T("booru.ui.status.retry")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : Texts.T("booru.ui.loadFor", post.PostId);
+        string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
+        Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, VerticalAlignment = VerticalAlignment.Top };
         load.Classes.Add("primary");
-        RegisterWorkViewAction(load, "booru.result.load", _resultWorkViewActions);
-        load.IsEnabled = row.CanLoad;
-        string loadName = Texts.T("booru.ui.loadFor", post.PostId);
-        AutomationProperties.SetName(load, loadName);
+        RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
+            _resultWorkViewActions);
+        load.IsEnabled = cancel || retry || row.CanLoad;
+        AutomationProperties.SetName(load, actionName);
         string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
             : BooruText.Load(row);
-        ToolTip.SetTip(load, why ?? loadName);
+        ToolTip.SetTip(load, why ?? actionName);
         ToolTip.SetShowOnDisabled(load, true);
         if (why is not null) AutomationProperties.SetHelpText(load, why);
-        load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
+        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
+        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
+        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
         Grid.SetColumn(load, 2);
         grid.Children.Add(load);
         card.Child = grid;

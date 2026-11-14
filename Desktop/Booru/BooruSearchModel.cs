@@ -61,6 +61,10 @@ internal sealed class BooruSearchModel : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _previewSlots = new(2);
     private CancellationTokenSource? _request;
+    // Prevents a double click from issuing two lifecycle mutations while the row is rebuilt.
+    private readonly HashSet<string> _originalActions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, long> _originalActionVersions = new(StringComparer.Ordinal);
+    private long _nextOriginalAction;
     private long _requestId;
     private BooruSearchView _view;
     private bool _disposed;
@@ -441,6 +445,7 @@ internal sealed class BooruSearchModel : IDisposable
         BooruPostView post;
         BooruLoadOrigin origin;
         string? query = null;
+        long actionVersion = 0;
         bool blocked = false;
         lock (_gate)
         {
@@ -459,7 +464,11 @@ internal sealed class BooruSearchModel : IDisposable
                 blocked = true;
             }
             else if (!row.CanLoad) return;
-            else SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
+            else
+            {
+                actionVersion = BeginOriginalAction(postId);
+                SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
+            }
         }
         RaiseChanged();
         if (blocked) return;
@@ -467,25 +476,113 @@ internal sealed class BooruSearchModel : IDisposable
         try { result = await _queue.LoadOriginalAsync(post, origin, query, _lifetime.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "canceled"); }
         catch (Exception exception) when (exception is not OutOfMemoryException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
-        BooruRowLoad load = result.Status switch
-        {
-            BooruLoadStatus.Queued => BooruRowLoad.Queued,
-            BooruLoadStatus.AlreadyQueued => BooruRowLoad.AlreadyQueued,
-            BooruLoadStatus.AlreadyLoaded => BooruRowLoad.AlreadyLoaded,
-            BooruLoadStatus.NoOriginal => BooruRowLoad.NoOriginal,
-            BooruLoadStatus.Restricted => BooruRowLoad.Restricted,
-            BooruLoadStatus.Offline => BooruRowLoad.Offline,
-            _ => BooruRowLoad.Failed
-        };
+        BooruRowLoad load = MapLoad(result);
         lock (_gate)
         {
             if (_disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == post.PostId);
-            // The page may have changed meanwhile; the queue port already holds the outcome.
-            if (index >= 0) SetRow(index, _view.Rows[index] with { Load = load, LoadCode = result.Code });
+            // A concurrent cancel/retry owns the newer version; never let this admission resurrect a cancelled row.
+            if (index >= 0 && IsCurrentOriginalAction(post.PostId, actionVersion))
+                SetRow(index, _view.Rows[index] with { Load = load, LoadCode = result.Code });
         }
         RaiseChanged();
     }
+
+    /// <summary>Durably cancels one queued or in-flight original through the queue port.</summary>
+    internal async Task CancelOriginalAsync(string postId)
+    {
+        bool started = false;
+        long actionVersion = 0;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
+            if (index < 0) return;
+            BooruResultRowView row = _view.Rows[index];
+            if (!row.CanCancel || !_originalActions.Add(postId)) return;
+            actionVersion = BeginOriginalAction(postId);
+            SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
+            started = true;
+        }
+        if (!started) return;
+        RaiseChanged();
+        bool cancelled;
+        string code;
+        try
+        {
+            cancelled = await _queue.CancelOriginalAsync(postId, _lifetime.Token).ConfigureAwait(false);
+            code = cancelled ? BooruCodes.Cancelled : "cancel_not_pending";
+        }
+        catch (OperationCanceledException) { cancelled = false; code = BooruCodes.Canceled; }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            cancelled = false;
+            code = "cancel_failed";
+        }
+        lock (_gate)
+        {
+            _originalActions.Remove(postId);
+            if (_disposed) return;
+            int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
+            if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
+                SetRow(index, _view.Rows[index] with { Load = BooruRowLoad.Failed, LoadCode = code });
+        }
+        RaiseChanged();
+    }
+
+    /// <summary>Explicitly retries a stored claim after a cancellation or failed admission.</summary>
+    internal async Task RetryOriginalAsync(string postId)
+    {
+        BooruPostView post;
+        long actionVersion = 0;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
+            if (index < 0) return;
+            BooruResultRowView row = _view.Rows[index];
+            if (!row.CanRetry || !_originalActions.Add(postId)) return;
+            actionVersion = BeginOriginalAction(postId);
+            post = row.Post;
+            SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
+        }
+        RaiseChanged();
+        BooruLoadResult result;
+        try { result = await _queue.RetryOriginalAsync(post.PostId, _lifetime.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.Canceled); }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
+        lock (_gate)
+        {
+            _originalActions.Remove(postId);
+            if (_disposed) return;
+            int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
+            if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
+                SetRow(index, _view.Rows[index] with { Load = MapLoad(result), LoadCode = result.Code });
+        }
+        RaiseChanged();
+    }
+
+    private long BeginOriginalAction(string postId)
+    {
+        long version = ++_nextOriginalAction;
+        _originalActionVersions[postId] = version;
+        return version;
+    }
+
+    private bool IsCurrentOriginalAction(string postId, long version) =>
+        _originalActionVersions.TryGetValue(postId, out long current) && current == version;
+
+    private static BooruRowLoad MapLoad(BooruLoadResult result) => result.Status switch
+    {
+        BooruLoadStatus.Queued => BooruRowLoad.Queued,
+        BooruLoadStatus.AlreadyQueued => BooruRowLoad.AlreadyQueued,
+        BooruLoadStatus.AlreadyLoaded => BooruRowLoad.AlreadyLoaded,
+        BooruLoadStatus.NoOriginal => BooruRowLoad.NoOriginal,
+        BooruLoadStatus.Restricted => BooruRowLoad.Restricted,
+        BooruLoadStatus.Offline => BooruRowLoad.Offline,
+        _ => BooruRowLoad.Failed
+    };
 
     private void UpdateRow(long id, string postId, Func<BooruResultRowView, BooruResultRowView> update)
     {
@@ -512,6 +609,8 @@ internal sealed class BooruSearchModel : IDisposable
             _disposed = true;
             _requestId++;
             _request?.Cancel();
+            _originalActions.Clear();
+            _originalActionVersions.Clear();
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
         _lifetime.Cancel();

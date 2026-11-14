@@ -450,6 +450,9 @@ public sealed class BooruPortAvailabilityTests
         Assert.NotNull(await previews.LoadPreviewAsync(Post("1"), CancellationToken.None));
         Assert.Equal(BooruLoadStatus.Queued,
             (await queue.LoadOriginalAsync(Post("1"), BooruLoadOrigin.Search, CancellationToken.None)).Status);
+        Assert.True(await queue.CancelOriginalAsync("1", CancellationToken.None));
+        Assert.Equal(BooruLoadStatus.Queued,
+            (await queue.RetryOriginalAsync("1", CancellationToken.None)).Status);
         Assert.Equal(BooruWatcherCommandStatus.Done, (await watchers.CreateAsync("cat", CancellationToken.None)).Status);
         using CancellationTokenSource cancelled = new();
         cancelled.Cancel();

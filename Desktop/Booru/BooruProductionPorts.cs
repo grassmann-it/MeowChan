@@ -92,6 +92,59 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         return result;
     }
 
+    public async Task<bool> CancelOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return false;
+        try
+        {
+            Task<bool>? pending = null;
+            bool accepted = await Task.Run(() => operation.TryStart(() => _originals.CancelAsync(postId), out pending),
+                operation.Token).ConfigureAwait(false);
+            if (!accepted || pending is null || !operation.IsCurrent) return false;
+            bool cancelled = await pending.ConfigureAwait(false);
+            if (!operation.IsCurrent) return false;
+            RaiseLocalStatesChanged();
+            return cancelled;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (!operation.IsCurrent) { return false; }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or IOException
+            or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException)
+        {
+            if (operation.IsCurrent) Log.Warning(exception, "Danbooru original cancellation failed for post {PostId}", postId);
+            return false;
+        }
+    }
+
+    public async Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
+        if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
+        try
+        {
+            Task<BooruOriginalAdmission>? pending = null;
+            bool accepted = await Task.Run(() => operation.TryStart(
+                () => _originals.RetryAsync(postId, operation.Token), out pending), operation.Token).ConfigureAwait(false);
+            if (!accepted || pending is null || !operation.IsCurrent) return Unavailable();
+            BooruOriginalAdmission admission = await pending.ConfigureAwait(false);
+            if (!operation.IsCurrent) return Unavailable();
+            BooruLoadResult result = Map(admission);
+            RaiseLocalStatesChanged();
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (OperationCanceledException) when (!operation.IsCurrent) { return Unavailable(); }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or IOException
+            or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException)
+        {
+            if (operation.IsCurrent) Log.Warning(exception, "Danbooru original retry failed for post {PostId}", postId);
+            return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.NotAdmitted);
+        }
+    }
+
     private static BooruLoadResult Unavailable() => new(BooruLoadStatus.Failed, BooruCodes.SourceUnavailable);
 
     /// <summary>

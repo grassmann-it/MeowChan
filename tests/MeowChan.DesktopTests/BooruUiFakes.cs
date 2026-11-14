@@ -105,6 +105,10 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
 {
     private readonly object _gate = new();
     internal Func<BooruPostView, BooruLoadOrigin, Task<BooruLoadResult>>? OnLoad { get; set; }
+    internal Func<string, Task<bool>>? OnCancel { get; set; }
+    internal Func<string, Task<BooruLoadResult>>? OnRetry { get; set; }
+    internal List<string> Cancellations { get; } = new();
+    internal List<string> Retries { get; } = new();
     internal Dictionary<string, BooruLocalState> States { get; } = new(StringComparer.Ordinal);
     internal List<(string PostId, BooruLoadOrigin Origin)> Loads { get; } = new();
     /// <summary>The query each load carried as provenance (null for a one-shot), parallel to <see cref="Loads"/>.</summary>
@@ -120,6 +124,19 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
     {
         lock (_gate) { Loads.Add((post.PostId, origin)); LoadQueries.Add(query); }
         return OnLoad is null ? new BooruLoadResult(BooruLoadStatus.Queued) : await OnLoad(post, origin).ConfigureAwait(false);
+    }
+
+    public async Task<bool> CancelOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        lock (_gate) Cancellations.Add(postId);
+        return OnCancel is null || await OnCancel(postId).ConfigureAwait(false);
+    }
+
+    public async Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken)
+    {
+        lock (_gate) Retries.Add(postId);
+        return OnRetry is null ? new BooruLoadResult(BooruLoadStatus.Queued)
+            : await OnRetry(postId).ConfigureAwait(false);
     }
 
     public Task<IReadOnlyDictionary<string, BooruLocalState>> GetLocalStatesAsync(IReadOnlyList<string> postIds, CancellationToken cancellationToken)

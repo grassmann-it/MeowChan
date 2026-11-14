@@ -293,6 +293,44 @@ public sealed class BooruSearchModelTests : IDisposable
         Assert.Equal(BooruRowLoad.Queued, _model.View.Rows[0].Load);
     }
 
+    [Fact]
+    public async Task QueuedOriginalCanBeCancelledAndExplicitlyRetriedThroughTheQueuePort()
+    {
+        _h.Serve(perPage: 1);
+        _h.Queue.OnCancel = _ => Task.FromResult(true);
+        _h.Queue.OnRetry = _ => Task.FromResult(new BooruLoadResult(BooruLoadStatus.Queued));
+        await BooruTestSupport.SearchAsync(_model, "cat");
+
+        await _model.LoadOriginalAsync("101");
+        Assert.True(_model.View.Rows[0].CanCancel);
+        await _model.CancelOriginalAsync("101");
+        Assert.Equal(new[] { "101" }, _h.Queue.Cancellations);
+        Assert.Equal(BooruRowLoad.Failed, _model.View.Rows[0].Load);
+        Assert.Equal(BooruCodes.Cancelled, _model.View.Rows[0].LoadCode);
+        Assert.True(_model.View.Rows[0].CanRetry);
+
+        await _model.RetryOriginalAsync("101");
+        Assert.Equal(new[] { "101" }, _h.Queue.Retries);
+        Assert.Equal(BooruRowLoad.Queued, _model.View.Rows[0].Load);
+    }
+
+    [Fact]
+    public async Task CancelAndRetryMutationsAreSingleFlightForOneRow()
+    {
+        _h.Serve(perPage: 1);
+        TaskCompletionSource<bool> cancel = new();
+        _h.Queue.OnCancel = _ => cancel.Task;
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        await _model.LoadOriginalAsync("101");
+
+        Task first = _model.CancelOriginalAsync("101");
+        await BooruTestSupport.WaitAsync(() => _model.View.Rows[0].Load == BooruRowLoad.Handing, "cancelling");
+        Task second = _model.CancelOriginalAsync("101");
+        cancel.SetResult(true);
+        await Task.WhenAll(first, second);
+        Assert.Single(_h.Queue.Cancellations);
+    }
+
     [Theory]
     [InlineData("AlreadyQueued", "AlreadyQueued")]
     [InlineData("AlreadyLoaded", "AlreadyLoaded")]

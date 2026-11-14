@@ -98,6 +98,14 @@ internal sealed record BooruResultRowView(
 {
     internal bool CanLoad => Post.OriginalAccess == BooruOriginalAccess.Available
         && Load is BooruRowLoad.Idle or BooruRowLoad.Offline or BooruRowLoad.Failed;
+
+    /// <summary>True while the queue owns a cancellable admission or download request.</summary>
+    internal bool CanCancel => Post.OriginalAccess == BooruOriginalAccess.Available
+        && Load is BooruRowLoad.Handing or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued;
+
+    /// <summary>True when the stored claim may be explicitly re-admitted after a visible failure.</summary>
+    internal bool CanRetry => Post.OriginalAccess == BooruOriginalAccess.Available
+        && Load is BooruRowLoad.Offline or BooruRowLoad.Failed;
 }
 
 internal enum BooruNoticeKind { Info, Success, Warning, Error }
