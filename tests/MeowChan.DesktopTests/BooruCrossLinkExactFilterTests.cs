@@ -49,7 +49,7 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.Empty(filter.Kinds); // M1: no type restriction (the set replaced the single Kind)
         Assert.Equal(MediaLibrarySoundFilter.Any, filter.Sound);
         Assert.False(model.Get<CheckBox>("_missing").IsChecked);
-        Assert.Equal(0, model.Get<ComboBox>("_tagMode").SelectedIndex);
+        Assert.Equal(0, model.Get<TwoWayToggle>("_tagMode").SelectedIndex);
         Assert.False(model.Get<bool>("_localizing"));
         var passing = MediaLibraryFilterEngine.Apply([exact, neighbour], filter, MediaLibraryUserData.Unavailable);
         Assert.Same(exact, Assert.Single(passing));
@@ -230,9 +230,10 @@ public sealed class BooruCrossLinkExactFilterTests
             Set(Page, "_lifetime", _lifetime);
             Set(Page, "_snapshot", new MediaLibrarySnapshot(entries, [], [], true));
             Set(Page, "_nameFilter", new SearchBox());
-            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_sourceFilter", "_boardFilter", "_minRating", "_tagMode" })
+            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_sourceFilter", "_boardFilter", "_minRating" })
                 Set(Page, field, new ComboBox());
-            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_minRating", "_tagMode" })
+            Set(Page, "_tagMode", new TwoWayToggle()); // M5: the all | any switch
+            foreach (string field in new[] { "_kindFilter", "_soundFilter", "_minRating" })
             { Get<ComboBox>(field).ItemsSource = new[] { "Any", "First", "Second", "Third", "Fourth", "Fifth" }; Get<ComboBox>(field).SelectedIndex = 0; }
             foreach (string field in new[] { "_favoritesOnly", "_withoutMediaTags", "_missing" }) Set(Page, field, new CheckBox());
             // M2: the term set is the filter (constructor bypassed, so the readonly list is set here).
@@ -245,7 +246,7 @@ public sealed class BooruCrossLinkExactFilterTests
             Get<ComboBox>("_kindFilter").SelectedIndex = (int)MediaLibraryKindFilter.Video;
             Get<ComboBox>("_soundFilter").SelectedIndex = (int)MediaLibrarySoundFilter.WithSound;
             Get<ComboBox>("_minRating").SelectedIndex = 5;
-            Get<ComboBox>("_tagMode").SelectedIndex = 1;
+            Get<TwoWayToggle>("_tagMode").SelectedIndex = 1;
             foreach (string field in new[] { "_favoritesOnly", "_withoutMediaTags", "_missing" }) Get<CheckBox>(field).IsChecked = true;
             // The fields show the old state; the term set (M2) is what CurrentFilter reads.
             Get<List<MediaFilterTerm>>("_terms").AddRange(new[]

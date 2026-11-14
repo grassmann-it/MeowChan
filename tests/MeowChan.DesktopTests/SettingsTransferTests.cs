@@ -17,6 +17,7 @@ public sealed class SettingsTransferTests
         nameof(Config.LastExportDirectory), nameof(Config.GalleryFrameDirectory), nameof(Config.GalleryContextOpen),
         nameof(Config.ArchiveBridgeHintSeen),
         nameof(Config.StatusPageSegment),
+        nameof(Config.LastTaglineVersion),
     ];
 
     [Fact]
