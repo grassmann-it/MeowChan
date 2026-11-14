@@ -11,31 +11,11 @@
     </UserControl.Styles>
     <Grid>
     <ScrollViewer x:Name="StatisticsScroll" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <StackPanel Classes="workspace-page-header">
-                    <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
-                    <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
-                </StackPanel>
-                <!-- Work views: Reset is destructive and rare, so Barebones and Simple keep it under More. -->
-                <desktop:ActionToolBar x:Name="StatisticsActions" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
-                <Button x:Name="ResetStatisticsButton" wv:WorkViewElement.Id="statistics.reset" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnResetClick">
-                    <FlyoutBase.AttachedFlyout>
-                        <Flyout Placement="BottomEdgeAlignedRight" Opened="OnResetConfirmationOpened" Closed="OnResetConfirmationClosed">
-                            <Border x:Name="ResetConfirmPanel" wv:WorkViewElement.Id="statistics.reset-confirm" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
-                                <StackPanel Spacing="12">
-                                    <TextBlock x:Name="ResetQuestion" TextWrapping="Wrap" />
-                                    <WrapPanel Classes="workspace-toolbar">
-                                        <Button x:Name="ConfirmResetButton" Classes="danger" Click="OnConfirmResetClick" />
-                                        <Button x:Name="CancelResetButton" Click="OnCancelResetClick" />
-                                    </WrapPanel>
-                                </StackPanel>
-                            </Border>
-                        </Flyout>
-                    </FlyoutBase.AttachedFlyout>
-                </Button>
-                </desktop:ActionToolBar>
-            </Grid>
+        <StackPanel x:Name="StatisticsContent" Margin="{StaticResource Workspace.Inset.Page}" Spacing="8">
+            <StackPanel x:Name="StatisticsHeader" Classes="workspace-page-header">
+                <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
+                <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
             <Border x:Name="LoadNoticePanel" wv:WorkViewElement.Id="statistics.load-notice" Classes="workspace-warning" IsVisible="False">
                 <TextBlock x:Name="LoadNoticeText" TextWrapping="Wrap" />
             </Border>
@@ -47,21 +27,36 @@
                 <StackPanel Spacing="8">
                     <WrapPanel ItemSpacing="24" LineSpacing="8">
                         <StackPanel MinWidth="130"><TextBlock x:Name="NetCaption" Classes="muted" /><TextBlock x:Name="NetValue" Classes="stats-value" /></StackPanel>
+                        <StackPanel MinWidth="130"><TextBlock x:Name="NetUpCaption" Classes="muted" /><TextBlock x:Name="NetUpValue" Classes="stats-value" /></StackPanel>
                         <StackPanel MinWidth="130"><TextBlock x:Name="DiskWriteCaption" Classes="muted" /><TextBlock x:Name="DiskWriteValue" Classes="stats-value" /></StackPanel>
                         <StackPanel MinWidth="130"><TextBlock x:Name="DiskReadCaption" Classes="muted" /><TextBlock x:Name="DiskReadValue" Classes="stats-value" /></StackPanel>
                         <StackPanel MinWidth="130"><TextBlock x:Name="RequestsCaption" Classes="muted" /><TextBlock x:Name="RequestsValue" Classes="stats-value" /></StackPanel>
                     </WrapPanel>
-                    <Grid wv:WorkViewElement.Id="statistics.history" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                        <StackPanel Spacing="3">
-                            <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" />
-                            <TextBlock x:Name="HistoryNote" Classes="workspace-help" TextWrapping="Wrap" />
-                        </StackPanel>
+                    <Grid wv:WorkViewElement.Id="statistics.history" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                        <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <!-- Work views: Reset is destructive and rare, so Barebones and Simple keep it under More. It sits in the history bar, left of the numbers: the right edge is for Back and Close. -->
+                        <desktop:ActionToolBar x:Name="StatisticsActions" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Button x:Name="ResetStatisticsButton" wv:WorkViewElement.Id="statistics.reset" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnResetClick">
+                            <FlyoutBase.AttachedFlyout>
+                                <Flyout Placement="BottomEdgeAlignedRight" Opened="OnResetConfirmationOpened" Closed="OnResetConfirmationClosed">
+                                    <Border x:Name="ResetConfirmPanel" wv:WorkViewElement.Id="statistics.reset-confirm" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
+                                        <StackPanel Spacing="12">
+                                            <TextBlock x:Name="ResetQuestion" TextWrapping="Wrap" />
+                                            <WrapPanel Classes="workspace-toolbar">
+                                                <Button x:Name="ConfirmResetButton" Classes="danger" Click="OnConfirmResetClick" />
+                                                <Button x:Name="CancelResetButton" Click="OnCancelResetClick" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Flyout>
+                            </FlyoutBase.AttachedFlyout>
+                        </Button>
+                        </desktop:ActionToolBar>
                         <!-- Apply retains this column's measured width on reset, without keeping an invisible peak value in the accessibility tree. -->
-                        <Grid x:Name="PeakSlot" Grid.Column="1" IsHitTestVisible="False">
+                        <Grid x:Name="PeakSlot" Grid.Column="2" IsHitTestVisible="False" VerticalAlignment="Center">
                             <TextBlock x:Name="PeakText" Classes="muted stats-num" />
                         </Grid>
                     </Grid>
-                    <TextBlock x:Name="ActivityText" Classes="muted" TextWrapping="Wrap" />
                     <StackPanel Spacing="8">
                         <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
@@ -72,15 +67,16 @@
                                 <TextBlock x:Name="NetTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
                                 <TextBlock x:Name="NetScale" Grid.Column="2" Classes="muted stats-num" />
                             </Grid>
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
                             <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="8" RowSpacing="4">
-                                <Grid x:Name="ScaleLabels" Width="82" RowDefinitions="*,*">
+                                <Grid Width="82" RowDefinitions="*,*">
                                     <TextBlock x:Name="ScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
                                     <TextBlock x:Name="ScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
                                 </Grid>
                                 <controls:IoGraph x:Name="NetGraph" Grid.Column="1" Source="NetDown" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
                                                   Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" GuideStroke="{DynamicResource Workspace.Border}"
                                                   Focusable="False" />
-                                <TextBlock x:Name="HistoryEmpty" Grid.ColumnSpan="2" Classes="muted" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <TextBlock x:Name="HistoryEmpty" Grid.Column="1" Classes="muted" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
                                     <TextBlock x:Name="HistoryStart" Classes="muted" FontFeatures="tnum" />
                                     <TextBlock x:Name="HistoryEnd" Grid.Column="1" Classes="muted" />
@@ -96,8 +92,20 @@
                                 <TextBlock x:Name="DiskWriteTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
                                 <TextBlock x:Name="DiskWriteScale" Grid.Column="2" Classes="muted stats-num" />
                             </Grid>
-                            <controls:IoGraph x:Name="DiskWriteGraph" Source="DiskWrite" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
-                                              Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" GuideStroke="{DynamicResource Workspace.Border}" Focusable="False" />
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="8" RowSpacing="4">
+                                <Grid Width="82" RowDefinitions="*,*">
+                                    <TextBlock x:Name="WriteScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="WriteScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
+                                </Grid>
+                                <controls:IoGraph x:Name="DiskWriteGraph" Grid.Column="1" Source="DiskWrite" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
+                                                  Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                                  Focusable="False" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="WriteHistoryStart" Classes="muted" FontFeatures="tnum" />
+                                    <TextBlock x:Name="WriteHistoryEnd" Grid.Column="1" Classes="muted" />
+                                </Grid>
+                            </Grid>
                         </StackPanel>
                         <StackPanel Spacing="4">
                             <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
@@ -108,8 +116,20 @@
                                 <TextBlock x:Name="DiskReadTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
                                 <TextBlock x:Name="DiskReadScale" Grid.Column="2" Classes="muted stats-num" />
                             </Grid>
-                            <controls:IoGraph x:Name="DiskReadGraph" Source="DiskRead" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
-                                              Stroke="{DynamicResource Workspace.Stats.Read}" Fill="{DynamicResource Workspace.Stats.ReadSurface}" GuideStroke="{DynamicResource Workspace.Border}" Focusable="False" />
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="8" RowSpacing="4">
+                                <Grid Width="82" RowDefinitions="*,*">
+                                    <TextBlock x:Name="ReadScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="ReadScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
+                                </Grid>
+                                <controls:IoGraph x:Name="DiskReadGraph" Grid.Column="1" Source="DiskRead" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
+                                                  Stroke="{DynamicResource Workspace.Stats.Read}" Fill="{DynamicResource Workspace.Stats.ReadSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                                  Focusable="False" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="ReadHistoryStart" Classes="muted" FontFeatures="tnum" />
+                                    <TextBlock x:Name="ReadHistoryEnd" Grid.Column="1" Classes="muted" />
+                                </Grid>
+                            </Grid>
                         </StackPanel>
                     </StackPanel>
                 </StackPanel>
@@ -186,7 +206,12 @@
                             <DataGridTemplateColumn Width="70">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="stats:StatisticsRow">
-                                        <TextBlock Classes="stats-num" Text="{Binding Errors}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                        <!-- A count above zero leads to the problems of that source in the diagnostics segment (click or Enter). -->
+                                        <Panel>
+                                            <TextBlock Classes="stats-num" Text="{Binding Errors}" FontWeight="{Binding Weight}" VerticalAlignment="Center" IsVisible="{Binding !CanOpenDiagnostics}" />
+                                            <Button Classes="subtle stats-error-link" Content="{Binding Errors}" FontWeight="{Binding Weight}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    IsVisible="{Binding CanOpenDiagnostics}" AutomationProperties.Name="{Binding ErrorsLinkText}" ToolTip.Tip="{Binding ErrorsLinkText}" />
+                                        </Panel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -211,7 +236,10 @@
                                                 <TextBlock Grid.Column="3" Text="{Binding Errors}" Classes="stats-num" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
                                             </Grid>
                                         </Expander.Header>
-                                        <TextBlock Text="{Binding Details}" TextWrapping="Wrap" FontFeatures="tnum" Margin="12,4" />
+                                        <StackPanel Margin="12,4" Spacing="4">
+                                            <TextBlock Text="{Binding Details}" TextWrapping="Wrap" FontFeatures="tnum" />
+                                            <Button Classes="subtle stats-error-link" Content="{Binding ErrorsLinkText}" HorizontalAlignment="Left" IsVisible="{Binding CanOpenDiagnostics}" />
+                                        </StackPanel>
                                     </Expander>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

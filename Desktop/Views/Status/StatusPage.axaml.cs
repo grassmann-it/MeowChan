@@ -30,6 +30,7 @@ public partial class StatusPage : UserControl
     private readonly TextBlock _diagnosticsLabel = new() { VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _diagnosticsBadgeText = new() { Classes = { "chip-label" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _diagnosticsBadge;
+    private bool _statisticsAvailable = true;
 
     public StatusPage()
     {
@@ -60,7 +61,11 @@ public partial class StatusPage : UserControl
     internal ContentControl DiagnosticsHost => DiagnosticsPageHost;
     internal string StripText => StatusStrip.Text ?? string.Empty;
 
-    internal void AttachStatistics(StatisticsPage page) => StatisticsPageHost.Content = page;
+    internal void AttachStatistics(StatisticsPage page)
+    {
+        page.SetHosted(true); // the page's own title and margin would repeat this page's head
+        StatisticsPageHost.Content = page;
+    }
 
     internal void AttachDiagnostics(DiagnosticsPage page) => DiagnosticsPageHost.Content = page;
 
@@ -80,6 +85,8 @@ public partial class StatusPage : UserControl
     internal void SetStatisticsAvailable(bool available)
     {
         if (StatisticsSegmentTab.IsEnabled != available) StatisticsSegmentTab.IsEnabled = available;
+        _statisticsAvailable = available;
+        ApplyStatisticsUnavailableReason();
     }
 
     /// <summary>The counts of the session projection: active and waiting transfers, current problems (the diagnostics count).</summary>
@@ -138,6 +145,15 @@ public partial class StatusPage : UserControl
         AutomationProperties.SetName(StatusStrip, text);
     }
 
+    // A segment that cannot be chosen says why: tooltip (also on the disabled tab) and help text, only while it is unavailable.
+    private void ApplyStatisticsUnavailableReason()
+    {
+        string? reason = _statisticsAvailable ? null : Texts.T("status.statisticsUnavailable");
+        ToolTip.SetTip(StatisticsSegmentTab, reason);
+        ToolTip.SetShowOnDisabled(StatisticsSegmentTab, true);
+        AutomationProperties.SetHelpText(StatisticsSegmentTab, reason);
+    }
+
     private void ApplySegmentHeaders()
     {
         StatisticsSegmentTab.Header = Texts.T("nav.statistics");
@@ -155,6 +171,7 @@ public partial class StatusPage : UserControl
         StatusHint.Text = Texts.T("status.hint");
         AutomationProperties.SetName(StatusSegments, Texts.T("status.segments"));
         ApplySegmentHeaders();
+        ApplyStatisticsUnavailableReason();
         _strip = null;
         RenderStrip();
     }

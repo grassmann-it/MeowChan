@@ -4,9 +4,10 @@ using System.Globalization;
 
 namespace MeowChan.Desktop.Stats;
 
-/// <summary>One line of the statistics table, already formatted for display. Raw numbers stay in the snapshot.</summary>
+/// <summary>One line of the statistics table, already formatted for display. Raw numbers stay in the snapshot, except
+/// <paramref name="ErrorCount"/>: whether the error cell leads anywhere depends on it.</summary>
 internal sealed record IoStatsRowText(string Key, bool IsTotal, string Name, string Now, string Session, string Today,
-    string Retained, string DiskWritten, string DiskRead, string Requests, string Errors);
+    string Retained, string DiskWritten, string DiskRead, string Requests, string Errors, long ErrorCount = 0);
 
 /// <summary>Builds the table of the statistics page from a snapshot: one row per source in the hub's order (largest session download first), the total last.</summary>
 internal static class IoStatsRows
@@ -24,7 +25,7 @@ internal static class IoStatsRows
         ByteUnits.Rate(source.Rate.NetDown, culture), ByteUnits.Size(source.Session.NetDown, culture),
         ByteUnits.Size(source.Today.NetDown, culture), ByteUnits.Size(source.Retained.NetDown, culture),
         ByteUnits.Size(source.Session.DiskWritten, culture), ByteUnits.Size(source.Session.DiskRead, culture),
-        Count(source.Session.Requests, culture), Count(source.Session.Errors, culture));
+        Count(source.Session.Requests, culture), Count(source.Session.Errors, culture), Math.Max(source.Session.Errors, 0));
 
     /// <summary>A whole number with the language's digit grouping.</summary>
     internal static string Count(long value, CultureInfo? culture = null) =>
