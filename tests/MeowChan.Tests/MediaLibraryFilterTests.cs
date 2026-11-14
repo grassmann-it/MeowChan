@@ -128,6 +128,90 @@ public sealed class MediaLibraryFilterTests
     }
 
     [Fact]
+    public void KindsAreASetWhereEmptyMeansEveryTypeAndWithoutVideoIsTheOtherTypes()
+    {
+        MediaLibraryEntry png = Entry("a", "1", 'a', name: "Cat.PNG"), gif = Entry("a", "2", 'b', name: "dance.GIF"),
+            video = Entry("b", "1", 'c', name: "clip.webm", kind: SavedMediaKind.Video), pdf = Entry("c", "1", 'd', name: "paper.pdf", kind: SavedMediaKind.Other);
+        MediaLibraryEntry[] all = [png, gif, video, pdf];
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+
+        // Empty, null, Any and all four types restrict nothing, and are the empty filter.
+        foreach (MediaLibraryFilter every in new MediaLibraryFilter[] { new(kinds: []), new(kinds: null), new(kind: MediaLibraryKindFilter.Any),
+            new(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Other]),
+            new(kinds: [MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Any]) })
+        {
+            Assert.True(every.IsEmpty);
+            Assert.Empty(every.Kinds);
+            Assert.Equal(4, MediaLibraryFilterEngine.Apply(all, every, data).Count);
+            Assert.Equal(MediaLibraryFilter.None, every);
+        }
+        Assert.Equal(new[] { "a:1", "a:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif]), data)));
+        Assert.Equal(new[] { "a:1", "b:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Video]), data)));
+        // "Without type video".
+        MediaLibraryFilter withoutVideo = new(kinds: MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Video));
+        Assert.False(withoutVideo.IsEmpty);
+        Assert.Equal(new[] { "a:1", "a:2", "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, withoutVideo, data)));
+        Assert.Equal(new[] { "c:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(kinds: MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video)), data)));
+        // The single kind and the set narrow together; types that exclude each other are refused (empty would mean "all").
+        Assert.Equal(new[] { "a:2" }, Posts(MediaLibraryFilterEngine.Apply(all, new(kind: MediaLibraryKindFilter.Gif, kinds: [MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video]), data)));
+        Assert.Throws<ArgumentException>(() => new MediaLibraryFilter(kind: MediaLibraryKindFilter.Gif, kinds: [MediaLibraryKindFilter.Video]));
+        Assert.Throws<ArgumentException>(() => MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif,
+            MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Other));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new MediaLibraryFilter(kinds: [(MediaLibraryKindFilter)9]));
+    }
+
+    [Fact]
+    public void ASoundFilterNeedsVideosToStayInTheTypeSet()
+    {
+        Assert.False(new MediaLibraryFilter(sound: MediaLibrarySoundFilter.WithSound, kinds: [MediaLibraryKindFilter.Video]).IsEmpty);
+        Assert.False(new MediaLibraryFilter(sound: MediaLibrarySoundFilter.WithSound, kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Video]).IsEmpty);
+        Assert.Throws<ArgumentException>(() => new MediaLibraryFilter(sound: MediaLibrarySoundFilter.WithSound,
+            kinds: MediaLibraryFilter.AllKindsExcept(MediaLibraryKindFilter.Video)));
+        Assert.Throws<ArgumentException>(() => new MediaLibraryFilter(sound: MediaLibrarySoundFilter.WithoutSound, kinds: [MediaLibraryKindFilter.Gif]));
+    }
+
+    [Fact]
+    public void ASourceOrABoardCanBeExcludedAlsoNextToAnIncludedBoard()
+    {
+        MediaLibraryEntry a = Entry("1", "1", 'a', source: "4chan", board: "g"), b = Entry("2", "1", 'b', source: "4chan", board: "wsg"),
+            c = Entry("3", "1", 'c', source: "danbooru", board: "posts"), d = Entry("4", "1", 'd', source: "other", board: "g");
+        MediaLibraryEntry[] all = [a, b, c, d];
+        MediaLibraryUserData data = MediaLibraryUserData.Unavailable;
+
+        Assert.Equal(new[] { "1:1", "2:1", "4:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(excludeSources: ["danbooru"]), data)));
+        // Excluding a board is per source: /g/ of 4chan goes, /g/ of another source stays.
+        Assert.Equal(new[] { "2:1", "3:1", "4:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(excludeBoards: [new MediaLibraryBoardKey("4chan", "g")]), data)));
+        // A source excluded and a board of another source included: both narrow.
+        Assert.Equal(new[] { "4:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(source: "other", board: "g", excludeSources: ["4chan"]), data)));
+        Assert.Equal(new[] { "2:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(source: "4chan", excludeBoards: [new MediaLibraryBoardKey("4chan", "g")]), data)));
+        // The same source included and excluded shows nothing (every part narrows).
+        Assert.Empty(MediaLibraryFilterEngine.Apply(all, new(source: "4chan", excludeSources: ["4chan"]), data));
+        Assert.Equal(new[] { "1:1", "2:1", "4:1" }, Posts(MediaLibraryFilterEngine.Apply(all, new(excludeSources: ["danbooru", "", null!], excludeBoards: [new MediaLibraryBoardKey("", "x")]), data)));
+        // Source names compare exactly (ordinal), not by case.
+        Assert.Equal(4, MediaLibraryFilterEngine.Apply(all, new(excludeSources: ["DANBOORU"]), data).Count);
+        Assert.False(new MediaLibraryFilter(excludeSources: ["s"]).IsEmpty);
+        Assert.False(new MediaLibraryFilter(excludeBoards: [new MediaLibraryBoardKey("s", "b")]).IsEmpty);
+        Assert.True(new MediaLibraryFilter(excludeSources: [], excludeBoards: []).IsEmpty);
+    }
+
+    [Fact]
+    public void FiltersCompareByTheContentOfTheirSets()
+    {
+        MediaLibraryFilter first = new(kinds: [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif], excludeSources: ["a", "b"],
+            excludeBoards: [new MediaLibraryBoardKey("s", "x"), new MediaLibraryBoardKey("s", "y")]);
+        MediaLibraryFilter same = new(kinds: [MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif], excludeSources: ["b", "a"],
+            excludeBoards: [new MediaLibraryBoardKey("s", "y"), new MediaLibraryBoardKey("s", "x")]);
+        Assert.Equal(first, same);
+        Assert.Equal(first.GetHashCode(), same.GetHashCode());
+        Assert.NotEqual(first, new MediaLibraryFilter(kinds: [MediaLibraryKindFilter.Image], excludeSources: ["a", "b"],
+            excludeBoards: [new MediaLibraryBoardKey("s", "x"), new MediaLibraryBoardKey("s", "y")]));
+        Assert.NotEqual(first, new MediaLibraryFilter(kinds: first.Kinds, excludeSources: ["a"], excludeBoards: first.ExcludeBoards));
+        Assert.NotEqual(first, new MediaLibraryFilter(kinds: first.Kinds, excludeSources: first.ExcludeSources));
+        // The old single-kind call and the set say the same.
+        Assert.Equal(new MediaLibraryFilter(kind: MediaLibraryKindFilter.Video), new MediaLibraryFilter(kinds: [MediaLibraryKindFilter.Video]));
+    }
+
+    [Fact]
     public void MissingAndUnboundOccurrencesKeepThreadTagsButCarryNoMediaData()
     {
         MediaLibraryEntry missing = Entry("a", "1", 'a', missing: true), loose = Entry("a", "9", 'b', unassigned: true);
@@ -205,8 +289,9 @@ public sealed class MediaLibraryFilterTests
         foreach (MediaLibraryFilter filter in new MediaLibraryFilter[] { MediaLibraryFilter.None, new(kind: MediaLibraryKindFilter.Gif), new(thread: twin.Thread) })
         {
             IReadOnlyList<MediaLibraryEntry> passing = MediaLibraryFilterEngine.Apply(all, filter, data);
-            MediaLibraryFilter narrowed = new(filter.Tags, filter.Kind, filter.FavoritesOnly, filter.MinimumRating, filter.Source, filter.Board,
-                filter.NameContains, filter.Thread, filter.Sound, withoutMediaTags: true);
+            MediaLibraryFilter narrowed = new(filter.Tags, MediaLibraryKindFilter.Any, filter.FavoritesOnly, filter.MinimumRating, filter.Source, filter.Board,
+                filter.NameContains, filter.Thread, filter.Sound, withoutMediaTags: true, kinds: filter.Kinds,
+                excludeSources: filter.ExcludeSources, excludeBoards: filter.ExcludeBoards);
             int shown = MediaLibraryGrouping.Build(all, MediaLibraryFilterEngine.Apply(all, narrowed, data), MediaLibrarySort.ByThread, includeMissing: false).Count;
             Assert.Equal(shown, untagged.CountTiles(passing));
         }
