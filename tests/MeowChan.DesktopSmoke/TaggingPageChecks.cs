@@ -73,10 +73,21 @@ internal static class TaggingPageChecks
             // The move re-selects the moved entry once its command has finished (SelectOnly); let that land before the next selection.
             await SettleAsync(window);
 
-            // The context menu lists the row commands with their keys.
-            string[] labels = tagging.ListMenu.Items.OfType<MenuItem>().Select(item => item.Header as string ?? "").ToArray();
-            Require(labels.SequenceEqual(new[] { "Continue here", "Mark as finished", "Mark as open", "Mark as skipped", "Move up", "Move down", "Remove from queue" }),
-                "Context menu: " + string.Join(" | ", labels));
+            // The context menu (TG1, ContextMenuBuilder): continue/tag, state, look, order and remove, every entry a catalog command that
+            // says why it is off; for one selected entry "Tag together…" and the order of "Tag…" are as the spec lists them.
+            MeowChan.Desktop.Controls.ContextMenuModel model = tagging.ListMenuModel() ?? throw new InvalidOperationException("No menu model for a selected entry.");
+            string[] labels = model.Entries.Select(item => item.Label).ToArray();
+            Require(labels.SequenceEqual(new[] { "Continue here", "Tag…", "Tag together…", "Apply tag stamp", "Mark as finished", "Mark as open",
+                "Mark as skipped", "Open in gallery", "Show in thread", "Show in Media", "Show in folder", "Copy file path", "Move up", "Move down",
+                "Move to the start", "Move to the end", "Remove from queue" }), "Context menu: " + string.Join(" | ", labels));
+            Require(model.OversizedSections.Count == 0 && model.Entries.Where(item => !item.Available).All(item => !string.IsNullOrEmpty(item.Reason)),
+                "A disabled entry of the tagging menu has no reason, or a section is too long.");
+            Require(!model.Entries.Single(item => item.Id == "tagging.tag-together").Available, "Tag together is on for a single entry.");
+            tagging.ShowListMenu();
+            await SettleAsync(window);
+            Require(tagging.OpenListMenu is { IsOpen: true }, "The context menu did not open on the list.");
+            tagging.OpenListMenu!.Close();
+            await SettleAsync(window);
 
             // Stamp (wave3 glue e224cd02): Enter in the field adds the name to the window's shared stamp, which is saved in the settings
             // (Config.TagStamp) and shown by the page; the stamp field of tag-queue.json stays unused.

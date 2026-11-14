@@ -23,6 +23,8 @@ public static partial class WorkViewPolicy
         new("tagging.last-shown", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.start"),
         // The key hint under the list is help text: Barebones leaves it out, the keys and the context menu stay.
         new("tagging.keys-hint", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.continue-here"),
+        // TG1: the help button of the page sits at the end of the tool row; Barebones moves it under More.
+        new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
         new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tagging.clear-done", OverflowOrder: 20),
         new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, "tagging.clear", OverflowOrder: 30),

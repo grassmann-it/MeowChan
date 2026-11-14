@@ -39,6 +39,12 @@ public static class CommandCatalog
         new("tagging.move-up", "command.tagging.move-up", "Move up", "Nach oben", "arrow-up", "Alt+Up", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-down", "command.tagging.move-down", "Move down", "Nach unten", "arrow-down", "Alt+Down", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.remove", "command.tagging.remove", "Remove from queue", "Aus der Warteschlange entfernen", "x", "Delete", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        // TG1: the rest of the entry menu (list and grid). Tag…, the stamp, the gallery, the thread, the folder and the file path are the
+        // existing commands of the media page and the gallery (one id, one key, one binding); these have no counterpart there.
+        new("tagging.tag-together", "command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…", "tag", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.show-in-media", "command.tagging.show-in-media", "Show in Media", "In Medien zeigen", "crosshair", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
+        new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear-done", "command.tagging.clear-done", "Remove finished", "Erledigte entfernen", "check-square", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),

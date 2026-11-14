@@ -198,6 +198,9 @@ public sealed class EffectiveShortcutBindings
         // pages (MainPageOrder.Numbering). Every main page can therefore get another digit than before, so each default yields to a saved binding
         // of another command (media, booru, rules, sources and status are listed above from earlier revisions).
         ["navigation.downloads"] = 11, ["navigation.archive"] = 11, ["navigation.tagging"] = 11,
+        // TG1: Alt+Home and Alt+End send the selected entry of the tagging page to the start or the end of the queue (context "tagging").
+        // The wave-6 integration puts them into revision 11 (F1's), the first one after wave 5's 10; they yield like every new default.
+        ["tagging.move-first"] = 11, ["tagging.move-last"] = 11,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

@@ -639,6 +639,21 @@ namespace MeowChan
         {
             get => _mediaLayout;
             set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
+        // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
+        private string _taggingPageView = nameof(TaggingViewMode.List);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string TaggingPageView
+        {
+            get => _taggingPageView;
+            set => _taggingPageView = TaggingViewModes.Parse(value).ToString();
+        }
+        // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
+        private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string TaggingStampBlock
+        {
+            get => _taggingStampBlock;
+            set => _taggingStampBlock = TaggingStampBlocks.Parse(value).ToString();
         }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryFitUpscaleLimited { get; set; }
@@ -1696,6 +1711,8 @@ namespace MeowChan
                 MediaBooruMode = MediaBooruMode,
                 MediaTagListSort = MediaTagListSort,
                 MediaLayout = MediaLayout,
+                TaggingPageView = TaggingPageView,
+                TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -1929,6 +1946,8 @@ namespace MeowChan
             MediaBooruMode = source.MediaBooruMode;
             MediaTagListSort = source.MediaTagListSort;
             MediaLayout = source.MediaLayout;
+            TaggingPageView = source.TaggingPageView;
+            TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();

@@ -221,6 +221,8 @@ public static class SettingsTransfer
             MediaBooruMode = source.MediaBooruMode,
             MediaTagListSort = source.MediaTagListSort,
             MediaLayout = source.MediaLayout,
+            TaggingPageView = source.TaggingPageView,
+            TaggingStampBlock = source.TaggingStampBlock,
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
             PluginEditorExecutable = source.PluginEditorExecutable,
             Theme = source.Theme,

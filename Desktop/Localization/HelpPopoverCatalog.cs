@@ -58,5 +58,14 @@ internal static class HelpPopoverCatalog
         ("help.shortcuts.p1", "Two actions conflict when they can be active at the same time and use the same key combination. Both then stay switched off until you change one of them.", "Zwei Aktionen kollidieren, wenn sie gleichzeitig verfügbar sein können und dieselbe Tastenkombination nutzen. Beide bleiben dann ausgeschaltet, bis du eine davon änderst."),
         ("help.shortcuts.li1", "Take over gives the combination to the action you are editing and removes it from the other.", "Übernehmen gibt die Kombination der Aktion, die du bearbeitest, und nimmt sie der anderen."),
         ("help.shortcuts.li2", "A new default key never replaces a key you saved yourself.", "Eine neue Standardtaste ersetzt nie eine Taste, die du selbst gespeichert hast."),
+        ("help.taggingPage.title", "Working through the tagging queue", "Die Tagging-Warteschlange abarbeiten"),
+        ("help.taggingPage.p1", "The gallery shows the open entries one after another and you tag each one. Entries you finish or skip are marked in the list.", "Die Galerie zeigt dir die offenen Einträge nacheinander, und du taggst jeden. Erledigte und übersprungene Einträge sind in der Liste markiert."),
+        ("help.taggingPage.li1", "Select one or more entries and open the context menu: it lists tagging, state, opening and order, and says why an entry is off.", "Wähle einen oder mehrere Einträge und öffne das Kontextmenü: Es führt Taggen, Zustand, Öffnen und Reihenfolge auf und sagt, warum ein Eintrag nicht geht."),
+        ("help.taggingPage.li2", "“Tag together…” gives one tag to every selected entry in a single step; the stamp can do the same for several tags.", "„Gemeinsam taggen…“ gibt allen ausgewählten Einträgen in einem Schritt ein Tag; der Stempel tut dasselbe für mehrere Tags."),
+        ("help.taggingPage.li3", "The keys shown under the list can be changed in the shortcut settings.", "Die Tasten unter der Liste lassen sich in den Kürzel-Einstellungen ändern."),
+        ("help.taggingStamp.title", "Stamp tags", "Stempel-Tags"),
+        ("help.taggingStamp.p1", "The stamp holds the tags you give most media. They come first in every tag panel, in the order shown here.", "Der Stempel enthält die Tags, die du den meisten Medien gibst. Sie stehen in jedem Tag-Panel zuerst, in der hier gezeigten Reihenfolge."),
+        ("help.taggingStamp.li1", "“Apply tag stamp” gives all of them to the selected entries at once; tags an entry already has are not written again.", "„Stempel-Tags setzen“ gibt sie allen ausgewählten Einträgen auf einmal; was ein Eintrag schon hat, wird nicht erneut geschrieben."),
+        ("help.taggingStamp.li2", "The stamp holds at most as many tags as the stamp size in the settings allows.", "Der Stempel nimmt höchstens so viele Tags auf, wie die Stempelgröße in den Einstellungen erlaubt."),
     };
 }
