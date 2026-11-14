@@ -76,6 +76,7 @@ internal static partial class SmokeScenarios
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
         ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),
+        ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
         ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow)),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
         ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
