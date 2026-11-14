@@ -392,6 +392,110 @@ public sealed class PaletteContrastTests
         Assert.DoesNotContain(dictionary.Elements(), element => string.Equals(element.Value.Trim(), "#54A9FF", StringComparison.OrdinalIgnoreCase));
     }
 
+    // 2026-11-14: Semi's primary blue (#54A9FF in Dark, #0064FA in Light) and its blue family were still behind field focus, text selection,
+    // check box and radio button states, slider, progress, pagination, selected tabs, info banner and toast, loading icon and badge. Every one
+    // of those keys is an accent/palette token now, and the pairs that carry text, glyphs and state boundaries keep their contrast.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void SemiBlueLeftoversAreOnThePaletteAccent(string theme)
+    {
+        static void Same(string theme, string token, params string[] keys)
+        {
+            foreach (string key in keys) Assert.True(Color(theme, token) == Color(theme, key), $"{theme}: {key} is {Color(theme, key)}, expected {token} {Color(theme, token)}");
+        }
+        Same(theme, "Workspace.Accent", "TextBoxFocusBorderBrush", "ComboBoxSelectorBorderedFocusBorderBrush", "ComboBoxSelectorBorderedPressedBorderBrush",
+            "AdornerLayerBorderBrush", "ToggleButtonPrimaryIndeterminateBorderBrush", "TextBoxSelectionBackground", "TextBlockSelectionBackground",
+            "CheckBoxCheckedDefaultBackground", "CheckBoxCheckedDefaultBorderBrush", "CheckBoxPointeroverBorderBrush", "CheckBoxCardCheckedBorderBrush",
+            "RadioButtonCheckIconDefaultBackground", "RadioButtonCheckIconDefaultBorderBrush", "RadioButtonUncheckIconPointeroverBorderBrush",
+            "RadioButtonButtonCheckedForeground", "RadioButtonCardCheckDefaultBorderBrush", "SliderTrackForeground", "SliderThumbBorderBrush",
+            "ProgressBarIndicatorBrush", "ProgressBarPrimaryForeground", "PaginationButtonSelectedForeground", "TabItemButtonHeaderSelectedForeground",
+            "BreadcrumbItemPointeroverForeground", "BannerInformationBorderBrush", "NotificationCardInformationIconForeground",
+            "NotificationCardLightInformationBorderBrush", "LoadingIconForeground", "BadgePrimaryBadgeBackground", "BadgeInvertedPrimaryBadgeForeground",
+            "BadgeLightPrimaryBadgeForeground");
+        Same(theme, "Workspace.AccentHover", "CheckBoxCheckedPointeroverBackground", "CheckBoxCheckedPointeroverBorderBrush", "CheckBoxCardCheckedPointeroverBorderBrush",
+            "RadioButtonCheckIconPointeroverBackground", "RadioButtonCheckIconPointeroverBorderBrush", "RadioButtonCardCheckPointeroverBorderBrush",
+            "SliderThumbPointeroverBorderBrush");
+        Same(theme, "Workspace.AccentSurface", "PaginationButtonSelectedBackground", "TabItemLineHeaderSelectedBackground", "TabItemButtonHeaderSelectedBackground",
+            "BannerInformationBackground", "NotificationCardLightInformationBackground", "BadgeLightPrimaryBadgeBackground", "CheckBoxCardCheckedBackground",
+            "RadioButtonCardCheckedBackground", "RadioButtonButtonCheckedBackground");
+        Same(theme, "Workspace.OnAccent", "TextBoxSelectionForeground", "TextBlockSelectionForeground", "CheckBoxGlyphFill", "RadioButtonCheckGlyphFill", "BadgeForeground");
+        Same(theme, "Workspace.ControlBorder", "CheckBoxDefaultBorderBrush", "RadioButtonUncheckIconDefaultBorderBrush", "TextBoxBorderedPointeroverBorderBrush",
+            "ComboBoxSelectorBorderedPointeroverBorderBrush");
+        // Pressed: the pressed accent of the buttons in Light, the accent itself in Dark (buttons keep their own pressed keys).
+        string pressed = Color(theme, "ButtonSolidPrimaryPressedBackground");
+        foreach (string key in new[] { "CheckBoxCheckedPressedBackground", "CheckBoxCheckedPressedBorderBrush", "RadioButtonCheckIconPressedBackground",
+                     "RadioButtonCheckIconPressedBorderBrush", "SliderThumbPressedBorderBrush" })
+            Assert.True(pressed == Color(theme, key), $"{theme}: {key} is {Color(theme, key)}, expected the pressed accent {pressed}");
+        // The disabled checked fill and the disabled thumb edge are one quiet outline tone, not blue; it matches the disabled button outline.
+        foreach (string key in new[] { "CheckBoxCheckedDisabledBackground", "CheckBoxCheckedDisabledBorderBrush", "RadioButtonCheckIconDisabledBackground",
+                     "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush", "CheckBoxCardCheckedDisabledBorderBrush" })
+            Assert.Equal(Color(theme, "ButtonSolidDisabledBorderBrush"), Color(theme, key));
+
+        // Text and glyphs on the accent: selection (TextBox and selectable text), the check and radio dot on the checked fill in every state
+        // (hover is AccentHover, pressed the pressed accent), the badge label on its fill.
+        AssertContrast(theme, "TextBoxSelectionForeground", "TextBoxSelectionBackground", 4.5);
+        AssertContrast(theme, "TextBlockSelectionForeground", "TextBlockSelectionBackground", 4.5);
+        AssertContrast(theme, "CheckBoxGlyphFill", "CheckBoxCheckedDefaultBackground", 4.5);
+        AssertContrast(theme, "CheckBoxGlyphFill", "CheckBoxCheckedPointeroverBackground", 4.5);
+        AssertContrast(theme, "CheckBoxGlyphFill", "CheckBoxCheckedPressedBackground", 4.5);
+        AssertContrast(theme, "RadioButtonCheckGlyphFill", "RadioButtonCheckIconDefaultBackground", 4.5);
+        AssertContrast(theme, "RadioButtonCheckGlyphFill", "RadioButtonCheckIconPointeroverBackground", 4.5);
+        AssertContrast(theme, "RadioButtonCheckGlyphFill", "RadioButtonCheckIconPressedBackground", 4.5);
+        AssertContrast(theme, "BadgeForeground", "BadgePrimaryBadgeBackground", 4.5);
+        // Accent text on the surface the selected control sits on: pagination, tab, button radio, light badge and inverted badge.
+        foreach (string surface in new[] { "Workspace.AccentSurface", "Workspace.Panel", "Workspace.Background", "Workspace.Raised", "Workspace.Card" })
+        {
+            AssertContrast(theme, "PaginationButtonSelectedForeground", surface, 4.5);
+            AssertContrast(theme, "BreadcrumbItemPointeroverForeground", surface, 4.5);
+        }
+        AssertContrast(theme, "TabItemButtonHeaderSelectedForeground", "TabItemButtonHeaderSelectedBackground", 4.5);
+        AssertContrast(theme, "RadioButtonButtonCheckedForeground", "RadioButtonButtonCheckedBackground", 4.5);
+        AssertContrast(theme, "BadgeLightPrimaryBadgeForeground", "BadgeLightPrimaryBadgeBackground", 4.5);
+        AssertContrast(theme, "Workspace.Text", "BannerInformationBackground", 4.5); // banner and toast text on the info surface
+        AssertContrast(theme, "Workspace.Text", "NotificationCardLightInformationBackground", 4.5);
+        AssertContrast(theme, "Workspace.Text", "TabItemLineHeaderSelectedBackground", 4.5);
+        AssertContrast(theme, "Workspace.Text", "TabItemButtonHeaderSelectedBackground", 4.5);
+        // State boundaries and marks (3:1): focus and checked fills against every surface they sit on, the info edge on its own surface and
+        // the panel, the info icon and loading icon on the toast/banner surface and the overlay.
+        foreach (string surface in new[] { "Workspace.Background", "Workspace.Panel", "Workspace.Raised", "Workspace.Card", "Workspace.Overlay" })
+        {
+            foreach (string key in new[] { "TextBoxFocusBorderBrush", "ComboBoxSelectorBorderedFocusBorderBrush", "CheckBoxCheckedDefaultBackground",
+                         "CheckBoxCheckedDefaultBorderBrush", "CheckBoxPointeroverBorderBrush", "RadioButtonCheckIconDefaultBackground",
+                         "RadioButtonUncheckIconPointeroverBorderBrush", "SliderTrackForeground", "SliderThumbBorderBrush", "ProgressBarPrimaryForeground",
+                         "AdornerLayerBorderBrush", "LoadingIconForeground", "TextBoxSelectionBackground", "TextBlockSelectionBackground",
+                         "CheckBoxDefaultBorderBrush", "RadioButtonUncheckIconDefaultBorderBrush" })
+                AssertContrast(theme, key, surface, 3.0);
+        }
+        AssertContrast(theme, "BannerInformationBorderBrush", "BannerInformationBackground", 3.0);
+        AssertContrast(theme, "NotificationCardLightInformationBorderBrush", "NotificationCardLightInformationBackground", 3.0);
+        AssertContrast(theme, "NotificationCardInformationIconForeground", "NotificationCardLightInformationBackground", 3.0);
+        AssertContrast(theme, "BannerInformationBorderBrush", "Workspace.Panel", 3.0);
+        AssertContrast(theme, "CheckBoxDefaultBorderBrush", "Workspace.AccentSurface", 3.0);
+        AssertContrast(theme, "CheckBoxDefaultBorderBrush", "Workspace.Hover", 3.0);
+        AssertContrast(theme, "CheckBoxCheckedPointeroverBackground", "Workspace.Panel", 3.0);
+        AssertContrast(theme, "CheckBoxCheckedPressedBackground", "Workspace.Panel", 3.0);
+        AssertContrast(theme, "RadioButtonCheckIconPointeroverBackground", "Workspace.Panel", 3.0);
+        AssertContrast(theme, "SliderThumbPointeroverBorderBrush", "Workspace.Panel", 3.0);
+        AssertContrast(theme, "SliderThumbPressedBorderBrush", "Workspace.Panel", 3.0);
+
+        // The two drag previews keep Semi's translucent look but on the accent hue (#66 alpha over the accent RGB).
+        foreach (string key in new[] { "GridSplitterPreviewBackground", "DataGridDropLocationIndicatorBackground" })
+            Assert.Equal("#66" + Color(theme, "Workspace.Accent")[1..], Color(theme, key));
+
+        // No value in the theme dictionary is a Semi blue/indigo-family value any more (alpha ignored).
+        string[] semiBlues =
+        {
+            "54A9FF", "7FC1FF", "A9D7FF", "135CB8", "0A4694", "053170", "2990FF", "1D75DB", "D4ECFF", "EFF8FF", "0041C5",
+            "0064FA", "0062D6", "004FB3", "98CDFD", "EAF5FF", "CBE7FE", "65B2FC", "3295FB", "003D8F", "002C6B"
+        };
+        XElement dictionary = Assert.Single(Styles().Descendants(A + "ResourceDictionary"), element => (string?)element.Attribute(X + "Key") == theme);
+        foreach (XElement element in dictionary.Elements())
+        {
+            string value = element.Value.Trim().TrimStart('#').ToUpperInvariant();
+            if (value.Length == 8) value = value[2..];
+            Assert.False(semiBlues.Contains(value), $"{theme}: {(string?)element.Attribute(X + "Key")} is the Semi blue #{value}");
+        }
+    }
+
     // The red close hover is #C42B1C in both themes; where the fill is under 3:1 on the title bar (Dark, 2.95:1) its edge carries the boundary.
     [Theory, InlineData("Dark"), InlineData("Light")]
     public void CaptionCloseHoverHasAThreeToOneBoundary(string theme)
