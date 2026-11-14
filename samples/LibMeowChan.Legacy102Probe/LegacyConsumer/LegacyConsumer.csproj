@@ -31,7 +31,7 @@
 
     <!-- Optional runtime/compile siblings are local files only. Never let the
          dependency directory override the explicitly requested CoreAssemblyPath. -->
-    <ProbeDependencyAssembly Include="$(ProbeDependencyDirectory)\**\*.dll"
+    <ProbeDependencyAssembly Include="$(ProbeDependencyDirectory)\*.dll"
                              Condition="'$(ProbeDependencyDirectory)' != ''"
                              Exclude="$(ProbeDependencyDirectory)\libmeowchan.dll" />
     <Reference Include="@(ProbeDependencyAssembly)"

@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest import mock
 
@@ -140,7 +141,7 @@ class Legacy102RunnerSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(RUNNER.ProbeError, "embedded 1.0.0"):
             RUNNER.validate_sdk_probe({**sdk, "legacySdkVersion": "1.1.0"}, plugin_hash)
         rejected = {"probe": "core102", "started": False, "startupAdmissionRejected": True,
-                    "exceptionType": "InvalidOperationException"}
+                    "exceptionType": "System.InvalidOperationException"}
         self.assertEqual(rejected, RUNNER.validate_core_probe(rejected, "core102", rejected=True, label="mock"))
         with self.assertRaisesRegex(RUNNER.ProbeError, "documented old"):
             RUNNER.validate_core_probe({**rejected, "exceptionType": "Exception"}, "core102", rejected=True, label="mock")
@@ -178,8 +179,10 @@ class Legacy102RunnerSafetyTests(unittest.TestCase):
             make_runtime(runtime)
             build.mkdir()
             (build / "Probe.dll").write_bytes(b"probe")
+            (build / "Probe.deps.json").write_text("{}")
+            (build / "Probe.runtimeconfig.json").write_text("{}")
             run = base / "run"
-            RUNNER._runtime_run_directory(runtime, build, run, "mock runtime")
+            RUNNER._runtime_run_directory(runtime, build, run, "mock runtime", executable_name="Probe.dll")
             fake = {"probe": "mock"}
             with mock.patch.object(RUNNER, "run_command", return_value='{"probe":"mock"}\n') as command:
                 result, metadata = RUNNER._run_private_probe(
@@ -195,6 +198,88 @@ class Legacy102RunnerSafetyTests(unittest.TestCase):
                     "mock Core", with_profile=True)
             self.assertEqual("profile", core_metadata["profileRelative"])
             self.assertTrue((run / "profile").is_dir())
+
+    def test_runtime_selects_candidate_not_old_copy_local_references(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            candidate, build, run = base / "candidate", base / "build", base / "run"
+            make_runtime(candidate, b"candidate")
+            make_runtime(build, b"old-copy-local")
+            for name in ("Probe.dll", "Probe.deps.json", "Probe.runtimeconfig.json"):
+                (build / name).write_bytes(b"old-executable")
+            RUNNER._runtime_run_directory(candidate, build, run, "mixed version", executable_name="Probe.dll")
+            self.assertEqual(b"candidate core", (run / "libmeowchan.dll").read_bytes())
+            self.assertEqual(b"candidate sdk", (run / "MeowChan.PluginSdk.dll").read_bytes())
+            self.assertEqual(b"old-executable", (run / "Probe.dll").read_bytes())
+            (candidate / "Probe.dll").write_bytes(b"untrusted collision")
+            with self.assertRaisesRegex(RUNNER.ProbeError, "Runtime/probe copy collision"):
+                RUNNER._runtime_run_directory(candidate, build, base / "second", "collision", executable_name="Probe.dll")
+
+    def test_full_mock_orchestration_creates_work_and_checks_versions_and_hashes(self):
+        self._exercise_mock_execution()
+
+    def test_mutated_legacy_consumer_does_not_pass(self):
+        with self.assertRaisesRegex(RUNNER.ProbeError, "executable bytes changed"):
+            self._exercise_mock_execution(mutate="executable")
+
+    def test_mutated_runtime_input_does_not_pass(self):
+        with self.assertRaisesRegex(RUNNER.ProbeError, "runtime inputs changed"):
+            self._exercise_mock_execution(mutate="input")
+
+    def _exercise_mock_execution(self, mutate=None):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            legacy, candidate, output = base / "legacy", base / "candidate", base / "output"
+            make_runtime(legacy, b"legacy")
+            make_runtime(candidate, b"candidate")
+            output.mkdir()
+            args = SimpleNamespace(timeout_seconds=5, heavy_lock=base / "heavy.lock", source_commit=SHA)
+            pin = {"commit": SHA, "headExact": True, "clean": True}
+            observed = []
+
+            def build(spec, source, unused, build_root, dependencies, deadline, dotnet, label):
+                stage = build_root / spec["name"] / "output"
+                stage.mkdir(parents=True)
+                stem = spec["assembly"][:-4]
+                for name in (spec["assembly"], stem + ".deps.json", stem + ".runtimeconfig.json"):
+                    (stage / name).write_bytes(spec["name"].encode())
+                # The old reference would overwrite the candidate without the
+                # executable-only overlay rule.
+                (stage / "libmeowchan.dll").write_bytes((source / "libmeowchan.dll").read_bytes())
+                return {"assemblyPath": str(stage / spec["assembly"])}
+
+            def run(dotnet, executable, arguments, run_root, deadline, label, *, with_profile):
+                observed.append(executable.name)
+                expected = b"legacy core" if run_root.name == "core-legacy-baseline" else b"candidate core"
+                self.assertEqual(expected, (run_root / "libmeowchan.dll").read_bytes())
+                if executable.name == RUNNER.SDK_CANDIDATE_ASSEMBLY:
+                    self.assertFalse(with_profile)
+                    value = {"probe": "sdk102", "legacySdkVersion": "1.0.0", "candidateSdkVersion": "1.1.0",
+                             "legacyAssemblySha256": RUNNER.sha256_file(Path(arguments[1])),
+                             "legacyLoaded": True, "sourceContractOk": True, "jsonRoundTripOk": True}
+                else:
+                    self.assertTrue(with_profile)
+                    rejected = "--expect-startup-admission-rejection" in arguments
+                    value = {"probe": "core110" if executable.name == RUNNER.CORE_MIGRATED_ASSEMBLY else "core102",
+                             "started": not rejected, "startupAdmissionRejected": rejected,
+                             "exceptionType": "System.InvalidOperationException" if rejected else None}
+                    if executable.name == RUNNER.CORE_MIGRATED_ASSEMBLY:
+                        if mutate == "executable":
+                            (run_root.parent / "core-legacy-candidate" / RUNNER.CORE_LEGACY_ASSEMBLY).write_bytes(b"changed")
+                        elif mutate == "input":
+                            (candidate / "libmeowchan.dll").write_bytes(b"changed")
+                return value, {"command": [dotnet, str(executable)]}
+
+            with mock.patch.object(RUNNER, "_build_stage", side_effect=build), \
+                 mock.patch.object(RUNNER, "_run_private_probe", side_effect=run), \
+                 mock.patch.object(RUNNER.shutil, "which", return_value="/usr/bin/dotnet"), \
+                 mock.patch.object(RUNNER, "verify_source_pin", return_value=pin):
+                report = RUNNER.execute(args, legacy, candidate, output, pin)
+            self.assertTrue(report["passed"])
+            self.assertTrue(report["inputHashesUnchanged"])
+            self.assertTrue(report["observations"]["core"]["sameLegacyExecutableBytes"])
+            self.assertEqual([RUNNER.SDK_CANDIDATE_ASSEMBLY, RUNNER.CORE_LEGACY_ASSEMBLY,
+                              RUNNER.CORE_LEGACY_ASSEMBLY, RUNNER.CORE_MIGRATED_ASSEMBLY], observed)
 
     def test_atomic_result_write_never_leaves_temporary_report(self):
         with tempfile.TemporaryDirectory() as temporary:

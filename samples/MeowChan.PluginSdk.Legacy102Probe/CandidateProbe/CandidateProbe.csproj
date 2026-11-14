@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
-    <RestoreProjectStyle>None</RestoreProjectStyle>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <AssemblyName>LegacySdk102CandidateProbe</AssemblyName>
     <RootNamespace>MeowChan.PluginSdk.Legacy102Probe</RootNamespace>

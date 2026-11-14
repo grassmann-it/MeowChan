@@ -363,6 +363,7 @@ def _private_environment(sandbox: Path) -> dict[str, str]:
         "XDG_CACHE_HOME": str(xdg / "cache"), "XDG_DATA_HOME": str(xdg / "data"),
         "XDG_STATE_HOME": str(xdg / "state"), "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
         "DOTNET_SKIP_FIRST_TIME_EXPERIENCE": "1", "DOTNET_NOLOGO": "1",
+        "DOTNET_GENERATE_ASPNET_CERTIFICATE": "false",
         "MSBUILDDISABLENODEREUSE": "1", "NUGET_ENABLE_EXPERIMENTAL_HTTP_RETRY": "false",
     })
     return environment
@@ -509,7 +510,7 @@ def validate_core_probe(value: dict, expected_probe: str, *, rejected: bool, lab
                                    "\n" in exception or "\r" in exception or "/" in exception or "\\" in exception):
         raise ProbeError(f"{label} exceptionType is not a bounded type name.")
     if rejected:
-        if started or not admission_rejected or exception != "InvalidOperationException":
+        if started or not admission_rejected or exception != "System.InvalidOperationException":
             raise ProbeError(f"{label} did not prove the documented old RestoreAsync admission rejection.")
     else:
         if not started or admission_rejected or exception not in (None, ""):
@@ -536,18 +537,18 @@ def _build_stage(spec: dict, source_root: Path, output: Path, build_root: Path,
     _write_nuget_config(nuget_config, feed)
     stage_environment = _private_environment(stage / "private")
     intermediate_property = f"-p:BaseIntermediateOutputPath={stage / 'intermediate'}{os.sep}"
-    restore_arguments = [
-        dotnet, "restore", str(project_copy / project.name), "--configfile", str(nuget_config),
-        "--packages", str(stage / "private" / "empty-packages"), "--no-cache",
-        "--ignore-failed-sources", "--disable-parallel", "--nologo", "-p:RestoreAudit=false",
-        intermediate_property,
-    ]
-    run_command(restore_arguments, stage, stage_environment, stage / "restore.log", deadline, f"{stage_label} restore")
     properties = [
         f"-p:{spec['property']}={source_root / spec['assemblyInput']}",
         f"-p:ProbeDependencyDirectory={dependency_root}",
         intermediate_property,
     ]
+    restore_arguments = [
+        dotnet, "restore", str(project_copy / project.name), "--configfile", str(nuget_config),
+        "--packages", str(stage / "private" / "empty-packages"), "--no-cache",
+        "--ignore-failed-sources", "--disable-parallel", "--nologo", "-p:NuGetAudit=false",
+        *properties,
+    ]
+    run_command(restore_arguments, stage, stage_environment, stage / "restore.log", deadline, f"{stage_label} restore")
     build_arguments = [
         dotnet, "build", str(project_copy / project.name), "--no-restore", "--nologo",
         "--configuration", "Release", "--output", str(build_output),
@@ -569,15 +570,25 @@ def _build_stage(spec: dict, source_root: Path, output: Path, build_root: Path,
     }
 
 
-def _runtime_run_directory(source_root: Path, build_output: Path, destination: Path, label: str) -> None:
+def _runtime_run_directory(source_root: Path, build_output: Path, destination: Path, label: str,
+                           *, executable_name: str) -> None:
+    # Build outputs contain copy-local references, including the OLD Core. They
+    # must never replace the deliberately selected candidate runtime. Only the
+    # probe's own artifacts are copied on top of the input runtime closure.
+    if Path(executable_name).name != executable_name or not executable_name.endswith(".dll"):
+        raise ProbeError("The isolated probe executable must be a simple DLL filename.")
+    stem = executable_name[:-4]
+    required = {executable_name, stem + ".deps.json", stem + ".runtimeconfig.json"}
+    owned = required | {stem, stem + ".exe", stem + ".pdb", stem + ".xml"}
+    files = {path.name: path for path in _walk_tree(build_output, f"{label} build output")
+             if path.parent == build_output and path.name in owned}
+    if missing := required - files.keys():
+        raise ProbeError(f"Missing executable artifacts for {label}: {', '.join(sorted(missing))}")
     _copy_tree(source_root, destination, label)
-    # Build output goes on top only where it does not collide with runtime input.
-    for path in sorted(_walk_tree(build_output, f"{label} build output")):
-        relative = path.relative_to(build_output)
-        target = destination / relative
+    for name, path in sorted(files.items()):
+        target = destination / name
         if target.exists() or os.path.lexists(target):
-            raise ProbeError(f"Runtime/build copy collision for {label}: {target}")
-        target.parent.mkdir(parents=True, exist_ok=True)
+            raise ProbeError(f"Runtime/probe copy collision for {label}: {target}")
         shutil.copy2(path, target)
 
 
@@ -677,7 +688,7 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
     work = output / "work"
     build_root = work / "builds"
     runs_root = work / "runs"
-    build_root.mkdir()
+    build_root.mkdir(parents=True)
     runs_root.mkdir()
     (work / "global.json").unlink(missing_ok=True)
     if (ROOT / "global.json").is_file():
@@ -697,7 +708,8 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
         old_plugin = Path(built["sdk-legacy-plugin"]["assemblyPath"])
         candidate_probe_output = Path(built["sdk-candidate-probe"]["assemblyPath"]).parent
         sdk_run = runs_root / "sdk-candidate"
-        _runtime_run_directory(candidate_dir, candidate_probe_output, sdk_run, "SDK candidate runtime")
+        _runtime_run_directory(candidate_dir, candidate_probe_output, sdk_run, "SDK candidate runtime",
+                               executable_name=SDK_CANDIDATE_ASSEMBLY)
         plugin_copy = sdk_run / SDK_LEGACY_ASSEMBLY
         if plugin_copy.exists():
             raise ProbeError("SDK probe runtime already contained the old plugin name.")
@@ -720,7 +732,8 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
         old_runtime = legacy_dir
         candidate_runtime = candidate_dir
         baseline_run = runs_root / "core-legacy-baseline"
-        _runtime_run_directory(old_runtime, Path(old_core).parent, baseline_run, "legacy Core baseline runtime")
+        _runtime_run_directory(old_runtime, Path(old_core).parent, baseline_run, "legacy Core baseline runtime",
+                               executable_name=CORE_LEGACY_ASSEMBLY)
         baseline_executable = baseline_run / CORE_LEGACY_ASSEMBLY
         if sha256_file(baseline_executable) != old_core_hash:
             raise ProbeError("Legacy Core baseline executable bytes changed while copying.")
@@ -731,7 +744,8 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
         validate_core_probe(baseline_value, "core102", rejected=False, label="legacy Core baseline probe")
 
         candidate_run = runs_root / "core-legacy-candidate"
-        _runtime_run_directory(candidate_runtime, Path(old_core).parent, candidate_run, "legacy Core candidate runtime")
+        _runtime_run_directory(candidate_runtime, Path(old_core).parent, candidate_run, "legacy Core candidate runtime",
+                               executable_name=CORE_LEGACY_ASSEMBLY)
         candidate_executable = candidate_run / CORE_LEGACY_ASSEMBLY
         if sha256_file(candidate_executable) != old_core_hash:
             raise ProbeError("The legacy Core executable bytes differ between runtime runs.")
@@ -745,7 +759,8 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
 
         migrated_output = Path(built["core-migrated-consumer"]["assemblyPath"]).parent
         migrated_run = runs_root / "core-migrated-candidate"
-        _runtime_run_directory(candidate_runtime, migrated_output, migrated_run, "migrated Core runtime")
+        _runtime_run_directory(candidate_runtime, migrated_output, migrated_run, "migrated Core runtime",
+                               executable_name=CORE_MIGRATED_ASSEMBLY)
         migrated_executable = migrated_run / CORE_MIGRATED_ASSEMBLY
         migrated_value, migrated_meta = _run_private_probe(
             dotnet, migrated_executable, [], migrated_run, deadline,
@@ -760,6 +775,18 @@ def execute(args, legacy_dir: Path, candidate_dir: Path, output: Path, source_pi
             "sameLegacyExecutableBytes": sha256_file(baseline_executable) == sha256_file(candidate_executable),
             "baseline": baseline_meta, "candidate": candidate_meta, "migratedRun": migrated_meta,
         }
+        if sha256_file(old_plugin) != old_plugin_hash or sha256_file(plugin_copy) != old_plugin_hash:
+            raise ProbeError("The legacy plugin bytes changed during the probes.")
+        if any(sha256_file(path) != old_core_hash
+               for path in (old_core, baseline_executable, candidate_executable)):
+            raise ProbeError("The legacy Core executable bytes changed during the probes.")
+        for root, original, label in ((legacy_dir, legacy_inventory, "legacy"),
+                                       (candidate_dir, candidate_inventory, "candidate")):
+            if inventory_tree(root, label + " input after run")["files"] != original["files"]:
+                raise ProbeError(f"The {label} runtime inputs changed during the probes.")
+        if verify_source_pin(args.source_commit) != source_pin:
+            raise ProbeError("Source pin changed during the probes.")
+        result["inputHashesUnchanged"] = True
         result["passed"] = True
     return result
 
