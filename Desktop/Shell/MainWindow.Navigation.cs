@@ -400,10 +400,12 @@ public partial class MainWindow
     }
 
     private bool _measuringPageNavigation;
+    private bool? _booruNavigationAvailable;
 
     private void UpdatePageNavigation()
     {
         if (_measuringPageNavigation) return;
+        _booruNavigationAvailable = CanOpenBooru; // what this refresh builds the Booru button and More entry from (SyncBooruNavigation compares)
         _measuringPageNavigation = true;
         try
         {
