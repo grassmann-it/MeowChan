@@ -379,13 +379,13 @@ internal static class BooruMediaChecks
         open.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await UntilAsync(() => opened.Count == 1);
         Require(opened[0].AbsoluteUri == $"https://danbooru.donmai.us/posts/{post}", phase + ": the opened address is not the canonical post page: " + opened[0]);
-        const string copiedPostUrl = "https://danbooru.donmai.us/posts/" + post;
+        string copiedPostUrl = "https://danbooru.donmai.us/posts/" + post;
         Button copy = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BooruCopyPost");
         bool copiedPost = await ClipboardChecks.CheckIsolatedCopyAsync(dialog, () =>
         {
             copy.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             return Task.CompletedTask;
-        }, new[] { copiedPostUrl }, Array.Empty<string>());
+        }, new[] { copiedPostUrl }, Array.Empty<string>(), exactText: copiedPostUrl);
         if (copiedPost)
             await UntilAsync(() => dialog.Status.Text == Texts.T("booru.media.copied"));
         // Without the isolated fixture the helper uses the existing technical-copy skip convention and does not touch native

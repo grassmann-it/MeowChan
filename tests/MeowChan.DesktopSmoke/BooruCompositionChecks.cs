@@ -162,7 +162,7 @@ internal static class BooruCompositionChecks
             {
                 Click(copyLink);
                 return Task.CompletedTask;
-            }, new[] { copiedPostUrl }, new[] { "cat_ears", "draft_kept_across_hide", "draft_discarded_on_service_replacement" });
+            }, new[] { copiedPostUrl }, new[] { "cat_ears", "draft_kept_across_hide", "draft_discarded_on_service_replacement" }, exactText: copiedPostUrl);
             if (copiedLink)
                 await Program.WaitUntilAsync(() => Text(page).Contains("Link copied: " + copiedPostUrl), () => "copy note missing: " + Text(page));
             Require(Find<Button>(page, BooruWorkbenchView.OpenPostPrefix + "8004").IsEffectivelyEnabled, "Open post in browser is missing on the result card.");
