@@ -169,6 +169,16 @@ public static class Texts
             Changed?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// The text of <paramref name="key"/> in the active language only, or null when that language's catalog does not have it
+    /// (<see cref="T"/> would show English then). Used where an untranslated English text must not appear in a translated surface.
+    /// </summary>
+    internal static string? Own(string key)
+    {
+        State state = Volatile.Read(ref _state);
+        return state.Catalogs[state.Language].Strings.GetValueOrDefault(key);
+    }
+
     public static string T(string key, params object?[] arguments)
     {
         State state = Volatile.Read(ref _state);

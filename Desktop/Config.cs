@@ -325,6 +325,30 @@ namespace MeowChan
         /// <summary>Use coloured network/disk direction icons instead of words in the header. Off by default; the accessible description is unchanged.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool StatsHeaderIcons { get; set; }
+        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default; see TaglinePicker).</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string HeaderTagline
+        {
+            get => _headerTagline;
+            set => _headerTagline = Desktop.TaglinePicker.NormalizeMode(value);
+        }
+        private string _headerTagline = Desktop.TaglinePicker.ModePerStart;
+        /// <summary>The quip the "Fixed" mode shows (a TaglineCatalog id; an id that no longer exists falls back to the classic one).</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string HeaderTaglineFixedId
+        {
+            get => _headerTaglineFixedId;
+            set => _headerTaglineFixedId = Desktop.TaglineCatalog.NormalizeId(value);
+        }
+        private string _headerTaglineFixedId = Desktop.TaglineCatalog.DefaultId;
+        /// <summary>The version (major.minor.build) whose release quip this profile has had its chance to see; empty until the first start with a tagline.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string LastTaglineVersion
+        {
+            get => _lastTaglineVersion;
+            set => _lastTaglineVersion = Desktop.TaglineCatalog.NormalizeVersion(value);
+        }
+        private string _lastTaglineVersion = string.Empty;
         /// <summary>Memory in MiB for the decoded images of the gallery (decoded at display size), so stepping back and forth shows them at once; 0 keeps nothing.</summary>
         public int GalleryImageCacheMiB { get; set; } = GalleryImageCacheMiBDefault;
         internal const int GalleryImageCacheMiBDefault = (int)(Desktop.GalleryImageCache.DefaultBudgetBytes / (1024 * 1024));
@@ -1240,6 +1264,9 @@ namespace MeowChan
                 StatsMaxSources = StatsMaxSources,
                 StatsHeaderGraph = StatsHeaderGraph,
                 StatsHeaderIcons = StatsHeaderIcons,
+                HeaderTagline = HeaderTagline,
+                HeaderTaglineFixedId = HeaderTaglineFixedId,
+                LastTaglineVersion = LastTaglineVersion,
                 GalleryImageCacheMiB = GalleryImageCacheMiB,
                 GalleryPreloadAhead = GalleryPreloadAhead,
                 GalleryPreloadBehind = GalleryPreloadBehind,
@@ -1425,6 +1452,9 @@ namespace MeowChan
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
             StatsHeaderIcons = source.StatsHeaderIcons;
+            HeaderTagline = source.HeaderTagline;
+            HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            LastTaglineVersion = source.LastTaglineVersion;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;
@@ -1569,6 +1599,9 @@ namespace MeowChan
             StatsMaxSources = source.StatsMaxSources;
             StatsHeaderGraph = source.StatsHeaderGraph;
             StatsHeaderIcons = source.StatsHeaderIcons;
+            HeaderTagline = source.HeaderTagline;
+            HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            // LastTaglineVersion is a direct view preference (the window writes it), not edited in Settings.
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
             GalleryPreloadBehind = source.GalleryPreloadBehind;
