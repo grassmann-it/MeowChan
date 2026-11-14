@@ -341,7 +341,7 @@ namespace MeowChan
         /// <summary>Most sources (rows and keys per day); further sources are summed into one "other" row.</summary>
         public int StatsMaxSources { get; set; } = StatsMaxSourcesDefault;
         internal const int StatsMaxSourcesDefault = 64, StatsMaxSourcesMinimum = 8, StatsMaxSourcesMaximum = 256;
-        /// <summary>What the graph in the header shows: "Auto", "Network", "Disk", "NetworkAndDisk" (both stacked), "SideBySide" or "Text" (see IoStatsDisplay.ResolveHeaderLayout). The statistics page always shows both.</summary>
+        /// <summary>What the graph in the header shows: "Auto", "Network", "Disk", "NetworkAndDisk" (both stacked), "SideBySide", "Text" or "Off" (hides the display and its measuring; see IoStatsDisplay.ResolveHeaderLayout). The statistics page always shows both.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string StatsHeaderGraph
         {

@@ -61,6 +61,9 @@ public partial class MainWindow
         SetHeaderMarkerMode(TransferUpMark, TransferUpMarker, _headerIcons);
         SetHeaderMarkerMode(TransferReadMark, TransferReadMarker, _headerIcons);
         SetHeaderMarkerMode(TransferWriteMark, TransferWriteMarker, _headerIcons);
+        if (!layout.Hidden) _lastShownHeaderGraph = _config.StatsHeaderGraph;
+        _statisticsPage?.SetHeaderMonitorShown(!layout.Hidden);
+        ApplyHeaderMonitorVisibility();
         bool blocks = layout.Arrangement == IoStatsDisplay.HeaderArrangement.GraphBlocks;
         bool twoLine = layout.TwoLineLabels;
         bool diskGraphShown = layout.DiskGraph;
@@ -122,6 +125,27 @@ public partial class MainWindow
         marker.IsVisible = icons;
     }
 
+    /// <summary>The arrangement shown before "Off", for the statistics page's checkbox that shows the display again (Auto when none).</summary>
+    private string? _lastShownHeaderGraph;
+
+    /// <summary>The narrowest window (DIPs) that has room for the header display.</summary>
+    private const double HeaderMonitorMinimumWidth = 760;
+
+    /// <summary>
+    /// Shows or hides the whole display: hidden by the setting "Off" (the user's explicit choice, which wins over the work view's
+    /// "Required" row) and below <see cref="HeaderMonitorMinimumWidth"/>. The sampling claim follows at once, so a hidden display
+    /// measures nothing (the statistics page still claims samples while it is open).
+    /// </summary>
+    private void ApplyHeaderMonitorVisibility()
+    {
+        double width = Bounds.Width;
+        bool show = !_headerLayout.Hidden && (width <= 0 || width >= HeaderMonitorMinimumWidth);
+        if (TransferSpeed.IsVisible == show) return;
+        TransferSpeed.IsVisible = show;
+        UpdateSpeedSamplingState();
+        if (show) _ioUpdate?.RequestImmediate(); // a graph that just appeared needs its history now
+    }
+
     private void StopSpeedSampling()
     {
         PropertyChanged -= OnSpeedWindowPropertyChanged;
@@ -179,6 +203,7 @@ public partial class MainWindow
         }
         if (StatisticsSegmentShown) _statisticsPage?.Apply(snapshot);
         if (_selectedPage == WorkspacePage.Status) _statusPage?.ApplyRates(snapshot.Rate);
+        if (_headerLayout.Hidden) return; // nothing of the header is shown: no sentence to keep up to date
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
         string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerLayout.NetValue, _headerLayout.DiskValue);
         if (!string.Equals(description, _graphDescription, StringComparison.Ordinal))

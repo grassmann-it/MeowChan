@@ -11,7 +11,7 @@ namespace MeowChan;
 
 /// <summary>
 /// The context menu of the header's network and disk display (right-click, Menu key, Shift+F10): the arrangement as exclusive
-/// choices, open the statistics, open the settings at the statistics block. A choice writes the same setting as the settings page
+/// choices (the last one, "Off", hides the display; focus then moves to the pause button), open the statistics, open the settings at the statistics block. A choice writes the same setting as the settings page
 /// (<c>Config.StatsHeaderGraph</c>) and is saved at once, so the header, the menu and the settings never disagree. The entries are
 /// composed in <see cref="HeaderIoMenu"/>; the opening and the focus return are <see cref="ContextMenuHost"/>.
 /// </summary>
@@ -23,7 +23,7 @@ public partial class MainWindow
     internal ContextMenuHost? HeaderIoMenuHost => _headerIoMenu;
 
     private void InitializeHeaderIoMenu() =>
-        _headerIoMenu = new ContextMenuHost(TransferSpeed, ComposeHeaderIoMenu, fallbackFocus: () => TransferSpeed.Focus());
+        _headerIoMenu = new ContextMenuHost(TransferSpeed, ComposeHeaderIoMenu, fallbackFocus: () => (TransferSpeed.IsVisible ? TransferSpeed : PauseButton).Focus());
 
     private ContextMenuBuilder? ComposeHeaderIoMenu() =>
         _isClosing || !_restoreCompleted ? null : HeaderIoMenu.Compose(_config.StatsHeaderGraph, ChooseHeaderGraph, () => ShowStatistics(), ShowStatisticsSettings);

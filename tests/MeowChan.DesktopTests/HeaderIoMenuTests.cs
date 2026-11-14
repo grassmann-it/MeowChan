@@ -34,6 +34,8 @@ public sealed class HeaderIoMenuTests : IDisposable
     [InlineData("NetworkAndDisk", "NetworkAndDisk")]
     [InlineData("SideBySide", "SideBySide")]
     [InlineData("Text", "Text")]
+    [InlineData("Off", "Off")]
+    [InlineData("off", "Off")]
     [InlineData("text", "Text")]          // the stored value is normalized like the header does
     [InlineData("", "Auto")]
     [InlineData(null, "Auto")]
@@ -42,6 +44,27 @@ public sealed class HeaderIoMenuTests : IDisposable
     {
         ContextMenuEntry checkedEntry = Assert.Single(Model(stored).Sections[0], entry => entry.Checked);
         Assert.Equal(HeaderIoMenu.EntryId(expected), checkedEntry.Id);
+    }
+
+    [Fact]
+    public void OffIsTheLastChoiceWithTheSettingsTextAndReportsTheOffValue()
+    {
+        List<string> chosen = [];
+        ContextMenuEntry off = Model("Auto", chosen.Add).Sections[0][^1];
+        Assert.Equal(HeaderIoMenu.EntryId("Off"), off.Id);
+        Assert.Equal(ContextMenuEntryKind.Radio, off.Kind);
+        Assert.Equal("Off, hide the display", off.Label);
+        Assert.False(off.Checked);
+        off.Invoke!();
+        Assert.Equal(["Off"], chosen);
+        // Selected, Off stays the one checked radio and reports nothing again.
+        chosen.Clear();
+        ContextMenuEntry selected = Model("Off", chosen.Add).Sections[0][^1];
+        Assert.True(selected.Checked);
+        selected.Invoke!();
+        Assert.Empty(chosen);
+        Texts.SetLanguage("de");
+        Assert.Equal("Aus, Anzeige ausblenden", Model("Auto").Sections[0][^1].Label);
     }
 
     [Fact]

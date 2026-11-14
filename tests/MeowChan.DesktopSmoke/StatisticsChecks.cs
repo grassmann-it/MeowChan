@@ -203,10 +203,10 @@ internal static class StatisticsChecks
         await Program.WaitUntilAsync(() => settings.FindControl<Control>("SettingsBehaviorPage")!.IsVisible);
         ComboBox input = settings.FindControl<ComboBox>("StatsHeaderGraphInput")!;
         await Program.WaitUntilAsync(() => input.IsEffectivelyVisible && input.Bounds.Width > 0);
-        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"]),
-            "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide and Text.");
+        Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"]),
+            "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide, Text and Off.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");

@@ -6,7 +6,7 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The context menu of the header's network and disk display: the arrangement as exclusive choices (the six values of the
+/// The context menu of the header's network and disk display: the arrangement as exclusive choices (the values of the
 /// "Header graph" setting, the same texts and order as the setting's list), then the statistics page and the settings. Pure
 /// composition: the window supplies the current value and what a choice, "open statistics" and "open settings" do.
 /// </summary>
@@ -26,6 +26,7 @@ internal static class HeaderIoMenu
         IoStatsDisplay.HeaderGraphNetworkAndDisk => "stats.headerGraph.networkAndDisk",
         IoStatsDisplay.HeaderGraphSideBySide => "stats.headerGraph.sideBySide",
         IoStatsDisplay.HeaderGraphText => "stats.headerGraph.text",
+        IoStatsDisplay.HeaderGraphOff => "stats.headerGraph.off",
         _ => "stats.headerGraph.auto"
     };
 

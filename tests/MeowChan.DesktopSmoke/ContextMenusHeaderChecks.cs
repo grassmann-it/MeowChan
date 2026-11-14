@@ -10,13 +10,13 @@ namespace MeowChan.DesktopSmoke;
 
 /// <summary>
 /// The context menu of the header's network and disk display on the real window: it opens from the Menu key and from a context
-/// request, offers the six arrangements (the stored one checked) and the statistics and settings entries, a choice changes the
+/// request, offers the seven arrangements (the stored one checked) and the statistics and settings entries, a choice changes the
 /// header at once and survives in the profile file, the settings row shows the same value, "Settings: Statistics…" lands on that
 /// row, Escape closes the menu and the focus returns to the display. No request leaves the process.
 /// </summary>
 internal static class ContextMenusHeaderChecks
 {
-    private static readonly string[] Values = ["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text"];
+    private static readonly string[] Values = ["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"];
 
     internal static async Task RunAsync(MainWindow window)
     {
@@ -82,7 +82,35 @@ internal static class ContextMenusHeaderChecks
         await WaitOpenAsync(host);
         Invoke(host, "navigation.statistics");
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Statistics, () => "page " + window.SelectedPage);
-        Console.WriteLine("SMOKE context menus header: menu key and context request open it, six arrangements with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
+
+        await CheckOffAsync(window);
+        Console.WriteLine("SMOKE context menus header: menu key and context request open it, seven arrangements (the last one, Off, hides the display and stops its measuring; the statistics page's checkbox brings it back) with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
+    }
+
+    /// <summary>"Off" hides the display and its sampling claim; the statistics page still claims while open and its checkbox shows the display again.</summary>
+    private static async Task CheckOffAsync(MainWindow window)
+    {
+        Button speed = window.FindControl<Button>("TransferSpeed")!;
+        ContextMenuHost host = window.HeaderIoMenuHost!;
+        // From the settings page (no statistics page open), so only the header could claim samples.
+        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await WaitOpenAsync(host);
+        Invoke(host, "navigation.settings");
+        await Program.WaitUntilAsync(() => window.SettingsPageVisible, () => "the settings page did not open");
+        speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
+        await WaitOpenAsync(host);
+        Choose(host, "Off");
+        await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Off" && !speed.IsVisible && window.IoStatsClaim == IoStatsVisibility.None,
+            () => $"file {Config.LoadConfig().StatsHeaderGraph}, display visible {speed.IsVisible}, claim {window.IoStatsClaim}");
+        window.ShowStatistics();
+        await Program.WaitUntilAsync(() => window.IoStatsClaim == IoStatsVisibility.Window, () => "the open statistics page does not claim samples: " + window.IoStatsClaim);
+        Program.CaptureWindow(window, "smoke-context-menu-header-off.png");
+        CheckBox box = ((StatisticsPage)window.FindControl<ContentControl>("StatisticsPageHost")!.Content!).HeaderMonitorBox;
+        Require(box.IsChecked == false, "The statistics page's header checkbox is not cleared while the display is off.");
+        box.IsChecked = true;
+        box.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => Config.LoadConfig().StatsHeaderGraph == "Auto" && speed.IsVisible,
+            () => $"file {Config.LoadConfig().StatsHeaderGraph}, display visible {speed.IsVisible}");
     }
 
     private static async Task WaitOpenAsync(ContextMenuHost host) =>
@@ -93,12 +121,12 @@ internal static class ContextMenusHeaderChecks
     private static void RequireMenu(ContextMenuHost host, string selected)
     {
         MenuItem[] items = Items(host);
-        Require(host.OpenMenu!.Items.Count == 9 && host.OpenMenu.Items[6] is Separator, "The header menu is not six choices, a separator and two entries: " + host.OpenMenu.Items.Count + " items.");
-        Require(Values.Select(HeaderIoMenu.EntryId).SequenceEqual(items.Take(6).Select(item => (string)item.Tag!)), "The header menu does not offer the six arrangements in the settings order.");
-        Require(items.Take(6).All(item => item.ToggleType == MenuItemToggleType.Radio), "A header menu choice is not a radio entry.");
-        MenuItem[] isChecked = items.Take(6).Where(item => item.IsChecked).ToArray();
+        Require(host.OpenMenu!.Items.Count == 10 && host.OpenMenu.Items[7] is Separator, "The header menu is not seven choices, a separator and two entries: " + host.OpenMenu.Items.Count + " items.");
+        Require(Values.Select(HeaderIoMenu.EntryId).SequenceEqual(items.Take(7).Select(item => (string)item.Tag!)), "The header menu does not offer the seven arrangements in the settings order.");
+        Require(items.Take(7).All(item => item.ToggleType == MenuItemToggleType.Radio), "A header menu choice is not a radio entry.");
+        MenuItem[] isChecked = items.Take(7).Where(item => item.IsChecked).ToArray();
         Require(isChecked.Length == 1 && (string)isChecked[0].Tag! == HeaderIoMenu.EntryId(selected), $"The header menu does not check {selected}.");
-        Require(items[6].Tag as string == "navigation.statistics" && items[7].Tag as string == "navigation.settings", "The header menu lacks the statistics and settings entries.");
+        Require(items[7].Tag as string == "navigation.statistics" && items[8].Tag as string == "navigation.settings", "The header menu lacks the statistics and settings entries.");
     }
 
     private static void Choose(ContextMenuHost host, string value) => Invoke(host, HeaderIoMenu.EntryId(value));
