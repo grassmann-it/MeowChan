@@ -2273,7 +2273,7 @@
     "command.table.choose-columns": "列を選択…",
     "command.table.reset-layout": "表示レイアウトをリセット",
     "command.reader.font-size": "読書用フォントサイズ",
-    "command.watch.follow-live": "ライブ追従",
+    "command.watch.follow-live": "新しい投稿を自動で表示",
     "command.reader.show-new-posts": "新しい投稿を表示",
     "command.reader.view.hide-media": "メディアを隠す",
     "command.reader.view.media-only": "メディア付きの投稿のみ",
