@@ -3687,6 +3687,9 @@
     "tags.quick.thread.hint": "I tag del thread contrassegnano il thread, non i suoi file multimediali. Un clic su un tag lo rimuove.",
     "tags.quick.thread.remove": "Rimuovi il tag del thread {0}",
     "tags.quick.thread.field": "Aggiungi un tag del thread",
-    "tags.quick.thread.chips": "Tag del thread"
+    "tags.quick.thread.chips": "Tag del thread",
+    "booru.watcher.problem.provider_cooldown_unavailable": "MeowChan non ha potuto verificare la pausa del provider. La pianificazione dei monitoraggi è sospesa per sicurezza; non viene inviata alcuna nuova richiesta finché lo stato della pausa è sconosciuto.",
+    "booru.watcher.problem.transport_reset_failed": "L’azzeramento della pausa del provider non è riuscito. La pausa esistente resta attiva; MeowChan non ha confermato il ripristino.",
+    "booru.watcher.problem.transport_reset_unavailable": "In questa sessione non è possibile azzerare la pausa del provider. La pausa esistente resta attiva; MeowChan non ha confermato il ripristino."
   }
 }

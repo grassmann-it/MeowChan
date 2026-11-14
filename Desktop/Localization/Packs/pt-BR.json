@@ -3687,6 +3687,9 @@
     "tags.quick.thread.hint": "As tags do tópico marcam o tópico, não seus arquivos de mídia. Clique em uma tag para removê-la.",
     "tags.quick.thread.remove": "Remover a tag de tópico {0}",
     "tags.quick.thread.field": "Adicionar uma tag de tópico",
-    "tags.quick.thread.chips": "Tags do tópico"
+    "tags.quick.thread.chips": "Tags do tópico",
+    "booru.watcher.problem.provider_cooldown_unavailable": "O MeowChan não conseguiu verificar a pausa do provedor. O agendamento dos monitores está suspenso por segurança; nenhuma nova requisição é enviada enquanto o estado da pausa for desconhecido.",
+    "booru.watcher.problem.transport_reset_failed": "A redefinição da pausa do provedor falhou. A pausa existente continua ativa; o MeowChan não confirmou a recuperação.",
+    "booru.watcher.problem.transport_reset_unavailable": "Esta sessão não pode redefinir a pausa do provedor. A pausa existente continua ativa; o MeowChan não confirmou a recuperação."
   }
 }
