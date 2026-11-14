@@ -40,7 +40,8 @@ public sealed class VideoScrubPreviewCacheBudgetTests
         using TempDirectory temp = new();
         string directory = Path.Combine(temp.Path, "scrub");
         VideoScrubPreviewCache first = Cache(directory);
-        VideoScrubPreviewCache second = Cache(directory);
+        // The separator variant must resolve to the same process-wide coordinator as the canonical path.
+        VideoScrubPreviewCache second = Cache(directory + Path.DirectorySeparatorChar);
         Task[] stores = Enumerable.Range(0, 48)
             .Select(index => (index & 1) == 0
                 ? first.StoreAsync(Key(index), Png(index), CancellationToken.None)
@@ -120,6 +121,73 @@ public sealed class VideoScrubPreviewCacheBudgetTests
         Assert.True(Directory.GetFiles(directory, "*.png").Sum(path => new FileInfo(path).Length) <= EightMiB);
         Assert.False(File.Exists(Path.Combine(directory, "00.png")));
         Assert.True(File.Exists(Path.Combine(directory, "11.png")));
+    }
+
+    [Fact]
+    public async Task ExplicitRepairReconcilesDeletedAndExternallyResizedEntriesBeforeTheNextStore()
+    {
+        using TempDirectory temp = new();
+        string directory = Path.Combine(temp.Path, "scrub");
+        VideoScrubPreviewCache cache = Cache(directory);
+        Directory.CreateDirectory(directory);
+        for (int index = 0; index < 8; index++)
+        {
+            string path = Path.Combine(directory, index.ToString("D2") + ".png");
+            using FileStream stream = File.Create(path);
+            stream.SetLength(1024 * 1024);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index - 100));
+        }
+
+        cache.TrimToBudget();
+        File.Delete(Path.Combine(directory, "00.png"));
+        using (FileStream resized = File.Open(Path.Combine(directory, "01.png"), FileMode.Open, FileAccess.Write, FileShare.Read))
+            resized.SetLength(2 * 1024 * 1024);
+        cache.Resync();
+
+        VideoScrubFrameKey key = Key(3000);
+        await cache.StoreAsync(key, Png(3000), CancellationToken.None);
+
+        Assert.False(File.Exists(Path.Combine(directory, "01.png")));
+        Assert.True(File.Exists(Path.Combine(directory, "02.png")));
+        Assert.True(File.Exists(cache.PathOf(key)));
+        Assert.True(Directory.GetFiles(directory, "*.png").Sum(path => new FileInfo(path).Length) <= EightMiB);
+    }
+
+    [Fact]
+    public async Task FailedPublishReleasesCoordinatorAndRemovesTemporary()
+    {
+        using TempDirectory temp = new();
+        string directory = Path.Combine(temp.Path, "scrub");
+        VideoScrubPreviewCache cache = Cache(directory);
+        Directory.CreateDirectory(directory);
+        VideoScrubFrameKey key = Key(3001);
+        Directory.CreateDirectory(cache.PathOf(key));
+
+        await Assert.ThrowsAnyAsync<IOException>(() => cache.StoreAsync(key, Png(3001), CancellationToken.None));
+        Assert.Empty(Directory.GetFiles(directory, ".poster-scrub-*.tmp"));
+
+        Directory.Delete(cache.PathOf(key));
+        await cache.StoreAsync(key, Png(3002), CancellationToken.None);
+        Assert.True(File.Exists(cache.PathOf(key)));
+    }
+
+    [Fact]
+    public void ExplicitRepairRemovesStaleTemporaryFilesWithoutRemovingFreshWrites()
+    {
+        using TempDirectory temp = new();
+        string directory = Path.Combine(temp.Path, "scrub");
+        VideoScrubPreviewCache cache = Cache(directory);
+        Directory.CreateDirectory(directory);
+        string stale = Path.Combine(directory, ".poster-scrub-stale.tmp");
+        string fresh = Path.Combine(directory, ".poster-scrub-fresh.tmp");
+        File.WriteAllBytes(stale, new byte[] { 1 });
+        File.WriteAllBytes(fresh, new byte[] { 2 });
+        File.SetLastWriteTimeUtc(stale, DateTime.UtcNow.AddDays(-2));
+
+        cache.Resync();
+
+        Assert.False(File.Exists(stale));
+        Assert.True(File.Exists(fresh));
     }
 
     [Fact]

@@ -44,9 +44,12 @@ internal sealed class VideoScrubPreviewCache
         ? StringComparer.OrdinalIgnoreCase
         : StringComparer.Ordinal;
     // All instances in this process use the same coordinator for a directory. The filesystem is scanned only when a coordinator is
-    // first used, or when an explicit resync/trim is requested; ordinary stores only reconcile their destination path.
-    private static readonly ConcurrentDictionary<string, SharedDirectoryState> SharedStates = new(PathComparer);
+    // first used, or when an explicit resync/trim is requested; ordinary stores only reconcile their destination path. The values are
+    // weak so a short-lived cache directory does not retain a SemaphoreSlim forever; each cache keeps its coordinator strongly while it
+    // is alive, which also prevents a new coordinator from being created for a live directory.
+    private static readonly ConcurrentDictionary<string, WeakReference<SharedDirectoryState>> SharedStates = new(PathComparer);
 
+    private readonly SharedDirectoryState _state;
     private readonly Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? _readOverride;
     private readonly Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? _storeOverride;
     private VideoScrubPreviewOptions _options;
@@ -94,6 +97,7 @@ internal sealed class VideoScrubPreviewCache
                 return;
             }
 
+            RemoveStaleTemporaries();
             List<DiskFile> files = EnumerateFiles();
             if (!Initialized)
             {
@@ -244,6 +248,28 @@ internal sealed class VideoScrubPreviewCache
             RemoveLocked(entry);
         }
 
+        private void RemoveStaleTemporaries()
+        {
+            DateTime cutoff = DateTime.UtcNow.AddDays(-1);
+            try
+            {
+                foreach (string temporary in System.IO.Directory.EnumerateFiles(Directory, TemporaryPrefix + "*.tmp", SearchOption.TopDirectoryOnly))
+                {
+                    try
+                    {
+                        if (File.GetLastWriteTimeUtc(temporary) < cutoff) File.Delete(temporary);
+                    }
+                    catch (FileNotFoundException) { }
+                    catch (DirectoryNotFoundException) { }
+                    catch (IOException) { }
+                    catch (UnauthorizedAccessException) { }
+                }
+            }
+            catch (DirectoryNotFoundException) { }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+
         private List<DiskFile> EnumerateFiles()
         {
             List<DiskFile> files = new();
@@ -331,8 +357,9 @@ internal sealed class VideoScrubPreviewCache
         Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        Directory = Path.GetFullPath(directory);
         _options = options ?? throw new ArgumentNullException(nameof(options));
+        Directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        _state = StateFor(Directory);
         Decoder = decoder ?? NativeVideoScrubFrameDecoder.Instance;
         DecodeGate = decodeGate ?? VideoPosterCache.NativeDecodeGate;
         _readOverride = readOverride;
@@ -377,7 +404,7 @@ internal sealed class VideoScrubPreviewCache
             return await readOverride(key, token).ConfigureAwait(false);
 
         string path = PathOf(key);
-        SharedDirectoryState state = StateFor(Directory);
+        SharedDirectoryState state = _state;
         await state.Gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
@@ -435,9 +462,17 @@ internal sealed class VideoScrubPreviewCache
             return;
         }
 
+        SharedDirectoryState state = _state;
+        // Observe a directory deletion before recreating it. Otherwise CreateDirectory would hide the transition and stale ledger
+        // entries could survive a whole-directory cleanup. This is only a cheap presence check for an initialized directory; the
+        // expensive enumeration still happens only on initialization, a presence transition, or explicit repair.
+        await state.Gate.WaitAsync(token).ConfigureAwait(false);
+        try { state.EnsureInitializedLocked(); }
+        finally { state.Gate.Release(); }
+
+        token.ThrowIfCancellationRequested();
         System.IO.Directory.CreateDirectory(Directory);
         string temporary = Path.Combine(Directory, TemporaryPrefix + Guid.NewGuid().ToString("N") + ".tmp");
-        SharedDirectoryState state = StateFor(Directory);
         try
         {
             await File.WriteAllBytesAsync(temporary, png, token).ConfigureAwait(false);
@@ -473,7 +508,7 @@ internal sealed class VideoScrubPreviewCache
     /// <summary>Explicitly repairs the shared ledger after an external file operation, without changing the current budget.</summary>
     internal void Resync()
     {
-        SharedDirectoryState state = StateFor(Directory);
+        SharedDirectoryState state = _state;
         state.Gate.Wait();
         try { state.ResyncLocked(); }
         finally { state.Gate.Release(); }
@@ -481,7 +516,7 @@ internal sealed class VideoScrubPreviewCache
 
     private void TrimToBudget(long maximumBytes)
     {
-        SharedDirectoryState state = StateFor(Directory);
+        SharedDirectoryState state = _state;
         state.Gate.Wait();
         try
         {
@@ -491,8 +526,20 @@ internal sealed class VideoScrubPreviewCache
         finally { state.Gate.Release(); }
     }
 
-    private static SharedDirectoryState StateFor(string directory) =>
-        SharedStates.GetOrAdd(directory, static path => new SharedDirectoryState(path));
+    private static SharedDirectoryState StateFor(string directory)
+    {
+        while (true)
+        {
+            if (SharedStates.TryGetValue(directory, out WeakReference<SharedDirectoryState>? weak)
+                && weak.TryGetTarget(out SharedDirectoryState? existing))
+                return existing;
+
+            SharedDirectoryState created = new(directory);
+            WeakReference<SharedDirectoryState> replacement = new(created);
+            if (SharedStates.TryAdd(directory, replacement)) return created;
+            if (weak != null && SharedStates.TryUpdate(directory, replacement, weak)) return created;
+        }
+    }
 
     internal static bool Valid(byte[] png)
     {
