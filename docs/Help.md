@@ -598,9 +598,10 @@ Alt+Left (Command+Left on macOS) return to the same Media view with its filters,
 order, selection and scroll position. A tile that is no longer shown there is named
 in a note, not replaced by another one. A file without a post offers no jump.
 
-In the gallery, **S** starts or pauses the slideshow. In the gallery and on the Media page,
-**I** opens the media details, **R** the rating, **Ctrl+E** the export of the
-original and **Ctrl+O** the file in its folder. In the large reader, **F3** and
+In the gallery, **D** starts or pauses the slideshow and **B** adds the current
+medium to favorites. In the gallery and on the Media page, **I** opens the media
+details, **R** the rating, **Ctrl+E** the export of the original and **Ctrl+O** the
+file in its folder. In the large reader, **F3** and
 **Ctrl+G** find the next hit, **Shift+F3** and **Ctrl+Shift+G** the previous one.
 
 Text fields and embedded controls retain their own keys. Across the workspace,
@@ -614,14 +615,18 @@ page's local search field. The default page shortcuts are:
 | Ctrl+3 | Media |
 | Ctrl+6 | Booru |
 | Ctrl+4 | Rules |
-| Ctrl+5 | Plugins |
+| Ctrl+5 | Sources & Plugins |
 | Ctrl+7 | Status |
 
-Use Command instead of Ctrl on macOS. Ctrl+8 (Command+8) is unassigned by default.
-Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. Tagging is a
-footer page without a digit, so it has no row here. The former separate Plugins
-page does not shift the digits: a saved `navigation.plugins` binding to Primary+6
-keeps priority over the new Booru default and opens All plugins on Plugins. Diagnostics and Statistics have no default digit shortcuts;
+The footer uses these same digit slots and order. Tagging is a footer page behind
+Media and has no default digit. In German the labels are **Strg+1 Downloads**,
+**Strg+2 Archiv**, **Strg+3 Medien**, **Strg+6 Booru**, **Strg+4 Regeln**,
+**Strg+5 Quellen & Plugins** and **Strg+7 Status**. Use Command instead of Ctrl on
+macOS. Ctrl+8 (Command+8) is unassigned by default.
+Sources & Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. The
+removed Plugins page does not shift the digits: a saved `navigation.plugins`
+binding to Primary+6 keeps priority over the new Booru default and opens All plugins
+on Sources & Plugins. Diagnostics and Statistics have no default digit shortcuts;
 previously saved bindings still open their respective Status segment. The table
 follows the main-page order, not numeric sorting. The footer, the menus and the
 F1 help use the same order. Footer and menu destinations follow availability; F1
@@ -716,24 +721,26 @@ starts the export; in the SHA-256 search, Enter in the hash field starts the sea
 as soon as the button is available. These shortcuts never bypass a disabled action or confirm a destructive operation
 without its required acknowledgement.
 
-### Back and Close at the right edge
+### Back and Close
 
-Where a row has a way out, it stands alone at the right edge of that row, after a
-gap and apart from the row's own actions, and comes last in the Tab order. This
-holds for the Downloads search bar (**Close**) and details panel (**Hide details**,
-German: **Details ausblenden**), the Archive reader's header
-(**Back to thread list**, **Back to gallery**, **Back to media** and **Close
-reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**, **Zurück zu
-Medien**, **Reader schließen**), the reader's find bar (**Close find**, **Suche
-schließen**) and tag row (**Close tags**, **Tags schließen**), and the Archive
-preview (**Close preview**, **Vorschau schließen**). Several of these are a drawn
-cross; each keeps its name as tooltip and screen-reader name. The gallery keeps its
-own placement of **Back to {target}** at the top right. Esc closes as before.
-Dialogs use their title-bar ×; information windows such as media details and
-About have no extra Close button. Esc first ends a local edit, recording or
-question; it does not close while saving or deleting. Settings asks about unsaved
-changes. In an in-window overlay, the top-right × and Esc close the overlay;
-during HTML export they cancel the export instead.
+Back and **Back to …** for pages and overlays stand at the far left of their
+header row, before the title, separated by a gap and thin divider, and come first
+in the Tab order. The other buttons are right-aligned. This holds for the Archive
+reader's header (**Back to thread list**, **Back to gallery**, **Back to media** and
+**Close reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**,
+**Zurück zu Medien**, **Reader schließen**). Inline rows keep their × close action
+at the far right, after the row's own actions: the Downloads search bar
+(**Close**), details panel (**Hide details**, German: **Details ausblenden**),
+reader find bar (**Close find**, **Suche schließen**), tag row (**Close tags**,
+**Tags schließen**) and Archive preview (**Close preview**, **Vorschau schließen**).
+The gallery keeps **Back to {target}** at the far left with the favorite star
+directly to its right. Tooltips and screen-reader names keep the full action and
+target, including in narrow rows. Esc closes as before.
+Dialogs keep their title-bar × at the right; information windows such as media
+details and About have no extra Close button. Esc first ends a local edit, recording
+or question; it does not close while saving or deleting. Settings asks about unsaved
+changes. In an in-window overlay, the top-right × and Esc close the overlay; during
+HTML export they cancel the export instead.
 
 ### Rule templates
 
@@ -1346,7 +1353,7 @@ moving either direction can show them immediately. The cache is 256 MiB by defau
 **Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
 **Storage and limits**; their allowed ranges are 0–4096 MiB, 0–20 and 0–20.
 The optional filmstrip above the picture shows neighbouring media; click a
-thumbnail to go there, or press **L** to show/hide the strip. With auto-hidden
+thumbnail to go there, or press **Shift+L** to show/hide the strip. With auto-hidden
 controls it appears with them or at the top edge; with docked controls it sits
 above the picture. Very short windows leave it out. Its height and thumbnail
 preload are under **Gallery & playback**.
@@ -1355,8 +1362,8 @@ and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
 This changes the gallery layout independently of F11 window fullscreen. Close the
 gallery with Esc or **Back to {target}** (German: **Zurück zu {Ziel}**) alone at the
-top right, with the favorite star directly to its left; the button names the
-return destination. The toolbar keeps Previous, position, Next, Fit, 1:1, the post
+far left of the header, before the title, with the favorite star directly to its
+right; the button names the return destination. The toolbar keeps Previous, position, Next, Fit, 1:1, the post
 panel and Tools available. Rating, media tags and slideshow controls move from
 **⋯ (More gallery actions)** to the toolbar in Simple; Advanced also brings
 shortcut help onto the bar. The slideshow's seconds per image and its playback
@@ -1404,13 +1411,20 @@ transparency uses the docked layout and explains the fallback. Existing profiles
 start docked; later choices are remembered. F11 remains a separate window action.
 
 Show context to read the associated saved post and available local references.
-A media-only item can have no captured post. In the gallery, **P** toggles saved-post
-context, **0** selects Fit, **1** selects 1:1, **F** toggles the current media favorite,
-and F1 or ? opens keyboard help. **M** picks the current medium (**Add favorite**);
-**U** unpicks it (**Remove favorite**). These set the mark explicitly rather than
-toggling it. The upper-right **★ / ☆** indicator shows favorite / not favorite;
-**…** indicates a pending save. These are default bindings; customized shortcuts
-still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
+A media-only item can have no captured post. In the gallery, **Shift+P** toggles the saved-post context, **0** selects Fit,
+**1** selects 1:1, **F** toggles the current media favorite, and F1 or ? opens
+keyboard help. Gallery panel and playback keys follow one scheme: **Shift** plus a
+letter shows or hides a panel or block; a plain letter acts on playback or the
+shown medium. Thus **Shift+K** toggles **Card mode on / off** (German:
+**Kartenmodus ein / aus**) in tagging mode, **D** starts or pauses **Start / pause
+slideshow** (German: **Diashow starten / pausieren**), and **B** performs **Add
+favorite** (German: **Favorit hinzufügen**). **Shift+P** performs **Show post
+context** (German: **Post-Kontext anzeigen**); **Shift+L** is the filmstrip key.
+**M** mutes, **S** saves a video frame, **L** repeats a video, and **A** controls
+the A–B loop. **F** still toggles the favorite and **U** removes it. The explicit
+add/remove actions set the mark rather than toggling it. The upper-right **★ / ☆**
+indicator shows favorite / not favorite; **…** indicates a pending save. These are
+default bindings; customized shortcuts still apply. Space plays or pauses an active local video. **Up/Down** raises/lowers
 available video volume without changing Playing/Paused; in the reader those keys
 still navigate posts. Manual mute/unmute survives media changes within the same
 open gallery. A user volume change to a positive value unmutes; reopening the
@@ -1479,6 +1493,11 @@ Order stays visible. **Show captured but missing files** (**Erfasste, aber fehle
 Dateien zeigen**) is in Filters, with the active chip **Including missing files**
 (**Mit fehlenden Dateien**).
 
+When the result view offers it, **Tag list** (German: **Tag-Liste**) shows the
+tags of the current results beside the grid, separated into own tags and source
+tags. It shows how many media carry each tag; click a tag to include it,
+Alt+click or Shift+Enter to exclude it, and click it again to remove that filter.
+
 ### Media filters and focus mode
 
 Active filters appear as chips. For tag, type, source and board chips, clicking
@@ -1538,7 +1557,7 @@ anzeigen** listet den Rest. Die Liste bleibt im Fokusmodus sichtbar.
 
 **Shift+F** or the focus button hides the toolbar, filter chips and filter section
 for more grid space. A slim row keeps the result count and active-filter count;
-**Exit focus ×** or Esc restores the tools. The grid and selection bar keep working.
+**Exit focus** (German: **Fokus beenden**) or Esc restores the tools. The grid and selection bar keep working.
 Esc exits focus before clearing selection. Focus mode is not saved.
 
 ### Reading posts as cards
@@ -1831,8 +1850,8 @@ the open thread until you close it. **Tag…** (German: **Tag…**, Ctrl+Shift+T
 Command+Shift+T) opens a small
 anchored tag popover on Media, reader attachments and Archive media tiles; in the
 gallery it opens the [tag panel](#gallery-tag-panel). The popover uses the same
-suggestions, Alt+1–9 toggles, stamp and Ctrl+Z undo; Esc closes it. **Advanced…**
-in either surface opens the full tag dialog. That dialog has a search field,
+suggestions, Alt+1–9 toggles, stamp and Ctrl+Z undo; Esc closes it. **Open tag editor**
+(German: **Tag-Editor öffnen**) in either surface opens the full tag dialog. That dialog has a search field,
 selection counts for
 group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
 own tags first and Danbooru source tags in a separate group. Choosing a source tag as an
@@ -1869,7 +1888,7 @@ gezeigten Medium weiter.
 in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open the
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
-command, **Esc** or its close button closes it; **P** switches to the post panel.
+command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
 The side panel has **Post | Tags** at the top left and × alone at the right. When
 the switch has focus, Left/Right selects the segment. Closing returns focus to
 the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
@@ -1927,7 +1946,7 @@ or favorite by itself, and a favorite is not a tag.
   choosing one creates a local own tag and gives it to this medium, and Danbooru is
   not edited. **Source tags per medium** limits how many are offered.
 
-**Advanced…** opens the full tag dialog for the same medium (occurrences, sorting
+**Open tag editor** (German: **Tag-Editor öffnen**) opens the full tag dialog for the same medium (occurrences, sorting
 and long lists). When it closes, the panel reloads and shows what the dialog
 changed. Outside the gallery, **Tag…** opens the small popover described above.
 
@@ -1967,7 +1986,7 @@ advances; an empty stamp or refused write leaves the medium open. **Shift+Space*
 plays/pauses video or animation outside the tag panel; Page Down/Page Up browse
 without deciding. The next walk resumes at the last shown still-open entry.
 
-**K** toggles **card mode** during a walk. Keys **1–5** choose the displayed cards
+**Shift+K** toggles **card mode** during a walk. Keys **1–5** choose the displayed cards
 under the picture, outside the tag panel and text entry. The defaults, from left to right, are
 **Back**, **Skip**, **Favorite & next**, **Stamp & next**, **Done & next**. Back
 undoes; Skip leaves the item skipped; favorite, stamp, done or a configured rating

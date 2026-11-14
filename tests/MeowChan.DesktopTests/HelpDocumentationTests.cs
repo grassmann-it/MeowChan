@@ -173,18 +173,19 @@ public sealed class HelpDocumentationTests
         string defaults = Plain(Section(Read(Help), "Desktop view defaults"));
         // The footer gained Tagging behind Media (footer button of the tagging page). Help.md and the Danbooru guide belong to Codex and may
         // still spell the work group without it; both spellings are accepted until they list it (Ctrl+1…7 and everything else is pinned as before).
-        static string Spelling(IReadOnlyList<string> group, Func<CommandDefinition, string> label, bool withTagging) =>
-            string.Join(", ", group.Where(id => withTagging || id != "navigation.tagging").Select(id => label(CommandCatalog.Get(id))));
-        static string Order(bool withTagging, Func<CommandDefinition, string> label) =>
-            string.Join(" | ", MainPageOrder.Groups.Select(group => Spelling(group, label, withTagging)));
+        static string Spelling(IReadOnlyList<string> group, Func<CommandDefinition, string> label, bool withTagging, bool german) =>
+            string.Join(", ", group.Where(id => withTagging || id != "navigation.tagging").Select(id =>
+                id == "navigation.sources" ? (german ? "Quellen & Plugins" : "Sources & Plugins") : label(CommandCatalog.Get(id))));
+        static string Order(bool withTagging, Func<CommandDefinition, string> label, bool german) =>
+            string.Join(" | ", MainPageOrder.Groups.Select(group => Spelling(group, label, withTagging, german)));
         foreach (IReadOnlyList<string> group in MainPageOrder.Groups)
-            Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Spelling(group, c => c.LabelEn, withTagging), StringComparison.Ordinal)),
-                "Help.md does not list the footer group: " + Spelling(group, c => c.LabelEn, true));
+            Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Spelling(group, c => c.LabelEn, withTagging, german: false), StringComparison.Ordinal)),
+                "Help.md does not list the footer group: " + Spelling(group, c => c.LabelEn, true, german: false));
         string danbooru = Plain(Read(DanbooruGuide));
-        Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Order(withTagging, c => c.LabelDe), StringComparison.Ordinal)),
-            "Help.md does not list the German footer order: " + Order(true, c => c.LabelDe));
-        Assert.True(new[] { true, false }.Any(withTagging => danbooru.Contains(Order(withTagging, c => c.LabelDe), StringComparison.Ordinal)),
-            "The Danbooru guide does not list the German footer order: " + Order(true, c => c.LabelDe));
+        Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Order(withTagging, c => c.LabelDe, german: true), StringComparison.Ordinal)),
+            "Help.md does not list the German footer order: " + Order(true, c => c.LabelDe, german: true));
+        Assert.True(new[] { true, false }.Any(withTagging => danbooru.Contains(Order(withTagging, c => c.LabelDe, german: true), StringComparison.Ordinal)),
+            "The Danbooru guide does not list the German footer order: " + Order(true, c => c.LabelDe, german: true));
         Assert.Contains("followed by More (German: Mehr) and Settings", defaults, StringComparison.Ordinal);
         Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
         Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
@@ -271,14 +272,14 @@ public sealed class HelpDocumentationTests
         foreach (string phrase in new[]
         {
             "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 to Alt+9 (Command+1 to Command+9 on macOS)", "Page Down and Page Up",
-            "Ctrl+Enter (Command+Enter)", "Ctrl+Z (Command+Z)", "Ctrl+T (Command+T)", "P switches to the post panel"
+            "Ctrl+Enter (Command+Enter)", "Ctrl+Z (Command+Z)", "Ctrl+T (Command+T)", "Shift+P switches to the post panel"
         })
             Assert.Contains(phrase, panel, StringComparison.Ordinal);
 
-        // Surface texts quoted by the help are the English catalog texts.
+        // Surface texts quoted by the help retain their documented English and German labels.
         IReadOnlyDictionary<string, string> english = BuiltInCatalog.English;
-        // The footer button was renamed from "Advanced…" (wave 6, quick tag footer); Help.md still quotes the old name until it is updated.
-        Assert.True(panel.Contains(english["tags.quick.advanced"], StringComparison.Ordinal) || panel.Contains("Advanced…", StringComparison.Ordinal));
+        Assert.Contains("Open tag editor", panel, StringComparison.Ordinal);
+        Assert.Contains("Tag-Editor öffnen", panel, StringComparison.Ordinal);
         Assert.Contains(english["tags.quick.assigned"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
         Assert.Contains(english["tags.quick.thread.heading"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
         Assert.Contains(string.Format(CultureInfo.InvariantCulture, english["tags.quick.gallery.position"], 4, 27), panel, StringComparison.Ordinal);
@@ -357,7 +358,7 @@ public sealed class HelpDocumentationTests
         string text = Plain(Section(Read(Help), "Tagging queue and settings"));
         foreach (string phrase in new[] { "it assigns no tags, favorites or ratings", "Open Tagging (German: Taggen) with its footer button right after Media",
             "Missing files stay in the queue", "Inside the tag panel, typing and chip keys keep their normal roles",
-            "Ctrl+Shift+Enter applies the stamp and advances", "K toggles card mode during a walk",
+            "Ctrl+Shift+Enter applies the stamp and advances", "Shift+K toggles card mode during a walk",
             "Saving a smaller walk size does not remove queue entries" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
         Assert.Equal("Q", CommandCatalog.Get("media.queue.add").Shortcut);
@@ -467,14 +468,14 @@ public sealed class HelpDocumentationTests
     [InlineData("Rule templates", "rules.overview.create")]
     [InlineData("Rule templates", "rules.discard")]
     [InlineData("Statistics and disk traffic", "stats.headerIcons.label")]
-    [InlineData("Back and Close at the right edge", "archive.back")]
-    [InlineData("Back and Close at the right edge", "gallery.return")]
-    [InlineData("Back and Close at the right edge", "command.media.return")]
-    [InlineData("Back and Close at the right edge", "reader.close")]
-    [InlineData("Back and Close at the right edge", "readerFind.close")]
-    [InlineData("Back and Close at the right edge", "tags.close")]
-    [InlineData("Back and Close at the right edge", "command.preview.close")]
-    [InlineData("Back and Close at the right edge", "action.hideDetails")]
+    [InlineData("Back and Close", "archive.back")]
+    [InlineData("Back and Close", "gallery.return")]
+    [InlineData("Back and Close", "command.media.return")]
+    [InlineData("Back and Close", "reader.close")]
+    [InlineData("Back and Close", "readerFind.close")]
+    [InlineData("Back and Close", "tags.close")]
+    [InlineData("Back and Close", "command.preview.close")]
+    [InlineData("Back and Close", "action.hideDetails")]
     public void HelpActionNamesMatchEnglishAndGermanCatalogs(string heading, string key)
     {
         string text = Plain(Section(Read(Help), heading));
@@ -532,16 +533,45 @@ public sealed class HelpDocumentationTests
         Assert.Equal("Primary+T", CommandCatalog.Get("thread.tags").Shortcut);
         Assert.Equal("Primary+Shift+T", CommandCatalog.Get("media.tags.edit").Shortcut);
         Assert.Contains("Ctrl+Shift+T / Command+Shift+T", tags);
+        Assert.Contains("Open tag editor", tags, StringComparison.Ordinal);
+        Assert.Contains("Tag-Editor öffnen", tags, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void GalleryHelpMatchesRightEdgePlacementAndUnreducedSafetyState()
+    public void Wave5HelpKeepsNewGalleryAndMediaLabelsBilingual()
+    {
+        string gallery = Plain(Section(Read(Help), "Images, search and navigation"));
+        foreach (string phrase in new[]
+        {
+            "Shift plus a letter shows or hides a panel or block",
+            "Shift+K toggles Card mode on / off",
+            "Kartenmodus ein / aus",
+            "D starts or pauses Start / pause slideshow",
+            "Diashow starten / pausieren",
+            "B performs Add favorite",
+            "Favorit hinzufügen",
+            "Shift+P performs Show post context",
+            "Post-Kontext anzeigen",
+            "Shift+L"
+        })
+            Assert.Contains(phrase, gallery, StringComparison.Ordinal);
+
+        string media = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("Tag list", media, StringComparison.Ordinal);
+        Assert.Contains("Tag-Liste", media, StringComparison.Ordinal);
+        string focus = Plain(Section(Read(Help), "Media filters and focus mode"));
+        Assert.Contains("Exit focus", focus, StringComparison.Ordinal);
+        Assert.Contains("Fokus beenden", focus, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GalleryHelpMatchesLeftPlacementAndUnreducedSafetyState()
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
-        Assert.Contains("alone at the top right, with the favorite star directly to its left", text);
+        Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
         // The left-hand Post | Tags segment is not the gallery's Back action.
-        Assert.DoesNotContain("Back at the top left", text);
+        Assert.Contains("Back to {target}", text);
         Assert.Contains("The side panel has Post | Tags at the top left and × alone at the right", text);
         string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
         Assert.Contains("Children.Add(_segment);", sidePanel);
@@ -688,14 +718,15 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void RightEdgeHelpMatchesNamedHeaderRowsAndDialogEscapeGuards()
+    public void BackAndCloseHelpMatchesNamedHeaderRowsAndDialogEscapeGuards()
     {
-        string text = Plain(Section(Read(Help), "Back and Close at the right edge"));
-        Assert.Contains("stands alone at the right edge of that row", text, StringComparison.Ordinal);
-        Assert.Contains("comes last in the Tab order", text, StringComparison.Ordinal);
-        Assert.Contains("The gallery keeps its own placement of Back to {target} at the top right", text, StringComparison.Ordinal);
+        string text = Plain(Section(Read(Help), "Back and Close"));
+        Assert.Contains("stand at the far left of their header row", text, StringComparison.Ordinal);
+        Assert.Contains("come first in the Tab order", text, StringComparison.Ordinal);
+        Assert.Contains("Inline rows keep their × close action at the far right", text, StringComparison.Ordinal);
+        Assert.Contains("The gallery keeps Back to {target} at the far left", text, StringComparison.Ordinal);
         Assert.Contains("Esc closes as before", text, StringComparison.Ordinal);
-        Assert.Contains("Dialogs use their title-bar ×", text, StringComparison.Ordinal);
+        Assert.Contains("Dialogs keep their title-bar × at the right", text, StringComparison.Ordinal);
         Assert.Contains("Esc first ends a local edit, recording or question; it does not close while saving or deleting", text, StringComparison.Ordinal);
         Assert.Contains("Settings asks about unsaved changes", text, StringComparison.Ordinal);
         // Source contracts, not a claim that every window or native title bar has been accepted.
@@ -710,10 +741,7 @@ public sealed class HelpDocumentationTests
         Assert.True(HeaderBar.BackGap > 0 && HeaderBar.BackSpacing > 0);
 
         // Every button the Help names is declared in a HeaderBar: the ways back of pages in the back slot, the inline tool rows' closes in
-        // the end slot (static XAML check; layout and tab order are covered by HeaderBarContractTests, not here). NOTE for the Help.md owner
-        // (14.11. evening, Tom's item 35): the section text asserted above still states the old right-edge rule for everything; when Help.md
-        // moves to the new rule (pages and overlays left, inline rows right), update the phrases above (section title "Back and Close at
-        // the right edge", "stands alone at the right edge of that row", "comes last in the Tab order").
+        // the end slot (static XAML check; layout and tab order are covered by HeaderBarContractTests).
         string main = Read("Desktop/Shell/MainWindow.axaml");
         string archive = Read("Desktop/Views/Archive/ArchivePage.axaml");
         (string Xaml, string Name)[] backs =
@@ -1194,12 +1222,16 @@ public sealed class HelpDocumentationTests
         {
             Match row = Capture(rows[i], @"^\| Ctrl\+(?<digit>\d+) \| (?<label>[^|]+) \|$");
             int digit = Number(row.Groups["digit"].Value);
-            Assert.Equal(CommandCatalog.Get(ids[i]).LabelEn, row.Groups["label"].Value.Trim());
+            string expectedLabel = ids[i] == "navigation.sources" ? "Sources & Plugins" : CommandCatalog.Get(ids[i]).LabelEn;
+            Assert.Equal(expectedLabel, row.Groups["label"].Value.Trim());
             Assert.Equal(HelpDocumentedDigits[ids[i]], digit);
         }
         // Display order is not numeric sorting: Booru follows Media, while Sources=5 and Status=7 stay stable.
         Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => HelpDocumentedDigits[id]));
         Assert.Contains("Ctrl+8 (Command+8) is unassigned by default", section, StringComparison.Ordinal);
+        foreach (string germanSlot in new[] { "Strg+1 Downloads", "Strg+2 Archiv", "Strg+3 Medien", "Strg+6 Booru",
+            "Strg+4 Regeln", "Strg+5 Quellen & Plugins", "Strg+7 Status" })
+            Assert.Contains(germanSlot, section, StringComparison.Ordinal);
         Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
         Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
         Assert.Contains("previously saved bindings still open their respective Status segment", section, StringComparison.Ordinal);
