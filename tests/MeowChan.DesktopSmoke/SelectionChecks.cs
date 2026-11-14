@@ -319,13 +319,13 @@ internal static class SelectionChecks
     {
         await Program.WaitUntilAsync(() => !window.SessionRowsApplying);
         PressKey(grid, Key.F1);
-        Border help = window.FindControl<Border>("ShellHelpOverlay")!;
-        await Program.WaitUntilAsync(() => help.IsEffectivelyVisible);
-        string text = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
+        await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+        var help = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!;
+        string text = help.PlainText;
         Require(text.Contains(CommandCatalog.Label("thread.read"), StringComparison.Ordinal) == expected,
             $"Shortcut help advertised Read posts for an unavailable selection or hid it for one thread: expected={expected}, selected={grid.SelectedItems.Count}, applying={window.SessionRowsApplying}, text={text}.");
-        Click(window.FindControl<Button>("ShellHelpClose")!);
-        await Program.WaitUntilAsync(() => !help.IsVisible);
+        help.RequestClose();
+        await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
     }
 
     private static void Click(Control control) => SmokeActionClick.Execute(control);

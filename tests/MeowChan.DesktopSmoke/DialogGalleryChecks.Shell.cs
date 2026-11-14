@@ -149,16 +149,15 @@ internal static partial class DialogGalleryChecks
     {
         const BindingFlags instance = BindingFlags.Instance | BindingFlags.NonPublic;
         MethodInfo showHelp = typeof(MainWindow).GetMethod("ShowShellHelp", instance)!;
-        MethodInfo dismissHelp = typeof(MainWindow).GetMethod("DismissShellHelp", instance)!;
-        Border help = owner.FindControl<Border>("ShellHelpOverlay")!;
         showHelp.Invoke(owner, null);
         try
         {
-            await Program.WaitUntilAsync(() => help.IsVisible && help.Bounds.Width > 0);
+            // F1 opens the one shortcuts window (KS2), no longer an overlay of the main window.
+            await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(owner) is { IsVisible: true, Bounds.Width: > 0 });
             await DialogFrameChecks.Settle();
-            DialogGallery.Record(owner, "shell-shortcut-help", "main window", "F1 keyboard shortcut overlay");
+            DialogGallery.Record(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(owner)!, "shell-shortcut-help", "shortcuts window", "F1 keyboard shortcuts window");
         }
-        finally { dismissHelp.Invoke(owner, null); }
+        finally { MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(owner)?.CloseWithoutAsking(); }
 
         MethodInfo drop = typeof(MainWindow).GetMethod("ShowDropOverlay", instance)!;
         Grid overlay = owner.FindControl<Grid>("DropOverlay")!;
