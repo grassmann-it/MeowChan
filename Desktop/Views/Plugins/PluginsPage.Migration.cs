@@ -12,6 +12,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -48,13 +49,8 @@ public partial class PluginsPage
             if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return;
             BundledCandidateReselectionPreview selections = await services.ProfileStore.PreviewBundledReselectionsAsync(token);
             if (!Current(generation) || !IsEffectivelyVisible || Texts.Language != language || Interlocked.Read(ref _migrationCatalogEpoch) != catalogEpoch) return;
-            Window window = new()
-            {
-                Title = Texts.T("plugins.reselection.reviewTitle"),
-                Width = Math.Max(320, Math.Min(880, owner.Bounds.Width - 32)),
-                Height = Math.Max(320, Math.Min(700, owner.Bounds.Height - 32)),
-                CanResize = true, WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
+            // Modals plan MD3: the list step on the dialog factory (fits the owner's screen); the title stands in the title bar only.
+            Window window = DialogWindow.Create(Texts.T("plugins.reselection.reviewTitle"), DialogSize.L, modal: true);
             _migrationWindow = window;
             PluginMultiApproval approval = new(services.ProfileStore);
             _migrationApproval = approval;
@@ -388,20 +384,17 @@ public partial class PluginsPage
                 closeRequested = true; approval.Stop();
                 if (saving) { args.Cancel = true; SetStatus("plugins.approval.stopping"); }
             };
-            // One right-aligned row like the other dialogs; it wraps (and long labels wrap) at narrow widths.
-            WrapPanel buttons = new();
-            buttons.Classes.Add("workspace-actions");
-            AutomationProperties.SetAutomationId(buttons, "BundledApprovalActions");
-            buttons.Children.Add(cancel); buttons.Children.Add(reload); buttons.Children.Add(submit);
+            // One right-aligned row like the other dialogs (submit right-most); it wraps (and long labels wrap) at narrow
+            // widths, and the status keeps the full width above it.
             Emphasise(false);
-            StackPanel footer = new() { Spacing = 8 };
-            footer.Children.Add(statusHost); footer.Children.Add(buttons);
-            TextBlock heading = new() { Text = window.Title, TextWrapping = TextWrapping.Wrap };
-            heading.Classes.Add("page-title");
+            Border footer = DialogFooter.Build(submit, new Control[] { cancel, reload }, statusHost, statusAbove: true);
+            if (footer.Child is StackPanel { Children: [_, WrapPanel buttons] })
+                AutomationProperties.SetAutomationId(buttons, "BundledApprovalActions");
             Border body = new() { Child = rows };
             body.Classes.Add("workspace-dialog-body");
-            window.Content = MeowChan.Desktop.WindowChrome.Frame(window, DialogFrame.Build(heading, body, footer, DialogFrame.ErrorStrip(issue)));
-            window.KeyDown += (_, args) => { if (args.Key == Key.Escape) { window.Close(); args.Handled = true; } };
+            DialogWindow.Frame(window, DialogFrame.Build(null, body, footer, DialogFrame.ErrorStrip(issue)), modal: true);
+            // Escape closes like ×; a save in flight turns it into a stop request (the Closing guard), never a hard close.
+            DialogEscape.Attach(window);
             window.Opened += (_, _) => cancel.Focus();
             await window.ShowDialog<object?>(owner);
             if (approval.InFlight is { } inFlight) await inFlight;
