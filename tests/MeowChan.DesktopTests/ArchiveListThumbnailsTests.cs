@@ -74,8 +74,9 @@ public sealed class ArchiveListThumbnailsTests
         load = load[..load.IndexOf("internal static ArchiveAssetRow? FindMatchingAsset", StringComparison.Ordinal)];
         Assert.Contains("ArchiveListThumbnails.LoadAsync", load);
         Assert.Contains("MediaAttachmentResolver.Resolve", load);
-        Assert.Contains("_thumbnailGate.WaitAsync(loading.Token)", load);
-        Assert.Contains("finally { _thumbnailGate.Release(); }", load);
+        // The gate is handed to the loader, which takes a slot only for a real decode (a memory hit never waits).
+        Assert.Contains("loading.Token, _thumbnailGate)", load);
+        Assert.DoesNotContain("_thumbnailGate.WaitAsync", load);
         Assert.DoesNotContain("!= SavedMediaKind.Image", load);
         string loader = File.ReadAllText(Path.Combine(root, "Desktop/ArchiveListThumbnails.cs"));
         Assert.Contains("MediaTileThumbnails.LoadPosterAsync", loader);
@@ -84,7 +85,9 @@ public sealed class ArchiveListThumbnailsTests
         Assert.Contains("MediaTileThumbnails.LoadPosterAsync", reader);
         Assert.DoesNotContain("VideoPosterCache.LoadAsync", reader);
         Assert.True(reader.IndexOf("MediaTileThumbnails.LoadPosterAsync", StringComparison.Ordinal)
-            < reader.IndexOf("MediaTileThumbnails.KeepAsync", StringComparison.Ordinal));
+            < reader.IndexOf("MediaTileThumbnails.KeepGatedAsync", StringComparison.Ordinal));
+        Assert.DoesNotContain("_thumbnailGate.WaitAsync", reader); // the cache lookup precedes the gate; only decodes take a slot
+        Assert.DoesNotContain("MediaTileThumbnails.KeepAsync(", reader);
         string tiles = File.ReadAllText(Path.Combine(root, "Desktop/ArchiveMediaTileView.cs"));
         Assert.Contains("MediaTileThumbnails.LoadPosterAsync", tiles);
         Assert.Contains("ReferenceEquals(decode, DefaultThumbnailDecoder) && !UsesVideoPoster(row)", tiles);
