@@ -437,7 +437,7 @@ public partial class SettingsEditor
         || block.Classes.Contains("workspace-field-label") && block.FontWeight >= FontWeight.SemiBold;
 
     private static bool IsStatusText(TextBlock block) =>
-        block.Classes.Contains("error") || block.Name is { } name
+        block.Classes.Contains("workspace-error") || block.Name is { } name
         && (name.EndsWith("Error", StringComparison.Ordinal) || name.EndsWith("Status", StringComparison.Ordinal) || name.EndsWith("Warning", StringComparison.Ordinal));
 
     // A panel that holds several settings of its own (a sub-section, the content of a collapsible group) is read item by item;
