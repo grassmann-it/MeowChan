@@ -137,7 +137,6 @@ spacing-off-grid	Desktop/Views/Rules/RulesPage.Plugins.cs	1	Spacing=6
 spacing-off-grid	Desktop/Views/Rules/RulesPage.Templates.cs	1	LineSpacing=6
 spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	1	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	2	Margin="0,6,0,0"
-spacing-off-grid	Desktop/Views/Rules/RulesPage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Margin="20,4,20,16"
 spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Padding="20,0,20,8"
 spacing-off-grid	Desktop/Views/Settings/FirstRunSetupWindow.axaml	1	Padding="20,16,20,8"

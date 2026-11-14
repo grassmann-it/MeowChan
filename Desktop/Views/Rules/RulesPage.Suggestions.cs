@@ -22,8 +22,7 @@ public partial class RulesPage
         source.Candidates = (text, _) => Task.FromResult(RuleSuggestions(false, text));
         board.Candidates = (text, _) => Task.FromResult(RuleSuggestions(true, text));
         source.TextChanged += (_, _) => { board.Dismiss(); board.RefreshSuggestions(); };
-        this.FindControl<Expander>("NewRuleScopeExpander")!.PropertyChanged += (_, e) =>
-        { if (e.Property == Expander.IsExpandedProperty && e.NewValue is true) RebuildRuleSuggestions(); };
+        // Step 1 of the wizard rebuilds the suggestions whenever it is shown (OpenNewRuleWizard, ShowWizardStep).
         this.FindControl<Button>("RuleRetrySuggestions")!.Click += (_, _) => { RebuildRuleSuggestions(); source.Focus(); source.RestartSuggestions(); };
     }
     private IdentitySuggestion[] RuleSuggestions(bool boards, string text)

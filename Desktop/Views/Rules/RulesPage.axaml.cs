@@ -71,6 +71,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             if (e.Source is Avalonia.Visual source && source.GetSelfAndVisualAncestors().Any(v =>
                 v is ComboBox { IsDropDownOpen: true } or Ursa.Controls.AutoCompleteBox)) return;
             if (TryDismissRuleDecision()) e.Handled = true;
+            // Esc leaves the wizard for the overview (the draft stays); open decisions above are dismissed first.
+            else if (_wizard.IsOpen && IsEditable) { CloseWizard(); e.Handled = true; }
         };
         RefreshChoiceLabels();
         RefreshConfirmedRules();
@@ -107,7 +109,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string? ErrorMessage => _operationErrorKey == null ? null : Texts.T(_operationErrorKey, _operationErrorDetail);
     public bool HasError => ErrorMessage != null;
     public bool HasStatus => !HasError;
-    public string StatusMessage => SaveRejected && InvalidFieldLabel is { } invalid ? Texts.T("rules.saveRejected", invalid)
+    // Step 1 of a new rule has no draft yet, so the footer keeps the overview's line instead of a draft state.
+    public string StatusMessage => !_wizard.IsOpen || !_wizard.HasScope ? OverviewStatusMessage
+        : SaveRejected && InvalidFieldLabel is { } invalid ? Texts.T("rules.saveRejected", invalid)
         : Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
         : _draft.Stale ? "rules.stale" : _statusKey ?? (_draft.Dirty ? "rules.unsaved" :
             FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed"));
@@ -201,7 +205,6 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string BoardIdLabel => Texts.T("rules.boardId");
     public string ThreadIdLabel => Texts.T("rules.threadId");
     public string IdentityHint => Texts.T("rules.identityHint");
-    public string EditingLabel => Texts.T("rules.editing", FormatScope(_draft.Scope));
     public string EnabledLabel => Texts.T("rules.enabled");
     public string EnabledHint => Texts.T("rules.enabledHint");
     public string TypesLabel => Texts.T("rules.types");
@@ -267,6 +270,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         if (_ended) return;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
+        foreach (Desktop.Controls.DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _ended = true;
         EndRuleSuggestions();
         IsEnabled = false;
@@ -295,13 +299,21 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RaiseAll();
     }
 
-    /// <summary>Opens the same retained editor from a thread, board or source context action.</summary>
+    /// <summary>Opens the same retained editor (wizard step 2) from a thread, board or source context action or the overview.</summary>
     public void EditScope(MediaRuleScope scope)
     {
         ArgumentNullException.ThrowIfNull(scope);
-        if (_ended || _busy) return;
+        if (!SelectScope(scope)) return;
+        EnterWizardForScope();
+        RaiseAll();
+    }
+
+    /// <summary>Makes <paramref name="scope"/>'s retained draft the current one (creating it from the saved rule) without opening the wizard.</summary>
+    private bool SelectScope(MediaRuleScope scope)
+    {
+        if (_ended || _busy) return false;
         RefreshConfirmedRules();
-        if (!_hasConfirmed) return;
+        if (!_hasConfirmed) return false;
         if (!_drafts.TryGetValue(scope, out RuleDraft? draft))
         {
             draft = new RuleDraft(scope, _confirmed);
@@ -310,11 +322,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         DeactivateRuleDecisions();
         _draft = draft;
         _selectedScope = null;
-        _statusKey = null; _saveRejectedKey = null;
+        _statusKey = null; _saveRejectedKey = null; _overviewStatus = null;
         ClearOperationError();
         UpdatePreview();
         RefreshScopeChoices();
-        RaiseAll();
+        return _draft.Scope == scope;
     }
 
     private void AcceptConfirmed(MediaRuleSet confirmed)
@@ -473,6 +485,19 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     /// checkbox that enables them receives it instead.</summary>
     private void FocusInvalidField()
     {
+        if (_wizard.IsOpen && _wizard.Step != RuleWizardStep.Settings && (HasExtensionsError || HasMegabytesError))
+        {
+            // The fields live in step 2: show it, then focus once its controls are laid out.
+            ShowWizardStep(RuleWizardStep.Settings, focus: false);
+            RuleDraft draft = _draft;
+            Dispatcher.UIThread.Post(() => { if (!_ended && ReferenceEquals(draft, _draft)) FocusInvalidFieldNow(); }, DispatcherPriority.Loaded);
+            return;
+        }
+        FocusInvalidFieldNow();
+    }
+
+    private void FocusInvalidFieldNow()
+    {
         if (HasExtensionsError && RuleExtensionsInput.IsEffectivelyEnabled) RuleExtensionsInput.FocusInput();
         else if (HasMegabytesError && RuleMegabytesInput.IsEffectivelyEnabled) { RuleMegabytesInput.Focus(); RuleMegabytesInput.BringIntoView(); }
         else if (HasExtensionsError || HasMegabytesError) { RuleEnabledInput.Focus(); RuleEnabledInput.BringIntoView(); }
@@ -480,7 +505,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void OnDiscardDraft(object? sender, RoutedEventArgs e) => RequestDiscardCurrentDraft();
     private void OnOpenSavedScope(object? sender, RoutedEventArgs e)
     {
-        if (IsEditable && _selectedScope != null) EditScope(_selectedScope.Scope);
+        if (IsEditable && _selectedScope != null) OpenRuleFromOverview(_selectedScope.Scope);
     }
     private void OnOpenNewScope(object? sender, RoutedEventArgs e)
     {
@@ -495,8 +520,10 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             MediaRuleScope scope = new MediaRuleScope((MediaRuleScopeKind)_newScopeKind,
                 NeedsSource ? source : null, NeedsBoard ? board : null, NeedsThread ? thread : null);
             EditScope(scope);
-            NewRuleScopeExpander.IsExpanded = false;
+            if (_draft.Scope != scope) return;
+            _wizardReturnScope = scope;
             if (FindRule(_confirmed, scope) == null) DraftChanged();
+            FocusFirstWizardField();
         }
         catch (ArgumentException) { _operationErrorKey = "rules.invalidScope"; _operationErrorDetail = null; RaiseAll(); }
     }
@@ -574,13 +601,13 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void ApplyCommandIcons()
     {
         CommandBindings.ApplyLabeled(OpenSavedRuleButton, "rules.open-scope", OpenLabel);
-        CommandBindings.ApplyLabeled(OpenNewRuleScopeButton, "rules.open-scope", OpenLabel);
         CommandBindings.ApplyLabeled(DiscardRuleButton, "rules.discard", DiscardLabel);
         CommandBindings.ApplyLabeled(SaveRuleButton, "rules.save", SaveLabel);
         CommandBindings.ApplyLabeled(OpenParentRuleButton, "rules.open-parent", CommandCatalog.Label("rules.open-parent"));
         CommandBindings.ApplyLabeled(OpenTypesOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
         CommandBindings.ApplyLabeled(OpenSizeOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
         RefreshOriginActionLabels();
+        ApplyWizardLabels();
     }
 
     private void OnRulesSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -592,9 +619,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RulesFooter.Width = width;
         _subtitleHidden = (TopLevel.GetTopLevel(this)?.ClientSize.Height ?? e.NewSize.Height) < SubtitleMinWindowHeight;
         RefreshSubtitlePresentation();
+        bool narrowChanged = _narrowRules != width < 700;
         _narrowRules = width < 700;
         bool narrow = _narrowRules;
         ApplyRuleRowLayout();
+        if (narrowChanged) RefreshOverview();
         Grid.SetColumn(RulesFooterActions, narrow ? 0 : 1);
         Grid.SetRow(RulesFooterActions, narrow ? 1 : 0);
         Grid.SetColumnSpan(RulesFooterActions, narrow ? 2 : 1);
@@ -639,7 +668,9 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleExtensionsInput.Bind(_draft.ExtensionInput);
         RefreshBreadcrumb();
         RefreshTemplatesPanel();
+        RefreshWizardPresentation();
         RefreshWorkViewPresentation();
+        RefreshOverview();
     }
     private void RefreshSubtitlePresentation()
     {
@@ -676,6 +707,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         finally { _refreshingChoiceLabels = refreshing; }
     }
     private void Raise(string property) { if (!_ended) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property)); }
+    internal static string FormatMebibytes(long bytes, CultureInfo culture) => FormatMegabytes(bytes, culture);
     private static string FormatMegabytes(long bytes, CultureInfo culture)
     {
         decimal mebibytes = bytes / BytesPerMebibyte;

@@ -22,29 +22,54 @@
     <Grid RowDefinitions="*,Auto">
       <!-- The page area carries the shared page inset; the footer below it runs to the window edges. -->
       <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*">
-        <!-- Header like Sources: title and one-line subtitle, then the scope picker with its Edit scope action as one row. -->
-        <StackPanel x:Name="RulesHeader" Margin="0,0,0,8" Spacing="8" MaxWidth="880" HorizontalAlignment="Center">
-            <StackPanel Classes="workspace-page-header">
-                <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
-                <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
-            </StackPanel>
-            <StackPanel Spacing="4" IsEnabled="{Binding IsEditable}">
-                <TextBlock Text="{Binding SavedScopesLabel}" Classes="workspace-field-label" />
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <ComboBox x:Name="RulesScopeList" HorizontalAlignment="Stretch"
-                              ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
-                        <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
-                    </ComboBox>
-                    <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
-                </Grid>
-                <TextBlock Text="{Binding ScopeCountLabel}" Classes="workspace-help" TextWrapping="Wrap" />
-            </StackPanel>
+        <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge. -->
+        <StackPanel x:Name="RulesHeader" Margin="0,0,0,8" MaxWidth="880" HorizontalAlignment="Center">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Classes="workspace-page-header">
+                    <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
+                    <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Grid.Column="1" Classes="primary" VerticalAlignment="Top"
+                        IsVisible="{Binding IsOverviewVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+            </Grid>
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
             <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="12">
-                <StackPanel IsEnabled="{Binding IsEditable}">
-                    <Expander x:Name="NewRuleScopeExpander" wv:WorkViewElement.Id="rules.scope.new" Header="{Binding NewScopeLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                <!-- Overview (default): saved rules by scope, unsaved drafts and the built-in baseline; rows are built in RulesPage.Overview.cs. -->
+                <StackPanel x:Name="RulesOverviewPanel" wv:WorkViewElement.Id="rules.overview" Spacing="16" IsVisible="{Binding IsOverviewVisible}">
+                    <Border x:Name="RulesOverviewEmpty" Classes="workspace-section" IsVisible="False">
+                        <StackPanel Spacing="12" HorizontalAlignment="Center">
+                            <TextBlock x:Name="RulesOverviewEmptyText" Classes="workspace-empty-text" />
+                            <WrapPanel x:Name="RulesOverviewEmptyActions" HorizontalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                                <Button x:Name="CreateFirstRuleButton" Classes="primary" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
+                                <Button x:Name="StartFromTemplateButton" IsEnabled="{Binding IsEditable}" Click="OnStartFromTemplate" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                    <StackPanel x:Name="RulesOverviewDrafts" wv:WorkViewElement.Id="rules.overview.drafts" Spacing="8" IsVisible="False" />
+                    <StackPanel x:Name="RulesOverviewSaved" Spacing="8" IsVisible="False" />
+                    <StackPanel x:Name="RulesOverviewDefaults" wv:WorkViewElement.Id="rules.overview.defaults" Spacing="8" />
+                </StackPanel>
+                <!-- Create/edit wizard (in-page detail like Sources and Plugins): 1 scope, 2 settings, 3 review. -->
+                <StackPanel x:Name="RuleWizardPanel" Spacing="12" IsVisible="{Binding IsWizardOpen}">
+                    <!-- The editor's header row: title and steps on the left, More and then Close on the right edge (Close apart from actions). -->
+                    <Grid x:Name="RuleWizardHeader" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                        <StackPanel Spacing="8">
+                            <TextBlock x:Name="RulesEditingHeader" wv:WorkViewElement.Id="rules.scope.editing-header" Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" />
+                            <WrapPanel x:Name="RuleWizardSteps" wv:WorkViewElement.Id="rules.wizard.steps" ItemSpacing="8" LineSpacing="8">
+                                <Button x:Name="RuleWizardStepScope" Classes="chip" Click="OnWizardStepClick" Tag="1" />
+                                <Button x:Name="RuleWizardStepSettings" Classes="chip" Click="OnWizardStepClick" Tag="2" />
+                                <Button x:Name="RuleWizardStepReview" Classes="chip" Click="OnWizardStepClick" Tag="3" />
+                            </WrapPanel>
+                            <TextBlock x:Name="RuleWizardStepText" Text="{Binding WizardStepLabel}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+                        <Button x:Name="RulesMoreButton" Grid.Column="1" Classes="subtle icon-square" VerticalAlignment="Top" IsVisible="False" Click="OnRulesMoreClick" />
+                        <Button x:Name="RuleWizardCloseButton" wv:WorkViewElement.Id="rules.wizard.close" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Top" Click="OnCloseWizard" />
+                    </Grid>
+                    <!-- Step 1: the scope. Its identity stays fixed while its values are edited; an existing rule or draft opens from the overview or below. -->
+                    <StackPanel x:Name="RuleWizardScopeStep" Spacing="12" IsEnabled="{Binding IsEditable}">
+                        <Border x:Name="NewRuleScopePanel" wv:WorkViewElement.Id="rules.scope.new" Classes="workspace-section">
+                        <StackPanel Spacing="8">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Form.Gap}">
                                 <TextBlock Classes="workspace-field-label" Text="{Binding ScopeKindLabel}" VerticalAlignment="Center" />
                                 <ComboBox x:Name="NewRuleScopeKindInput" Grid.Column="1" ItemsSource="{Binding ScopeKindChoices}" SelectedIndex="{Binding NewScopeKind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
@@ -63,19 +88,26 @@
                             </Grid>
                             <TextBlock x:Name="RuleSuggestionsHint" Classes="workspace-help" TextWrapping="Wrap" />
                             <Button x:Name="RuleRetrySuggestions" IsVisible="False" />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                                <TextBlock Text="{Binding IdentityHint}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
-                                <Button x:Name="OpenNewRuleScopeButton" Grid.Column="1" Click="OnOpenNewScope" />
-                            </Grid>
+                            <TextBlock Text="{Binding IdentityHint}" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
-                    </Expander>
-                </StackPanel>
+                        </Border>
+                        <Expander x:Name="RuleSavedScopesExpander" wv:WorkViewElement.Id="rules.scope.saved" Header="{Binding SavedScopesLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                            <StackPanel Spacing="4" Margin="0,8,0,0">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <ComboBox x:Name="RulesScopeList" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding SavedScopesLabel}"
+                                              ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
+                                        <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <Button x:Name="OpenSavedRuleButton" Grid.Column="1" Click="OnOpenSavedScope" />
+                                </Grid>
+                                <TextBlock Text="{Binding ScopeCountLabel}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                    <!-- Step 2: the settings of the chosen scope. -->
+                    <StackPanel x:Name="RuleWizardSettingsStep" Spacing="12">
                 <Border Classes="workspace-section"><StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
-                    <!-- The scope being edited, always; the page's "More" (⋯) holds what the work view moved off the page. -->
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
-                        <TextBlock x:Name="RulesEditingHeader" wv:WorkViewElement.Id="rules.scope.editing-header" Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
-                        <Button x:Name="RulesMoreButton" Grid.Column="1" Classes="subtle icon-square" IsVisible="False" Click="OnRulesMoreClick" />
-                    </Grid>
+                    <!-- The edited scope is named in the header row above; its breadcrumb and parent link start the card. -->
                     <Grid x:Name="RuleBreadcrumbRow" wv:WorkViewElement.Id="rules.scope.breadcrumb" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
                         <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" VerticalAlignment="Center"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
                         <Button x:Name="OpenParentRuleButton" Grid.Column="1" VerticalAlignment="Center" IsVisible="False" Click="OnOpenParentScope" />
@@ -137,11 +169,12 @@
                         <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" Margin="0,8,0,0" />
                     </Expander>
                 </Border>
-                <Border Classes="workspace-section">
-                    <!-- Folded in Barebones; a validation error opens it, a refused field is named in the blocked hint. -->
-                    <Expander x:Name="RulePreviewExpander" wv:WorkViewElement.Id="rules.preview" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                    <Expander.Header><TextBlock Text="{Binding PreviewTitle}" Classes="section-title" TextWrapping="Wrap" /></Expander.Header>
-                    <StackPanel Spacing="8" Margin="0,8,0,0">
+                    </StackPanel>
+                    <!-- Step 3: what applies after saving, field by field with its origin; validation and the way to an invalid field stay here. -->
+                    <StackPanel x:Name="RuleWizardReviewStep" Spacing="12">
+                <Border x:Name="RulePreviewSection" wv:WorkViewElement.Id="rules.preview" Classes="workspace-section">
+                    <StackPanel Spacing="8">
+                    <TextBlock x:Name="RulePreviewHeading" Text="{Binding PreviewTitle}" Classes="section-title" TextWrapping="Wrap" Focusable="True" />
                     <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasValidationBanner}">
                         <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     </controls:WorkspaceBanner>
@@ -180,8 +213,9 @@
                     <TextBlock Text="{Binding FutureHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding UnknownHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
-                    </Expander>
                 </Border>
+                    </StackPanel>
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
       </Grid>
@@ -199,10 +233,13 @@
                         </controls:WorkspaceBanner>
                     </StackPanel>
                 </ScrollViewer>
-                <StackPanel x:Name="RulesFooterActions" Classes="workspace-actions" Grid.Column="1" HorizontalAlignment="Right">
+                <WrapPanel x:Name="RulesFooterActions" Classes="workspace-actions" Grid.Column="1" HorizontalAlignment="Right" IsVisible="{Binding IsWizardOpen}">
+                    <Button x:Name="RuleWizardBackButton" wv:WorkViewElement.Id="rules.wizard.back" Click="OnWizardBack" />
                     <Button x:Name="DiscardRuleButton" wv:WorkViewElement.Id="rules.footer.discard" IsEnabled="{Binding IsEditable}" Click="OnDiscardDraft" />
+                    <Button x:Name="RuleWizardNextButton" wv:WorkViewElement.Id="rules.wizard.next" Click="OnWizardNext" />
+                    <Button x:Name="OpenNewRuleScopeButton" Classes="primary" IsEnabled="{Binding IsEditable}" Click="OnOpenNewScope" />
                     <Button x:Name="SaveRuleButton" wv:WorkViewElement.Id="rules.footer.save" Classes="primary" IsEnabled="{Binding CanSave}" Click="OnSaveRule" />
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
     </Grid>

@@ -63,18 +63,19 @@ public partial class RulesPage
     internal void AttachTemplateServices(Func<Task<RuleTemplateLoadResult>> load, Func<IEnumerable<RuleTemplate>, string, Task<RuleTemplateSet>> save)
     { _loadTemplates = load; _saveTemplates = save; RefreshTemplatesPanel(); if (IsEditable) _ = LoadTemplatesAsync(); }
     internal bool IsTemplateDecisionOpen => _templateEditor != null || _templatePreview != null || _templateDeleteConfirmation?.IsOpen == true;
-    internal bool IsRuleConfirmationOpen => _discardConfirmation.IsOpen
+    internal bool IsRuleConfirmationOpen => _discardConfirmation.IsOpen || IsOverviewConfirmationOpen
         || _templateDeleteConfirmation?.IsOpen == true || _templateEditorConfirmation?.IsOpen == true;
     internal bool TryDismissRuleDecision()
     {
         if (_templateEditorConfirmation?.IsOpen == true) { _templateEditorConfirmation.Close(true); return true; }
         if (_templateDeleteConfirmation?.IsOpen == true) { _templateDeleteConfirmation.Close(true); return true; }
         if (_discardConfirmation.IsOpen) { _discardConfirmation.Close(true); return true; }
+        if (_overviewConfirmations.FirstOrDefault(confirmation => confirmation.IsOpen) is { } overview) { overview.Close(true); return true; }
         if (_templateEditor != null) { RequestCancelTemplateEditor(); return true; }
         if (_templatePreview != null) { CancelTemplatePreview(); return true; }
         return false;
     }
-    internal bool CanExecuteTemplateCommand(string id) => IsEditable && !_templateLoading && !_templateApplyBusy && !IsRuleConfirmationOpen && (id switch
+    internal bool CanExecuteTemplateCommand(string id) => IsEditable && _wizard.IsOpen && _wizard.HasScope && !_templateLoading && !_templateApplyBusy && !IsRuleConfirmationOpen && (id switch
     {
         "rules.template-create" => _templates != null && _templateEditor == null,
         "rules.template-edit" or "rules.template-delete" or "rules.template-preview" => _templates != null && _selectedTemplate != null && _templateEditor == null,
@@ -85,6 +86,8 @@ public partial class RulesPage
     internal async Task ExecuteTemplateCommandAsync(string id)
     {
         if (!CanExecuteTemplateCommand(id)) return;
+        // The templates helper lives in step 2; a shortcut from step 1 or 3 shows it first.
+        if (_wizard.Step != RuleWizardStep.Settings) ShowWizardStep(RuleWizardStep.Settings, focus: false);
         switch (id)
         {
             case "rules.template-create": OpenTemplateEditor(null); break;
@@ -116,6 +119,7 @@ public partial class RulesPage
     {
         _ruleDecisionGeneration++;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
+        foreach (DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _templatePreview = null;
     }
     private RuleTemplate? SelectedTemplate() => _templates?.Templates.FirstOrDefault(t => t.Id == _selectedTemplate);
@@ -235,6 +239,8 @@ public partial class RulesPage
         finally { _renderingTemplates = false; }
         // The block opens by itself while an editor, a preview, a confirmation or a load error needs it (R6).
         RefreshWorkViewPresentation();
+        // The overview offers "Start from template" once the catalog has templates.
+        RefreshOverview();
     }
     private sealed record TemplateChoice(Guid Id, string Label) { public override string ToString() => Label; }
     private static TextBlock TemplateText(string text, bool heading = false)
