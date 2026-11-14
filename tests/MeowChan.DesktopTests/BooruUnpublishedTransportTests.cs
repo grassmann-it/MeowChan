@@ -106,7 +106,9 @@ public sealed class BooruUnpublishedTransportTests
 
             // Begin shutdown at exactly this point. The synchronous close marks the unpublished start terminal before
             // schedulerRelease lets composition.StartAsync return; the normal publication branch can never win.
-            Task shutdown = host.StopAsync();
+            // Start on another thread so a regression in the synchronous cut fails at the bounded assertion
+            // instead of preventing this test from reaching the finally block that releases its held startup.
+            Task shutdown = Task.Run(() => host.StopAsync());
             await WaitAsync(() => Field<bool>(host, "_booruClosed"), "Booru shutdown ingress");
             Assert.Null(host.BooruComposition);
             Assert.False(shutdown.IsCompleted, "shutdown must still be waiting for the blocked unpublished start");
@@ -150,7 +152,7 @@ public sealed class BooruUnpublishedTransportTests
             {
                 try { await host.StopAsync().WaitAsync(Deadline); }
                 catch { /* preserve the assertion that led here; cleanup is best effort */ }
-                try { await host.DisposeAsync(); }
+                try { await host.DisposeAsync().AsTask().WaitAsync(Deadline); }
                 catch { }
             }
         }

@@ -159,7 +159,11 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             _started = true;
             SyncSessionPause();
             using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(cancellationToken);
-            if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
+            // Reserve the start under the ingress fence, but run the scheduler's synchronous load/observers
+            // outside its monitor. A lifecycle cut also notifies those observers, which may read availability;
+            // holding the monitor across StartAsync's synchronous prefix deadlocks shutdown against a held start.
+            // The canceled lease token prevents a scheduled-but-not-yet-entered start from doing any work.
+            if (start != null && start.TryStart(() => Task.Run(() => WatcherHost.StartAsync(start.Token), CancellationToken.None), out Task pending))
                 await pending.ConfigureAwait(false);
         }
         catch { _started = false; throw; }
@@ -227,7 +231,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             {
                 SyncSessionPause();
                 using BooruPortAvailabilityGate.Lease? start = _availability.TryEnter(CancellationToken.None);
-                if (start != null && start.TryStart(() => WatcherHost.StartAsync(start.Token), out Task pending))
+                if (start != null && start.TryStart(() => Task.Run(() => WatcherHost.StartAsync(start.Token), CancellationToken.None), out Task pending))
                     await pending.ConfigureAwait(false);
             }
         }
