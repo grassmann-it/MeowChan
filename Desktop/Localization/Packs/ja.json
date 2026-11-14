@@ -3644,6 +3644,9 @@
     "tags.quick.thread.hint": "スレッドのタグはスレッド自体に付くもので、メディアファイルには付きません。タグをクリックすると外せます。",
     "tags.quick.thread.remove": "スレッドのタグ {0} を外す",
     "tags.quick.thread.field": "スレッドのタグを追加",
-    "tags.quick.thread.chips": "スレッドのタグ"
+    "tags.quick.thread.chips": "スレッドのタグ",
+    "booru.watcher.problem.provider_cooldown_unavailable": "MeowChanはプロバイダーの待機状態を確認できませんでした。安全のため監視のスケジュールを一時停止しています。待機状態が不明な間は、新しいリクエストを送信しません。",
+    "booru.watcher.problem.transport_reset_failed": "プロバイダーの待機状態のリセットに失敗しました。現在の待機はそのまま続きます。MeowChanは復旧を確認していません。",
+    "booru.watcher.problem.transport_reset_unavailable": "このセッションではプロバイダーの待機状態をリセットできません。現在の待機はそのまま続きます。MeowChanは復旧を確認していません。"
   }
 }

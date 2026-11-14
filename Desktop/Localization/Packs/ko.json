@@ -3644,6 +3644,9 @@
     "tags.quick.thread.hint": "스레드 태그는 스레드 자체에 지정되며 미디어 파일에는 지정되지 않습니다. 태그를 클릭하면 제거됩니다.",
     "tags.quick.thread.remove": "스레드 태그 {0} 제거",
     "tags.quick.thread.field": "스레드 태그 추가",
-    "tags.quick.thread.chips": "스레드 태그"
+    "tags.quick.thread.chips": "스레드 태그",
+    "booru.watcher.problem.provider_cooldown_unavailable": "MeowChan이 제공자의 대기 상태를 확인하지 못했습니다. 안전을 위해 감시 일정 수립이 일시 중지되었습니다. 대기 상태를 알 수 없는 동안에는 새 요청을 보내지 않습니다.",
+    "booru.watcher.problem.transport_reset_failed": "제공자의 대기 상태 재설정에 실패했습니다. 기존 일시 중지는 계속 유지됩니다. MeowChan은 복구를 확인하지 않았습니다.",
+    "booru.watcher.problem.transport_reset_unavailable": "이 세션에서는 제공자의 대기 상태를 재설정할 수 없습니다. 기존 일시 중지는 계속 유지됩니다. MeowChan은 복구를 확인하지 않았습니다."
   }
 }
