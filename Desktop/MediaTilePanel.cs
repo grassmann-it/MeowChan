@@ -46,6 +46,23 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     public event EventHandler? ViewportChanged;
 
+    private double _columnWidth = CellWidth;
+
+    /// <summary>
+    /// The width of one cell (default <see cref="CellWidth"/>). A page with another tile size (MP5, the media page's Layout menu) sets it;
+    /// the columns and the cell width follow at the next layout, the items are not touched.
+    /// </summary>
+    public double ColumnWidth
+    {
+        get => _columnWidth;
+        set
+        {
+            if (!double.IsFinite(value) || value < 1 || _columnWidth == value) return;
+            _columnWidth = value;
+            InvalidateMeasure();
+        }
+    }
+
     private void OnPageKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || e.Key is not Key.PageUp and not Key.PageDown || ItemsControl is not ListBox list) return;
@@ -73,14 +90,14 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
             if (double.IsFinite(availableSize.Width))
             {
                 double width = Math.Max(1, availableSize.Width);
-                int columns = Math.Max(1, (int)Math.Floor(width / CellWidth));
+                int columns = Math.Max(1, (int)Math.Floor(width / _columnWidth));
                 if (!_scrolling && Columns != columns && _resizeAnchor is null && CaptureAnchor() is { } anchor)
                 {
                     _resizeAnchor = anchor;
                     ++_restoreGeneration;
                 }
                 if (Columns != columns) SetCurrentValue(ColumnsProperty, columns);
-                double cellWidth = Math.Min(CellWidth, width);
+                double cellWidth = Math.Min(_columnWidth, width);
                 if (ItemWidth != cellWidth) SetCurrentValue(ItemWidthProperty, cellWidth);
             }
             return base.MeasureOverride(availableSize);

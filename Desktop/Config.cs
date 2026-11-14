@@ -272,6 +272,10 @@ namespace MeowChan
         internal const int MediaTagListTopDefault = 30;
         internal const int MediaTagListTopMinimum = 5;
         internal const int MediaTagListTopMaximum = 1_000;
+        /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
+        internal const int MediaTagListWidthDefault = 256;
+        internal const int MediaTagListWidthMinimum = 180;
+        internal const int MediaTagListWidthMaximum = 480;
         /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
         public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
         internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
@@ -625,6 +629,16 @@ namespace MeowChan
         {
             get => _mediaTagListSort;
             set => _mediaTagListSort = Enum.TryParse(value?.Trim(), true, out Desktop.MediaTagListSort sort) && Enum.IsDefined(sort) ? sort.ToString() : nameof(Desktop.MediaTagListSort.Count);
+        }
+        // MP5: the rest of the media page's layout (tag list side and width, filter chips, status line, subtitle, tile caption, tile size) as one short
+        // text (Desktop/MediaPageLayout.cs); the tag list switch is MediaBooruMode above (the key predates the name "Tag list"). A damaged text
+        // reads as the standard layout for the damaged parts, so it never makes the settings file invalid.
+        private string _mediaLayout = Desktop.MediaPageLayout.Standard.Format();
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string MediaLayout
+        {
+            get => _mediaLayout;
+            set => _mediaLayout = Desktop.MediaPageLayout.Canonical(value);
         }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryFitUpscaleLimited { get; set; }
@@ -1681,6 +1695,7 @@ namespace MeowChan
                 MediaSortDirection = MediaSortDirection,
                 MediaBooruMode = MediaBooruMode,
                 MediaTagListSort = MediaTagListSort,
+                MediaLayout = MediaLayout,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -1913,6 +1928,7 @@ namespace MeowChan
             MediaSortDirection = source.MediaSortDirection;
             MediaBooruMode = source.MediaBooruMode;
             MediaTagListSort = source.MediaTagListSort;
+            MediaLayout = source.MediaLayout;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();

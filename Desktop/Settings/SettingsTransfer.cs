@@ -220,6 +220,7 @@ public static class SettingsTransfer
             MediaSortDirection = source.MediaSortDirection,
             MediaBooruMode = source.MediaBooruMode,
             MediaTagListSort = source.MediaTagListSort,
+            MediaLayout = source.MediaLayout,
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
             PluginEditorExecutable = source.PluginEditorExecutable,
             Theme = source.Theme,

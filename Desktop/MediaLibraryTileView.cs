@@ -121,6 +121,8 @@ internal sealed class MediaLibraryTileView : UserControl
     private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
     private IDisposable? _selection;
     private Bitmap? _bitmap;
+    private Grid? _rows;
+    private MediaTileAppearance _appearance = MediaTileMetrics.Standard;
     /// <summary>True while the tile shows a verified thumbnail or video poster.</summary>
     internal bool HasThumbnail => _image.Source != null;
     /// <summary>Where the picture is drawn, in the preview's coordinates (the corner marks sit on it).</summary>
@@ -159,6 +161,34 @@ internal sealed class MediaLibraryTileView : UserControl
     /// <summary>The own-tag count badge (smokes).</summary>
     internal Border TagCountBadge => _tagCountBadge;
 
+    /// <summary>
+    /// MP5: the size and the caption parts the media page's Layout menu chose. Setting it changes sizes and visibility of this tile's own parts only
+    /// (no row is rebuilt, no thumbnail is loaded again); the page sets it on the tiles it has realized and on every tile it makes later.
+    /// The tile's name (screen reader and tooltip) keeps every part, shown or not.
+    /// </summary>
+    internal MediaTileAppearance Appearance
+    {
+        get => _appearance;
+        set
+        {
+            if (_appearance == value) return;
+            _appearance = value;
+            ApplyAppearance();
+        }
+    }
+
+    private void ApplyAppearance()
+    {
+        MediaTileAppearance a = _appearance;
+        MaxWidth = a.CellWidth; Height = a.CellHeight;
+        _preview.Height = a.PreviewHeight; _preview.MaxWidth = a.PictureWidth;
+        _image.MaxWidth = a.PictureWidth; _image.MaxHeight = a.PreviewHeight;
+        if (_rows != null) _rows.RowDefinitions[0].Height = new GridLength(a.PreviewHeight);
+        _name.IsVisible = a.Shows(MediaTileCaption.Name);
+        _threadLink.IsVisible = a.Shows(MediaTileCaption.Source);
+        Present(); // the corner marks and the tile's name follow; the preview and its bitmap stay
+    }
+
     /// <summary>Taller than an archive cell: preview, name, thread, footer and the favorite/tag row plus margins. The page's panel uses it as cell height.</summary>
     internal const double TileHeight = 226;
 
@@ -185,7 +215,7 @@ internal sealed class MediaLibraryTileView : UserControl
         };
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(topRight);
         preview.Children.Add(bottomLeft); preview.Children.Add(_favoriteToggle);
-        Grid grid = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
+        Grid grid = _rows = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
         _threadLink.Content = _thread;
@@ -251,7 +281,7 @@ internal sealed class MediaLibraryTileView : UserControl
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         _name.Text = row?.Name;
         _thread.Text = row?.ThreadLabel;
-        _providerBadge.IsVisible = row?.IsProviderMedium == true;
+        _providerBadge.IsVisible = row?.IsProviderMedium == true && _appearance.Shows(MediaTileCaption.Source);
         ((TextBlock)_providerBadge.Child!).Text = _providerBadge.IsVisible ? Texts.T("booru.media.badge") : null;
         string threadHint = row == null ? string.Empty : Texts.T("media.filter.threadHint", row.ThreadLabel);
         ToolTip.SetTip(_threadLink, threadHint);
@@ -284,7 +314,7 @@ internal sealed class MediaLibraryTileView : UserControl
     {
         MediaLibraryTileRow? row = DataContext as MediaLibraryTileRow;
         bool queued = row != null && InTagQueue?.Invoke(row.Entry) == true;
-        WorkspaceChips.SetCornerMark(_queueMark, queued ? QueueMarkGeometry : null, Texts.T("media.tile.queued"));
+        WorkspaceChips.SetCornerMark(_queueMark, queued && _appearance.Shows(MediaTileCaption.QueueMark) ? QueueMarkGeometry : null, Texts.T("media.tile.queued"));
         string description = string.Join(Environment.NewLine, _description.Append(queued ? Texts.T("media.tile.queued") : string.Empty).Where(part => part.Length > 0));
         ToolTip.SetTip(this, description);
         AutomationProperties.SetName(this, description);
@@ -300,7 +330,7 @@ internal sealed class MediaLibraryTileView : UserControl
     private string PresentTagCount(MediaLibraryTileRow? row)
     {
         int count = row?.TagChips.Count ?? 0;
-        _tagCountBadge.IsVisible = count > 0;
+        _tagCountBadge.IsVisible = count > 0 && _appearance.Shows(MediaTileCaption.TagCount);
         _tagCountText.Text = count > 0 ? count.ToString("N0", Texts.Culture) : null;
         string name = count > 0 ? Texts.Count("media.tile.ownTags", count, count.ToString("N0", Texts.Culture)) : string.Empty;
         ToolTip.SetTip(_tagCountBadge, count > 0 ? name : null);
