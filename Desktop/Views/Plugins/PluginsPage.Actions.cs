@@ -455,7 +455,7 @@ public partial class PluginsPage
             { origin.Focus(); return; }
             if (_selectedKey == key && key != null && _cards.TryGetValue(CardKey(key), out var row) && row.IsEffectivelyVisible)
             { row.BringIntoView(); row.Focus(); return; }
-            if (Selected == null) C<ComboBox>("PluginCategory").Focus();
+            if (Selected == null) FocusListOrFilter();
         }, DispatcherPriority.Loaded);
     }
 }

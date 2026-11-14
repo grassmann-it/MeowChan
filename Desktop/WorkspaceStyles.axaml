@@ -662,8 +662,8 @@
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
         <!-- Page margin of every work view (Downloads, Sources, Plugins, Diagnostics, Statistics, Media, Archive). -->
         <Thickness x:Key="Workspace.Inset.Page">12</Thickness>
-        <!-- List cards (Sources list, Plugins list): inner spacing and the start-edge selection bar (LW-06). -->
-        <Thickness x:Key="Workspace.Inset.ListCard">14</Thickness>
+        <!-- List cards (Sources list, Plugins list): inner spacing (on the 12 dip grid, one value for both lists) and the start-edge selection bar (LW-06). -->
+        <Thickness x:Key="Workspace.Inset.ListCard">12</Thickness>
         <Thickness x:Key="Workspace.ListCard.SelectionBar">3,0,0,0</Thickness>
         <!-- Native keyboard-only focus decoration; it overlays rather than moves
              content, and remains separate from selected/error border state.

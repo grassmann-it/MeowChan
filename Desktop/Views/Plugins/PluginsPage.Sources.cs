@@ -30,6 +30,8 @@ public partial class PluginsPage
     internal event EventHandler? CatalogChanged;
     internal event EventHandler? PresentationChanged;
     internal event EventHandler? SourceOverviewRequested;
+    /// <summary>Set by the Sources page: focuses its selected source card (or the detail heading, narrow). False when it has none.</summary>
+    internal Func<bool>? FocusSourceCard { get; set; }
     internal IReadOnlyList<PluginCatalogEntry> CatalogEntries => _catalog?.Entries ?? Array.Empty<PluginCatalogEntry>();
     internal SourcesPluginsFilter Filter => (SourcesPluginsFilter)Math.Max(0, C<ComboBox>("PluginCategory").SelectedIndex);
     internal bool ShowingSourcePluginDetails => SourceContent != null && Filter == SourcesPluginsFilter.Sources && _showDetails;

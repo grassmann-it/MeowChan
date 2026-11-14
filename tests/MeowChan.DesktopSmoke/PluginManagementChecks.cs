@@ -185,7 +185,7 @@ internal static partial class PluginManagementChecks
                 // UX round 2 #3: below 900 dip the header actions sit under the title, which keeps its full width.
                 TextBlock pluginsTitle = page.FindControl<TextBlock>("PluginsTitle")!;
                 TextBlock pluginsSubtitle = page.FindControl<TextBlock>("PluginsSubtitle")!;
-                Require(Grid.GetRow(page.FindControl<WrapPanel>("PluginsHeaderActions")!) == 1
+                Require(Grid.GetRow(page.FindControl<WrapPanel>("PluginsHeaderActions")!) >= 1
                     && pluginsTitle.Bounds.Width >= pluginsTitle.DesiredSize.Width - 1
                     && pluginsSubtitle.Bounds.Width >= page.Bounds.Width * 0.6,
                     $"Plugins header is cramped at {matrixWidth} dip: title {pluginsTitle.Bounds.Width}/{pluginsTitle.DesiredSize.Width}, subtitle {pluginsSubtitle.Bounds.Width} of {page.Bounds.Width}.");

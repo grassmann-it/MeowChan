@@ -159,8 +159,9 @@ internal static class SourcesChecks
                     Require(page.FindControl<TextBlock>("SourceCaptureAvailability")!.Text == Texts.T("sources.captureAvailable"),
                         "Capture support and initialized session availability were not shown.");
                     RequireIconLabel(page.FindControl<Button>("SourceBackButton")!, MeowChan.Desktop.Commands.CommandCatalog.Label("sources.back"));
-                    RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!,
-                        Texts.T("sources.website", "https://boards.4chan.org/"));
+                    RequireIconLabel(page.FindControl<Button>("SourceWebsiteButton")!, Texts.T("sources.website"));
+                    Require(ToolTip.GetTip(page.FindControl<Button>("SourceWebsiteButton")!)?.ToString()?.Contains("https://boards.4chan.org/") == true,
+                        "The website button lost the address as its tooltip.");
                     RequireIconLabel(page.FindControl<Button>("SourceRulesButton")!, Texts.T("sources.rules"));
                     RequireIconLabel(page.FindControl<Button>("SourceDiagnosticsButton")!, Texts.T("sources.diagnostics"));
                     RequireIconLabel(page.FindControl<Button>("SourceAddToDownloadsButton")!, Texts.T("sources.addInDownloads"));
@@ -441,8 +442,7 @@ internal static class SourcesChecks
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Require(list.ItemsSource!.Cast<SourceWatchRow>().Count() == shown && all.IsVisible == link,
                     $"Watch preview setting {setting} showed {list.ItemsSource!.Cast<SourceWatchRow>().Count()} rows (expected {shown}, link {link}).");
-                if (link) Require((all.Content as string) == Texts.T("sources.showAll", 5),
-                    "The show-all link did not name the number of watches: " + all.Content);
+                if (link) RequireIconLabel(all, Texts.T("sources.showAll", 5));
             }
             page.GetWatchPreviewRows = () => 3;
             page.Refresh(providers, many, true);

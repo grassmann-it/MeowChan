@@ -125,9 +125,32 @@ public partial class PluginsPage : UserControl
             PluginCatalogEntry? entry = _catalog?.Entries.FirstOrDefault(entry => entry.Description?.Sources.Any(source => source.SourceId == sourceId) == true);
             if (entry != null) { Select(entry.Key); FocusPluginHeading(); }
         }
-        else C<ComboBox>("PluginCategory").Focus();
+        else FocusListOrFilter();
     }
     private T C<T>(string name) where T : Control => this.FindControl<T>(name)!;
+    /// <summary>The content of an icon-and-text action button (a catalog icon, then the label), as "Add plugin…" in the header.</summary>
+    internal static Control IconAndLabel(string icon, string label) => new StackPanel
+    {
+        Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8,
+        Children = { CommandBindings.NamedIcon(icon), new TextBlock { Text = label } }
+    };
+
+    /// <summary>
+    /// Where focus goes when nothing is selected (after activation or Back): the list itself, never the "Show" filter in front of
+    /// it. A source list is the Sources page's own (its selected card); the plugin list focuses its selected or first card. The
+    /// dropdown is only the last resort, when no card exists.
+    /// </summary>
+    private void FocusListOrFilter()
+    {
+        if (SourceContent != null && Filter == SourcesPluginsFilter.Sources && FocusSourceCard?.Invoke() == true) return;
+        SelectionList list = C<SelectionList>("PluginCards");
+        if (list.IsEffectivelyVisible)
+        {
+            Control? card = list.SelectedItem as Control ?? list.Items.OfType<Control>().FirstOrDefault(item => item.IsEffectivelyVisible);
+            if (card != null) { card.BringIntoView(); card.Focus(); return; }
+        }
+        C<ComboBox>("PluginCategory").Focus();
+    }
     private void FitStatusRow()
     {
         bool empty = string.IsNullOrEmpty(C<TextBlock>("PluginTestStatus").Text) && !C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible;
@@ -186,6 +209,8 @@ public partial class PluginsPage : UserControl
         CommandBindings.EnsureIconBeforeText(C<Button>("PluginEditorSave"), "save");
         Button add = C<Button>("PluginsAdd");
         add.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("plus"), new TextBlock { Text = Texts.T("plugins.add") } } }; AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
+        Button emptyAdd = C<Button>("PluginsEmptyAdd");
+        emptyAdd.Content = IconAndLabel("plus", Texts.T("plugins.add")); AutomationProperties.SetName(emptyAdd, Texts.T("plugins.add")); ToolTip.SetTip(emptyAdd, Texts.T("plugins.add.help"));
         C<Button>("PluginsReviewRepairs").Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("check"), new TextBlock { Text = Texts.T("plugins.repair.review") } } };
         C<TextBlock>("PluginInventoryHeader").Text = Texts.T("plugins.inventoryProblems");
         AutomationProperties.SetName(C<SelectionList>("PluginCards"), Texts.T("nav.plugins"));
@@ -265,7 +290,7 @@ public partial class PluginsPage : UserControl
                 {
                     // The card of the Sources list: name, chips only where a source deviates, then quiet meta lines.
                     var title = new TextBlock { Name = "PluginListName", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
-                    var chips = new WrapPanel { Name = "PluginListChips", ItemSpacing = 6, LineSpacing = 4, IsVisible = false };
+                    var chips = new WrapPanel { Name = "PluginListChips", ItemSpacing = 8, LineSpacing = 4, IsVisible = false };
                     var purpose = new TextBlock { Name = "PluginListDescription", TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
                     var origin = new TextBlock { Name = "PluginListDescriptionOrigin", TextWrapping = TextWrapping.Wrap };
                     var state = new TextBlock { Name = "PluginListState", TextWrapping = TextWrapping.Wrap };
@@ -318,7 +343,9 @@ public partial class PluginsPage : UserControl
         if (focusedItem != null && list.Items.Contains(focusedItem) && !focusedItem.IsFocused) focusedItem.Focus();
         C<ScrollViewer>("PluginListScroll").Offset = listOffset;
         if (Selected == null || !Included(Selected)) _showDetails = false;
-        C<TextBlock>("PluginsEmpty").IsVisible = _catalog != null && entries.Length == 0;
+        bool showEmpty = _catalog != null && entries.Length == 0;
+        C<TextBlock>("PluginsEmpty").IsVisible = showEmpty;
+        C<Desktop.Controls.WorkspaceEmptyState>("PluginsEmptyState").IsVisible = showEmpty;
         C<TextBlock>("PluginsEmpty").Text = Texts.T(_catalog?.Entries.Count == 0 ? "plugins.noPlugins" : C<ComboBox>("PluginCategory").SelectedIndex switch
         { 0 => "plugins.emptySources", 1 => "plugins.emptyFilters", _ => "plugins.empty" });
         // The header count, as on the Sources page: every plugin of the profile, whatever the category shows.
@@ -559,11 +586,18 @@ public partial class PluginsPage : UserControl
             else if (listHadFocus) _showDetails = false;
         }
         _narrow = narrow;
+        // Wide: title block left (two rows tall), actions top right, the count right-aligned under them. Narrow: title, then the
+        // count, then the actions, all at the start edge, so the title keeps the full width.
         bool stackedHeader = Bounds.Width < 900;
         WrapPanel headerActions = C<WrapPanel>("PluginsHeaderActions");
+        TextBlock headerCount = C<TextBlock>("PluginsCount");
         Grid.SetColumn(headerActions, stackedHeader ? 0 : 1);
-        Grid.SetRow(headerActions, stackedHeader ? 1 : 0);
+        Grid.SetRow(headerActions, stackedHeader ? 2 : 0);
         headerActions.Margin = stackedHeader ? new Thickness(0, 8, 0, 0) : default;
+        Grid.SetColumn(headerCount, stackedHeader ? 0 : 1);
+        headerCount.HorizontalAlignment = stackedHeader ? Avalonia.Layout.HorizontalAlignment.Left : Avalonia.Layout.HorizontalAlignment.Right;
+        headerCount.TextAlignment = stackedHeader ? Avalonia.Media.TextAlignment.Left : Avalonia.Media.TextAlignment.Right;
+        Grid.SetRowSpan(C<StackPanel>("PluginsTitleStack"), stackedHeader ? 1 : 2);
         C<Grid>("PluginsPageHeader").ColumnSpacing = stackedHeader ? 0 : 12;
         C<Grid>("PluginSplit").ColumnDefinitions[0].Width = new GridLength(_narrow ? 0 : 280);
         C<Grid>("PluginSplit").ColumnSpacing = _narrow ? 0 : 16;
@@ -585,7 +619,7 @@ public partial class PluginsPage : UserControl
         }
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
-    { if (ShowingSourcePluginDetails) { ReturnToSourceOverview(); return; } _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(CardKey(_selectedKey), out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else C<ComboBox>("PluginCategory").Focus(); }
+    { if (ShowingSourcePluginDetails) { ReturnToSourceOverview(); return; } _showDetails = false; ApplyPaneVisibility(); if (_selectedKey != null && _cards.TryGetValue(CardKey(_selectedKey), out SelectionListItem? card) && C<SelectionList>("PluginCards").Items.Contains(card)) { card.BringIntoView(); card.Focus(); } else FocusListOrFilter(); }
     private void OnCategoryChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_refreshing) return;
