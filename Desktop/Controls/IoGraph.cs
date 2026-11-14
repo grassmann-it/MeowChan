@@ -165,6 +165,17 @@ public sealed class IoGraph : Control
     static IoGraph() => AffectsRender<IoGraph>(StrokeProperty, FillProperty, SecondaryStrokeProperty, DiskStrokeProperty, GuideStrokeProperty,
         SourceProperty, LineThicknessProperty);
 
+    public IoGraph()
+    {
+        // ActualThemeVariantProperty is not a public Avalonia API. Follow the public event,
+        // including inherited theme changes when the control moves between theme scopes.
+        ActualThemeVariantChanged += (_, _) =>
+        {
+            _penCache.Invalidate();
+            InvalidateVisual();
+        };
+    }
+
     public IBrush? Stroke { get => GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
     public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
     /// <summary>The stroke of the dashed secondary series (upload or disk write, depending on <see cref="Source"/>).</summary>
@@ -234,7 +245,7 @@ public sealed class IoGraph : Control
     {
         base.OnPropertyChanged(change);
         if (change.Property == StrokeProperty || change.Property == SecondaryStrokeProperty || change.Property == DiskStrokeProperty
-            || change.Property == GuideStrokeProperty || change.Property == LineThicknessProperty || change.Property == ThemeVariant.ActualThemeVariantProperty)
+            || change.Property == GuideStrokeProperty || change.Property == LineThicknessProperty)
             _penCache.Invalidate();
         if (change.Property == SourceProperty)
         {

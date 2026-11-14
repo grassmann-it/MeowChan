@@ -1,4 +1,7 @@
+using System.Reflection;
 using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
 using Avalonia.Styling;
@@ -8,6 +11,7 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan.DesktopTests;
 
 /// <summary>Exercises the exact pen lookup used by Render, without a renderer, bitmap or window.</summary>
+[Collection("Theme logo")]
 public sealed class IoGraphPenCacheTests
 {
     private static IoGraph Graph() => new()
@@ -153,12 +157,13 @@ public sealed class IoGraphPenCacheTests
     }
 
     [Fact]
-    public void ThemeChangesRebuildEvenIfTheBrushReferencesStayTheSame()
+    public void ThemeChangesRebuildEvenIfTheBrushReferencesStayTheSame() => OnOwnedDispatcher(() =>
     {
         IoGraph graph = Graph();
-        graph.SetValue(ThemeVariant.ActualThemeVariantProperty, ThemeVariant.Light);
+        ThemeVariantScope scope = new() { RequestedThemeVariant = ThemeVariant.Light, Child = graph };
+        Assert.Equal(ThemeVariant.Light, graph.ActualThemeVariant);
         var light = graph.RenderPens;
-        graph.SetValue(ThemeVariant.ActualThemeVariantProperty, ThemeVariant.Dark);
+        scope.RequestedThemeVariant = ThemeVariant.Dark;
         Assert.Equal(ThemeVariant.Dark, graph.ActualThemeVariant);
         var dark = graph.RenderPens;
         AssertRebuilt(light, dark);
@@ -168,6 +173,24 @@ public sealed class IoGraphPenCacheTests
         var newColour = graph.RenderPens;
         AssertRebuilt(dark, newColour);
         Assert.Same(Brushes.Green, newColour.Primary.Brush);
+        scope.RequestedThemeVariant = ThemeVariant.Light;
+        Assert.Equal(ThemeVariant.Light, graph.ActualThemeVariant);
+        AssertRebuilt(newColour, graph.RenderPens);
+    });
+
+    // The same nonparallel, windowless dispatcher seam used by ThemeLogoTests.
+    private static void OnOwnedDispatcher(Action test)
+    {
+        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Avalonia primary dispatcher slot is missing.");
+        object? previous = primary.GetValue(null);
+        Dispatcher owner = Dispatcher.CurrentDispatcher;
+        try
+        {
+            primary.SetValue(null, owner);
+            owner.Invoke(test, DispatcherPriority.Send);
+        }
+        finally { primary.SetValue(null, previous); }
     }
 
     [Fact]
