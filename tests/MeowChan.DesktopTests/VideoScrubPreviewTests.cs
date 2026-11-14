@@ -168,6 +168,183 @@ public sealed class VideoScrubPreviewTests
     }
 
     [Fact]
+    public async Task CacheReadBeforeDecodeDoesNotConsumeTheNativeDecodeDeadline()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        TaskCompletionSource readStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int reads = 0;
+        Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>> read = async (_, token) =>
+        {
+            if (Interlocked.Increment(ref reads) == 2)
+            {
+                readStarted.TrySetResult();
+                await releaseRead.Task.WaitAsync(token);
+            }
+            return null;
+        };
+        VideoScrubPreviewOptions options = new(16, TimeSpan.FromMilliseconds(100));
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, readOverride: read)
+            .OpenSession(manifest, asset)!;
+
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(3, Duration, CancellationToken.None);
+        await readStarted.Task.WaitAsync(Patience);
+        releaseRead.TrySetResult();
+        CancellationToken decodeToken = await decoder.DecodeToken.Task.WaitAsync(Patience);
+        Assert.False(decodeToken.IsCancellationRequested);
+        decoder.Hold!.TrySetResult();
+
+        Assert.NotNull(await request.WaitAsync(Patience));
+        Assert.Equal(2, reads);
+    }
+
+    [Fact]
+    public async Task AStoreThatOutlastsTheNativeDeadlineStillCommitsACompletedDecode()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        TaskCompletionSource storeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        VideoScrubPreviewOptions options = new(16, TimeSpan.FromMilliseconds(50));
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = async (_, _, _) =>
+        {
+            storeStarted.TrySetResult();
+            // This is the one deliberately bounded timeout fixture. The store crosses the native deadline,
+            // but receives the unbounded work token and therefore remains optional.
+            await Task.Delay(options.DecodeTimeout + options.DecodeTimeout);
+        };
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, storeOverride: store)
+            .OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(8, Duration, CancellationToken.None);
+        await storeStarted.Task.WaitAsync(Patience);
+
+        VideoScrubFrame frame = Assert.IsType<VideoScrubFrame>(await request.WaitAsync(Patience));
+        Assert.Equal(8, frame.Slot);
+        Assert.False(session.IsUnavailable);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CacheReadIoErrorsAreOptionalMisses(bool unauthorized)
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        Exception failure = unauthorized ? new UnauthorizedAccessException("synthetic cache read refusal") : new IOException("synthetic cache read failure");
+        Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>> read = (_, _) => Task.FromException<byte[]?>(failure);
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, readOverride: read).OpenSession(manifest, asset)!;
+
+        VideoScrubFrame frame = Assert.IsType<VideoScrubFrame>(await session.GetSlotAsync(2, Duration, CancellationToken.None));
+        Assert.Equal(2, frame.Slot);
+        Assert.False(session.IsUnavailable);
+        Assert.Same(frame.Png, (await session.GetSlotAsync(2, Duration, CancellationToken.None))!.Png);
+        Assert.Single(decoder.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CacheWriteIoErrorsAreOptionalAndDoNotLoseTheDecodedFrame(bool unauthorized)
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        Exception failure = unauthorized ? new UnauthorizedAccessException("synthetic cache write refusal") : new IOException("synthetic cache write failure");
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = (_, _, _) => Task.FromException(failure);
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, storeOverride: store).OpenSession(manifest, asset)!;
+
+        VideoScrubFrame frame = Assert.IsType<VideoScrubFrame>(await session.GetSlotAsync(2, Duration, CancellationToken.None));
+        Assert.Equal(2, frame.Slot);
+        Assert.False(session.IsUnavailable);
+        Assert.Same(frame.Png, (await session.GetSlotAsync(2, Duration, CancellationToken.None))!.Png);
+        Assert.Single(decoder.Calls);
+    }
+
+    [Fact]
+    public async Task SessionCancellationDuringOptionalStorePublishesNoFrame()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        TaskCompletionSource storeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource storeCanceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseStore = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = async (_, _, token) =>
+        {
+            storeStarted.TrySetResult();
+            using CancellationTokenRegistration registration = token.Register(storeCanceled.TrySetResult);
+            await releaseStore.Task;
+        };
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder, storeOverride: store);
+        VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(2, Duration, CancellationToken.None);
+        await storeStarted.Task.WaitAsync(Patience);
+
+        Task disposing = session.DisposeAsync().AsTask();
+        await storeCanceled.Task.WaitAsync(Patience);
+        releaseStore.TrySetResult();
+        await disposing.WaitAsync(Patience);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => request.WaitAsync(Patience));
+        Assert.False(session.TryGetReady(0.1, out _));
+        Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 2))));
+    }
+
+    [Fact]
+    public async Task OriginalChangeDuringAnOptionalStoreRemainsFailClosed()
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        FakeDecoder decoder = new();
+        TaskCompletionSource storeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseStore = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = async (_, _, _) =>
+        {
+            storeStarted.TrySetResult();
+            await releaseStore.Task;
+        };
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder, storeOverride: store);
+        await using VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(6, Duration, CancellationToken.None);
+        await storeStarted.Task.WaitAsync(Patience);
+        await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
+        releaseStore.TrySetResult();
+
+        Assert.Null(await request.WaitAsync(Patience));
+        Assert.True(session.IsUnavailable);
+        Assert.False(session.TryGetReady(0.3, out _));
+        Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 6))));
+    }
+
+    [Fact]
+    public async Task OriginalChangeAfterAnOptionalCacheFailureRemainsFailClosed()
+    {
+        using TempDirectory temp = new();
+        byte[] original = { 1, 2, 3, 4 };
+        var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", original);
+        FakeDecoder decoder = new()
+        {
+            Hold = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            ReleaseBeforeHold = true
+        };
+        Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>> read = (_, _) =>
+            Task.FromException<byte[]?>(new IOException("synthetic cache read failure"));
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, readOverride: read).OpenSession(manifest, asset)!;
+        Task<VideoScrubFrame?> request = session.GetSlotAsync(6, Duration, CancellationToken.None);
+        await decoder.Started.Task.WaitAsync(Patience);
+        await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
+        decoder.Hold!.TrySetResult();
+
+        Assert.Null(await request.WaitAsync(Patience));
+        Assert.True(session.IsUnavailable);
+        Assert.False(session.TryGetReady(0.3, out _));
+        Assert.False(File.Exists(cache.PathOf(VideoScrubFrameKey.For(asset, 6))));
+    }
+
+    [Fact]
     public async Task ConcurrentRequestsForOneSlotShareOneDecode()
     {
         using TempDirectory temp = new();
@@ -535,8 +712,11 @@ public sealed class VideoScrubPreviewTests
         }
     }
 
-    private static VideoScrubPreviewCache Cache(string root, FakeDecoder decoder, SemaphoreSlim? gate = null, VideoScrubPreviewOptions? options = null) =>
-        new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? new SemaphoreSlim(1, 1));
+    private static VideoScrubPreviewCache Cache(string root, FakeDecoder decoder, SemaphoreSlim? gate = null, VideoScrubPreviewOptions? options = null,
+        Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? readOverride = null,
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null) =>
+        new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? new SemaphoreSlim(1, 1),
+            readOverride, storeOverride);
 
     private static int WidthOf(int slot) => 100 + slot;
 
@@ -545,6 +725,8 @@ public sealed class VideoScrubPreviewTests
         private int _open;
         internal ConcurrentQueue<(TimeSpan Start, int Width, int Height)> Calls { get; } = new();
         internal TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource<CancellationToken> DecodeToken { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource DecodeTokenCanceled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal TaskCompletionSource? Hold { get; init; }
         internal bool IgnoreCancellation { get; init; }
         internal TaskCompletionSource? CleanupStarted { get; init; }
@@ -563,6 +745,8 @@ public sealed class VideoScrubPreviewTests
                 {
                     Calls.Enqueue((start, maximumWidth, maximumHeight));
                     Started.TrySetResult();
+                    DecodeToken.TrySetResult(token);
+                    using CancellationTokenRegistration canceled = token.Register(() => DecodeTokenCanceled.TrySetResult());
                     Assert.True(verifiedVideo.CanRead);
                     if (Hold != null)
                     {

@@ -38,17 +38,24 @@ internal sealed class VideoScrubPreviewCache
 {
     private const string TemporaryPrefix = ".poster-scrub-"; // matches VideoPosterCache.Trim's stale ".poster-*.tmp" sweep
     private readonly object _storeLock = new();
+    private readonly Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? _readOverride;
+    private readonly Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? _storeOverride;
     private VideoScrubPreviewOptions _options;
 
     /// <param name="decodeGate">Serializes native decode sessions; null shares <see cref="VideoPosterCache.NativeDecodeGate"/> with posters.</param>
+    /// <param name="readOverride">Internal deterministic test seam; production callers leave cache reads on the file system.</param>
+    /// <param name="storeOverride">Internal deterministic test seam; production callers leave cache writes on the file system.</param>
     internal VideoScrubPreviewCache(string directory, VideoScrubPreviewOptions options, IVideoScrubFrameDecoder? decoder = null,
-        SemaphoreSlim? decodeGate = null)
+        SemaphoreSlim? decodeGate = null, Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? readOverride = null,
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         Directory = Path.GetFullPath(directory);
         _options = options ?? throw new ArgumentNullException(nameof(options));
         Decoder = decoder ?? NativeVideoScrubFrameDecoder.Instance;
         DecodeGate = decodeGate ?? VideoPosterCache.NativeDecodeGate;
+        _readOverride = readOverride;
+        _storeOverride = storeOverride;
     }
 
     internal string Directory { get; }
@@ -81,6 +88,8 @@ internal sealed class VideoScrubPreviewCache
         string path = PathOf(key);
         try
         {
+            if (_readOverride is { } readOverride)
+                return await readOverride(key, token).ConfigureAwait(false);
             FileInfo file = new(path);
             if (!file.Exists) return null;
             if ((file.Attributes & FileAttributes.ReparsePoint) == 0 && file.Length is > 0 and <= VideoScrubPreviewOptions.MaximumThumbnailBytes)
@@ -93,12 +102,19 @@ internal sealed class VideoScrubPreviewCache
         }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>Evicts the oldest thumbnails until <paramref name="png"/> fits the budget, then publishes it atomically.</summary>
     internal async Task StoreAsync(VideoScrubFrameKey key, byte[] png, CancellationToken token)
     {
         if (!Valid(png)) throw new InvalidDataException("The scrub thumbnail exceeds its safe limits.");
+        if (_storeOverride is { } storeOverride)
+        {
+            await storeOverride(key, png, token).ConfigureAwait(false);
+            return;
+        }
         System.IO.Directory.CreateDirectory(Directory);
         string temporary = Path.Combine(Directory, TemporaryPrefix + Guid.NewGuid().ToString("N") + ".tmp");
         try

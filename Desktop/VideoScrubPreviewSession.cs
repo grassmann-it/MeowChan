@@ -22,7 +22,7 @@ internal sealed record VideoScrubFrame(int Slot, double Fraction, byte[] Png);
 /// began is dropped, so quick hovering only decodes where the pointer rests (latest wins); a decode that already began
 /// finishes and fills the cache.</item>
 /// <item>Before a stored thumbnail is used the original is opened verified (hashed once, then file identity); a decoded one
-/// is published and stored only if the original still verifies after the decode. An original that is missing or changed makes
+/// is published and stored only if the original still verifies after the decode and optional cache store. An original that is missing or changed makes
 /// the whole session unavailable, for good: at that cut every held thumbnail is dropped, both <see cref="TryGetReady"/> and
 /// <see cref="GetSlotAsync"/> return nothing from then on, and loads still in flight neither publish nor store. A slot whose
 /// decode failed or timed out stays empty for this session. Cancellation never records a failure.</item>
@@ -112,8 +112,8 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         {
             byte[]? png = await work.Task.WaitAsync(token).ConfigureAwait(false);
             if (png == null) return null;
-            // Published before the cut, but the original was lost since: nothing is handed out after it.
-            lock (_lock) if (_unavailable) return null;
+            // Published before the cut, but the original was lost or the session was canceled since: nothing is handed out after it.
+            lock (_lock) if (_unavailable || _disposing) return null;
             return new VideoScrubFrame(slot, VideoScrubSlots.Fraction(slot), png);
         }
         finally { Leave(work); }
@@ -152,7 +152,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
         VideoScrubPreviewOptions options = _cache.Options;
         SemaphoreSlim gate = _cache.DecodeGate;
         long request = PerformanceDiagnostics.NextId();
-        bool gateHeld = false, opening = false, abandoned = false;
+        bool gateHeld = false, opening = false, abandoned = false, nativeTimedOut = false;
         Task<byte[]>? decoding = null;
         PerformanceDiagnostics.Record("gallery.scrub", "accepted", request, asset: Asset.AssetId, value: work.Slot);
         try
@@ -168,7 +168,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             if (png != null)
             {
                 PerformanceDiagnostics.Record("gallery.scrub", "verified-hit", request, asset: Asset.AssetId, value: work.Slot);
-                return Publish(work, png);
+                return Publish(work, png, token);
             }
             using (PerformanceDiagnostics.Measure("gallery.scrub.queue-wait", request, asset: Asset.AssetId))
                 await gate.WaitAsync(token).ConfigureAwait(false);
@@ -181,25 +181,29 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                 if (_unavailable) return null; // lost while this queued: no native decode for a lost original
                 work.Started = true;
             }
-            using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
-            bounded.CancelAfter(options.DecodeTimeout);
+            // Cache reads and original verification are optional-work only. Their latency must not consume the native
+            // decoder's deadline, and the work token remains the cancellation boundary for both.
             // Another session for the same bytes may have stored it while this one queued.
-            png = await _cache.ReadAsync(key, bounded.Token).ConfigureAwait(false);
+            png = await _cache.ReadAsync(key, token).ConfigureAwait(false);
             if (png != null)
             {
                 // The first verified handle was closed before waiting for the native gate. The original may
                 // have changed while queued, even if another session has since populated this cache entry.
                 opening = true;
-                await (await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+                await (await OpenVerifiedAsync(token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
                 opening = false;
-                return Publish(work, png);
+                return Publish(work, png, token);
             }
             opening = true;
-            video = await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false);
+            video = await OpenVerifiedAsync(token).ConfigureAwait(false);
             opening = false;
             Interlocked.Increment(ref _decodes);
             using (PerformanceDiagnostics.Measure("gallery.scrub.decode", request, asset: Asset.AssetId))
             {
+                // Start the bounded token immediately before native decode. It must not include cache I/O, either
+                // before or after the decoder, and the unbounded work token remains the lifetime boundary.
+                using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
+                bounded.CancelAfter(options.DecodeTimeout);
                 // The decoder owns the verified handle from here on, including failures. One that throws before returning a
                 // task may not have taken it: release it here (a second dispose of the handle is harmless).
                 try
@@ -212,22 +216,27 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                     await video.DisposeAsync().ConfigureAwait(false);
                     throw;
                 }
-                try { png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false); }
+                try
+                {
+                    png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false);
+                    nativeTimedOut = bounded.IsCancellationRequested && !token.IsCancellationRequested;
+                }
                 finally
                 {
                     // WaitAsync's cancellation callback can run before the linked source's callback. Disposing
                     // bounded while unwinding that wait would then unregister the link without ever canceling
                     // the decoder. Signal it explicitly before the using scope disposes the link.
-                    if (token.IsCancellationRequested) bounded.Cancel();
+                    if (decoding is not { IsCompleted: true } || token.IsCancellationRequested) bounded.Cancel();
                 }
             }
+            if (nativeTimedOut) throw new TimeoutException("The native scrub decode exceeded its deadline.");
             if (!VideoScrubPreviewCache.Valid(png)) throw new InvalidDataException("The scrub thumbnail exceeds its safe limits.");
             // The cut after the decode: the original must still verify (file identity, else a full hash), so a file changed while it
             // was decoded never yields a frame stored under the recorded revision; a session lost meanwhile publishes nothing.
             opening = true;
-            await (await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
+            await (await OpenVerifiedAsync(token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
             opening = false;
-            return await CommitAsync(work, key, png, bounded.Token).ConfigureAwait(false);
+            return await CommitAsync(work, key, png, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested || abandoned)
         {
@@ -286,7 +295,8 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
     /// </summary>
     private async Task<byte[]?> CommitAsync(Work work, VideoScrubFrameKey key, byte[] png, CancellationToken token)
     {
-        await _commitGate.WaitAsync().ConfigureAwait(false);
+        // A real work/session cancellation must win over an optional, possibly slow cache store.
+        await _commitGate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             lock (_lock)
@@ -295,9 +305,33 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
                 // The thumbnail is still shown for this session; only its persistence failed.
+                // Do not turn a simultaneous real cancellation into a successful cache miss.
+                token.ThrowIfCancellationRequested();
                 Log.Warning(exception, "Could not store a video scrub preview; it stays available while the video is shown.");
             }
-            return Publish(work, png);
+            token.ThrowIfCancellationRequested();
+            // A cache write is optional and may be slow. Re-check the original after it as well, so a
+            // replacement/removal that happens during that optional phase cannot publish the decoded bytes.
+            try
+            {
+                await using Stream verified = await OpenVerifiedAsync(token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                Log.Warning(exception, "The recorded video changed while a scrub preview was being committed; it remains unavailable while it is shown.");
+                lock (_lock)
+                {
+                    _unavailable = true;
+                    Array.Clear(_frames);
+                }
+                return null;
+            }
+            token.ThrowIfCancellationRequested();
+            return Publish(work, png, token);
         }
         finally { _commitGate.Release(); }
     }
@@ -318,11 +352,11 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
     }
 
     /// <summary>Holds and returns <paramref name="png"/>, or null once the session lost its original or is being disposed.</summary>
-    private byte[]? Publish(Work work, byte[] png)
+    private byte[]? Publish(Work work, byte[] png, CancellationToken token = default)
     {
         lock (_lock)
         {
-            if (_unavailable || _disposing) return null;
+            if (_unavailable || _disposing || token.IsCancellationRequested) return null;
             _frames[work.Slot] = png;
             return png;
         }
