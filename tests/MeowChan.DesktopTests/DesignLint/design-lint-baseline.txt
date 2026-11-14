@@ -35,7 +35,6 @@ spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	Padding=new Thickness(8, 6)
 spacing-off-grid	Desktop/Controls/SearchCarryOffer.cs	1	Spacing=6
 spacing-off-grid	Desktop/Controls/SearchScopeChip.cs	1	Padding=new Thickness(2, 0, 6, 0)
-spacing-off-grid	Desktop/Controls/TagFilterPicker.cs	2	Spacing=6
 spacing-off-grid	Desktop/Controls/TagToggleListBox.cs	1	Margin=new Thickness(0, 0, 6, 0)
 spacing-off-grid	Desktop/Controls/TagToggleListBox.cs	1	new Thickness(0, 6, 0, 0)
 spacing-off-grid	Desktop/Controls/WorkspaceChips.cs	1	Spacing=6
@@ -47,7 +46,6 @@ spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	ColumnSpacing=10
 spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	2	Margin=new Thickness(10, 6, 10, 0)
 spacing-off-grid	Desktop/GalleryViewer.Overflow.cs	1	Margin=new Thickness(6, 4)
 spacing-off-grid	Desktop/GalleryViewer.Playback.cs	1	Margin=new Thickness(6, 0)
-spacing-off-grid	Desktop/GalleryViewer.cs	1	Spacing=6
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	ItemSpacing=6
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	Margin=new Thickness(6, 6, 6, 4)
 spacing-off-grid	Desktop/MediaLibraryTileView.cs	1	RowSpacing=3

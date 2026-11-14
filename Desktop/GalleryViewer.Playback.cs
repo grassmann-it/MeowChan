@@ -48,10 +48,10 @@ internal sealed partial class GalleryViewer
         Config.GallerySlideshowVideoSecondsMinimum, Config.GallerySlideshowVideoSecondsMaximum);
     private readonly AccessibleNumberInput _videoRepeats = SlideshowNumber("GallerySlideshowVideoRepeatsInput",
         Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
-    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(10, 6, 10, 0), IsVisible = false };
-    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(10, 2, 10, 0), IsVisible = false };
+    private readonly TextBlock _videoRuleCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0), IsVisible = false };
+    private readonly TextBlock _videoValueCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 2, 12, 0), IsVisible = false };
     private readonly TextBlock _reducedMotionNote = new() { Name = "GallerySlideshowReducedMotionNote", Classes = { "workspace-help" },
-        Margin = new Thickness(10, 2, 10, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
+        Margin = new Thickness(12, 2, 12, 2), TextWrapping = TextWrapping.Wrap, MaxWidth = 300, IsVisible = false };
     private readonly ToggleButton _slideshowToggle = new() { Name = "GallerySlideshowToggle" };
     private readonly ToggleButton _overlayToggle = new() { Name = "GalleryOverlayToggle" };
     private readonly ToggleButton _autoHideToggle = new() { Name = "GalleryAutoHideToggle" };

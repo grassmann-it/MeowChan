@@ -90,7 +90,7 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly ToggleButton _contextToggle;
     private readonly Button _helpButton;
     private readonly Border _helpPanel = new() { Name = "GalleryShortcutHelp", Classes = { "workspace-section" }, IsVisible = false };
-    private readonly StackPanel _helpContent = new() { Spacing = 6 };
+    private readonly StackPanel _helpContent = new() { Spacing = 8 };
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
@@ -384,7 +384,7 @@ internal sealed partial class GalleryViewer : UserControl
         _helpTitle.Classes.Add("section-title");
         _helpTitle.VerticalAlignment = VerticalAlignment.Center;
         _helpTitle.TextWrapping = TextWrapping.Wrap;
-        Grid helpHeader = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 0, 0, 6) };
+        Grid helpHeader = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 0, 0, 8) };
         helpHeader.Children.Add(_helpTitle);
         _helpClose = CloseLayerButton("GalleryHelpClose", () => SetHelp(false));
         helpHeader.Children.Add(_helpClose); Grid.SetColumn(_helpClose, 1);
@@ -614,7 +614,7 @@ internal sealed partial class GalleryViewer : UserControl
         CommandBindings.Apply(_close, "gallery.close");
         string label = CloseLabel;
         string tip = CommandBindings.Tooltip("gallery.close", visibleLabel: label);
-        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
         Border icon = (Border)CommandBindings.Icon("archive.back-to-list", 16); // the arrow-left of every "back"
         icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
         content.Children.Add(icon);

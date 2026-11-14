@@ -362,7 +362,7 @@ public sealed class ViewerQuickWinsTests : IDisposable
 
     [Theory]
     [InlineData(0, "Close gallery")]
-    [InlineData(1, "To media")]
+    [InlineData(1, "Back to media")]
     [InlineData(2, "Back to thread")]
     [InlineData(3, "Back to Archive")]
     [InlineData(4, "Back to Downloads")]

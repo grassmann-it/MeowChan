@@ -42,7 +42,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
     // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×. Every medium starts at 1×.
     private readonly Button _speed = new() { Name = "GalleryVideoSpeed", Classes = { "media-control" }, MinWidth = 44, Height = 32,
-        Padding = new Thickness(6, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
+        Padding = new Thickness(8, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly GalleryTransportSlider _seek = new() { Name = "GalleryVideoSeek", Classes = { "media-slider" }, Minimum = 0, Maximum = 1000, MinWidth = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly GalleryVolumeSlider _volume = new() { Name = "GalleryVideoVolume", Classes = { "media-slider" }, Minimum = 0, Maximum = 100, Value = 70, Width = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _root = new() { RowDefinitions = new RowDefinitions("*,Auto") };
@@ -342,7 +342,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _ = CommandAsync(playback => playback.Player.SetRate(rate));
     }
 
-    internal static string RateLabel(float rate) => rate.ToString("0.#", Texts.Culture) + "×";
+    internal static string RateLabel(float rate) => rate.ToString("0.#", Texts.Culture) + MultiplicationSign;
+
+    // The times sign of a rate label ("1.5×") is text next to a number, not an icon, so it is not a drawn catalog icon (P6).
+    private const char MultiplicationSign = '\u00D7';
 
     /// <summary>
     /// Saves the frame shown now as a PNG at <paramref name="path"/> (the native snapshot of the player; on the software
