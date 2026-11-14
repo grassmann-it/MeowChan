@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -137,6 +138,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private bool _applying;
     private bool _renderQueued;
     private bool _closed;
+    private long _linkActionRevision;
 
     private bool _attached;
     private bool _activated;
@@ -228,7 +230,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal Func<string, Task<bool>>? ShowInMedia
     {
         get => _showInMedia;
-        set { _showInMedia = value; Render(force: true); }
+        set
+        {
+            _showInMedia = value;
+            // Replacing the host callback retires a pending navigation even when the host has not
+            // disposed the view yet (for example during a profile/service handover).
+            Interlocked.Increment(ref _linkActionRevision);
+            Render(force: true);
+        }
     }
 
     /// <summary>Passive local predicate used for watcher cards; it must require the exact Danbooru post identity.</summary>
@@ -798,9 +807,19 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ToolTip.SetTip(show, accessibleName);
         show.Click += async (_, _) =>
         {
-            if (_showInMedia is not { } navigate) return;
-            bool shown = await navigate(postId);
-            if (!shown) SetLinkNote(("booru.crossLinks.missingLocal", postId, true));
+            if (_showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
+            try
+            {
+                bool shown = await navigate(postId);
+                if (shown || !IsCurrentLinkAction(revision)) return;
+                SetLinkNote(("booru.crossLinks.missingLocal", postId, true), revision);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // A host/profile transition may retire the navigation callback while it is awaited.
+                // This is an action failure, not evidence that the local original is missing.
+                Log.Warning(exception, "Could not show a Danbooru post in local media");
+            }
         };
         return show;
     }
@@ -830,37 +849,59 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private async Task OpenLinkAsync(string url)
     {
         // Only canonical post pages reach this method (built by BooruPostLinks); a launcher failure is shown, never retried.
+        if (!TryBeginLinkAction(out long revision)) return;
         try
         {
             await _model.Services.Links.Open(url);
-            SetLinkNote(null);
+            SetLinkNote(null, revision);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not open a Danbooru post in the browser");
-            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true));
+            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true), revision);
         }
     }
 
     private async Task CopyLinkAsync(string url)
     {
+        if (!TryBeginLinkAction(out long revision)) return;
         try
         {
             if (_model.Services.Links.Copy is { } copy) await copy(url);
             else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(url);
             else throw new InvalidOperationException("The clipboard is unavailable.");
-            SetLinkNote(("booru.ui.link.copied", url, false));
+            SetLinkNote(("booru.ui.link.copied", url, false), revision);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not copy a Danbooru post link");
-            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true));
+            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision);
         }
     }
 
+    private bool TryBeginLinkAction(out long revision)
+    {
+        if (_closed)
+        {
+            revision = 0;
+            return false;
+        }
+        revision = Interlocked.Increment(ref _linkActionRevision);
+        return true;
+    }
+
+    private bool IsCurrentLinkAction(long revision) =>
+        !_closed && Volatile.Read(ref _linkActionRevision) == revision;
+
     private void SetLinkNote((string Key, string Argument, bool Problem)? state)
     {
-        if (_closed) return;
+        if (!TryBeginLinkAction(out long revision)) return;
+        SetLinkNote(state, revision);
+    }
+
+    private void SetLinkNote((string Key, string Argument, bool Problem)? state, long revision)
+    {
+        if (!IsCurrentLinkAction(revision)) return;
         _linkNoteState = state;
         _applying = true;
         try { RenderChrome(_model.Watchers.View); }
@@ -1241,6 +1282,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
+        Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
         ChromeChanged = null;
