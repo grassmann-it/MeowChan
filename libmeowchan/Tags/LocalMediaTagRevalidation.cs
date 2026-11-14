@@ -52,8 +52,14 @@ internal static class LocalMediaTagRevalidation
             .Where(index => ManualImportIdentity.IsImportThread(observations[index].Locator.Thread)).ToArray();
         if (imported.Length > 0 && readImports != null)
             await CheckImportsAsync(observations, imported, readImports, openManifest, verifyBytes, results, token).ConfigureAwait(false);
-        if (imported.Length == observations.Count) return results;
-        HashSet<int> handled = imported.ToHashSet();
+        // Folder source files are loose files of a read-only folder: their virtual manifest (answered by the shadow catalog)
+        // says whether the item still exists with these bytes.
+        int[] folders = Enumerable.Range(0, observations.Count)
+            .Where(index => FolderSources.FolderSourceIdentity.IsFolderThread(observations[index].Locator.Thread)).ToArray();
+        if (folders.Length > 0)
+            await CheckFoldersAsync(observations, folders, openManifest, verifyBytes, results, token).ConfigureAwait(false);
+        if (imported.Length + folders.Length == observations.Count) return results;
+        HashSet<int> handled = imported.Concat(folders).ToHashSet();
         try
         {
             await using ArchiveReader reader = await openReader(token).ConfigureAwait(false);
@@ -105,6 +111,26 @@ internal static class LocalMediaTagRevalidation
             { results[index] = LocalMediaCheck.NotLoose; continue; }
             if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase)
                 || asset.Length != item.Length || !string.Equals(asset.Sha256, item.Sha256, StringComparison.OrdinalIgnoreCase))
+            { results[index] = LocalMediaCheck.Changed; continue; }
+            results[index] = await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task CheckFoldersAsync(IReadOnlyList<LocalMediaObservation> observations, IReadOnlyList<int> indexes,
+        Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest, bool verifyBytes, LocalMediaCheck[] results, CancellationToken token)
+    {
+        foreach (int index in indexes)
+        {
+            token.ThrowIfCancellationRequested();
+            LocalMediaObservation observation = observations[index];
+            MediaAssetSnapshot manifest;
+            try { manifest = await openManifest(observation.Locator.Directory, token).ConfigureAwait(false); }
+            catch (Exception error) when (Evidence(error)) { continue; } // Unreadable: nothing is concluded.
+            if (manifest.Status == MediaManifestStatus.Corrupt) continue;
+            if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(observation.AssetId) is not { } asset)
+            { results[index] = LocalMediaCheck.Missing; continue; }
+            if (asset.RequestedFileName != observation.Locator.RequestedFileName) { results[index] = LocalMediaCheck.NotLoose; continue; }
+            if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase))
             { results[index] = LocalMediaCheck.Changed; continue; }
             results[index] = await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
         }

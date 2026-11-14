@@ -42,8 +42,16 @@ internal sealed record MediaLibraryEntry(
     /// </summary>
     internal string? ImportItemId { get; init; }
 
-    /// <summary>True for an entry that comes from a local catalog (Danbooru or manual import) instead of an archived thread.</summary>
-    internal bool IsCatalogMedium => BooruPostId != null || ImportItemId != null;
+    /// <summary>
+    /// The item id (32 hex digits) when this is a file of a read-only folder source (see <see cref="FolderSources.FolderSourceIdentity"/>),
+    /// else null. Additive projection field: such an entry is a loose file in its virtual media folder; until its bytes are hashed
+    /// it is present without <see cref="Sha256"/> (shown, never written to). Never saved in the index cache: the shadow catalog
+    /// is cheap to project again.
+    /// </summary>
+    internal string? FolderItemId { get; init; }
+
+    /// <summary>True for an entry that comes from a local catalog (Danbooru, manual import, folder source) instead of an archived thread.</summary>
+    internal bool IsCatalogMedium => BooruPostId != null || ImportItemId != null || FolderItemId != null;
 }
 
 /// <summary>What one thread's entries were derived from; equal state means the entries can be reused.</summary>
@@ -140,11 +148,11 @@ internal static class MediaLibraryIndexBuilder
         Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
         CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
-        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, Func<FolderSources.FolderSourceCatalogSnapshot?>? readFolderSources = null)
     {
         ArgumentNullException.ThrowIfNull(openManifest);
         return BuildAsync(openReader, new MediaManifestCache(openManifest, identity: false), previous, progress, cancellationToken, readBooruCatalog,
-            readImportCatalog);
+            readImportCatalog, readFolderSources);
     }
 
     /// <summary>
@@ -157,7 +165,7 @@ internal static class MediaLibraryIndexBuilder
         MediaManifestCache manifests,
         MediaLibrarySnapshot? previous = null, IProgress<MediaLibraryProgress>? progress = null,
         CancellationToken cancellationToken = default, Func<BooruCatalogSnapshot?>? readBooruCatalog = null,
-        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null)
+        Func<Import.ManualImportCatalogSnapshot?>? readImportCatalog = null, Func<FolderSources.FolderSourceCatalogSnapshot?>? readFolderSources = null)
     {
         ArgumentNullException.ThrowIfNull(openReader);
         ArgumentNullException.ThrowIfNull(manifests);
@@ -175,7 +183,7 @@ internal static class MediaLibraryIndexBuilder
         ArchiveReader? reader = null;
         FileNotFoundException? noArchive = null;
         try { reader = await openReader(cancellationToken).ConfigureAwait(false); }
-        catch (FileNotFoundException error) when (readBooruCatalog != null || readImportCatalog != null) { noArchive = error; }
+        catch (FileNotFoundException error) when (readBooruCatalog != null || readImportCatalog != null || readFolderSources != null) { noArchive = error; }
         await using ArchiveReader? readerGuard = reader;
         List<ArchiveThreadSummary> threads = new();
         for (int offset = 0; reader != null; offset += ThreadPageSize)
@@ -302,6 +310,22 @@ internal static class MediaLibraryIndexBuilder
                 providerManifests = providerManifests.Where(state => !importFolders.Contains(state.Directory)).Concat(imported.Manifests).ToArray();
                 if (imported.Unreadable > 0) { complete = false; warnings.Add("Imports: " + imported.Unreadable + " media folder(s) could not be read."); }
             }
+        }
+        // Folder source files are projected again from the shadow catalog each time (no file is opened); an unreadable catalog
+        // keeps the folder files the previous index showed (the index is then incomplete).
+        if (readFolderSources != null)
+        {
+            FolderSources.FolderSourceCatalogSnapshot? folders = null;
+            try { folders = readFolderSources(); }
+            catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
+                or Microsoft.Data.Sqlite.SqliteException) { }
+            if (folders == null)
+            {
+                entries.AddRange((previous?.Entries ?? Array.Empty<MediaLibraryEntry>()).Where(entry => entry.FolderItemId != null));
+                complete = false;
+                warnings.Add("Folders: the folder source catalog could not be read.");
+            }
+            else entries.AddRange(FolderSourceProjection.EntriesOf(folders, cancellationToken));
         }
         if (noArchive != null && entries.Count == 0) throw noArchive;
         return new MediaLibrarySnapshot(entries, states, warnings, complete, providerManifests);

@@ -151,6 +151,7 @@ internal static class MediaLibraryIndexCache
         int entryLimit, int threadLimit, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot = WithoutFolderItems(snapshot);
         long limit = Math.Clamp(limitBytes, 1, MaximumBytes);
         if (ExceedsCountLimits(snapshot, entryLimit, threadLimit))
             return new(MediaLibraryIndexCacheWriteStatus.TooManyEntries, 0, limit, null);
@@ -186,6 +187,20 @@ internal static class MediaLibraryIndexCache
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    /// <summary>
+    /// The index without the files of folder sources: they are never saved (an unhashed one has no digest, and the shadow
+    /// catalog projects them again in one query). The same snapshot when it has none, so an unchanged index still compares equal.
+    /// </summary>
+    internal static MediaLibrarySnapshot WithoutFolderItems(MediaLibrarySnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        bool any = false;
+        foreach (MediaLibraryEntry entry in snapshot.Entries) if (entry.FolderItemId != null) { any = true; break; }
+        if (!any) return snapshot;
+        return new MediaLibrarySnapshot(snapshot.Entries.Where(entry => entry.FolderItemId == null), snapshot.Threads, snapshot.Warnings,
+            snapshot.Complete, snapshot.ProviderManifests);
     }
 
     /// <summary>True when the index has more entries or threads than the configured limits allow a cache file to hold.</summary>
@@ -642,6 +657,7 @@ internal sealed class MediaLibraryIndexCacheFile(string path)
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        snapshot = MediaLibraryIndexCache.WithoutFolderItems(snapshot);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
