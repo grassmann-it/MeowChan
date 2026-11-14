@@ -253,7 +253,7 @@ internal sealed class MediaHashSearchDialog : Window
     private readonly TextBlock _generation = Label("MediaHashSearchGeneration");
     private readonly TextBlock _status = Label("MediaHashSearchStatus");
     private readonly TextBlock _page = Label("MediaHashSearchPage");
-    private readonly StackPanel _rows = new() { Name = "MediaHashSearchResults", Spacing = 6 };
+    private readonly StackPanel _rows = new() { Name = "MediaHashSearchResults", Spacing = 8 };
     private readonly Button _search = new() { Name = "MediaHashSearchStart" };
     private readonly Button _previous = new() { Name = "MediaHashSearchPrevious" };
     private readonly Button _next = new() { Name = "MediaHashSearchNext" };

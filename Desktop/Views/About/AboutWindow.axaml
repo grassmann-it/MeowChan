@@ -18,16 +18,16 @@
              the window cycle keeps the caption buttons reachable. -->
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*">
         <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
-        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.16}">
             <!-- Orange and grey cat together, in either theme; one accessible name for the pair. -->
-            <StackPanel x:Name="CatLogoPair" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+            <StackPanel x:Name="CatLogoPair" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center"
                         AutomationProperties.AccessibilityView="Content">
                 <Image x:Name="CatLogo" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
                 <Image x:Name="CatLogoDark" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
             </StackPanel>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
                 <TextBlock FontSize="{StaticResource Workspace.Text.Title}" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
-                <WrapPanel ItemSpacing="12" LineSpacing="4">
+                <WrapPanel ItemSpacing="{StaticResource Workspace.Space.12}" LineSpacing="{StaticResource Workspace.Space.4}">
                     <SelectableTextBlock x:Name="VersionText" Classes="workspace-meta" VerticalAlignment="Center"/>
                     <Button x:Name="CopyVersionButton" Classes="link" Click="OnCopyVersionClick"/>
                 </WrapPanel>
@@ -46,20 +46,20 @@
         <TabControl x:Name="AboutTabs" Margin="16,0,16,12">
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="12">
+                    <StackPanel Spacing="{StaticResource Workspace.Space.16}" Margin="12">
                         <TextBlock x:Name="TaglineText" Classes="muted" FontStyle="Italic" TextWrapping="Wrap"/>
                         <TextBlock x:Name="DescriptionText" TextWrapping="Wrap"/>
                         <TextBlock x:Name="AuthorText"/>
                         <Border x:Name="UpdateSection" Classes="workspace-section">
-                            <StackPanel Spacing="8">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                                     <TextBlock x:Name="UpdatesTitle" Classes="section-title" VerticalAlignment="Center" />
                                     <Button x:Name="CheckUpdatesButton" Grid.Column="1" HorizontalAlignment="Right" Click="OnCheckUpdatesClick" />
                                 </Grid>
                                 <TextBlock x:Name="UpdateStatusText" AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock x:Name="LastUpdateCheckText" Classes="workspace-help" />
                                 <TextBlock x:Name="AvailableUpdateText" AutomationProperties.LiveSetting="Polite" />
-                                <WrapPanel x:Name="UpdateActions" ItemSpacing="16" LineSpacing="8">
+                                <WrapPanel x:Name="UpdateActions" ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                                     <Button x:Name="UpdateReleaseButton" Classes="link" Click="OnUpdateReleaseClick" />
                                     <Button x:Name="UpdateDownloadButton" Classes="link" Click="OnUpdateDownloadClick" />
                                     <Button x:Name="SkipUpdateButton" Classes="link" Click="OnSkipUpdateClick" />
@@ -69,12 +69,12 @@
                                 <TextBlock x:Name="UpdateActionErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Border>
-                        <WrapPanel ItemSpacing="16" LineSpacing="8">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/grassmann-it" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>
-                        <StackPanel Spacing="6" Margin="0,8,0,0">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0">
                             <TextBlock x:Name="SupportTitle" Classes="section-title"/>
                             <TextBlock x:Name="SupportDescription"/>
                             <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
@@ -85,18 +85,18 @@
             </TabItem>
             <TabItem x:Name="CreditsTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="12">
+                    <StackPanel Spacing="{StaticResource Workspace.Space.16}" Margin="12">
                         <TextBlock x:Name="HistoryText"/>
-                        <WrapPanel ItemSpacing="16" LineSpacing="8">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button Content="YChan" Classes="link" Tag="https://sourceforge.net/projects/ychan/" Click="OnLinkClick"/>
                             <Button Content="Issung / GChan" Classes="link" Tag="https://github.com/Issung/GChan" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="VideoCreditsText"/>
                         <TextBlock x:Name="UICreditsText"/>
                         <TextBlock x:Name="IconsText"/>
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                             <TextBlock x:Name="PhotoCreditText"/>
-                            <WrapPanel ItemSpacing="16" LineSpacing="8">
+                            <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                                 <Button x:Name="PhotoCreditLink" Classes="link"
                                         Tag="https://webentwicklung-huxel.de/" Click="OnLinkClick"/>
                                 <Button x:Name="PhotoCreditFlickrLink" Classes="link" Content="Flickr"
@@ -107,12 +107,12 @@
                 </ScrollViewer>
             </TabItem>
             <TabItem x:Name="LicensesTab">
-                <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="8">
+                <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="{StaticResource Workspace.Space.8}">
                     <controls:SearchBox x:Name="LicenseSearchBox" Grid.Row="0" TextChanged="OnLicenseSearchChanged"/>
                     <TextBlock x:Name="LicenseHintText" Grid.Row="1" Classes="workspace-help"/>
-                    <Grid Grid.Row="2" ColumnDefinitions="*,2*" ColumnSpacing="8">
+                    <Grid Grid.Row="2" ColumnDefinitions="*,2*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                         <ListBox x:Name="LicenseList" SelectionChanged="OnLicenseSelectionChanged"/>
-                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="{StaticResource Workspace.Space.8}">
                             <Expander x:Name="LicenseMetadataExpander" HorizontalAlignment="Stretch" MaxHeight="140">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <SelectableTextBlock x:Name="LicenseMetadataText" TextWrapping="Wrap"/>

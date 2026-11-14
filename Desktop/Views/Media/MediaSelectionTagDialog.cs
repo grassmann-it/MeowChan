@@ -79,12 +79,12 @@ internal sealed class MediaSelectionTagDialog : Window
             _occurrences.Children.Add(box);
         }
         ScrollViewer list = new() { Content = _occurrences, MaxHeight = 160, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        WrapPanel choose = new() { ItemSpacing = 6, LineSpacing = 6, Children = { _all, _none } };
+        WrapPanel choose = new() { ItemSpacing = 8, LineSpacing = 8, Children = { _all, _none } };
         _occurrenceFrame.Content = new StackPanel { Spacing = 8, Children = { choose, list } };
         Grid input = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         input.Children.Add(_input); input.Children.Add(_add); Grid.SetColumn(_add, 1);
         // UX103 P7 frame as in the single-file dialog: the tags first, the occurrences as one collapsed line below them.
-        StackPanel header = new() { Spacing = 6 };
+        StackPanel header = new() { Spacing = 8 };
         header.Children.Add(_subject); header.Children.Add(_scope);
         Grid body = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
         body.Children.Add(input);

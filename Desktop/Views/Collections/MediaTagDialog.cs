@@ -63,7 +63,7 @@ internal sealed class MediaTagDialog : Window
         input.Children.Add(_input); input.Children.Add(_add); Grid.SetColumn(_add, 1);
         // UX103 P7 frame: medium and scope on top, the (error-only) status in the local strip, the tag field and the one
         // list in the body (the list scrolls itself, so the body fills instead of scrolling), undo and Close in the footer.
-        var header = new StackPanel { Spacing = 6 };
+        var header = new StackPanel { Spacing = 8 };
         header.Children.Add(_subject); header.Children.Add(_scope);
         var body = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
         body.Children.Add(input);

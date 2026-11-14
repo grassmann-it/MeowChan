@@ -23,8 +23,8 @@
             </Border>
         </ScrollViewer>
         <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
-            <StackPanel Spacing="8">
-                <Grid x:Name="ActivationBusyPanel" ColumnDefinitions="Auto,*" ColumnSpacing="8" IsVisible="False">
+            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                <Grid x:Name="ActivationBusyPanel" ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
                     <ursa:LoadingIcon x:Name="ActivationBusy" IsVisible="False" IsLoading="False" VerticalAlignment="Center" />
                     <TextBlock x:Name="ActivationBusyStatus" Grid.Column="1" Classes="workspace-meta" TextWrapping="Wrap"
                                VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />

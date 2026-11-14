@@ -49,7 +49,7 @@ public partial class ArchivePage
         _exportScopeField = RegisterExportChoice(new ExportChoiceField("ArchiveExportScope"));
         _exportFormatField.Chosen += async value => await OnExportFormatChosenAsync((ExportFormat)value);
         _exportScopeField.Chosen += async value => await OnExportScopeChosenAsync((ExportScope)value);
-        WrapPanel row = ExportName(new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 16, LineSpacing = 6 }, "ArchiveExportChoices");
+        WrapPanel row = ExportName(new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 16, LineSpacing = 8 }, "ArchiveExportChoices");
         row.Children.Add(_exportFormatField);
         row.Children.Add(_exportScopeField);
         return row;
