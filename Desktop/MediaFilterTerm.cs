@@ -218,3 +218,146 @@ internal static class MediaFilterTerms
         return terms;
     }
 }
+
+/// <summary>
+/// M2: the rules of the media page's term set (the one truth its chips, its section combos and its "+ Filter" picker write). Pure:
+/// each operation returns the next set and never touches a control. The rules keep the set one filter where a field holds one value:
+/// <list type="bullet">
+/// <item>tags, types and the flags are added (a tag or type of the other polarity is replaced);</item>
+/// <item>sound, rating and thread replace their field; an included source or board replaces the included one;</item>
+/// <item>an included source drops an included board of another source, and an excluded source drops an included board of it;</item>
+/// <item>a sound implies videos: choosing one makes the type "Videos" unless videos are already among the shown types, and a type
+/// change that leaves videos out (or every type in) drops the sound, as the section's combos did before.</item>
+/// </list>
+/// </summary>
+internal static class MediaFilterTermSet
+{
+    /// <summary>A term as a value of its field regardless of include/exclude (what "already in the filter" compares).</summary>
+    internal static MediaFilterTerm Identity(MediaFilterTerm term) => term.Exclude ? term with { Exclude = false } : term;
+
+    /// <summary>A stable text key of a term's identity ("type:video", "board:4chan/g"), e.g. to find its chip again after a change.</summary>
+    internal static string IdentityKey(MediaFilterTerm term) => MediaFilterTerm.KeyOf(term.Field) + ":" + (term.Scope == null ? "" : term.Scope + "/")
+        + (term.Field == MediaFilterField.Thread ? term.Resource?.ToString() ?? term.Value : term.Value);
+
+    /// <summary>Whether the set holds this value of the field, included or excluded.</summary>
+    internal static bool Contains(IEnumerable<MediaFilterTerm> terms, MediaFilterTerm term) => terms.Any(other => Identity(other) == Identity(term));
+
+    /// <summary>The set with <paramref name="term"/> in it, following the field rules above.</summary>
+    internal static IReadOnlyList<MediaFilterTerm> With(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
+    {
+        ArgumentNullException.ThrowIfNull(term);
+        if (term.Exclude && !MediaFilterTerm.CanExclude(term.Field)) term = term with { Exclude = false };
+        MediaFilterTerm identity = Identity(term);
+        List<MediaFilterTerm> next = terms.Where(other => Identity(other) != identity).ToList();
+        switch (term.Field)
+        {
+            case MediaFilterField.Sound or MediaFilterField.Rating or MediaFilterField.Thread or MediaFilterField.Name:
+                next.RemoveAll(other => other.Field == term.Field);
+                break;
+            case MediaFilterField.Source when !term.Exclude:
+                next.RemoveAll(other => other.Field == MediaFilterField.Source && !other.Exclude);
+                next.RemoveAll(other => other.Field == MediaFilterField.Board && !other.Exclude && other.Scope != term.Value);
+                break;
+            case MediaFilterField.Source:
+                next.RemoveAll(other => other.Field == MediaFilterField.Board && !other.Exclude && other.Scope == term.Value);
+                break;
+            case MediaFilterField.Board when !term.Exclude:
+                next.RemoveAll(other => other.Field == MediaFilterField.Board && !other.Exclude);
+                // The board names its source: an included source of another one cannot hold beside it.
+                next.RemoveAll(other => other.Field == MediaFilterField.Source && !other.Exclude && other.Value != term.Scope);
+                next.RemoveAll(other => other.Field == MediaFilterField.Source && other.Exclude && other.Value == term.Scope);
+                break;
+        }
+        next.Add(term);
+        if (term.Field == MediaFilterField.Sound) return WithVideos(next);
+        return term.Field == MediaFilterField.Type ? DropSoundWithoutVideos(next) : next;
+    }
+
+    /// <summary>The set without this value of the field (either polarity).</summary>
+    internal static IReadOnlyList<MediaFilterTerm> Without(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
+    {
+        MediaFilterTerm identity = Identity(term);
+        List<MediaFilterTerm> next = terms.Where(other => Identity(other) != identity).ToList();
+        return term.Field == MediaFilterField.Type ? DropSoundWithoutVideos(next) : next;
+    }
+
+    /// <summary>The set without any term of the field (e.g. the combo's "All types").</summary>
+    internal static IReadOnlyList<MediaFilterTerm> WithoutField(IReadOnlyList<MediaFilterTerm> terms, MediaFilterField field, bool? exclude = null)
+    {
+        List<MediaFilterTerm> next = terms.Where(other => other.Field != field || (exclude != null && other.Exclude != exclude)).ToList();
+        return field == MediaFilterField.Type ? DropSoundWithoutVideos(next) : next;
+    }
+
+    /// <summary>The set with this term switched between include and exclude (moved behind its new polarity); unchanged for a field that cannot exclude.</summary>
+    internal static IReadOnlyList<MediaFilterTerm> Toggled(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
+    {
+        if (!MediaFilterTerm.CanExclude(term.Field)) return terms;
+        MediaFilterTerm? held = terms.FirstOrDefault(other => Identity(other) == Identity(term));
+        return held == null ? terms : With(terms, held.Toggled());
+    }
+
+    /// <summary>The set whose types are exactly <paramref name="kinds"/> included (none: every type), as the section's type combo chooses.</summary>
+    internal static IReadOnlyList<MediaFilterTerm> WithTypes(IReadOnlyList<MediaFilterTerm> terms, params MediaLibraryKindFilter[] kinds)
+    {
+        List<MediaFilterTerm> next = terms.Where(other => other.Field != MediaFilterField.Type).ToList();
+        next.AddRange(kinds.Distinct().Select(kind => MediaFilterTerm.Type(kind)));
+        return DropSoundWithoutVideos(next);
+    }
+
+    /// <summary>
+    /// The types the set shows (null: every type). Included types minus excluded ones, or every type but the excluded ones; an empty
+    /// set means the types leave nothing (<see cref="MediaFilterTerms.ToFilter"/> refuses that set).
+    /// </summary>
+    internal static IReadOnlySet<MediaLibraryKindFilter>? ShownKinds(IEnumerable<MediaFilterTerm> terms)
+    {
+        HashSet<MediaLibraryKindFilter> include = [], exclude = [];
+        foreach (MediaFilterTerm term in terms.Where(term => term.Field == MediaFilterField.Type))
+            if (MediaFilterTerm.TypeOf(term.Value) is { } kind) (term.Exclude ? exclude : include).Add(kind);
+        if (include.Count == 0 && exclude.Count == 0) return null;
+        HashSet<MediaLibraryKindFilter> shown = include.Count > 0 ? include
+            : [MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Other];
+        shown.ExceptWith(exclude);
+        return shown;
+    }
+
+    /// <summary>
+    /// The place of a term's chip in the row (the order the chips had before M2): included tags, excluded tags, [the tag mode chip, 2],
+    /// thread, without media tags, name, type, sound, source, board, rating, favourites, missing; within a field included before excluded.
+    /// </summary>
+    internal static int DisplayRank(MediaFilterTerm term) => term.Field switch
+    {
+        MediaFilterField.Tag => term.Exclude ? 1 : 0,
+        MediaFilterField.Thread => 3,
+        MediaFilterField.Untagged => 4,
+        MediaFilterField.Name => 5,
+        MediaFilterField.Type => 6,
+        MediaFilterField.Sound => 7,
+        MediaFilterField.Source => 8,
+        MediaFilterField.Board => 9,
+        MediaFilterField.Rating => 10,
+        MediaFilterField.Favorite => 11,
+        _ => 12
+    };
+
+    /// <summary>The terms in chip order (stable: within a rank and polarity the set's order).</summary>
+    internal static IReadOnlyList<MediaFilterTerm> Ordered(IEnumerable<MediaFilterTerm> terms) =>
+        terms.Select((term, index) => (term, index)).OrderBy(item => DisplayRank(item.term)).ThenBy(item => item.term.Exclude).ThenBy(item => item.index)
+            .Select(item => item.term).ToList();
+
+    // A sound needs videos among the shown types: unless they are (and the type is restricted), the type becomes "Videos".
+    private static List<MediaFilterTerm> WithVideos(List<MediaFilterTerm> terms)
+    {
+        if (ShownKinds(terms) is { } shown && shown.Contains(MediaLibraryKindFilter.Video)) return terms;
+        terms.RemoveAll(other => other.Field == MediaFilterField.Type);
+        terms.Add(MediaFilterTerm.Type(MediaLibraryKindFilter.Video));
+        return terms;
+    }
+
+    private static List<MediaFilterTerm> DropSoundWithoutVideos(List<MediaFilterTerm> terms)
+    {
+        if (!terms.Any(term => term.Field == MediaFilterField.Sound)) return terms;
+        if (ShownKinds(terms) is not { } shown || !shown.Contains(MediaLibraryKindFilter.Video))
+            terms.RemoveAll(term => term.Field == MediaFilterField.Sound);
+        return terms;
+    }
+}
