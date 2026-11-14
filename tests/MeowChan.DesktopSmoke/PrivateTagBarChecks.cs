@@ -350,7 +350,7 @@ internal static class PrivateTagBarChecks
         await f.Page.SourceTagSuggestions.LoadTask.WaitAsync(Deadline);
         // Word start match with its use count; Down highlights without touching the draft, Enter adds it.
         await OpenAsync("sd", ["/sdg/ (1)", "New tag: \u201csd\u201d"]);
-        Require(AutomationProperties.GetHelpText(input) == Texts.T("tags.suggest.count", 2, TagSuggestionIndex.VisibleLimit), "The list size was not announced.");
+        Require(AutomationProperties.GetHelpText(input) == Texts.Count("tags.suggest.count", 2, 2, TagSuggestionIndex.VisibleLimit), "The list size was not announced.");
         input.RaiseEvent(Press(Key.Down));
         Require(input.HighlightedCandidate?.Value == "/sdg/" && input.Text == "sd", "Down must highlight without changing the draft.");
         KeyEventArgs accept = Press(Key.Enter);

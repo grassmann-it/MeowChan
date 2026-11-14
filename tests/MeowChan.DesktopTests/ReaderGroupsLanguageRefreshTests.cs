@@ -149,12 +149,12 @@ public sealed class ReaderGroupsLanguageRefreshTests : IDisposable
     public void CountNoticesRetainArgumentsAndUseCurrentLanguage(string key)
     {
         object?[] arguments = [23];
-        var message = ReaderGroupsDialog.PresentationText.Localized(key, arguments);
+        var message = ReaderGroupsDialog.PresentationText.Counted(key, 23, arguments);
         arguments[0] = 999;
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
-            Assert.Equal(Texts.T(key, 23), message.Render());
+            Assert.Equal(Texts.Count(key, 23), message.Render());
             Assert.DoesNotContain("999", message.Render());
         }
     }
@@ -181,11 +181,11 @@ public sealed class ReaderGroupsLanguageRefreshTests : IDisposable
     public void MissingMembersPromptRetainsExactCountAndIdentities()
     {
         const string detail = "source/b/1\nsource/b/2 {0}";
-        var message = ReaderGroupsDialog.PresentationText.Localized("readerGroups.missingMembers", 2, detail);
+        var message = ReaderGroupsDialog.PresentationText.Counted("readerGroups.missingMembers", 2, 2, detail);
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
-            Assert.Equal(Texts.T("readerGroups.missingMembers", 2, detail), message.Render());
+            Assert.Equal(Texts.Count("readerGroups.missingMembers", 2, 2, detail), message.Render());
             Assert.EndsWith("\n" + detail, message.Render());
         }
     }

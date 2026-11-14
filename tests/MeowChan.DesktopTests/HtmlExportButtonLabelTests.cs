@@ -46,7 +46,7 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
     [InlineData("de", "Alle 123 Treffer exportieren")]
     [InlineData("es", "Exportar los 123 resultados")]
     [InlineData("fr", "Exporter les 123 résultats")]
-    [InlineData("ru", "Экспортировать все 123 результатов")]
+    [InlineData("ru", "Экспортировать все результаты (123)")]
     public void ResultsProductionContentUsesTheFullCountBearingTitle(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -57,7 +57,7 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
         foreach (int total in new[] { 0, 1, 123, 1234567 })
         {
             ArchivePage.ApplyResultsExportLabel(button, total);
-            string title = Texts.T("export.resultsAction", total);
+            string title = Texts.Count("export.resultsAction", total);
             Assert.Equal(title, button.Content);
             Assert.Equal(title, AutomationProperties.GetName(button));
             Assert.Equal(title, ToolTip.GetTip(button));
@@ -76,7 +76,7 @@ public sealed class HtmlExportButtonLabelTests : IDisposable
         button.Command = command;
         Texts.SetLanguage("en");
         ArchivePage.ApplyResultsExportLabel(button, 1);
-        Assert.Equal("Export all 1 results", button.Content);
+        Assert.Equal("Export the 1 result", button.Content);
         Texts.SetLanguage("de");
         ArchivePage.ApplyResultsExportLabel(button, 42);
         Assert.Equal("Alle 42 Treffer exportieren", button.Content);

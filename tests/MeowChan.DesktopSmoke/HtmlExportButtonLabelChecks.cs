@@ -97,7 +97,7 @@ internal static class HtmlExportButtonLabelChecks
                 toolbar.More!.IsChecked = true;
                 await Program.WaitUntilAsync(() => results.IsEffectivelyVisible && TopLevel.GetTopLevel(results) is { IsVisible: true });
                 await SettleAsync(host);
-                string expected = Texts.T("export.resultsAction", 1);
+                string expected = Texts.Count("export.resultsAction", 1);
                 CheckButton(results, expected, code + "/results-overflow");
                 // AP7: the button opens the one Export dialog with "all matches" preselected (no one-item menu).
                 SmokeActionClick.Execute(results);

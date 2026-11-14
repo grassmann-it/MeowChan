@@ -48,13 +48,13 @@ public sealed class InlineTextCatalogTests : IDisposable
     {
         Texts.SetLanguage("en");
         Assert.Equal("Saved file: 1.2 KiB (1,234 bytes)", Texts.T("media.provenance.localSize", 1234L, SizeText.Format(1234L)));
-        Assert.Equal("Deleted 1 threads and 2 owned files (3,000 bytes). 4 selected threads remain. ",
+        Assert.Equal("Deleted threads: 1, owned files: 2 (3,000 bytes). Selected threads remaining: 4. ",
             Texts.T("archive.cleanup.status.deleted", 1, 2, 3000L, 4));
         Assert.Equal("Source size hint (not exact bytes): 2.4e1 KiB (Unspecified)",
             Texts.T("media.provenance.sizeHint", "2.4e1", "KiB", "Unspecified"));
         Texts.SetLanguage("de");
         Assert.Equal("Gespeicherte Datei: 1,2 KiB (1.234 Bytes)", Texts.T("media.provenance.localSize", 1234L, SizeText.Format(1234L)));
-        Assert.Equal("1 Threads und 2 zugeordnete Dateien (3.000 Bytes) gelöscht. 4 ausgewählte Threads verbleiben. ",
+        Assert.Equal("Gelöschte Threads: 1, zugeordnete Dateien: 2 (3.000 Bytes). Verbleibende ausgewählte Threads: 4. ",
             Texts.T("archive.cleanup.status.deleted", 1, 2, 3000L, 4));
         Assert.Equal("Threadfavorit konnte nicht gespeichert werden (a /b/ 1).\nDetails: x",
             Texts.T("archive.threadFavorite.saveError", "a", "b", 1L, "x"));
