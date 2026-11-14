@@ -194,7 +194,9 @@
   texts follow each language's plural rules (Czech and Polish have separate forms for 2 to 4).
   Chinese, Japanese and Korean use the fonts of your system, with the regional glyph shapes of the
   chosen language first; nothing is bundled, so **Linux needs Noto Sans CJK installed**
-  (`noto-fonts-cjk`, `fonts-noto-cjk`).
+  (`noto-fonts-cjk`, `fonts-noto-cjk`). The ten packs beyond English and German include corrected
+  media sort labels and board-watch, **Show details** and pause wording; these corrections do not
+  replace native-speaker or real-display review.
 - Correct the colour palettes (Light and Dark) against measured contrast: Dark buttons, text and
   combo boxes get an outline of at least 3:1; error and success colours stay apart for red-green
   colour vision (Dark error is coral, Light success a clear green); the empty progress track is
@@ -252,8 +254,9 @@
   encryption; the number of requests is shown as well); disk counts the media files MeowChan itself
   writes or reads back, not thumbnails, previews, archive or index files. The header download graph
   is now a button that opens the page. It shows the two directions of the network (download
-  solid with a filled area, upload dashed) and of the disk (write solid, read dashed) as two labelled
-  blocks, **Network** with "↓ x ↑ y" and **Disk** with "R x W y", each with its own scale that
+  solid with a filled area, upload dashed) and of the disk (read solid with a filled area, write
+  dashed) as two labelled blocks, **Network** with "Down … / Up …" and **Disk** with
+  "Read … / Write …" in localized words, read before write, each with its own scale that
   steps by 1, 1.5, 2, 3 and so on and a decaying maximum; the page shows network download, disk write
   and disk read as three separate graphs and counts download only (upload is shown in the header,
   the tray and the accessible name). The setting **Header graph** has six choices: Automatic
@@ -476,11 +479,15 @@
   busy, a running check ends with its recorded result, a late 429 is still kept, and watchers resume
   afterwards unless recovery is required. The global pause now stops automatic checks only (a check
   already reading a page finishes it and stops before the next); **Check now** still runs once,
-  without unpausing the session or bypassing a provider cooldown. A longer valid `Retry-After` is
-  no longer cut to 24 hours. A configurable cooldown cap is not in yet.
+  without unpausing the session or bypassing a provider cooldown. **Danbooru Retry-After cooldown
+  maximum (hours)** in Settings caps the provider-requested wait (default 24 hours, range 1 to 168 hours),
+  retaining the 60-second floor. **Reset Danbooru cooldown** uses a controlled local barrier across
+  transport, scheduler and saved watcher state; the reset itself sends no HTTP request and keeps
+  global and individual pauses. It refuses a running watcher check, preserves a late HTTP 429
+  and keeps the transport fence if saving fails.
 - Add directional upload metering. The request payload that MeowChan's application writes counts as
   network upload per source (see the Statistics entry), and the header, tray and graph names show
-  download and upload, disk write and disk read separately.
+  download and upload, disk read and disk write separately.
 - Add reader display settings under **Settings, Reading & media** (**Display** and **Long posts and
   previews**). Changes stay in the Settings draft until **Save** succeeds and then apply to the open
   Reader at once without losing the reading position; **Discard draft** restores the saved values,
@@ -501,8 +508,10 @@
   **Size**, **References** (saved occurrences of the same bytes), **Tag count** (own media tags
   plus the thread's tags) and **Rating**, with a direction button next to the choice. Files without
   a value (no name, never saved, unrated) stay last in both directions, and a group of identical
-  files counts its highest tag count or rating. The new sort names are in English in every language except German, and the sort is not
-  stored in the settings.
+  files counts its highest tag count or rating. The criterion and direction are saved and restored;
+  **Random** returns to **By thread** on the next start.
+- Keep quick tagging as groundwork: the shared surface and commands are present, but the gallery
+  panel (TP2) and right-click popover (TP3) are not connected yet; existing tag dialogs remain.
 - Prepare a lazy scrub preview for videos (positional thumbnails in 5 % slots keyed by the verified
   content, with a bounded disk budget): the code is in, but no control, setting or screen uses it
   yet.
