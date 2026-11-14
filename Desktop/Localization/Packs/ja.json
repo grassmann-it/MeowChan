@@ -3484,6 +3484,7 @@
     "viewer.help.close": "ショートカットのヘルプを閉じる",
     "gallery.frame.saved": "フレームを保存しました",
     "gallery.frame.failed": "フレームを保存できませんでした。",
+    "gallery.frame.pickFolder": "保存するビデオフレームのフォルダーを選択",
     "key.backspace": "Backspace",
     "settings.galleryPlayback.videoSecondsHint": "既定 {0} 秒、{1}〜{2} 秒。",
     "settings.galleryPlayback.videoRepeatsHint": "既定 {0} 回、{1}〜{2} 回。",

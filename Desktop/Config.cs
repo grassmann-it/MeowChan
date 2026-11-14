@@ -87,6 +87,7 @@ namespace MeowChan
         private Dictionary<string, PresentationProfile> _layoutProfiles = new(StringComparer.Ordinal);
         private Dictionary<string, PresentationProfile>? _deserializedLayoutProfiles;
         private string _lastExportDirectory = string.Empty;
+        private string _galleryFrameDirectory = string.Empty;
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
         public int SchemaVersion { get; set; } = 1;
@@ -646,6 +647,9 @@ namespace MeowChan
         }
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastExportDirectory { get => _lastExportDirectory; set => _lastExportDirectory = value ?? string.Empty; }
+        /// <summary>The folder saved video frames go to: chosen by the person on the first "Save frame as image", never an export folder. Empty until then.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string GalleryFrameDirectory { get => _galleryFrameDirectory; set => _galleryFrameDirectory = value ?? string.Empty; }
         /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveBridgeHintSeen { get; set; }
@@ -970,6 +974,8 @@ namespace MeowChan
             { throw new ArgumentException("The download directory path is invalid.", nameof(DownloadPath), error); }
             if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
                 throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
+            if (GalleryFrameDirectory.Length > 4096 || GalleryFrameDirectory.Any(char.IsControl))
+                throw new ArgumentException("The video frame directory is invalid.", nameof(GalleryFrameDirectory));
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
             {
                 PresentationProfile profile = GetLayoutProfile(mode);
@@ -1118,6 +1124,7 @@ namespace MeowChan
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
+                GalleryFrameDirectory = GalleryFrameDirectory,
                 ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
@@ -1255,6 +1262,7 @@ namespace MeowChan
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
+            GalleryFrameDirectory = source.GalleryFrameDirectory;
             ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();

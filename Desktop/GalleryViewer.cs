@@ -1389,7 +1389,10 @@ internal sealed partial class GalleryViewer : UserControl
         if (CanUseVideoTransport) _video!.SeekRelative(TimeSpan.FromSeconds(seconds));
     }
 
-    /// <summary>Raised for "Save frame as image"; the owner picks the folder and calls <see cref="SaveVideoFrameAsync"/>.</summary>
+    /// <summary>
+    /// Raised for "Save frame as image". The owner decides the folder: the dedicated frames folder the person chose
+    /// (asked for on first use, never an export folder) and then calls <see cref="SaveVideoFrameAsync"/>.
+    /// </summary>
     internal event Action<GalleryEntry>? SaveFrameRequested;
 
     private void RequestSaveFrame()
@@ -1403,9 +1406,17 @@ internal sealed partial class GalleryViewer : UserControl
     /// </summary>
     internal async Task<string?> SaveVideoFrameAsync(string directory)
     {
-        if (!CanUseVideoTransport || _entry is not { } entry || _video is not { } video || !System.IO.Directory.Exists(directory)) return null;
-        string path = GalleryFrameFile.Path(directory, entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, video.PositionMs);
-        return await video.SaveFrameAsync(path) && ReferenceEquals(entry, _entry) ? path : null;
+        if (!CanUseVideoTransport || _entry is not { } entry || _video is not { } video) return null;
+        if (!await Task.Run(() => System.IO.Directory.Exists(directory)).ConfigureAwait(true)) return null;
+        if (!CanUseVideoTransport || !ReferenceEquals(entry, _entry) || !ReferenceEquals(video, _video)) return null;
+        string fileName = entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName ?? string.Empty;
+        long position = video.PositionMs;
+        // Written under a temporary name and moved into place without replacing a file (a frame is never overwritten).
+        string temporary = GalleryFrameFile.TemporaryPath(directory);
+        bool saved = await video.SaveFrameAsync(temporary).ConfigureAwait(true) && ReferenceEquals(entry, _entry);
+        string? path = saved ? await Task.Run(() => GalleryFrameFile.Commit(temporary, directory, fileName, position)).ConfigureAwait(true) : null;
+        if (!saved) await Task.Run(() => GalleryFrameFile.Discard(temporary)).ConfigureAwait(true);
+        return path;
     }
 
     private void AdjustVideoVolume(int direction)

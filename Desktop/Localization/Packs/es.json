@@ -3518,6 +3518,7 @@
     "viewer.help.close": "Cerrar la ayuda de atajos",
     "gallery.frame.saved": "Fotograma guardado",
     "gallery.frame.failed": "No se pudo guardar el fotograma.",
+    "gallery.frame.pickFolder": "Elija una carpeta para los fotogramas de vídeo guardados",
     "key.backspace": "Retroceso",
     "settings.galleryPlayback.videoSecondsHint": "Predeterminado {0} s, de {1} a {2} s.",
     "settings.galleryPlayback.videoRepeatsHint": "Predeterminado {0}, de {1} a {2} pasadas.",

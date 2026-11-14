@@ -3533,6 +3533,7 @@
     "viewer.help.close": "Закрыть справку по сочетаниям клавиш",
     "gallery.frame.saved": "Кадр сохранён",
     "gallery.frame.failed": "Не удалось сохранить кадр.",
+    "gallery.frame.pickFolder": "Выберите папку для сохранённых кадров видео",
     "key.backspace": "Backspace",
     "settings.galleryPlayback.videoSecondsHint": "По умолчанию {0} с, от {1} до {2} с.",
     "settings.galleryPlayback.videoRepeatsHint": "По умолчанию {0}, от {1} до {2} проходов.",

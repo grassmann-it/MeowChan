@@ -3518,6 +3518,7 @@
     "viewer.help.close": "Fermer l’aide des raccourcis",
     "gallery.frame.saved": "Image enregistrée",
     "gallery.frame.failed": "L’image n’a pas pu être enregistrée.",
+    "gallery.frame.pickFolder": "Choisissez un dossier pour les images vidéo enregistrées",
     "key.backspace": "Retour arrière",
     "settings.galleryPlayback.videoSecondsHint": "Par défaut {0} s, de {1} à {2} s.",
     "settings.galleryPlayback.videoRepeatsHint": "Par défaut {0}, de {1} à {2} passages.",

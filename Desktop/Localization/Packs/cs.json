@@ -3553,6 +3553,7 @@
     "viewer.help.close": "Zavřít nápovědu ke zkratkám",
     "gallery.frame.saved": "Snímek uložen",
     "gallery.frame.failed": "Snímek se nepodařilo uložit.",
+    "gallery.frame.pickFolder": "Vyberte složku pro uložené snímky videa",
     "key.backspace": "Backspace",
     "settings.galleryPlayback.videoSecondsHint": "Výchozí {0} s, od {1} do {2} s.",
     "settings.galleryPlayback.videoRepeatsHint": "Výchozí {0}, od {1} do {2} průchodů.",

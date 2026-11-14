@@ -18,6 +18,7 @@ internal static class R08dViewerCatalog
         ("viewer.help.close", "Close shortcut help", "Tastaturhilfe schließen"),
         ("gallery.frame.saved", "Frame saved", "Einzelbild gespeichert"),
         ("gallery.frame.failed", "The frame could not be saved.", "Das Einzelbild konnte nicht gespeichert werden."),
+        ("gallery.frame.pickFolder", "Choose a folder for saved video frames", "Ordner für gespeicherte Videoeinzelbilder wählen"),
         ("viewer.video.noAudioTrack", "This video has no audio track.", "Dieses Video hat keine Tonspur."),
         ("viewer.video.audioUnavailable", "Audio output is currently unavailable.", "Audioausgabe ist derzeit nicht verfügbar."),
         ("viewer.favorite.add", "Add to favorites", "Zu Favoriten hinzufügen"),

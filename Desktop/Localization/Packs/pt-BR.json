@@ -3524,6 +3524,7 @@
     "viewer.help.close": "Fechar a ajuda de atalhos",
     "gallery.frame.saved": "Quadro salvo",
     "gallery.frame.failed": "Não foi possível salvar o quadro.",
+    "gallery.frame.pickFolder": "Escolha uma pasta para os quadros de vídeo salvos",
     "key.backspace": "Backspace",
     "settings.galleryPlayback.videoSecondsHint": "Padrão {0} s, de {1} a {2} s.",
     "settings.galleryPlayback.videoRepeatsHint": "Padrão {0}, de {1} a {2} passadas.",

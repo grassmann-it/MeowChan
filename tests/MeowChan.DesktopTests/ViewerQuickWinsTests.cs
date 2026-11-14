@@ -393,6 +393,46 @@ public sealed class ViewerQuickWinsTests : IDisposable
     }
 
     [Fact]
+    public void AFrameNameLosesBidiAndControlCharactersAndKeepsSurrogatePairs()
+    {
+        Assert.Equal("clip_gnp.exe", GalleryFrameFile.Stem("clip\u202Egnp.exe.webm"));
+        Assert.Equal("a_b_c", GalleryFrameFile.Stem("a\u200Fb\u0007c.mp4"));
+        string emoji = "\U0001F600";
+        string stem = GalleryFrameFile.Stem(string.Concat(Enumerable.Repeat(emoji, 60)) + ".mp4");
+        Assert.True(stem.Length <= GalleryFrameFile.MaximumStemLength);
+        Assert.Equal(0, stem.Length % 2);
+        Assert.All(Enumerable.Range(0, stem.Length / 2), i => Assert.Equal(emoji, stem.Substring(i * 2, 2)));
+        Assert.Equal("_", GalleryFrameFile.Stem("\uD800.mp4"));
+    }
+
+    [Fact]
+    public void AFrameIsMovedIntoPlaceWithoutReplacingAFile()
+    {
+        using Profile profile = new();
+        string existing = Path.Combine(profile.Path, "clip-0-01-000.png");
+        File.WriteAllText(existing, "keep");
+        string temporary = GalleryFrameFile.TemporaryPath(profile.Path);
+        File.WriteAllText(temporary, "new");
+        string? saved = GalleryFrameFile.Commit(temporary, profile.Path, "clip.webm", 1_000);
+        Assert.Equal(Path.Combine(profile.Path, "clip-0-01-000 (2).png"), saved);
+        Assert.Equal("keep", File.ReadAllText(existing));
+        Assert.Equal("new", File.ReadAllText(saved!));
+        Assert.False(File.Exists(temporary));
+    }
+
+    [Fact]
+    public void ARememberedFramesFolderIsNeverTheExportFolder()
+    {
+        using Profile profile = new();
+        string frames = Path.Combine(profile.Path, "frames"), exports = Path.Combine(profile.Path, "exports");
+        Assert.False(GalleryFrameFile.IsDedicatedFolder(string.Empty, exports));
+        Assert.False(GalleryFrameFile.IsDedicatedFolder(exports, exports));
+        Assert.False(GalleryFrameFile.IsDedicatedFolder(exports + Path.DirectorySeparatorChar, exports));
+        Assert.True(GalleryFrameFile.IsDedicatedFolder(frames, exports));
+        Assert.True(GalleryFrameFile.IsDedicatedFolder(frames, string.Empty));
+    }
+
+    [Fact]
     public void SpeedLabelsFollowTheInterfaceLanguage()
     {
         Assert.Equal(new[] { 0.5f, 1f, 1.5f, 2f }, GalleryVideoPlayer.Rates);

@@ -3559,6 +3559,7 @@
     "viewer.help.close": "Zamknij pomoc dotyczącą skrótów",
     "gallery.frame.saved": "Klatka zapisana",
     "gallery.frame.failed": "Nie udało się zapisać klatki.",
+    "gallery.frame.pickFolder": "Wybierz folder dla zapisanych klatek wideo",
     "key.backspace": "Backspace",
     "settings.galleryPlayback.videoSecondsHint": "Domyślnie {0} s, od {1} do {2} s.",
     "settings.galleryPlayback.videoRepeatsHint": "Domyślnie {0}, od {1} do {2} przebiegów.",
