@@ -351,9 +351,20 @@ internal sealed partial class GalleryViewer
                 || !_viewerInteractionStopped), restoreFocus, index);
     }
 
-    // The post panel (and the slot a later tag panel shares with it) starts below the top row of the way back and the star. In the
-    // transparency fallback the way back lies in the picture row and the panel in row 1 as well, so the same inset applies.
-    private double PostPanelTopInset => Math.Max(TopRowClearance, 12 + (_close != null && _close.Bounds.Height > 0 ? _close.Bounds.Height : 32) + 8);
+    // The way back and the star stand at the top LEFT (Tom's rule of 14.11.), the panel at the right: it starts at the top and gives its
+    // own head the room (its × stays at its right edge) as long as it does not reach the pair horizontally; a panel that does (a narrow
+    // viewer, where it lies over most of the picture) starts below the top row of the way back and the star. In the transparency
+    // fallback the way back lies in the picture row and the panel in row 1 as well, so the same rule applies.
+    private double TopRowPairWidth => StarLeftMargin + (_favoriteIndicator.IsVisible || _nativeFavoriteIndicator.IsVisible
+        ? (_favoriteIndicator.Bounds.Width > 0 ? _favoriteIndicator.Bounds.Width : 44) : 0) + 12;
+
+    private double PostPanelTopInset(double width, double rightMargin, double top)
+    {
+        double below = Math.Max(TopRowClearance, 12 + (_close != null && _close.Bounds.Height > 0 ? _close.Bounds.Height : 32) + 8);
+        if (Bounds.Width <= 0 || !double.IsFinite(width)) return below;
+        double left = Bounds.Width - rightMargin - width;
+        return left < TopRowPairWidth + StarGap ? below : top;
+    }
 
     private void LayoutContextPlacement()
     {
@@ -374,7 +385,7 @@ internal sealed partial class GalleryViewer
                 ? _video?.TransportBottomInset ?? 0 : 0;
             // The overlay option sits above the floating footer; the narrow placement sits in the picture row,
             // above the docked toolbar, so only the transport strip of a video has to be cleared.
-            _contextPanel.Margin = new Thickness(12, PostPanelTopInset, 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
+            _contextPanel.Margin = new Thickness(12, PostPanelTopInset(ContextOverlayWidth, 12, 12), 12, overlayOption && OverlayControlsEffective && _overlayFooter.IsVisible
                 ? _overlayFooter.Bounds.Height + 16 : transportInset + 12);
             Grid.SetColumn(_contextPanel, 0); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, _nativeOverlayFallback && !overlayOption ? 1 : 0); Grid.SetRowSpan(_contextPanel, 1);
@@ -388,7 +399,7 @@ internal sealed partial class GalleryViewer
             // The adjacent docked context is not underneath it. Feeding that
             // footer's measured height into this root also creates a cross-root
             // layout dependency (main layout positions the native overlay).
-            _contextPanel.Margin = new Thickness(0, PostPanelTopInset, 0, !_nativeOverlayActive && OverlayControlsEffective
+            _contextPanel.Margin = new Thickness(0, PostPanelTopInset(DockedContextWidth, 0, 0), 0, !_nativeOverlayActive && OverlayControlsEffective
                 && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8 : 0);
             Grid.SetColumn(_contextPanel, 1); Grid.SetColumnSpan(_contextPanel, 1);
             Grid.SetRow(_contextPanel, 0); Grid.SetRowSpan(_contextPanel, 1);

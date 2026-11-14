@@ -536,7 +536,9 @@ public sealed class HelpDocumentationTests
         string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
         Assert.Contains("Children.Add(_segment);", sidePanel);
         Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);
-        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Right", Read("Desktop/GalleryViewer.cs"));
+        // Tom's rule of 14.11.: the code places the way back first at the LEFT with the star directly right of it. The two Help.md assertions
+        // above (right edge wording) change together with the Help section, which the coordinator edits (GL3 report has the sentence).
+        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Left", Read("Desktop/GalleryViewer.cs"));
         Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {

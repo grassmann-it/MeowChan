@@ -10,8 +10,8 @@ namespace MeowChan.Desktop.WorkViews;
 // viewer moves the very same instance (commands, enabled state, tooltip and shortcut exist once). Barebones is the reduced
 // layout the gallery always had; Simple and Advanced bring the curating tools onto the bar.
 //
-// Owner design rule (Tom, 14.11.): the way back stands alone at the top right edge, the favourite star sits directly left of
-// it, every other action is its own group away from both. Never reduced: the way back, the favourite mark, the position,
+// Owner design rule (Tom, 14.11., replaced in the evening): the way back stands first at the top LEFT edge, the favourite star sits
+// directly right of it as a pair, every other action is its own group away from both (on the right / in the dock). Never reduced: the way back, the favourite mark, the position,
 // the video transport, errors, integrity warnings, the consent to remove a favourite and the way to the post panel.
 //
 // Deliberately NOT moved (documented deviations from the plan's matrix, see the WV4 report): the post panel toggle stays on

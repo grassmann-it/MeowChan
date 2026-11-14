@@ -334,12 +334,13 @@ internal sealed partial class GalleryViewer : UserControl
         _workViewTools = ToolGroup("GalleryWorkViewTools");
         StackPanel view = _viewTools = ToolGroup("GalleryViewTools");
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
-        // The way back is not a toolbar button: it floats alone at the top right edge of the picture (Tom's gallery rule), names
-        // where it returns to and stays reachable, dimmed, while auto-hidden controls are away. The favourite star sits directly
-        // left of it (UpdateFavoriteIndicators); every other action is in the toolbar group below, apart from both.
+        // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, before everything else (Tom's rule of
+        // 14.11.: back and close come first, other buttons stand apart on the right), names where it returns to and stays reachable,
+        // dimmed, while auto-hidden controls are away. The favourite star sits directly right of it as a pair (UpdateFavoriteIndicators);
+        // every other action is in the toolbar group below, apart from both.
         _close = Command(navigation, "GalleryClose", Texts.T("gallery.viewer0"), () => CloseRequested?.Invoke());
         navigation.Children.Remove(_close);
-        _close.HorizontalAlignment = HorizontalAlignment.Right;
+        _close.HorizontalAlignment = HorizontalAlignment.Left;
         _close.VerticalAlignment = VerticalAlignment.Top;
         _close.Margin = new Thickness(12);
         _close.ZIndex = 17; // Above the picture, the edge hints and the favorite badge; below the post panel and the help.
@@ -422,7 +423,7 @@ internal sealed partial class GalleryViewer : UserControl
         _helpPanel.Child = helpRoot;
         _helpPanel.HorizontalAlignment = HorizontalAlignment.Right;
         _helpPanel.VerticalAlignment = VerticalAlignment.Top;
-        _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the way back and the star
+        _helpPanel.Margin = new Thickness(12, TopRowClearance, 12, 12); // below the top row of the way back and the star (kept below it: the help is also centred over the picture in narrow viewers)
         _helpPanel.MaxWidth = 390;
         _helpPanel.MaxHeight = 350;
         _viewport.Children.Add(_image);

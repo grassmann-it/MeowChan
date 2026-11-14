@@ -196,13 +196,12 @@ internal static partial class GalleryToolbarLayoutChecks
         }
         foreach (string name in Rare)
             Require(!chrome.IsVisualAncestorOf(Find<Control>(viewer, name)), $"{tag}: rare control still on the toolbar: {name}");
-        // The way back is not a toolbar button: it floats alone at the top right edge of the picture (Tom's gallery rule), labelled with its target.
+        // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, first of all (Tom's rule of 14.11.), labelled with its target.
         Button back = Find<Button>(viewer, "GalleryClose");
         Point? backPoint = back.TranslatePoint(default, viewer);
         Require(back.IsEffectivelyVisible && !chrome.IsVisualAncestorOf(back) && backPoint is { } origin
-            && origin.X + back.Bounds.Width >= viewer.Bounds.Width - 24 && origin.X + back.Bounds.Width <= viewer.Bounds.Width + 1
-            && origin.Y <= 24 && origin.X >= 0,
-            $"{tag}: the way back is not at the top right of the picture.");
+            && origin.X >= 0 && origin.X <= 24 && origin.Y <= 24 && origin.Y >= 0,
+            $"{tag}: the way back is not at the top left of the picture.");
         Require(chrome.Bounds.Height <= 64, $"{tag}: the toolbar needs more than one row ({chrome.Bounds.Height} dip).");
         Button more = Find<Button>(viewer, "GalleryMore");
         Require(!string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(more))

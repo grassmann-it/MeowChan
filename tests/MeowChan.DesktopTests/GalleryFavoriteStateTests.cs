@@ -296,7 +296,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.False(badge.IsHitTestVisible);
         Assert.False(badge.Focusable);
         Assert.False(badge.IsVisible);
-        Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
+        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.Equal(new Thickness(8, 4), badge.Padding);
@@ -316,13 +316,13 @@ public sealed class GalleryFavoriteStateTests
     }
 
     [Fact]
-    public void FavoriteIndicatorSitsTopRightDirectlyLeftOfTheWayBack()
+    public void FavoriteIndicatorSitsTopLeftDirectlyRightOfTheWayBack()
     {
         Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
 
-        // The top right edge belongs to the gallery's way back (Tom's rule); the passive badge sits directly left of it
-        // (UpdateFavoriteIndicators sets the margin from the button's width) and the post panel starts below that row.
-        Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
+        // The top left edge belongs to the gallery's way back (Tom's rule of 14.11.); the passive badge sits directly right of it
+        // (UpdateFavoriteIndicators sets the margin from the button's width) and the post panel starts below that row where it reaches it.
+        Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.True(badge.ZIndex > 0);

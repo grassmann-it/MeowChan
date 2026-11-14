@@ -12,8 +12,8 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>
 /// Gallery cells of the work-views smoke (WV4, work-views-gallery). The gallery stays open while the matrix switches the view, so
 /// every cell also proves the change of view at run time. Per cell: the movable tools sit on the bar or under More as the policy
-/// says, the "where am I" line follows its gate, the way back stands alone at the top right with the star directly left of it,
-/// the post panel starts below that row, and a menu opened and closed returns focus to More.
+/// says, the "where am I" line follows its gate, the way back stands first at the top left with the star directly right of it,
+/// the post panel never lies under that pair, and a menu opened and closed returns focus to More.
 /// </summary>
 internal static class WorkViewGalleryChecks
 {
@@ -86,29 +86,29 @@ internal static class WorkViewGalleryChecks
         if (!Tool(viewer, "gallery.position").IsVisible) throw new InvalidOperationException($"{scene}: the position is hidden.");
     }
 
-    // Tom's rule: the way back alone at the top right edge, the star directly left of it, the other actions apart from both.
+    // Tom's rule of 14.11.: the way back first at the top left edge, the star directly right of it as a pair, the other actions apart from both.
     private static void CheckTopRow(GalleryViewer viewer, string scene)
     {
         Control back = Tool(viewer, "gallery.back");
         Point? backOrigin = back.TranslatePoint(default, viewer);
-        if (!back.IsEffectivelyVisible || backOrigin is not { } origin || origin.X + back.Bounds.Width < viewer.Bounds.Width - 24
-            || origin.X + back.Bounds.Width > viewer.Bounds.Width + 1 || origin.Y > 24)
-            throw new InvalidOperationException($"{scene}: the way back is not at the top right edge ({backOrigin}, {back.Bounds.Size} in {viewer.Bounds.Size}).");
+        if (!back.IsEffectivelyVisible || backOrigin is not { } origin || origin.X < 0 || origin.X > 24 || origin.Y > 24 || origin.Y < 0)
+            throw new InvalidOperationException($"{scene}: the way back is not at the top left edge ({backOrigin}, {back.Bounds.Size} in {viewer.Bounds.Size}).");
         Control star = Tool(viewer, "gallery.favorite.indicator");
         if (star.IsVisible && star.TranslatePoint(default, viewer) is { } starOrigin)
         {
-            double gap = origin.X - (starOrigin.X + star.Bounds.Width);
+            double gap = starOrigin.X - (origin.X + back.Bounds.Width);
             if (gap < 0 || gap > 24 || Math.Abs(starOrigin.Y - origin.Y) > 16)
-                throw new InvalidOperationException($"{scene}: the star is not directly left of the way back (gap {gap:0.#}, rows {starOrigin.Y:0.#}/{origin.Y:0.#}).");
+                throw new InvalidOperationException($"{scene}: the star is not directly right of the way back (gap {gap:0.#}, rows {starOrigin.Y:0.#}/{origin.Y:0.#}).");
         }
         // Nothing else of the viewer's toolbar stands in the top row beside the two.
         foreach (Control tool in new[] { Tool(viewer, "gallery.nav.previous"), Tool(viewer, "gallery.nav.next"), Tool(viewer, "gallery.favorite"), Tool(viewer, "gallery.toolbar.more") })
             if (tool.IsEffectivelyVisible && tool.TranslatePoint(default, viewer) is { } point && point.Y < origin.Y + back.Bounds.Height + 8
-                && point.X + tool.Bounds.Width > origin.X - 40)
+                && point.X < origin.X + back.Bounds.Width + 40 + (star.IsVisible ? star.Bounds.Width + 24 : 0))
                 throw new InvalidOperationException($"{scene}: {tool.Name} shares the top row with the way back.");
     }
 
-    // The post panel (and the tag panel slot that will share it) starts below the way back and the star, never under them.
+    // The post panel (and the tag panel slot that will share it) never lies under the way back and the star at the left: it starts below
+    // them where it reaches them horizontally (narrow viewer) and at the top otherwise.
     private static async Task CheckPostPanelBelowTopRowAsync(MainWindow window, GalleryViewer viewer, string scene)
     {
         ToggleButton toggle = (ToggleButton)Tool(viewer, "gallery.toolbar.post-panel");
@@ -124,8 +124,10 @@ internal static class WorkViewGalleryChecks
             Control back = Tool(viewer, "gallery.back");
             double backBottom = back.TranslatePoint(new Point(0, back.Bounds.Height), viewer)?.Y ?? 0;
             double panelTop = panel.TranslatePoint(default, viewer)?.Y ?? 0;
-            if (panelTop < backBottom - 0.5)
-                throw new InvalidOperationException($"{scene}: the post panel starts at {panelTop:0.#} under the way back (bottom {backBottom:0.#}).");
+            double backRight = back.TranslatePoint(new Point(back.Bounds.Width, 0), viewer)?.X ?? 0;
+            double panelLeft = panel.TranslatePoint(default, viewer)?.X ?? 0;
+            if (panelTop < backBottom - 0.5 && panelLeft < backRight + 0.5)
+                throw new InvalidOperationException($"{scene}: the post panel starts at {panelTop:0.#} under the way back (bottom {backBottom:0.#}, panel left {panelLeft:0.#}, back right {backRight:0.#}).");
             // V2: the host's head has the segment "Post | Tags" on the left and the × alone at the right edge; the post shows.
             ToggleButton post = (ToggleButton)Tool(viewer, "gallery.panel.post"), tags = (ToggleButton)Tool(viewer, "gallery.panel.tags");
             Button close = viewer.SidePanel.CloseButton;
