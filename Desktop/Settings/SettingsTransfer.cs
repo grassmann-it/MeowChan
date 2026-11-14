@@ -172,6 +172,7 @@ public static class SettingsTransfer
             Animations = source.Animations,
             Language = source.Language,
             WorkspaceMode = source.WorkspaceMode,
+            WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds,
             ReaderPostWidth = source.ReaderPostWidth,
             VideoAutoplay = source.VideoAutoplay,
             VideoStartMuted = source.VideoStartMuted,

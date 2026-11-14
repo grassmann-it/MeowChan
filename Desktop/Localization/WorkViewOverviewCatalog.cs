@@ -43,6 +43,7 @@ internal static class WorkViewOverviewCatalog
         ("workview.overview.page.plugins", "Plugins", "Plugins"),
         ("workview.overview.page.diagnostics", "Diagnostics", "Diagnose"),
         ("workview.overview.page.statistics", "Statistics", "Statistik"),
+        ("workview.overview.page.status", "Status", "Status"),
         ("workview.overview.page.settings", "Settings", "Einstellungen"),
         ("workview.overview.page.dialogs", "Dialogs", "Dialoge"),
     };
