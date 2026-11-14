@@ -167,6 +167,9 @@ internal static partial class PluginManagementChecks
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
+                // The pages refresh their localized text from a posted callback (PluginsPage.OnLanguageChanged); let it run
+                // before the merged dropdown is checked, as the geometry wait below returns at once when the size is unchanged.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 double matrixWidth = mode == "Barebones" ? 640 : 760;
                 double matrixHeight = mode == "Barebones" ? 480 : 500;
                 window.Width = matrixWidth;
