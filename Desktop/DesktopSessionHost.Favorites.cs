@@ -58,7 +58,8 @@ internal sealed partial class DesktopSessionHost
 
     /// <summary>
     /// Hands the configured limits of the private lists (favorites, ratings, bookmarks, saved searches, reader groups) to the
-    /// profile and the video preview cache limits to the cache. Lowering a limit never removes data; it only stops growth.
+    /// profile and the video/tile preview cache limits to their caches. ThumbnailCacheTiles remains the tile upper bound; its
+    /// decoded-byte budget is derived by MediaTileThumbnails.Configure. Lowering a limit never removes saved data.
     /// </summary>
     private void ApplyStoreLimits()
     {

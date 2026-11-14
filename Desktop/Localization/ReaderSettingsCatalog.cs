@@ -5,7 +5,7 @@ internal static class ReaderSettingsCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("settings.reader.thumbnailWidth", "Preview image width (px)", "Breite der Vorschaubilder (px)"),
-        ("settings.reader.thumbnailWidth.hint", "The large reader uses 1.5 times this width.", "Der große Reader verwendet das 1,5-Fache dieser Breite."),
+        ("settings.reader.thumbnailWidth.hint", "Normal reader previews use this width setting (120–480 px); decoding never goes below the existing 240 × 180 floor. The large reader layout uses 1.5 times this width and still decodes up to 1040 × 720, but that full-size preview is not retained. Larger bitmaps use proportionally more of the shared preview byte budget, so 480-pixel previews retain fewer cached items.", "Normale Reader-Vorschauen verwenden diese Breiteneinstellung (120–480 px); beim Dekodieren wird der bisherige Boden von 240 × 180 nie unterschritten. Das Layout des großen Readers verwendet das 1,5-Fache dieser Breite und dekodiert weiterhin bis 1040 × 720, behält diese Vollgrößen-Vorschau aber nicht. Größere Bitmaps verbrauchen anteilig mehr vom gemeinsamen Bytebudget, daher bleiben bei 480 Pixeln weniger Vorschauen im Cache."),
         ("settings.reader.foldLines", "Fold long posts above (lines)", "Lange Posts kürzen ab (Zeilen)"),
         ("settings.reader.foldLines.hint", "Expand a post to read all its text.", "Klappe einen Post auf, um den ganzen Text zu lesen."),
         ("settings.reader.previewLines", "Lines in quote previews", "Zeilen in der Zitatvorschau"),

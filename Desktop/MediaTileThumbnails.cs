@@ -22,15 +22,31 @@ internal static class MediaTileThumbnails
     internal const int VerifiedFilesPerPreview = 32;
 
     /// <summary>Decoded previews of this session, shared by every media page (see <see cref="MediaThumbnailCache"/>).</summary>
-    internal static MediaThumbnailCache<Bitmap> Cache { get; } = new();
+    internal static MediaThumbnailCache<Bitmap> Cache { get; } = new(BitmapBytes,
+        MediaThumbnailCache.DefaultCapacity, MediaThumbnailCache.DefaultBudgetBytes);
     /// <summary>Files fully verified for a preview in this session and unchanged since (see <see cref="VerifiedFileMemo"/>).</summary>
     internal static VerifiedFileMemo Verified { get; } = new(MediaThumbnailCache.DefaultCapacity * VerifiedFilesPerPreview);
 
-    /// <summary>Sets how many previews stay in memory (a setting); the memory of verified files follows it.</summary>
+    /// <summary>
+    /// Sets the configured tile upper bound and derives its retained decoded-byte budget from the existing poster-sized preview;
+    /// the memory of verified files follows it. A smaller setting trims immediately and leases remain safe.
+    /// </summary>
     internal static void Configure(int tiles)
     {
-        Cache.Capacity = Math.Max(1, tiles);
-        Verified.Capacity = Math.Max(1, tiles) * VerifiedFilesPerPreview;
+        int effectiveTiles = Math.Max(1, tiles);
+        Cache.BudgetBytes = MediaThumbnailCache.ByteBudgetForTiles(effectiveTiles);
+        Cache.Capacity = effectiveTiles;
+        Verified.Capacity = effectiveTiles * VerifiedFilesPerPreview;
+    }
+
+    /// <summary>Decoded storage charged to a bitmap: Avalonia's 32-bit pixel buffer dimensions, not its compressed source size.</summary>
+    internal static long BitmapBytes(Bitmap bitmap) => BitmapBytes(bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+
+    internal static long BitmapBytes(int width, int height)
+    {
+        if (width <= 0 || height <= 0) return 0;
+        long pixels = (long)width * height;
+        return pixels > long.MaxValue / 4 ? long.MaxValue : pixels * 4;
     }
 
     /// <summary>
