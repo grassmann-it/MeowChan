@@ -561,8 +561,8 @@ public sealed class HelpDocumentationTests
         Assert.Contains("_mediaPage.SaveSortAsync = (sort, direction) => sort == MediaLibrarySort.Random", mediaHost);
         Assert.Contains("MediaSortPreference.Remember(config, sort, direction)", mediaHost);
         Assert.Contains("_mediaPage.RestoreSort(savedSort, savedDirection)", Read("Desktop/Shell/MainWindow.Media.cs"));
-        Assert.Contains("In narrow windows Refresh and Shuffle again also move under More; Order stays visible", text);
-        Assert.Equal(new[] { "media.toolbar.refresh", "media.toolbar.shuffle" },
+        Assert.Contains("In narrow windows the focus button, Refresh and Shuffle again move under More; Order stays visible", text);
+        Assert.Equal(new[] { "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle" },
             MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
         Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.sort"));
         foreach (WorkView view in Enum.GetValues<WorkView>())
@@ -796,8 +796,8 @@ public sealed class HelpDocumentationTests
 
     public static TheoryData<string, string, int, int, int> ReaderAndGalleryLimits() => new()
     {
-        // P1 persists these component contracts. Referencing the components also allows this
-        // docs-only branch to compile before the separate P1 implementation is integrated.
+        // Map exact field names to their component contracts: the Fit cap and manual zoom
+        // have separate limits, even though they share one documentation section.
         { "Reader display settings", "Preview image width (px)", ReaderDisplayPreferences.ReaderThumbnailWidthDefault, ReaderDisplayPreferences.ReaderThumbnailWidthMinimum, ReaderDisplayPreferences.ReaderThumbnailWidthMaximum },
         { "Reader display settings", "Fold long posts above (lines)", ReaderDisplayLimits.FoldLinesDefault, ReaderDisplayLimits.FoldLinesMinimum, ReaderDisplayLimits.FoldLinesMaximum },
         { "Reader display settings", "Lines in quote previews", ReaderDisplayLimits.PreviewLinesDefault, ReaderDisplayLimits.PreviewLinesMinimum, ReaderDisplayLimits.PreviewLinesMaximum },
@@ -806,7 +806,8 @@ public sealed class HelpDocumentationTests
         { "Reader display settings", "Lines per reply card", ReaderDisplayLimits.ReplyLinesDefault, ReaderDisplayLimits.ReplyLinesMinimum, ReaderDisplayLimits.ReplyLinesMaximum },
         { "Reader display settings", "Posts per reader page", ArchivePage.ReaderPageSizeDefault, ArchivePage.ReaderPageSizeMinimum, ArchivePage.ReaderPageSizeMaximum },
         { "Reader display settings", "Maximum conversation indentation depth", ReaderConversationTree.DepthDefault, ReaderConversationTree.DepthMinimum, ReaderConversationTree.DepthMaximum },
-        { "Gallery Fit enlargement", "Maximum enlargement (%)", GalleryFitPreferences.MaxUpscalePercentDefault, GalleryFitPreferences.MaxUpscalePercentMinimum, GalleryFitPreferences.MaxUpscalePercentMaximum }
+        { "Gallery Fit enlargement", "Maximum enlargement (%)", GalleryFitPreferences.MaxUpscalePercentDefault, GalleryFitPreferences.MaxUpscalePercentMinimum, GalleryFitPreferences.MaxUpscalePercentMaximum },
+        { "Gallery Fit enlargement", "Maximum zoom (%)", GalleryZoomLimits.MaxPercentDefault, GalleryZoomLimits.MaxPercentMinimum, GalleryZoomLimits.MaxPercentMaximum }
     };
 
     [Theory]
@@ -822,13 +823,13 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void ReaderP1NumericTablesCoverAllElevenFieldsWithoutDuplicates()
+    public void ReaderAndGalleryNumericTablesCoverAllTwelveFieldsWithoutDuplicates()
     {
-        // Eight reader numbers, the gallery cap, and the two post-filter store limits.
+        // Eight reader numbers, separate Fit and manual zoom caps, and two post-filter store limits.
         foreach (string heading in new[] { "Reader display settings", "Gallery Fit enlargement" })
             Assert.Equal(ReaderAndGalleryLimits().Where(row => (string)row[0] == heading).Select(row => (string)row[1]).Order(StringComparer.Ordinal),
                 TableRows(heading).Select(row => row[0]).Order(StringComparer.Ordinal));
-        Assert.Equal(11, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
+        Assert.Equal(12, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
     }
 
     [Fact]
@@ -1012,7 +1013,7 @@ public sealed class HelpDocumentationTests
             """new\(IoStatsDisplay\.\w+,\s*Texts\.T\("(?<key>stats\.headerGraph\.[^"]+)"\)\)""")
             .Select(match => match.Groups["key"].Value).Distinct(StringComparer.Ordinal).ToArray();
         Assert.NotEmpty(keys);
-        foreach (string suffix in new[] { "auto", "network", "disk", "networkAndDisk", "sideBySide", "text" })
+        foreach (string suffix in new[] { "auto", "network", "disk", "networkAndDisk", "sideBySide", "text", "off" })
             Assert.Contains("stats.headerGraph." + suffix, keys);
         string documented = Plain(Section(Read(Help), "Statistics and disk traffic"));
         foreach (string key in keys)

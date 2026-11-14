@@ -205,7 +205,7 @@ neither the watches nor the download queue. If every row is a problem, there is
 nothing to filter and this checkbox is not shown.
 
 Whenever any URLs were rejected, **Put rejected back into the field** (German:
-**Abgelehnte ins Feld**) returns those URLs to the Add input, once each, so you can
+**Abgelehnte zurück ins Feld**) returns those URLs to the Add input, once each, so you can
 correct them and choose Add again. Invalid, unsupported, failed and skipped
 entries count as rejected; **Already present** does not. If you have edited the
 input since submission, that text is kept and only missing rejected URLs are
@@ -1147,22 +1147,27 @@ This option also works when the graphs are hidden. Turning it off restores the w
 
 In the same Statistics section, **Header graph** offers **Automatic**, **Network
 only**, **Disk only**, **Network and disk, stacked**, **Network and disk, side by
-side**, and **Text only, no graph**. Save applies the choice. Automatic adapts to
-width, not the work view. Network only or Disk only shows just that category's
+side**, **Text only, no graph**, and **Off, hide the display**. Save applies the
+choice. Automatic adapts to width, not the work view. Network only or Disk only shows just that category's
 rates and graph; stacked keeps both categories in rows. Side by side uses two
 blocks when there is room and falls back to rows when narrower. Narrow windows
 omit graphs but keep the selected rates. Text only keeps both categories' rates
-without graphs; it does not turn off statistics collection.
+without graphs; it does not turn off statistics collection. Off hides the header
+display and withdraws only its own sampling claim, not downloads or other
+statistics sampling.
 
 **Deutsch (Kopfleiste):** Unter **Einstellungen → Sitzung und Fenster → Statistik**
 bietet **Graph in der Kopfleiste** die Auswahl **Automatisch**, **Nur Netz**,
 **Nur Datenträger**, **Netz und Datenträger, übereinander**, **Netz und Datenträger,
-nebeneinander** und **Nur Text, kein Graph**. Erst **Speichern** übernimmt die Wahl.
+nebeneinander**, **Nur Text, kein Graph** und **Aus, Anzeige ausblenden**. Erst
+**Speichern** übernimmt die Wahl.
 Automatisch richtet sich nach der Fensterbreite, nicht nach der Arbeitsansicht.
 Nur Netz bzw. Nur Datenträger zeigt nur die Werte und den Graphen dieser Kategorie.
 Nebeneinander fällt bei weniger Platz auf Zeilen zurück; schmale Fenster lassen
 die Graphen weg und behalten die gewählten Werte. Nur Text zeigt beide Kategorien
-weiter an und schaltet die Statistikmessung nicht aus.
+weiter an und schaltet die Statistikmessung nicht aus. Aus blendet die
+Kopfleistenanzeige aus und nimmt nur deren eigenen Messanspruch zurück; Downloads
+und andere Statistikmessungen bleiben davon unberührt.
 Die Richtungen heißen **Download / Upload** und **Lesen / Schreiben**; Download
 und Lesen sind durchgezogen mit Fläche, Upload und Schreiben gestrichelt.
 **Symbole für I/O-Werte in der Kopfleiste** ist standardmäßig aus und ersetzt nur
@@ -1452,9 +1457,9 @@ Search and Filters sit on the left of the Media toolbar, Order on the right.
 Refresh and Shuffle again are icon buttons beside the order, named in tooltips.
 **Export all matches** (German: **Alle Treffer exportieren**) and **Manage saved
 ratings…** (**Gespeicherte Bewertungen verwalten…**) stay under **More** (**Mehr**).
-In narrow windows Refresh and Shuffle again also move under More; Order stays
-visible. **Show captured but missing files** (**Erfasste, aber fehlende Dateien
-zeigen**) is in Filters, with the active chip **Including missing files**
+In narrow windows the focus button, Refresh and Shuffle again move under More;
+Order stays visible. **Show captured but missing files** (**Erfasste, aber fehlende
+Dateien zeigen**) is in Filters, with the active chip **Including missing files**
 (**Mit fehlenden Dateien**).
 
 ### Media filters and focus mode
