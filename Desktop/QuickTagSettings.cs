@@ -34,6 +34,14 @@ internal static class QuickTagSettings
         return new TagRecentList(config.QuickTagRecentCount);
     }
 
+    /// <summary>Applies a saved recent-tag limit without losing the newest entries; zero also forgets the old list.</summary>
+    internal static void ApplyRecentLimit(TagRecentList recent, Config config)
+    {
+        ArgumentNullException.ThrowIfNull(recent);
+        ArgumentNullException.ThrowIfNull(config);
+        recent.Capacity = config.QuickTagRecentCount; // TagRecentList clamps and trims atomically.
+    }
+
     /// <summary>A session over <paramref name="target"/> that keeps the configured number of undo steps.</summary>
     internal static QuickTagSession NewSession(IQuickTagTarget target, Config config)
     {

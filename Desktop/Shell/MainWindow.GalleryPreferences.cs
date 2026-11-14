@@ -26,6 +26,8 @@ public partial class MainWindow
 
     private void ApplyGalleryPreferences()
     {
+        // A saved zero must discard recent tags immediately, even when the tag panel is closed.
+        if (_quickTagRecent is { } recent) QuickTagSettings.ApplyRecentLimit(recent, _config);
         _gallery?.Configure(_desiredGalleryContext ?? _config.GalleryContextOpen, _config.ShowShortcutHelp,
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);

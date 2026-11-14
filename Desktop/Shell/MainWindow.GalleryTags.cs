@@ -21,7 +21,8 @@ public partial class MainWindow
     private bool _galleryTagDialogOpen;
     private GalleryTagPanelOwner? _galleryTagPanelOwner;
     // Tags used in this window's session, for the "recently used" suggestions of the panel (kept while the panel closes and reopens).
-    private readonly TagRecentList _quickTagRecent = new();
+    private TagRecentList? _quickTagRecent;
+    private TagRecentList QuickTagRecent => _quickTagRecent ??= QuickTagSettings.NewRecentList(_config);
     internal MediaTagDialog? GalleryMediaTagWindow { get; private set; }
 
     private void OpenGalleryTagPanel()
@@ -58,12 +59,11 @@ public partial class MainWindow
             ? new GalleryTagPanelPosition(window._galleryIndex + 1, window._galleryEntries.Count, window._galleryThreadIndex < window._galleryThreads.Count)
             : null;
 
-        public TagRecentList Recent => window._quickTagRecent;
+        public TagRecentList Recent => window.QuickTagRecent;
 
-        // The limits are QuickTagOptions / TagContextOptions values with default, minimum and maximum (out-of-range input is clamped);
-        // the settings of the tag surface (TP5) bind here.
-        public QuickTagOptions Options => QuickTagOptions.Default;
-        public TagContextOptions ContextOptions => TagContextOptions.Default;
+        // New panels use the saved profile limits; an open panel retains its undo history and current operation.
+        public QuickTagOptions Options => QuickTagSettings.SurfaceOptions(window._config);
+        public TagContextOptions ContextOptions => QuickTagSettings.ContextOptions(window._config);
 
         public BooruCatalogSnapshot? ReadSourceTags() => window._session.ReadBooruCatalog();
 
