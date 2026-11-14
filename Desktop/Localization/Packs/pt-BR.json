@@ -4519,6 +4519,16 @@
     "gallery.mode.tagUnavailable": "A marcação percorre a fila de tags. Adicione estas mídias com “Adicionar à fila de tags” e continue depois na página Marcação com tags.",
     "gallery.mode.announce.tag": "Modo de tags: favorito, avaliação e tags ficam no painel de tags.",
     "gallery.mode.announce.view": "Modo de visualização.",
-    "viewer.playback.status.tagHold": "A apresentação espera enquanto você marca — continua com esta mídia quando você sai do painel de tags"
+    "viewer.playback.status.tagHold": "A apresentação espera enquanto você marca — continua com esta mídia quando você sai do painel de tags",
+    "reader.sidebar.strip": "Arquivos desta postagem",
+    "reader.sidebar.stripItem": "Arquivo {0} de {1}: {2}",
+    "reader.sidebar.discover": "Pressione {0} para mostrar a mídia da postagem selecionada em tamanho grande ao lado das postagens.",
+    "reader.sidebar.discoverNoKey": "Mostra a mídia da postagem selecionada em tamanho grande ao lado das postagens.",
+    "settings.reader.mediaStripLimit": "Miniaturas na faixa da barra lateral de mídia",
+    "settings.reader.mediaStripLimit.hint": "Uma postagem com vários arquivos mostra uma faixa de miniaturas sob a mídia grande. Se tiver mais arquivos que este número, uma janela se desloca; os botões ◀ ▶ continuam chegando a todos os arquivos.",
+    "settings.reader.mediaGrid": "Mostrar várias imagens de uma postagem curta como grade",
+    "settings.reader.mediaGrid.hint": "Uma postagem com várias imagens e pouco texto as mostra em duas colunas em vez de uma coluna longa.",
+    "settings.reader.mediaGridText": "Maior texto de uma postagem com grade de imagens (caracteres)",
+    "settings.reader.mediaGridText.hint": "Postagens com mais texto mantêm as imagens em uma coluna ao lado do texto. 0 significa: apenas postagens sem texto."
   }
 }

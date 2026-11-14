@@ -4427,6 +4427,16 @@
     "gallery.mode.tagUnavailable": "タグ付けはタグ付けキューを順に進みます。「タグ付けキューに追加」でこれらのメディアを追加してから、タグ付けページで続けてください。",
     "gallery.mode.announce.tag": "タグ付けモード: お気に入り、評価、タグはタグパネルにあります。",
     "gallery.mode.announce.view": "表示モード。",
-    "viewer.playback.status.tagHold": "タグ付け中はスライドショーが待機します — タグパネルを離れるとこのメディアから続きます"
+    "viewer.playback.status.tagHold": "タグ付け中はスライドショーが待機します — タグパネルを離れるとこのメディアから続きます",
+    "reader.sidebar.strip": "この投稿のファイル",
+    "reader.sidebar.stripItem": "ファイル {0}／{1}：{2}",
+    "reader.sidebar.discover": "{0} を押すと、選択中の投稿のメディアを投稿の横に大きく表示します。",
+    "reader.sidebar.discoverNoKey": "選択中の投稿のメディアを投稿の横に大きく表示します。",
+    "settings.reader.mediaStripLimit": "メディアサイドバーのストリップに表示するサムネイル数",
+    "settings.reader.mediaStripLimit.hint": "複数のファイルがある投稿では、大きなメディアの下にサムネイルのストリップを表示します。この数を超えるファイルがある場合は表示範囲が移動し、◀ ▶ ボタンでは引き続きすべてのファイルに移動できます。",
+    "settings.reader.mediaGrid": "短い投稿の複数の画像をグリッドで表示",
+    "settings.reader.mediaGrid.hint": "複数の画像があってテキストが少ない投稿では、画像を長い 1 列ではなく 2 列で表示します。",
+    "settings.reader.mediaGridText": "画像グリッドで表示する投稿の最大テキスト長（文字数）",
+    "settings.reader.mediaGridText.hint": "これより長いテキストの投稿では、画像はテキストの横の 1 列のままです。0 はテキストのない投稿のみを意味します。"
   }
 }

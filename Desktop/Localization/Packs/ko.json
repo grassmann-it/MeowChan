@@ -4427,6 +4427,16 @@
     "gallery.mode.tagUnavailable": "태그 지정은 태그 지정 대기열을 따라 진행됩니다. “태그 지정 대기열에 추가”로 이 미디어를 추가한 다음 태그 지정 페이지에서 계속하세요.",
     "gallery.mode.announce.tag": "태그 지정 모드: 즐겨찾기, 평가, 태그는 태그 패널에 있습니다.",
     "gallery.mode.announce.view": "보기 모드.",
-    "viewer.playback.status.tagHold": "태그를 지정하는 동안 슬라이드쇼가 기다립니다 — 태그 패널을 벗어나면 이 미디어부터 계속합니다"
+    "viewer.playback.status.tagHold": "태그를 지정하는 동안 슬라이드쇼가 기다립니다 — 태그 패널을 벗어나면 이 미디어부터 계속합니다",
+    "reader.sidebar.strip": "이 게시물의 파일",
+    "reader.sidebar.stripItem": "파일 {0}/{1}: {2}",
+    "reader.sidebar.discover": "{0} 키를 누르면 선택한 게시물의 미디어를 게시물 옆에 크게 표시합니다.",
+    "reader.sidebar.discoverNoKey": "선택한 게시물의 미디어를 게시물 옆에 크게 표시합니다.",
+    "settings.reader.mediaStripLimit": "미디어 사이드바 스트립의 썸네일 수",
+    "settings.reader.mediaStripLimit.hint": "파일이 여러 개인 게시물은 큰 미디어 아래에 썸네일 스트립을 표시합니다. 이 수보다 파일이 많으면 표시 범위가 이동하며, ◀ ▶ 버튼으로는 계속 모든 파일에 이동할 수 있습니다.",
+    "settings.reader.mediaGrid": "짧은 게시물의 여러 이미지를 격자로 표시",
+    "settings.reader.mediaGrid.hint": "이미지가 여러 개이고 텍스트가 적은 게시물은 이미지를 긴 한 열 대신 두 열로 표시합니다.",
+    "settings.reader.mediaGridText": "이미지 격자로 표시할 게시물의 최대 텍스트 길이(글자 수)",
+    "settings.reader.mediaGridText.hint": "이보다 텍스트가 긴 게시물은 이미지를 텍스트 옆의 한 열로 유지합니다. 0은 텍스트가 없는 게시물만 의미합니다."
   }
 }

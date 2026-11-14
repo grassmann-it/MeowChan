@@ -408,6 +408,30 @@
                                 </Grid>
                                 <TextBlock Text="{Binding ReaderInlineVideoMaxFileMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderMediaStripLimitFieldLabel" Text="{Binding ReaderMediaStripLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderMediaStripLimitInput" Value="{Binding ReaderMediaStripLimit, Mode=TwoWay}" Minimum="{Binding ReaderMediaStripLimitMinimum}" Maximum="{Binding ReaderMediaStripLimitMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaStripLimitFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaStripLimitLabel}" AutomationProperties.HelpText="{Binding ReaderMediaStripLimitHelp}" />
+                                        <TextBlock x:Name="ReaderMediaStripLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderMediaStripLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <CheckBox x:Name="ReaderMediaGridInput" Content="{Binding ReaderMediaGridLabel}" IsChecked="{Binding ReaderMediaGrid, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderMediaGridHint}" />
+                                <TextBlock Text="{Binding ReaderMediaGridHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderMediaGridTextLimitFieldLabel" Text="{Binding ReaderMediaGridTextLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderMediaGridTextLimitInput" Value="{Binding ReaderMediaGridTextLimit, Mode=TwoWay}" Minimum="{Binding ReaderMediaGridTextLimitMinimum}" Maximum="{Binding ReaderMediaGridTextLimitMaximum}" Increment="20" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaGridTextLimitFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaGridTextLimitLabel}" AutomationProperties.HelpText="{Binding ReaderMediaGridTextLimitHelp}" />
+                                        <TextBlock x:Name="ReaderMediaGridTextLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderMediaGridTextLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />

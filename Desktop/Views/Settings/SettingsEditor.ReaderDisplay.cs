@@ -37,6 +37,10 @@ public partial class SettingsEditor
     public int ReaderInlineVideoMaxPlayersMaximum => Config.ReaderInlineVideoMaxPlayersMaximum;
     public int ReaderInlineVideoMaxFileMiBMinimum => Config.ReaderInlineVideoMaxFileMiBMinimum;
     public int ReaderInlineVideoMaxFileMiBMaximum => Config.ReaderInlineVideoMaxFileMiBMaximum;
+    public int ReaderMediaStripLimitMinimum => Config.ReaderMediaStripLimitMinimum;
+    public int ReaderMediaStripLimitMaximum => Config.ReaderMediaStripLimitMaximum;
+    public int ReaderMediaGridTextLimitMinimum => Config.ReaderMediaGridTextLimitMinimum;
+    public int ReaderMediaGridTextLimitMaximum => Config.ReaderMediaGridTextLimitMaximum;
     public int ReadingHistoryLimitMaximum => Config.ReadingHistoryLimitMaximum;
     public int ReaderTextlessMediaWidthMinimum => Config.ReaderTextlessMediaWidthMinimum;
     public int ReaderTextlessMediaWidthMaximum => Config.ReaderTextlessMediaWidthMaximum;
@@ -196,6 +200,21 @@ public partial class SettingsEditor
     public string ReaderInlineVideoMaxFileMiBLabel => Texts.T("settings.reader.inlineVideoMaxFile");
     public string ReaderInlineVideoMaxFileMiBHint => Texts.T("settings.reader.inlineVideoMaxFile.hint") + " " + Texts.T("settings.reader.range", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
     public string ReaderInlineVideoMaxFileMiBHelp => FieldHelp(nameof(ReaderInlineVideoMaxFileMiBInput), ReaderInlineVideoMaxFileMiBHint);
+    // Posts with several files (R11): the sidebar strip's size and the two-column grid of the inline layout.
+    private decimal? _readerMediaStripLimit;
+    public decimal? ReaderMediaStripLimit { get => _readerMediaStripLimit; set => SetField(ref _readerMediaStripLimit, value, nameof(ReaderMediaStripLimit)); }
+    public string ReaderMediaStripLimitLabel => Texts.T("settings.reader.mediaStripLimit");
+    public string ReaderMediaStripLimitHint => Texts.T("settings.reader.mediaStripLimit.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
+    public string ReaderMediaStripLimitHelp => FieldHelp(nameof(ReaderMediaStripLimitInput), ReaderMediaStripLimitHint);
+    private bool _readerMediaGrid;
+    public bool ReaderMediaGrid { get => _readerMediaGrid; set => SetField(ref _readerMediaGrid, value, nameof(ReaderMediaGrid)); }
+    public string ReaderMediaGridLabel => Texts.T("settings.reader.mediaGrid");
+    public string ReaderMediaGridHint => Texts.T("settings.reader.mediaGrid.hint");
+    private decimal? _readerMediaGridTextLimit;
+    public decimal? ReaderMediaGridTextLimit { get => _readerMediaGridTextLimit; set => SetField(ref _readerMediaGridTextLimit, value, nameof(ReaderMediaGridTextLimit)); }
+    public string ReaderMediaGridTextLimitLabel => Texts.T("settings.reader.mediaGridText");
+    public string ReaderMediaGridTextLimitHint => Texts.T("settings.reader.mediaGridText.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum);
+    public string ReaderMediaGridTextLimitHelp => FieldHelp(nameof(ReaderMediaGridTextLimitInput), ReaderMediaGridTextLimitHint);
 
     private void RefreshMediaSidebarSideChoices(string side)
     {
@@ -321,6 +340,11 @@ public partial class SettingsEditor
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
         ReaderInlineVideoMaxFileMiB = config.ReaderInlineVideoMaxFileMiB;
         ResetNumber(ReaderInlineVideoMaxFileMiBInput, ReaderInlineVideoMaxFileMiB.Value);
+        ReaderMediaStripLimit = config.ReaderMediaStripLimit;
+        ResetNumber(ReaderMediaStripLimitInput, ReaderMediaStripLimit.Value);
+        ReaderMediaGrid = config.ReaderMediaGrid;
+        ReaderMediaGridTextLimit = config.ReaderMediaGridTextLimit;
+        ResetNumber(ReaderMediaGridTextLimitInput, ReaderMediaGridTextLimit.Value);
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshMediaSidebarSideChoices(config.ReaderMediaSidebarSide);
     }
@@ -374,6 +398,9 @@ public partial class SettingsEditor
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
+        candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
+        candidate.ReaderMediaGrid = ReaderMediaGrid;
+        candidate.ReaderMediaGridTextLimit = GetInteger(ReaderMediaGridTextLimit, ReaderMediaGridTextLimitLabel, Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum);
         candidate.ReaderDateStyle = SelectedReaderDateStyle?.Value ?? _config.ReaderDateStyle;
         candidate.ReaderSpoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         candidate.GalleryFitUpscaleLimited = IsGalleryFitLimited;
@@ -416,6 +443,8 @@ public partial class SettingsEditor
         yield return (ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, string.Empty, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, true);
         yield return (ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, string.Empty, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, true);
         yield return (ReaderInlineVideoMaxFileMiBInput, ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, string.Empty, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, true);
+        yield return (ReaderMediaStripLimitInput, ReaderMediaStripLimit, ReaderMediaStripLimitLabel, string.Empty, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum, true);
+        yield return (ReaderMediaGridTextLimitInput, ReaderMediaGridTextLimit, ReaderMediaGridTextLimitLabel, string.Empty, Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum, true);
     }
 
     /// <summary>
@@ -491,6 +520,9 @@ public partial class SettingsEditor
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),
+        nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),
+        nameof(ReaderMediaGridLabel), nameof(ReaderMediaGridHint),
+        nameof(ReaderMediaGridTextLimitLabel), nameof(ReaderMediaGridTextLimitHint), nameof(ReaderMediaGridTextLimitHelp),
         nameof(ReaderDateStyleLabel), nameof(ReaderDateStyleHint),
         nameof(ReaderSpoilersLabel), nameof(ReaderSpoilersHint),
         nameof(GalleryFitUpscaleLabel), nameof(GalleryFitUpscaleHint),
@@ -518,5 +550,7 @@ public partial class SettingsEditor
         nameof(ReaderMediaSidebarMinimumWidthHelp),
         nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBHelp),
+        nameof(ReaderMediaStripLimitHelp),
+        nameof(ReaderMediaGridTextLimitHelp),
     });
 }

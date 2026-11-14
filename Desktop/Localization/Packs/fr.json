@@ -4513,6 +4513,16 @@
     "gallery.mode.tagUnavailable": "L’étiquetage parcourt la file d’étiquetage. Ajoutez ces médias avec « Ajouter à la file d’étiquetage », puis continuez depuis la page Étiquetage.",
     "gallery.mode.announce.tag": "Mode étiquetage : favori, évaluation et étiquettes sont dans le panneau des étiquettes.",
     "gallery.mode.announce.view": "Mode affichage.",
-    "viewer.playback.status.tagHold": "Le diaporama attend pendant que vous étiquetez — il reprend avec ce média quand vous quittez le panneau des étiquettes"
+    "viewer.playback.status.tagHold": "Le diaporama attend pendant que vous étiquetez — il reprend avec ce média quand vous quittez le panneau des étiquettes",
+    "reader.sidebar.strip": "Fichiers de ce message",
+    "reader.sidebar.stripItem": "Fichier {0} sur {1} : {2}",
+    "reader.sidebar.discover": "Appuyez sur {0} pour afficher en grand les médias du message sélectionné à côté des messages.",
+    "reader.sidebar.discoverNoKey": "Affiche en grand les médias du message sélectionné à côté des messages.",
+    "settings.reader.mediaStripLimit": "Miniatures dans la bande du panneau des médias",
+    "settings.reader.mediaStripLimit.hint": "Un message comportant plusieurs fichiers affiche une bande de miniatures sous le grand média. S’il en compte davantage, une fenêtre se déplace ; les boutons ◀ ▶ atteignent toujours chaque fichier.",
+    "settings.reader.mediaGrid": "Afficher plusieurs images d’un message court sous forme de grille",
+    "settings.reader.mediaGrid.hint": "Un message comportant plusieurs images et peu de texte les affiche sur deux colonnes au lieu d’une longue colonne.",
+    "settings.reader.mediaGridText": "Texte le plus long d’un message avec grille d’images (caractères)",
+    "settings.reader.mediaGridText.hint": "Les messages plus longs gardent leurs images dans une colonne à côté du texte. 0 signifie : uniquement les messages sans texte."
   }
 }

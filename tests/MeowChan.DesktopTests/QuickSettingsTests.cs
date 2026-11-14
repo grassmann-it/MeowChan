@@ -38,7 +38,8 @@ public sealed class QuickSettingsTests : IDisposable
             SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebar,
             SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,
             SettingsFieldId.ReaderInlineVideo, SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.ReaderInlineVideoMaxPlayers,
-            SettingsFieldId.ReaderInlineVideoMaxFileMiB
+            SettingsFieldId.ReaderInlineVideoMaxFileMiB, SettingsFieldId.ReaderMediaStripLimit, SettingsFieldId.ReaderMediaGrid,
+            SettingsFieldId.ReaderMediaGridTextLimit
         }, Reader.Fields.Select(field => field.Id));
         Assert.Equal(Reader.Fields.Count, Reader.Fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.True(QuickSettingsSurfaces.Contains(SettingsFieldId.ReaderPostWidth));

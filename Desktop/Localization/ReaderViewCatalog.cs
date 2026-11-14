@@ -35,6 +35,11 @@ internal static class ReaderViewCatalog
         ("reader.sidebar.collapsed", "Hidden while the reader is narrower than {0} px.", "Ausgeblendet, solange der Reader schmaler als {0} px ist."),
         ("reader.sidebar.splitter", "Media sidebar width", "Breite der Medienleiste"),
         ("reader.sidebar.loading", "Loading…", "Wird geladen…"),
+        // Several files in one post (R11): the strip's name, its items and the hint on the View menu entry.
+        ("reader.sidebar.strip", "Files of this post", "Dateien dieses Posts"),
+        ("reader.sidebar.stripItem", "File {0} of {1}: {2}", "Datei {0} von {1}: {2}"),
+        ("reader.sidebar.discover", "Press {0} to show the media of the selected post large beside the posts.", "{0} drücken, um die Medien des markierten Posts groß neben den Posts zu zeigen."),
+        ("reader.sidebar.discoverNoKey", "Shows the media of the selected post large beside the posts.", "Zeigt die Medien des markierten Posts groß neben den Posts."),
         // Inline video (R10): the activator over a poster, the announcements and the reasons a video does not play here.
         ("reader.video.play", "Play video here: {0}", "Video hier abspielen: {0}"),
         ("reader.video.playHint", "Enter or a click plays the video here; Space pauses or continues it.", "Enter oder ein Klick spielt das Video hier ab; die Leertaste hält es an oder setzt es fort."),

@@ -41,6 +41,10 @@ internal static class ReaderQuickSettings
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxPlayers, "settings.reader.inlineVideoPlayers", "settings.reader.inlineVideoPlayers.hint", Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, 1, c => c.ReaderInlineVideoMaxPlayers, (c, v) => c.ReaderInlineVideoMaxPlayers = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxFileMiB, "settings.reader.inlineVideoMaxFile", "settings.reader.inlineVideoMaxFile.hint", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, 64, c => c.ReaderInlineVideoMaxFileMiB, (c, v) => c.ReaderInlineVideoMaxFileMiB = v),
+        // R11: posts with several files.
+        Integer(SettingsFieldId.ReaderMediaStripLimit, "settings.reader.mediaStripLimit", "settings.reader.mediaStripLimit.hint", Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum, 1, c => c.ReaderMediaStripLimit, (c, v) => c.ReaderMediaStripLimit = v),
+        Toggle(SettingsFieldId.ReaderMediaGrid, "settings.reader.mediaGrid", "settings.reader.mediaGrid.hint", c => c.ReaderMediaGrid, (c, v) => c.ReaderMediaGrid = v),
+        Integer(SettingsFieldId.ReaderMediaGridTextLimit, "settings.reader.mediaGridText", "settings.reader.mediaGridText.hint", Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum, 20, c => c.ReaderMediaGridTextLimit, (c, v) => c.ReaderMediaGridTextLimit = v),
     };
 
     internal static readonly QuickSettingsSpec Spec = new(QuickSettingsSurfaces.Reader, "quicksettings.reader.title", "quicksettings.reader.all", Fields);

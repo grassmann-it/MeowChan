@@ -504,6 +504,17 @@ namespace MeowChan
         internal const int ReaderInlineVideoMaxFileMiBDefault = ReaderInlineVideoOptions.MaxFileMiBDefault;
         internal const int ReaderInlineVideoMaxFileMiBMinimum = ReaderInlineVideoOptions.MaxFileMiBMinimum;
         internal const int ReaderInlineVideoMaxFileMiBMaximum = ReaderInlineVideoOptions.MaxFileMiBMaximum;
+        // Several media in one post (R11): the sidebar's thumbnail strip shows at most this many files at once (a larger post slides a
+        // window along); posts with a little text show their images as a two-column grid instead of one long column.
+        public int ReaderMediaStripLimit { get; set; } = ReaderMediaStripLimitDefault;
+        internal const int ReaderMediaStripLimitDefault = ReaderDisplayPreferences.MediaStripLimitDefault;
+        internal const int ReaderMediaStripLimitMinimum = ReaderDisplayPreferences.MediaStripLimitMinimum;
+        internal const int ReaderMediaStripLimitMaximum = ReaderDisplayPreferences.MediaStripLimitMaximum;
+        public bool ReaderMediaGrid { get; set; } = true;
+        public int ReaderMediaGridTextLimit { get; set; } = ReaderMediaGridTextLimitDefault;
+        internal const int ReaderMediaGridTextLimitDefault = ReaderDisplayPreferences.MediaGridTextLimitDefault;
+        internal const int ReaderMediaGridTextLimitMinimum = ReaderDisplayPreferences.MediaGridTextLimitMinimum;
+        internal const int ReaderMediaGridTextLimitMaximum = ReaderDisplayPreferences.MediaGridTextLimitMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -760,6 +771,8 @@ namespace MeowChan
             ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
             ReaderInlineVideoMaxPlayers = Math.Clamp(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersMinimum, ReaderInlineVideoMaxPlayersMaximum);
             ReaderInlineVideoMaxFileMiB = Math.Clamp(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBMinimum, ReaderInlineVideoMaxFileMiBMaximum);
+            ReaderMediaStripLimit = Math.Clamp(ReaderMediaStripLimit, ReaderMediaStripLimitMinimum, ReaderMediaStripLimitMaximum);
+            ReaderMediaGridTextLimit = Math.Clamp(ReaderMediaGridTextLimit, ReaderMediaGridTextLimitMinimum, ReaderMediaGridTextLimitMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
@@ -1354,6 +1367,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxPlayers), "ReaderInlineVideoMaxPlayers is outside its supported range.");
             if (ReaderInlineVideoMaxFileMiB is < ReaderInlineVideoMaxFileMiBMinimum or > ReaderInlineVideoMaxFileMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderInlineVideoMaxFileMiB), "ReaderInlineVideoMaxFileMiB is outside its supported range.");
+            if (ReaderMediaStripLimit is < ReaderMediaStripLimitMinimum or > ReaderMediaStripLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaStripLimit), "ReaderMediaStripLimit is outside its supported range.");
+            if (ReaderMediaGridTextLimit is < ReaderMediaGridTextLimitMinimum or > ReaderMediaGridTextLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderMediaGridTextLimit), "ReaderMediaGridTextLimit is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
@@ -1565,6 +1582,9 @@ namespace MeowChan
                 ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
+                ReaderMediaStripLimit = ReaderMediaStripLimit,
+                ReaderMediaGrid = ReaderMediaGrid,
+                ReaderMediaGridTextLimit = ReaderMediaGridTextLimit,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
@@ -1786,6 +1806,9 @@ namespace MeowChan
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
+            ReaderMediaStripLimit = source.ReaderMediaStripLimit;
+            ReaderMediaGrid = source.ReaderMediaGrid;
+            ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
@@ -1970,6 +1993,9 @@ namespace MeowChan
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
+            ReaderMediaStripLimit = source.ReaderMediaStripLimit;
+            ReaderMediaGrid = source.ReaderMediaGrid;
+            ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;

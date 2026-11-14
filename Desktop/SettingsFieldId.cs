@@ -31,6 +31,9 @@ internal static class SettingsFieldId
     internal const string ReaderInlineVideoAutoplayMuted = nameof(ReaderInlineVideoAutoplayMuted);
     internal const string ReaderInlineVideoMaxPlayers = nameof(ReaderInlineVideoMaxPlayers);
     internal const string ReaderInlineVideoMaxFileMiB = nameof(ReaderInlineVideoMaxFileMiB);
+    internal const string ReaderMediaStripLimit = nameof(ReaderMediaStripLimit);
+    internal const string ReaderMediaGrid = nameof(ReaderMediaGrid);
+    internal const string ReaderMediaGridTextLimit = nameof(ReaderMediaGridTextLimit);
 
     /// <summary>The "Media folders" group of Storage and limits (a group, not an input: the Plugins page links to it).</summary>
     internal const string MediaFolders = nameof(MediaFolders);

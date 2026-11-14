@@ -4556,6 +4556,16 @@
     "gallery.mode.tagUnavailable": "Štítkuje se fronta štítkování. Přidejte tato média pomocí „Přidat do fronty štítkování“ a pak pokračujte na stránce Štítkování.",
     "gallery.mode.announce.tag": "Režim štítkování: oblíbené, hodnocení a štítky jsou v panelu štítků.",
     "gallery.mode.announce.view": "Režim prohlížení.",
-    "viewer.playback.status.tagHold": "Prezentace čeká, dokud štítkujete — po opuštění panelu štítků pokračuje tímto médiem"
+    "viewer.playback.status.tagHold": "Prezentace čeká, dokud štítkujete — po opuštění panelu štítků pokračuje tímto médiem",
+    "reader.sidebar.strip": "Soubory tohoto příspěvku",
+    "reader.sidebar.stripItem": "Soubor {0} z {1}: {2}",
+    "reader.sidebar.discover": "Stisknutím {0} se média vybraného příspěvku zobrazí velká vedle příspěvků.",
+    "reader.sidebar.discoverNoKey": "Zobrazí média vybraného příspěvku velká vedle příspěvků.",
+    "settings.reader.mediaStripLimit": "Miniatury v pásu panelu médií",
+    "settings.reader.mediaStripLimit.hint": "Příspěvek s více soubory zobrazí pod velkým médiem pás miniatur. Má-li souborů víc, než je toto číslo, okno se posouvá; tlačítka ◀ ▶ stále dosáhnou na každý soubor.",
+    "settings.reader.mediaGrid": "Více obrázků krátkého příspěvku zobrazit jako mřížku",
+    "settings.reader.mediaGrid.hint": "Příspěvek s více obrázky a jen malým množstvím textu je zobrazí ve dvou sloupcích místo jednoho dlouhého.",
+    "settings.reader.mediaGridText": "Nejdelší text příspěvku s mřížkou obrázků (znaky)",
+    "settings.reader.mediaGridText.hint": "Příspěvky s delším textem nechají obrázky v jednom sloupci vedle textu. 0 znamená: jen příspěvky bez textu."
   }
 }

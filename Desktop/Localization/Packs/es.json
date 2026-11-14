@@ -4513,6 +4513,16 @@
     "gallery.mode.tagUnavailable": "Se etiqueta la cola de etiquetado. Añada estos medios con «Añadir a la cola de etiquetado» y continúe después en la página Etiquetado.",
     "gallery.mode.announce.tag": "Modo etiquetar: favorito, valoración y etiquetas están en el panel de etiquetas.",
     "gallery.mode.announce.view": "Modo ver.",
-    "viewer.playback.status.tagHold": "La presentación espera mientras usted etiqueta — continúa con este medio cuando sale del panel de etiquetas"
+    "viewer.playback.status.tagHold": "La presentación espera mientras usted etiqueta — continúa con este medio cuando sale del panel de etiquetas",
+    "reader.sidebar.strip": "Archivos de esta publicación",
+    "reader.sidebar.stripItem": "Archivo {0} de {1}: {2}",
+    "reader.sidebar.discover": "Pulse {0} para mostrar los medios de la publicación seleccionada en grande junto a las publicaciones.",
+    "reader.sidebar.discoverNoKey": "Muestra los medios de la publicación seleccionada en grande junto a las publicaciones.",
+    "settings.reader.mediaStripLimit": "Miniaturas en la tira de la barra lateral de medios",
+    "settings.reader.mediaStripLimit.hint": "Una publicación con varios archivos muestra bajo el medio grande una tira de miniaturas. Si tiene más archivos que este número, se desplaza una ventana; los botones ◀ ▶ siguen llegando a todos los archivos.",
+    "settings.reader.mediaGrid": "Mostrar varias imágenes de una publicación corta como cuadrícula",
+    "settings.reader.mediaGrid.hint": "Una publicación con varias imágenes y poco texto las muestra en dos columnas en lugar de una columna larga.",
+    "settings.reader.mediaGridText": "Texto más largo de una publicación con cuadrícula de imágenes (caracteres)",
+    "settings.reader.mediaGridText.hint": "Las publicaciones con más texto mantienen sus imágenes en una columna junto al texto. 0 significa: solo publicaciones sin texto."
   }
 }

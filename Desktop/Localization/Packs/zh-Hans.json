@@ -4427,6 +4427,16 @@
     "gallery.mode.tagUnavailable": "打标签会依次处理标签队列。请先用“加入标签队列”添加这些媒体，然后在打标签页面继续。",
     "gallery.mode.announce.tag": "打标签模式：收藏、评分和标签都在标签面板中。",
     "gallery.mode.announce.view": "查看模式。",
-    "viewer.playback.status.tagHold": "打标签时幻灯片会等待 — 离开标签面板后从此媒体继续"
+    "viewer.playback.status.tagHold": "打标签时幻灯片会等待 — 离开标签面板后从此媒体继续",
+    "reader.sidebar.strip": "此帖子的文件",
+    "reader.sidebar.stripItem": "第 {0} 个文件，共 {1} 个：{2}",
+    "reader.sidebar.discover": "按 {0} 可在帖子旁大图显示所选帖子的媒体。",
+    "reader.sidebar.discoverNoKey": "在帖子旁大图显示所选帖子的媒体。",
+    "settings.reader.mediaStripLimit": "媒体侧栏缩略图条中的缩略图数量",
+    "settings.reader.mediaStripLimit.hint": "包含多个文件的帖子会在大媒体下方显示一排缩略图。文件数超过此数量时，窗口会随之滑动；◀ ▶ 按钮仍可到达每个文件。",
+    "settings.reader.mediaGrid": "将短帖子的多张图片显示为网格",
+    "settings.reader.mediaGrid.hint": "包含多张图片且文字很少的帖子会把图片分两列显示，而不是排成一长列。",
+    "settings.reader.mediaGridText": "显示图片网格的帖子的最长文字（字符）",
+    "settings.reader.mediaGridText.hint": "文字更多的帖子仍把图片排成一列，显示在文字旁边。0 表示仅限无文字的帖子。"
   }
 }

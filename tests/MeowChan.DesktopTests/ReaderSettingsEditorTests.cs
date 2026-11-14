@@ -35,6 +35,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderInlineVideoMaxPlayers), "settings.reader.inlineVideoPlayers", nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderInlineVideoMaxFileMiB), "settings.reader.inlineVideoMaxFile", nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderMediaStripLimit), "settings.reader.mediaStripLimit", nameof(SettingsEditor.ReaderMediaStripLimitMinimum), nameof(SettingsEditor.ReaderMediaStripLimitMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderMediaGridTextLimit), "settings.reader.mediaGridText", nameof(SettingsEditor.ReaderMediaGridTextLimitMinimum), nameof(SettingsEditor.ReaderMediaGridTextLimitMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.PostFilterRuleLimit), "settings.limits.postFilterRules", nameof(SettingsEditor.PostFilterRuleLimitMinimum), nameof(SettingsEditor.PostFilterRuleLimitMaximum), "SettingsWorkerBudgetsPage"),
         (nameof(Config.HiddenPostLimit), "settings.limits.hiddenPosts", nameof(SettingsEditor.HiddenPostLimitMinimum), nameof(SettingsEditor.HiddenPostLimitMaximum), "SettingsWorkerBudgetsPage"),
     };

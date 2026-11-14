@@ -4519,6 +4519,16 @@
     "gallery.mode.tagUnavailable": "Il tagging percorre la coda di tagging. Aggiungi questi media con «Aggiungi alla coda di tagging», poi continua dalla pagina Tagging.",
     "gallery.mode.announce.tag": "Modalità tagging: preferito, valutazione e tag sono nel pannello dei tag.",
     "gallery.mode.announce.view": "Modalità visualizzazione.",
-    "viewer.playback.status.tagHold": "La presentazione attende mentre tagghi — riprende con questo media quando lasci il pannello dei tag"
+    "viewer.playback.status.tagHold": "La presentazione attende mentre tagghi — riprende con questo media quando lasci il pannello dei tag",
+    "reader.sidebar.strip": "File di questo post",
+    "reader.sidebar.stripItem": "File {0} di {1}: {2}",
+    "reader.sidebar.discover": "Premi {0} per mostrare in grande i media del post selezionato accanto ai post.",
+    "reader.sidebar.discoverNoKey": "Mostra in grande i media del post selezionato accanto ai post.",
+    "settings.reader.mediaStripLimit": "Miniature nella striscia della barra laterale dei media",
+    "settings.reader.mediaStripLimit.hint": "Un post con più file mostra una striscia di miniature sotto il media grande. Se i file sono più di questo numero, una finestra scorre; i pulsanti ◀ ▶ raggiungono comunque ogni file.",
+    "settings.reader.mediaGrid": "Mostra più immagini di un post breve come griglia",
+    "settings.reader.mediaGrid.hint": "Un post con più immagini e poco testo le mostra su due colonne invece che su una lunga colonna.",
+    "settings.reader.mediaGridText": "Testo più lungo di un post con griglia di immagini (caratteri)",
+    "settings.reader.mediaGridText.hint": "I post con più testo mantengono le immagini in una colonna accanto al testo. 0 significa: solo post senza testo."
   }
 }

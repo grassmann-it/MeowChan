@@ -33,6 +33,14 @@ internal sealed class ReaderDisplayPreferences
     internal const int MediaSidebarReaderWidthDefault = 1280;
     internal const int MediaSidebarReaderWidthMinimum = 800;
     internal const int MediaSidebarReaderWidthMaximum = 3840;
+    // Several media in one post (R11). The sidebar's thumbnail strip shows at most this many files at once; a post with a little text
+    // (at most this many characters, whitespace trimmed) shows its images as a two-column grid instead of a long column.
+    internal const int MediaStripLimitDefault = 12;
+    internal const int MediaStripLimitMinimum = 2;
+    internal const int MediaStripLimitMaximum = 40;
+    internal const int MediaGridTextLimitDefault = 280;
+    internal const int MediaGridTextLimitMinimum = 0;
+    internal const int MediaGridTextLimitMaximum = 2000;
     // The reading history (R5): places of the last threads read, one per thread.
     internal const int ReadingHistoryLimitDefault = 10;
     internal const int ReadingHistoryLimitMinimum = 5;
@@ -134,6 +142,12 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
     /// <summary>Below this reader width the sidebar gives way to the posts (it stays chosen and returns when the reader is wider).</summary>
     internal int SidebarMinimumReaderWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault;
+    /// <summary>The most files the sidebar's thumbnail strip shows at once (R11); acts live.</summary>
+    internal int StripLimit { get; init; } = ReaderDisplayPreferences.MediaStripLimitDefault;
+    /// <summary>Posts with several images and little text show them as a two-column grid (R11); rebuilds the posts.</summary>
+    internal bool MediaGrid { get; init; } = true;
+    /// <summary>"Little text": at most this many characters.</summary>
+    internal int GridTextLimit { get; init; } = ReaderDisplayPreferences.MediaGridTextLimitDefault;
     /// <summary>Inline video (R10): off by default; acts live (no post is rebuilt).</summary>
     internal ReaderInlineVideoOptions Video { get; init; } = ReaderInlineVideoOptions.Default;
 
@@ -145,7 +159,10 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         SidebarRight = config.ReaderMediaSidebarSide == Config.ReaderMediaSidebarSideRight,
         SidebarWidth = config.ReaderMediaSidebarWidth,
         SidebarMinimumReaderWidth = config.ReaderMediaSidebarMinimumWidth,
-        Video = ReaderInlineVideoOptions.From(config)
+        Video = ReaderInlineVideoOptions.From(config),
+        StripLimit = config.ReaderMediaStripLimit,
+        MediaGrid = config.ReaderMediaGrid,
+        GridTextLimit = config.ReaderMediaGridTextLimit
     };
 
     internal ReaderMediaPreferences Clamped() => this with
@@ -157,12 +174,15 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         SidebarWidth = Math.Clamp(SidebarWidth, ReaderDisplayPreferences.MediaSidebarWidthMinimum, ReaderDisplayPreferences.MediaSidebarWidthMaximum),
         SidebarMinimumReaderWidth = Math.Clamp(SidebarMinimumReaderWidth, ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum,
             ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum),
-        Video = Video.Clamped()
+        Video = Video.Clamped(),
+        StripLimit = Math.Clamp(StripLimit, ReaderDisplayPreferences.MediaStripLimitMinimum, ReaderDisplayPreferences.MediaStripLimitMaximum),
+        GridTextLimit = Math.Clamp(GridTextLimit, ReaderDisplayPreferences.MediaGridTextLimitMinimum, ReaderDisplayPreferences.MediaGridTextLimitMaximum)
     };
 
     /// <summary>What changes the posts' own images (and so rebuilds them): the focus and hover options act live.</summary>
     internal bool SamePostImages(ReaderMediaPreferences other) =>
-        TextlessLarge == other.TextlessLarge && (!TextlessLarge || TextlessWidth == other.TextlessWidth);
+        TextlessLarge == other.TextlessLarge && (!TextlessLarge || TextlessWidth == other.TextlessWidth)
+        && MediaGrid == other.MediaGrid && (!MediaGrid || GridTextLimit == other.GridTextLimit);
 }
 
 internal enum ReaderDateStyle
