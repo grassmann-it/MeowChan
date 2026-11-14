@@ -172,7 +172,7 @@ internal static class DownloadsFeedbackChecks
                 Add("https://example.invalid/x", MeowChan.AdmissionStatus.Unsupported);
                 refresh.Invoke(window, null);
                 CheckBox problemsOnly = tools.Children.OfType<CheckBox>().Single();
-                Button putBack = tools.Children.OfType<Button>().Single();
+                Button putBack = tools.Children.OfType<Button>().Single(button => button is not Avalonia.Controls.Primitives.ToggleButton);
                 Require(tools.IsVisible && problemsOnly.IsVisible, "The problem tools are hidden although URLs were rejected.");
                 Require(Equals(problemsOnly.Content, Texts.T("admission.problemsOnly", 2)) && Equals(putBack.Content, Texts.T("admission.putBack")),
                     "The problem tools do not show their " + current + " labels.");
@@ -218,7 +218,9 @@ internal static class DownloadsFeedbackChecks
         Config config = window.SessionHost.Config;
         bool seen = config.ArchiveBridgeHintSeen;
         string language = Texts.Language;
-        Border hint = window.FindControl<Border>("ArchiveBridgeHint") ?? throw new InvalidOperationException("The Archive hint was not built.");
+        Border hint = window.ArchiveBridgeHintForTests ?? throw new InvalidOperationException("The Archive hint was not built.");
+        // The hint is composed in code and its names are not in the window's name scope: reach its parts through the hint.
+        T Part<T>(string name) where T : Control => hint.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);
         try
         {
             Texts.SetLanguage("en");
@@ -240,15 +242,15 @@ internal static class DownloadsFeedbackChecks
             if (startedEmpty)
             {
                 Require(hint.IsVisible, "The first successful Add did not show the Archive hint.");
-                string text = window.FindControl<TextBlock>("ArchiveBridgeHintText")!.Text ?? string.Empty;
+                string text = Part<TextBlock>("ArchiveBridgeHintText").Text ?? string.Empty;
                 Require(text.Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal), "The hint does not name the Archive: " + text);
-                Require(window.FindControl<Button>("ArchiveBridgeHintOpen")!.Content as string == Texts.T("downloads.archiveHint.open"), "The hint action is not 'Open in Archive'.");
+                Require(Part<Button>("ArchiveBridgeHintOpen").Content as string == Texts.T("downloads.archiveHint.open"), "The hint action is not 'Open in Archive'.");
                 Texts.SetLanguage("de");
                 await Task.Yield();
-                Require((window.FindControl<TextBlock>("ArchiveBridgeHintText")!.Text ?? string.Empty).Contains("Archiv", StringComparison.Ordinal),
+                Require((Part<TextBlock>("ArchiveBridgeHintText").Text ?? string.Empty).Contains("Archiv", StringComparison.Ordinal),
                     "The hint did not follow the language switch.");
                 Texts.SetLanguage("en");
-                SmokeActionClick.Execute(window.FindControl<Button>("ArchiveBridgeHintOpen")!);
+                SmokeActionClick.Execute(Part<Button>("ArchiveBridgeHintOpen"));
                 await Program.WaitUntilAsync(() => page.GetValue(window)?.ToString() == "Archive");
                 Require(!hint.IsVisible && config.ArchiveBridgeHintSeen, "The hint stays after its action was used.");
                 navigate.Invoke(window, new object?[] { Enum.Parse(page.FieldType, "Downloads"), true });
