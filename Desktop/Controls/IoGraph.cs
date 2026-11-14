@@ -234,7 +234,7 @@ public sealed class IoGraph : Control
     {
         base.OnPropertyChanged(change);
         if (change.Property == StrokeProperty || change.Property == SecondaryStrokeProperty || change.Property == DiskStrokeProperty
-            || change.Property == GuideStrokeProperty || change.Property == LineThicknessProperty || change.Property == ActualThemeVariantProperty)
+            || change.Property == GuideStrokeProperty || change.Property == LineThicknessProperty || change.Property == ThemeVariant.ActualThemeVariantProperty)
             _penCache.Invalidate();
         if (change.Property == SourceProperty)
         {
