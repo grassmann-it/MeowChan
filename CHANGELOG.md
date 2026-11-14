@@ -84,7 +84,7 @@
 - Add the Danbooru source, read-only and enabled by default (it sends nothing until you
   search or a watcher checks): tag search with restricted previews, single posts, watchers
   that continue below a post id cursor without a page limit, a one-time check of a paused
-  watcher, readable errors in all five languages, provenance and offline use. It is
+  watcher, readable errors in all twelve languages, provenance and offline use. It is
   reachable from the Workspace menu and bundled with the plugin package. Downloaded
   Danbooru originals show in the Media page, gallery and favorites; own tags on them are
   not available.
@@ -153,8 +153,8 @@
   validation error into view in small windows, and keep secondary windows at normal size
   after a title-bar restore on Linux/X11.
 - Rework the default keyboard shortcuts. **Media** is **Ctrl/Cmd+3** in footer order, with
-  **Rules 4**, **Sources 5**, **Diagnostics 6** and **Plugins 7**; footer, menus and the F1 help
-  list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
+  **Rules 4**, **Sources 5**, **Plugins 6** and **Diagnostics 7**, then **Statistics 8**; footer,
+  menus and the F1 help list the pages in the same order. New defaults: **Ctrl+T** thread tags, **Ctrl+Shift+T** media tags, **Ctrl+D** thread favorite,
   **Ctrl+Shift+F** filters (also for board filters, which moved from Ctrl+Shift+R), **F3** and
   **Ctrl+G** for find next and **Shift+F3** and **Ctrl+Shift+G** for find previous in the large Reader,
   **S** slideshow, **I** details, **R** rating, **Ctrl+E** export original and **Ctrl+O** show in folder
@@ -167,8 +167,7 @@
   warning appears only for bindings that are really blocked.
 - Speed up large collections: the saved media index loads in the background with a status
   instead of freezing the window, is written only when it changed, and unchanged threads and
-  imported batches are reused without opening their manifests (100000 entries: warm build 4.8 to
-  2.1 s, about 80 % fewer allocations on load); the own tag store and the import catalog are
+  imported batches are reused without opening their manifests; the own tag store and the import catalog are
   indexed and skip re-parsing an unchanged backup; the tag list lays out again only when the filter
   text really changed; finding the reading line no longer walks the visual tree on every scroll;
   the download speed timer stops while the window is hidden or minimized; opening a folder on an
@@ -248,23 +247,28 @@
 - Add a **Statistics** page (**Ctrl/Cmd+8**) that counts the network and disk traffic of
   MeowChan's own media: a history graph, a table per source (network now, this session, today
   and the kept days, disk read and written, requests, errors) and a **Reset** that asks first.
-  Network counts the response data MeowChan receives (upload shows only the number of requests);
-  disk counts the media files MeowChan itself writes or reads back, not thumbnails, previews,
-  archive or index files. The header download graph is now a button that opens the page. It shows
-  the network download (**Net ↓**) and the disk writing (**Disk**, what MeowChan writes, not what
-  it reads back) as two labelled rows, each with its own scale that steps by 1, 1.5, 2, 3 and so
-  on and a decaying maximum; the page shows network, disk write and disk read as three separate
-  graphs. The new setting **Header graph** (Automatic, Network only, Network and disk) decides
-  what the header shows (Automatic: both values in every work view and a graph for each only in
-  the Advanced view; Network only hides the disk value). The tray tooltip shows the current
-  rates and the number of active downloads, the tray menu starts with two statistics lines (a
-  click opens the page), the tray's disk rate counts writes only like the header, and nothing is
-  measured while the window is hidden and nothing downloads. A **Statistics** block on the Behavior page holds nine settings: update interval
+  Network counts the response data MeowChan receives and, as upload, the request payload that the
+  application writes to the connection once a write has completed (both without headers or
+  encryption; the number of requests is shown as well); disk counts the media files MeowChan itself
+  writes or reads back, not thumbnails, previews, archive or index files. The header download graph
+  is now a button that opens the page. It shows the two directions of the network (download
+  solid with a filled area, upload dashed) and of the disk (write solid, read dashed) as two labelled
+  blocks, **Network** with "↓ x ↑ y" and **Disk** with "R x W y", each with its own scale that
+  steps by 1, 1.5, 2, 3 and so on and a decaying maximum; the page shows network download, disk write
+  and disk read as three separate graphs and counts download only (upload is shown in the header,
+  the tray and the accessible name). The setting **Header graph** has six choices: Automatic
+  (network and disk, each with its own graph, in every work view), Network only, Disk only, Network
+  and disk stacked, Network and disk side by side, and Text only. Graphs need a window of at least
+  1000 dip and side by side one of 1280 dip; narrower windows keep the labelled values and drop the
+  graphs. The tray tooltip shows the current rates and the number of active downloads, the tray
+  menu starts with the same labelled network and disk lines while downloads run (a click opens
+  the page), and nothing is measured while the window is hidden and nothing downloads. A
+  **Statistics** block on the Behavior page holds nine settings: update interval
   (default 1000 ms, 500 to 10000), graph length (120 readings, 30 to 3600), update interval in the
   tray (5000 ms, 2000 to 60000), tray tooltip and tray menu (on), keep statistics on this computer
   (on), days kept (30, 1 to 365), saving interval (5 minutes, 1 to 60) and most sources (64, 8 to
-  256). Daily totals are kept in `io-stats.json` in your profile; with the switch off they last
-  only until you close MeowChan.
+  256). Daily totals are kept in `io-stats.json` in your profile (upload is an optional field, so
+  files from before stay valid); with the switch off they last only until you close MeowChan.
 - Rework the Rules page layout: the footer lines up with the 880 dip content column and is the
   only place for the status; an invalid field shows its error at the field, **Save** stays
   available, the footer names the invalid field and offers **Go to field**; the subtitle is one
@@ -291,7 +295,8 @@
   link; captured addresses stay inert) and the cats Simba and Mila with the photographer's
   credit; the picture is copied as `meowchan-cats.png` next to `index.html`. The export still has
   no script, no external load and the same strict content policy; its texts follow the export
-  language (English, German, Spanish, French and Russian; the other languages export in English).
+  language, in all 12 interface languages (the seven newer texts are AI-authored and not reviewed by
+  native speakers).
 - Explain an unusable settings file at startup in your language instead of an English technical
   sentence: the window says what happened (a usable backup exists, the file is from a newer
   version, it is damaged without a backup, or the profile has data but no settings file), that
@@ -322,8 +327,10 @@
   single post; reply cards and quote previews of a filtered post say so. Nothing is deleted, and
   the HTML export always contains every saved post. Rules and hidden posts are kept in the new
   profile file `post-filters.json` with one backup and an explicit recovery of a damaged file. The
-  lists hold 200 rules and 10000 hidden posts by default; there is no settings row for these two
-  limits in this line yet.
+  lists hold 200 rules (20 to 2000) and 10000 hidden posts (1000 to 100000) by default; both limits
+  are settings under **Storage and limits** (lowering one keeps existing entries and only stops
+  growth). A rule's **Edit** button loads it into the form and **Save changes** replaces it in
+  place; rules from a newer version stay read-only.
 - Keep decoded gallery images in a memory-bounded cache and decode the neighbours in the
   background: after an image is shown, the next and the previous images (3 and 2 by default, 0 to
   20) are decoded behind it and dropped as soon as you move on; videos and GIFs are skipped, and a
@@ -373,6 +380,137 @@
   again, in the muted italic style between the brand and the header graph, translated in all 12
   languages. It disappears when its column is narrower than 200 dip and never pushes the graph or
   the window controls.
+- Group the footer into work, set-up and observe pages: **Downloads, Archive, Media**, then
+  **Rules, Sources, Plugins**, then **Diagnostics, Statistics**, then **More** and **Settings**,
+  with a separator only between two groups that both show a button. The former **Tools** menu is
+  **More** in all 12 languages, and the header menu lists every page, Downloads included. Sources
+  and Plugins stay separate pages that point at each other: the Sources detail offers **Show
+  plugin**, Plugins offers **Show in Sources**, and both page headers say what the page is for
+  and where the other half lives.
+- Make the work views reduce each page for real. **Barebones**, **Simple** and **Advanced** decide
+  which tools stay on a page and which sit under a page-local **More** (⋯) button, with their
+  label, shortcut and disabled reason; the shortcut of a tool under More keeps working. Data,
+  state, errors, active filters, approvals and safety questions stay in every view, and a block
+  that needs attention (a validation error, an active filter, a probe result) opens itself. This
+  covers the header and app menu (a **View** group and the new **Switch work view** command, which
+  has no default shortcut), the Downloads toolbar, columns and inspector, the Archive (header
+  tools, filter fields under **More filters**, results bar, columns), the Media page (header tools,
+  filter fields, selection bar), the large Reader (a narrow window moves tools under **More** from
+  the end of the order Gallery, Read, Find, Tags, Export, Full screen, View, History, Capture, so
+  the HTML export outranks the rarely used actions) and the Rules, Sources and Plugins pages. The
+  Gallery, Diagnostics, Statistics, Settings and the dialogs do not follow the view yet.
+- Search with one field and a scope. Archive and the Reader's find bar share one search field with
+  a scope chip (**Text**, **File name**, **SHA-256**) inside it; File name and SHA-256 open their
+  existing result dialogs with the draft already searched, and SHA-256 keeps its exact 64-digit
+  check inline. Ctrl/Cmd+F opens the Text scope; Alt+Down or F4 in the field opens the scope menu.
+  The Media page's file name search sits at the head of its tools with the same chip, the scope
+  menus carry the query between Archive, the open thread and Media (a different query in the target
+  is offered with **Use it** and **Keep current**), and an empty Archive or Media offers "Search
+  “x” in Media/Archive". **Save applied search…** and **Saved searches…** are one split button.
+  Diagnostics, About licences, reader groups, favorites, cleanup, the ratings manager and the
+  shortcut editor use the same search box, and Diagnostics gets Ctrl/Cmd+F.
+- Add a settings search at the top of the Settings page (Ctrl/Cmd+F): typo tolerant, accepts
+  abbreviations and word parts, ignores accents and case, knows English and German synonyms for
+  each setting and always matches the English label too. The arrow keys move between hits; Enter
+  opens the group, unfolds collapsed sections and marks and focuses the setting, Escape clears
+  first and then leaves the field; a polite live line announces the hit reached ("n of m: label,
+  group") and an empty result.
+- Offer one **Export…** dialog. Format (HTML page or link list) and scope (this thread, selected
+  threads, all matches) are chosen in its header, and every entry (Archive menus, keyboard,
+  results toolbar, Reader, Downloads, gallery) opens it with its choice preselected; a single
+  option shows as text. The originals dialog shows the same header, and after a successful export
+  **Close** becomes the primary action. The entry labels read **Export…** in all 12 languages.
+- Curate in one way. Media tags are **Ctrl/Cmd+Shift+T** (media page and gallery), thread tags stay
+  **Ctrl/Cmd+T**, and saved shortcuts win. The favorite mark is one star drawing everywhere (outline
+  star unmarked, filled star in the favorite colour marked) on Archive and Reader tiles and cards,
+  the thread list and header, Media tiles and the gallery toolbar. **Manage saved ratings…** opens
+  from the Media page, the Archive rating row and the gallery menu; the Diagnostics button is gone.
+- Add **Add plugin…** to the Plugins page: it copies one `.cs` file into the plugin folder through
+  the inventory's own per-file check (before and after the copy), never overwrites and runs
+  nothing, so the file is judged as if you had placed it by hand and is built at the next start.
+  A step indicator (**Installed**, **Enabled**, **Active**, or active after restart) names the one
+  next action; approvals, consent, activation and migration keep their buttons and confirmations.
+  Barebones and Simple keep **Add plugin…** under More.
+- Word failures once. Rows, the Downloads inspector, Diagnostics and Sources share one short
+  failure headline ("Refused (HTTP 403)", "Throttled (HTTP 429)", "Name resolution failed",
+  "Storage error" and so on); a next step names the button that performs it, and the banner label
+  is shorter. All 12 packs carry the texts.
+- Add small flow aids: after the first successful **Add** of a profile one dismissible line says
+  that threads are read in the Archive (**Open in Archive**, shown once); one back-label pattern
+  ("Back to …") everywhere; **Media rules…** is also offered from the Reader and the Media tile
+  menu; and new default shortcuts exist for **Continue reading** (Ctrl/Cmd+Shift+R), **Import
+  files…** (Ctrl/Cmd+Shift+I), **Follow live** (Ctrl/Cmd+Shift+L), **Show new posts**
+  (Ctrl/Cmd+Shift+N) and Diagnostics **Retry selected targets** (Shift+F5, Ctrl/Cmd+Alt+Shift+R on
+  macOS).
+- Settle the design system: buttons are 32 dip high like inputs (title-bar icon buttons keep 30),
+  controls, sections and message surfaces share the 5 dip corner radius, pages have a 12 dip inset,
+  text uses the type scale tokens (SemiBold instead of Bold), links are accent text without an
+  outline, secondary actions are **ghost** buttons, and the Ursa banner is replaced by one message
+  surface for error, warning, information and success. Downloads, Archive and Media share one
+  empty-state layout, drawn icons replace font glyphs (close, more, star, check, chevrons; the
+  Reader toolbar actions carry icons), and toasts and the shell message close with an icon button.
+  A design lint test keeps new font sizes, colour literals and off-grid spacing out.
+- Fix hover and contrast: one hover signal (a hover fill and a 1 px outline that is reserved at rest,
+  so nothing moves), pressed and selected rows use the accent surface, and selected rows, tabs and
+  footer pages carry an accent bar. Menus, drop-downs, suggestions, toasts and tooltips take the
+  palette instead of the old Semi greys; the remaining Semi blue (field focus, selection, check
+  and radio, slider, pagination) uses the palette accent. The Light interactive outline is darker
+  (3.37:1 on hover fill), the decorative border is `#948A7D` (also in the HTML export), and the Light
+  progress bar is the dark accent brown `#4A2203` (3.41:1 on its track), 4 dip high; the Dark track
+  no longer equals the hover fill. The ratios are calculated from the palette and pinned by unit
+  tests; a measurement of the rendered app is not recorded.
+- Tidy the Rules and Settings pages: Rules is three cards (scope picker with its editor, filter
+  and templates, effective preview) with the origin link beside the origin text and **Delete** red
+  only while it asks for confirmation; the Settings footer actions end on the field edge and lone
+  buttons sit beside their control (**Forget reading position**, **Check folder**, **About**).
+- Improve screen reader use in the new surfaces: the saved searches split button opens with
+  Alt+Down or F4 and is named after every refresh, the priority and favorite badges keep their state
+  as hidden text, plugin step chips carry the spoken step name, and dialog footers stay inside the
+  window at the minimum size in long languages.
+- Add Booru watcher lifecycle rules. Shutdown retires watchers first and keeps the transports until
+  the queue has drained; disabling the Danbooru plugin revokes the watcher's ports at once, and
+  enabling it again builds a fresh watcher over the same original queue. While MeowChan takes the
+  profile exclusively for a maintenance step, watcher checks and commands report that the profile is
+  busy, a running check ends with its recorded result, a late 429 is still kept, and watchers resume
+  afterwards unless recovery is required. The global pause now stops automatic checks only (a check
+  already reading a page finishes it and stops before the next); **Check now** still runs once,
+  without unpausing the session or bypassing a provider cooldown. A longer valid `Retry-After` is
+  no longer cut to 24 hours. A configurable cooldown cap is not in yet.
+- Add directional upload metering. The request payload that MeowChan's application writes counts as
+  network upload per source (see the Statistics entry), and the header, tray and graph names show
+  download and upload, disk write and disk read separately.
+- Add reader display settings under **Settings, Reading & media** (**Display** and **Long posts and
+  previews**). Changes stay in the Settings draft until **Save** succeeds and then apply to the open
+  Reader at once without losing the reading position; **Discard draft** restores the saved values,
+  and an invalid number blocks the save and names the field. They are the preview image width (default
+  240 px, 120 to 480; the large Reader uses 1.5 times), folding long posts above (24 lines, 8 to
+  400), lines in quote previews (8, 3 to 40), the quote preview delay (300 ms, 0 to 2000), reply
+  cards per step (5, 1 to 50), lines per reply card (4, 1 to 20), **Posts per reader page** (50, 20
+  to 200), the maximum conversation indentation depth (6, 1 to 16), **Spoilers** (Keep hidden, Show
+  on hover, Always show) and **Date and time format** (System format, Weekday and seconds, Since
+  opening post, Relative to now; the exact date stays in the tooltip). **Enlarge small images when
+  fitting** (No limit, or up to 100 to 1600 %, default 200 %) limits only Fit in the gallery.
+- Show the Reader's posts as a conversation: **View, Show as conversation** nests a reply beneath
+  the most recent earlier post it quotes, but only when its other earlier quotes lie on that
+  post's ancestor line (otherwise it stays at the top level); the opening post stays first, the
+  separate reply counter is omitted, and deeper replies stay visible at the last indentation level.
+  It reorders saved posts only, sends no request, and the switch lasts for the session.
+- Sort the Media page by more than thread, newest or random: **Captured**, **File name**,
+  **Size**, **References** (saved occurrences of the same bytes), **Tag count** (own media tags
+  plus the thread's tags) and **Rating**, with a direction button next to the choice. Files without
+  a value (no name, never saved, unrated) stay last in both directions, and a group of identical
+  files counts its highest tag count or rating. The new sort names are in English in every language except German, and the sort is not
+  stored in the settings.
+- Prepare a lazy scrub preview for videos (positional thumbnails in 5 % slots keyed by the verified
+  content, with a bounded disk budget): the code is in, but no control, setting or screen uses it
+  yet.
+- Keep a decoded gallery image only while its file is still the same file: the check uses the
+  file's identity and not only length and time, so a same-length rewrite with restored time and a
+  rename over the file are caught, and a second copy of the same bytes in another folder is
+  verified before it shares the decoded image.
+- Show verified local video posters in the Archive thread list, Reader attachments, Reader media
+  and the Media page. A poster is shown only after the local original has been checked, no source
+  thumbnail address is fetched, and a cached poster never stands in for a missing original.
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild
