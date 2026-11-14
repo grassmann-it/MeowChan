@@ -288,6 +288,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         // the inventory scans instead of running later under the build gate (each import re-checks it before use).
         using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
         Directory.CreateDirectory(PluginDirectory);
+        Plugins.PluginImportStaging.CleanupAbandoned(PluginDirectory);
         Directory.CreateDirectory(_launch.WorkingDirectory);
         PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
         PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);

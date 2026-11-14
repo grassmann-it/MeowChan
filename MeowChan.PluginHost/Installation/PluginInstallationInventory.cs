@@ -143,6 +143,10 @@ public sealed class PluginInstallationInventory(int maximumCandidates = 256, int
             foreach (string path in Directory.EnumerateFileSystemEntries(fullDirectory))
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                // Private import payloads are never plugin candidates and must not consume the scan budget.
+                if (Path.GetFileName(path).Equals(".plugin-import-staging",
+                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                    continue;
                 if (candidates.Count == maximumCandidates) { truncated = true; break; }
                 candidates.Add(await InspectAsync(path, maximumSourceBytes, cancellationToken).ConfigureAwait(false));
             }
