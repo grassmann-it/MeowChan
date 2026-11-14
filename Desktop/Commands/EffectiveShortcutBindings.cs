@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 9;
+    public const int DefaultsRevision = 10;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -192,8 +192,8 @@ public sealed class EffectiveShortcutBindings
         ["media.queue.add"] = 9,
         // G1 (Tom's E3 addition): Shift+T switches the gallery between View and Tag (the tagging mode). Shift+T is free in the gallery
         // (T shows the post in the thread, Primary+Shift+T opens the tag panel); it yields to a saved binding like every new default. The
-        // integrator unifies the revision number with the other branches of this wave (DefaultsRevision stays as it is here).
-        ["gallery.mode-toggle"] = 9,
+        // wave-5 integration gives it revision 10, the first one after the defaults already in goal.
+        ["gallery.mode-toggle"] = 10,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
