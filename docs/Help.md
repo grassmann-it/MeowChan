@@ -1979,7 +1979,7 @@ rating, including one whose original is no longer available.
 
 ### Saving a video frame
 
-In the gallery, **Save frame as image** (German: **Einzelbild als Bild speichern**,
+In the gallery, **Save frame as image** (German: **Einzelbild speichern**,
 Shift+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
