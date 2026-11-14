@@ -786,6 +786,7 @@ public partial class ArchivePage : UserControl
         ArchiveAttachmentRow row = new(attachment);
         row = row with
         {
+            Compact = true,
             LoadThumbnail = token => LoadListThumbnailAsync(summary, postId, attachment, binding => row.Binding = binding, token),
             OpenPreview = async () =>
             {

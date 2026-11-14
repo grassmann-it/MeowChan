@@ -58,6 +58,8 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
     public bool LargePreview { get; init; }
+    /// <summary>A row of the thread list (a small thumbnail in a fixed slot): one trimmed file line, the picture centred in its slot. Reader posts wrap the line.</summary>
+    public bool Compact { get; init; }
     /// <summary>Reader image width; zero keeps the legacy list-preview default.</summary>
     public int ThumbnailWidth { get; init; }
     /// <summary>Height cap of the preview frame for a width that differs from the reader default (textless posts); zero keeps the default cap.</summary>

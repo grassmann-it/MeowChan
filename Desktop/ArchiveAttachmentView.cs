@@ -26,6 +26,8 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         private const double Spacing = 4;
         internal Control Lead = null!, Frame = null!, Trail = null!;
+        /// <summary>Compact list rows: the picture is centred in the slot the owner gives (a uniform slot for portrait and landscape).</summary>
+        internal bool CenterFrame;
         /// <summary>The inline video's row (R10: transport, error, live region) under the frame; null until a video plays here.</summary>
         internal Control? Video;
 
@@ -48,7 +50,8 @@ public sealed class ArchiveAttachmentView : UserControl
         {
             double width = Math.Min(finalSize.Width, DesiredSize.Width), y = 0;
             Lead.Arrange(new Rect(0, y, width, Lead.DesiredSize.Height)); y += Lead.DesiredSize.Height + Spacing;
-            Frame.Arrange(new Rect(0, y, Math.Min(width, Frame.DesiredSize.Width), Frame.DesiredSize.Height)); y += Frame.DesiredSize.Height + Spacing;
+            double frameWidth = Math.Min(width, Frame.DesiredSize.Width);
+            Frame.Arrange(new Rect(CenterFrame ? Math.Max(0, (width - frameWidth) / 2) : 0, y, frameWidth, Frame.DesiredSize.Height)); y += Frame.DesiredSize.Height + Spacing;
             if (Video?.IsVisible == true) { Video.Arrange(new Rect(0, y, width, Video.DesiredSize.Height)); y += Video.DesiredSize.Height + Spacing; }
             if (Trail.IsVisible) Trail.Arrange(new Rect(0, y, width, Trail.DesiredSize.Height));
             return finalSize;
@@ -59,22 +62,10 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
     private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
-    private readonly Border _play = new()
-    {
-        Name = "VideoPlayOverlay", Width = 44, Height = 44, CornerRadius = new CornerRadius(22),
-        Background = new SolidColorBrush(Color.FromArgb(205, 13, 16, 22)),
-        BorderBrush = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255)), BorderThickness = new Thickness(1),
-        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
-        IsHitTestVisible = false, IsVisible = false,
-        Child = new Avalonia.Controls.Shapes.Path
-        {
-            Data = Geometry.Parse("M 0,0 L 0,18 L 14,9 Z"), Fill = Brushes.White,
-            Width = 14, Height = 18, Stretch = Stretch.Uniform, Margin = new Thickness(4, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-        }
-    };
+    // The play mark scales with the shown picture and is centred on it (VideoPlayMark; the frame panel sizes and places it). Not hit-testable.
+    private readonly VideoPlayMarkView _play = new() { Name = "VideoPlayOverlay", IsVisible = false };
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
-    // It takes the block's width and wraps to two lines, then trims: a long name never widens the block beyond the picture.
+    // It takes the block's width and wraps to two lines, then trims (one trimmed line in a compact list row): a long name never widens the block beyond the picture.
     private readonly TextBlock _label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
         VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) }.MetaText();
     // A quiet slot surface only while no thumbnail is shown (loading, missing, unsupported).
@@ -361,6 +352,13 @@ public sealed class ArchiveAttachmentView : UserControl
         SetFrame(large, row?.KnownAspect);
         _slot.InvalidateMeasure();
         _label.Text = row?.FileLine ?? string.Empty;
+        // A compact list row keeps the file line to one trimmed line (the full text is its tooltip); reader posts wrap it to two.
+        bool compact = row?.Compact == true;
+        _label.TextWrapping = compact ? TextWrapping.NoWrap : TextWrapping.Wrap;
+        _label.MaxLines = compact ? 1 : 2;
+        ToolTip.SetTip(_label, compact ? _label.Text : null);
+        _column.CenterFrame = compact;
+        _column.InvalidateArrange();
         _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
         _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
         _play.IsVisible = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)

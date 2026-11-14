@@ -209,7 +209,9 @@ internal static class ReaderPreviewChecks
         Border play = view.GetVisualDescendants().OfType<Border>().Single(control => control.Name == "VideoPlayOverlay");
         Point center = play.TranslatePoint(new Point(play.Bounds.Width / 2, play.Bounds.Height / 2), view.Thumbnail)
             ?? throw new InvalidOperationException("Video play overlay has no thumbnail position.");
-        Require(play.IsEffectivelyVisible && play.Bounds.Width >= 32 && play.Bounds.Width <= 48
+        // The mark scales with the shown picture (45 % of its shorter side, 20 to 44 dip, never past the picture).
+        double expected = VideoPlayMark.Diameter(view.Thumbnail.Bounds.Size);
+        Require(play.IsEffectivelyVisible && expected > 0 && Math.Abs(play.Bounds.Width - expected) <= 1.5 && play.Bounds.Width <= view.Thumbnail.Bounds.Height + 1.5
             && Math.Abs(center.X - view.Thumbnail.Bounds.Width / 2) <= 2
             && Math.Abs(center.Y - view.Thumbnail.Bounds.Height / 2) <= 2,
             "Video preview play affordance is not centered and bounded over the poster.");

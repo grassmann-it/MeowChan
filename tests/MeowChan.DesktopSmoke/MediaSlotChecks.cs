@@ -38,6 +38,7 @@ internal static class MediaSlotChecks
         {
             string name = theme == ThemeVariant.Dark ? "dark" : "light";
             await CheckReaderAsync(theme, name, directory);
+            await CheckListRowsAsync(theme, name, directory);
             await CheckTilesAsync(theme, name, directory);
         }
         if (Defects.Count > 0)
@@ -146,9 +147,74 @@ internal static class MediaSlotChecks
                     Rect playRect = RectIn(play, host);
                     Expect(Math.Abs(playRect.Center.X - image.Center.X) <= Tolerance && Math.Abs(playRect.Center.Y - image.Center.Y) <= Tolerance,
                         $"{label}: the play button {playRect.Center} is not centered on the image {image.Center}.");
+                    // It scales with the picture (45 % of its shorter side, 20 to 44 dip) and never leaves it.
+                    Expect(playRect.Left >= image.Left - Tolerance && playRect.Right <= image.Right + Tolerance && playRect.Top >= image.Top - Tolerance && playRect.Bottom <= image.Bottom + Tolerance,
+                        $"{label}: the play button {playRect} leaves the image {image}.");
+                    Expect(Math.Abs(playRect.Width - VideoPlayMark.Diameter(image.Size)) <= 1.5, $"{label}: the play button is {playRect.Width:0.#} wide, the rule gives {VideoPlayMark.Diameter(image.Size):0.#}.");
                 }
             }
             Program.CaptureWindow(host, "media-slot-reader-" + name + ".png", directory);
+        }
+        finally { host.Content = null; host.Close(); await SmokeDispatcher.SettleAsync(); }
+    }
+
+    // ---- the thread list: compact rows in the 76 dip slot ------------------------------------------------------------------
+
+    private static async Task CheckListRowsAsync(ThemeVariant theme, string name, string directory)
+    {
+        (string File, int Width, int Height, SKColor Color)[] cases =
+        [
+            ("17892507123456789.webm", 640, 360, SKColors.DarkOrchid),
+            ("17892507123456790.webm", 360, 640, SKColors.Teal),
+            ("landscape-16x9.png", 640, 360, SKColors.IndianRed),
+            ("portrait-photo-2x3.jpg", 400, 600, SKColors.SteelBlue),
+            ("thin-strip.webm", 30, 600, SKColors.SeaGreen)
+        ];
+        StackPanel rows = new() { Spacing = 8, Margin = new Thickness(8) };
+        List<(ArchiveAttachmentView View, string File, bool Video, double Aspect)> built = new();
+        foreach (var item in cases)
+        {
+            ArchiveAttachmentView view = new() { Width = 76 };
+            bool video = item.File.EndsWith(".webm", StringComparison.Ordinal);
+            view.DataContext = new ArchiveAttachmentRow(new CapturedAttachment(0, "m-" + item.File, OriginalFileName: item.File, ExpectedSize: 183_000))
+            {
+                Compact = true,
+                FavoriteAvailable = () => false, IsFavorite = () => false, ToggleFavoriteAsync = () => Task.CompletedTask,
+                LoadThumbnail = _ => Task.FromResult<Bitmap?>(Picture(item.Width, item.Height, item.Color))
+            };
+            rows.Children.Add(new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = Brushes.Gray, Child = view });
+            built.Add((view, item.File, video, (double)item.Width / item.Height));
+        }
+        Window host = new() { Width = 300, Height = 700, RequestedThemeVariant = theme, Content = new ScrollViewer { Content = rows }, Title = "media-slot list" };
+        host.Show();
+        try
+        {
+            await WaitDrawnAsync(host, () => built.All(entry => entry.View.Thumbnail.Source is Bitmap && entry.View.Thumbnail.Bounds.Width > 0));
+            foreach (var entry in built)
+            {
+                ArchiveAttachmentView view = entry.View;
+                Rect viewRect = RectIn(view, host), image = RectIn(view.Thumbnail, host);
+                string label = "list " + entry.File + " " + name;
+                Console.WriteLine("SMOKE media-slot list: " + JsonSerializer.Serialize(new { label, view = viewRect.ToString(), image = image.ToString() }));
+                // One uniform slot for portrait and landscape: the block is 76 wide, the picture centred in it.
+                Expect(Math.Abs(viewRect.Width - 76) <= Tolerance, $"{label}: the slot is {viewRect.Width:0.#} wide, not 76.");
+                Expect(Math.Abs(image.Center.X - viewRect.Center.X) <= Tolerance, $"{label}: the picture {image} is not centred in its slot {viewRect}.");
+                // The file line is one trimmed line with the full text in its tooltip.
+                TextBlock line = view.GetVisualDescendants().OfType<TextBlock>().Single(c => c.MaxLines == 1 && ToolTip.GetTip(c) is string tip && tip.StartsWith(entry.File, StringComparison.Ordinal));
+                Expect(line.TextWrapping == TextWrapping.NoWrap && line.Bounds.Height < line.FontSize * 2, $"{label}: the file line is {line.Bounds.Height:0.#} high, more than one line.");
+                if (entry.Video)
+                {
+                    Border play = view.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "VideoPlayOverlay");
+                    Rect playRect = RectIn(play, host);
+                    // The shown picture is the letterboxed rectangle in the frame (a very thin strip is a wider frame with the picture centred in it).
+                    Rect letterbox = MediaSlotGeometry.Letterbox(image.Size, entry.Aspect), shown = new(image.Position + letterbox.Position, letterbox.Size);
+                    Expect(Inside(shown, playRect), $"{label}: the play button {playRect} leaves the picture {shown}.");
+                    Expect(Math.Abs(playRect.Center.X - shown.Center.X) <= Tolerance && Math.Abs(playRect.Center.Y - shown.Center.Y) <= Tolerance,
+                        $"{label}: the play button {playRect.Center} is not centred on the picture {shown.Center}.");
+                    Expect(Math.Abs(playRect.Width - VideoPlayMark.Diameter(shown.Size)) <= Tolerance, $"{label}: the play button is {playRect.Width:0.#} wide, the rule gives {VideoPlayMark.Diameter(shown.Size):0.#}.");
+                }
+            }
+            Program.CaptureWindow(host, "media-slot-list-" + name + ".png", directory);
         }
         finally { host.Content = null; host.Close(); await SmokeDispatcher.SettleAsync(); }
     }

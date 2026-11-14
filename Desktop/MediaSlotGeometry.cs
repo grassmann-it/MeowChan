@@ -80,7 +80,8 @@ internal static class MediaSlotGeometry
 
 /// <summary>
 /// A frame whose size is the drawn picture (<see cref="MediaSlotGeometry.Fit"/>): the picture, the click target and every overlay are
-/// arranged on the same rectangle, so a play button is centred on the picture and a focus ring runs around it.
+/// arranged on the same rectangle, so a play button is centred on the picture and a focus ring runs around it. The one exception is the
+/// <see cref="VideoPlayMarkView"/>: it is sized from, and centred on, the picture's letterboxed rectangle inside the frame.
 /// </summary>
 internal sealed class MediaFramePanel : Panel
 {
@@ -101,14 +102,21 @@ internal sealed class MediaFramePanel : Panel
             : MaximumWidth(Large);
         double maximumHeight = double.IsFinite(MaximumHeightOverride) && MaximumHeightOverride > 0 ? MaximumHeightOverride : MaximumHeight(Large);
         Size frame = MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
-        foreach (Control child in Children) child.Measure(frame);
+        Size picture = MediaSlotGeometry.Letterbox(frame, Aspect).Size;
+        foreach (Control child in Children)
+        {
+            // The play mark scales with the picture that is shown (not the frame, which a thin strip widens) and stays inside it.
+            if (child is VideoPlayMarkView mark) { mark.Diameter = VideoPlayMark.Diameter(picture); mark.Measure(new Size(mark.Diameter, mark.Diameter)); }
+            else child.Measure(frame);
+        }
         return frame;
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
         Rect frame = new(default, DesiredSize.Width <= finalSize.Width + 0.01 ? DesiredSize : finalSize);
-        foreach (Control child in Children) child.Arrange(frame);
+        Rect picture = MediaSlotGeometry.Letterbox(frame.Size, Aspect);
+        foreach (Control child in Children) child.Arrange(child is VideoPlayMarkView ? VideoPlayMark.Place(picture) : frame);
         return finalSize;
     }
 }

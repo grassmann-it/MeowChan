@@ -203,11 +203,8 @@ internal sealed class ReaderMediaSidebar : Border
         TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center,
         HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(16)
     }.MetaText();
-    private readonly Border _play = new()
-    {
-        Name = "ReaderMediaSidebarPlay", Padding = new Thickness(12), IsHitTestVisible = false, IsVisible = false,
-        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
-    };
+    // Centred on the frame, which is centred on the picture; its size follows the picture that is shown (VideoPlayMark).
+    private readonly VideoPlayMarkView _play = new() { Name = "ReaderMediaSidebarPlay", IsVisible = false };
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
     private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow" };
@@ -286,9 +283,7 @@ internal sealed class ReaderMediaSidebar : Border
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _play[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
-        _play[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _play.Child = CommandBindings.NamedIcon("play", 24);
+        _image.SizeChanged += (_, e) => _play.Diameter = VideoPlayMark.Diameter(e.NewSize);
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
