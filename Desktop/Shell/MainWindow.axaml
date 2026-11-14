@@ -206,7 +206,12 @@
                     </controls:WorkspaceBanner>
                     <Border x:Name="AdmissionResultsPanel" IsVisible="False">
                         <Expander x:Name="AdmissionResultsExpander" wv:WorkViewElement.Id="downloads.results.panel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" IsExpanded="False">
-                            <Expander.Header><TextBlock x:Name="AdmissionResultsTitle" Text="URL results" /></Expander.Header>
+                            <Expander.Header>
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <TextBlock x:Name="AdmissionResultsTitle" Text="URL results" VerticalAlignment="Center" />
+                                    <controls:HelpButton x:Name="AdmissionResultsHelpButton" Grid.Column="1" HelpKey="help.admissionResults" />
+                                </Grid>
+                            </Expander.Header>
                             <ScrollViewer x:Name="AdmissionResultsScroll" MaxHeight="140" HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="AdmissionResultRows" Spacing="6" Margin="0,6,0,0" />
                             </ScrollViewer>

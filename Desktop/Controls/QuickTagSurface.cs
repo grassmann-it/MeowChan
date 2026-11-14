@@ -284,7 +284,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             Spacing = 12,
             Children =
             {
-                new StackPanel { Spacing = 8, Children = { _suggestionsHeading, _strip, _stripEmpty, _more } },
+                new StackPanel { Spacing = 8, Children = { SuggestionsHeader(), _strip, _stripEmpty, _more } },
                 _assigned,
                 _extra
             }
@@ -329,6 +329,15 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         DetachedFromVisualTree += OnDetached;
         Localize();
         Refresh();
+    }
+
+    /// <summary>HB2: the "Suggestions" heading with the round help button at the right edge (how suggestions are ranked and toggled).</summary>
+    private Grid SuggestionsHeader()
+    {
+        HelpButton help = new() { Name = _name + "SuggestionsHelp", HelpKey = "help.tagSuggestions" };
+        _suggestionsHeading.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(help, 1);
+        return new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Children = { _suggestionsHeading, help } };
     }
 
     internal QuickTagSession Session => _session;

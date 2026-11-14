@@ -593,6 +593,8 @@ public partial class MainWindow
                 : double.PositiveInfinity;
             AdmissionRepairPanel.Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
             Expander admissionResults = AdmissionResultsExpander;
+            // The 32 dip help button would double the header of the compact one-row report; the popover returns with the normal layout.
+            AdmissionResultsHelpButton.IsVisible = !compactIntake;
             // Semi's expander spaces its header/content through resource keys rather
             // than the control's Padding. Scope compact spacing to this one report.
             if (compactIntake)

@@ -153,7 +153,14 @@ public sealed class ShortcutEditor : UserControl
 
     private void BuildFrame()
     {
-        _root.Children.Add(_heading);
+        // HB2: what makes two shortcuts conflict is a help popover next to the card heading, not a line of its own.
+        var headingRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        _heading.VerticalAlignment = VerticalAlignment.Center;
+        var conflictHelp = new MeowChan.Desktop.Controls.HelpButton { Name = "SettingsShortcutsHelpButton", HelpKey = "help.shortcuts" };
+        Grid.SetColumn(conflictHelp, 1);
+        headingRow.Children.Add(_heading);
+        headingRow.Children.Add(conflictHelp);
+        _root.Children.Add(headingRow);
         var hint = LocalizedText(() => Texts.T("shortcuts.card.hint"));
         hint.Classes.Add("workspace-help");
         _root.Children.Add(hint);

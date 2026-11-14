@@ -110,10 +110,16 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next
         // to their Retry, so the frame's error strip is an empty slot.
         var intro = new StackPanel { Spacing = 8 };
-        // No heading of its own: the window's title bar already names the dialog (UX round 3).
-        intro.Children.Add(Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro")));
+        // No heading of its own: the window's title bar already names the dialog (UX round 3). HB2: the order in which rules and
+        // choices decide a thread is a help popover beside the introduction (it was a folded expander).
+        var introRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        var introText = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.intro"));
+        var selectionHelp = new HelpButton { Name = "BoardAdmissionHelpButton", HelpKey = "help.admissionRules", VerticalAlignment = VerticalAlignment.Top };
+        Grid.SetColumn(selectionHelp, 1);
+        introRow.Children.Add(introText);
+        introRow.Children.Add(selectionHelp);
+        intro.Children.Add(introRow);
         var body = new StackPanel { Spacing = 12 };
-        body.Children.Add(Localized(new Expander { Content = Localized(Help(string.Empty), c => c.Text = Texts.T("wizard.semantics")) }, c => c.Header = Texts.T("wizard.rulesHelp")));
         var tabs = new TabControl { Name = "BoardAdmissionTabs" };
         var items = new List<TabItem>();
         foreach (string url in urls.Distinct(StringComparer.Ordinal))
