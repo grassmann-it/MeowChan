@@ -82,12 +82,12 @@ internal sealed class PluginImportStaging : IDisposable
 
     internal Task WriteAsync(byte[] bytes, CancellationToken cancellationToken) =>
         WriteAsync(bytes, cancellationToken, static path => new FileStream(path, FileMode.CreateNew,
-            FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous), Identity);
+            FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous), static file => Identity(file));
 
     // The factory seam lets regressions exercise real FileStream write/Flush(true)/close failures.
     // It must acquire this exact path with CreateNew; production always uses the overload above.
     internal Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload) =>
-        WriteAsync(bytes, cancellationToken, createPayload, Identity);
+        WriteAsync(bytes, cancellationToken, createPayload, static file => Identity(file));
 
     // The identity seam is only for direct failure-path tests. Production binds ownership through the handle API.
     internal async Task WriteAsync(byte[] bytes, CancellationToken cancellationToken, Func<string, FileStream> createPayload,
