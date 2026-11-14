@@ -55,7 +55,7 @@ public sealed class StatusDeepLinkTests : IDisposable
         Texts.SetLanguage(language);
         string hint = Texts.T("feedback.hint");
         string status = Texts.T("nav.status"), diagnostics = Texts.T("nav.diagnostics");
-        Assert.Contains(status + " › " + diagnostics, hint, StringComparison.Ordinal);
+        Assert.Matches(PagePath(status, diagnostics), hint);
     }
 
     [Theory]
@@ -64,8 +64,12 @@ public sealed class StatusDeepLinkTests : IDisposable
     {
         Texts.SetLanguage(language);
         string hint = Texts.T("stats.settings.trayMenuHint");
-        Assert.Contains(Texts.T("nav.status") + " › " + Texts.T("nav.statistics"), hint, StringComparison.Ordinal);
+        Assert.Matches(PagePath(Texts.T("nav.status"), Texts.T("nav.statistics")), hint);
     }
+
+    // "Status › Diagnostics" as a pack writes it: the page names may carry the language's quotation marks (ru «Состояние» › «Диагностика»).
+    private static string PagePath(string page, string segment) =>
+        "[«„“\"]?" + System.Text.RegularExpressions.Regex.Escape(page) + "[»“”\"]? › [«„“\"]?" + System.Text.RegularExpressions.Regex.Escape(segment);
 
     private static string Source(string path, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", path));

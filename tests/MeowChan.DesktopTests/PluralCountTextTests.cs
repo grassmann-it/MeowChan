@@ -78,7 +78,6 @@ public sealed class PluralCountTextTests : IDisposable
         ["stats.settings.retentionDaysHint"] = "range text of a bounded setting (days)",
         ["tagging.help.note"] = "\"{2}\" is the name of a key, not a count",
         ["tags.dialog.row.some"] = "\"{1} of {2} ticked\" form; the total is at least 2 whenever only some carry the tag",
-        ["tags.filter.error.tooMany"] = "ArchiveTagFilter.MaximumTagsPerList is a fixed product constant above 1",
         ["tags.quick.chip.all"] = "the chip row exists only for a multi-selection, so the total is always at least 2",
         ["tags.quick.chip.some"] = "only shown for a multi-selection (total at least 2)",
     };

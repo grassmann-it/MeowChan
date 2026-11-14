@@ -493,8 +493,8 @@ public sealed class GalleryMarkingTests : IDisposable
 
         surface.MarkedCount = 3;
         Assert.True(surface.MarkBar.IsVisible);
-        Assert.Equal("3 marked", ((TextBlock)surface.MarkedBadge.Child!).Text);
-        Assert.Equal("3 marked", Avalonia.Automation.AutomationProperties.GetName(surface.MarkedBadge));
+        Assert.Equal("Marked: 3", ((TextBlock)surface.MarkedBadge.Child!).Text);
+        Assert.Equal("Marked: 3", Avalonia.Automation.AutomationProperties.GetName(surface.MarkedBadge));
         Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(surface.MarkedBadge));
         Assert.Equal("Clear marks", surface.MarkedClearButton.Content);
         Assert.Equal("Clear all marks", Avalonia.Automation.AutomationProperties.GetName(surface.MarkedClearButton));
