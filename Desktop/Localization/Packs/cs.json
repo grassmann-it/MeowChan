@@ -2633,7 +2633,7 @@
     "media.focus.off": "Režim soustředění vypnut",
     "media.focus.headerStrip": "Zobrazit hlavičku aplikace",
     "settings.mediaFocusHidesHeader": "Skrýt hlavičku aplikace v režimu soustředění stránky Média",
-    "settings.mediaFocusHidesHeaderHint": "Režim soustředění stránky Média skryje nadpis stránky, panel nástrojů a navigaci v zápatí. S touto volbou skryje i hlavičku aplikace s monitorem a tlačítky. Přesunutím ukazatele na tenký pruh u horního okraje hlavičku a tlačítka okna zobrazíte. Klávesa Esc nebo „Ukončit soustředění“ vše vrátí.",
+    "settings.mediaFocusHidesHeaderHint": "Režim soustředění stránky Média skryje nadpis stránky, panel nástrojů a navigaci na spodní liště. S touto volbou skryje i hlavičku aplikace s monitorem a tlačítky. Přesunutím ukazatele na tenký pruh u horního okraje hlavičku a tlačítka okna zobrazíte. Klávesa Esc nebo „Ukončit soustředění“ vše vrátí.",
     "media.filter.match.all": "všechny",
     "media.filter.match.any": "kterýkoli",
     "media.filter.kind.count.one": "{0} typ",
@@ -4652,7 +4652,7 @@
     "media.layout.size.medium": "Střední dlaždice",
     "media.layout.size.large": "Velké dlaždice",
     "media.layout.preset.standard": "Standardní",
-    "media.layout.preset.booru": "Pohled Booru",
+    "media.layout.preset.booru": "Zobrazení Booru",
     "media.layout.preset.grid": "Jen mřížka",
     "media.layout.reset": "Obnovit rozvržení",
     "media.layout.resize": "Přetažením změníte šířku seznamu štítků; šipkami také, když je na tomto okraji fokus",
@@ -4773,7 +4773,7 @@
     "theme.colors.preview.text": "Ukázkový text na ploše",
     "theme.colors.preview.muted": "Tlumený text pro podrobnosti a nápovědy",
     "theme.colors.preview.button": "Tlačítko se zvýrazněním",
-    "theme.colors.preview.chip": "Štítek",
+    "theme.colors.preview.chip": "Čip",
     "theme.colors.preview.error": "Něco se nepovedlo",
     "command.tagging.tag-together": "Označit štítkem společně…",
     "command.tagging.show-in-media": "Zobrazit v sekci Média",
@@ -4804,7 +4804,7 @@
     "tagging.page.empty.reopen": "Znovu otevřít přeskočené",
     "tagging.page.empty.showAll": "Zobrazit všechny položky",
     "help.taggingPage.title": "Práce s frontou štítkování",
-    "help.taggingPage.p1": "Galerie ukazuje otevřené položky jednu po druhé a vy každou označíte štítky. Hotové a přeskočené položky jsou v seznamu označené.",
+    "help.taggingPage.p1": "Galerie ukazuje otevřené položky jednu po druhé a vy každé dáte štítky. Hotové a přeskočené položky jsou v seznamu označené.",
     "help.taggingPage.li1": "Vyberte jednu či více položek a otevřete místní nabídku: nabízí štítkování, stav, otevření a pořadí a u nedostupné volby uvede důvod.",
     "help.taggingPage.li2": "„Označit štítkem společně…“ dá všem vybraným položkám jeden štítek najednou; razítko totéž udělá s více štítky.",
     "help.taggingPage.li3": "Klávesy uvedené pod seznamem lze změnit v nastavení zkratek.",
@@ -4849,7 +4849,7 @@
     "settings.mediaBadgeMaxPerCornerHint": "Kolik malých značek se vejde do jednoho rohu náhledu; další, s nižší prioritou, se vynechají. Výchozí {0}, od {1} do {2}.",
     "settings.galleryStatusDwell": "Zobrazit stavové zprávy po dobu",
     "settings.galleryStatusDwellHint": "Jak dlouho zůstane na obrazovce krátký stav informačního řádku galerie, například „Připraveno“ u prezentace. Běžící prezentace, důvody pauzy a chyby zůstávají. Výchozí {0} ms, od {1} do {2} ms.",
-    "settings.galleryFilmstripTileGap": "Mezera mezi náhledy filmového pásu",
-    "settings.galleryFilmstripTileGapHint": "Mezera mezi dvěma náhledy ve filmovém pásu galerie. Výchozí {0}, od {1} do {2}."
+    "settings.galleryFilmstripTileGap": "Mezera mezi náhledy v pásu náhledů",
+    "settings.galleryFilmstripTileGapHint": "Mezera mezi dvěma náhledy v pásu náhledů galerie. Výchozí {0}, od {1} do {2}."
   }
 }

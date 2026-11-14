@@ -2636,7 +2636,7 @@
     "media.focus.off": "Tryb skupienia wyłączony",
     "media.focus.headerStrip": "Pokaż nagłówek aplikacji",
     "settings.mediaFocusHidesHeader": "Ukryj nagłówek aplikacji w trybie skupienia strony Media",
-    "settings.mediaFocusHidesHeaderHint": "Tryb skupienia strony Media ukrywa tytuł strony, pasek narzędzi i nawigację w stopce. Przy tej opcji ukrywa także nagłówek aplikacji z monitorem i przyciskami. Przesuń wskaźnik na cienki pasek przy górnej krawędzi, aby pokazać nagłówek i przyciski okna. Esc lub „Zakończ skupienie” przywraca wszystko.",
+    "settings.mediaFocusHidesHeaderHint": "Tryb skupienia strony Media ukrywa tytuł strony, pasek narzędzi i nawigację na dolnym pasku. Przy tej opcji ukrywa także nagłówek aplikacji z monitorem i przyciskami. Przesuń wskaźnik na cienki pasek przy górnej krawędzi, aby pokazać nagłówek i przyciski okna. Esc lub „Zakończ skupienie” przywraca wszystko.",
     "media.filter.match.all": "wszystkie",
     "media.filter.match.any": "dowolny",
     "media.filter.kind.count.one": "{0} typ",
@@ -4776,7 +4776,7 @@
     "theme.colors.preview.text": "Przykładowy tekst na powierzchni",
     "theme.colors.preview.muted": "Przygaszony tekst dla szczegółów i podpowiedzi",
     "theme.colors.preview.button": "Przycisk z akcentem",
-    "theme.colors.preview.chip": "Znacznik",
+    "theme.colors.preview.chip": "Chip",
     "theme.colors.preview.error": "Coś poszło nie tak",
     "command.tagging.tag-together": "Taguj razem…",
     "command.tagging.show-in-media": "Pokaż w sekcji Media",
@@ -4807,7 +4807,7 @@
     "tagging.page.empty.reopen": "Otwórz ponownie pominięte",
     "tagging.page.empty.showAll": "Pokaż wszystkie wpisy",
     "help.taggingPage.title": "Praca z kolejką tagowania",
-    "help.taggingPage.p1": "Galeria pokazuje otwarte wpisy jeden po drugim, a ty tagujesz każdy z nich. Wpisy zakończone lub pominięte są oznaczone na liście.",
+    "help.taggingPage.p1": "Galeria pokazuje otwarte wpisy jeden po drugim, a każdy z nich tagujesz. Wpisy zakończone lub pominięte są oznaczone na liście.",
     "help.taggingPage.li1": "Zaznacz jeden lub więcej wpisów i otwórz menu kontekstowe: zawiera tagowanie, stan, otwieranie i kolejność, a przy niedostępnej pozycji podaje powód.",
     "help.taggingPage.li2": "„Taguj razem…” nadaje jeden tag wszystkim zaznaczonym wpisom naraz; stempel robi to samo z kilkoma tagami.",
     "help.taggingPage.li3": "Klawisze podane pod listą można zmienić w ustawieniach skrótów.",
@@ -4826,7 +4826,7 @@
     "tagging.page.view.list.hint": "Pokaż kolejkę jako listę",
     "tagging.page.view.grid": "Siatka",
     "tagging.page.view.grid.hint": "Pokaż kolejkę jako miniatury",
-    "tagging.page.selection.name": "Działania dla zaznaczenia",
+    "tagging.page.selection.name": "Akcje zaznaczenia",
     "tagging.page.selection.state": "Stan",
     "tagging.page.selection.state.hint": "Oznacz zaznaczone wpisy jako zakończone, otwarte lub pominięte",
     "tagging.page.selection.remove": "Usuń",
@@ -4852,7 +4852,7 @@
     "settings.mediaBadgeMaxPerCornerHint": "Ile małych znaczników mieści jeden róg miniatury; pozostałe, o niższym priorytecie, są pomijane. Domyślnie {0}, od {1} do {2}.",
     "settings.galleryStatusDwell": "Pokazuj komunikaty o stanie przez",
     "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms.",
-    "settings.galleryFilmstripTileGap": "Odstęp między miniaturami paska",
-    "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami paska galerii. Domyślnie {0}, od {1} do {2}."
+    "settings.galleryFilmstripTileGap": "Odstęp między miniaturami na pasku miniatur",
+    "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami na pasku miniatur galerii. Domyślnie {0}, od {1} do {2}."
   }
 }
