@@ -713,6 +713,63 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding MediaIndexMaxThreadsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LimitsQuickTagHeading" Text="{Binding QuickTagGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagSuggestionCountFieldLabel" Text="{Binding QuickTagSuggestionCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagSuggestionCountInput" Value="{Binding QuickTagSuggestionCount, Mode=TwoWay}" Minimum="3" Maximum="18" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagSuggestionCountFieldLabel}" AutomationProperties.Name="{Binding QuickTagSuggestionCountLabel}" AutomationProperties.HelpText="{Binding QuickTagSuggestionCountHelp}" />
+                                <TextBlock x:Name="QuickTagSuggestionCountInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagSuggestionCountHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagRecentCountFieldLabel" Text="{Binding QuickTagRecentCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagRecentCountInput" Value="{Binding QuickTagRecentCount, Mode=TwoWay}" Minimum="0" Maximum="500" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagRecentCountFieldLabel}" AutomationProperties.Name="{Binding QuickTagRecentCountLabel}" AutomationProperties.HelpText="{Binding QuickTagRecentCountHelp}" />
+                                <TextBlock x:Name="QuickTagRecentCountInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagRecentCountHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagUndoDepthFieldLabel" Text="{Binding QuickTagUndoDepthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagUndoDepthInput" Value="{Binding QuickTagUndoDepth, Mode=TwoWay}" Minimum="1" Maximum="100" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagUndoDepthFieldLabel}" AutomationProperties.Name="{Binding QuickTagUndoDepthLabel}" AutomationProperties.HelpText="{Binding QuickTagUndoDepthHelp}" />
+                                <TextBlock x:Name="QuickTagUndoDepthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagUndoDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagNeighbourScanFieldLabel" Text="{Binding QuickTagNeighbourScanLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagNeighbourScanInput" Value="{Binding QuickTagNeighbourScan, Mode=TwoWay}" Minimum="100" Maximum="20000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagNeighbourScanFieldLabel}" AutomationProperties.Name="{Binding QuickTagNeighbourScanLabel}" AutomationProperties.HelpText="{Binding QuickTagNeighbourScanHelp}" />
+                                <TextBlock x:Name="QuickTagNeighbourScanInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagNeighbourScanHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagFilenameTokensFieldLabel" Text="{Binding QuickTagFilenameTokensLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagFilenameTokensInput" Value="{Binding QuickTagFilenameTokens, Mode=TwoWay}" Minimum="0" Maximum="32" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagFilenameTokensFieldLabel}" AutomationProperties.Name="{Binding QuickTagFilenameTokensLabel}" AutomationProperties.HelpText="{Binding QuickTagFilenameTokensHelp}" />
+                                <TextBlock x:Name="QuickTagFilenameTokensInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagFilenameTokensHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagSourceTagsPerMediumFieldLabel" Text="{Binding QuickTagSourceTagsPerMediumLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagSourceTagsPerMediumInput" Value="{Binding QuickTagSourceTagsPerMedium, Mode=TwoWay}" Minimum="0" Maximum="200" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagSourceTagsPerMediumFieldLabel}" AutomationProperties.Name="{Binding QuickTagSourceTagsPerMediumLabel}" AutomationProperties.HelpText="{Binding QuickTagSourceTagsPerMediumHelp}" />
+                                <TextBlock x:Name="QuickTagSourceTagsPerMediumInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagSourceTagsPerMediumHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="QuickTagMarkedMediaLimitFieldLabel" Text="{Binding QuickTagMarkedMediaLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="QuickTagMarkedMediaLimitInput" Value="{Binding QuickTagMarkedMediaLimit, Mode=TwoWay}" Minimum="10" Maximum="5000" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=QuickTagMarkedMediaLimitFieldLabel}" AutomationProperties.Name="{Binding QuickTagMarkedMediaLimitLabel}" AutomationProperties.HelpText="{Binding QuickTagMarkedMediaLimitHelp}" />
+                                <TextBlock x:Name="QuickTagMarkedMediaLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding QuickTagMarkedMediaLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Expander x:Name="SettingsWorkerBudgetsHeading" Header="{Binding AdvancedBudgetsLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8" Margin="0,8,0,0">
                             <TextBlock Text="{Binding BudgetRestartHint}" Classes="workspace-help" TextWrapping="Wrap" />

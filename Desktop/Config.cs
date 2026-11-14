@@ -349,6 +349,41 @@ namespace MeowChan
         internal const int HiddenPostLimitDefault = ProfileStoreLimits.DefaultHiddenPosts;
         internal const int HiddenPostLimitMinimum = ProfileStoreLimits.MinimumHiddenPosts;
         internal const int HiddenPostLimitMaximum = ProfileStoreLimits.HiddenPostCeiling;
+        // Quick tagging (gallery tag panel and tag popover). The limits come from the quick tag types; a value outside the range is
+        // reduced on load and refused by Validate, like the reader display limits.
+        /// <summary>Suggestion chips the quick tag surface shows while the field is empty (more than nine have no number key).</summary>
+        public int QuickTagSuggestionCount { get; set; } = QuickTagSuggestionCountDefault;
+        internal const int QuickTagSuggestionCountDefault = Desktop.QuickTagOptions.DefaultSuggestionCount;
+        internal const int QuickTagSuggestionCountMinimum = Desktop.QuickTagOptions.MinimumSuggestionCount;
+        internal const int QuickTagSuggestionCountMaximum = Desktop.QuickTagOptions.MaximumSuggestionCount;
+        /// <summary>Own tags the quick tag surface remembers as recently used in this session; 0 switches the recent-tags hint off.</summary>
+        public int QuickTagRecentCount { get; set; } = QuickTagRecentCountDefault;
+        internal const int QuickTagRecentCountDefault = Desktop.TagContextOptions.DefaultRecentCount;
+        internal const int QuickTagRecentCountMinimum = Desktop.TagContextOptions.MinimumRecentCount;
+        internal const int QuickTagRecentCountMaximum = Desktop.TagContextOptions.MaximumRecentCount;
+        /// <summary>Undo steps each quick tag surface keeps.</summary>
+        public int QuickTagUndoDepth { get; set; } = QuickTagUndoDepthDefault;
+        internal const int QuickTagUndoDepthDefault = Desktop.QuickTagOptions.DefaultUndoDepth;
+        internal const int QuickTagUndoDepthMinimum = Desktop.QuickTagOptions.MinimumUndoDepth;
+        internal const int QuickTagUndoDepthMaximum = Desktop.QuickTagOptions.MaximumUndoDepth;
+        /// <summary>Neighbouring media entries the quick tag surface looks at for suggestions around the shown medium.</summary>
+        public int QuickTagNeighbourScan { get; set; } = QuickTagNeighbourScanDefault;
+        internal const int QuickTagNeighbourScanDefault = Desktop.TagContextOptions.DefaultNeighbourScan;
+        internal const int QuickTagNeighbourScanMinimum = Desktop.TagContextOptions.MinimumNeighbourScan;
+        internal const int QuickTagNeighbourScanMaximum = Desktop.TagContextOptions.MaximumNeighbourScan;
+        /// <summary>Words of the file name the quick tag surface matches against own tags; 0 switches the file name hint off.</summary>
+        public int QuickTagFilenameTokens { get; set; } = QuickTagFilenameTokensDefault;
+        internal const int QuickTagFilenameTokensDefault = Desktop.TagContextOptions.DefaultFilenameTokens;
+        internal const int QuickTagFilenameTokensMinimum = Desktop.TagContextOptions.MinimumFilenameTokens;
+        internal const int QuickTagFilenameTokensMaximum = Desktop.TagContextOptions.MaximumFilenameTokens;
+        /// <summary>Source tags per medium the quick tag surface offers as new own tags; 0 switches them off.</summary>
+        public int QuickTagSourceTagsPerMedium { get; set; } = QuickTagSourceTagsPerMediumDefault;
+        internal const int QuickTagSourceTagsPerMediumDefault = Desktop.TagContextOptions.DefaultSourceTagsPerMedium;
+        internal const int QuickTagSourceTagsPerMediumMinimum = Desktop.TagContextOptions.MinimumSourceTagsPerMedium;
+        internal const int QuickTagSourceTagsPerMediumMaximum = Desktop.TagContextOptions.MaximumSourceTagsPerMedium;
+        /// <summary>Media files the gallery can mark for one tag change; the write itself stays under the fixed assignment limit of the tag store.</summary>
+        public int QuickTagMarkedMediaLimit { get; set; } = QuickTagMarkedMediaLimitDefault;
+        internal const int QuickTagMarkedMediaLimitDefault = 500, QuickTagMarkedMediaLimitMinimum = 10, QuickTagMarkedMediaLimitMaximum = 5000;
         private string _readerDateStyle = "System", _readerSpoilers = "Hide";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string ReaderDateStyle
@@ -486,6 +521,13 @@ namespace MeowChan
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
+            QuickTagSuggestionCount = Math.Clamp(QuickTagSuggestionCount, QuickTagSuggestionCountMinimum, QuickTagSuggestionCountMaximum);
+            QuickTagRecentCount = Math.Clamp(QuickTagRecentCount, QuickTagRecentCountMinimum, QuickTagRecentCountMaximum);
+            QuickTagUndoDepth = Math.Clamp(QuickTagUndoDepth, QuickTagUndoDepthMinimum, QuickTagUndoDepthMaximum);
+            QuickTagNeighbourScan = Math.Clamp(QuickTagNeighbourScan, QuickTagNeighbourScanMinimum, QuickTagNeighbourScanMaximum);
+            QuickTagFilenameTokens = Math.Clamp(QuickTagFilenameTokens, QuickTagFilenameTokensMinimum, QuickTagFilenameTokensMaximum);
+            QuickTagSourceTagsPerMedium = Math.Clamp(QuickTagSourceTagsPerMedium, QuickTagSourceTagsPerMediumMinimum, QuickTagSourceTagsPerMediumMaximum);
+            QuickTagMarkedMediaLimit = Math.Clamp(QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitMinimum, QuickTagMarkedMediaLimitMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -966,6 +1008,20 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PostFilterRuleLimit), "PostFilterRuleLimit is outside its supported range.");
             if (HiddenPostLimit is < HiddenPostLimitMinimum or > HiddenPostLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(HiddenPostLimit), "HiddenPostLimit is outside its supported range.");
+            if (QuickTagSuggestionCount is < QuickTagSuggestionCountMinimum or > QuickTagSuggestionCountMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagSuggestionCount), "QuickTagSuggestionCount is outside its supported range (" + QuickTagSuggestionCountMinimum + " to " + QuickTagSuggestionCountMaximum + ").");
+            if (QuickTagRecentCount is < QuickTagRecentCountMinimum or > QuickTagRecentCountMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagRecentCount), "QuickTagRecentCount is outside its supported range (" + QuickTagRecentCountMinimum + " to " + QuickTagRecentCountMaximum + ").");
+            if (QuickTagUndoDepth is < QuickTagUndoDepthMinimum or > QuickTagUndoDepthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagUndoDepth), "QuickTagUndoDepth is outside its supported range (" + QuickTagUndoDepthMinimum + " to " + QuickTagUndoDepthMaximum + ").");
+            if (QuickTagNeighbourScan is < QuickTagNeighbourScanMinimum or > QuickTagNeighbourScanMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagNeighbourScan), "QuickTagNeighbourScan is outside its supported range (" + QuickTagNeighbourScanMinimum + " to " + QuickTagNeighbourScanMaximum + ").");
+            if (QuickTagFilenameTokens is < QuickTagFilenameTokensMinimum or > QuickTagFilenameTokensMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagFilenameTokens), "QuickTagFilenameTokens is outside its supported range (" + QuickTagFilenameTokensMinimum + " to " + QuickTagFilenameTokensMaximum + ").");
+            if (QuickTagSourceTagsPerMedium is < QuickTagSourceTagsPerMediumMinimum or > QuickTagSourceTagsPerMediumMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagSourceTagsPerMedium), "QuickTagSourceTagsPerMedium is outside its supported range (" + QuickTagSourceTagsPerMediumMinimum + " to " + QuickTagSourceTagsPerMediumMaximum + ").");
+            if (QuickTagMarkedMediaLimit is < QuickTagMarkedMediaLimitMinimum or > QuickTagMarkedMediaLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(QuickTagMarkedMediaLimit), "QuickTagMarkedMediaLimit is outside its supported range (" + QuickTagMarkedMediaLimitMinimum + " to " + QuickTagMarkedMediaLimitMaximum + ").");
             if (ImportMaxFilesPerBatch is < ImportMaxFilesPerBatchMinimum or > ImportMaxFilesPerBatchMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ImportMaxFilesPerBatch), "ImportMaxFilesPerBatch is outside its supported range (" + ImportMaxFilesPerBatchMinimum + " to " + ImportMaxFilesPerBatchMaximum + ").");
             if (ImportMaxBatchGiB is < ImportMaxBatchGiBMinimum or > ImportMaxBatchGiBMaximum)
@@ -1098,6 +1154,13 @@ namespace MeowChan
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
+                QuickTagSuggestionCount = QuickTagSuggestionCount,
+                QuickTagRecentCount = QuickTagRecentCount,
+                QuickTagUndoDepth = QuickTagUndoDepth,
+                QuickTagNeighbourScan = QuickTagNeighbourScan,
+                QuickTagFilenameTokens = QuickTagFilenameTokens,
+                QuickTagSourceTagsPerMedium = QuickTagSourceTagsPerMedium,
+                QuickTagMarkedMediaLimit = QuickTagMarkedMediaLimit,
                 ReaderDateStyle = ReaderDateStyle,
                 ReaderSpoilers = ReaderSpoilers,
                 MediaSort = MediaSort,
@@ -1259,6 +1322,13 @@ namespace MeowChan
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
+            QuickTagSuggestionCount = source.QuickTagSuggestionCount;
+            QuickTagRecentCount = source.QuickTagRecentCount;
+            QuickTagUndoDepth = source.QuickTagUndoDepth;
+            QuickTagNeighbourScan = source.QuickTagNeighbourScan;
+            QuickTagFilenameTokens = source.QuickTagFilenameTokens;
+            QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium;
+            QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit;
             ReaderDateStyle = source.ReaderDateStyle;
             ReaderSpoilers = source.ReaderSpoilers;
             MediaSort = source.MediaSort;
@@ -1379,6 +1449,13 @@ namespace MeowChan
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
+            QuickTagSuggestionCount = source.QuickTagSuggestionCount;
+            QuickTagRecentCount = source.QuickTagRecentCount;
+            QuickTagUndoDepth = source.QuickTagUndoDepth;
+            QuickTagNeighbourScan = source.QuickTagNeighbourScan;
+            QuickTagFilenameTokens = source.QuickTagFilenameTokens;
+            QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium;
+            QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit;
             ReaderDateStyle = source.ReaderDateStyle;
             ReaderSpoilers = source.ReaderSpoilers;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;

@@ -177,6 +177,7 @@ public partial class SettingsEditor
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
         NotifyViewerHelpChanged();
+        NotifyQuickTagHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -276,6 +277,7 @@ public partial class SettingsEditor
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
+        foreach (var field in QuickTagNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()

@@ -288,6 +288,7 @@ namespace MeowChan
             LoadStatisticsDraft(config);
             LoadReaderDraft(config);
             LoadViewerDraft(config);
+            LoadQuickTagDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
@@ -882,6 +883,7 @@ namespace MeowChan
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
             LoadViewerDraft(_config);
+            LoadQuickTagDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
@@ -1030,6 +1032,7 @@ namespace MeowChan
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
                 RaiseViewerTextsChanged();
+                RaiseQuickTagTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {
@@ -1298,6 +1301,7 @@ namespace MeowChan
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
                 ApplyViewerDraft(candidate);
+                ApplyQuickTagDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -1418,6 +1422,7 @@ namespace MeowChan
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
             LoadViewerDraft(_config);
+            LoadQuickTagDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
