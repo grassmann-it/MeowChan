@@ -115,7 +115,7 @@ internal static class SecondaryWindowChromeChecks
         return input;
     }
 
-    // Former system-caption window, modal, Window variant: Escape keeps closing it.
+    // Modal list dialog on the dialog factory (modals plan MD2): Dialog variant, no minimize; Escape keeps closing it.
     private static async Task CheckRatingsManagerAsync(MainWindow owner)
     {
         var dialog = new MediaRatingsManagerDialog(owner.SessionHost);
@@ -125,12 +125,12 @@ internal static class SecondaryWindowChromeChecks
         {
             Task shown = dialog.ShowDialog(owner);
             using MediaNativeInput input = await StageDialogAsync(dialog, "ratings-manager");
-            await CheckCaptionAsync(dialog, input, "ratings-manager");
+            await CheckCaptionAsync(dialog, input, "ratings-manager", WindowChromeKind.Dialog);
             await input.KeyAsync(MediaNativeInput.Escape);
             await Program.WaitUntilAsync(() => closed);
             await shown;
             await WaitActiveAsync(owner, "ratings-manager-owner-return");
-            Console.WriteLine("SMOKE ratings-manager caption: Window variant; native Escape closed the modal; owner active again.");
+            Console.WriteLine("SMOKE ratings-manager caption: Dialog variant (no minimize); native Escape closed the modal; owner active again.");
         }
         finally { if (!closed) dialog.Close(); }
     }

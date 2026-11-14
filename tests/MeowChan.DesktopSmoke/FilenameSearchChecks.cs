@@ -259,18 +259,18 @@ internal static class FilenameSearchChecks
                 await UntilAsync(() => dialog.ActualThemeVariant == theme);
                 await SmokeDispatcher.SettleAsync();
                 Require(dialog.Background is ISolidColorBrush { Color.A: 255 }, "Dialog theme background unresolved/nonopaque.");
-                foreach ((double width, double height) in new[] { (820d, 680d), (520d, 600d), (360d, 520d) })
+                foreach ((double width, double height) in new[] { (760d, 640d), (520d, 600d), (480d, 520d) }) // list step: preferred, between, minimum width (modals plan MD2)
                 {
                     dialog.Width = width; dialog.Height = height; await SmokeDispatcher.SettleAsync();
                     CheckLayout(dialog);
                 }
             }
-            dialog.Width = 820; dialog.Height = 680; await SmokeDispatcher.SettleAsync();
+            dialog.Width = 760; dialog.Height = 640; await SmokeDispatcher.SettleAsync();
             Require(query.Focus(), "Cannot focus input before native Tab check.");
             await input.KeyAsync(MediaNativeInput.Tab);
             Require(C<Button>(dialog, "FilenameSearchSubmit").IsFocused,
                 "Native Tab did not navigate query → Search.");
-            Console.WriteLine("SMOKE filename-search layout-keyboard: Light/Dark, 820x680/520x600/360x520 client control reachability, native Enter/Tab checked; no minimum380 claim.");
+            Console.WriteLine("SMOKE filename-search layout-keyboard: Light/Dark, 760x640/520x600/480x520 client control reachability, native Enter/Tab checked; no minimum380 claim.");
             await ClickAsync(input, dialog, "FilenameSearchSelect");
             ArchiveFilenameHit? returned = await shown.WaitAsync(Deadline);
             Require(ReferenceEquals(exact, returned), "ShowDialog nullable return is not the exact selected ArchiveFilenameHit.");

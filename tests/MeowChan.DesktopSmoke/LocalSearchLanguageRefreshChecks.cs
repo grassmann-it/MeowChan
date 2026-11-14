@@ -291,8 +291,10 @@ internal static class LocalSearchLanguageRefreshChecks
     }
     private static async Task MinimumAsync(Window window)
     {
-        window.Width = 360; window.Height = 680;
-        await WaitAsync(() => Math.Abs(window.ClientSize.Width - 360) <= 1);
+        // The list step's minimum width (modals plan MD2), whatever it is.
+        double minimum = window.MinWidth;
+        window.Width = minimum; window.Height = 680;
+        await WaitAsync(() => Math.Abs(window.ClientSize.Width - minimum) <= 1);
         await SettleAsync(window); // Minimum WIDTH, deliberately not a minimum-height claim.
     }
     private static async Task VisibleAsync(MainWindow owner, Window dialog)

@@ -254,7 +254,7 @@ internal static class RatingLanguageRefreshChecks
             && Need<TextBlock>(manager, "MediaRatingsSummary").Text == Texts.T("media.rating.summary", count, count)
             && Equals(Private<Button>(manager, "_confirm").Content, Texts.T("media.rating.removeThis"))
             && Equals(Private<Button>(manager, "_cancel").Content, Texts.T("media.rating.cancel"))
-            && Equals(Private<Button>(manager, "_close").Content, Texts.T("media.rating.close")),
+            && Equals(Private<Button>(manager, "_close").Content, Texts.T("action.close")),
             Texts.Language + ": manager summary/search/action presentation is stale.");
     }
 

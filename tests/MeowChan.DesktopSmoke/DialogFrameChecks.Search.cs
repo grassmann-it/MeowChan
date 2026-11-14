@@ -5,6 +5,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan;
 using MeowChan.Archive;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Storage;
@@ -62,7 +63,8 @@ internal static partial class DialogFrameChecks
             await VerifyFrameAsync(dialog, "search/filename results minimum", "search-filename-minimum");
             RequireDraftInHeader(dialog, query, "w19filename", "filename minimum");
             RequireInsideClient(dialog, Part<Button>(dialog, "FilenameSearchSelect", "filename"), "filename select minimum");
-            dialog.Width = 820; dialog.Height = 680;
+            // Back to the list step the dialog opens at (modals plan MD2).
+            dialog.Width = WorkspaceMetrics.DialogPreferredSize(DialogSize.L).Width; dialog.Height = WorkspaceMetrics.DialogPreferredSize(DialogSize.L).Height;
             await Settle();
             Require(!shown.IsCompleted, "filename: layout checks closed the dialog.");
             SearchEscape(dialog);
@@ -152,7 +154,7 @@ internal static partial class DialogFrameChecks
             RequireDraftInHeader(dialog, input, hash.ToUpperInvariant(), "hash minimum");
             foreach (string name in new[] { "MediaHashSearchStart", "MediaHashSearchPrevious", "MediaHashSearchNext", "MediaHashSearchClose" })
                 RequireInsideClient(dialog, Part<Button>(dialog, name, "hash"), "hash minimum " + name);
-            dialog.Width = 760; dialog.Height = 640;
+            dialog.Width = WorkspaceMetrics.DialogPreferredSize(DialogSize.L).Width; dialog.Height = WorkspaceMetrics.DialogPreferredSize(DialogSize.L).Height;
             await Settle();
             Require(!shown.IsCompleted, "hash: layout checks closed the dialog.");
             SearchEscape(dialog);

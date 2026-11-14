@@ -33,7 +33,7 @@ internal static class BrandNavigationChecks
         brand.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any(about => about.IsVisible));
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
-        about.FindControl<Button>("CloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        about.Close();
         await Program.WaitUntilAsync(() => !about.IsVisible);
         Console.WriteLine("SMOKE brand navigation: eight accessible footer icons, separate accessible header book icon and header-logo About entry passed.");
     }

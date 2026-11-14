@@ -367,7 +367,7 @@ internal static class NativeTransferV4PreviewChecks
             "Import dialog action enabled state does not match the host state.");
         foreach ((Button button, string key) in new[] { (dialog.ChooseButton, "transfer.import.choose"),
             (dialog.CancelButton, "transfer.import.cancel"), (dialog.ApplyButton, "transfer.import.apply"),
-            (dialog.RecheckButton, "transfer.import.recheck"), (dialog.CloseButton, "transfer.import.close"),
+            (dialog.RecheckButton, "transfer.import.recheck"), (dialog.CloseButton, "action.close"),
             (dialog.ConflictsButton, "transfer.conflicts.open") })
             Require(Equals(button.Content, Texts.T(key)) && AutomationProperties.GetName(button) == Texts.T(key),
                 "Import action label/accessibility name did not follow the open-dialog language.");
