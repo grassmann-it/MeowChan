@@ -11,6 +11,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 
@@ -64,6 +65,9 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         Focusable = false;
         Width = PreferredWidth;
         Padding = new Thickness(16);
+        // The flyout's logical parent is its anchor, so the styles of the toolbar it opens from reach these buttons too (ReaderToolbar:
+        // ":is(Button)" with an 8-dip right margin pulled the close cross 8 dip off the right edge). The surface spaces its own buttons.
+        Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(MarginProperty, new Thickness(0)) } });
         _title.Name = _name + "Title"; _close.Name = _name + "Close"; _all.Name = _name + "All"; _status.Name = _name + "Status";
         _rows.Name = _name + "Rows";
 

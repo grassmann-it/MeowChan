@@ -269,6 +269,20 @@ public sealed class QuickSettingsTests : IDisposable
     // The surface (structure, editing, failure, Esc, all settings, language change) needs controls that live on the UI thread of a
     // running application: it is exercised by the "reader-quick-settings" smoke (ReaderQuickSettingsChecks).
 
+    [Fact]
+    public void TheSurfaceKeepsTheItemMarginOfTheToolbarItOpensFromOffItsButtons()
+    {
+        // The reader toolbar gives its items an 8-dip right margin through ":is(Button)"; the flyout hangs below the View button in the
+        // logical tree, so without its own style the close cross of the popover stood 8 dip off the right edge.
+        string archive = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Views/Archive/ArchivePage.axaml"));
+        Assert.Contains("<desktop:ActionToolBar x:Name=\"ReaderToolbar\"", archive);
+        string surface = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Controls/QuickSettingsPopover.cs"));
+        int constructor = surface.IndexOf("internal QuickSettingsSurface(", StringComparison.Ordinal);
+        int build = surface.IndexOf("Build();", constructor, StringComparison.Ordinal);
+        Assert.Contains("Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(MarginProperty, new Thickness(0)) } });",
+            surface[constructor..build]);
+    }
+
     // ---- languages ---------------------------------------------------------------------------------------------------
 
     [Fact]
