@@ -37,12 +37,9 @@ public partial class MainWindow
                 () => true, _settingsEditor.FocusSearch, Priority: 100, AllowInTextInput: true));
         if (_pluginsPage != null)
         {
-            Register(_pluginsPage, () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,
-                () => _pluginsPage.CanOpenSectionNavigation, _pluginsPage.OpenSectionNavigation,
-                () => _pluginsPage.SelectedSectionId, _pluginsPage.CanGoToSection, _pluginsPage.GoToSection);
             foreach (string id in PluginsPage.PluginActionCommandIds)
                 _shortcutRouter.Register(new CommandRegistration(id, _pluginsPage,
-                    () => _selectedPage == WorkspacePage.Plugins && !_largeReaderOpen && _gallery == null,
+                    () => _selectedPage == WorkspacePage.Sources && !_largeReaderOpen && _gallery == null,
                     () => _pluginsPage.CanExecutePluginAction(id),
                     () => _ = _pluginsPage.ExecuteSelectedPluginActionAsync(id),
                     () => _pluginsPage.PluginActionDisabledReason(id), Priority: 100));
@@ -111,7 +108,7 @@ public partial class MainWindow
     }
     private bool HasBlockingPageDecision() =>
         _selectedPage == WorkspacePage.Rules && _rulesPage?.IsRuleConfirmationOpen == true
-        || _selectedPage == WorkspacePage.Plugins && _pluginsPage?.IsDiscardConfirmationOpen == true;
+        || _selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true;
     private bool RouteWorkspaceShortcut(KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing || !IsEnabled || _isClosing || HasVisibleShellDialog()

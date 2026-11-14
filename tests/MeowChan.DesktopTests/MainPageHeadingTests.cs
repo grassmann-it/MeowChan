@@ -19,8 +19,7 @@ public sealed class MainPageHeadingTests
         ("navigation.archive", "Desktop/Views/Archive/ArchivePage.axaml"),
         ("navigation.media", "Desktop/Views/Media/MediaPage.cs"),
         ("navigation.rules", "Desktop/Views/Rules/RulesPage.axaml"),
-        ("navigation.sources", "Desktop/Views/Sources/SourcesPage.axaml"),
-        ("navigation.plugins", "Desktop/Views/Plugins/PluginsPage.axaml"),
+        ("navigation.sources", "Desktop/Views/Plugins/PluginsPage.axaml"),
         ("navigation.status", "Desktop/Views/Status/StatusPage.axaml"),
     };
 

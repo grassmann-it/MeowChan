@@ -32,8 +32,8 @@ public sealed class MainPageOrderTests
         Assert.Equal(new[] { "ToolsNavigationButton", "SettingsNavigationButton" }, names.Skip(pages.Length));
         for (int index = 0; index < pages.Length; index++)
         {
-            Assert.Equal("Primary+" + (index + 1), CommandCatalog.Get(OrderedIds[index]).Shortcut);
-            Assert.Equal(index + 1, MainPageOrder.Digit(OrderedIds[index]));
+            Assert.Equal(MainPageOrder.DefaultShortcut(OrderedIds[index]), CommandCatalog.Get(OrderedIds[index]).Shortcut);
+            Assert.Equal(OrderedIds[index] == "navigation.status" ? 7 : index + 1, MainPageOrder.Digit(OrderedIds[index]));
         }
     }
 
@@ -41,9 +41,10 @@ public sealed class MainPageOrderTests
     public void TheMainPagesFormThreeGroupsInTheAgreedOrderAndTheFooterSetsThemApartWithSeparators()
     {
         Assert.Equal(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.rules", "navigation.sources",
-            "navigation.plugins", "navigation.status" }, OrderedIds);
-        Assert.Equal(new[] { 3, 3, 1 }, MainPageOrder.Groups.Select(group => group.Count));
-        Assert.Equal(new[] { 6, 7 }, new[] { "navigation.plugins", "navigation.status" }.Select(id => MainPageOrder.Digit(id)!.Value));
+            "navigation.status" }, OrderedIds);
+        Assert.Equal(new[] { 3, 2, 1 }, MainPageOrder.Groups.Select(group => group.Count));
+        Assert.Null(MainPageOrder.Digit("navigation.plugins"));
+        Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
         // Diagnostics and Statistics are segments of Status, no main pages and no digits (Primary+8 is free).
         Assert.All(MainPageOrder.StatusSegmentCommandIds, id => Assert.Null(MainPageOrder.Digit(id)));
         XElement footer = Assert.Single(Markup().Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
@@ -69,7 +70,7 @@ public sealed class MainPageOrderTests
         // Separators of the flyout stand exactly between the groups (Downloads is not in the flyout).
         string[] flyoutShape = tools.Descendants().Where(e => e.Name.LocalName is "MenuItem" or "Separator")
             .Select(e => e.Name.LocalName == "Separator" ? "|" : (string)e.Attribute("Tag")!).ToArray();
-        Assert.Equal(new[] { "nav.archive", "nav.media", "|", "nav.rules", "nav.sources", "nav.plugins", "|", "nav.status" }, flyoutShape);
+        Assert.Equal(new[] { "nav.archive", "nav.media", "|", "nav.rules", "nav.sources", "|", "nav.status" }, flyoutShape);
         Assert.Equal(new[] { "nav.group-separator.0", "nav.group-separator.1" },
             tools.Descendants().Where(e => e.Name.LocalName == "Separator").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
 
@@ -82,7 +83,7 @@ public sealed class MainPageOrderTests
         string[] menuShape = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?")
             .TakeWhile(item => item != "ManualImportMenuItem").ToArray();
         string[] pageShape = OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "MenuItem").ToArray();
-        Assert.Equal(new[] { pageShape[0], pageShape[1], pageShape[2], "|", pageShape[3], pageShape[4], pageShape[5], "|", pageShape[6], "|" }, menuShape);
+        Assert.Equal(new[] { pageShape[0], pageShape[1], pageShape[2], "|", pageShape[3], pageShape[4], "|", pageShape[5], "|" }, menuShape);
         // Tools, then the application's own entries, then Exit.
         string[] rest = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?").SkipWhile(item => item != "ManualImportMenuItem").ToArray();
         Assert.Equal(new[] { "ManualImportMenuItem", "ReaderGroupsMenuItem", "|", "PauseMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "|", "ExitMenuItem" }, rest);
@@ -102,7 +103,7 @@ public sealed class MainPageOrderTests
     {
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         for (int index = 0; index < OrderedIds.Length; index++)
-            Assert.Equal("Ctrl+" + (index + 1), bindings.Display(OrderedIds[index]));
+            Assert.Equal("Ctrl+" + MainPageOrder.Digit(OrderedIds[index]), bindings.Display(OrderedIds[index]));
         Assert.Empty(bindings.Issues);
     }
 }

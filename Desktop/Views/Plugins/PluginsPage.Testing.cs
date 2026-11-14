@@ -32,8 +32,8 @@ public partial class PluginsPage
 
     private void UpdateTestButtons()
     {
-        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = _busy;
-        if (_busy && _testStatusKey == null) C<TextBlock>("PluginTestStatus").Text = Texts.T("feedback.working");
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = _busy || _sourceOperationBusy;
+        if ((_busy || _sourceOperationBusy) && _testStatusKey == null) C<TextBlock>("PluginTestStatus").Text = Texts.T("feedback.working");
         bool source = Selected?.SourcePath != null;
         SetAction("PluginBuild", source ? "plugins.unavailable" : "plugins.reason.noSource", source && _services != null);
         SetAction("PluginEdit", "plugins.reason.noSource", source);
@@ -48,7 +48,6 @@ public partial class PluginsPage
     }
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
-        _pluginSectionNavigation?.CancelPendingNavigation();
         if (_ended || _busy || _services == null || CurrentDraft is not { } draft || Selected is not { } entry || entry.PluginId == null) return;
         PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors);
         ShowFieldErrors(errors, focusFirstError: true);

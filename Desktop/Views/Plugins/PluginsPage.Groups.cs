@@ -93,9 +93,9 @@ public partial class PluginsPage
         foreach (var row in rows)
         {
             bool isShown = row.Key == entry.Key;
-            var button = new Button { Content = (isShown ? "→ " : "   ") + row.Label, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            var button = new Button { Content = row.Label, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left, Tag = row.Key };
-            if (isShown) { button.Classes.Add("primary"); shown = button; }
+            if (isShown) { button.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { MeowChan.Desktop.Commands.CommandBindings.NamedIcon("arrow-right"), new TextBlock { Text = row.Label } } }; button.Classes.Add("primary"); shown = button; }
             ToolTip.SetTip(button, row.Path ?? row.Key);
             AutomationProperties.SetName(button, isShown ? row.Label + " (" + Texts.T("plugins.fileShown") + ")" : row.Label);
             string key = row.Key;

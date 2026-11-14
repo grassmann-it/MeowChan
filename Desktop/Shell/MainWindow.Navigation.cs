@@ -17,14 +17,14 @@ namespace MeowChan;
 public partial class MainWindow
 {
     /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Status, Settings, Plugins, Media }
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Status, Settings, Media }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
         "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
         "navigation.media" => WorkspacePage.Media, "navigation.rules" => WorkspacePage.Rules,
         "navigation.sources" => WorkspacePage.Sources, "navigation.status" => WorkspacePage.Status,
-        "navigation.plugins" => WorkspacePage.Plugins,
+        "navigation.plugins" => WorkspacePage.Sources,
         _ => throw new ArgumentOutOfRangeException(nameof(commandId), commandId, "Not a main page.")
     };
     private SettingsEditor? _settingsEditor;
@@ -193,7 +193,7 @@ public partial class MainWindow
 
     /// <summary>
     /// Pages whose control trees are built after the shell's first frame. No gate offers any of them
-    /// before the shell is interactive: Status, Rules, Sources and Plugins stay behind
+    /// before the shell is interactive: Status, Rules, Sources & Plugins stay behind
     /// <c>navigationReady</c>/<c>diagnosticsReady</c>, and the early Settings choice reaches its page only
     /// through <see cref="NavigateWorkspace"/>, which builds it first. Keeping them out of the constructor
     /// takes their construction off the path to the first frame.
@@ -324,7 +324,7 @@ public partial class MainWindow
             _mediaPage?.InvalidateSharedMediaMenu();
         }
         ++_readingResumeNavigationRevision;
-        if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
+        if (page != WorkspacePage.Sources) _pluginsPage?.Deactivate();
         // Without a restored session only the diagnostics segment exists (the recovery-failure route).
         if (page == WorkspacePage.Status) _statusSegment = EffectiveStatusSegment(CurrentStatusSegment);
         if (page != WorkspacePage.Status || _statusSegment != StatusSegment.Statistics) _statisticsPage?.Deactivate();
@@ -338,7 +338,6 @@ public partial class MainWindow
         ArchivePageHost.IsVisible = page == WorkspacePage.Archive;
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
-        PluginsPageHost.IsVisible = page == WorkspacePage.Plugins;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
         StatusNavigationButton.Classes.Set("selected", page == WorkspacePage.Status);
@@ -346,13 +345,12 @@ public partial class MainWindow
         ArchiveNavigationButton.Classes.Set("selected", page == WorkspacePage.Archive);
         MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
         SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
-        PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
-        if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
+        if (page == WorkspacePage.Sources) _ = _sourcesPage?.ActivateAsync();
         if (page != WorkspacePage.Status) { UpdateSpeedSamplingState(); RefreshStatusRates(); } // a page gives up its claim when left
         // The segment shown, its claim (statistics only), view, data and focus.
         if (page == WorkspacePage.Status) ActivateStatusSegment();
@@ -426,7 +424,7 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
-            // Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Status | More, Settings):
+            // Footer groups (Downloads, Archive, Media | Rules, Sources & Plugins | Status | More, Settings):
             // the separator behind a group is shown while that group has a visible button, so no two separators meet and
             // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
             Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };

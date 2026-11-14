@@ -11,7 +11,7 @@ namespace MeowChan;
 
 public partial class PluginsPage
 {
-    private Border[]? _lifecycleChips;
+
 
     /// <summary>
     /// Installed → Enabled → Active (after restart) as three chips and the one next action as a sentence. A pure display of the
@@ -20,47 +20,8 @@ public partial class PluginsPage
     /// </summary>
     private void RenderLifecycle(PluginCatalogEntry entry, PluginEntryPresentation presentation)
     {
-        WrapPanel panel = C<WrapPanel>("PluginStepChips");
-        if (_lifecycleChips == null)
-        {
-            _lifecycleChips = new[] { "PluginStepInstalled", "PluginStepEnabled", "PluginStepActive" }
-                .Select(name => WorkspaceChips.CreateBadge(name, string.Empty)).ToArray();
-            foreach (Border chip in _lifecycleChips) panel.Children.Add(chip);
-        }
+        RenderLifecycleSteps(C<WrapPanel>("PluginStepChips"), entry, presentation);
         PluginLifecycleView view = PluginLifecycleSteps.Create(entry, presentation);
-        string[] names = new[]
-        {
-            Texts.T("plugins.step.installed"), Texts.T("plugins.step.enabled"),
-            Texts.T(view.ActiveNow ? "plugins.step.active" : "plugins.step.activeRestart")
-        };
-        string[] spoken = new string[3];
-        for (int index = 0; index < 3; index++)
-        {
-            PluginStepState state = view.Steps[index].State;
-            Border chip = _lifecycleChips[index];
-            ((TextBlock)chip.Child!).Text = state switch
-            {
-                PluginStepState.Done => "✓ ",
-                PluginStepState.Next => "→ ",
-                PluginStepState.Problem => "! ",
-                _ => "○ "
-            } + names[index];
-            chip.Classes.Set("chip-step-done", state == PluginStepState.Done);
-            chip.Classes.Set("chip-step-next", state == PluginStepState.Next);
-            chip.Classes.Set("chip-warning", state == PluginStepState.Problem);
-            chip.Classes.Set("chip-neutral", state == PluginStepState.Later);
-            spoken[index] = Texts.T("plugins.step.name", index + 1, 3, names[index], Texts.T(state switch
-            {
-                PluginStepState.Done => "plugins.step.state.done",
-                PluginStepState.Next => "plugins.step.state.next",
-                PluginStepState.Problem => "plugins.step.state.problem",
-                _ => "plugins.step.state.later"
-            }));
-            // The chip text carries the name: a Border and a WrapPanel have no automation peer, and the marker character alone would be read as its glyph name.
-            AutomationProperties.SetName(chip.Child!, spoken[index]);
-        }
-        AutomationProperties.SetName(panel, Texts.T("plugins.step.group") + ": " + string.Join("; ", spoken));
-
         string? next = view.Next switch
         {
             PluginNextAction.FileMissing => Texts.T("plugins.step.next.missing", Texts.T("plugins.add")),
@@ -78,4 +39,50 @@ public partial class PluginsPage
         line.IsVisible = next != null;
         AutomationProperties.SetName(line, next ?? string.Empty);
     }
+    private static void RenderLifecycleSteps(WrapPanel panel, PluginCatalogEntry entry, PluginEntryPresentation presentation)
+    {
+        if (panel.Children.Count == 0)
+        {
+            Border[] chips = new[] { "PluginStepInstalled", "PluginStepEnabled", "PluginStepActive" }
+                .Select(name => WorkspaceChips.CreateBadge(name, string.Empty)).ToArray();
+            foreach (Border chip in chips) panel.Children.Add(chip);
+        }
+        PluginLifecycleView view = PluginLifecycleSteps.Create(entry, presentation);
+        string[] names = new[]
+        {
+            Texts.T("plugins.step.installed"), Texts.T("plugins.step.enabled"),
+            Texts.T(view.ActiveNow ? "plugins.step.active" : "plugins.step.activeRestart")
+        };
+        string signature = Texts.Language + "|" + string.Join("|", view.Steps.Select((step, index) => step.State + ":" + names[index]));
+        if (panel.Tag as string == signature) return;
+        panel.Tag = signature;
+        string[] spoken = new string[3];
+        for (int index = 0; index < 3; index++)
+        {
+            PluginStepState state = view.Steps[index].State;
+            Border chip = (Border)panel.Children[index];
+            var label = new TextBlock { Text = names[index], Classes = { "chip-label" } };
+            var content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 4 };
+            content.Children.Add(state == PluginStepState.Problem ? WorkspaceIcons.Create(WorkspaceIcons.SeverityWarning)
+                : CommandBindings.NamedIcon(state switch { PluginStepState.Done => "check", PluginStepState.Next => "arrow-right", _ => "circle" }));
+            content.Children.Add(label);
+            chip.Child = content;
+            chip.Classes.Set("chip-step-done", state == PluginStepState.Done);
+            chip.Classes.Set("chip-step-next", state == PluginStepState.Next);
+            chip.Classes.Set("chip-warning", state == PluginStepState.Problem);
+            chip.Classes.Set("chip-neutral", state == PluginStepState.Later);
+            spoken[index] = Texts.T("plugins.step.name", index + 1, 3, names[index], Texts.T(state switch
+            {
+                PluginStepState.Done => "plugins.step.state.done",
+                PluginStepState.Next => "plugins.step.state.next",
+                PluginStepState.Problem => "plugins.step.state.problem",
+                _ => "plugins.step.state.later"
+            }));
+            // The text leaf carries the spoken step/state; the drawn icon is not a font character.
+            AutomationProperties.SetName(label, spoken[index]);
+        }
+        AutomationProperties.SetName(panel, Texts.T("plugins.step.group") + ": " + string.Join("; ", spoken));
+
+    }
+
 }

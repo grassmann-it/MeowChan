@@ -14,7 +14,7 @@ internal static class FooterNavigationChecks
     private static readonly (string Name, MainWindow.WorkspacePage Page)[] Destinations =
     [
         ("Downloads", MainWindow.WorkspacePage.Downloads), ("Archive", MainWindow.WorkspacePage.Archive),
-        ("Media", MainWindow.WorkspacePage.Media), ("Rules", MainWindow.WorkspacePage.Rules), ("Plugins", MainWindow.WorkspacePage.Plugins),
+        ("Media", MainWindow.WorkspacePage.Media), ("Rules", MainWindow.WorkspacePage.Rules),
         ("Status", MainWindow.WorkspacePage.Status), ("Settings", MainWindow.WorkspacePage.Settings),
         ("Sources", MainWindow.WorkspacePage.Sources)
     ];

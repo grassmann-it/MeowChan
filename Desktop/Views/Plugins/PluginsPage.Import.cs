@@ -70,7 +70,7 @@ public partial class PluginsPage
         }
 
         // Show the new entry: the category must not hide it, and the list is read again (a plain refresh, which activates nothing).
-        C<ComboBox>("PluginCategory").SelectedIndex = 0;
+        SetFilter(SourcesPluginsFilter.AllPlugins);
         await RefreshAsync();
         if (_ended) return;
         if (result.CandidateId != null) Select(result.CandidateId);

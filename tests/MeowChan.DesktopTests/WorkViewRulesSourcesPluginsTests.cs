@@ -14,7 +14,7 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class WorkViewRulesSourcesPluginsTests
 {
-    private static readonly WorkViewPage[] Pages = [WorkViewPage.Rules, WorkViewPage.Sources, WorkViewPage.Plugins];
+    private static readonly WorkViewPage[] Pages = [WorkViewPage.Rules, WorkViewPage.Sources];
 
     [Fact]
     public void EveryRowOfThePagesIsRegisteredByTheirPageFiles()
@@ -51,7 +51,7 @@ public sealed class WorkViewRulesSourcesPluginsTests
     {
         // Barebones: the secondary blocks fold or move; the primary content of each page stays.
         foreach (string id in new[] { "rules.scope.saved", "rules.plugin-filter", "sources.detail.capabilities",
-                     "sources.detail.technical", "plugins.directory", "plugins.detail.info" })
+                     "sources.detail.technical", "plugins.detail.info" })
             Assert.Equal(Presence.Collapsed, WorkViewPolicy.Resolve(id, WorkView.Barebones));
         foreach (string id in new[] { "rules.templates", "plugins.header.add", "plugins.header.folder", "sources.detail.plugin",
                      "plugins.detail.watches", "sources.detail.rules", "sources.detail.diagnostics", "plugins.detail.developer" })
@@ -170,6 +170,9 @@ public sealed class WorkViewRulesSourcesPluginsTests
 
     private static string ReadPageSources(WorkViewPage page)
     {
+        if (page == WorkViewPage.Sources)
+            return string.Concat(new[] { "Sources", "Plugins" }.SelectMany(folder => Directory.EnumerateFiles(Root("Desktop/Views/" + folder), "*.*"))
+                .Where(path => path.EndsWith(".cs", StringComparison.Ordinal) || path.EndsWith(".axaml", StringComparison.Ordinal)).Select(File.ReadAllText));
         string folder = Root("Desktop/Views/" + page);
         return string.Concat(Directory.EnumerateFiles(folder, "*.*", SearchOption.TopDirectoryOnly)
             .Where(path => path.EndsWith(".cs", StringComparison.Ordinal) || path.EndsWith(".axaml", StringComparison.Ordinal))

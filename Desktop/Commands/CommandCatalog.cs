@@ -11,8 +11,8 @@ public static class CommandCatalog
 {
     private static readonly CommandDefinition[] Entries =
     {
-        new("sections.open-navigation", "command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "list", null, CommandScope.Settings, new[] { "settings", "plugins" }),
-        new("sections.go-to", "command.sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "arrow-right", null, CommandScope.Settings, new[] { "settings-sections", "plugins-sections" }),
+        new("sections.open-navigation", "command.sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "list", null, CommandScope.Settings, new[] { "settings" }),
+        new("sections.go-to", "command.sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "arrow-right", null, CommandScope.Settings, new[] { "settings-sections" }),
         new("reader.skip-unavailable-group-member", "command.reader.skip-unavailable-group-member", "Skip unavailable member", "Fehlendes Mitglied überspringen", "arrow-right", null, CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader-groups.open-manager", "command.reader-groups.open-manager", "Reader groups", "Readergruppen", "file-text", null, CommandScope.Application, new[] { "shell" }),
         new("reader-groups.create", "command.reader-groups.create", "Create group", "Gruppe erstellen", "file-text", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
@@ -46,7 +46,7 @@ public static class CommandCatalog
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", MainPageOrder.DefaultShortcut("navigation.archive"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", MainPageOrder.DefaultShortcut("navigation.media"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", MainPageOrder.DefaultShortcut("navigation.rules"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", MainPageOrder.DefaultShortcut("navigation.sources"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.sources", "command.navigation.sources", "Sources & Plugins", "Quellen & Plugins", "globe", MainPageOrder.DefaultShortcut("navigation.sources"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "sources", "status-segment" }),
         new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", null, CommandScope.Settings, new[] { "plugins" }),
@@ -69,7 +69,7 @@ public static class CommandCatalog
         new("plugins.show-developer-tools", "plugins.showDeveloperTools", "Show developer details", "Entwicklerdetails anzeigen", "tool", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.actions", "plugins.actions", "Actions", "Aktionen", "more-horizontal", null, CommandScope.Settings, new[] { "plugins" }),
         new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
-        new("navigation.plugins", "command.navigation.plugins", "Plugins", "Plugins", "tool", MainPageOrder.DefaultShortcut("navigation.plugins"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
+        new("navigation.plugins", "command.navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "tool", null, CommandScope.Application, new[] { "sources" }),
         new("navigation.status", "command.navigation.status", "Status", "Status", "activity", MainPageOrder.DefaultShortcut("navigation.status"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
@@ -340,7 +340,7 @@ public static class CommandCatalog
     }
 
     /// <summary>The shortcut works outside inputs and overlays, when the action is available: the common case that the shortcut help states once.</summary>
-    internal static bool HasGenericScope(string id) => id == "session.pause" || MainPageOrder.Contains(id)
+    internal static bool HasGenericScope(string id) => id is "session.pause" or "navigation.plugins" || MainPageOrder.Contains(id)
         || MainPageOrder.StatusSegmentCommandIds.Contains(id, StringComparer.Ordinal);
 
     public static string? ScopeHint(string id, CommandScope context = CommandScope.None)

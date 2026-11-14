@@ -102,7 +102,6 @@
                             <Separator x:Name="PagesGroupSeparatorWork" />
                             <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
-                            <MenuItem x:Name="PluginsMenuItem" Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
                             <Separator x:Name="PagesGroupSeparatorSetUp" />
                             <MenuItem x:Name="StatusMenuItem" Tag="nav.status" Classes="localized" Header="Status" Click="OnStatusNavigationClick" />
                             <Separator x:Name="MenuPagesToolsSeparator" />
@@ -479,7 +478,6 @@
         <ContentControl Grid.Row="2" x:Name="ArchivePageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="MediaPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
-        <ContentControl Grid.Row="2" x:Name="PluginsPageHost" IsVisible="False" />
         </Grid>
         <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="20,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12" VerticalAlignment="Center">
@@ -506,7 +504,6 @@
                 <Border x:Name="FooterSeparatorWork" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <Button x:Name="RulesNavigationButton" Classes="nav localized" Tag="nav.rules" Content="Rules" Click="OnRulesNavigationClick" />
                 <Button x:Name="SourcesNavigationButton" Classes="nav localized" Tag="nav.sources" Content="Sources" Click="OnSourcesNavigationClick" />
-                <Button x:Name="PluginsNavigationButton" Classes="nav" Content="Plugins" Click="OnPluginsNavigationClick" />
                 <Border x:Name="FooterSeparatorSetUp" Classes="nav-separator" Width="1" Height="18" Margin="4,0" VerticalAlignment="Center" IsHitTestVisible="False" Focusable="False" AutomationProperties.AccessibilityView="Raw" />
                 <!-- Status opens the segment used last (Statistics | Diagnostics); the icon is the former Diagnostics one. -->
                 <Button x:Name="StatusNavigationButton" Classes="nav" Click="OnStatusNavigationClick">
@@ -524,7 +521,6 @@
                             <Separator Tag="nav.group-separator.0" />
                             <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
                             <MenuItem Tag="nav.sources" Classes="localized" Header="Sources" Click="OnSourcesNavigationClick" />
-                            <MenuItem Tag="nav.plugins" Classes="localized" Header="Plugins" Click="OnPluginsNavigationClick" />
                             <Separator Tag="nav.group-separator.1" />
                             <MenuItem Tag="nav.status" Classes="localized" Header="Status" Click="OnStatusNavigationClick" />
                         </MenuFlyout>

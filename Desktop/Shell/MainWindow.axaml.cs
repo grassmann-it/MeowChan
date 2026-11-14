@@ -265,7 +265,6 @@ public partial class MainWindow : Window
         if (_mediaPage != null) _mediaPage.IsAvailable = ready;
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;
-        PluginsNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
         SourcesMenuItem.IsEnabled = navigationReady;
         ArchiveMenuItem.IsEnabled = earlyPages;

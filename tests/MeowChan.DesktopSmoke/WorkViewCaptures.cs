@@ -201,7 +201,7 @@ internal static class WorkViewCaptures
             "media" => ("MediaMenuItem", MainWindow.WorkspacePage.Media),
             "rules" => ("RulesMenuItem", MainWindow.WorkspacePage.Rules),
             "sources" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
-            "plugins" => ("PluginsMenuItem", MainWindow.WorkspacePage.Plugins),
+            "plugins" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
             // Diagnostics and Statistics are segments of Status: the menu entry opens Status, the segment is chosen below.
             "diagnostics" or "statistics" => ("StatusMenuItem", MainWindow.WorkspacePage.Status),
             "settings" => ("SettingsMenuItem", MainWindow.WorkspacePage.Settings),
@@ -209,6 +209,8 @@ internal static class WorkViewCaptures
         };
         window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
+        if (page == "plugins" && window.FindControl<ContentControl>("SourcesPageHost")?.Content is SourcesPage sources)
+            await sources.ActivateAsync(SourcesPluginsFilter.AllPlugins);
         if (page is "diagnostics" or "statistics")
         {
             StatusSegment segment = page == "diagnostics" ? StatusSegment.Diagnostics : StatusSegment.Statistics;
@@ -404,7 +406,7 @@ internal static class WorkViewCaptures
             if (!window.FindControl<Control>(name)!.IsEffectivelyVisible)
                 throw new InvalidOperationException($"{scene}: the neutral header element {name} is not visible.");
         MenuItem appMenu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-        string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem", "PluginsMenuItem",
+        string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem",
             "StatusMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
             "WorkViewMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem"];
         string[] missing = required.Where(name => !appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
@@ -659,13 +661,13 @@ internal static class WorkViewCaptures
                         throw new InvalidOperationException($"rules/{viewName}: {id} is a required element but is not shown.");
                 break;
             case "plugins":
-                if (!Find(window, WorkViewPage.Plugins, "plugins.header.refresh").IsEffectivelyVisible)
+                if (!Find(window, WorkViewPage.Sources, "plugins.header.refresh").IsEffectivelyVisible)
                     throw new InvalidOperationException($"plugins/{viewName}: Refresh is not shown.");
-                Control more = Find(window, WorkViewPage.Plugins, "plugins.header.add").FindLogicalAncestorOfType<PluginsPage>()!
+                Control more = Find(window, WorkViewPage.Sources, "plugins.header.add").FindLogicalAncestorOfType<PluginsPage>()!
                     .FindControl<Button>("PluginsMoreButton")!;
                 bool moved = new[] { "plugins.header.add", "plugins.header.folder" }
                     .Any(id => WorkViewPolicy.Resolve(id, view) == Presence.Overflow
-                        && WorkViewElement.GetStateVisible(Find(window, WorkViewPage.Plugins, id)));
+                        && WorkViewElement.GetStateVisible(Find(window, WorkViewPage.Sources, id)));
                 if (more.IsVisible != moved)
                     throw new InvalidOperationException($"plugins/{viewName}: the More button is {(more.IsVisible ? "shown" : "hidden")} but the view {(moved ? "moved" : "moved no")} header action(s) under it.");
                 break;

@@ -10,22 +10,14 @@ public partial class MainWindow
 {
     private void InitializePluginPage()
     {
-        _pluginsPage = new PluginsPage
+        _pluginsPage = _sourcesPage!.PluginManagement;
+        _pluginsPage.GetEditorOptions = () => new PluginEditorOptions(_config.PluginEditorExecutable, _config.PluginEditorArguments);
+        _pluginsPage.SaveEditorOptionsAsync = options => _session.SaveViewPreferencesAsync(config =>
         {
-            GetEditorOptions = () => new PluginEditorOptions(_config.PluginEditorExecutable, _config.PluginEditorArguments),
-            SaveEditorOptionsAsync = options => _session.SaveViewPreferencesAsync(config =>
-            {
-                config.PluginEditorExecutable = options.Executable;
-                config.PluginEditorArguments = options.Arguments.ToArray();
-            }),
-            OpenSourceWatches = source => { if (NavigateWorkspace(WorkspacePage.Sources)) _sourcesPage?.SelectSource(source); }
-        };
+            config.PluginEditorExecutable = options.Executable;
+            config.PluginEditorArguments = options.Arguments.ToArray();
+        });
         _pluginsPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
-        PluginsPageHost.Content = _pluginsPage;
-        _sourcesPage!.OpenPluginSettings = source =>
-        {
-            if (NavigateWorkspace(WorkspacePage.Plugins)) _ = _pluginsPage.ActivateAsync(source);
-        };
         _sourcesPage.GetSourceMediaIntegrityPolicies = _session.GetSourceMediaIntegrityPolicies;
         _sourcesPage.SetSourceMediaIntegrityPermission = _session.SetSourceMediaIntegrityPermissionAsync;
         AttachPluginServices();
@@ -51,6 +43,6 @@ public partial class MainWindow
     private void OnPluginsNavigationClick(object? sender, RoutedEventArgs e)
     {
         ToolsNavigationButton.Flyout?.Hide();
-        NavigateWorkspace(WorkspacePage.Plugins);
+        if (NavigateWorkspace(WorkspacePage.Sources)) _ = _sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins);
     }
 }

@@ -42,7 +42,6 @@ public static partial class WorkViewPolicy
         Footer("media", Overflow, Direct, Direct),
         Footer("rules", Overflow, Overflow, Direct),
         Footer("sources", Overflow, Overflow, Direct),
-        Footer("plugins", Overflow, Overflow, Direct),
         // One Status page with the segments Statistics and Diagnostics (status.segments); the segments are no footer destinations.
         Footer("status", Overflow, Overflow, Direct),
     ];
