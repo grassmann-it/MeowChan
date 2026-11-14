@@ -63,7 +63,8 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
         WorkViewElement.SetId(_booruOpen, "media.toolbar.booru");
         _booruOpen.Click += (_, _) => InvokeBooruOverflow();
-        WorkViewElement.SetId(_booruMode, "media.toolbar.booru-mode"); // MP4
+        WorkViewElement.SetId(_booruMode, "media.toolbar.tag-list"); // MP4 (the "Booru mode" switch, since MP5 "Tag list")
+        WorkViewElement.SetId(_layoutButton, "media.toolbar.layout"); // MP5
         WorkViewElement.SetId(_queueWalk, "media.toolbar.queue-walk"); // MP3
         WorkViewElement.SetId(_taggingPageOpen, "media.toolbar.tagging-page");
         WireQueueTools();
@@ -149,6 +150,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_manageRatings, view);
         WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
         WorkViewGate.Apply(_booruMode, view);
+        WorkViewGate.Apply(_layoutButton, view);
         WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
         WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
         ApplyToolbarLevel(); // what the page width moves under More as well (MediaPage.Toolbar.cs)
@@ -173,7 +175,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen);
+    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 
@@ -198,6 +200,8 @@ public sealed partial class MediaPage
         {
             string id = WorkViewElement.GetId(control)!;
             WorkViewEntry entry = WorkViewPolicy.Get(id);
+            // MP5: the layout button is a menu itself; under More it is a submenu with the same entries.
+            if (ReferenceEquals(control, _layoutButton)) { flyout.Items.Add(LayoutSubmenu()); continue; }
             if (control is Button button && entry.CommandId != null)
             {
                 flyout.Items.Add(WorkViewOverflow.CreateForwardingItem(button, entry.CommandId));

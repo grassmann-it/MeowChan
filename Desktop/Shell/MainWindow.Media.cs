@@ -87,6 +87,10 @@ public partial class MainWindow
         _mediaPage.RestoreBooruMode(_session.Config.MediaBooruMode,
             Enum.TryParse(_session.Config.MediaTagListSort, out MediaTagListSort tagListSort) ? tagListSort : MediaTagListSort.Count);
         _mediaPage.SaveBooruModeAsync = (on, sort) => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = on; config.MediaTagListSort = sort.ToString(); });
+        // MP5: the rest of the page's layout (side, width, chips, status line, subtitle, tile caption and size) is the profile's view preference too;
+        // the tag list switch stays in its own key (MediaBooruMode), so both ways of switching it write the same state.
+        _mediaPage.RestoreLayout(MediaPageLayout.Parse(_session.Config.MediaLayout, _session.Config.MediaBooruMode));
+        _mediaPage.SaveLayoutAsync = layout => _session.SaveViewPreferencesAsync(config => { config.MediaBooruMode = layout.TagList; config.MediaLayout = layout.Format(); });
         _session.StateChanged += OnMediaTagQueueChanged;
         Closed += (_, _) => _session.StateChanged -= OnMediaTagQueueChanged;
         _mediaPage.InitializeSharedMediaMenus();

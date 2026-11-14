@@ -106,8 +106,10 @@ public sealed partial class MediaPage
         _focusMode = on;
         _focusRow.IsVisible = on;
         _topRows!.IsVisible = _bottomRows!.IsVisible = !on;
-        // The page title and the subtitle go too: the grid gets the whole page. The counter lives on in the focus row.
-        _title.IsVisible = _subtitle.IsVisible = !on;
+        // The page title and the subtitle go too: the grid gets the whole page. The counter lives on in the focus row. MP5: the rows the layout left
+        // out stay out when the mode ends (the layout plan owns the subtitle, the chips and the status line).
+        _title.IsVisible = !on;
+        ApplyLayoutPlan();
         if (!on) ToolTip.SetIsOpen(_focusFilters, false);
         RefreshFocusRow();
         if (announce) _focusAnnouncement.Text = MediaFocusMode.Announcement(on);

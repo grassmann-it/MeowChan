@@ -169,6 +169,7 @@ public sealed partial class MediaPage : UserControl
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
+        InitializeLayoutButton(); // MP5: the "Layout" button of the toolbar (MediaPage.Layout.cs)
         Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
         // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
         // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
@@ -181,11 +182,11 @@ public sealed partial class MediaPage : UserControl
         _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
-        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });
+        _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth });
         _grid.ItemTemplate = new FuncDataTemplate<MediaLibraryTileRow>((_, _) => new MediaLibraryTileView { ThumbnailLoader = LoadThumbnailAsync, ThumbnailCached = MediaTileThumbnails.TryGetCached,
             ThumbnailRelease = MediaTileThumbnails.Release, ThreadFilter = FilterToThread,
             TagFilter = FilterToTag, TagExclude = ExcludeTag, ShowOccurrences = ShowOccurrences, FavoriteToggle = ToggleTileFavoriteAsync,
-            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue });
+            CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
         _emptyActions.Children.Add(_goDownloads);
@@ -199,6 +200,7 @@ public sealed partial class MediaPage : UserControl
         Control bodyRow = WrapWithTagSidebar(surface); // MP4: the tag list of the Booru mode left of the grid (MediaPage.BooruMode.cs)
         layout.Children.Add(bodyRow); Avalonia.Controls.Grid.SetRow(bodyRow, 1);
         Content = layout;
+        InstallLayout(); // MP5: finds the rows the layout shows or hides
 
         _sort.SelectionChanged += (_, _) => OnSortChanged();
         _sortDirection.Click += (_, _) => { if (!_localizing) ToggleSortDirection(); };
@@ -621,6 +623,7 @@ public sealed partial class MediaPage : UserControl
         if (_snapshot == null && _building == null && !_failed && !_available) parts.Add(Texts.T("media.notReady"));
         if (CacheLimitNote() is { } note) parts.Add(note);
         _status.Text = string.Join(" · ", parts);
+        UpdateStatusAttention(); // MP5: a status line the layout left out still shows what is not a count
         RefreshFocusRow();
     }
 
@@ -926,7 +929,8 @@ public sealed partial class MediaPage : UserControl
             || IsNativeContextSource(e.Source)
             || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
         MediaLibraryTileRow? row = RowAt(e.Source);
-        OpenSharedMediaMenu(row ?? SelectedRow, ResolveMenuOrigin(e.Source, row ?? SelectedRow));
+        // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
+        OpenSharedMediaMenu(row, ResolveMenuOrigin(e.Source, row));
         _sharedPointerContextPending = true;
         e.Handled = true;
         // Avalonia may follow a handled right-button press with a positionless
@@ -974,12 +978,16 @@ public sealed partial class MediaPage : UserControl
         {
             MediaMenuSession blank = new(MediaMenuSurface.MediaPage, null, Current);
             Task RunBlank(Func<Task> action) => RunMenuActionAsync(action, blank);
-            ContextMenu blankMenu = new() { ItemsSource = new Control[]
+            // MP5: empty grid space offers the layout entries (the same as the toolbar's Layout menu) below the two actions on the whole grid.
+            List<Control> blankItems = new()
             {
                 MediaMenuBuilder.ContextItem(blank, "media.exportAll", ExportAllAsync, () => _exportAll.IsEnabled, RunBlank),
                 MediaMenuBuilder.ContextItem(blank, "media.queue.all", AddAllShownToQueueAsync, () => AddToTagQueue != null && _tiles.Count > 0, RunBlank,
-                    MediaMenuReasons.Unavailable)
-            } };
+                    MediaMenuReasons.Unavailable),
+                new Separator()
+            };
+            blankItems.AddRange(MediaLayoutMenu.BuildItems(_layout, layout => ApplyLayout(layout)));
+            ContextMenu blankMenu = new() { ItemsSource = blankItems };
             blank.Invalidated += () => blankMenu.Close();
             _mediaMenuPresenter.Show(blankMenu, blank, origin, attachToOrigin: true, fallbackFocus: () => FocusGrid(Current));
             return;
@@ -1107,6 +1115,7 @@ public sealed partial class MediaPage : UserControl
         WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
         LocalizeFocus();
         LocalizeBooruMode();
+        LocalizeLayout();
         LocalizeQueueTools();
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");

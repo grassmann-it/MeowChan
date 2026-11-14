@@ -18,7 +18,7 @@ using MeowChan.Tags;
 
 namespace MeowChan;
 
-// MP4: the Booru mode of the media page, a switch of the toolbar (saved per profile). On, a tag list stands left of the grid: every tag of
+// MP4: the Booru mode of the media page (since MP5 called the tag list), a switch of the toolbar (saved per profile). On, a tag list stands left of the grid: every tag of
 // the current results with how many tiles carry it, own tags and the provider's source tags (Danbooru) in two groups (MediaTagSidebar).
 // A click includes a tag, Alt+click (or the menu) excludes it; both write the page's term set (M2), so chips, query and work view see the
 // same filter. The counts are made off the UI thread after every presentation (MediaTagCountIndex keeps every resolved occurrence, so a
@@ -50,11 +50,10 @@ public sealed partial class MediaPage
     internal MediaTagCountResult? TagCounts { get; private set; }
 
     // The grid surface with the tag list in a column left of it (hidden while the mode is off).
-    private Control WrapWithTagSidebar(Control surface)
+    private Control WrapWithTagSidebar(Border surface)
     {
-        Avalonia.Controls.Grid row = new() { Name = "MediaBodyRow", ColumnDefinitions = new ColumnDefinitions("Auto,*") };
-        row.Children.Add(_tagSidebar);
-        row.Children.Add(surface); Avalonia.Controls.Grid.SetColumn(surface, 1);
+        // MP5: the column, side and width of the list come from the layout (MediaPage.Layout.cs).
+        Avalonia.Controls.Grid row = CreateBodyRow(_tagSidebar, surface);
         _tagSidebar.OwnName = id => _userData.TagSnapshot?.Find(new TagId(id))?.Name.Display;
         _tagSidebar.Top = () => Math.Clamp(TagListTopSource?.Invoke() ?? MeowChan.Config.MediaTagListTopDefault, MeowChan.Config.MediaTagListTopMinimum, MeowChan.Config.MediaTagListTopMaximum);
         _tagSidebar.Changed = (term, change) => SetTagListTerm(term, change);
@@ -70,8 +69,8 @@ public sealed partial class MediaPage
 
     private void LocalizeBooruMode()
     {
-        WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.booruMode"), Texts.T("media.booruMode.tip"));
-        Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, Texts.T("media.booruMode.tip"));
+        WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.tagList"), Texts.T("media.tagList.tip"));
+        Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, Texts.T("media.tagList.tip"));
         _tagSidebar.Localize();
     }
 
@@ -94,6 +93,9 @@ public sealed partial class MediaPage
         // Keyboard focus in the list that goes away continues on the grid.
         bool focusInList = !on && _tagSidebar.IsKeyboardFocusWithin;
         _tagSidebar.IsVisible = on;
+        // MP5: the tag list is one block of the page's layout; the column and the handle follow (visibility and width only).
+        _layout = _layout with { TagList = on };
+        ApplyLayoutPlan();
         if (!on)
         {
             _tagCounting?.Cancel();
