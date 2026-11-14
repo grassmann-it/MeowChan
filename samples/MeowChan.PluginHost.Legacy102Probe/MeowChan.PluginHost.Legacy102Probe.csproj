@@ -11,7 +11,7 @@
 
     <!-- This probe is deliberately local-reference-only.  It must not acquire
          Host, SDK or Core through a project/package dependency. -->
-    <RestoreProjectStyle>None</RestoreProjectStyle>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
     <NuGetAudit>false</NuGetAudit>
