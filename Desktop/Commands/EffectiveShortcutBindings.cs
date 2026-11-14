@@ -107,7 +107,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 6;
+    public const int DefaultsRevision = 7;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -148,6 +148,10 @@ public sealed class EffectiveShortcutBindings
         ["tags.quick.suggestion-1"] = 6, ["tags.quick.suggestion-2"] = 6, ["tags.quick.suggestion-3"] = 6,
         ["tags.quick.suggestion-4"] = 6, ["tags.quick.suggestion-5"] = 6, ["tags.quick.suggestion-6"] = 6,
         ["tags.quick.suggestion-7"] = 6, ["tags.quick.suggestion-8"] = 6, ["tags.quick.suggestion-9"] = 6,
+        // New in revision 7: Diagnostics and Statistics are segments of one Status page (MainPageOrder). Status takes Primary+7 and
+        // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
+        // keep any binding the user saved for them.
+        ["navigation.status"] = 7,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

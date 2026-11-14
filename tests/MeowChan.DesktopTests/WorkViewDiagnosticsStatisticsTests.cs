@@ -93,6 +93,7 @@ public sealed class WorkViewDiagnosticsStatisticsTests
     [Theory]
     [InlineData(WorkViewPage.Diagnostics, "Desktop/Views/Diagnostics/DiagnosticsPage.axaml")]
     [InlineData(WorkViewPage.Statistics, "Desktop/Views/Statistics/StatisticsPage.axaml")]
+    [InlineData(WorkViewPage.Status, "Desktop/Views/Status/StatusPage.axaml")]
     public void EveryRowIsRegisteredByTheXamlOfItsPageAndNothingElse(WorkViewPage page, string xaml)
     {
         string[] used = Regex.Matches(File.ReadAllText(Path.Combine(Root(), xaml)), @"WorkViewElement\.Id=""([^""]+)""")
@@ -101,6 +102,20 @@ public sealed class WorkViewDiagnosticsStatisticsTests
             .Select(entry => entry.Id).Order().ToArray();
         Assert.Equal(rows, used.Order().ToArray());
         Assert.Equal(used.Length, used.Distinct().Count());
+    }
+
+    // The Status container (SM2) owns only the status line and the segment bar; both stay in every view, the bar is the way
+    // between the segments (safety). The segments keep their own pages' rows; the footer has one Status destination.
+    [Fact]
+    public void TheStatusContainerOwnsOnlyItsLineAndTheSegmentBar()
+    {
+        Assert.Equal(["status.segments", "status.strip"], Rows(WorkViewPage.Status).Select(entry => entry.Id).Order().ToArray());
+        Assert.All(Rows(WorkViewPage.Status), entry => Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Required, entry.For(view))));
+        Assert.True(WorkViewPolicy.Get("status.segments").Safety);
+        Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], PresenceOf("shell.footer.status"));
+        Assert.Null(WorkViewPolicy.Find("shell.footer.diagnostics"));
+        Assert.Null(WorkViewPolicy.Find("shell.footer.statistics"));
+        Assert.Equal("shell.footer.status", WorkViewPolicy.Get("shell.header.disk-graph").Alternative);
     }
 
     private static Presence[] PresenceOf(string id) => WorkViewSetting.All.Select(view => WorkViewPolicy.Get(id).For(view)).ToArray();

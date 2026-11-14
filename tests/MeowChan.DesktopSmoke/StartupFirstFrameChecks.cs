@@ -226,7 +226,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
         ("Media", "MediaNavigationButton", "MediaPageHost"),
         ("Rules", "RulesNavigationButton", "RulesPageHost"),
         ("Sources", "SourcesNavigationButton", "SourcesPageHost"),
-        ("Diagnostics", "DiagnosticsNavigationButton", "DiagnosticsPageHost"),
+        ("Status", "StatusNavigationButton", "StatusPageHost"),
         ("Plugins", "PluginsNavigationButton", "PluginsPageHost"),
         ("Settings", "SettingsNavigationButton", "SettingsPageHost")
     ];
@@ -371,7 +371,7 @@ internal sealed class StartupFirstFrameMeasurement : IDisposable
     {
         "Downloads" => StartupTimingPoint.DownloadsOffered, "Archive" => StartupTimingPoint.ArchiveOffered,
         "Media" => StartupTimingPoint.MediaOffered, "Rules" => StartupTimingPoint.RulesOffered,
-        "Sources" => StartupTimingPoint.SourcesOffered, "Diagnostics" => StartupTimingPoint.DiagnosticsOffered,
+        "Sources" => StartupTimingPoint.SourcesOffered, "Status" => StartupTimingPoint.DiagnosticsOffered, // the Status page (its Diagnostics segment is the recovery route)
         "Plugins" => StartupTimingPoint.PluginsOffered, "Settings" => StartupTimingPoint.SettingsOffered,
         _ => throw new ArgumentOutOfRangeException(nameof(page))
     };

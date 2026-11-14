@@ -99,7 +99,10 @@ public sealed class YieldingDefaultsTests
     public void AFrozenOverrideThatKeptAnOldDefaultAlongsideItsOwnGestureStillWinsAgainstTheNewDefault()
     {
         // "Add another shortcut" stored the whole list, old default included, as an explicit Replace.
-        foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => id.StartsWith("navigation.", StringComparison.Ordinal)))
+        // Entries are never removed from the yielding list, so it also names commands whose default was taken away later
+        // (Diagnostics and Statistics became segments of Status without a digit); they have no new default to yield.
+        foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => id.StartsWith("navigation.", StringComparison.Ordinal)
+            && EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Count == 1))
         {
             var other = CommandCatalog.All.First(c => c.Id.StartsWith("navigation.", StringComparison.Ordinal) && c.Id != id
                 && c.Id != "navigation.settings" && EffectiveShortcutBindings.Defaults(c).Count == 1 && !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(c.Id));

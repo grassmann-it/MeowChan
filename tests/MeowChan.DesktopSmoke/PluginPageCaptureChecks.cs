@@ -109,8 +109,8 @@ internal static class PluginPageCaptureChecks
     // row's centre line (shared WorkspaceStyles rule for horizontal rows), checked to the pixel and captured in both themes.
     private static async Task CaptureDiagnosticsFilterRowAsync(MainWindow window)
     {
-        window.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.diagnostics"))
-            .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        // Diagnostics is a segment of the Status page.
+        if (!window.ShowStatus(StatusSegment.Diagnostics)) throw new InvalidOperationException("The diagnostics segment cannot be opened.");
         window.Width = 1440; window.Height = 920;
         // Barebones starts with the filter group closed (work views); this check is about the open row.
         if (window.GetVisualDescendants().OfType<Expander>().FirstOrDefault(control => control.Name == "DiagnosticFiltersSection") is { } filters)

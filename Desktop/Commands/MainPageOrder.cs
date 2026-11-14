@@ -6,18 +6,19 @@ namespace MeowChan.Desktop.Commands;
 
 /// <summary>Single source for the order of the main workspace pages. The footer, the More flyout, the
 /// ⋯ menu, the F1 help and the default digit shortcuts all follow it: the n-th page from the left is
-/// Primary+n. Settings is not a numbered page (Primary+,); About has no shortcut.
+/// Primary+n. Settings is not a numbered page (Primary+,); About has no shortcut. Status holds two segments (Statistics,
+/// Diagnostics); their own commands (<see cref="StatusSegmentCommandIds"/>) open a segment and have no digit.
 /// The pages come in three groups (work, set up, observe) that the footer, the More flyout and the ⋯ menu
 /// set apart with separators. Moving a page here must go with the same move in MainWindow.axaml; a test couples the two.</summary>
 public static class MainPageOrder
 {
     private const string Prefix = "navigation.";
-    /// <summary>Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics.</summary>
+    /// <summary>Downloads, Archive, Media | Rules, Sources, Plugins | Status.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> Groups { get; } = Array.AsReadOnly(new IReadOnlyList<string>[]
     {
         Array.AsReadOnly(new[] { "navigation.downloads", "navigation.archive", "navigation.media" }),
         Array.AsReadOnly(new[] { "navigation.rules", "navigation.sources", "navigation.plugins" }),
-        Array.AsReadOnly(new[] { "navigation.diagnostics", "navigation.statistics" }),
+        Array.AsReadOnly(new[] { "navigation.status" }),
     });
     public static IReadOnlyList<string> CommandIds { get; } = Array.AsReadOnly(Groups.SelectMany(group => group).ToArray());
     /// <summary>0-based index of the group a main page belongs to.</summary>
@@ -37,7 +38,10 @@ public static class MainPageOrder
     /// <summary>Pages that leave the footer for the More flyout first when the window is narrow.</summary>
     public static IReadOnlyList<string> OverflowOrder { get; } = Array.AsReadOnly(new[]
     {
-        "navigation.statistics", "navigation.diagnostics", "navigation.sources", "navigation.plugins", "navigation.rules",
+        "navigation.status", "navigation.sources", "navigation.plugins", "navigation.rules",
         "navigation.media", "navigation.archive",
     });
+    /// <summary>The commands that open one segment of the Status page. They are no main pages of their own and carry no
+    /// default gesture (Primary+8 is free); a binding the user saved for them keeps working.</summary>
+    public static IReadOnlyList<string> StatusSegmentCommandIds { get; } = Array.AsReadOnly(new[] { "navigation.statistics", "navigation.diagnostics" });
 }

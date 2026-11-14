@@ -18,7 +18,7 @@ public static partial class WorkViewPolicy
         // Graph rows for the "Auto" header-graph setting; an explicit setting wins (IoStatsDisplay.HeaderShowsDisk).
         Same("shell.header.net-graph", WorkViewPage.Shell, WorkViewKind.Derived, Direct),
         new("shell.header.disk-graph", WorkViewPage.Shell, WorkViewKind.Derived, Hidden, Hidden, Direct,
-            Alternative: "shell.footer.statistics"),
+            Alternative: "shell.footer.status"),
         // Header elements (plan §1.1). Neutral rows: the tagline, the graph block (values included) and the title-bar buttons are the
         // same in every view. The header graph's own layout (setting and window width) never reads a work view; these rows only
         // register the elements so that a later change of one row is a single edit (WorkViewGate.Apply is already wired).
@@ -42,9 +42,9 @@ public static partial class WorkViewPolicy
         Footer("media", Overflow, Direct, Direct),
         Footer("rules", Overflow, Overflow, Direct),
         Footer("sources", Overflow, Overflow, Direct),
-        Footer("diagnostics", Overflow, Overflow, Direct),
         Footer("plugins", Overflow, Overflow, Direct),
-        Footer("statistics", Overflow, Overflow, Direct),
+        // One Status page with the segments Statistics and Diagnostics (status.segments); the segments are no footer destinations.
+        Footer("status", Overflow, Overflow, Direct),
     ];
 
     private static WorkViewEntry Footer(string page, Presence barebones, Presence simple, Presence advanced) =>

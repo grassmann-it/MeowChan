@@ -37,7 +37,7 @@ internal static class PowerUserCommandChecks
                 {
                     ("navigation.archive", MainWindow.WorkspacePage.Archive), ("navigation.media", MainWindow.WorkspacePage.Media),
                     ("navigation.rules", MainWindow.WorkspacePage.Rules),
-                    ("navigation.sources", MainWindow.WorkspacePage.Sources), ("navigation.diagnostics", MainWindow.WorkspacePage.Diagnostics),
+                    ("navigation.sources", MainWindow.WorkspacePage.Sources), ("navigation.status", MainWindow.WorkspacePage.Status),
                     ("navigation.downloads", MainWindow.WorkspacePage.Downloads)
                 })
                 {

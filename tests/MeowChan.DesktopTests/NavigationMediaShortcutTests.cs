@@ -11,7 +11,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     private static readonly string[] Pages = MainPageOrder.CommandIds.ToArray();
     // Pages whose digit changed with the footer-order renumbering (Downloads and Archive kept theirs).
     public static IEnumerable<object[]> RenumberedPages() =>
-        new[] { "navigation.media", "navigation.rules", "navigation.sources", "navigation.diagnostics", "navigation.plugins" }.Select(id => new object[] { id });
+        new[] { "navigation.media", "navigation.rules", "navigation.sources", "navigation.status", "navigation.plugins" }.Select(id => new object[] { id });
     public static IEnumerable<object[]> RenumberedPagesAndOwners() =>
         from page in RenumberedPages() from owner in new[] { "navigation.archive", "thread.read", "gallery.fit", "input.focus-search" }
         select new object[] { page[0], owner };
@@ -40,7 +40,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
             Assert.Equal((index + 1).ToString(), bindings.Display(Pages[index])![^1..]);
         Assert.Equal("5", bindings.Display("navigation.sources")![^1..]);
         Assert.Equal("6", bindings.Display("navigation.plugins")![^1..]);
-        Assert.Equal("7", bindings.Display("navigation.diagnostics")![^1..]);
+        Assert.Equal("7", bindings.Display("navigation.status")![^1..]);
     }
 
     [Theory]

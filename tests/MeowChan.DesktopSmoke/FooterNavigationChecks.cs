@@ -15,8 +15,8 @@ internal static class FooterNavigationChecks
     [
         ("Downloads", MainWindow.WorkspacePage.Downloads), ("Archive", MainWindow.WorkspacePage.Archive),
         ("Media", MainWindow.WorkspacePage.Media), ("Rules", MainWindow.WorkspacePage.Rules), ("Plugins", MainWindow.WorkspacePage.Plugins),
-        ("Diagnostics", MainWindow.WorkspacePage.Diagnostics), ("Settings", MainWindow.WorkspacePage.Settings),
-        ("Sources", MainWindow.WorkspacePage.Sources), ("Statistics", MainWindow.WorkspacePage.Statistics)
+        ("Status", MainWindow.WorkspacePage.Status), ("Settings", MainWindow.WorkspacePage.Settings),
+        ("Sources", MainWindow.WorkspacePage.Sources)
     ];
 
     internal static async Task RunAsync(MainWindow window)
@@ -151,7 +151,7 @@ internal static class FooterNavigationChecks
     private static string DestinationLabel(string name, string language) => (name, language) switch
     {
         ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Rules", "de") => "Regeln", ("Sources", "de") => "Quellen",
-        ("Diagnostics", "de") => "Diagnose", ("Statistics", "de") => "Statistik", ("Settings", "de") => "Einstellungen", _ => name
+        ("Settings", "de") => "Einstellungen", _ => name
     };
 
     private static void RequireToolsLabel(MainWindow window, Button tools, string language)
@@ -267,7 +267,7 @@ internal static class FooterNavigationChecks
             && origin.Y + control.Bounds.Height <= window.Bounds.Height + 1;
     }
 
-    /// <summary>Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings):
+    /// <summary>Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Status | More, Settings):
     /// a separator shows exactly while the group in front of it has a visible button, never two in a row, never one at an edge,
     /// and the More flyout sets its own groups apart the same way.</summary>
     private static void RequireGroupSeparators(MainWindow window, Button tools)

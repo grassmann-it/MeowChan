@@ -158,9 +158,11 @@ public partial class MainWindow
     private void UpdateSpeedSamplingState()
     {
         if (_ioClaim == null || _ioStats == null) return;
-        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, _selectedPage == WorkspacePage.Statistics);
+        // The Status page claims only while its statistics segment is shown; the diagnostics segment needs no samples.
+        IoStatsVisibility want = IoStatsDisplay.Claim(SpeedSamplingWanted, TransferSpeed.IsVisible, StatisticsSegmentShown);
         if (_ioClaim.Visibility == want) return;
         _ioClaim.Visibility = want;
+        if (want == IoStatsVisibility.None) _statusPage?.ClearRates(); // no fresh rates for the status line without a claim
         // A fresh window starts from the hub's cleared history: show it now instead of waiting a whole interval.
         if (want != IoStatsVisibility.None) _ioUpdate?.RequestImmediate();
     }
@@ -188,7 +190,8 @@ public partial class MainWindow
             TransferDiskReadLabel.Text = ByteUnits.Rate(snapshot.Rate.DiskRead);
             TransferDiskLabel.Text = ByteUnits.Rate(snapshot.Rate.DiskWrite);
         }
-        if (_selectedPage == WorkspacePage.Statistics) _statisticsPage?.Apply(snapshot);
+        if (StatisticsSegmentShown) _statisticsPage?.Apply(snapshot);
+        if (_selectedPage == WorkspacePage.Status) _statusPage?.ApplyRates(snapshot.Rate);
         // Set the name and tip only when the sentence changes: no live region, so nothing is read out every second.
         string description = IoStatsDisplay.GraphDescription(snapshot.Rate, snapshot.Activity, _headerLayout.NetValue, _headerLayout.DiskValue);
         if (!string.Equals(description, _graphDescription, StringComparison.Ordinal))

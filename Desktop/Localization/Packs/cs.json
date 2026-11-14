@@ -3728,6 +3728,13 @@
     "tags.quick.thread.hint": "Štítky vlákna označují vlákno, ne jeho mediální soubory. Kliknutím na štítek jej odeberete.",
     "tags.quick.thread.remove": "Odebrat štítek vlákna {0}",
     "tags.quick.thread.field": "Přidat štítek vlákna",
-    "tags.quick.thread.chips": "Štítky vlákna"
+    "tags.quick.thread.chips": "Štítky vlákna",
+    "nav.status": "Stav",
+    "command.navigation.status": "Stav",
+    "status.hint": "Síť, disk a aktuální problémy aplikace MeowChan na tomto počítači.",
+    "status.segments": "Části stavu",
+    "status.segment.diagnosticsCount": "Diagnostika ({0})",
+    "status.strip": "Aktivní {0} · Čeká {1} · Problémy {2}",
+    "status.strip.rates": "↓ {0} · Z {1}"
   }
 }

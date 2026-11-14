@@ -136,8 +136,8 @@ internal static class ActionToolBarDynamicChecks
         double width = window.Width, height = window.Height;
         Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
         MenuFlyout menu = (MenuFlyout)tools.Flyout!;
-        Button destination = window.FindControl<Button>("DiagnosticsNavigationButton")!;
-        MenuItem item = menu.Items.OfType<MenuItem>().Single(value => value.Tag as string == "nav.diagnostics");
+        Button destination = window.FindControl<Button>("StatusNavigationButton")!;
+        MenuItem item = menu.Items.OfType<MenuItem>().Single(value => value.Tag as string == "nav.status");
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
@@ -149,7 +149,7 @@ internal static class ActionToolBarDynamicChecks
             await Program.WaitUntilAsync(() => ReferenceEquals(window.FocusManager?.GetFocusedElement(), item));
             Texts.SetLanguage(language == "de" ? "en" : "de");
             window.UpdateLayout();
-            Require(item.Header as string == Texts.T("nav.diagnostics"), "Open Tools retained a stale localized destination.");
+            Require(item.Header as string == Texts.T("nav.status"), "Open Tools retained a stale localized destination.");
             Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), item), "Open Tools language refresh lost its focused destination.");
             Trace("focused-open-after-language");
             window.Width = 1400; window.Height = 600;

@@ -14,29 +14,25 @@ public partial class MainWindow
         TransferDiskGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
         _statisticsPage = new StatisticsPage();
         _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
-        StatisticsPageHost.Content = _statisticsPage;
+        _statusPage?.AttachStatistics(_statisticsPage); // the statistics segment of the Status page
     }
 
     // The display name of a source id for the table; null for ids no provider announces (they show as written).
     private string? SourceDisplayName(string sourceId) =>
         _session.GetProviderDescriptors().FirstOrDefault(provider => provider.SourceId == sourceId)?.DisplayName;
 
-    /// <summary>The statistics page of Werkzeuge. False while the window cannot navigate (no restored session, busy editors).</summary>
-    internal bool ShowStatistics() => NavigateWorkspace(WorkspacePage.Statistics);
+    /// <summary>The statistics segment of the Status page. False while the window cannot navigate (no restored session, busy editors).</summary>
+    internal bool ShowStatistics() => ShowStatus(StatusSegment.Statistics);
 
-    private void ShowStatisticsPage()
+    private void ShowStatisticsPage(bool focusContent = true)
     {
         if (_statisticsPage == null) return;
         _statisticsPage.Apply(_session.IoStats.Snapshot());
         // After layout, so the focus lands on a control that is already visible.
-        Dispatcher.UIThread.Post(() => { if (!_isClosing && _selectedPage == WorkspacePage.Statistics) _statisticsPage?.FocusContent(); }, DispatcherPriority.Input);
+        if (focusContent)
+            Dispatcher.UIThread.Post(() => { if (!_isClosing && StatisticsSegmentShown) _statisticsPage?.FocusContent(); }, DispatcherPriority.Input);
     }
 
-    private void OnStatisticsNavigationClick(object? sender, RoutedEventArgs e)
-    {
-        ToolsNavigationButton.Flyout?.Hide();
-        ShowStatistics();
-    }
-
+    // The header graph leads to the statistics segment of the Status page.
     private void OnTransferSpeedClick(object? sender, RoutedEventArgs e) => ShowStatistics();
 }

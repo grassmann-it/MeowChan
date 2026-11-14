@@ -202,13 +202,19 @@ internal static class WorkViewCaptures
             "rules" => ("RulesMenuItem", MainWindow.WorkspacePage.Rules),
             "sources" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
             "plugins" => ("PluginsMenuItem", MainWindow.WorkspacePage.Plugins),
-            "diagnostics" => ("DiagnosticsMenuItem", MainWindow.WorkspacePage.Diagnostics),
-            "statistics" => ("StatisticsMenuItem", MainWindow.WorkspacePage.Statistics),
+            // Diagnostics and Statistics are segments of Status: the menu entry opens Status, the segment is chosen below.
+            "diagnostics" or "statistics" => ("StatusMenuItem", MainWindow.WorkspacePage.Status),
             "settings" => ("SettingsMenuItem", MainWindow.WorkspacePage.Settings),
             _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Not a work-view page.")
         };
         window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
+        if (page is "diagnostics" or "statistics")
+        {
+            StatusSegment segment = page == "diagnostics" ? StatusSegment.Diagnostics : StatusSegment.Statistics;
+            if (!window.ShowStatus(segment)) throw new InvalidOperationException(page + ": the Status page does not switch to the segment.");
+            await Program.WaitUntilAsync(() => window.StatusSegmentSelected == segment);
+        }
         // Rules opens on its overview; the view gates (Save/Discard, folded blocks, More) belong to the editor, so the
         // capture opens the global rule in the in-page wizard as the page looked before the overview existed.
         if (page == "rules")
@@ -399,7 +405,7 @@ internal static class WorkViewCaptures
                 throw new InvalidOperationException($"{scene}: the neutral header element {name} is not visible.");
         MenuItem appMenu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
         string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem", "PluginsMenuItem",
-            "DiagnosticsMenuItem", "StatisticsMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
+            "StatusMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
             "WorkViewMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem"];
         string[] missing = required.Where(name => !appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"{scene}: the app menu lost {string.Join(", ", missing)}.");
@@ -549,7 +555,7 @@ internal static class WorkViewCaptures
         WorkView workView = WorkViewSetting.Parse(view);
         if (page == "diagnostics")
         {
-            Control root = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+            Control root = window.DiagnosticsPageHost;
             Expander Section(string name) => root.GetVisualDescendants().OfType<Expander>().Single(control => control.Name == name);
             // Nothing is filtered in this matrix, so the group takes its view default; session messages start closed in every view.
             bool filtersOpen = WorkViewPolicy.Resolve("diagnostics.filters", workView) != Presence.Collapsed;
@@ -577,7 +583,7 @@ internal static class WorkViewCaptures
         }
         else if (page == "statistics")
         {
-            StatisticsPage statistics = window.FindControl<ContentControl>("StatisticsPageHost")!.Content as StatisticsPage
+            StatisticsPage statistics = window.StatisticsPageHost.Content as StatisticsPage
                 ?? throw new InvalidOperationException("The statistics page is not built.");
             bool underMore = WorkViewPolicy.Resolve("statistics.reset", workView) == Presence.Overflow;
             if (!statistics.ResetIsReachable)

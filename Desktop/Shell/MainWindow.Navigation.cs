@@ -16,14 +16,15 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Diagnostics, Settings, Plugins, Media, Statistics }
+    /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
+    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Status, Settings, Plugins, Media }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
         "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
         "navigation.media" => WorkspacePage.Media, "navigation.rules" => WorkspacePage.Rules,
-        "navigation.sources" => WorkspacePage.Sources, "navigation.diagnostics" => WorkspacePage.Diagnostics,
-        "navigation.plugins" => WorkspacePage.Plugins, "navigation.statistics" => WorkspacePage.Statistics,
+        "navigation.sources" => WorkspacePage.Sources, "navigation.status" => WorkspacePage.Status,
+        "navigation.plugins" => WorkspacePage.Plugins,
         _ => throw new ArgumentOutOfRangeException(nameof(commandId), commandId, "Not a main page.")
     };
     private SettingsEditor? _settingsEditor;
@@ -192,7 +193,7 @@ public partial class MainWindow
 
     /// <summary>
     /// Pages whose control trees are built after the shell's first frame. No gate offers any of them
-    /// before the shell is interactive: Diagnostics, Rules, Sources and Plugins stay behind
+    /// before the shell is interactive: Status, Rules, Sources and Plugins stay behind
     /// <c>navigationReady</c>/<c>diagnosticsReady</c>, and the early Settings choice reaches its page only
     /// through <see cref="NavigateWorkspace"/>, which builds it first. Keeping them out of the constructor
     /// takes their construction off the path to the first frame.
@@ -222,7 +223,8 @@ public partial class MainWindow
                 _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
                     && _session.CanRetryMissingMedia(target.WatchId);
                 _diagnosticsPage.AttachFeedback(_feedback);
-                DiagnosticsPageHost.Content = _diagnosticsPage;
+                InitializeStatusPage();
+                _statusPage!.AttachDiagnostics(_diagnosticsPage);
                 return true;
             case 2:
                 _rulesPage = new RulesPage(() => _session.MediaRules, _session.SaveRulesAsync);
@@ -236,7 +238,7 @@ public partial class MainWindow
                 _sourcesPage = new SourcesPage(OpenDiagnosticWatch, source =>
                 {
                     if (NavigateWorkspace(WorkspacePage.Rules)) _rulesPage!.EditScope(Rules.MediaRuleScope.ForSource(source));
-                }, () => NavigateWorkspace(WorkspacePage.Diagnostics), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
+                }, () => ShowStatus(StatusSegment.Diagnostics), GoToDownloads, () => NavigateWorkspace(WorkspacePage.Downloads))
                 {
                     GetWatchPreviewRows = () => _session.Config.SourcesWatchPreviewRows
                 };
@@ -307,10 +309,10 @@ public partial class MainWindow
 
     private bool NavigateWorkspace(WorkspacePage page, bool activateArchive = true)
     {
-        if ((!_restoreCompleted && !(page == WorkspacePage.Diagnostics && _session.Projection.View.State == DesktopSessionState.RecoveryFailed)
+        if ((!_restoreCompleted && !(page == WorkspacePage.Status && _session.Projection.View.State == DesktopSessionState.RecoveryFailed)
                 && !(EarlyPageChoice && IsEarlyPage(page)))
             || WorkspaceCommandBusy) return false;
-        // Settings is an early page and the recovery-failure route reaches Diagnostics without a
+        // Settings is an early page and the recovery-failure route reaches Status (its Diagnostics segment) without a
         // completed restore: both can arrive before the background pass has built their page.
         if (page != WorkspacePage.Downloads && page != WorkspacePage.Archive && page != WorkspacePage.Media)
             EnsureDeferredWorkspacePages();
@@ -323,46 +325,41 @@ public partial class MainWindow
         }
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Plugins) _pluginsPage?.Deactivate();
-        if (page != WorkspacePage.Statistics) _statisticsPage?.Deactivate();
+        // Without a restored session only the diagnostics segment exists (the recovery-failure route).
+        if (page == WorkspacePage.Status) _statusSegment = EffectiveStatusSegment(CurrentStatusSegment);
+        if (page != WorkspacePage.Status || _statusSegment != StatusSegment.Statistics) _statisticsPage?.Deactivate();
         if (page != WorkspacePage.Settings) _settingsEditor?.EndSearchVisit();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
         WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
         SettingsPageHost.IsVisible = page == WorkspacePage.Settings;
-        DiagnosticsPageHost.IsVisible = page == WorkspacePage.Diagnostics;
+        StatusPageHost.IsVisible = page == WorkspacePage.Status;
         RulesPageHost.IsVisible = page == WorkspacePage.Rules;
         ArchivePageHost.IsVisible = page == WorkspacePage.Archive;
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
         PluginsPageHost.IsVisible = page == WorkspacePage.Plugins;
-        StatisticsPageHost.IsVisible = page == WorkspacePage.Statistics;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
-        DiagnosticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Diagnostics);
+        StatusNavigationButton.Classes.Set("selected", page == WorkspacePage.Status);
         RulesNavigationButton.Classes.Set("selected", page == WorkspacePage.Rules);
         ArchiveNavigationButton.Classes.Set("selected", page == WorkspacePage.Archive);
         MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
         SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
         PluginsNavigationButton.Classes.Set("selected", page == WorkspacePage.Plugins);
-        StatisticsNavigationButton.Classes.Set("selected", page == WorkspacePage.Statistics);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
         UpdatePageNavigation();
         RefreshReadingResumePresentation();
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
-        UpdateSpeedSamplingState(); // the page claims samples while it is shown, and gives them up when left
-        if (page == WorkspacePage.Diagnostics) _diagnosticsPage?.ApplyWorkView(ConfiguredWorkView);
-        if (page == WorkspacePage.Statistics) { _statisticsPage?.ApplyWorkView(ConfiguredWorkView); ShowStatisticsPage(); }
+        if (page != WorkspacePage.Status) { UpdateSpeedSamplingState(); RefreshStatusRates(); } // a page gives up its claim when left
+        // The segment shown, its claim (statistics only), view, data and focus.
+        if (page == WorkspacePage.Status) ActivateStatusSegment();
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();
             _settingsEditor?.FindControl<ComboBox>("WorkspaceModeInput")?.Focus();
-        }
-        if (page == WorkspacePage.Diagnostics)
-        {
-            RefreshDiagnosticPage();
-            _diagnosticsPage?.FindControl<DataGrid>("DiagnosticsGrid")?.Focus();
         }
         if (page == WorkspacePage.Rules) { _rulesPage?.RefreshConfirmedRules(); _ = _rulesPage?.RefreshPluginFiltersAsync(); }
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
@@ -429,7 +426,7 @@ public partial class MainWindow
             double settingsWidth = Measure(settings);
             double toolsWidth = Measure(tools);
             double[] destinationWidths = destinations.Select(destination => Measure(destination.Button)).ToArray();
-            // Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Diagnostics, Statistics | More, Settings):
+            // Footer groups (Downloads, Archive, Media | Rules, Sources, Plugins | Status | More, Settings):
             // the separator behind a group is shown while that group has a visible button, so no two separators meet and
             // none dangles. Downloads keeps the first group and Settings the last one non-empty in every work view.
             Border[] separators = { FooterSeparatorWork, FooterSeparatorSetUp, FooterSeparatorObserve };
@@ -511,9 +508,12 @@ public partial class MainWindow
     {
         // Navigation refreshes the page after selecting it, so hidden pages need
         // neither a snapshot nor a rebuilt presentation for background progress.
-        if (_selectedPage != WorkspacePage.Diagnostics) return;
+        // The Status page's line counts in both segments; the diagnostics table only while its segment is shown.
+        if (_selectedPage != WorkspacePage.Status) return;
         if (_galleryCoversWorkspace || _sessionRowsApplying) { _sessionDirtyWhileCovered = true; return; }
-        _diagnosticsPage?.Refresh(view ?? _session.Projection.View, !WorkspaceCommandBusy);
+        DesktopSessionView current = view ?? _session.Projection.View;
+        RefreshStatusCounts(current);
+        if (DiagnosticsSegmentShown) _diagnosticsPage?.Refresh(current, !WorkspaceCommandBusy);
     }
 
     private System.Collections.Generic.IEnumerable<MeowChan.Archive.ArchiveBoardIdentity> GetRuleSuggestionContexts()
@@ -560,12 +560,6 @@ public partial class MainWindow
         return true;
     }
 
-    private void OnDiagnosticsNavigationClick(object? sender, RoutedEventArgs e)
-    {
-        ToolsNavigationButton.Flyout?.Hide();
-        NavigateWorkspace(WorkspacePage.Diagnostics);
-    }
-
     private void OnMediaNavigationClick(object? sender, RoutedEventArgs e)
     {
         ToolsNavigationButton.Flyout?.Hide();
@@ -602,6 +596,7 @@ public partial class MainWindow
         _pluginsPage?.EndLifetime();
         _statisticsPage?.EndLifetime();
         _diagnosticsPage?.EndLifetime();
+        DisposeStatusPage();
         if (_sourcesPage != null) { _sourcesPage.BusyChanged -= OnSettingsBusyChanged; _sourcesPage.EndLifetime(); }
         _archivePage?.EndLifetime();
         _mediaPage?.EndLifetime();

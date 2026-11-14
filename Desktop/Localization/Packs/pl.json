@@ -3734,6 +3734,13 @@
     "tags.quick.thread.hint": "Tagi wątku oznaczają wątek, a nie jego pliki multimedialne. Kliknięcie tagu usuwa go.",
     "tags.quick.thread.remove": "Usuń tag wątku {0}",
     "tags.quick.thread.field": "Dodaj tag wątku",
-    "tags.quick.thread.chips": "Tagi wątku"
+    "tags.quick.thread.chips": "Tagi wątku",
+    "nav.status": "Stan",
+    "command.navigation.status": "Stan",
+    "status.hint": "Sieć, dysk i bieżące problemy MeowChan na tym komputerze.",
+    "status.segments": "Sekcje stanu",
+    "status.segment.diagnosticsCount": "Diagnostyka ({0})",
+    "status.strip": "Aktywne {0} · Oczekuje {1} · Problemy {2}",
+    "status.strip.rates": "↓ {0} · Z {1}"
   }
 }

@@ -3708,6 +3708,13 @@
     "tags.quick.thread.hint": "Теги треда относятся к самому треду, а не к его медиафайлам. Щелчок по тегу снимает его.",
     "tags.quick.thread.remove": "Снять тег треда {0}",
     "tags.quick.thread.field": "Добавить тег треда",
-    "tags.quick.thread.chips": "Теги треда"
+    "tags.quick.thread.chips": "Теги треда",
+    "nav.status": "Состояние",
+    "command.navigation.status": "Состояние",
+    "status.hint": "Сеть, диск и текущие проблемы MeowChan на этом компьютере.",
+    "status.segments": "Разделы состояния",
+    "status.segment.diagnosticsCount": "Диагностика ({0})",
+    "status.strip": "Активно {0} · В очереди {1} · Проблемы {2}",
+    "status.strip.rates": "↓ {0} · З {1}"
   }
 }

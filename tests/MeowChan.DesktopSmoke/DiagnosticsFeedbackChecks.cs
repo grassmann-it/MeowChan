@@ -16,7 +16,7 @@ internal static class DiagnosticsFeedbackChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         TaskCompletionSource? pendingCopy = null;
         SessionFeedbackStore feedback = new();
@@ -32,7 +32,7 @@ internal static class DiagnosticsFeedbackChecks
         TextBlock error = page.FindControl<TextBlock>("DiagnosticsActionError")!;
         try
         {
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page.Refresh(view, true);
             await Program.WaitUntilAsync(() => { window.UpdateLayout(); return grid.Bounds.Height > 40; });
             DiagnosticEntry[] entries = grid.ItemsSource!.Cast<DiagnosticEntry>().ToArray();
@@ -109,7 +109,7 @@ internal static class DiagnosticsFeedbackChecks
     }
     private static async Task CheckFeedbackSelectionAndMenusAsync(MainWindow window, DesktopSessionView view)
     {
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         SessionFeedbackStore feedback = new();
         SessionFeedback feedbackA = feedback.Record(FeedbackCategory.Error, "fixture.A", "A", "Feedback A")!;

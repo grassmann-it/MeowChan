@@ -3696,6 +3696,13 @@
     "tags.quick.thread.chips": "Tag del thread",
     "booru.watcher.problem.provider_cooldown_unavailable": "MeowChan non ha potuto verificare la pausa del provider. La pianificazione dei monitoraggi è sospesa per sicurezza; non viene inviata alcuna nuova richiesta finché lo stato della pausa è sconosciuto.",
     "booru.watcher.problem.transport_reset_failed": "L’azzeramento della pausa del provider non è riuscito. La pausa esistente resta attiva; MeowChan non ha confermato il ripristino.",
-    "booru.watcher.problem.transport_reset_unavailable": "In questa sessione non è possibile azzerare la pausa del provider. La pausa esistente resta attiva; MeowChan non ha confermato il ripristino."
+    "booru.watcher.problem.transport_reset_unavailable": "In questa sessione non è possibile azzerare la pausa del provider. La pausa esistente resta attiva; MeowChan non ha confermato il ripristino.",
+    "nav.status": "Stato",
+    "command.navigation.status": "Stato",
+    "status.hint": "Rete, disco e problemi attuali di MeowChan su questo computer.",
+    "status.segments": "Sezioni dello stato",
+    "status.segment.diagnosticsCount": "Diagnostica ({0})",
+    "status.strip": "Attivi {0} · In attesa {1} · Problemi {2}",
+    "status.strip.rates": "↓ {0} · S {1}"
   }
 }

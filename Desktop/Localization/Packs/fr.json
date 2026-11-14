@@ -3690,6 +3690,13 @@
     "tags.quick.thread.hint": "Les étiquettes du fil marquent le fil, pas ses fichiers multimédias. Un clic sur une étiquette la retire.",
     "tags.quick.thread.remove": "Retirer l’étiquette de fil {0}",
     "tags.quick.thread.field": "Ajouter une étiquette de fil",
-    "tags.quick.thread.chips": "Étiquettes du fil"
+    "tags.quick.thread.chips": "Étiquettes du fil",
+    "nav.status": "État",
+    "command.navigation.status": "État",
+    "status.hint": "Réseau, disque et problèmes actuels de MeowChan sur cet ordinateur.",
+    "status.segments": "Sections de l’état",
+    "status.segment.diagnosticsCount": "Diagnostic ({0})",
+    "status.strip": "Actifs {0} · En attente {1} · Problèmes {2}",
+    "status.strip.rates": "↓ {0} · É {1}"
   }
 }

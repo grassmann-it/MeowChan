@@ -3690,6 +3690,13 @@
     "tags.quick.thread.hint": "Las etiquetas del hilo marcan el hilo, no sus archivos multimedia. Un clic en una etiqueta la quita.",
     "tags.quick.thread.remove": "Quitar la etiqueta de hilo {0}",
     "tags.quick.thread.field": "Añadir una etiqueta de hilo",
-    "tags.quick.thread.chips": "Etiquetas del hilo"
+    "tags.quick.thread.chips": "Etiquetas del hilo",
+    "nav.status": "Estado",
+    "command.navigation.status": "Estado",
+    "status.hint": "Red, disco y problemas actuales de MeowChan en este equipo.",
+    "status.segments": "Secciones de estado",
+    "status.segment.diagnosticsCount": "Diagnóstico ({0})",
+    "status.strip": "Activas {0} · En espera {1} · Problemas {2}",
+    "status.strip.rates": "↓ {0} · E {1}"
   }
 }

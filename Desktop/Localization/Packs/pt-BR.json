@@ -3696,6 +3696,13 @@
     "tags.quick.thread.chips": "Tags do tópico",
     "booru.watcher.problem.provider_cooldown_unavailable": "O MeowChan não conseguiu verificar a pausa do provedor. O agendamento dos monitores está suspenso por segurança; nenhuma nova requisição é enviada enquanto o estado da pausa for desconhecido.",
     "booru.watcher.problem.transport_reset_failed": "A redefinição da pausa do provedor falhou. A pausa existente continua ativa; o MeowChan não confirmou a recuperação.",
-    "booru.watcher.problem.transport_reset_unavailable": "Esta sessão não pode redefinir a pausa do provedor. A pausa existente continua ativa; o MeowChan não confirmou a recuperação."
+    "booru.watcher.problem.transport_reset_unavailable": "Esta sessão não pode redefinir a pausa do provedor. A pausa existente continua ativa; o MeowChan não confirmou a recuperação.",
+    "nav.status": "Status",
+    "command.navigation.status": "Status",
+    "status.hint": "Rede, disco e problemas atuais do MeowChan neste computador.",
+    "status.segments": "Seções de status",
+    "status.segment.diagnosticsCount": "Diagnóstico ({0})",
+    "status.strip": "Ativos {0} · Em espera {1} · Problemas {2}",
+    "status.strip.rates": "↓ {0} · G {1}"
   }
 }

@@ -266,7 +266,6 @@ public partial class MainWindow : Window
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;
         PluginsNavigationButton.IsEnabled = navigationReady;
-        StatisticsNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
         SourcesMenuItem.IsEnabled = navigationReady;
         ArchiveMenuItem.IsEnabled = earlyPages;
@@ -275,9 +274,11 @@ public partial class MainWindow : Window
         RulesMenuItem.IsEnabled = navigationReady;
         bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.Projection.View.State == DesktopSessionState.RecoveryFailed);
-        DiagnosticsNavigationButton.IsEnabled = diagnosticsReady;
+        // Status opens after a failed recovery too (its Diagnostics segment); its Statistics segment waits for the restore.
+        StatusNavigationButton.IsEnabled = diagnosticsReady;
         ToolsNavigationButton.IsEnabled = diagnosticsReady;
-        DiagnosticsMenuItem.IsEnabled = diagnosticsReady;
+        StatusMenuItem.IsEnabled = diagnosticsReady;
+        _statusPage?.SetStatisticsAvailable(StatisticsSegmentAvailable);
         if (_clipboardMenuItem != null)
         {
             _clipboardMenuItem.IsEnabled = navigationReady && !_importing;

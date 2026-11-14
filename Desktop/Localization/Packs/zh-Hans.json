@@ -3653,6 +3653,13 @@
     "tags.quick.thread.hint": "串标签标记的是整个串，而不是其中的媒体文件。点击标签即可移除。",
     "tags.quick.thread.remove": "移除串标签 {0}",
     "tags.quick.thread.field": "添加串标签",
-    "tags.quick.thread.chips": "串标签"
+    "tags.quick.thread.chips": "串标签",
+    "nav.status": "状态",
+    "command.navigation.status": "状态",
+    "status.hint": "MeowChan 在此计算机上的网络、磁盘和当前问题。",
+    "status.segments": "状态分区",
+    "status.segment.diagnosticsCount": "诊断（{0}）",
+    "status.strip": "活动 {0} · 等待中 {1} · 问题 {2}",
+    "status.strip.rates": "↓ {0} · 写 {1}"
   }
 }
