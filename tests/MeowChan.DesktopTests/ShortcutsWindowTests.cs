@@ -27,7 +27,8 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Equal(ShortcutsWindowToggle.Open, ShortcutsWindow.ToggleDecision(open: false));
         Assert.Equal(ShortcutsWindowToggle.Close, ShortcutsWindow.ToggleDecision(open: true));
         Assert.Equal(ShortcutGroups.Reader, ShortcutHelpContext.AreaFor("Archive", largeReaderOpen: true));
-        foreach (string page in new[] { "Downloads", "Archive", "Media", "Rules", "Sources", "Plugins", "Diagnostics", "Statistics", "Settings" })
+        // The workspace pages of the merged shell (Sources & Plugins, Status with its two segments, the Booru page).
+        foreach (string page in new[] { "Downloads", "Archive", "Media", "Booru", "Rules", "Sources", "Status", "Settings" })
             Assert.Equal(page.ToLowerInvariant(), ShortcutHelpContext.AreaFor(page, largeReaderOpen: false));
         Assert.Null(ShortcutHelpContext.AreaFor("About", largeReaderOpen: false));
         Assert.False(ShortcutHelpContext.Settings.AssignedOnly);
@@ -60,8 +61,9 @@ public sealed class ShortcutsWindowTests : IDisposable
     {
         var editor = new ShortcutBindingsEditor();
         editor.ApplyContext(ReaderContext());
-        editor.SearchInput.Text = "navigation.statistics";
-        Assert.Contains(editor.ActionList.Items.OfType<ListBoxItem>(), i => i.Tag as string == "navigation.statistics");
+        // Statistics is a segment of Status now (navigation.statistics lost its default and is not listed while only assigned ones show).
+        editor.SearchInput.Text = "navigation.status";
+        Assert.Contains(editor.ActionList.Items.OfType<ListBoxItem>(), i => i.Tag as string == "navigation.status");
         editor.SearchInput.Text = "no action is called like this";
         Assert.Empty(editor.ActionList.Items);
         Assert.True(((TextBlock)Field(editor, "_empty")).IsVisible);

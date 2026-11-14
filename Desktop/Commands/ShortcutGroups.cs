@@ -53,10 +53,15 @@ public static class ShortcutGroups
         if (executionContext.StartsWith("reader-", StringComparison.Ordinal)) return Reader;
         return executionContext switch
         {
-            "shell" or "about" => Application,
+            // The header display menu, the toasts and the tagging page (opened from the app menu, no footer page) are window surfaces.
+            "shell" or "about" or "header-io-monitor" or "notification" or "tagging" => Application,
+            "gallery-tagging" => Gallery,
             "reader" or "large-reader" => Reader,
             "gallery" => Gallery,
             "settings" => Settings,
+            // The merged pages (goal): plugin commands run on Sources & Plugins, diagnostics and statistics on the Status page.
+            "plugins" when Pages.Contains("sources", StringComparer.Ordinal) => "sources",
+            "diagnostics" or "statistics" when Pages.Contains("status", StringComparer.Ordinal) => "status",
             _ when Pages.Contains(executionContext, StringComparer.Ordinal) => executionContext,
             _ => null
         };
