@@ -28,10 +28,10 @@ internal static class MediaMenuSurfacesChecks
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
     private static readonly ResourceId ThreadA = new("media-fixture", "g", "100");
 
-    // The common section in its one order; the open command differs by id only (the media page opens its own window).
+    // The common section in its one order (the tagging-queue entry sits right after the tag editor since 76620f29); the open command differs by id only (the media page opens its own window).
     private static readonly string[] Order =
     {
-        "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit",
+        "gallery.open", "favorites.toggle", "media.rating.edit", "media.tags.edit", "media.queue.add",
         "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread"
     };
 
