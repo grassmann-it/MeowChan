@@ -232,7 +232,7 @@ public partial class RulesPage
         AutomationProperties.SetLabeledBy(board, boardLabel);
         AutomationProperties.SetName(board, Texts.T("plugins.grantBoard")); boardField.Children.Add(board);
         TextBlock status = FilterLabel(string.Empty); status.Name = "RuleFilterGrantStatus"; panel.Children.Add(status);
-        StackPanel origins = new() { Spacing = 6 }; panel.Children.Add(origins);
+        StackPanel origins = new() { Spacing = 8 }; panel.Children.Add(origins);
         MediaRuleScope ruleScope = _draft.Scope;
         PluginGrantScope Scope() => new(source.Text?.Trim() ?? string.Empty,
             string.IsNullOrWhiteSpace(board.Text) ? null : board.Text.Trim(), FilterScopeIdentity(ruleScope));
@@ -259,7 +259,7 @@ public partial class RulesPage
         }
         source.TextChanged += (_, _) => { target.Source = source.Text ?? string.Empty; Status(); };
         board.TextChanged += (_, _) => { target.Board = board.Text ?? string.Empty; Status(); }; Status();
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8 };
         Button allow = new() { Content = Texts.T("plugins.grantRequired") };
         allow.Click += async (_, _) => await ChangeRuleGrantAsync(filter, Scope(), filter.Filter.RequiredAccess);
         actions.Children.Add(allow); panel.Children.Add(actions);

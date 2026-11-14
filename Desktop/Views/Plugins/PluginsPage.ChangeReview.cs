@@ -164,7 +164,7 @@ public partial class PluginsPage
 
         BundledPluginChangeDraft draft = new(review);
         BundledPluginChangeConsent consent = new(draft);
-        StackPanel settingsPanel = new() { Spacing = 6 };
+        StackPanel settingsPanel = new() { Spacing = 8 };
         StackPanel editorPanel = new() { Spacing = 8 };
         Dictionary<PluginSettingsEditor, string> editors = new();
         Button? removedAcknowledgement = null;
