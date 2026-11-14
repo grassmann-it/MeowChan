@@ -71,7 +71,7 @@ public partial class ArchivePage
         _exportFormatField.Set(Texts.T("export.format"), formats, _exportFormat, enabled);
         List<ExportChoiceField.Option> scopes = new();
         if (_exportSessionMembers.Length == 1) scopes.Add(new(ExportScope.Selection, Texts.T("export.scope.thread")));
-        else if (_exportSessionMembers.Length > 1) scopes.Add(new(ExportScope.Selection, Texts.T("export.scope.selection", _exportSessionMembers.Length)));
+        else if (_exportSessionMembers.Length > 1) scopes.Add(new(ExportScope.Selection, Texts.Count("export.scope.selection", _exportSessionMembers.Length)));
         if (_exportFormat == ExportFormat.Html && ExportResultsOffered) scopes.Add(new(ExportScope.AllResults, Texts.T("export.scope.results")));
         _exportScopeField.Set(Texts.T("export.scope"), scopes, CurrentExportScope, enabled);
     }
