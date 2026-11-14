@@ -398,6 +398,43 @@ public sealed class FooterLayoutTests
         private static string? ShortcutTextOf(FooterLayoutEditor editor, string id) =>
             editor.Rows.Children.OfType<Grid>().First(row => row.Tag as string == id).Children.OfType<TextBlock>().First(t => t.Name?.StartsWith("FooterShortcut") == true).Text;
 
+        // M6 (review wave 6): a toggle rebuilds the rows (the digits move), so the check box of the page must take the focus again.
+        [Fact]
+        public void TheFocusStaysOnTheToggledCheckBoxAndOnTheMovedButtonAfterTheRowsAreRebuilt()
+        {
+            OwnedUiDispatcher.Run(() =>
+            {
+                var editor = new FooterLayoutEditor();
+                Assert.Null(editor.FocusTarget);
+                CheckBox before = editor.CheckBoxOf("navigation.rules")!;
+                before.IsChecked = false;
+                Assert.False(editor.Layout.IsVisible("navigation.rules"));
+                CheckBox after = editor.CheckBoxOf("navigation.rules")!;
+                Assert.NotSame(before, after);
+                Assert.Same(after, editor.FocusTarget);
+                // Checking it again keeps the focus on the check box of that page, not on a neighbour.
+                after.IsChecked = true;
+                Assert.Same(editor.CheckBoxOf("navigation.rules"), editor.FocusTarget);
+                // A move keeps it on the same kind of button of the page that moved, also at the edge (where it is disabled now).
+                string page = "navigation.status";
+                for (int step = 0; step < Pages.Length; step++)
+                {
+                    Button up = editor.MoveButtonOf(page, up: true)!;
+                    if (!up.IsEnabled) break;
+                    up.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Button upNow = editor.MoveButtonOf(page, up: true)!;
+                    Assert.Same(upNow.IsEnabled ? upNow : editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                }
+                Assert.False(editor.MoveButtonOf(page, up: true)!.IsEnabled);
+                Assert.Same(editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                editor.MoveButtonOf(page, up: false)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Same(editor.MoveButtonOf(page, up: false), editor.FocusTarget);
+                // Reset and Load rebuild without a focus request.
+                editor.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.Null(editor.FocusTarget);
+            });
+        }
+
         [Fact]
         public void ChecksAndMovesChangeTheDraftRaiseTheEventAndResetGoesBackToTheDefault()
         {
