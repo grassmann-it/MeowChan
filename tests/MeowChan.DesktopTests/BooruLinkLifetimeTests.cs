@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
@@ -19,14 +20,8 @@ public sealed class BooruLinkLifetimeTests
     private const string PostId = "42";
     private const string Url = "https://danbooru.donmai.us/posts/42";
 
-    public BooruLinkLifetimeTests()
-    {
-        Texts.Initialize();
-        Texts.SetLanguage("en");
-    }
-
     [Fact]
-    public async Task DisposingDuringShowInMediaNavigationSuppressesTheLateMissingNotice()
+    public void DisposingDuringShowInMediaNavigationSuppressesTheLateMissingNotice() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -45,13 +40,13 @@ public sealed class BooruLinkLifetimeTests
         await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
         view.Dispose();
         release.SetResult(false);
-        await EventuallyAsync(() => !LinkNote(view).IsVisible);
+        await AwaitClickHandlersAsync();
 
         Assert.False(LinkNote(view).IsVisible);
-    }
+    });
 
     [Fact]
-    public async Task ShowInMediaNavigationExceptionShowsAnHonestActiveFailureNotice()
+    public void ShowInMediaNavigationExceptionShowsAnHonestActiveFailureNotice() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -67,14 +62,14 @@ public sealed class BooruLinkLifetimeTests
         action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await invoked.Task.WaitAsync(TimeSpan.FromSeconds(2));
         string failure = Texts.T("booru.crossLinks.navigationFailed", PostId);
-        await EventuallyAsync(() => LinkNote(view).Text == failure);
+        await AwaitClickHandlersAsync();
 
         Assert.Equal(failure, LinkNote(view).Text);
         Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
-    }
+    });
 
     [Fact]
-    public async Task AStaleShowInMediaExceptionCannotReplaceANewerNotice()
+    public void AStaleShowInMediaExceptionCannotReplaceANewerNotice() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -96,15 +91,15 @@ public sealed class BooruLinkLifetimeTests
         Assert.Equal(currentNotice, LinkNote(view).Text);
 
         release.SetResult(true);
-        await Task.Delay(25);
+        await AwaitClickHandlersAsync();
 
         Assert.Equal(currentNotice, LinkNote(view).Text);
         Assert.NotEqual(Texts.T("booru.crossLinks.navigationFailed", PostId), LinkNote(view).Text);
         Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
-    }
+    });
 
     [Fact]
-    public async Task DisposingDuringShowInMediaExceptionSuppressesTheFailureNotice()
+    public void DisposingDuringShowInMediaExceptionSuppressesTheFailureNotice() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -123,15 +118,15 @@ public sealed class BooruLinkLifetimeTests
         await started.Task.WaitAsync(TimeSpan.FromSeconds(2));
         view.Dispose();
         release.SetResult(true);
-        await Task.Delay(25);
+        await AwaitClickHandlersAsync();
 
         Assert.False(LinkNote(view).IsVisible);
         Assert.NotEqual(Texts.T("booru.crossLinks.navigationFailed", PostId), LinkNote(view).Text);
         Assert.NotEqual(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
-    }
+    });
 
     [Fact]
-    public async Task DisposingDuringOpenOrCopySuppressesBothLateNotices()
+    public void DisposingDuringOpenOrCopySuppressesBothLateNotices() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -164,10 +159,10 @@ public sealed class BooruLinkLifetimeTests
         Assert.False(copyStarted.Task.IsCompleted);
         copyRelease.SetResult(true);
         Assert.False(LinkNote(view).IsVisible);
-    }
+    });
 
     [Fact]
-    public async Task OlderOpenCompletionCannotClearANewerCopyNotice()
+    public void OlderOpenCompletionCannotClearANewerCopyNotice() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -199,10 +194,10 @@ public sealed class BooruLinkLifetimeTests
         openRelease.SetResult(true);
         await open;
         Assert.Equal(copied, LinkNote(view).Text);
-    }
+    });
 
     [Fact]
-    public async Task ExistingOpenAndCopyFailureNoticesRemainLocalAndExplicit()
+    public void ExistingOpenAndCopyFailureNoticesRemainLocalAndExplicit() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
         using BooruWorkbenchModel model = new(harness.Services);
@@ -214,7 +209,7 @@ public sealed class BooruLinkLifetimeTests
         Assert.Equal(Texts.T("booru.ui.link.openFailed"), LinkNote(view).Text);
         await InvokeLink(view, "CopyLinkAsync", Url);
         Assert.Equal(Texts.T("booru.ui.link.copyFailed"), LinkNote(view).Text);
-    }
+    });
 
     private static Button ShowInMediaButton(BooruWorkbenchView view) =>
         (Button)(typeof(BooruWorkbenchView).GetMethod("CreateShowInMediaAction", Private)!
@@ -230,13 +225,58 @@ public sealed class BooruLinkLifetimeTests
     private static TaskCompletionSource<T> NewSource<T>() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    private static async Task EventuallyAsync(Func<bool> condition)
+    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions. No
+    // application, platform renderer, native window, X server or user's profile is involved.
+    private static void OnDispatcher(Func<Task> test)
     {
-        DateTime deadline = DateTime.UtcNow.AddSeconds(2);
-        while (!condition())
+        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
+        object? previousDispatcher = primary.GetValue(null);
+        SynchronizationContext? previousContext = SynchronizationContext.Current;
+        string language = Texts.Language;
+        Dispatcher owner = Dispatcher.CurrentDispatcher;
+        try
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Timed out waiting for the view action continuation.");
-            await Task.Delay(5);
+            primary.SetValue(null, owner);
+            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
+            Texts.Initialize();
+            Texts.SetLanguage("en");
+            Task pending = test();
+            DateTime deadline = DateTime.UtcNow.AddSeconds(5);
+            while (!pending.IsCompleted)
+            {
+                owner.RunJobs();
+                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Workbench test dispatcher did not finish.");
+                if (!pending.IsCompleted) Thread.Sleep(1);
+            }
+            pending.GetAwaiter().GetResult();
         }
+        finally
+        {
+            Texts.SetLanguage(language);
+            SynchronizationContext.SetSynchronizationContext(previousContext);
+            primary.SetValue(null, previousDispatcher);
+        }
+    }
+
+    // async-void Click handlers announce completion through SynchronizationContext. Wait for
+    // that causal completion, rather than checking an unchanged notice before the handler ran.
+    private static async Task AwaitClickHandlersAsync()
+    {
+        ActionContext context = Assert.IsType<ActionContext>(SynchronizationContext.Current);
+        while (context.PendingOperations != 0) await Task.Delay(1);
+    }
+
+    private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
+    {
+        internal int PendingOperations { get; private set; }
+        public override void OperationStarted() => PendingOperations++;
+        public override void OperationCompleted() => PendingOperations--;
+        public override void Post(SendOrPostCallback callback, object? state) => owner.Post(() =>
+        {
+            SynchronizationContext? previous = Current;
+            SetSynchronizationContext(this);
+            try { callback(state); }
+            finally { SetSynchronizationContext(previous); }
+        });
     }
 }
