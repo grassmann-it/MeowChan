@@ -15,7 +15,7 @@ internal static class TagQueueCatalog
         ("command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen"),
         ("queue.title", "Tagging queue", "Tagging-Warteschlange"),
         ("queue.ask", "Add {0} media files to the tagging queue?", "{0} Mediendateien zur Tagging-Warteschlange hinzufügen?"),
-        ("queue.ask.yes", "Add them", "Hinzufügen"),
+        ("queue.ask.yes", "Add", "Hinzufügen"),
         ("queue.ask.no", "Cancel", "Abbrechen"),
         ("queue.result", "Added: {0} · Already in the queue: {1}", "Hinzugefügt: {0} · Schon in der Warteschlange: {1}"),
         ("queue.result.limit", "Added: {0} · Already in the queue: {1} · Not added, the queue is full: {2}. Raise “{3}” under {4}.", "Hinzugefügt: {0} · Schon in der Warteschlange: {1} · Nicht hinzugefügt, die Warteschlange ist voll: {2}. Erhöhe „{3}“ unter {4}."),
