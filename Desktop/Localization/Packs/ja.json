@@ -2659,7 +2659,7 @@
     "media.query.reason.ambiguous": "曖昧です。ソースと板を指定してください",
     "media.query.reason.refused": "他のフィルターと組み合わせられません",
     "media.query.reason.tooManyTags": "タグが多すぎます",
-    "media.query.tip": "次のフィルター構文も使えます: type:video、-tag:名前、sound:none、source:4chan、board:g、rating:>=3、fav、missing、untagged、thread:1234（種類:、ソース:、評価: のような日本語のフィールド名も可）。Enterでチップに変換します。引用符で空白を含められます（tag:\"二語\"）。それ以外はファイル名のままです。",
+    "media.query.tip": "次のフィルター構文も使えます: type:video、-tag:名前、sound:none、source:4chan、board:g、rating:>=3、queue:yes、queue:no、booru:tag、-booru:tag、fav、missing、untagged、thread:1234（種類:、ソース:、評価: のような日本語のフィールド名も可）。Enterでチップに変換します。引用符で空白を含められます（tag:\"二語\"）。それ以外はファイル名のままです。",
     "media.query.copied": "フィルターをテキストとしてコピーしました",
     "media.query.copiedLong": "フィルターをテキストとしてコピーしました。検索欄に入る長さを超えています（{0}文字）。",
     "media.query.copyFailed": "フィルターをコピーできませんでした: クリップボードを利用できません。",

@@ -2835,7 +2835,7 @@
     "media.query.reason.ambiguous": "ambigu, indiquez la source et le tableau",
     "media.query.reason.refused": "ne va pas avec les autres filtres",
     "media.query.reason.tooManyTags": "trop d’étiquettes",
-    "media.query.tip": "Comprend aussi des filtres : type:video, -tag:nom, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (ou des noms français comme genre:, origine:, note:). Entrée les transforme en puces ; les guillemets gardent les espaces (tag:\"deux mots\") ; le reste demeure le nom de fichier.",
+    "media.query.tip": "Comprend aussi des filtres : type:video, -tag:nom, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (ou des noms français comme genre:, origine:, note:). Entrée les transforme en puces ; les guillemets gardent les espaces (tag:\"deux mots\") ; le reste demeure le nom de fichier.",
     "media.query.copied": "Filtres copiés sous forme de texte",
     "media.query.copiedLong": "Filtres copiés sous forme de texte. Le texte est plus long que ce que le champ de recherche accepte (limite de caractères : {0}).",
     "media.query.copyFailed": "Impossible de copier les filtres : le presse-papiers n’est pas disponible.",

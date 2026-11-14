@@ -2593,7 +2593,7 @@
     "media.query.reason.ambiguous": "ambiguo, indica la fonte e la board",
     "media.query.reason.refused": "non è compatibile con gli altri filtri",
     "media.query.reason.tooManyTags": "troppi tag",
-    "media.query.tip": "Capisce anche i filtri: type:video, -tag:nome, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (o nomi italiani come tipo:, fonte:, valutazione:). Invio li trasforma in chip; le virgolette mantengono gli spazi (tag:\"due parole\"); tutto il resto resta il nome del file.",
+    "media.query.tip": "Capisce anche i filtri: type:video, -tag:nome, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (o nomi italiani come tipo:, fonte:, valutazione:). Invio li trasforma in chip; le virgolette mantengono gli spazi (tag:\"due parole\"); tutto il resto resta il nome del file.",
     "media.query.copied": "Filtri copiati come testo",
     "media.query.copiedLong": "Filtri copiati come testo. Il testo è più lungo di quanto accetta il campo di ricerca (limite di caratteri: {0}).",
     "media.query.copyFailed": "Impossibile copiare i filtri: gli appunti non sono disponibili.",

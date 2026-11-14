@@ -2659,7 +2659,7 @@
     "media.query.reason.ambiguous": "有歧义，请指明来源和版块",
     "media.query.reason.refused": "与其他过滤条件不兼容",
     "media.query.reason.tooManyTags": "标签过多",
-    "media.query.tip": "还支持过滤语法：type:video、-tag:名称、sound:none、source:4chan、board:g、rating:>=3、fav、missing、untagged、thread:1234（也可用中文字段名，如 类型:、来源:、评分:）。按 Enter 把它们变成过滤条件；引号可保留空格（tag:\"两个词\"）；其余内容仍作为文件名。",
+    "media.query.tip": "还支持过滤语法：type:video、-tag:名称、sound:none、source:4chan、board:g、rating:>=3、queue:yes、queue:no、booru:tag、-booru:tag、fav、missing、untagged、thread:1234（也可用中文字段名，如 类型:、来源:、评分:）。按 Enter 把它们变成过滤条件；引号可保留空格（tag:\"两个词\"）；其余内容仍作为文件名。",
     "media.query.copied": "过滤条件已复制为文本",
     "media.query.copiedLong": "过滤条件已复制为文本。文本比搜索框可容纳的更长（{0} 个字符）。",
     "media.query.copyFailed": "无法复制过滤条件：剪贴板不可用。",

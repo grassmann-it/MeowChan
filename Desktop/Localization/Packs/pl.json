@@ -2606,7 +2606,7 @@
     "media.query.reason.ambiguous": "niejednoznaczne, podaj źródło i tablicę",
     "media.query.reason.refused": "nie pasuje do pozostałych filtrów",
     "media.query.reason.tooManyTags": "zbyt wiele tagów",
-    "media.query.tip": "Rozumie też filtry: type:video, -tag:nazwa, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (lub polskie nazwy pól, np. typ:, zrodlo:, ocena:). Enter zamienia je w chipy; cudzysłowy zachowują spacje (tag:\"dwa słowa\"); reszta pozostaje nazwą pliku.",
+    "media.query.tip": "Rozumie też filtry: type:video, -tag:nazwa, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (lub polskie nazwy pól, np. typ:, zrodlo:, ocena:). Enter zamienia je w chipy; cudzysłowy zachowują spacje (tag:\"dwa słowa\"); reszta pozostaje nazwą pliku.",
     "media.query.copied": "Filtry skopiowane jako tekst",
     "media.query.copiedLong": "Filtry skopiowane jako tekst. Tekst jest dłuższy, niż przyjmuje pole wyszukiwania (limit znaków: {0}).",
     "media.query.copyFailed": "Nie udało się skopiować filtrów: schowek jest niedostępny.",

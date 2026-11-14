@@ -2835,7 +2835,7 @@
     "media.query.reason.ambiguous": "ambiguo, indique la fuente y el tablón",
     "media.query.reason.refused": "no encaja con los demás filtros",
     "media.query.reason.tooManyTags": "demasiadas etiquetas",
-    "media.query.tip": "También entiende filtros: type:video, -tag:nombre, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (o nombres en español como tipo:, fuente:, valoracion:). Intro los convierte en chips; las comillas conservan los espacios (tag:\"dos palabras\"); lo demás sigue siendo el nombre de archivo.",
+    "media.query.tip": "También entiende filtros: type:video, -tag:nombre, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (o nombres en español como tipo:, fuente:, valoracion:). Intro los convierte en chips; las comillas conservan los espacios (tag:\"dos palabras\"); lo demás sigue siendo el nombre de archivo.",
     "media.query.copied": "Filtros copiados como texto",
     "media.query.copiedLong": "Filtros copiados como texto. El texto es más largo de lo que admite el campo de búsqueda (límite de caracteres: {0}).",
     "media.query.copyFailed": "No se pudieron copiar los filtros: el portapapeles no está disponible.",

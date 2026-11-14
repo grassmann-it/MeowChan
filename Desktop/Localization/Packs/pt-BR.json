@@ -2593,7 +2593,7 @@
     "media.query.reason.ambiguous": "ambíguo, informe a fonte e o board",
     "media.query.reason.refused": "não combina com os outros filtros",
     "media.query.reason.tooManyTags": "tags demais",
-    "media.query.tip": "Também entende filtros: type:video, -tag:nome, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (ou nomes em português como tipo:, fonte:, avaliacao:). Enter os transforma em chips; aspas mantêm os espaços (tag:\"duas palavras\"); o resto continua sendo o nome do arquivo.",
+    "media.query.tip": "Também entende filtros: type:video, -tag:nome, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (ou nomes em português como tipo:, fonte:, avaliacao:). Enter os transforma em chips; aspas mantêm os espaços (tag:\"duas palavras\"); o resto continua sendo o nome do arquivo.",
     "media.query.copied": "Filtros copiados como texto",
     "media.query.copiedLong": "Filtros copiados como texto. O texto é mais longo do que o campo de busca aceita (limite de caracteres: {0}).",
     "media.query.copyFailed": "Não foi possível copiar os filtros: a área de transferência não está disponível.",

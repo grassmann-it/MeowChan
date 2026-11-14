@@ -2603,7 +2603,7 @@
     "media.query.reason.ambiguous": "nejednoznačné, uveďte zdroj a board",
     "media.query.reason.refused": "nejde spojit s ostatními filtry",
     "media.query.reason.tooManyTags": "příliš mnoho štítků",
-    "media.query.tip": "Rozumí i filtrům: type:video, -tag:název, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (nebo českým názvům polí jako typ:, zdroj:, hodnoceni:). Enter z nich udělá čipy; uvozovky drží mezery pohromadě (tag:\"dvě slova\"); vše ostatní zůstává názvem souboru.",
+    "media.query.tip": "Rozumí i filtrům: type:video, -tag:název, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (nebo českým názvům polí jako typ:, zdroj:, hodnoceni:). Enter z nich udělá čipy; uvozovky drží mezery pohromadě (tag:\"dvě slova\"); vše ostatní zůstává názvem souboru.",
     "media.query.copied": "Filtry zkopírovány jako text",
     "media.query.copiedLong": "Filtry zkopírovány jako text. Text je delší, než kolik vyhledávací pole přijme (limit znaků: {0}).",
     "media.query.copyFailed": "Filtry se nepodařilo zkopírovat: schránka není dostupná.",

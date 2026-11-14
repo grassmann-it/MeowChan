@@ -2659,7 +2659,7 @@
     "media.query.reason.ambiguous": "모호합니다. 소스와 게시판을 지정하세요",
     "media.query.reason.refused": "다른 필터와 함께 쓸 수 없습니다",
     "media.query.reason.tooManyTags": "태그가 너무 많습니다",
-    "media.query.tip": "다음 필터 구문도 이해합니다: type:video, -tag:이름, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (유형:, 소스:, 평가: 같은 한국어 필드 이름도 가능). Enter를 누르면 칩으로 바뀝니다. 따옴표로 공백을 포함할 수 있습니다(tag:\"두 단어\"). 나머지는 파일 이름으로 남습니다.",
+    "media.query.tip": "다음 필터 구문도 이해합니다: type:video, -tag:이름, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (유형:, 소스:, 평가: 같은 한국어 필드 이름도 가능). Enter를 누르면 칩으로 바뀝니다. 따옴표로 공백을 포함할 수 있습니다(tag:\"두 단어\"). 나머지는 파일 이름으로 남습니다.",
     "media.query.copied": "필터를 텍스트로 복사했습니다",
     "media.query.copiedLong": "필터를 텍스트로 복사했습니다. 텍스트가 검색창에 들어가는 길이보다 깁니다({0}자).",
     "media.query.copyFailed": "필터를 복사하지 못했습니다. 클립보드를 사용할 수 없습니다.",

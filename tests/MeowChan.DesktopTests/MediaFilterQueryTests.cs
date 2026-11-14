@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -409,6 +411,61 @@ public sealed class MediaFilterQueryTests : IDisposable
     }
 
     // ---- texts ------------------------------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    [InlineData("cs")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("ja")]
+    [InlineData("ko")]
+    [InlineData("pl")]
+    [InlineData("pt-BR")]
+    [InlineData("ru")]
+    [InlineData("zh-Hans")]
+    public void EveryShippedQueryTipIncludesExecutableQueueAndBooruExamplesWithoutFallback(string code)
+    {
+        const string key = "media.query.tip";
+        string tip;
+        if (code is "en" or "de")
+            tip = (code == "en" ? BuiltInCatalog.English : BuiltInCatalog.German)[key];
+        else
+        {
+            using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + code + ".json")!;
+            Assert.NotNull(stream);
+            using JsonDocument document = JsonDocument.Parse(stream);
+            JsonProperty entry = Assert.Single(document.RootElement.GetProperty("strings").EnumerateObject(),
+                property => property.NameEquals(key));
+            tip = entry.Value.GetString()!;
+        }
+
+        Texts.SetLanguage(code);
+        Assert.Equal(code, Texts.Language);
+        Assert.Empty(Texts.Warnings);
+        Assert.Equal(tip, Texts.T(key));
+        // This hint has no format arguments; invalid or newly introduced placeholders must not hide behind T's fallback.
+        Assert.Equal(tip, string.Format(CultureInfo.GetCultureInfo(code), tip, Array.Empty<object>()));
+        Assert.Contains("tag:\"", tip); // Keep the existing quoted-value example.
+
+        (string Text, MediaFilterTerm Term)[] examples =
+        [
+            ("queue:yes", MediaFilterTerm.InQueue()),
+            ("queue:no", MediaFilterTerm.InQueue(false)),
+            ("booru:tag", MediaFilterTerm.SourceTag("tag")),
+            ("-booru:tag", MediaFilterTerm.SourceTag("tag", exclude: true))
+        ];
+        string[] listedExamples = tip.Split([',', '、'], StringSplitOptions.TrimEntries);
+        foreach (var (example, term) in examples)
+        {
+            Assert.Contains(example, listedExamples);
+            MediaFilterQueryResult parsed = Parse(example);
+            Assert.Equal([term], parsed.Terms);
+            Assert.Empty(parsed.Problems);
+            Assert.Empty(parsed.FreeText);
+        }
+    }
 
     [Fact]
     public void TheQueryTextsExistInGermanAndEnglishWithTheirPlaceholders()

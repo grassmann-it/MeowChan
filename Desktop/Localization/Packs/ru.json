@@ -2839,7 +2839,7 @@
     "media.query.reason.ambiguous": "неоднозначно, укажите источник и доску",
     "media.query.reason.refused": "не сочетается с другими фильтрами",
     "media.query.reason.tooManyTags": "слишком много тегов",
-    "media.query.tip": "Понимает и фильтры: type:video, -tag:имя, sound:none, source:4chan, board:g, rating:>=3, fav, missing, untagged, thread:1234 (или русские названия полей: тип:, источник:, оценка:). Enter превращает их в чипы; кавычки сохраняют пробелы (tag:\"два слова\"); всё остальное остаётся именем файла.",
+    "media.query.tip": "Понимает и фильтры: type:video, -tag:имя, sound:none, source:4chan, board:g, rating:>=3, queue:yes, queue:no, booru:tag, -booru:tag, fav, missing, untagged, thread:1234 (или русские названия полей: тип:, источник:, оценка:). Enter превращает их в чипы; кавычки сохраняют пробелы (tag:\"два слова\"); всё остальное остаётся именем файла.",
     "media.query.copied": "Фильтры скопированы как текст",
     "media.query.copiedLong": "Фильтры скопированы как текст. Текст длиннее, чем принимает поле поиска (лимит символов: {0}).",
     "media.query.copyFailed": "Не удалось скопировать фильтры: буфер обмена недоступен.",
