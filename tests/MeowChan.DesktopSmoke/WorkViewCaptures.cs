@@ -98,8 +98,10 @@ internal static class WorkViewCaptures
                                 await EnterAsync(window, page); // a resize may relayout the archive into its narrow reader layout
                                 await SettleAsync(window, page);
                                 RequireState(window, page, view, theme, language);
+                                CheckPageRegistrations(window, page);
                                 CheckPresence(window, page, view);
                                 if (page == "downloads") CheckShellAndDownloads(window, view);
+                                CheckSectionsAndMore(window, page, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
                                 if (page == "archive")
@@ -408,6 +410,7 @@ internal static class WorkViewCaptures
         HashSet<string> registered = mine.Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
+                && !LazyPages.Contains(entry.Page) // built on first visit: CheckPageRegistrations runs after entering them
                 && !entry.Id.EndsWith(".other", StringComparison.Ordinal) && !registered.Contains(entry.Id))
             .Select(entry => entry.Id).ToArray();
         if (orphaned.Length > 0)
@@ -444,6 +447,67 @@ internal static class WorkViewCaptures
         if (more.IsVisible != (expectedMore.Length > 0))
             throw new InvalidOperationException($"media/{view}: the More button is {(more.IsVisible ? "shown" : "hidden")} for {expectedMore.Length} entries.");
         Console.WriteLine($"SMOKE work-views media: view={view}; More=[{string.Join(", ", page.HeaderMoreIds)}].");
+    }
+
+    // Pages the window builds lazily (EnsureDeferredWorkspacePages); their rows are checked once the page was entered.
+    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics];
+
+    private static void CheckPageRegistrations(MainWindow window, string page)
+    {
+        if (!Enum.TryParse(page, ignoreCase: true, out WorkViewPage workViewPage) || !LazyPages.Contains(workViewPage)) return;
+        HashSet<string> registered = WorkViewElement.For(workViewPage)
+            .Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window) || control.FindLogicalAncestorOfType<MainWindow>() == window)
+            .Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
+        string[] orphaned = WorkViewPolicy.Entries
+            .Where(entry => entry.Page == workViewPage && entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
+                && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
+        if (orphaned.Length > 0)
+            throw new InvalidOperationException($"{page}: work-view rows without a registered control: " + string.Join(", ", orphaned));
+        Console.WriteLine($"SMOKE work-views registrations: {page}: {registered.Count} ids registered, no orphaned policy row.");
+    }
+
+    // Sections and "More" of the diagnostics and statistics pages are placed as the policy says for this view (WV7).
+    private static void CheckSectionsAndMore(MainWindow window, string page, string view)
+    {
+        WorkView workView = WorkViewSetting.Parse(view);
+        if (page == "diagnostics")
+        {
+            Control root = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+            Expander Section(string name) => root.GetVisualDescendants().OfType<Expander>().Single(control => control.Name == name);
+            // Nothing is filtered in this matrix, so the group takes its view default; session messages start closed in every view.
+            bool filtersOpen = WorkViewPolicy.Resolve("diagnostics.filters", workView) != Presence.Collapsed;
+            if (Section("DiagnosticFiltersSection").IsExpanded != filtersOpen)
+                throw new InvalidOperationException($"diagnostics/{view}: the filter group is {(filtersOpen ? "closed" : "open")}, the policy says the opposite.");
+            if (Section("SessionFeedbackSection").IsExpanded)
+                throw new InvalidOperationException($"diagnostics/{view}: the session messages are open on entering the view.");
+            // "Retry filtered" and "Copy details" sit under More exactly where the policy says; the More button counts them.
+            Button more = root.GetVisualDescendants().OfType<Button>().Single(control => control.Name == "DiagnosticMoreButton");
+            int expected = 0;
+            foreach ((string name, string id) in new[] { ("RetryDiagnosticFilteredButton", "diagnostics.toolbar.retry-filtered"),
+                ("CopyDiagnosticButton", "diagnostics.toolbar.copy") })
+            {
+                Button button = root.GetVisualDescendants().OfType<Button>().Single(control => control.Name == name);
+                bool underMore = WorkViewPolicy.Resolve(id, workView) == Presence.Overflow;
+                if (underMore) expected++;
+                if (button.IsVisible == underMore)
+                    throw new InvalidOperationException($"diagnostics/{view}: {name} is {(button.IsVisible ? "on the bar" : "hidden")}, the policy puts it {(underMore ? "under More" : "on the bar")}.");
+            }
+            if (more.IsVisible != (expected > 0))
+                throw new InvalidOperationException($"diagnostics/{view}: the More button is {(more.IsVisible ? "shown" : "missing")} for {expected} moved actions.");
+            string moreName = Avalonia.Automation.AutomationProperties.GetName(more) ?? string.Empty;
+            if (expected > 0 && !moreName.Contains(expected.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal))
+                throw new InvalidOperationException($"diagnostics/{view}: the More button does not announce {expected} actions (\"{moreName}\").");
+        }
+        else if (page == "statistics")
+        {
+            StatisticsPage statistics = window.FindControl<ContentControl>("StatisticsPageHost")!.Content as StatisticsPage
+                ?? throw new InvalidOperationException("The statistics page is not built.");
+            bool underMore = WorkViewPolicy.Resolve("statistics.reset", workView) == Presence.Overflow;
+            if (!statistics.ResetIsReachable)
+                throw new InvalidOperationException($"statistics/{view}: Reset cannot be reached (on the bar or under More).");
+            if (underMore == statistics.ResetButton.IsEffectivelyVisible)
+                throw new InvalidOperationException($"statistics/{view}: Reset is {(underMore ? "on the bar" : "under More")}, the policy says the opposite.");
+        }
     }
 
     // The toolbar items of the visible surfaces are placed as the policy says for this view.

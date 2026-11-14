@@ -348,7 +348,8 @@ public partial class MainWindow
         if (page == WorkspacePage.Sources) RefreshSourcesPage();
         if (page == WorkspacePage.Plugins) _ = _pluginsPage?.ActivateAsync();
         UpdateSpeedSamplingState(); // the page claims samples while it is shown, and gives them up when left
-        if (page == WorkspacePage.Statistics) ShowStatisticsPage();
+        if (page == WorkspacePage.Diagnostics) _diagnosticsPage?.ApplyWorkView(ConfiguredWorkView);
+        if (page == WorkspacePage.Statistics) { _statisticsPage?.ApplyWorkView(ConfiguredWorkView); ShowStatisticsPage(); }
         if (page == WorkspacePage.Settings)
         {
             _settingsEditor?.RevealCurrentError();

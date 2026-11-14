@@ -1,6 +1,8 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:ursa="https://irihi.tech/ursa"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
              xmlns:stats="clr-namespace:MeowChan.Desktop.Stats"
              x:Class="MeowChan.StatisticsPage">
     <UserControl.Styles>
@@ -15,10 +17,12 @@
                     <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
                     <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
                 </StackPanel>
-                <Button x:Name="ResetStatisticsButton" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right" Click="OnResetClick">
+                <!-- Work views: Reset is destructive and rare, so Barebones and Simple keep it under More. -->
+                <desktop:ActionToolBar x:Name="StatisticsActions" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Top" HorizontalAlignment="Right">
+                <Button x:Name="ResetStatisticsButton" wv:WorkViewElement.Id="statistics.reset" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnResetClick">
                     <FlyoutBase.AttachedFlyout>
                         <Flyout Placement="BottomEdgeAlignedRight" Opened="OnResetConfirmationOpened" Closed="OnResetConfirmationClosed">
-                            <Border x:Name="ResetConfirmPanel" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
+                            <Border x:Name="ResetConfirmPanel" wv:WorkViewElement.Id="statistics.reset-confirm" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
                                 <StackPanel Spacing="12">
                                     <TextBlock x:Name="ResetQuestion" TextWrapping="Wrap" />
                                     <WrapPanel Classes="workspace-toolbar">
@@ -30,15 +34,16 @@
                         </Flyout>
                     </FlyoutBase.AttachedFlyout>
                 </Button>
+                </desktop:ActionToolBar>
             </Grid>
-            <Border x:Name="LoadNoticePanel" Classes="workspace-warning" IsVisible="False">
+            <Border x:Name="LoadNoticePanel" wv:WorkViewElement.Id="statistics.load-notice" Classes="workspace-warning" IsVisible="False">
                 <TextBlock x:Name="LoadNoticeText" TextWrapping="Wrap" />
             </Border>
-            <Border x:Name="PersistErrorPanel" Classes="workspace-warning" IsVisible="False">
+            <Border x:Name="PersistErrorPanel" wv:WorkViewElement.Id="statistics.persist-error" Classes="workspace-warning" IsVisible="False">
                 <TextBlock x:Name="PersistErrorText" TextWrapping="Wrap" />
             </Border>
 
-            <Border Classes="workspace-section">
+            <Border wv:WorkViewElement.Id="statistics.now" Classes="workspace-section">
                 <StackPanel Spacing="8">
                     <WrapPanel ItemSpacing="24" LineSpacing="8">
                         <StackPanel MinWidth="130"><TextBlock x:Name="NetCaption" Classes="muted" /><TextBlock x:Name="NetValue" Classes="stats-value" /></StackPanel>
@@ -46,7 +51,7 @@
                         <StackPanel MinWidth="130"><TextBlock x:Name="DiskReadCaption" Classes="muted" /><TextBlock x:Name="DiskReadValue" Classes="stats-value" /></StackPanel>
                         <StackPanel MinWidth="130"><TextBlock x:Name="RequestsCaption" Classes="muted" /><TextBlock x:Name="RequestsValue" Classes="stats-value" /></StackPanel>
                     </WrapPanel>
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                    <Grid wv:WorkViewElement.Id="statistics.history" ColumnDefinitions="*,Auto" ColumnSpacing="12">
                         <StackPanel Spacing="3">
                             <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" />
                             <TextBlock x:Name="HistoryNote" Classes="workspace-help" TextWrapping="Wrap" />
@@ -107,7 +112,7 @@
                 </StackPanel>
             </Border>
 
-            <Border Classes="workspace-section">
+            <Border wv:WorkViewElement.Id="statistics.sources" Classes="workspace-section">
                 <StackPanel Spacing="8" SizeChanged="OnSourcesSizeChanged">
                     <Grid ColumnDefinitions="*,Auto">
                         <TextBlock x:Name="SourcesTitle" Classes="section-title" />
