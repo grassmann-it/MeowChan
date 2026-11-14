@@ -395,7 +395,14 @@ internal static partial class UiCatalogChecks
                 TaggingPage page = w.TaggingPage!;
                 page.List.SelectedItem = page.Rows[0];
                 await Settle(w, 250);
-                await OpenedMenuAsync(w, page.ListMenu, page.List, "tagging-list-menu", "Context menu of a queue row (continue here, mark, move, remove)");
+                // TG1: the row menu is composed per selection (ContextMenuBuilder host), there is no standing ListMenu any more.
+                page.ShowListMenu();
+                await UntilAsync(() => page.OpenListMenu is { IsOpen: true, Bounds.Width: > 0, Bounds.Height: > 0 }, "tagging-list-menu: the menu did not open", 6);
+                await Settle(w, 200);
+                ContextMenu menu = page.OpenListMenu!;
+                UiCatalog.RecordSurface(menu, "tagging-list-menu", "context menu", "Context menu of a queue row (continue here, mark, move, remove)");
+                menu.Close();
+                await Settle(w, 120);
             });
         }
         finally { try { await host.ClearTagQueueAsync(); } catch (Exception e) when (e is IOException or InvalidOperationException) { } }
