@@ -158,12 +158,21 @@ internal sealed record DanbooruWatcher
             return Reject(watcher, "watcher_removed");
         if (watcher.State == DanbooruWatcherState.Checking)
             return Reject(watcher, "check_already_running");
+        if (watcher.State == DanbooruWatcherState.Error && !manual)
+            return Reject(watcher, "watcher_error");
         if (watcher.State == DanbooruWatcherState.Paused && !manual)
             return Reject(watcher, "watcher_paused");
         if (watcher.State == DanbooruWatcherState.Cooldown
             && watcher.CooldownUntilUtc is { } retryAt
             && nowUtc.ToUniversalTime() < retryAt)
             return Reject(watcher, "cooldown_active");
+        // A paused watcher may retain a durable provider cooldown. Once that wait expires,
+        // it is still paused: an automatic caller must not turn the expired fence into a
+        // provider request. A manual check is the explicit opt-in and returns to Paused.
+        if (watcher.State == DanbooruWatcherState.Cooldown
+            && watcher.ResumeState == DanbooruWatcherState.Paused
+            && !manual)
+            return Reject(watcher, "watcher_paused");
 
         // The pause target is the last deliberately chosen resume state, not whatever state the
         // watcher happens to hold now. Deriving it from State loses the pause as soon as a check
@@ -193,8 +202,9 @@ internal sealed record DanbooruWatcher
     {
         if (watcher.State != DanbooruWatcherState.Checking)
             return Reject(watcher, "check_not_running");
-        if (!page.SourceId.Equals(ProviderId, StringComparison.Ordinal)
-            || !page.Query.Equals(watcher.CanonicalQuery, StringComparison.Ordinal)
+        if (page is null
+            || !string.Equals(page.SourceId, ProviderId, StringComparison.Ordinal)
+            || !string.Equals(page.Query, watcher.CanonicalQuery, StringComparison.Ordinal)
             || page.Page != (watcher.Progress.NextPage == 0 ? 1 : watcher.Progress.NextPage))
             return Fail(watcher, "page_binding_mismatch");
         if (page.Page < 1 || page.PostIds is null || page.PostIds.Count > watcher.PageSize)
@@ -297,6 +307,7 @@ internal sealed record DanbooruWatcher
         if (watcher.State != DanbooruWatcherState.Checking)
             return Reject(watcher, "check_not_running");
         if (string.IsNullOrWhiteSpace(reasonCode)) return Fail(watcher, "missing_reason");
+        if (!IsValidErrorCode(reasonCode)) return Fail(watcher, "invalid_reason");
         return new DanbooruWatcherTransition(watcher with
         {
             State = DanbooruWatcherState.Cooldown,
@@ -358,6 +369,7 @@ internal sealed record DanbooruWatcher
         if (watcher.State != DanbooruWatcherState.Checking)
             return Reject(watcher, "check_not_running");
         if (string.IsNullOrWhiteSpace(errorCode)) return Fail(watcher, "missing_error");
+        if (!IsValidErrorCode(errorCode)) return Fail(watcher, "invalid_error");
         return new DanbooruWatcherTransition(watcher with
         {
             State = DanbooruWatcherState.Error,
@@ -471,6 +483,9 @@ internal sealed record DanbooruWatcher
 
     private static DanbooruWatcherTransition Reject(DanbooruWatcher watcher, string code) =>
         new(watcher, false, code);
+
+    private static bool IsValidErrorCode(string code) => code.Length <= 128
+        && code.All(character => !char.IsControl(character));
 
     private static DanbooruWatcherTransition Fail(DanbooruWatcher watcher, string code) =>
         new(watcher with

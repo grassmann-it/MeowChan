@@ -43,6 +43,11 @@ public sealed class DanbooruWatcherRecordMapperTests
             valid with { PageSize = 0 }));
         Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
             valid with { PageBudget = DanbooruWatcher.MaximumPageBudget + 1 }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { PageSize = null }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { ErrorCode = new string('x', 129), State = "Cooldown",
+                CooldownUntilUtc = T0.AddMinutes(1) }));
         // Traversal fields without a traversal.
         Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
             valid with { NextPage = 0 }));
@@ -51,6 +56,30 @@ public sealed class DanbooruWatcherRecordMapperTests
             valid with { PagesCheckedInRun = 3 }));
         Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
             valid with { PagesCheckedInRun = 5 }));
+    }
+
+    [Fact]
+    public void DirectProjectionRejectsMalformedObservationAndStateFields()
+    {
+        BooruWatcherRecord valid = ValidMidTraversal();
+
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { HighWaterMark = "not-an-id" }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { BaselineEstablished = false }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { KnownPostIds = ["118", "117"] }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { KnownPostIds = ["01"] }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { State = "Active", ErrorCode = "stale-error" }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { State = "Cooldown", CooldownUntilUtc = null, ErrorCode = "provider_cooldown" }));
+        Assert.Throws<InvalidDataException>(() => DanbooruWatcherRecordMapper.FromRecord(
+            valid with { State = "Removed", NextPage = 0, CursorBeforePostId = "117",
+                CheckStartHighWaterMark = null, CheckStartHighWaterMarkCaptured = false,
+                PagesCheckedInRun = 0, BudgetLimited = false, ErrorCode = null,
+                ResumeState = "Active", CooldownUntilUtc = null }));
     }
 
     [Fact]

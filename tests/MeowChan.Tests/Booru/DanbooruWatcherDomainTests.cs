@@ -168,6 +168,66 @@ public sealed class DanbooruWatcherDomainTests
     }
 
     [Fact]
+    public void MalformedProviderPagesFailClosedWithoutEscapingAsNullReferenceErrors()
+    {
+        DanbooruWatcher watcher = DanbooruWatcher.BeginCheck(EstablishBaseline("100"), Now).Watcher;
+
+        DanbooruWatcherTransition missingPage = DanbooruWatcher.ApplyPage(watcher, null!, Now);
+        Assert.False(missingPage.Accepted);
+        Assert.Equal("page_binding_mismatch", missingPage.RejectionCode);
+        Assert.Equal(DanbooruWatcherState.Error, missingPage.Watcher.State);
+
+        watcher = DanbooruWatcher.BeginCheck(EstablishBaseline("100"), Now).Watcher;
+        DanbooruWatcherTransition missingQuery = DanbooruWatcher.ApplyPage(watcher,
+            new(DanbooruPostReference.ProviderId, null!, 1, ["101"], true), Now);
+        Assert.False(missingQuery.Accepted);
+        Assert.Equal("page_binding_mismatch", missingQuery.RejectionCode);
+        Assert.Equal(DanbooruWatcherState.Error, missingQuery.Watcher.State);
+    }
+
+    [Fact]
+    public void ErrorAndDeferralCodesStayPersistable()
+    {
+        DanbooruWatcher watcher = DanbooruWatcher.BeginCheck(EstablishBaseline("100"), Now).Watcher;
+        DanbooruWatcherTransition invalidError = DanbooruWatcher.ApplyError(watcher, new string('x', 129), Now);
+        Assert.False(invalidError.Accepted);
+        Assert.Equal("invalid_error", invalidError.RejectionCode);
+        Assert.Equal(DanbooruWatcherState.Error, invalidError.Watcher.State);
+
+        watcher = DanbooruWatcher.BeginCheck(EstablishBaseline("100"), Now).Watcher;
+        DanbooruWatcherTransition invalidDeferral = DanbooruWatcher.ApplyDeferred(
+            watcher, Now.AddMinutes(1), "provider\n429", Now);
+        Assert.False(invalidDeferral.Accepted);
+        Assert.Equal("invalid_reason", invalidDeferral.RejectionCode);
+        Assert.Equal(DanbooruWatcherState.Error, invalidDeferral.Watcher.State);
+    }
+
+    [Fact]
+    public void AutomaticChecksCannotRetryErrorsOrAnExpiredPausedCooldown()
+    {
+        DanbooruWatcher baseline = EstablishBaseline("100");
+        DanbooruWatcher errored = DanbooruWatcher.ApplyError(
+            DanbooruWatcher.BeginCheck(baseline, Now).Watcher, "provider_error", Now).Watcher;
+
+        DanbooruWatcherTransition automaticError = DanbooruWatcher.BeginCheck(errored, Now.AddMinutes(1));
+        Assert.False(automaticError.Accepted);
+        Assert.Equal("watcher_error", automaticError.RejectionCode);
+        Assert.True(DanbooruWatcher.BeginCheck(errored, Now.AddMinutes(1), manual: true).Accepted);
+
+        DateTimeOffset retryAt = Now.AddMinutes(2);
+        DanbooruWatcher cooldown = DanbooruWatcher.ApplyDeferred(
+            DanbooruWatcher.BeginCheck(baseline, Now).Watcher, retryAt, "provider_cooldown", Now).Watcher;
+        DanbooruWatcher paused = DanbooruWatcher.Pause(cooldown).Watcher;
+        Assert.Equal(DanbooruWatcherState.Cooldown, paused.State);
+        Assert.Equal(DanbooruWatcherState.Paused, paused.ResumeState);
+
+        DanbooruWatcherTransition automaticPaused = DanbooruWatcher.BeginCheck(paused, retryAt);
+        Assert.False(automaticPaused.Accepted);
+        Assert.Equal("watcher_paused", automaticPaused.RejectionCode);
+        Assert.True(DanbooruWatcher.BeginCheck(paused, retryAt, manual: true).Accepted);
+    }
+
+    [Fact]
     public void ResetProviderCooldownPreservesProgressAndPersonalPause()
     {
         DanbooruWatcher watcher = EstablishBaseline("100");
