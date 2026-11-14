@@ -56,6 +56,22 @@ internal static partial class RulesPageChecks
         Console.WriteLine("SMOKE rules overview: opens on the overview, Create opens step 1 with focus, Close at the header's right edge, Edit opens step 2, Esc closes.");
     }
 
+    // Tom's decision 14.11.2026: Save closes the wizard onto the overview, a polite status says "Rule for ... saved", focus lands on the
+    // saved rule's row (a new rule: its new row). Failed saves stay in the wizard (ThemeMigrationChecks asserts the refused case).
+    private static async Task CheckSaveReturnedToOverviewAsync(MainWindow window, RulesPage page, MediaRuleScope scope)
+    {
+        string label = MeowChan.Desktop.Plugins.PluginGrantPresentation.ScopeLabel(scope);
+        await WaitLayoutAsync(window, () => page.IsOverviewVisible && !page.IsWizardOpen
+            && window.FocusManager?.GetFocusedElement() is Button { Name: "RuleOverview-edit" } focused
+            && Avalonia.Automation.AutomationProperties.GetName(focused).EndsWith(label, StringComparison.Ordinal));
+        Require(page.StatusMessage == Texts.T("rules.overview.saved", label)
+            && page.FindControl<Control>("RuleStatusText")!.IsEffectivelyVisible
+            && Avalonia.Automation.AutomationProperties.GetLiveSetting(page.FindControl<Control>("RuleStatusText")!) == Avalonia.Automation.AutomationLiveSetting.Polite,
+            "The overview did not confirm the saved rule in its polite live status: " + page.StatusMessage);
+        Require(page.CurrentOverview.Groups.SelectMany(group => group.Rows).Any(row => row.Scope == scope && row.Saved),
+            "The saved rule has no row on the overview.");
+    }
+
     private static void RequireTemplatedLabel(Button button, string expected) =>
         Require(button.ContentTemplate != null && button.Content as string == expected,
             $"{button.Name} lost its icon template or translated action label.");

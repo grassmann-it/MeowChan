@@ -3646,6 +3646,7 @@
     "rules.overview.deleteDraftBody": "Rozsah pak znovu dědí své hodnoty a jeho neuložený koncept se zahodí. Uložené soubory se nemění.",
     "rules.overview.deleted": "Pravidlo smazáno. {0} znovu dědí své hodnoty.",
     "rules.overview.enabledStatus": "Pravidlo pro {0} zapnuto. Platí pro nová rozhodnutí.",
+    "rules.overview.saved": "Pravidlo pro {0} uloženo. Platí pro nová rozhodnutí.",
     "rules.overview.disabledStatus": "Pravidlo pro {0} vypnuto. Rozsah používá zděděné hodnoty.",
     "rules.overview.discarded": "Koncept pro {0} zahozen.",
     "rules.wizard.new": "Nové pravidlo",

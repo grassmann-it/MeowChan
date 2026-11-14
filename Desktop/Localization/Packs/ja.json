@@ -3558,6 +3558,7 @@
     "rules.overview.deleteDraftBody": "その後、この範囲は再び値を継承し、未保存の下書きは破棄されます。保存済みのファイルは変更されません。",
     "rules.overview.deleted": "ルールを削除しました。{0} は再び値を継承します。",
     "rules.overview.enabledStatus": "{0} のルールを有効にしました。新しい判定に適用されます。",
+    "rules.overview.saved": "{0} のルールを保存しました。新しい判定に適用されます。",
     "rules.overview.disabledStatus": "{0} のルールを無効にしました。この範囲は継承した値を使います。",
     "rules.overview.discarded": "{0} の下書きを破棄しました。",
     "rules.wizard.new": "新しいルール",

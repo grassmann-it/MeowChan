@@ -107,6 +107,7 @@ internal static class ThemeMigrationChecks
                     await Program.WaitUntilAsync(() => extensionsField.GetVisualDescendants().OfType<Control>().Any(value => value.IsFocused)
                         && rules.StatusMessage == Texts.T("rules.saveRejected", rules.ExtensionsLabel));
                     if (window.SessionHost.MediaRules.Revision != revision) throw new InvalidOperationException("A refused Rules save wrote durable rules.");
+                    if (!rules.IsWizardOpen) throw new InvalidOperationException("A refused Rules save left the wizard for the overview.");
                     window.UpdateLayout();
                     Program.CaptureWindow(window, $"smoke-rules-save-rejected-{language}-{theme.ToLowerInvariant()}.png");
                     rules.DiscardCurrentDraft();

@@ -164,6 +164,58 @@ public sealed class RulesOverviewTests
     }
 
     [Fact]
+    public void ASuccessfulSaveReturnsToTheOverviewAndFocusesTheSavedRulesRow()
+    {
+        string wizard = ReadSource("Desktop/Views/Rules/RulesPage.Wizard.cs");
+        string page = ReadSource("Desktop/Views/Rules/RulesPage.axaml.cs");
+        string overview = ReadSource("Desktop/Views/Rules/RulesPage.Overview.cs");
+        // The Save button goes through the wizard save; the plain save stays what the overview toggle and the smokes call.
+        Assert.Contains("await SaveAndReturnToOverviewAsync();", Between(page, "private async void OnSaveRule(", "private void OnGoToInvalidField("));
+        string save = Between(wizard, "internal async Task<bool> SaveAndReturnToOverviewAsync()", "private void FocusFirstWizardField()");
+        // Only a catalog-accepted save closes the wizard; a refusal, conflict or store error returns false and stays in step 2/3.
+        Assert.Contains("bool saved = await SaveCurrentAsync();", save);
+        Assert.Contains("if (!saved ||", save);
+        // The confirmation is the overview's polite status for the saved scope, and focus returns to that scope's row (new rule: new row),
+        // not to the row the wizard was opened from.
+        Assert.Contains("_overviewStatus = (\"rules.overview.saved\", FormatScope(scope));", save);
+        Assert.Contains("_wizardReturnScope = scope;", save);
+        Assert.True(save.IndexOf("_wizardReturnScope = scope;", StringComparison.Ordinal) < save.IndexOf("CloseWizard();", StringComparison.Ordinal));
+        Assert.True(save.IndexOf("_overviewStatus =", StringComparison.Ordinal) < save.IndexOf("CloseWizard();", StringComparison.Ordinal));
+        Assert.Contains("FocusOverviewRow(target);", Between(wizard, "internal void CloseWizard()", "internal async Task<bool> SaveAndReturnToOverviewAsync()"));
+        Assert.Contains("_overviewStatus is { } status ? Texts.T(status.Key, status.Scope)", overview);
+        // Success is reported only after the store accepted the rule; every refusal path of SaveCurrentAsync returns false.
+        string plain = Between(page, "internal async Task<bool> SaveCurrentAsync()", "internal void DiscardCurrentDraft()");
+        Assert.Equal(1, plain.Split("saveSucceeded = true;").Length - 1);
+        Assert.Contains("return saveSucceeded;", plain);
+        Assert.DoesNotContain("return true;", plain);
+        // Discard keeps its behaviour: it does not leave the wizard.
+        Assert.DoesNotContain("CloseWizard", Between(page, "internal void DiscardCurrentDraft()", "private async void OnSaveRule("));
+    }
+
+    [Fact]
+    public void TheSavedConfirmationIsTranslatedAndNamesTheRule()
+    {
+        string original = Texts.Language;
+        try
+        {
+            string[] languages = { "en", "de", "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" };
+            foreach (string language in languages)
+            {
+                Texts.SetLanguage(language);
+                string text = Texts.T("rules.overview.saved", "4chan/g");
+                Assert.Contains("4chan/g", text);
+                Assert.NotEqual("rules.overview.saved", text);
+                if (language != "en") Assert.NotEqual("Rule for 4chan/g saved. Applies to new decisions.", text);
+            }
+            Texts.SetLanguage("en");
+            Assert.Equal("Rule for 4chan/g saved. Applies to new decisions.", Texts.T("rules.overview.saved", "4chan/g"));
+            Texts.SetLanguage("de");
+            Assert.Equal("Regel für 4chan/g gespeichert. Gilt für neue Entscheidungen.", Texts.T("rules.overview.saved", "4chan/g"));
+        }
+        finally { Texts.SetLanguage(original); }
+    }
+
+    [Fact]
     public void EditorCloseSitsAtTheRightEdgeOfItsHeaderRowApartFromActions()
     {
         string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");

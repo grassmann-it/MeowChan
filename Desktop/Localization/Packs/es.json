@@ -3594,6 +3594,7 @@
     "rules.overview.deleteDraftBody": "El ámbito vuelve a heredar sus valores y se descarta su borrador sin guardar. Los archivos guardados no se modifican.",
     "rules.overview.deleted": "Regla eliminada. {0} vuelve a heredar sus valores.",
     "rules.overview.enabledStatus": "Regla de {0} activada. Se aplica a nuevas decisiones.",
+    "rules.overview.saved": "Regla de {0} guardada. Se aplica a nuevas decisiones.",
     "rules.overview.disabledStatus": "Regla de {0} desactivada. El ámbito usa valores heredados.",
     "rules.overview.discarded": "Borrador de {0} descartado.",
     "rules.wizard.new": "Nueva regla",

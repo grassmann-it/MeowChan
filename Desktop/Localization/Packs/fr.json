@@ -3594,6 +3594,7 @@
     "rules.overview.deleteDraftBody": "Le périmètre hérite ensuite de nouveau de ses valeurs et son brouillon non enregistré est abandonné. Les fichiers enregistrés ne sont pas modifiés.",
     "rules.overview.deleted": "Règle supprimée. {0} hérite de nouveau de ses valeurs.",
     "rules.overview.enabledStatus": "Règle pour {0} activée. Elle s’applique aux nouvelles décisions.",
+    "rules.overview.saved": "Règle pour {0} enregistrée. Elle s’applique aux nouvelles décisions.",
     "rules.overview.disabledStatus": "Règle pour {0} désactivée. Le périmètre utilise les valeurs héritées.",
     "rules.overview.discarded": "Brouillon pour {0} abandonné.",
     "rules.wizard.new": "Nouvelle règle",
