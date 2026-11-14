@@ -1304,7 +1304,8 @@ public partial class MainWindow : Window
         {
             if (!_restoreCompleted || WorkspaceCommandBusy) return;
             Config candidate = _config.Clone();
-            candidate.Theme = ActualThemeVariant == ThemeVariant.Dark ? "Light" : "Dark";
+            // Flips what is shown; from System it stores the explicit opposite ("Follow system" in its context menu restores System).
+            candidate.Theme = MeowChan.Desktop.Theming.ThemePreference.Toggled(_config.Theme, ActualThemeVariant == ThemeVariant.Dark);
             await SaveAppearanceAsync(candidate);
         };
         InspectorCopyUrlButton.Click += async (sender, e) =>

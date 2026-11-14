@@ -525,6 +525,7 @@
     "shell.subtitle": "오픈 소스 이미지보드 다운로더 — 고양이 함량 100% 증가",
     "shell.switchToLight": "밝은 테마로 전환",
     "shell.switchToDark": "어두운 테마로 전환",
+    "shell.theme.followSystem": "시스템 설정 따르기",
     "shell.mode": "보기",
     "shell.ready": "업데이트 감시 중",
     "shell.starting": "세션을 복원하는 중…",

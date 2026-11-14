@@ -527,6 +527,7 @@
     "shell.subtitle": "Téléchargeur d’imageboards libre — maintenant avec 100 % de chats en plus",
     "shell.switchToLight": "Passer au thème clair",
     "shell.switchToDark": "Passer au thème sombre",
+    "shell.theme.followSystem": "Suivre le système",
     "shell.mode": "Vue",
     "shell.ready": "Surveillance des mises à jour",
     "shell.starting": "Restauration de la session…",

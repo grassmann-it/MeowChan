@@ -184,6 +184,7 @@ internal static class BuiltInCatalog
         ("shell.subtitle", "Open-source imageboard downloader — now with 100% more cats", "Open-Source-Imageboard-Downloader — jetzt mit 100 % mehr Katzen"),
         ("shell.switchToLight", "Switch to light theme", "Zum hellen Farbschema wechseln"),
         ("shell.switchToDark", "Switch to dark theme", "Zum dunklen Farbschema wechseln"),
+        ("shell.theme.followSystem", "Follow system", "Wie System"),
         ("shell.mode", "View", "Ansicht"),
         ("shell.ready", "Watching for updates", "Neue Inhalte werden beobachtet"),
         ("shell.starting", "Restoring session…", "Sitzung wird wiederhergestellt…"),

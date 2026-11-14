@@ -317,6 +317,7 @@
     "shell.subtitle": "Downloader di imageboard open source — ora con il 100% di gatti in più",
     "shell.switchToLight": "Passa al tema chiaro",
     "shell.switchToDark": "Passa al tema scuro",
+    "shell.theme.followSystem": "Segui il sistema",
     "shell.mode": "Vista",
     "shell.ready": "In attesa di aggiornamenti",
     "shell.starting": "Ripristino della sessione…",

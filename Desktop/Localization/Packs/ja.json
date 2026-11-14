@@ -525,6 +525,7 @@
     "shell.subtitle": "オープンソースの画像掲示板ダウンローダー — 猫が100%増量されました",
     "shell.switchToLight": "ライトテーマに切り替え",
     "shell.switchToDark": "ダークテーマに切り替え",
+    "shell.theme.followSystem": "システムに合わせる",
     "shell.mode": "表示",
     "shell.ready": "更新を監視中",
     "shell.starting": "セッションを復元しています…",

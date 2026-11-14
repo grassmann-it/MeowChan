@@ -527,6 +527,7 @@
     "shell.subtitle": "Descargador de imageboards de código abierto — ahora con un 100 % más de gatos",
     "shell.switchToLight": "Cambiar al tema claro",
     "shell.switchToDark": "Cambiar al tema oscuro",
+    "shell.theme.followSystem": "Seguir el sistema",
     "shell.mode": "Vista",
     "shell.ready": "Esperando actualizaciones",
     "shell.starting": "Restaurando sesión…",

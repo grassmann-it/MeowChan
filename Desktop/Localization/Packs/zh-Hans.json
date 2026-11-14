@@ -525,6 +525,7 @@
     "shell.subtitle": "开源图版下载器 — 现在猫咪多了 100%",
     "shell.switchToLight": "切换到浅色主题",
     "shell.switchToDark": "切换到深色主题",
+    "shell.theme.followSystem": "跟随系统",
     "shell.mode": "视图",
     "shell.ready": "正在关注更新",
     "shell.starting": "正在恢复会话…",
