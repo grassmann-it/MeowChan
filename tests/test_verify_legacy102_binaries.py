@@ -215,6 +215,12 @@ class Legacy102RunnerSafetyTests(unittest.TestCase):
             with self.assertRaisesRegex(RUNNER.ProbeError, "Runtime/probe copy collision"):
                 RUNNER._runtime_run_directory(candidate, build, base / "second", "collision", executable_name="Probe.dll")
 
+    def test_actual_probe_projects_match_the_runner_contract(self):
+        for spec in RUNNER._stage_specs(Path("/legacy"), Path("/candidate")):
+            with self.subTest(project=spec["project"]):
+                result = RUNNER.inspect_project(spec["project"], spec["property"], spec["assembly"], spec["name"])
+                self.assertEqual(spec["assembly"], result["output"])
+
     def test_full_mock_orchestration_creates_work_and_checks_versions_and_hashes(self):
         self._exercise_mock_execution()
 

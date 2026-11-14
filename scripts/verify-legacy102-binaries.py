@@ -322,7 +322,9 @@ def inspect_project(project: Path, property_name: str, expected_output: str, lab
         raise ProbeError(f"{label} does not consume the explicit {property_name} property.")
     if "net10.0" not in text:
         raise ProbeError(f"{label} is not explicitly a net10.0 probe project.")
-    if expected_output not in text:
+    assembly_names = [item.text.strip() for item in root.iter()
+                      if item.tag.rsplit("}", 1)[-1] == "AssemblyName" and item.text]
+    if assembly_names != [Path(expected_output).stem]:
         raise ProbeError(f"{label} does not declare expected output {expected_output}.")
     return {"project": str(project), "property": property_name, "output": expected_output}
 
