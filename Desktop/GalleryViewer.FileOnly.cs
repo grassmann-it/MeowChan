@@ -44,7 +44,7 @@ internal sealed partial class GalleryViewer
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
         buttons.Children.Add(_openExternalButton);
         buttons.Children.Add(_fileOnlyFolderButton);
-        StackPanel content = new() { Spacing = 10 };
+        StackPanel content = new() { Spacing = 8 };
         content.Children.Add(_fileOnlyText);
         content.Children.Add(buttons);
         _fileOnlyPlate = new Border

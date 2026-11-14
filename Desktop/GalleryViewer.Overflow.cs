@@ -48,8 +48,8 @@ internal sealed partial class GalleryViewer
     private readonly Button _overflowButton = new() { Name = "GalleryMore", Classes = { "command-icon" } };
     private readonly Flyout _overflowFlyout = new() { Placement = PlacementMode.TopEdgeAlignedRight };
     private readonly List<Button> _overflowButtons = new();
-    private readonly TextBlock _modeCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(10, 6, 10, 0) };
-    private readonly TextBlock _secondsCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(10, 6, 10, 0), IsVisible = false };
+    private readonly TextBlock _modeCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0) };
+    private readonly TextBlock _secondsCaption = new() { Classes = { "workspace-meta" }, Margin = new Thickness(12, 8, 12, 0), IsVisible = false };
     private StackPanel _focusTools = null!;
     private StackPanel _slideshowHome = null!;
     private bool _compactToolbar;
@@ -152,7 +152,7 @@ internal sealed partial class GalleryViewer
         TextBlock text = new() { VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         TextBlock gesture = new() { VerticalAlignment = VerticalAlignment.Center, Opacity = 0.7, IsHitTestVisible = false };
         gesture.Classes.Add("workspace-meta");
-        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("20,*,Auto"), ColumnSpacing = 10 };
+        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("20,*,Auto"), ColumnSpacing = 8 };
         root.Children.Add(lead);
         root.Children.Add(text); Grid.SetColumn(text, 1);
         root.Children.Add(gesture); Grid.SetColumn(gesture, 2);
@@ -176,7 +176,7 @@ internal sealed partial class GalleryViewer
 
     private void AddOverflowSeparator() => _overflowPanel.Children.Add(new Border
     {
-        Height = 1, Margin = new Thickness(6, 4), IsHitTestVisible = false,
+        Height = 1, Margin = new Thickness(8, 4), IsHitTestVisible = false,
         [!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Border")
     });
 
