@@ -138,3 +138,11 @@ The [plugin author guide](../docs/plugins/README.md) covers installation, source
 filter implementation, settings/grants, optional hosting and validation. It links
 the maintained Lainchan, Kohlchan and ImageDimensionsFilter source files rather
 than duplicate documentation examples.
+
+## Security
+
+Credentials belong to the host. A plugin must not declare API keys, tokens,
+passwords, cookies or session values as settings: setting values are stored as
+plain text in the profile and are visible to the plugin, so they are not a
+place for secrets. The official plugins are checked for this by
+`tests/MeowChan.OfficialPlugins.Tests/NoSecretLikeSettingsTests.cs`.
