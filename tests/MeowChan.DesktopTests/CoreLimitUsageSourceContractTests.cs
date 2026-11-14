@@ -98,7 +98,8 @@ public sealed class CoreLimitUsageSourceContractTests
         {
             ("libmeowchan/Archive/ArchiveSearchSpecJson.cs", 1),
             ("Desktop/Views/Archive/ArchivePage.TagFilter.cs", 6),
-            ("Desktop/Views/Media/MediaPage.Filters.cs", 3)
+            ("Desktop/Views/Media/MediaPage.Filters.cs", 2),
+            ("Desktop/Views/Media/MediaPage.Query.cs", 1)
         })
         {
             string source = Source(path);
@@ -128,15 +129,21 @@ public sealed class CoreLimitUsageSourceContractTests
         string media = Compact(Source("Desktop/Views/Media/MediaPage.Filters.cs"));
         Assert.Contains("DraftTagRefusal(include ? _draftIncludeTags : _draftExcludeTags, include ? _draftExcludeTags : _draftIncludeTags, id, ArchiveTagFilterTagsPerListPreference)", archive);
         Assert.Contains("DraftTagRefusal(wasIncluded ? _draftExcludeTags : _draftIncludeTags, Array.Empty<Guid>(), id, ArchiveTagFilterTagsPerListPreference)", archive);
-        Assert.Contains("DraftTagRefusal(include ? _includeTags : _excludeTags, Array.Empty<Guid>(), id, ArchiveTagFilterTagsPerListPreference)", media);
-        Assert.Contains("DraftTagRefusal(wasIncluded ? _excludeTags : _includeTags, Array.Empty<Guid>(), id, ArchiveTagFilterTagsPerListPreference)", media);
+        Assert.Contains("DraftTagRefusal(include ? included : excluded, Array.Empty<Guid>(), id, ArchiveTagFilterTagsPerListPreference)", media);
+        Assert.Contains("DraftTagRefusal(!held.Exclude ? excluded : included, Array.Empty<Guid>(), id, ArchiveTagFilterTagsPerListPreference)", media);
+        // The "type a query" path checks the same lowered limit for the list its tag term grows.
+        Assert.Contains("TagTermCount(next, term.Exclude) > Math.Max(TagTermCount(terms, term.Exclude), ArchiveTagFilterTagsPerListPreference)", Compact(Source("Desktop/Views/Media/MediaPage.Query.cs")));
         Assert.Contains("list.Contains(id) ? null", archive);
         Assert.Contains("list.Count >= tagsPerList ? Texts.T(\"coreLimits.tags.tooMany\", tagsPerList)", archive);
-        foreach (string source in new[] { archive, media })
+        foreach (var (source, guardMarker, mutationMarker) in new[]
+        {
+            (archive, "DraftTagRefusal(wasIncluded", ".Remove(id);"),
+            (media, "DraftTagRefusal(!held.Exclude", "EditTerms(terms => MediaFilterTermSet.Toggled(terms, held));")
+        })
         {
             int toggle = source.IndexOf("internal string? Toggle", StringComparison.Ordinal);
-            int guard = source.IndexOf("DraftTagRefusal(wasIncluded", toggle, StringComparison.Ordinal);
-            int mutation = source.IndexOf(".Remove(id);", toggle, StringComparison.Ordinal);
+            int guard = source.IndexOf(guardMarker, toggle, StringComparison.Ordinal);
+            int mutation = source.IndexOf(mutationMarker, toggle, StringComparison.Ordinal);
             Assert.True(guard > toggle && mutation > guard);
         }
     }

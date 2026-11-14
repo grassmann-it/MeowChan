@@ -107,14 +107,21 @@ public sealed partial class MediaPage
     private MediaFilterQueryProblem? AdmitQueryTerm(IReadOnlyList<MediaFilterTerm> terms, MediaFilterTerm term)
     {
         IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.With(terms, term);
+        // SP5: the configured tags-per-list limit is checked only for the list the term grows; the ceiling guards the filter itself.
+        if (term.Field == MediaFilterField.Tag && TagTermCount(next, term.Exclude) > Math.Max(TagTermCount(terms, term.Exclude), ArchiveTagFilterTagsPerListPreference))
+            return MediaFilterQueryProblem.TooManyTags;
         try
         {
             _ = new ArchiveTagFilter(next.Where(item => item.Field == MediaFilterField.Tag && !item.Exclude).Select(item => Guid.Parse(item.Value)),
-                next.Where(item => item.Field == MediaFilterField.Tag && item.Exclude).Select(item => Guid.Parse(item.Value)));
+                next.Where(item => item.Field == MediaFilterField.Tag && item.Exclude).Select(item => Guid.Parse(item.Value)),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
         catch (ArgumentException) { return MediaFilterQueryProblem.TooManyTags; }
         return IsValidFilter(next) ? null : MediaFilterQueryProblem.Refused;
     }
+
+    private static int TagTermCount(IEnumerable<MediaFilterTerm> terms, bool exclude) =>
+        terms.Count(item => item.Field == MediaFilterField.Tag && item.Exclude == exclude);
 
     /// <summary>The names the query reads and writes, from the language pack, the own tags and the index (read once per call).</summary>
     private MediaFilterQueryVocabulary QueryVocabulary() => QueryVocabulary(out _);
