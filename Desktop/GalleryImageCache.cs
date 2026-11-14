@@ -329,7 +329,11 @@ internal static class GalleryImageCache
     /// once; a kept image is shown again only while this identity still holds. Null means the file cannot be inspected and the
     /// image must not be kept.
     /// </summary>
-    internal static Func<bool>? Validity(GalleryEntry entry) => Capture(entry)?.IsCurrent;
+    internal static Func<bool>? Validity(GalleryEntry entry)
+    {
+        FileValidity? validity = Capture(entry);
+        return validity == null ? null : validity.IsCurrent;
+    }
 
     /// <summary>Records the successful decoder's proof only when the exact pre-decode regular file is still present afterwards.</summary>
     internal static void RememberVerified<T>(GalleryImageCache<T> cache, FileValidity? validity) where T : class, IDisposable

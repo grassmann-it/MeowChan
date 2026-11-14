@@ -82,8 +82,8 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
             // The memory of the window: the shown image plus what was kept or decoded for its neighbors. Upper bound of an image
             // not decoded yet: the whole viewport.
             long viewportBytes = (long)Math.Ceiling(Math.Max(1, fit.PhysicalWidth) * Math.Max(1, fit.PhysicalHeight)) * 4;
-            long window = await TouchVerifiedAsync(entries[index], fit, token).ConfigureAwait(false);
-            foreach (int position in GalleryPreload.Plan(entries.Count, index, ahead, before))
+            long window = Math.Max(0, await TouchVerifiedAsync(entries[index], fit, token).ConfigureAwait(false));
+            foreach (int position in GalleryPreload.Plan(entries.Count, index, ahead, behind))
             {
                 token.ThrowIfCancellationRequested();
                 GalleryEntry entry = entries[position];
