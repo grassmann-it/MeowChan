@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Serilog;
 
 namespace MeowChan.Desktop;
 
@@ -15,23 +16,14 @@ internal static class GalleryFrameFile
     internal const int MaximumStemLength = 80;
     private const int MaximumNumberedNames = 1000;
 
-    /// <summary>The first free name for a frame; only a hint, <see cref="Commit"/> is what never replaces a file.</summary>
-    internal static string Path(string directory, string? fileName, long positionMs)
-    {
-        (string stem, string stamp) = Parts(fileName, positionMs);
-        string candidate = Candidate(directory, stem, stamp, 1);
-        for (int n = 2; File.Exists(candidate) && n < MaximumNumberedNames; n++)
-            candidate = Candidate(directory, stem, stamp, n);
-        return candidate;
-    }
-
     /// <summary>A temporary name in <paramref name="directory"/> for the frame being written (a PNG, as the encoder picks the format by extension).</summary>
     internal static string TemporaryPath(string directory) =>
         System.IO.Path.Combine(directory, ".meowchan-frame-" + Guid.NewGuid().ToString("N") + ".png");
 
     /// <summary>
     /// Moves the finished <paramref name="temporary"/> file to the first free frame name and returns it, or null when no
-    /// name could be taken. An existing file is never replaced; the temporary file is gone afterwards either way.
+    /// name could be taken or the folder refused the file (logged; the caller says the frame could not be saved). An
+    /// existing file is never replaced; the temporary file is gone afterwards either way. Blocking IO: never on the UI thread.
     /// </summary>
     internal static string? Commit(string temporary, string directory, string? fileName, long positionMs)
     {
@@ -42,12 +34,42 @@ internal static class GalleryFrameFile
             {
                 string candidate = Candidate(directory, stem, stamp, n);
                 if (File.Exists(candidate)) continue;
-                try { File.Move(temporary, candidate, overwrite: false); return candidate; }
-                catch (IOException) when (File.Exists(candidate)) { }
+                if (TryPlace(temporary, candidate)) return candidate;
             }
             return null;
         }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            Log.Warning(error, "A saved video frame could not be moved into its folder.");
+            return null;
+        }
         finally { Discard(temporary); }
+    }
+
+    /// <summary>
+    /// Puts the file at <paramref name="candidate"/> unless something is there; false when the name is taken. On Unix,
+    /// <c>File.Move(overwrite: false)</c> falls back to "check, then rename" on file systems without hard links (FAT, exFAT,
+    /// some FUSE mounts), which can replace a file that appears in between. So the name is first claimed atomically with an
+    /// exclusive create (O_CREAT|O_EXCL), and only that own empty placeholder is then replaced by the rename. Windows moves
+    /// without replacing natively.
+    /// </summary>
+    private static bool TryPlace(string temporary, string candidate)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            try { File.Move(temporary, candidate, overwrite: false); return true; }
+            catch (IOException) when (File.Exists(candidate)) { return false; }
+        }
+        try { new FileStream(candidate, FileMode.CreateNew, FileAccess.Write, FileShare.None).Dispose(); }
+        catch (IOException) when (File.Exists(candidate)) { return false; }
+        try { File.Move(temporary, candidate, overwrite: true); return true; }
+        catch
+        {
+            // Only the own placeholder is removed (still empty): the move did not happen.
+            try { if (new FileInfo(candidate).Length == 0) File.Delete(candidate); }
+            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException) { }
+            throw;
+        }
     }
 
     /// <summary>Removes an unfinished temporary frame file; a file that cannot be removed is left, never an error.</summary>
