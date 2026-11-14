@@ -30,6 +30,9 @@ internal sealed class TagFilterPicker : Button
 
     private static readonly Lazy<Geometry> Plus = new(() => Geometry.Parse("M 8,3 L 8,13 M 3,8 L 13,8"));
 
+    // Fixed layout measures of the popover (dip), not user limits and therefore not settings: the list scrolls beyond
+    // 220 so the popover stays small however many tags exist, a tag name is trimmed at 320, and the popover keeps 280-360 wide
+    // so the search box and the include/exclude row stay readable.
     private readonly Flyout _flyout = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
     private readonly SearchBox _search = new() { Name = "TagFilterPickerSearch", MinWidth = 260 };
     private readonly ListBox _list = new() { Name = "TagFilterPickerList", MaxHeight = 220, SelectionMode = SelectionMode.Single };

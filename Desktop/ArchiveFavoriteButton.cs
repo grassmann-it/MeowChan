@@ -27,7 +27,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
-        Padding = new Avalonia.Thickness(6);
+        Padding = new Avalonia.Thickness(8);
         CommandBindings.Apply(this, "favorites.toggle", iconOnly: true);
         AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Assertive);
         Click += async (_, e) =>

@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.WorkViews;
@@ -28,14 +29,24 @@ public static class WorkViewMoreSurface
             () => CommandBindings.InvokeAction(item.Button), () => item.Button.IsEnabled
                 && (item.Button.Command?.CanExecute(item.Button.CommandParameter) ?? true)));
 
-    /// <summary>Shows the button when there are entries and names it "More, n actions"; the icon is the catalog's ⋯.</summary>
+    /// <summary>
+    /// The one way every page builds its "More" button: the drawn <see cref="WorkspaceIcons.More"/> icon in the icon-only square
+    /// button (<see cref="WorkspaceIcons.MakeSquare"/>), the accessible <paramref name="name"/> (with the action count, R7) and the
+    /// localized tooltip "More". Safe to call on every refresh, so the texts follow a language change.
+    /// </summary>
+    internal static void Apply(Button more, string name)
+    {
+        if (WorkspaceIcons.KeyOf(more.Content) != WorkspaceIcons.More)
+            WorkspaceIcons.MakeSquare(more, WorkspaceIcons.More, name, Texts.T("workview.more"));
+        AutomationProperties.SetName(more, name);
+        ToolTip.SetTip(more, Texts.T("workview.more"));
+    }
+
+    /// <summary>Shows the button when there are entries and names it "More, n actions" (see <see cref="Apply"/>).</summary>
     public static void Configure(Button more, int count)
     {
         more.IsVisible = count > 0;
-        if (more.Content is not Control) more.Content = CommandBindings.Icon("plugins.actions");
-        string name = Texts.Count("workview.moreCount", count);
-        AutomationProperties.SetName(more, name);
-        ToolTip.SetTip(more, Texts.T("workview.more"));
+        Apply(more, Texts.Count("workview.moreCount", count));
     }
 
     /// <summary>The menu for <paramref name="entries"/> in policy order (a disabled entry stays listed, greyed out).</summary>

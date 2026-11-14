@@ -364,7 +364,8 @@ internal static class StatisticsChecks
             Require(AutomationProperties.GetName(graph) is { Length: > 0 }, "A page graph has no accessible name.");
         Require(AutomationProperties.GetName(page.ReadGraph)!.StartsWith(Texts.T("stats.metric.diskRead"), StringComparison.Ordinal),
             "The read graph is not named as the read series.");
-        Require(page.ResetButton.IsEffectivelyVisible && page.ResetButton.IsEnabled, "Reset is not available.");
+        // Reset sits on the bar in Advanced and under More in Barebones and Simple (work views).
+        Require(page.ResetIsReachable && page.ResetButton.IsEnabled, "Reset is not available.");
         Require(!page.IsResetConfirmationOpen, "The reset question is open before Reset was pressed.");
         await Settle(window);
         Program.CaptureWindow(window, $"smoke-statistics-page-{variant}.png");
@@ -403,7 +404,7 @@ internal static class StatisticsChecks
         }
         await OpenPageAsync(window, byGraphClick: true);
         await Settle(window);
-        Require(Page(window).Rows.Any(row => row.Key == Fixture) && Page(window).ResetButton.IsEffectivelyVisible, "The page is incomplete in " + variant + ".");
+        Require(Page(window).Rows.Any(row => row.Key == Fixture) && Page(window).ResetIsReachable, "The page is incomplete in " + variant + ".");
         Program.CaptureWindow(window, $"smoke-statistics-page-{variant}.png");
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
         Console.WriteLine("SMOKE statistics captures: " + variant + " (" + Texts.Language + ").");

@@ -81,17 +81,15 @@ public sealed partial class MediaPage
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
         // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
-        WorkspaceIcons.MakeSquare(_more, WorkspaceIcons.More, Texts.T("workview.more"));
-        WorkspaceIcons.MakeSquare(_selMore, WorkspaceIcons.More, Texts.T("workview.more"));
+        WorkViewMoreSurface.Apply(_more, Texts.T("workview.more"));
+        WorkViewMoreSurface.Apply(_selMore, Texts.T("workview.more"));
         _workViewRegistered = true;
     }
 
     private void LocalizeWorkView()
     {
         _moreFilters.Content = Texts.T("workview.moreFilters");
-        ToolTip.SetTip(_more, Texts.T("workview.more"));
-        ToolTip.SetTip(_selMore, Texts.T("workview.more"));
-        RefreshWorkView();
+        RefreshWorkView(); // UpdateMore sets name and tooltip of both "More" buttons in the current language.
     }
 
     // ---- Presence ----
@@ -159,7 +157,7 @@ public sealed partial class MediaPage
     {
         more.IsVisible = items.Count > 0;
         string name = Texts.Count("workview.moreCount", items.Count);
-        AutomationProperties.SetName(more, name);
+        WorkViewMoreSurface.Apply(more, name);
         AutomationProperties.SetHelpText(more, name);
     }
 

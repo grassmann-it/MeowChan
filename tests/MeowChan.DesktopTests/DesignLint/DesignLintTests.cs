@@ -124,6 +124,10 @@ public sealed class DesignLintTests
         string[] code = Run("Desktop/X.cs",
             "p.Spacing = 6; p.Spacing = 8; b.Margin = new Thickness(0, 14, 0, 0); b.Padding = new Thickness(12, y ? 6 : 8); b.BorderThickness = new Thickness(0, 1, 0, 0); var t = new Thickness(5);");
         Assert.Equal(new[] { "spacing-off-grid|Spacing=6", "spacing-off-grid|Margin=new Thickness(0, 14, 0, 0)", "spacing-off-grid|Padding=new Thickness(12, y ? 6 : 8)", "spacing-off-grid|new Thickness(5)" }, code);
+        // Fully qualified and target-typed forms must not hide a literal.
+        string[] hidden = Run("Desktop/X.cs",
+            "b.Padding = new Avalonia.Thickness(6, 2); b.Margin = new(0, 14, 0, 0); b.Padding = new(8, 4); Thickness t = new(5); var u = new Avalonia.Thickness(4); x.BorderThickness = new(0, 1, 0, 0);");
+        Assert.Equal(new[] { "spacing-off-grid|Padding=new Thickness(6, 2)", "spacing-off-grid|Margin=new Thickness(0, 14, 0, 0)", "spacing-off-grid|new Thickness(5)" }, hidden);
     }
 
     [Fact]

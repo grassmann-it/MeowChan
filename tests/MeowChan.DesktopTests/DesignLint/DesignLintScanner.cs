@@ -89,7 +89,11 @@ internal static class DesignLintScanner
     private static readonly Regex SpacingCode = new(
         @"\b(?<n>(?:Item|Line|Row|Column)?Spacing)\s*=\s*(?<v>-?[0-9]+(?:\.[0-9]+)?)[dDfF]?(?![\w.(])", RegexOptions.Compiled);
     private static readonly Regex ThicknessCode = new(
-        @"(?:(?<n>\w+)\s*=\s*)?new\s+Thickness\s*\((?<v>[^()]*)\)", RegexOptions.Compiled);
+        @"(?:(?<n>\w+)\s*=\s*)?new\s+(?:[A-Za-z_][\w]*\.)*Thickness\s*\((?<v>[^()]*)\)", RegexOptions.Compiled);
+    /// <summary>Target-typed <c>new(a, b)</c> where the type is known to be a Thickness: the Margin/Padding properties and a
+    /// declaration <c>Thickness name = new(...)</c> (a bare <c>new(</c> elsewhere has no visible type and is not guessed).</summary>
+    private static readonly Regex ThicknessTargetTyped = new(
+        @"(?:\b(?<n>Margin|Padding)\s*=|\bThickness\??\s+\w+\s*=)\s*new\s*\((?<v>[^()]*)\)", RegexOptions.Compiled);
 
     private static readonly Regex RowHeightXaml = new(
         @"(?:\bRowHeight\s*=\s*""|Property\s*=\s*""RowHeight""\s+Value\s*=\s*"")(?<v>[0-9]+(?:\.[0-9]+)?)""", RegexOptions.Compiled);
@@ -233,6 +237,11 @@ internal static class DesignLintScanner
             // BorderThickness and friends are line widths, not spacing.
             if (assigned.EndsWith("Thickness", StringComparison.Ordinal)) continue;
             string target = assigned is "Margin" or "Padding" ? assigned : "Thickness";
+            CheckSpacing(file, lines, m, target, m.Groups["v"].Value, found, SpacingForm.CodeThickness);
+        }
+        foreach (Match m in ThicknessTargetTyped.Matches(text))
+        {
+            string target = m.Groups["n"].Success ? m.Groups["n"].Value : "Thickness";
             CheckSpacing(file, lines, m, target, m.Groups["v"].Value, found, SpacingForm.CodeThickness);
         }
     }
