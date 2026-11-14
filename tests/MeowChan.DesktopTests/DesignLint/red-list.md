@@ -14,17 +14,16 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `color-hex` | 0 | 0 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
 | `spacing-off-grid` | 0 | 0 | P7: 0/2/4/8/12/16/24/32 or Inset token |
-| `glyph-icon` | 9 | 4 | P6: catalog path icon |
+| `glyph-icon` | 3 | 3 | P6: catalog path icon |
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 11 | 7 | P1: Workspace.Size token |
 | `page-inset` | 2 | 2 | P2: Workspace.Inset.Page |
-| **total** | **24** | 13 | |
+| **total** | **18** | 12 | |
 
 ## Counts per file
 
 | File | `font-size-literal` | `font-size-off-scale` | `color-hex` | `color-code` | `spacing-off-grid` | `glyph-icon` | `row-height-literal` | `control-height-literal` | `page-inset` | total |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| `Desktop/Localization/ArchiveCatalog.cs` |  |  |  |  |  | 6 |  |  |  | 6 |
 | `Desktop/Views/Rules/RulesPage.axaml` |  |  |  |  |  |  |  | 3 |  | 3 |
 | `Desktop/GalleryViewer.Overlay.cs` |  |  |  |  |  |  |  | 2 |  | 2 |
 | `Desktop/Views/Archive/ArchivePage.axaml` |  |  |  |  |  |  |  | 2 |  | 2 |
@@ -42,15 +41,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/GalleryViewer.Overlay.cs` (2)
 
-- `control-height-literal`: L131 `Button Height=44`, L131 `Button MinHeight=44`
+- `control-height-literal`: L104 `Button Height=44`, L104 `Button MinHeight=44`
 
 ### `Desktop/GalleryViewer.cs` (1)
 
-- `glyph-icon`: L364 `"−(U+2212)"`
-
-### `Desktop/Localization/ArchiveCatalog.cs` (6)
-
-- `glyph-icon`: L109 `"↑(U+2191) Previous post"`, L109 `"↑(U+2191) Voriger Post"`, L111 `"←(U+2190) Previous thread"`, L111 `"←(U+2190) Voriger Thread"`, L115 `"←(U+2190) Previous"`, L115 `"←(U+2190) Zurü(U+00FC)ck"`
+- `glyph-icon`: L358 `"−(U+2212)"`
 
 ### `Desktop/Shell/MainWindow.axaml` (1)
 
@@ -71,7 +66,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/Views/Media/BooruMediaDetailsDialog.cs` (1)
 
-- `glyph-icon`: L170 `"×(U+00D7)"`
+- `glyph-icon`: L172 `"×(U+00D7)"`
 
 ### `Desktop/Views/Media/MediaPage.cs` (1)
 
@@ -96,8 +91,8 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ## Permanent exceptions (documented, not debt)
 
-- `color-code` in `Desktop/VideoPlayMark.cs` (Color.FromArgb): Video play badge on arbitrary media (palette item 4).
-- `color-code` in `Desktop/VideoPlayMark.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
+- `color-code` in `Desktop/ArchiveAttachmentView.cs` (Color.FromArgb): Video play badge on arbitrary media (palette item 4).
+- `color-code` in `Desktop/ArchiveAttachmentView.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Color.FromArgb): Favourite badge on media (palette item 5).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.White): Favourite badge star (palette item 5; GalleryFavoriteStateTests pins it).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.Gold): Favourite badge star when marked (palette item 5).
@@ -105,8 +100,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/GalleryViewer.Overlay.cs` (Color.FromRgb): Edge hint and fallback tone when the Workspace.Overlay resource is missing.
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).
 - `color-code` in `Desktop/ReaderBodyTextBlock.cs` (Colors.Black): Opacity-mask gradient, not a visible colour.
-- `color-code` in `Desktop/Theming/ThemePalette.cs` (Color.FromArgb): Variation rules derived from theme seeds (scale, mix, alpha).
-- `color-code` in `Desktop/Theming/ThemeCustomization.cs` (Color.FromArgb): Seeds derived from user colours, on-colour black/white, stored hex.
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)
