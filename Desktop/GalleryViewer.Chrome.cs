@@ -163,7 +163,7 @@ internal sealed partial class GalleryViewer
         return mode == GalleryChromeMode.View && choice.Filmstrip == null && !_filmstripSetting ? choice with { Filmstrip = false } : choice;
     }
 
-    /// <summary>Raised when the person changed the layout of a mode (the L key, the layout menu, the reset): the window saves it per profile and mode. Not raised by <see cref="SetLayoutChoice"/>.</summary>
+    /// <summary>Raised when the person changed the layout of a mode (the filmstrip key, the layout menu, the reset): the window saves it per profile and mode. Not raised by <see cref="SetLayoutChoice"/>.</summary>
     internal event Action<GalleryChromeMode, GalleryLayoutChoice>? LayoutChoiceChanged;
 
     /// <summary>Sets the layout choice of one mode without reporting it (the window on load); the chrome follows at once when it is the shown mode.</summary>
@@ -179,7 +179,7 @@ internal sealed partial class GalleryViewer
         RefreshSlideshowStatus();
     }
 
-    /// <summary>The person changes the layout of one mode (GL3's menu rows, the L key): applies it and reports it for saving. An unchanged choice reports nothing.</summary>
+    /// <summary>The person changes the layout of one mode (GL3's menu rows, the filmstrip key): applies it and reports it for saving. An unchanged choice reports nothing.</summary>
     internal void ChangeLayoutChoice(GalleryChromeMode mode, GalleryLayoutChoice choice)
     {
         ArgumentNullException.ThrowIfNull(choice);

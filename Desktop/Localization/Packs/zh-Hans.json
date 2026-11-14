@@ -3810,7 +3810,7 @@
     "gallery.filmstrip.dock.bottom": "缩略图条位置：画面下方、工具上方",
     "settings.unitDip": "与设备无关的像素（dip）",
     "settings.galleryFilmstrip": "在图库中显示缩略图条",
-    "settings.galleryFilmstripHint": "图库中各媒体的缩略图排。默认位于底部，在视频栏和工具上方，这样画面可保持原有高度；也可以放在顶部，位于“返回”和星标按钮下方。点击缩略图会跳转到对应的媒体；按 Shift+L 键可显示或隐藏这一排。控件隐藏时，缩略图条会随控件一起出现（位于顶部时，指针触到顶部边缘也会出现）；控件常驻时，缩略图条一直显示（位于顶部时会把画面向下推）。",
+    "settings.galleryFilmstripHint": "图库中各媒体的缩略图排。默认位于底部，在视频栏和工具上方，这样画面可保持原有高度；也可以放在顶部，位于“返回”和星标按钮下方。点击缩略图会跳转到对应的媒体；按 {0} 键可显示或隐藏这一排。控件隐藏时，缩略图条会随控件一起出现（位于顶部时，指针触到顶部边缘也会出现）；控件常驻时，缩略图条一直显示（位于顶部时会把画面向下推）。",
     "settings.galleryFilmstripHeight": "缩略图条的缩略图高度",
     "settings.galleryFilmstripHeightHint": "图库缩略图条中单个缩略图的高度和宽度。默认 {0}，范围 {1} 到 {2}。",
     "settings.galleryFilmstripPreload": "提前准备的缩略图数量",

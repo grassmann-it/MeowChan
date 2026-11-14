@@ -200,7 +200,7 @@ internal sealed partial class GalleryViewer
         if (filmstrip)
         {
             _filmstripPeek = false;
-            // A strip that leaves while it held the focus: the focus goes to the picture (the L key does the same).
+            // A strip that leaves while it held the focus: the focus goes to the picture (the filmstrip key does the same).
             if (row.Id == GalleryLayoutMenu.FilmstripId && BuildChromePlan().Filmstrip && _filmstrip.IsKeyboardFocusWithin) FocusGallerySurface();
         }
         ChangeLayoutChoice(mode, next);
@@ -258,7 +258,7 @@ internal sealed partial class GalleryViewer
         }
         foreach (string id in GalleryLayoutMenu.RowIds)
         {
-            // The filmstrip's own switch is the L key (HandleFilmstripKey); its row has no command of its own.
+            // The filmstrip's own switch is the filmstrip key (HandleFilmstripKey); its row has no command of its own.
             if (id == GalleryLayoutMenu.FilmstripId || !CommandBindings.Matches(e, id)) continue;
             e.Handled = true;
             if (LayoutMenuNow().Find(id) is { Enabled: true } row) ApplyLayoutRow(row);

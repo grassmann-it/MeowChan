@@ -85,7 +85,7 @@ public sealed class WorkViewGalleryTests
     [Fact]
     public void OnlyTheWhereAmILineTheFilmstripAndTheModeSwitchAreLeftOutAndTheirAlternativesExist()
     {
-        // The filmstrip (V3) is away in Barebones by default; the L key, the menu row and the setting bring it back in every view.
+        // The filmstrip (V3) is away in Barebones by default; the filmstrip key, the menu row and the setting bring it back in every view.
         // G1: Barebones leaves the mode switch away until the list can be walked or the mode runs (states, R6); Shift+T works anyway.
         Assert.Equal(["gallery.mode", "gallery.filmstrip", "gallery.info.scope"], Rows.Where(entry => WorkViewSetting.All.Any(view => entry.For(view) == Presence.Hidden))
             .Select(entry => entry.Id).ToArray());

@@ -100,7 +100,8 @@ public partial class SettingsEditor
     public string MediaFocusHidesHeaderLabel => Texts.T("settings.mediaFocusHidesHeader");
     public string MediaFocusHidesHeaderHint => Texts.T("settings.mediaFocusHidesHeaderHint");
     public string GalleryFilmstripLabel => Texts.T("settings.galleryFilmstrip");
-    public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint");
+    // The key of the filmstrip toggle is read from the binding (it may be moved), never written into the text.
+    public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint", MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("gallery.filmstrip-toggle") ?? "—");
     public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
     public string GalleryFilmstripHeightHint => Texts.T("settings.galleryFilmstripHeightHint",
         Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);

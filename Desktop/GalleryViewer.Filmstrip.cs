@@ -26,7 +26,7 @@ namespace MeowChan.Desktop;
 //       (a 24 dip zone like the bottom edge's); it hides with the controls and never while the pointer or the keyboard is on it.
 //     - Docked mode ("Don't hide controls"): a permanent band above the picture; the picture starts below it.
 //   * The work view decides whether it is there by default (Barebones: no, Simple and Advanced: yes); the user's own choice (the
-//     setting, the L key, the ⋯ row) wins in every view, see FilmstripPolicyVisible.
+//     setting, the filmstrip key, the ⋯ row) wins in every view, see FilmstripPolicyVisible.
 //   * The tab order follows the picture: the bottom strip is the first stop of the dock, before the toolbar.
 internal sealed partial class GalleryViewer
 {
@@ -252,7 +252,7 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
-    /// <summary>Shows or hides the filmstrip (the L key and the ⋯ row); the choice is the shown mode's layout choice, saved per profile and mode (GL4).</summary>
+    /// <summary>Shows or hides the filmstrip (the filmstrip key and the ⋯ row); the choice is the shown mode's layout choice, saved per profile and mode (GL4).</summary>
     internal void ToggleFilmstrip()
     {
         if (_terminalRetirement) return;

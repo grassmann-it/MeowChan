@@ -3833,7 +3833,7 @@
     "gallery.filmstrip.dock.bottom": "Posição da faixa de miniaturas: abaixo da imagem, acima das ferramentas",
     "settings.unitDip": "Pixels independentes de dispositivo (dip)",
     "settings.galleryFilmstrip": "Mostrar a faixa de miniaturas na galeria",
-    "settings.galleryFilmstripHint": "Uma fileira de miniaturas das mídias da galeria. Por padrão fica embaixo, acima da barra de vídeo e das ferramentas, para que a imagem mantenha sua altura; também pode ficar no alto, abaixo dos botões Voltar e Estrela. Clicar em uma miniatura leva a essa mídia; Shift+L mostra ou oculta a fileira. Com os controles ocultos, a fileira aparece junto com eles (no alto também quando o ponteiro toca a borda superior); com controles permanentes, ela fica fixa (no alto, empurra a imagem para baixo).",
+    "settings.galleryFilmstripHint": "Uma fileira de miniaturas das mídias da galeria. Por padrão fica embaixo, acima da barra de vídeo e das ferramentas, para que a imagem mantenha sua altura; também pode ficar no alto, abaixo dos botões Voltar e Estrela. Clicar em uma miniatura leva a essa mídia; a tecla {0} mostra ou oculta a fileira. Com os controles ocultos, a fileira aparece junto com eles (no alto também quando o ponteiro toca a borda superior); com controles permanentes, ela fica fixa (no alto, empurra a imagem para baixo).",
     "settings.galleryFilmstripHeight": "Altura das miniaturas da faixa",
     "settings.galleryFilmstripHeightHint": "Altura e largura de uma miniatura da faixa da galeria. Padrão {0}, de {1} a {2}.",
     "settings.galleryFilmstripPreload": "Miniaturas preparadas com antecedência",

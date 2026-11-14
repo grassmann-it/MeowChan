@@ -326,7 +326,7 @@ public sealed class GalleryLayoutMenuTests : IDisposable
             Assert.Empty(command.DefaultGestures);
             Assert.False(string.IsNullOrWhiteSpace(CommandCatalog.Label(id)));
         }
-        // The rows' ids are the command ids (the filmstrip's switch is the L command).
+        // The rows' ids are the command ids (the filmstrip's switch is the filmstrip command).
         foreach (string id in GalleryLayoutMenu.RowIds.Where(id => id != GalleryLayoutMenu.FilmstripId))
             Assert.Equal(id, GalleryLayoutMenu.CommandOf(id));
         Assert.Equal("gallery.filmstrip-toggle", GalleryLayoutMenu.CommandOf(GalleryLayoutMenu.FilmstripId));

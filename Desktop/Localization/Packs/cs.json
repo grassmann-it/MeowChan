@@ -3881,7 +3881,7 @@
     "gallery.filmstrip.dock.bottom": "Poloha pásu náhledů: pod obrazem, nad nástroji",
     "settings.unitDip": "Pixely nezávislé na zařízení (dip)",
     "settings.galleryFilmstrip": "Zobrazovat pás náhledů v galerii",
-    "settings.galleryFilmstripHint": "Řada náhledů médií v galerii. Ve výchozím stavu je dole, nad lištou videa a nástroji, takže obraz zachová svou výšku; může být také nahoře, pod tlačítky Zpět a Hvězdička. Kliknutí na náhled přejde na dané médium; Shift+L řadu zobrazí nebo skryje. Při skrytém ovládání se řada objeví spolu s ním (nahoře i když ukazatel zasáhne horní okraj); při trvalém ovládání zůstane na místě (nahoře posune obraz dolů).",
+    "settings.galleryFilmstripHint": "Řada náhledů médií v galerii. Ve výchozím stavu je dole, nad lištou videa a nástroji, takže obraz zachová svou výšku; může být také nahoře, pod tlačítky Zpět a Hvězdička. Kliknutí na náhled přejde na dané médium; klávesa {0} řadu zobrazí nebo skryje. Při skrytém ovládání se řada objeví spolu s ním (nahoře i když ukazatel zasáhne horní okraj); při trvalém ovládání zůstane na místě (nahoře posune obraz dolů).",
     "settings.galleryFilmstripHeight": "Výška náhledů v pásu",
     "settings.galleryFilmstripHeightHint": "Výška a šířka jednoho náhledu v pásu galerie. Výchozí {0}, od {1} do {2}.",
     "settings.galleryFilmstripPreload": "Předem připravené náhledy",
