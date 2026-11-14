@@ -31,6 +31,8 @@ public partial class ArchivePage
         if (IsExternalLinkDialogOpen) { CloseExternalLinkDialog(); return true; }
         if (IsFilenameSearchOpen) { InvalidateFilenameSearch(); return true; }
         if (_urlTextExportBusy) return true; // Never route URLtext dismissal into HTML state.
+        // Escape inside the media sidebar closes only the sidebar (R8), before any reader-wide dismissal.
+        if (!_ended && !IsReaderDialogOpen && IsMediaSidebarSource(source)) { CloseMediaSidebar(); return true; }
         if (_cleanupDialog != null) { _cleanupDialog.RequestClose(); return true; }
         if (IsReaderDialogOpen)
         {
@@ -283,11 +285,13 @@ public partial class ArchivePage
         UpdateReaderNavigation();
         UpdateLayoutMode();
         if (_thread != null) RenderThread();
-        return pane;
+        // R8: the large reader's content is the pane in a frame that can hold the media sidebar beside it.
+        return WrapLargeReader(pane);
     }
 
-    internal void AttachReader(Control pane)
+    internal void AttachReader(Control content)
     {
+        Grid pane = UnwrapLargeReader(content);
         InvalidateFilenameSearch();
         CloseThreadFind();
         StopObservingReaderMediaKeys();
@@ -297,7 +301,7 @@ public partial class ArchivePage
         _readerTabScope = null;
         pane.ClearValue(ReaderPostLayout.LargeReaderProperty);
         Border export = ArchiveExportDialog;
-        ((Grid)pane).Children.Remove(export);
+        pane.Children.Remove(export);
         ArchiveRoot.Children.Add(export);
         ++_readerScopeRequest;
         _readerThreads = Array.Empty<ResourceId>();

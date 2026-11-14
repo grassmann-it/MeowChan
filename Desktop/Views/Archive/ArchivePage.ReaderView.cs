@@ -43,7 +43,7 @@ public partial class ArchivePage
     // (the command keeps its id watch.follow-live) stands before the post filters.
     private static readonly string[] ReaderViewOptionOrder =
         { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
-          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "watch.follow-live", "reader.post-filters", "reader.quick-settings" };
+          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.sidebar.toggle", "watch.follow-live", "reader.post-filters", "reader.quick-settings" };
 
     private ReaderPostProjection? _projection;
     private ReaderPostProjection? _announcedProjection;

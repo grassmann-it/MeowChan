@@ -92,6 +92,7 @@ public partial class ArchivePage
         Control reader = ArchiveReaderPane;
         foreach (ArchiveAttachmentView view in reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()) view.RefreshFavorite();
         foreach (ArchiveMediaTileView view in reader.GetVisualDescendants().OfType<ArchiveMediaTileView>()) view.RefreshFavorite();
+        _mediaSidebar?.RefreshFavorite();
     }
 
     private void InitializeArchiveMediaCommands()

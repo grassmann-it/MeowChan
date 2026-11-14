@@ -161,6 +161,8 @@ public sealed class EffectiveShortcutBindings
         // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
         ["media.rating.set-1"] = 8, ["media.rating.set-2"] = 8, ["media.rating.set-3"] = 8, ["media.rating.set-4"] = 8,
         ["media.rating.set-5"] = 8, ["media.rating.clear"] = 8,
+        // New in revision 8: the reader's media sidebar (R8).
+        ["reader.sidebar.toggle"] = 8, ["reader.sidebar.previous-media"] = 8, ["reader.sidebar.next-media"] = 8,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

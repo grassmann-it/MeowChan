@@ -65,6 +65,11 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     /// <summary>Decodes the preview at explicit bounds (the enlarged focused card, the hover preview); null in the lists. The caller releases the result.</summary>
     public Func<int, int, CancellationToken, Task<Bitmap?>>? LoadSized { get; init; }
     /// <summary>
+    /// The saved file of this attachment as a gallery entry, for surfaces that decode through the gallery cache (the reader's media
+    /// sidebar); null result when it is not saved. Null in the lists.
+    /// </summary>
+    public Func<CancellationToken, Task<MeowChan.Gallery.GalleryEntry?>>? ResolveEntry { get; init; }
+    /// <summary>
     /// Width over height of the thumbnail once one was loaded (the capture records no pixel size). The preview frame follows it and keeps
     /// it when the pixels are released, so a post's height changes once on the first load and not again on scrolling.
     /// </summary>

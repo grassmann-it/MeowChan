@@ -37,7 +37,7 @@ public partial class ArchivePage
         ArchiveAttachmentView.SetLoadingSuspended(this, obscured);
         ReaderCoverageChanged();
         if (obscured) CancelArchiveMediaCounts();
-        else NotifyArchiveMediaCountsChanged();
+        else { NotifyArchiveMediaCountsChanged(); ResumeMediaSidebar(); }
     }
 
     private IReadOnlyDictionary<string, MediaCountWorkStamp> _archiveMediaCountWork = new Dictionary<string, MediaCountWorkStamp>();

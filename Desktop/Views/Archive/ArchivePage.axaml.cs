@@ -751,6 +751,13 @@ public partial class ArchivePage : UserControl
                 ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
             LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
             LoadSized = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: false, cancellationToken),
+            ResolveEntry = async cancellationToken =>
+            {
+                IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(cancellationToken);
+                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, assets);
+                return match == null ? null : new GalleryEntry(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
+                    match.Manifest, match.Asset, null, null, !match.Asset.IsCurrent, true);
+            },
             OpenPreview = async () =>
             {
                 if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;

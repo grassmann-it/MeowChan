@@ -52,6 +52,7 @@ public partial class ArchivePage
             ? ReaderDisplayPreferences.FocusedScalePercent(media) : 100;
         ArchivePosts.SetValue(ReaderPostLayout.FocusScalePercentProperty, scale);
         _hoverEnlarge?.Configure(media);
+        LayoutMediaSidebar(); // R8: the sidebar switch, side and width act live too
     }
 
     private void InitializeReaderMedia()
@@ -70,6 +71,7 @@ public partial class ArchivePage
             (media, on) => media with { FocusedEnlarge = on }, (config, on) => config.ReaderFocusedMediaEnlarge = on);
         RegisterMediaSwitch("reader.view.hover-enlarge", media => media.HoverEnlarge,
             (media, on) => media with { HoverEnlarge = on }, (config, on) => config.ReaderHoverEnlarge = on);
+        InitializeMediaSidebar();
     }
 
     private void RegisterMediaSwitch(string commandId, Func<ReaderMediaPreferences, bool> read,

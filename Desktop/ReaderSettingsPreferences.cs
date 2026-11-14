@@ -23,5 +23,6 @@ internal static class ReaderSettingsPreferences
         reader.QuotePreviewDelayMilliseconds = config.ReaderPreviewDelayMs;
         reader.InlineReplyPageSize = config.ReaderReplyStep;
         reader.ReplyCardMaxLines = config.ReaderReplyLines;
+        reader.ReaderMediaSidebarFit = Gallery(config);
     }
 }

@@ -69,6 +69,13 @@ public partial class MainWindow
                 () => live.CanToggleFollowLiveByShortcut, live.ToggleFollowLiveByShortcut, Priority: 100));
             _shortcutRouter.Register(new CommandRegistration("reader.show-new-posts", readerPane, ReaderShown,
                 () => live.CanShowNewPostsByShortcut, () => _ = live.ShowReaderUpdatesAsync(), Priority: 100));
+            // R8: the media sidebar switch works in both readers (it shows in the large one); its steps only where it is shown.
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.toggle", readerPane, ReaderShown,
+                () => live.CanToggleMediaSidebar, live.ToggleMediaSidebar, Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.previous-media", readerPane, () => _largeReaderOpen && ReaderShown(),
+                () => live.CanStepMediaSidebar(-1), () => live.StepMediaSidebar(-1), Priority: 100));
+            _shortcutRouter.Register(new CommandRegistration("reader.sidebar.next-media", readerPane, () => _largeReaderOpen && ReaderShown(),
+                () => live.CanStepMediaSidebar(1), () => live.StepMediaSidebar(1), Priority: 100));
         }
         // The saved-ratings manager is a dialog of the shell; it opens from the media page, the archive and the gallery (which routes it itself).
         _shortcutRouter.Register(new CommandRegistration("media.rating.manage", this,

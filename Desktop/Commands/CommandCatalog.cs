@@ -236,6 +236,10 @@ public static class CommandCatalog
         new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-view-menu" }),
         // The reader's quick settings popover (R7): a plain item at the end of the View menu; a user shortcut opens it too.
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "sliders", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        // R8: the media sidebar of the large reader (a View menu switch) and its steps through the focused post's media.
+        new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-view-menu", "reader-media-sidebar" }),
+        new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
+        new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
