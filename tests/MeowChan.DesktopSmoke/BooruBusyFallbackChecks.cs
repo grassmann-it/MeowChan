@@ -13,6 +13,7 @@ using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
+using MeowChan.Testing;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopSmoke;

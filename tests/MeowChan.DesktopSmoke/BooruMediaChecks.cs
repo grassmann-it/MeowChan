@@ -508,7 +508,8 @@ internal static class BooruMediaChecks
         MenuItem menu = shell.FindControl<MenuItem>("WorkspaceMenuItem")!;
         MenuItem entry = shell.FindControl<MenuItem>("BooruMenuItem")!;
         menu.IsSubMenuOpen = true;
-        await SettleAsync(shell);
+        await Dispatcher.UIThread.InvokeAsync(shell.UpdateLayout, DispatcherPriority.Background);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Require(entry.IsVisible && entry.IsEnabled, phase + ": the shell menu did not expose the Booru entry.");
         menu.IsSubMenuOpen = false;
         entry.Command!.Execute(null);

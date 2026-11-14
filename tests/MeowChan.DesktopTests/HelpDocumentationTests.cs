@@ -822,7 +822,8 @@ public sealed class HelpDocumentationTests
     {
         // Documentation/source contract only: no SettingsEditor or sampler is constructed here.
         string choices = Read("Desktop/Views/Settings/SettingsEditor.StatsHeaderGraph.cs");
-        string[] keys = Regex.Matches(choices, "Texts\\.T\\(\"(?<key>stats\\.headerGraph\\.(?:auto|network|disk|networkAndDisk|sideBySide|text|off))\"\\)")
+        string[] keys = Regex.Matches(choices,
+            """new\(IoStatsDisplay\.\w+,\s*Texts\.T\("(?<key>stats\.headerGraph\.[^"]+)"\)\)""")
             .Select(match => match.Groups["key"].Value).Distinct(StringComparer.Ordinal).ToArray();
         Assert.NotEmpty(keys);
         foreach (string suffix in new[] { "auto", "network", "disk", "networkAndDisk", "sideBySide", "text" })
