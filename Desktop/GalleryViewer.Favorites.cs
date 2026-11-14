@@ -22,8 +22,8 @@ internal sealed partial class GalleryViewer
     internal static Border CreateFavoriteIndicator(string name) => new Border
     {
         Name = name, HorizontalAlignment = HorizontalAlignment.Right,
-        // The top left belongs to the way back. The passive persisted-state badge sits at the top right of the picture and
-        // moves left of an open post panel (UpdateFavoriteIndicators), so the panel never paints over it.
+        // The top right edge belongs to the way back; the passive persisted-state badge sits directly left of it
+        // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
         Padding = new Thickness(7, 3),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
@@ -77,15 +77,20 @@ internal sealed partial class GalleryViewer
         bool visible = _entry != null && _favoriteKnown && !_terminalRetirement;
         _favoriteIndicator.IsVisible = visible && !_nativeOverlayActive;
         _nativeFavoriteIndicator.IsVisible = visible && _nativeOverlayActive;
-        // Keep the badge left of an open post panel: the docked panel takes its column (+ spacing) from the managed root,
-        // the panel over the picture its own width; inside the native overlay only the latter covers the video.
-        double panel = !_contextOpen || _contextPanel == null ? 0
-            : _contextOverPicture ? (double.IsFinite(_contextPanel.Width) ? _contextPanel.Width : 0) + 12 : 320 + 8;
-        _favoriteIndicator.Margin = new Thickness(12, 12, 12 + panel, 12);
-        _nativeFavoriteIndicator.Margin = new Thickness(12, 12, 12 + (_contextOverPicture ? panel : 0), 12);
+        // Tom's gallery rule: the way back stands alone at the top right edge and the star sits directly left of it. The post
+        // panel and the help start below this row (TopRowClearance), so nothing covers either of them.
+        Thickness beside = new(12, 12, StarRightMargin, 12);
+        _favoriteIndicator.Margin = beside;
+        _nativeFavoriteIndicator.Margin = beside;
         // Row 0 is deliberately outside the native video in transparency fallback mode.
         Grid.SetRow(_favoriteIndicator, 0);
     }
+
+    /// <summary>Gap between the star and the way back, in dip.</summary>
+    internal const double StarGap = 8;
+
+    // The way back is as wide as its label; before its first layout a typical arrow-and-label button stands in.
+    private double StarRightMargin => 12 + (_close != null && _close.Bounds.Width > 0 ? _close.Bounds.Width : 44) + StarGap;
 
     private bool CanRequestFavorite => _entry != null && !_terminalRetirement
         && !_viewerInteractionStopped && _interactionAvailable && !_navigationPending

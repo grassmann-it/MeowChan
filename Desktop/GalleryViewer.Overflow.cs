@@ -194,7 +194,9 @@ internal sealed partial class GalleryViewer
         }
         _modeCaption.Text = GalleryPlaybackCatalog.Get("viewer.playback.mode");
         _secondsCaption.Text = Texts.T("gallery.slideshow.secondsLabel");
-        _secondsCaption.IsVisible = _slideshowSeconds.IsVisible;
+        // A caption belongs to its control's row: it goes with the control when a work view puts it on the toolbar.
+        _modeCaption.IsVisible = ToolInMenu("gallery.toolbar.playback-mode");
+        _secondsCaption.IsVisible = _slideshowSeconds.IsVisible && ToolInMenu("gallery.toolbar.slideshow-seconds");
         ApplyOverflowButtonText();
     }
 
@@ -205,6 +207,7 @@ internal sealed partial class GalleryViewer
     private static void SetButtonLabel(Button button, string label)
     {
         if (button.Tag is OverflowItem item) { item.Label.Text = label; if (!ReferenceEquals(button.Content, item.Root)) button.Content = item.Root; }
+        else if (button.Tag is not null) { } // A tool a work view put on the toolbar keeps its icon; the label is its name and tooltip.
         else button.Content = label;
     }
 
@@ -213,7 +216,8 @@ internal sealed partial class GalleryViewer
     private void PlaceSlideshowToggle()
     {
         if (_slideshowToggle == null || _focusTools == null || _slideshowHome == null || _slideshow == null) return;
-        bool inline = _playbackPreferences.Mode == GalleryPlaybackMode.Slideshow || _slideshow.IsRunning;
+        // Chosen or running (R6) or put on the bar by the work view (Simple, Advanced); Barebones keeps it under More until then.
+        bool inline = SlideshowOnBarByView;
         bool inMenu = _slideshowToggle.Tag is OverflowItem;
         if (inline != inMenu && _slideshowToggle.Parent != null) return;
         bool hadFocus = _slideshowToggle.IsKeyboardFocusWithin;

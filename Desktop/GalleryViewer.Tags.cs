@@ -53,11 +53,18 @@ internal sealed partial class GalleryViewer
         UpdateTagsButton();
     }
 
+    // The row's label is the live tag count; on the toolbar it is the button's name and tooltip (the visible text stays "Tags").
+    private string TagsLabel()
+    {
+        int count = _tagNames?.Count ?? 0;
+        return count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button");
+    }
+
     private void UpdateTagsButton()
     {
         if (_tagsButton == null) return;
+        string label = TagsLabel();
         int count = _tagNames?.Count ?? 0;
-        string label = count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button");
         SetButtonLabel(_tagsButton, label);
         string tip = _tagNames == null ? _tagsUnavailableReason ?? Texts.T("tags.media.button")
             : count > 0 ? Texts.T("tags.rowLabel", string.Join(", ", _tagNames)) : Texts.T("tags.media.hint");

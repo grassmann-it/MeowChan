@@ -182,6 +182,7 @@ public partial class MainWindow
         // The gallery's way back names where closing returns to: the Medien grid (CloseGallery focuses the tile), the thread
         // in the reader, or the Archive/Downloads list it was opened from.
         _gallery = new GalleryViewer { ReturnTarget = GalleryReturnTargetFor(origin, readerOrigin, originPage), ProviderContext = BooruGalleryContext };
+        _gallery.ApplyWorkView(ConfiguredWorkView); // WV4: the toolbar and "More" of the gallery follow the window's work view
         UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>

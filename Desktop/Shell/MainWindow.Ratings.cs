@@ -30,7 +30,12 @@ public partial class MainWindow
         finally
         {
             _ratingDialogOpen = false;
-            if (_gallery != null && !_gallerySuspended) { if (origin?.IsEffectivelyVisible == true) origin.Focus(); else _gallery.Focus(); }
+            if (_gallery != null && !_gallerySuspended)
+            {
+                // A19: a rating action the view keeps under More returns focus to More, not to the closed menu's hidden row.
+                Control? back = _gallery.FocusReturnTarget(origin, "media.rating.edit");
+                if (back?.IsEffectivelyVisible == true) back.Focus(); else _gallery.Focus();
+            }
             else if (_archivePage?.RestoreMediaRatingFocus(key, origin) != true && origin?.IsEffectivelyVisible == true) origin.Focus();
         }
     }
@@ -77,7 +82,9 @@ public partial class MainWindow
         {
             _ratingManagerOpen = false;
             _archivePage?.RefreshMediaRatings(); RefreshGalleryRating();
-            if (origin?.IsEffectivelyVisible == true) origin.Focus();
+            // A19: opened from the gallery's More (or by its shortcut), focus returns to More while the view keeps it there.
+            Control? back = _gallery is { } open && !_gallerySuspended ? open.FocusReturnTarget(origin, "media.rating.manage") : origin;
+            if (back?.IsEffectivelyVisible == true) back.Focus();
         }
     }
 }
