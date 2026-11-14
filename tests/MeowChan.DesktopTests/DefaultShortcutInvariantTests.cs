@@ -13,7 +13,7 @@ public sealed class DefaultShortcutInvariantTests
     {
         "favorites.toggle", "favorites.add", "favorites.remove",
         "gallery.context-toggle", "gallery.show-in-thread", "gallery.slideshow-toggle",
-        "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out",
+        "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.filmstrip-toggle",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
         // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed, A the A–B loop, "." the next frame.
         "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step"
