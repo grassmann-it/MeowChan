@@ -1073,8 +1073,12 @@ internal static class ReaderUxChecks
         for (int i = 0; i < 5; i++) Click(GalleryButton(viewer, "GalleryPlus"));
         await Program.WaitUntilAsync(() => image.Source is Bitmap bitmap && bitmap.PixelSize.Width == 1800);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-        Require(image.RenderTransform is TranslateTransform, "Gallery image has no translation transform.");
-        var transform = (TranslateTransform)image.RenderTransform!;
+        // The image's transform is a group (quarter-turn rotation, then the pan); the pan translation is one stable instance.
+        static TranslateTransform? PanOf(Image picture) => picture.RenderTransform as TranslateTransform
+            ?? (picture.RenderTransform as TransformGroup)?.Children.OfType<TranslateTransform>().SingleOrDefault();
+        Require(PanOf(image) != null, "Gallery image has no translation transform.");
+        var transform = PanOf(image)!;
+        object? imageTransform = image.RenderTransform;
         double width = image.Width, height = image.Height;
         TextBlock[] captions = viewer.GetGalleryVisualDescendants().OfType<Border>()
             .Single(value => value.Name == "GalleryOverlayInfo").GetVisualDescendants().OfType<TextBlock>().ToArray();
@@ -1091,7 +1095,7 @@ internal static class ReaderUxChecks
                     ?? throw new InvalidOperationException("No gallery input root."), type, point, modifiers));
         void CheckUnchanged()
         {
-            Require(ReferenceEquals(transform, image.RenderTransform), "Dragging replaced the image transform.");
+            Require(ReferenceEquals(transform, PanOf(image)) && ReferenceEquals(imageTransform, image.RenderTransform), "Dragging replaced the image transform.");
             Require(image.Width == width && image.Height == height, "Dragging resized the image.");
             Require(captions.Select(value => value.Text).SequenceEqual(captionText), "Dragging changed gallery quality/caption text.");
         }
@@ -1118,7 +1122,7 @@ internal static class ReaderUxChecks
         GalleryViewerState fit = viewer.CaptureState();
         Require(!fit.ManualZoom && fit.PanX == 0 && fit.PanY == 0 && transform.X == 0 && transform.Y == 0,
             "Fit did not reset the dragged image and its translation.");
-        Require(ReferenceEquals(transform, image.RenderTransform), "Fit replaced the reusable image transform.");
+        Require(ReferenceEquals(transform, PanOf(image)) && ReferenceEquals(imageTransform, image.RenderTransform), "Fit replaced the reusable image transform.");
         Console.WriteLine("SMOKE gallery drag: raw captured pointer movement, stable transform/size/captions, both pan bounds and Fit reset.");
     }
 
