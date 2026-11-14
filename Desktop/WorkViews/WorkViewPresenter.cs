@@ -71,12 +71,14 @@ public static class WorkViewGate
     public static void Apply(Control control, WorkView view, bool stateVisible = true, bool nonDefaultState = false)
     {
         WorkViewElement.SetStateVisible(control, stateVisible);
+        WorkViewElement.SetGated(control, true);
         control.IsVisible = stateVisible && Visible(control, view, nonDefaultState);
     }
 
-    /// <summary>True when the element is hidden only because of the view (its state would show it).</summary>
+    /// <summary>True when a gate hides the element only because of the view (its state would show it).</summary>
     internal static bool HiddenByView(Control control) =>
-        !control.IsVisible && WorkViewElement.GetStateVisible(control) && WorkViewElement.GetId(control) != null;
+        !control.IsVisible && WorkViewElement.GetGated(control) && WorkViewElement.GetStateVisible(control)
+        && WorkViewElement.GetId(control) != null;
 
     private static string Id(Control control) => WorkViewElement.GetId(control)
         ?? throw new InvalidOperationException((control.Name ?? control.GetType().Name) + " has no WorkViewElement.Id.");

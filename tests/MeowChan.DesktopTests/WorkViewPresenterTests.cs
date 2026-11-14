@@ -18,8 +18,9 @@ public sealed class WorkViewPresenterTests
         foreach (WorkView view in WorkViewSetting.All)
         {
             OverflowMode expected = view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded;
+            // Columns… is under More in Barebones and Simple (plan §1.3), on the bar in Advanced.
             Assert.True(WorkViewPresenter.ApplyToolBarItem(columns, view));
-            Assert.Equal(expected, ToolBar.GetOverflowMode(columns));
+            Assert.Equal(view == WorkView.Advanced ? OverflowMode.AsNeeded : OverflowMode.Always, ToolBar.GetOverflowMode(columns));
             Assert.False(WorkViewPresenter.ApplyToolBarItem(plain, view));
             Assert.Equal(OverflowMode.Never, ToolBar.GetOverflowMode(plain));
             Assert.True(WorkViewPresenter.ApplyToolBarItem(later, view, "archive.results.other"));
@@ -72,6 +73,19 @@ public sealed class WorkViewPresenterTests
         WorkViewGate.Apply(hint, WorkView.Simple, nonDefaultState: true);
         Assert.True(hint.IsVisible);
         Assert.Throws<InvalidOperationException>(() => WorkViewGate.Visible(new TextBlock(), WorkView.Simple));
+    }
+
+    // A registered control that no gate drives (the page shows or hides it by its own state) is never "hidden by the view":
+    // otherwise a shortcut could run, say, a retry button the state keeps away.
+    [Fact]
+    public void ARegisteredControlWithoutAGateIsNeverHiddenByTheView()
+    {
+        Button retry = new() { IsVisible = false };
+        WorkViewElement.SetId(retry, "downloads.inspector.retry-media");
+        Assert.False(WorkViewGate.HiddenByView(retry));
+        WorkViewGate.Apply(retry, WorkView.Barebones, stateVisible: true); // Required: the view never hides it
+        Assert.True(retry.IsVisible);
+        Assert.False(WorkViewGate.HiddenByView(retry));
     }
 
     [Fact]

@@ -23,6 +23,14 @@ public sealed class WorkViewElement
     internal static readonly AttachedProperty<bool> StateVisibleProperty =
         AvaloniaProperty.RegisterAttached<WorkViewElement, Control, bool>("StateVisible", true);
 
+    /// <summary>
+    /// Set once <see cref="WorkViewGate.Apply"/> owns the element's visibility. A registered element that no gate drives (a
+    /// control the page shows or hides by its own state only) is never "hidden by the view", so a shortcut cannot run it
+    /// while its state keeps it away.
+    /// </summary>
+    internal static readonly AttachedProperty<bool> GatedProperty =
+        AvaloniaProperty.RegisterAttached<WorkViewElement, Control, bool>("Gated", false);
+
     private static readonly List<WeakReference<Control>> Registered = new();
 
     static WorkViewElement()
@@ -40,6 +48,10 @@ public sealed class WorkViewElement
     internal static bool GetStateVisible(Control control) => control.GetValue(StateVisibleProperty);
 
     internal static void SetStateVisible(Control control, bool visible) => control.SetValue(StateVisibleProperty, visible);
+
+    internal static bool GetGated(Control control) => control.GetValue(GatedProperty);
+
+    internal static void SetGated(Control control, bool gated) => control.SetValue(GatedProperty, gated);
 
     private static void Track(Control control)
     {
