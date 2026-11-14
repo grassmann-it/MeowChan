@@ -2625,6 +2625,8 @@
     "media.focus.exit.tip": "Zakończ tryb skupienia i ponownie pokaż pasek narzędzi i filtry · Esc",
     "media.focus.on": "Tryb skupienia włączony",
     "media.focus.off": "Tryb skupienia wyłączony",
+    "media.filter.match.all": "wszystkie",
+    "media.filter.match.any": "dowolny",
     "media.filter.kind.count.one": "{0} typ",
     "media.filter.kind.count.few": "{0} typy",
     "media.filter.ratingChip": "Ocena: co najmniej {0} z 5",

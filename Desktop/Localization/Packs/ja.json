@@ -2678,6 +2678,8 @@
     "media.focus.exit.tip": "フォーカスモードを終了し、ツールバーとフィルターを再表示します · Esc",
     "media.focus.on": "フォーカスモードをオンにしました",
     "media.focus.off": "フォーカスモードをオフにしました",
+    "media.filter.match.all": "すべて",
+    "media.filter.match.any": "いずれか",
     "media.filter.ratingChip": "評価: 5段階の{0}以上",
     "media.filter.resetAll": "すべてリセット",
     "media.filter.resetAllHint": "有効なフィルターをすべて削除",

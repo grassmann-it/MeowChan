@@ -2678,6 +2678,8 @@
     "media.focus.exit.tip": "退出专注模式，重新显示工具栏和筛选器 · Esc",
     "media.focus.on": "专注模式已开启",
     "media.focus.off": "专注模式已关闭",
+    "media.filter.match.all": "全部",
+    "media.filter.match.any": "任一",
     "media.filter.ratingChip": "评分：至少 {0} / 5",
     "media.filter.resetAll": "全部重置",
     "media.filter.resetAllHint": "移除所有已启用的过滤条件",

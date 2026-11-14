@@ -2612,6 +2612,8 @@
     "media.focus.exit.tip": "Sair do modo de foco e mostrar de novo a barra de ferramentas e os filtros · Esc",
     "media.focus.on": "Modo de foco ativado",
     "media.focus.off": "Modo de foco desativado",
+    "media.filter.match.all": "todos",
+    "media.filter.match.any": "qualquer",
     "media.filter.kind.count.one": "{0} tipo",
     "media.filter.ratingChip": "Avaliação: pelo menos {0} de 5",
     "media.filter.resetAll": "Redefinir tudo",

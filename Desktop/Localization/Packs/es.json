@@ -2854,6 +2854,8 @@
     "media.focus.exit.tip": "Salir del modo de enfoque y volver a mostrar la barra de herramientas y los filtros · Esc",
     "media.focus.on": "Modo de enfoque activado",
     "media.focus.off": "Modo de enfoque desactivado",
+    "media.filter.match.all": "todos",
+    "media.filter.match.any": "alguno",
     "media.filter.kind.count.one": "{0} tipo",
     "media.filter.ratingChip": "Valoración: al menos {0} de 5",
     "media.filter.resetAll": "Restablecer todo",

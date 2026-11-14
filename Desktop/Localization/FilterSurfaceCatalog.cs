@@ -71,5 +71,8 @@ internal static class FilterSurfaceCatalog
         ("media.focus.exit.tip", "Exit focus mode and show the toolbar and filters again · Esc", "Fokusmodus beenden und Werkzeugleiste und Filter wieder zeigen · Esc"),
         ("media.focus.on", "Focus mode on", "Fokusmodus an"),
         ("media.focus.off", "Focus mode off", "Fokusmodus aus"),
+        // M5: the two states of the tag mode switch (the sentences are tags.filter.matchAll / matchAny); the section labels reuse the field texts.
+        ("media.filter.match.all", "all", "alle"),
+        ("media.filter.match.any", "any", "einer"),
     };
 }

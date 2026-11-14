@@ -1006,6 +1006,33 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
+    <!-- M5: the two-way switch (TwoWayToggle, "all | any"): two touching buttons with the frame, height and corners of the combo box; on = accent surface. -->
+    <Style Selector="ToggleButton.segment">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.None}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.segment-first"><Setter Property="CornerRadius" Value="5,0,0,5" /></Style>
+    <Style Selector="ToggleButton.segment-last"><Setter Property="CornerRadius" Value="0,5,5,0" /><Setter Property="Margin" Value="-1,0,0,0" /></Style>
+    <Style Selector="ToggleButton.segment:checked"><Setter Property="ZIndex" Value="1" /></Style>
+    <Style Selector="ToggleButton.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.segment:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.segment:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <!-- Media controls and gallery overflow rows reserve a 1-px edge (transparent at rest, the padding gives it back): ControlBorder on hover,
          the accent when pressed or checked (UX review 2026-11-13; the fill alone was 1.37:1 / 1.38:1). -->
     <Style Selector="Button.media-control, ToggleButton.media-control">

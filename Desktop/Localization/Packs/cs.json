@@ -2622,6 +2622,8 @@
     "media.focus.exit.tip": "Ukončit režim soustředění a znovu zobrazit panel nástrojů a filtry · Esc",
     "media.focus.on": "Režim soustředění zapnut",
     "media.focus.off": "Režim soustředění vypnut",
+    "media.filter.match.all": "všechny",
+    "media.filter.match.any": "kterýkoli",
     "media.filter.kind.count.one": "{0} typ",
     "media.filter.kind.count.few": "{0} typy",
     "media.filter.ratingChip": "Hodnocení: alespoň {0} z 5",

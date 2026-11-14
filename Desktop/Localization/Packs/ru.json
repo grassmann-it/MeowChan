@@ -2858,6 +2858,8 @@
     "media.focus.exit.tip": "Выйти из режима фокуса и снова показать панель инструментов и фильтры · Esc",
     "media.focus.on": "Режим фокуса включён",
     "media.focus.off": "Режим фокуса выключен",
+    "media.filter.match.all": "все",
+    "media.filter.match.any": "любой",
     "media.filter.kind.count.one": "{0} тип",
     "media.filter.kind.count.few": "{0} типа",
     "media.filter.ratingChip": "Оценка: не ниже {0} из 5",

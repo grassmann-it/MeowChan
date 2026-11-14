@@ -2678,6 +2678,8 @@
     "media.focus.exit.tip": "집중 모드를 끝내고 도구 모음과 필터를 다시 표시합니다 · Esc",
     "media.focus.on": "집중 모드 켜짐",
     "media.focus.off": "집중 모드 꺼짐",
+    "media.filter.match.all": "모두",
+    "media.filter.match.any": "하나라도",
     "media.filter.ratingChip": "평가: 5점 중 {0}점 이상",
     "media.filter.resetAll": "모두 초기화",
     "media.filter.resetAllHint": "활성 필터 모두 제거",

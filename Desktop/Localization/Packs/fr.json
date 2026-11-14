@@ -2854,6 +2854,8 @@
     "media.focus.exit.tip": "Quitter le mode focus et afficher à nouveau la barre d’outils et les filtres · Échap",
     "media.focus.on": "Mode focus activé",
     "media.focus.off": "Mode focus désactivé",
+    "media.filter.match.all": "tous",
+    "media.filter.match.any": "un",
     "media.filter.kind.count.one": "{0} type",
     "media.filter.ratingChip": "Évaluation : au moins {0} sur 5",
     "media.filter.resetAll": "Tout réinitialiser",
