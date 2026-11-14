@@ -57,7 +57,8 @@ internal static class PluginPageCaptureChecks
                             await fresh.ActivateAsync();
                             Require(fresh.Selected != null && fresh.FindControl<SelectionList>("PluginCards")!.SelectedItem != null,
                                 "A fresh merged catalog did not select its first plugin.");
-                            Require(beforeOpening.SequenceEqual(MeowChan.PluginSdk.SdkJson.Serialize(await fixture.Store.ReadAsync()))
+                            byte[] afterOpening = MeowChan.PluginSdk.SdkJson.Serialize(await fixture.Store.ReadAsync());
+                            Require(beforeOpening.SequenceEqual(afterOpening)
                                 && fixture.ForbiddenCalls == 0, "Passive initial selection mutated the profile or executed plugin code.");
                             await Capture(window, fresh, fresh.Selected!.Key, "smoke-sources-page-" + size + "-initial-all-" + captureLanguage + "-" + suffix);
                         }

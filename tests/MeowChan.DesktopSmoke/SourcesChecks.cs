@@ -1,6 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Notifications;
+using NotificationCard = Avalonia.Controls.Notifications.NotificationCard;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using Avalonia.Interactivity;
