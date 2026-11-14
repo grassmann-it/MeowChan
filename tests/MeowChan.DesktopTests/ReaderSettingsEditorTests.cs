@@ -33,6 +33,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarWidth), "settings.reader.mediaSidebarWidth", nameof(SettingsEditor.ReaderMediaSidebarWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderInlineVideoMaxPlayers), "settings.reader.inlineVideoPlayers", nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxPlayersMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderInlineVideoMaxFileMiB), "settings.reader.inlineVideoMaxFile", nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMinimum), nameof(SettingsEditor.ReaderInlineVideoMaxFileMiBMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.PostFilterRuleLimit), "settings.limits.postFilterRules", nameof(SettingsEditor.PostFilterRuleLimitMinimum), nameof(SettingsEditor.PostFilterRuleLimitMaximum), "SettingsWorkerBudgetsPage"),
         (nameof(Config.HiddenPostLimit), "settings.limits.hiddenPosts", nameof(SettingsEditor.HiddenPostLimitMinimum), nameof(SettingsEditor.HiddenPostLimitMaximum), "SettingsWorkerBudgetsPage"),
     };

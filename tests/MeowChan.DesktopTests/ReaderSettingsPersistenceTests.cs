@@ -28,6 +28,8 @@ public sealed class ReaderSettingsPersistenceTests
         yield return new object[] { nameof(Config.ReaderHoverEnlargeDelayMs), 350, 100, 2000 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarWidth), 480, 240, 1200 };
         yield return new object[] { nameof(Config.ReaderMediaSidebarMinimumWidth), 1280, 800, 3840 };
+        yield return new object[] { nameof(Config.ReaderInlineVideoMaxPlayers), 2, 1, 4 };
+        yield return new object[] { nameof(Config.ReaderInlineVideoMaxFileMiB), 256, 1, 4096 };
     }
 
     [Theory]

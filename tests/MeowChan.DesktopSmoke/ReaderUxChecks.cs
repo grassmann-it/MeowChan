@@ -143,6 +143,11 @@ internal static class ReaderUxChecks
             await ReaderMediaSidebarChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_INLINE_VIDEO_ONLY") == "1")
+        {
+            await ReaderInlineVideoChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")
         {
             await ReaderViewChecks.RunAsync(window);
