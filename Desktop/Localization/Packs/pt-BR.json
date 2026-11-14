@@ -237,7 +237,7 @@
     "failure.short.retryAt": "Nova tentativa informada para {0}",
     "diagnostics.observed.code": "Código de diagnóstico: {0}",
     "diagnostics.clearFilters": "Limpar filtros",
-    "diagnostics.filterCount": "{0} / {1} entradas · {2} selecionadas",
+    "diagnostics.filterCount": "Entradas: {0} / {1} · selecionadas: {2}",
     "diagnostics.noMatch": "Nenhuma entrada corresponde aos filtros.",
     "diagnostics.retryScope": "Tenta de novo os problemas dos tópicos/boards fixados neste escopo, não da sessão inteira. As novas tentativas de mídia cobrem arquivos ausentes nesses tópicos. Limites e pausa continuam valendo. Mensagens sem ação de nova tentativa são ignoradas.",
     "diagnostics.batchResult": "Escopo: destinos: {0} · verificações solicitadas/já na fila: {1}/{2} · novas tentativas de mídia na fila: {3} · ações ignoradas: {4} · falhas: {5}. Limites e pausa continuam valendo.",

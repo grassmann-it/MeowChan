@@ -239,7 +239,7 @@
     "failure.short.retryAt": "Nahlášený další pokus: {0}",
     "diagnostics.observed.code": "Diagnostický kód: {0}",
     "diagnostics.clearFilters": "Zrušit filtry",
-    "diagnostics.filterCount": "{0} / {1} položek · vybráno: {2}",
+    "diagnostics.filterCount": "Položky: {0} / {1} · vybráno: {2}",
     "diagnostics.noMatch": "Žádné položky neodpovídají filtrům.",
     "diagnostics.retryScope": "Opakuje problémy zafixovaných vláken/boardů v tomto rozsahu, ne celé relace. Opakování médií pokrývá chybějící soubory v těchto vláknech. Limity a pauza platí dál. Zprávy bez akce opakování se přeskočí.",
     "diagnostics.batchResult": "Rozsah: cílů: {0} · kontroly vyžádané/už ve frontě: {1}/{2} · opakování médií ve frontě: {3} · přeskočených akcí: {4} · selhalo: {5}. Limity a pauza platí dál.",
