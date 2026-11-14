@@ -233,16 +233,18 @@ public sealed partial class MediaPage
         static bool Usable(Control? control) => control != null && control.IsAttachedToVisualTree() && control.IsEffectivelyVisible;
         Control host = Usable(anchor) ? anchor! : Usable(_selTag) ? _selTag : _grid;
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
-        QuickTagSession quick = new(QuickTagTarget.For(session));
         MediaLibraryTileRow? lead = SelectedRow;
         TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
+        // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
+        QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
+        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         _selectionBusy = true;
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         Control? origin = null;
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), (TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context)) with
+            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), options with
             {
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,

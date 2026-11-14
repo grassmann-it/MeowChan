@@ -43,6 +43,12 @@ internal sealed record QuickTagPopoverOptions
     internal IQuickTagSuggestionSource? Suggestions { get; init; }
     /// <summary>The session-wide recently used tags; every assignment the popover accepts counts as a use (a removal or an undo does not).</summary>
     internal TagRecentList? Recent { get; init; }
+    /// <summary>The profile's stamp set (PT5), the same one the gallery panel shows; null gives the popover an empty stamp.</summary>
+    internal QuickTagStamp? Stamp { get; init; }
+
+    /// <summary>A session over <paramref name="target"/> with these limits (undo depth) and this stamp.</summary>
+    internal QuickTagSession NewSession(IQuickTagTarget target) =>
+        new(target, (Quick ?? QuickTagOptions.Default).Normalized().UndoDepth, Stamp);
     /// <summary>The Danbooru catalog reader for the source tag group of the field.</summary>
     internal Func<BooruCatalogSnapshot?>? ReadSourceTags { get; init; }
     /// <summary>True while the target is still what is on screen; false closes the popover (<see cref="QuickTagPopoverCloseReason.Stale"/>).</summary>
@@ -326,6 +332,7 @@ internal sealed class QuickTagPopover
         for (int number = 1; number <= QuickTagCommands.SuggestionCount; number++)
             if (bindings.Matches(e, QuickTagCommands.Suggestion(number)))
                 return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ToggleSuggestion, number - 1));
+        if (bindings.Matches(e, QuickTagCommands.StampApply)) return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp));
         if (bindings.Matches(e, QuickTagCommands.Undo))
         {
             if (surface.FocusZone() == QuickTagFocus.Field && !string.IsNullOrEmpty(surface.Input.Text)) return false;

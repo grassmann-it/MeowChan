@@ -236,17 +236,19 @@ public partial class ArchivePage
         IReadOnlyList<MediaLibraryTile> tiles = ArchiveMediaSelection.Tiles(thread.Summary, rows, entries);
         if (tiles.Count == 0 || rows.Length == 0) return;
         MediaSelectionTagSession session = new(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
-        QuickTagSession quick = new(QuickTagTarget.For(session));
         GalleryAssetKey leadKey = new(thread.Summary.Id, rows[0].Manifest.Directory, rows[0].Asset.AssetId);
         if ((entries.FirstOrDefault(entry => entry.Key == leadKey) ?? entries.FirstOrDefault()) is not { } lead) return;
         ResourceId threadId = thread.Summary.Id;
         TagContext selectionContext = QuickTagPopoverContext.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null };
+        // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
+        QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext);
+        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         _mediaSelectionBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), (TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext)) with
+            QuickTagPopover popover = QuickTagPopover.Open(origin, quick, Texts.T("media.selection.count", rows.Length), options with
             {
                 ReadSourceTags = _sourceTagSuggestions.Read,
                 IsCurrent = () => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId,

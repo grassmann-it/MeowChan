@@ -153,7 +153,7 @@ public sealed class QuickTagCommandTests
     [Fact]
     public void UndoAndTheNineSuggestionTogglesAreWiredByThePopoverAndActiveWithTheirDefaults()
     {
-        string[] wired = new[] { QuickTagCommands.Undo }.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray();
+        string[] wired = new[] { QuickTagCommands.Undo, QuickTagCommands.StampApply }.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray();
         Assert.Equal(QuickTagCommands.All.Count - PanelCommands.Length, wired.Length);
         foreach (string id in wired)
         {

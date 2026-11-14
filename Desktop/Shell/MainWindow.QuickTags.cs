@@ -23,7 +23,7 @@ public partial class MainWindow
     internal QuickTagPopover? ArchiveTagPopover { get; private set; }
 
     /// <summary>The saved quick tag limits (TP5) and the panel's ranking adapter over <paramref name="context"/>, for every popover host.</summary>
-    internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent);
+    internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent, QuickTagStampSet);
 
     private QuickTagPopoverOptions PopoverOptions(TagContext context, Func<bool> isCurrent, bool restoreFocus, string name) => TagPopoverDefaults(context) with
     {
@@ -57,9 +57,9 @@ public partial class MainWindow
                 return;
             }
             session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            QuickTagPopover popover = QuickTagPopover.Open(anchor, new QuickTagSession(QuickTagTarget.For(session)),
-                match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path),
-                PopoverOptions(context, hostCurrent, restoreFocus: false, "MediaTagPopover"));
+            QuickTagPopoverOptions options = PopoverOptions(context, hostCurrent, restoreFocus: false, "MediaTagPopover");
+            QuickTagPopover popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)),
+                match.Asset.OriginalFileName ?? Path.GetFileName(match.Asset.Path), options);
             origin = popover.Origin ?? origin;
             MediaPageTagPopover = popover;
             reason = await popover.Result;
@@ -102,8 +102,8 @@ public partial class MainWindow
         try
         {
             MediaTagSession session = new(target, _session.GetPublishedPrivateTagSnapshot, _session.DefineAndSetMediaSubjectTagAsync, _session.SetMediaSubjectTagAsync);
-            QuickTagPopover popover = QuickTagPopover.Open(anchor, new QuickTagSession(QuickTagTarget.For(session)), label,
-                PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover"));
+            QuickTagPopoverOptions options = PopoverOptions(context, isCurrent, restoreFocus: true, "ArchiveTagPopover");
+            QuickTagPopover popover = QuickTagPopover.Open(anchor, options.NewSession(QuickTagTarget.For(session)), label, options);
             origin = popover.Origin;
             ArchiveTagPopover = popover;
             reason = await popover.Result;

@@ -39,6 +39,8 @@ internal interface IGalleryTagPanelOwner
     TagRecentList Recent { get; }
     QuickTagOptions Options { get; }
     TagContextOptions ContextOptions { get; }
+    /// <summary>The profile's one stamp set (PT5), shared with the tag popover; null gives the panel an empty stamp of its own.</summary>
+    QuickTagStamp? Stamp => null;
     BooruCatalogSnapshot? ReadSourceTags();
     /// <summary>Thread tags of <paramref name="thread"/> (the section Ctrl+T opens).</summary>
     GalleryThreadTagModel OpenThreadTags(ResourceId thread);
@@ -63,7 +65,7 @@ internal static class GalleryTagPanelCommands
     /// (Shift+Page Down/Up, TP4), the thread section, undo and the nine suggestion toggles.</summary>
     internal static IReadOnlyList<string> Handled { get; } = Array.AsReadOnly(
         new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious,
-            QuickTagCommands.ThreadSection, QuickTagCommands.Undo }
+            QuickTagCommands.ThreadSection, QuickTagCommands.Undo, QuickTagCommands.StampApply }
             .Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).ToArray());
 
     /// <summary>The surface action of a handled command; null for any other id.</summary>
@@ -78,6 +80,7 @@ internal static class GalleryTagPanelCommands
             case QuickTagCommands.MarkPrevious: return new(QuickTagKeyAction.UnmarkPrevious);
             case QuickTagCommands.ThreadSection: return new(QuickTagKeyAction.ThreadSection);
             case QuickTagCommands.Undo: return new(QuickTagKeyAction.Undo);
+            case QuickTagCommands.StampApply: return new(QuickTagKeyAction.ApplyStamp);
         }
         for (int number = 1; number <= QuickTagCommands.SuggestionCount; number++)
             if (commandId == QuickTagCommands.Suggestion(number)) return new(QuickTagKeyAction.ToggleSuggestion, number - 1);
@@ -175,7 +178,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         Suggestions = new GalleryTagPanelSuggestions(owner.ContextOptions) { Recent = () => owner.Recent.Snapshot() };
         IQuickTagTarget target = Resolve(entry, out string? reason);
         UnavailableReason = reason;
-        Session = new QuickTagSession(target, owner.Options.UndoDepth)
+        Session = new QuickTagSession(target, owner.Options.UndoDepth, owner.Stamp)
         { Label = marks.Count > 0 ? GalleryTagPanelCommands.SelectionLabel(marks.Count) : GalleryTagPanelCommands.LabelOf(entry) };
         Session.Applied += OnApplied;
         Suggestions.Context = Context(entry);

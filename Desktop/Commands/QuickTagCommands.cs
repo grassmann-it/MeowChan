@@ -38,7 +38,8 @@ public static class QuickTagCommands
     // TP2 wired the gallery panel: paging, commit-and-next, the thread section, undo and the nine toggles (GalleryTagPanelCommands.Handled).
     // TP4 wired the marking (mark-next, mark-previous): GalleryViewer.OnTagNavigationRequested marks or unmarks and moves.
     // TP3 routes undo and the nine toggles in the popover of the media page, the reader attachment and the archive tile too (QuickTagPopover.TryRouteCommand).
-    private static readonly string[] Wired = new[] { Next, Previous, CommitNext, MarkNext, MarkPrevious, ThreadSection, Undo }
+    // PT5 (wave3 glue): stamp-apply gives the shared stamp in the gallery panel (GalleryTagPanelCommands) and in the popover.
+    private static readonly string[] Wired = new[] { Next, Previous, CommitNext, MarkNext, MarkPrevious, ThreadSection, Undo, StampApply }
         .Concat(Enumerable.Range(1, SuggestionCount).Select(Suggestion)).ToArray();
 
     /// <summary>Ids of <paramref name="all"/> that are not in <paramref name="wired"/>: registered, but without a handler.</summary>

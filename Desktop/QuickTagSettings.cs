@@ -33,9 +33,10 @@ internal static class QuickTagSettings
 
     /// <summary>
     /// The limits and the suggestion strip of a quick tag popover (TP3): the surface options and the gallery panel's ranking adapter
-    /// over <paramref name="context"/>, fed by the session-wide <paramref name="recent"/> list. The host adds its guard and names.
+    /// over <paramref name="context"/>, fed by the session-wide <paramref name="recent"/> list, and the shared <paramref name="stamp"/>.
+    /// The host adds its guard and names and makes the session with <see cref="QuickTagPopoverOptions.NewSession"/>.
     /// </summary>
-    internal static QuickTagPopoverOptions PopoverOptions(Config config, TagContext context, TagRecentList recent)
+    internal static QuickTagPopoverOptions PopoverOptions(Config config, TagContext context, TagRecentList recent, QuickTagStamp? stamp = null)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(recent);
@@ -43,7 +44,8 @@ internal static class QuickTagSettings
         {
             Quick = SurfaceOptions(config),
             Suggestions = new GalleryTagPanelSuggestions(ContextOptions(config)) { Context = context ?? TagContext.Empty, Recent = recent.Snapshot },
-            Recent = recent
+            Recent = recent,
+            Stamp = stamp
         };
     }
 

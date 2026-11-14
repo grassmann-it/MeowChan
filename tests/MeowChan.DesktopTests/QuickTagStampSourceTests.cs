@@ -388,6 +388,11 @@ public sealed class QuickTagStampSourceTests : IDisposable
                 string.Join(" / ", EffectiveShortcutBindings.Defaults(command, platform).Select(gesture => gesture.Display(platform))));
         Assert.Equal("Ctrl+Shift+Enter", QuickTagKeys.StampGesture(ShortcutPlatform.Linux));
         Assert.Equal("⇧⌘↩", QuickTagKeys.StampGesture(ShortcutPlatform.MacOS));
+        // Wired (wave3): the gallery panel routes it to the surface's apply action, and its default is active, not awaiting a handler.
+        Assert.DoesNotContain(QuickTagCommands.StampApply, QuickTagCommands.AwaitingHandler);
+        Assert.Contains(QuickTagCommands.StampApply, GalleryTagPanelCommands.Handled);
+        Assert.Equal(QuickTagKeyAction.ApplyStamp, GalleryTagPanelCommands.RouteOf(QuickTagCommands.StampApply)!.Value.Action);
+        Assert.True(command.IsImplemented);
     }
 
     // ---- the surface --------------------------------------------------------------------------------------------
