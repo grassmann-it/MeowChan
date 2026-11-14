@@ -251,13 +251,14 @@ internal static class OsMotionSignal
                 Interface = "org.freedesktop.portal.Settings", Member = "SettingChanged"
             };
             await connection.AddMatchAsync<(string Namespace, string Key, bool? Value)>(rule, static (message, _) => ReadSettingChanged(message),
-                (exception, value, _, _) =>
+                notification =>
                 {
-                    if (exception == null && value.Namespace == PortalNamespace && value.Key == PortalKey && value.Value is { } now)
+                    // Completion notifications carry no value; errors remain ignored as with the old handler.
+                    if (notification.HasValue && notification.Value is { Namespace: PortalNamespace, Key: PortalKey, Value: { } now })
                     {
                         Dispatcher.UIThread.Post(() => changed(PortalSays(now)));
                     }
-                }, ObserverFlags.None, null, null, false).AsTask().WaitAsync(timeout.Token);
+                }, emitOnCapturedContext: false, flags: ObserverFlags.None, state: null).AsTask().WaitAsync(timeout.Token);
             _portal = connection; // Keep the subscription for the life of the process.
             kept = true;
             }
