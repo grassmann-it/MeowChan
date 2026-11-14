@@ -21,7 +21,7 @@ public sealed partial class MediaPage
     private readonly Button _sortDirection = new() { Name = "MediaSortDirection" };
     // The visible label of the order box ("Sort"), muted like the scope label inside the search field. The combo's accessible name is the same
     // text (the label is hidden from the accessibility tree so it is not read twice) and it follows the combo's visibility.
-    private readonly TextBlock _sortLabel = new() { Name = "MediaSortLabel", Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, -4, 0) };
+    private readonly TextBlock _sortLabel = new() { Name = "MediaSortLabel", Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center };
     private string? _sortIcon;
     private MediaLibrarySortDirection _sortDirectionValue = MediaLibrarySortDirection.Default;
 
