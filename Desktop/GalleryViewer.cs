@@ -622,7 +622,8 @@ internal sealed partial class GalleryViewer : UserControl
         string tip = CommandBindings.Tooltip("viewer.shortcut-help");
         if (_showShortcutHelp)
             tip = CommandBindings.TooltipHeadline("viewer.shortcut-help") + "\n"
-                + string.Join(" · ", new[] { "favorites.add", "favorites.remove", "gallery.context-toggle" }.Select(id => CommandBindings.TooltipHeadline(id)));
+                + string.Join(" · ", new[] { "favorites.add", "favorites.remove", "gallery.context-toggle" }
+                    .Where(id => CommandCatalog.ShortcutDisplay(id) != null).Select(id => CommandBindings.TooltipHeadline(id)));
         ToolTip.SetTip(_helpButton, tip);
         AutomationProperties.SetHelpText(_helpButton, tip);
     }
@@ -975,7 +976,7 @@ internal sealed partial class GalleryViewer : UserControl
         WorkView view = _workView;
         WorkViewPage[] pages = { WorkViewPage.Shell, WorkViewPage.Gallery };
         return new Views.Shortcuts.ShortcutHelpContext(ShortcutGroups.Gallery, preferred, id => WorkViewHelp.UnderMore(id, view, pages),
-            CommandScope.None, new[] { EscapeHelpKey },
+            CommandScope.None, new[] { "viewer.help.scheme", EscapeHelpKey },
             ExpandedAreas: new[] { ShortcutGroups.TagPanel });
     }
 

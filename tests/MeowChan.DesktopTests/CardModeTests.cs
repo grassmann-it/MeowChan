@@ -28,7 +28,7 @@ public sealed class CardModeTests : IDisposable
 
     [Theory]
     [MemberData(nameof(Platforms))]
-    public void KTogglesTheCardModeAndTheCardKeysAre1To5OnEveryPlatformWithoutIssues(ShortcutPlatform platform)
+    public void ShiftKTogglesTheCardModeAndTheCardKeysAre1To5OnEveryPlatformWithoutIssues(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Empty(bindings.Issues);
@@ -41,7 +41,7 @@ public sealed class CardModeTests : IDisposable
             Assert.NotEmpty(bindings.For(id));
             foreach (ShortcutGesture gesture in bindings.For(id)) Assert.Null(EffectiveShortcutBindings.InvalidReason(gesture, platform));
         }
-        Assert.Equal("K", bindings.Display(TaggingCardCommands.Toggle));
+        Assert.Equal(platform == ShortcutPlatform.MacOS ? "⇧K" : "Shift+K", bindings.Display(TaggingCardCommands.Toggle)); // revision 13: the cards are a block, Shift plus a letter
         for (int number = 1; number <= TaggingCardCommands.CardKeys; number++)
             Assert.Equal(number.ToString(), bindings.Display(TaggingCardCommands.Card(number)));
     }
@@ -50,8 +50,8 @@ public sealed class CardModeTests : IDisposable
     public void TheCardKeysAreThePlainDigitsAndNeverTheRatingOrSuggestionGestures()
     {
         var linux = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-        Assert.True(linux.Matches(Press(Key.K), TaggingCardCommands.Toggle));
-        Assert.False(linux.Matches(Press(Key.K, KeyModifiers.Shift), TaggingCardCommands.Toggle));
+        Assert.True(linux.Matches(Press(Key.K, KeyModifiers.Shift), TaggingCardCommands.Toggle));
+        Assert.False(linux.Matches(Press(Key.K), TaggingCardCommands.Toggle));
         Key[] digits = { Key.D1, Key.D2, Key.D3, Key.D4, Key.D5 };
         for (int i = 0; i < digits.Length; i++)
         {
@@ -89,10 +89,10 @@ public sealed class CardModeTests : IDisposable
         foreach (string id in TaggingCardCommands.All) Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
 
         // A saved binding of another command of the mode wins over the new default; nothing is silenced and nothing is reported as a conflict.
-        var saved = new ShortcutBindingsSection().Set("tags.queue.skip", [ShortcutGesture.Parse("K")]);
+        var saved = new ShortcutBindingsSection().Set("tags.queue.skip", [ShortcutGesture.Parse("Shift+K")]);
         var bindings = EffectiveShortcutBindings.Build(saved, platform);
         Assert.Empty(bindings.For(TaggingCardCommands.Toggle));
-        Assert.Contains(bindings.For("tags.queue.skip"), gesture => gesture.Key == "K");
+        Assert.Contains(bindings.For("tags.queue.skip"), gesture => gesture.Key == "K" && gesture.Modifiers.Contains("Shift"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
 
         var off = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().WithSingleKeyShortcuts(false), platform);
@@ -392,14 +392,17 @@ public sealed class CardModeTests : IDisposable
     [Fact]
     public void TheSentencesNameTheEffectiveKeysInEnglishAndGerman()
     {
-        Assert.Equal("Card mode on: the keys 1–5 choose a card, K leaves the card mode.", TaggingCardsText.On(5));
-        Assert.Equal("Card mode on: the keys 1–3 choose a card, K leaves the card mode.", TaggingCardsText.On(3));
+        // The toggle's key comes from the bindings (Shift+K since revision 13), in the language and on the platform of the window.
+        string key = CommandCatalog.ShortcutDisplay(TaggingCardCommands.Toggle)!;
+        Assert.Equal("Card mode on: the keys 1–5 choose a card, " + key + " leaves the card mode.", TaggingCardsText.On(5));
+        Assert.Equal("Card mode on: the keys 1–3 choose a card, " + key + " leaves the card mode.", TaggingCardsText.On(3));
         Assert.Equal("Card mode off.", TaggingCardsText.Off());
-        Assert.StartsWith("K turns the card mode on or off. In the card mode the keys 1 to 5 choose the cards", TaggingCardsText.HelpNote());
+        Assert.StartsWith(key + " turns the card mode on or off. In the card mode the keys 1 to 5 choose the cards", TaggingCardsText.HelpNote());
         Assert.Equal("Skip, key 2", TaggingCardsText.Name(TaggingCardActions.Find("skip")!, 2));
         Texts.SetLanguage("de");
-        Assert.Equal("Kartenmodus an: Die Tasten 1–5 wählen eine Karte, K verlässt den Kartenmodus.", TaggingCardsText.On(5));
-        Assert.StartsWith("K schaltet den Kartenmodus ein oder aus. Im Kartenmodus wählen die Tasten 1 bis 5", TaggingCardsText.HelpNote());
+        key = CommandCatalog.ShortcutDisplay(TaggingCardCommands.Toggle)!;
+        Assert.Equal("Kartenmodus an: Die Tasten 1–5 wählen eine Karte, " + key + " verlässt den Kartenmodus.", TaggingCardsText.On(5));
+        Assert.StartsWith(key + " schaltet den Kartenmodus ein oder aus. Im Kartenmodus wählen die Tasten 1 bis 5", TaggingCardsText.HelpNote());
     }
 
     // ---- the viewer's and the window's hooks ------------------------------------------------------------------------------

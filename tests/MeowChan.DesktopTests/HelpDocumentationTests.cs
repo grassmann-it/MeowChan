@@ -600,7 +600,7 @@ public sealed class HelpDocumentationTests
     public void FrameFolderAndReadFirstHeaderGuidanceKeepTheirCurrentBoundaries()
     {
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
-        Assert.Equal("Shift+S", CommandCatalog.Get("video.snapshot").Shortcut);
+        Assert.Equal("S", CommandCatalog.Get("video.snapshot").Shortcut); // gallery key scheme, revision 13 (was Shift+S)
         Assert.Contains("On first use you choose a folder", frames);
         Assert.Contains("Cancel saves nothing", frames);
         Assert.Contains("Existing files are never overwritten", frames);
@@ -628,14 +628,14 @@ public sealed class HelpDocumentationTests
         string frames = Plain(Section(Read(Help), "Saving a video frame"));
         CommandDefinition snapshot = CommandCatalog.Get("video.snapshot");
         Assert.Equal("command.video.snapshot", snapshot.LabelKey);
-        Assert.Equal("Shift+S", snapshot.Shortcut);
+        Assert.Equal("S", snapshot.Shortcut); // revision 13 (was Shift+S)
         Assert.Contains("**Save frame as image**", Section(Read(Help), "Saving a video frame"), StringComparison.Ordinal);
         Assert.Contains(snapshot.LabelEn, frames, StringComparison.Ordinal);
 
         // CommandCatalog.Label looks the key up in the localization catalog first and uses the definition's LabelDe only as a
         // fallback, so the German name shown in the gallery menu is the catalog text. The Help must name that one.
         string shownGerman = BuiltInCatalog.German[snapshot.LabelKey];
-        Assert.Contains("(German: " + shownGerman + ", Shift+S)", frames, StringComparison.Ordinal);
+        Assert.Contains("(German: " + shownGerman + ", " + snapshot.Shortcut + ")", frames, StringComparison.Ordinal);
         Assert.DoesNotContain("Einzelbild als Bild speichern", Read(Help), StringComparison.Ordinal);
 
         // The flow the new sentences describe: a free numbered name from the video name and position, only for a ready video, Under More.

@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 12;
+    public const int DefaultsRevision = 13;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -203,6 +203,14 @@ public sealed class EffectiveShortcutBindings
         // Revision 12 (video keys, on top of the footer package's revision 11): "," and "." seek by the step setting, L repeats the video, the next frame moved to Shift+. and the filmstrip
         // toggle to Shift+L (L is the video repeat). All of them yield to a saved binding of another command like every changed default.
         ["video.step-back"] = 12, ["video.step-forward"] = 12, ["video.loop"] = 12, ["video.frame-step"] = 12, ["gallery.filmstrip-toggle"] = 12,
+        // Revision 13 (the gallery key scheme, GalleryShortcutScheme): Shift plus a letter shows or hides a block, plain letters act on the playback.
+        // Changed: the post panel P to Shift+P, the slideshow S to D, mute Shift+M to M, the frame snapshot Shift+S to S (video.mute, video.snapshot and
+        // gallery.slideshow-toggle are in the table since revisions 2 and 5; their entries stay). New: Shift+H hides the tools, Shift+O switches the
+        // controls overlay, and Shift+I / Shift+N show the info line and the hint row of the Layout menu (GL3, applied when those commands exist). The card mode of the tagging
+        // mode moved from K to Shift+K (the cards are a block).
+        // "Add favorite" moved from M (now mute) to B; a binding saved for any of them stays untouched.
+        ["gallery.context-toggle"] = 13, ["gallery.tools-toggle"] = 13, ["gallery.overlay-toggle"] = 13,
+        ["gallery.layout.info"] = 13, ["gallery.layout.hints"] = 13,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -255,6 +263,7 @@ public sealed class EffectiveShortcutBindings
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
             case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
             // Speed stays on [ and ] alone: Shift+, is free (no previous frame) and Shift+. is the next frame.
+            default: list.AddRange(GalleryShortcutScheme.LayoutDefault(command.Id)); break;
         }
         return list.AsReadOnly();
     }

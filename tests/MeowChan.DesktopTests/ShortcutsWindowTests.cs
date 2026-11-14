@@ -256,7 +256,7 @@ public sealed class ShortcutsWindowTests : IDisposable
         Assert.Contains("ShortcutGroups.Gallery, preferred", gallery);
         Assert.Contains("ExpandedAreas: new[] { ShortcutGroups.TagPanel }", gallery);
         // The Escape note names the page the way back returns to (media, the Tagging page; QW6): one switch, used by the window and the panel.
-        Assert.Contains("new[] { EscapeHelpKey }", gallery);
+        Assert.Contains("new[] { \"viewer.help.scheme\", EscapeHelpKey }", gallery); // the scheme sentence (revision 13), then the Escape note
         Assert.Contains("GalleryReturnTarget.Media => \"viewer.help.escape.media\"", gallery);
         Assert.Contains("GalleryReturnTarget.Tagging => \"viewer.help.escape.tagging\"", gallery);
         Assert.Equal(1, CountOf(gallery, "ShortcutsWindow.IsPassive(window)")); // CanRouteGalleryShortcut

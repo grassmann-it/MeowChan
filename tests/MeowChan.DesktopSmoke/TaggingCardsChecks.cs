@@ -6,6 +6,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Tags;
@@ -52,11 +53,11 @@ internal static class TaggingCardsChecks
             await UntilAsync(() => viewer.IsTaggingMode && viewer.IsTagPanelOpen && viewer.TaggingStrip.IsEffectivelyVisible, "The strip or the tag panel is missing.");
             Require(!viewer.IsCardMode && !viewer.TaggingCardsRow.IsVisible && viewer.TaggingDoneButton.IsVisible, "The walk did not start without cards.");
 
-            // K switches the card mode on: five cards, the strip's buttons give way, the choice is kept for the next walk.
-            Raise(viewer, Key.K, KeyModifiers.None);
-            await UntilAsync(() => viewer.IsCardMode && viewer.TaggingCardsRow.IsEffectivelyVisible, "K did not show the cards.");
+            // Shift+K (revision 13; it was K) switches the card mode on: five cards, the strip's buttons give way, the choice is kept for the next walk.
+            Raise(viewer, Key.K, KeyModifiers.Shift);
+            await UntilAsync(() => viewer.IsCardMode && viewer.TaggingCardsRow.IsEffectivelyVisible, "Shift+K did not show the cards.");
             Require(!viewer.TaggingDoneButton.IsVisible && !viewer.TaggingSkipButton.IsVisible && !viewer.TaggingBackButton.IsVisible, "The strip's buttons stayed.");
-            Require(viewer.TaggingStatusText.Text == Texts.T("cards.status.on", "1–5", "K"), "The card mode was not announced: " + viewer.TaggingStatusText.Text);
+            Require(viewer.TaggingStatusText.Text == Texts.T("cards.status.on", "1–5", CommandCatalog.ShortcutDisplay("tags.queue.cards") ?? ""), "The card mode was not announced: " + viewer.TaggingStatusText.Text);
             await UntilAsync(() => host.Config.TaggingCardsDefault, "The card mode choice was not kept in the settings.");
             await LayoutAsync(window);
             RequireCards(viewer, window, "start");
@@ -125,10 +126,10 @@ internal static class TaggingCardsChecks
             Application.Current.RequestedThemeVariant = theme;
             Texts.SetLanguage("en");
 
-            // K again: the strip is back and the choice is kept off; the Back card stays enabled while the others need a decidable medium.
+            // Shift+K again: the strip is back and the choice is kept off; the Back card stays enabled while the others need a decidable medium.
             viewer.Focus();
-            Raise(viewer, Key.K, KeyModifiers.None);
-            await UntilAsync(() => !viewer.IsCardMode && viewer.TaggingDoneButton.IsEffectivelyVisible && !viewer.TaggingCardsRow.IsVisible, "K did not hide the cards.");
+            Raise(viewer, Key.K, KeyModifiers.Shift);
+            await UntilAsync(() => !viewer.IsCardMode && viewer.TaggingDoneButton.IsEffectivelyVisible && !viewer.TaggingCardsRow.IsVisible, "Shift+K did not hide the cards.");
             await UntilAsync(() => !host.Config.TaggingCardsDefault, "The card mode choice was not kept off.");
             GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
             await UntilAsync(() => galleryHost.Content is not GalleryViewer && window.GalleryTagging == null, "The gallery did not close.");

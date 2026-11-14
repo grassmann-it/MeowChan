@@ -219,10 +219,9 @@ public sealed class VideoKeyboardTests : IDisposable
         foreach (string key in new[] { "gallery.video.loopOn", "gallery.video.loopOff", "settings.galleryVideoSeekStep", "command.video.step-back", "command.video.step-forward" })
             Assert.NotEqual(key, Texts.T(key));
         Assert.NotEqual(Texts.T("gallery.video.loopOn"), Texts.T("gallery.video.loopOff"));
-        // The filmstrip toggle's hint names its key through a placeholder filled from the binding (GL5 prep 579f955e), so it follows
-        // the move to Shift+L (asserted on the bindings above) and any binding the person chose.
-        string filmstrip = Texts.T("settings.galleryFilmstripHint", "KEYF");
-        Assert.True(filmstrip.Contains("KEYF", StringComparison.Ordinal), language);
+        // The filmstrip toggle's key sentence takes the key from the binding (revision 13 moved the texts out of the long hint).
+        Assert.Contains("KEYA", Texts.T("settings.galleryFilmstripKeyHint", "KEYA"));
+        Assert.DoesNotContain("Shift+L", Texts.T("settings.galleryFilmstripHint"));
     }
 
     [Fact]
@@ -231,6 +230,6 @@ public sealed class VideoKeyboardTests : IDisposable
         Texts.SetLanguage("de");
         Assert.Equal("Wiederholen an", Texts.T("gallery.video.loopOn"));
         Assert.Equal("Wiederholen aus", Texts.T("gallery.video.loopOff"));
-        Assert.Contains("die Taste Umschalt+L zeigt", Texts.T("settings.galleryFilmstripHint", "Umschalt+L"));
+        Assert.Equal("Umschalt+L zeigt oder verbirgt die Reihe.", Texts.T("settings.galleryFilmstripKeyHint", "Umschalt+L"));
     }
 }

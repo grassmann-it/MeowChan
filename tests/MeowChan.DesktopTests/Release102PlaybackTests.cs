@@ -6,7 +6,6 @@ namespace MeowChan.DesktopTests;
 public sealed class Release102PlaybackTests
 {
     [Theory]
-    [InlineData("gallery.overlay-toggle")]
     [InlineData("gallery.overlay-autohide-toggle")]
     [InlineData("gallery.post-overlay-toggle")]
     public void NewActionsHaveNoDefaultsAndCanBeBoundWithoutInventingAnotherRouter(string id)
@@ -25,8 +24,8 @@ public sealed class Release102PlaybackTests
     [Fact]
     public void SlideshowHasTheSingleKeyDefaultAndCanStillBeRebound()
     {
-        // The shortcut rework (K-F) gave the slideshow S; a saved binding still replaces it without blocking.
-        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "S");
+        // The shortcut rework (K-F) gave the slideshow S, the gallery key scheme (revision 13) D (S saves the video frame); a saved binding still replaces it without blocking.
+        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "D");
         var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Primary+Shift+F9")]);
         foreach (var platform in Enum.GetValues<ShortcutPlatform>())
         {

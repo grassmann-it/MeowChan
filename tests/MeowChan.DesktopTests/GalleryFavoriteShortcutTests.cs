@@ -28,7 +28,10 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
 
         var bindings = EffectiveShortcutBindings.Build(new(), platform);
         Assert.Empty(bindings.Issues);
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add"));
+        // Revision 13 (gallery key scheme): M mutes the video, so "Add favorite" moved to B (Bookmark); F still toggles, U removes.
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.add"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.add"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "video.mute"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "favorites.remove"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.toggle"));
@@ -41,12 +44,12 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     public void NewFavoriteDefaultsYieldToSavedExplicitGalleryBindings(ShortcutPlatform platform)
     {
         var section = new ShortcutBindingsSection()
-            .Set("gallery.context-toggle", [ShortcutGesture.Parse("M")])
+            .Set("gallery.context-toggle", [ShortcutGesture.Parse("B")])
             .Set("gallery.close", [ShortcutGesture.Parse("U")]);
         string before = section.Raw.GetRawText();
         var bindings = EffectiveShortcutBindings.Build(section, platform);
 
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "gallery.context-toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "gallery.context-toggle"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.U }, "gallery.close"));
         Assert.Empty(bindings.For("favorites.add"));
         Assert.Empty(bindings.For("favorites.remove"));
@@ -62,10 +65,10 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
     public void NewAddDefaultAlsoYieldsToASavedFavoriteToggleOverride()
     {
         var section = new ShortcutBindingsSection()
-            .Set("favorites.toggle", [ShortcutGesture.Parse("M")]);
+            .Set("favorites.toggle", [ShortcutGesture.Parse("B")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
 
-        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.M }, "favorites.toggle"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.B }, "favorites.toggle"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle"));
         Assert.Empty(bindings.For("favorites.add"));
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "favorites.add"
@@ -85,7 +88,8 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
         var addBindings = EffectiveShortcutBindings.Build(addSection, platform);
         Assert.Empty(addBindings.For("favorites.add"));
         Assert.Empty(addBindings.For("gallery.context-toggle"));
-        Assert.True(IsSymmetricConflict(Assert.Single(addBindings.Issues),
+        // (The mute default on M also steps aside for the saved bindings; that informational issue does not block anything.)
+        Assert.True(IsSymmetricConflict(Assert.Single(addBindings.Issues, issue => issue.BlocksSave),
             "favorites.add", "gallery.context-toggle"));
 
         var removeSection = new ShortcutBindingsSection()
@@ -136,9 +140,8 @@ public sealed class GalleryFavoriteShortcutTests : IDisposable
         Assert.Equal(german ? "Favorit entfernen" : "Remove favorite", CommandCatalog.Label("favorites.remove"));
         Assert.Equal(german ? "Favorisiert" : "Favorite", Texts.T("viewer.favorite.saved"));
         Assert.Equal(german ? "Kein Favorit" : "Not a favorite", Texts.T("viewer.favorite.unsaved"));
-        Assert.Contains(german ? "M  Favorit hinzufügen" : "M  Add favorite", Texts.T("viewer.help.favorite"));
-        Assert.Contains(german ? "U  Favorit entfernen" : "U  Remove favorite", Texts.T("viewer.help.favorite"));
-        Assert.Contains(german ? "F  Hinzufügen oder entfernen" : "F  Add or remove", Texts.T("viewer.help.favorite"));
+        // The former static line "viewer.help.favorite" (fixed keys M, U, F) is gone: the shortcuts window lists the keys from the bindings.
+        Assert.Equal("viewer.help.favorite", Texts.T("viewer.help.favorite"));
     }
 
     private static bool IsSymmetricConflict(ShortcutIssue issue, string first, string second) =>

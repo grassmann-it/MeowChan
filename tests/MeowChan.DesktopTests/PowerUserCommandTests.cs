@@ -66,8 +66,8 @@ public sealed class PowerUserCommandTests
     [Fact]
     public void ContextGesturesKeepDistinctActionsAndScopes()
     {
-        Assert.Equal("P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
-        // P stays the context toggle (V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
+        Assert.Equal("Shift+P", CommandCatalog.Get("gallery.context-toggle").Shortcut);
+        // Shift+P is the context toggle since the gallery key scheme (revision 13, it was P; V-06); the jump into the thread has its own key since MEDIA103-NAV (user decision 11.11.2026).
         Assert.Equal("T", CommandCatalog.Get("gallery.show-in-thread").Shortcut);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = Key.T }, "gallery.show-in-thread"));
         Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.P }, "gallery.show-in-thread"));

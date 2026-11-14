@@ -185,9 +185,9 @@ public static class CommandCatalog
         new("gallery.rotate", "command.gallery.rotate", "Rotate 90°", "90° drehen", "rotate-cw", "Shift+R", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         // G1: the gallery's mode switch "View | Tag" (enters and leaves the tagging mode of a walkable list).
         new("gallery.mode-toggle", "command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen", "edit-2", "Shift+T", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "S", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", "Shift+H", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "D", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", "Shift+O", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "Shift+L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
@@ -199,7 +199,7 @@ public static class CommandCatalog
         new("gallery.layout.filmstrip-top", "command.gallery.layout.filmstrip-top", "Layout: filmstrip at the top", "Layout: Filmstreifen oben", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.filmstrip-bottom", "command.gallery.layout.filmstrip-bottom", "Layout: filmstrip at the bottom", "Layout: Filmstreifen unten", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.reset", "command.gallery.layout.reset", "Layout: reset to the default of the work view", "Layout: auf den Standard der Arbeitsansicht zurücksetzen", "rotate-ccw", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen", "file-text", "P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
+        new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen", "file-text", "Shift+P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Back to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
         new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", "T", CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-page" }),
         new("preview.close", "command.preview.close", "Close preview", "Vorschau schließen", "x", null, CommandScope.Media, new[] { "legacy-media-preview" }),
@@ -306,16 +306,16 @@ public static class CommandCatalog
         new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.back", "command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen", "corner-up-left", "Back", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.play-pause", "command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus", "play", "Shift+Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
-        // Card mode (PT4): K switches it on and off inside the tagging mode; the five card keys (1 to 5) act only while the cards are shown.
+        // Card mode (PT4): Shift+K switches it on and off inside the tagging mode (the cards are a block, so Shift plus a letter since revision 13); the five card keys (1 to 5) act only while the cards are shown.
         // Same context as the keys above, so 1 to 5 never compete with the plain gallery's 1 (actual size) and 0 outside the mode.
-        new("tags.queue.cards", "command.tags.queue.cards", "Card mode on / off", "Kartenmodus ein / aus", "columns", "K", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.cards", "command.tags.queue.cards", "Card mode on / off", "Kartenmodus ein / aus", "columns", "Shift+K", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.card-1", "command.tags.queue.card-1", "Choose card 1", "Karte 1 wählen", "check", "D1", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.card-2", "command.tags.queue.card-2", "Choose card 2", "Karte 2 wählen", "check", "D2", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.card-3", "command.tags.queue.card-3", "Choose card 3", "Karte 3 wählen", "check", "D3", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.card-4", "command.tags.queue.card-4", "Choose card 4", "Karte 4 wählen", "check", "D4", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.card-5", "command.tags.queue.card-5", "Choose card 5", "Karte 5 wählen", "check", "D5", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "star", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu" }),
-        new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "star", "M", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "star", "B", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("favorites.remove", "command.favorites.remove", "Remove favorite", "Favorit entfernen", "x", "U", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("favorites.filter", "command.favorites.filter", "Favorites only", "Nur Favoriten", "star", null, CommandScope.Archive | CommandScope.Media, new[] { "thread-media-filter", "archive-media-filter" }),
         new("favorites.open", "command.favorites.open", "Show favorites", "Favoriten anzeigen", "star", null, CommandScope.Archive, new[] { "archive-favorites-overview" }),
@@ -332,8 +332,8 @@ public static class CommandCatalog
         new("video.play-pause", "command.video.play-pause", "Play / pause", "Wiedergabe / Pause", "play", "Space", CommandScope.Gallery, new[] { "gallery-video-surface", "gallery-video-controls" }),
         new("video.volume-up", "command.video.volume-up", "Increase video volume", "Videolautstärke erhöhen", "volume-2", "Up", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-x", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        // M stays "Add favorite" in the gallery (shortcut concept D4); mute takes Shift+M.
-        new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "Shift+M", CommandScope.Gallery, new[] { "gallery-video-controls" }),
+        // Gallery key scheme (revision 13, GalleryShortcutScheme): plain letters are playback actions, so M mutes (it was Shift+M); "Add favorite" moved from M to B (Bookmark; F still toggles, U removes).
+        new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "M", CommandScope.Gallery, new[] { "gallery-video-controls" }),
         // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
         new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", "L", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
@@ -347,7 +347,7 @@ public static class CommandCatalog
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Back", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
+        new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
         // Transport row (plan V1): A sets A, then B, then turns the loop off; Shift+. shows the next frame (LibVLC 3 has no step back,
         // so Shift+, stays free: there is no "previous frame" command). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
         new("video.ab-loop", "command.video.ab-loop", "A–B loop", "A–B-Schleife", "repeat", "A", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
