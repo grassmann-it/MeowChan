@@ -76,8 +76,10 @@ internal sealed class FolderSourceDialog : Window
         DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error, maxHeight: 96)), modal: true, captionName: "FolderSourceChrome");
 
         if (renaming != null) _name.Text = renaming.Name;
-        _name.TextChanged += (_, _) => { if (!_syncing) { _nameEdited = true; ClearError(); } };
-        _folder.TextChanged += (_, _) => { if (!_syncing) { SuggestName(); ClearError(); } };
+        // The Text property, not TextChanged: Avalonia posts TextChanged after the change, so the _syncing guard would already
+        // be cleared and the suggested name would count as the person's own edit (then it stops following the folder).
+        _name.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { _nameEdited = true; ClearError(); } };
+        _folder.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { SuggestName(); ClearError(); } };
         _choose.Click += async (_, _) => await ChooseAsync();
         _cancel.Click += (_, _) => { if (!_busy) Close(); };
         _confirm.Click += async (_, _) => await ConfirmAsync();
@@ -114,13 +116,19 @@ internal sealed class FolderSourceDialog : Window
     private void SuggestName()
     {
         if (_nameEdited || _renaming != null) return;
-        string folder = (_folder.Text ?? string.Empty).Trim();
+        _syncing = true;
+        try { _name.Text = SuggestedName(_folder.Text); }
+        finally { _syncing = false; }
+    }
+
+    /// <summary>The folder's own name, cut to the catalog's name limit; empty for no or an unusable path.</summary>
+    internal static string SuggestedName(string? folderText)
+    {
+        string folder = (folderText ?? string.Empty).Trim();
         string suggested;
         try { suggested = Path.GetFileName(Path.TrimEndingDirectorySeparator(folder)); }
         catch (ArgumentException) { suggested = string.Empty; }
-        _syncing = true;
-        try { _name.Text = suggested.Length > FolderSourceCatalog.MaximumNameLength ? suggested[..FolderSourceCatalog.MaximumNameLength] : suggested; }
-        finally { _syncing = false; }
+        return suggested.Length > FolderSourceCatalog.MaximumNameLength ? suggested[..FolderSourceCatalog.MaximumNameLength] : suggested;
     }
 
     private void ClearError() { _errorKey = null; _error.Text = string.Empty; }

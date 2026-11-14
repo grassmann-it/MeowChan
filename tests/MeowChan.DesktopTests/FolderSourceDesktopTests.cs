@@ -133,6 +133,26 @@ public sealed class FolderSourceDesktopTests : IDisposable
             FolderSourcesPanel.StatusLine(new FolderSourceActivity(null, null, new FolderSourceHashStatus(0, 0, false, true), 10, 1), true));
     }
 
+    [Fact]
+    public void TheSuggestedNameIsTheFolderNameAndFollowsTheFolderThroughTheTextPropertyNotTheDeferredTextChanged()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "my photos");
+        Assert.Equal("my photos", FolderSourceDialog.SuggestedName(folder));
+        Assert.Equal("my photos", FolderSourceDialog.SuggestedName("  " + folder + Path.DirectorySeparatorChar + "  "));
+        Assert.Equal(string.Empty, FolderSourceDialog.SuggestedName(null));
+        Assert.Equal(FolderSourceCatalog.MaximumNameLength,
+            FolderSourceDialog.SuggestedName(Path.Combine(Path.GetTempPath(), new string('a', FolderSourceCatalog.MaximumNameLength + 5))).Length);
+        // Wave-3 smoke regression (folder-source): Avalonia posts TextChanged, so the _syncing guard was already cleared when the
+        // name field reported the suggestion, which then counted as an own edit. Both fields are observed on the property itself.
+        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(SourceDirectory(), "../..", "Desktop/Views/Sources/FolderSourceDialog.cs")));
+        Assert.DoesNotContain("_name.TextChanged", source);
+        Assert.DoesNotContain("_folder.TextChanged", source);
+        Assert.Contains("_name.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing)", source);
+        Assert.Contains("_folder.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty && !_syncing) { SuggestName();", source);
+    }
+
+    private static string SourceDirectory([System.Runtime.CompilerServices.CallerFilePath] string file = "") => Path.GetDirectoryName(file)!;
+
     private static async Task WaitAsync(Func<bool> condition)
     {
         DateTime until = DateTime.UtcNow + TimeSpan.FromSeconds(20);
