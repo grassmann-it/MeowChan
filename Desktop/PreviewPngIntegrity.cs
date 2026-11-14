@@ -244,6 +244,14 @@ internal static class PreviewPngIntegrity
     private static readonly int[] LengthExtra = [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 0];
     private static readonly int[] DistanceBase = [1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193, 257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577];
     private static readonly int[] DistanceExtra = [0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13];
+
+    private enum DeflateTableKind
+    {
+        CodeLength,
+        LiteralLength,
+        Distance,
+    }
+
     private static readonly DeflateHuffmanTable FixedLiteralLength = CreateFixedLiteralLengthTable();
     private static readonly DeflateHuffmanTable FixedDistance = CreateFixedDistanceTable();
 
@@ -254,6 +262,7 @@ internal static class PreviewPngIntegrity
     private static bool HasCompleteDeflateMember(byte[] compressed, int expectedOutput)
     {
         if (compressed.Length < 6 || !ValidZlibHeader(compressed)) return false;
+        int windowSize = 1 << ((compressed[0] >> 4) + 8);
         DeflateBitReader reader = new(compressed.AsSpan(2, compressed.Length - 6));
         int output = 0;
         bool final;
@@ -267,12 +276,12 @@ internal static class PreviewPngIntegrity
                     if (!ReadStoredBlock(ref reader, expectedOutput, ref output)) return false;
                     break;
                 case 1:
-                    if (!ReadCompressedBlock(ref reader, FixedLiteralLength, FixedDistance, expectedOutput, ref output)) return false;
+                    if (!ReadCompressedBlock(ref reader, FixedLiteralLength, FixedDistance, windowSize, expectedOutput, ref output)) return false;
                     break;
                 case 2:
                     if (!ReadDynamicTables(ref reader, out DeflateHuffmanTable? literalLength, out DeflateHuffmanTable? distance)
                         || literalLength is null || distance is null
-                        || !ReadCompressedBlock(ref reader, literalLength, distance, expectedOutput, ref output)) return false;
+                        || !ReadCompressedBlock(ref reader, literalLength, distance, windowSize, expectedOutput, ref output)) return false;
                     break;
                 default:
                     return false;
@@ -293,7 +302,7 @@ internal static class PreviewPngIntegrity
     }
 
     private static bool ReadCompressedBlock(ref DeflateBitReader reader, DeflateHuffmanTable literalLength,
-        DeflateHuffmanTable distance, int expectedOutput, ref int output)
+        DeflateHuffmanTable distance, int windowSize, int expectedOutput, ref int output)
     {
         while (true)
         {
@@ -312,7 +321,7 @@ internal static class PreviewPngIntegrity
             if (!distance.TryReadSymbol(ref reader, out int distanceSymbol) || distanceSymbol is < 0 or > 29) return false;
             if (!reader.TryReadBits(DistanceExtra[distanceSymbol], out int distanceExtra)) return false;
             int distanceValue = DistanceBase[distanceSymbol] + distanceExtra;
-            if (distanceValue > output || distanceValue > 32_768 || !AddOutput(length, expectedOutput, ref output)) return false;
+            if (distanceValue > output || distanceValue > windowSize || !AddOutput(length, expectedOutput, ref output)) return false;
         }
     }
 
@@ -324,13 +333,15 @@ internal static class PreviewPngIntegrity
         if (!reader.TryReadBits(5, out int hlitBits) || !reader.TryReadBits(5, out int hdistBits)
             || !reader.TryReadBits(4, out int hclenBits)) return false;
 
+        // RFC 1951 permits 257..286 literal/length codes; 287 and 288 are not encodable tables.
+        if (hlitBits > 29) return false;
         int hlit = hlitBits + 257;
         int hdist = hdistBits + 1;
         int hclen = hclenBits + 4;
         int[] codeLengthLengths = new int[19];
         for (int index = 0; index < hclen; index++)
             if (!reader.TryReadBits(3, out codeLengthLengths[CodeLengthOrder[index]])) return false;
-        if (!TryBuildHuffman(codeLengthLengths, out DeflateHuffmanTable? codeLengthTable) || codeLengthTable is null) return false;
+        if (!TryBuildHuffman(codeLengthLengths, DeflateTableKind.CodeLength, out DeflateHuffmanTable? codeLengthTable) || codeLengthTable is null) return false;
 
         int[] lengths = new int[hlit + hdist];
         int written = 0;
@@ -363,8 +374,8 @@ internal static class PreviewPngIntegrity
         }
 
         if (lengths[256] == 0) return false;
-        if (!TryBuildHuffman(lengths.AsSpan(0, hlit), out literalLength) || literalLength is null) return false;
-        if (!TryBuildHuffman(lengths.AsSpan(hlit, hdist), out distance) || distance is null) return false;
+        if (!TryBuildHuffman(lengths.AsSpan(0, hlit), DeflateTableKind.LiteralLength, out literalLength) || literalLength is null) return false;
+        if (!TryBuildHuffman(lengths.AsSpan(hlit, hdist), DeflateTableKind.Distance, out distance) || distance is null) return false;
         return true;
     }
 
@@ -382,22 +393,22 @@ internal static class PreviewPngIntegrity
         for (int symbol = 144; symbol <= 255; symbol++) lengths[symbol] = 9;
         for (int symbol = 256; symbol <= 279; symbol++) lengths[symbol] = 7;
         for (int symbol = 280; symbol <= 287; symbol++) lengths[symbol] = 8;
-        return BuildHuffmanOrThrow(lengths);
+        return BuildHuffmanOrThrow(lengths, DeflateTableKind.LiteralLength);
     }
 
     private static DeflateHuffmanTable CreateFixedDistanceTable()
     {
         int[] lengths = new int[32];
         Array.Fill(lengths, 5);
-        return BuildHuffmanOrThrow(lengths);
+        return BuildHuffmanOrThrow(lengths, DeflateTableKind.Distance);
     }
 
-    private static DeflateHuffmanTable BuildHuffmanOrThrow(ReadOnlySpan<int> lengths) =>
-        TryBuildHuffman(lengths, out DeflateHuffmanTable? result) && result is not null
+    private static DeflateHuffmanTable BuildHuffmanOrThrow(ReadOnlySpan<int> lengths, DeflateTableKind tableKind) =>
+        TryBuildHuffman(lengths, tableKind, out DeflateHuffmanTable? result) && result is not null
             ? result
             : throw new InvalidOperationException("The fixed DEFLATE Huffman table is invalid.");
 
-    private static bool TryBuildHuffman(ReadOnlySpan<int> lengths, out DeflateHuffmanTable? result)
+    private static bool TryBuildHuffman(ReadOnlySpan<int> lengths, DeflateTableKind tableKind, out DeflateHuffmanTable? result)
     {
         result = null;
         int maximumLength = 0;
@@ -414,13 +425,24 @@ internal static class PreviewPngIntegrity
 
         Dictionary<int, int>?[] symbolsByLength = new Dictionary<int, int>?[maximumLength + 1];
         int code = 0;
+        int codeSpace = 1;
         int[] nextCode = new int[16];
         for (int bitLength = 1; bitLength <= maximumLength; bitLength++)
         {
+            codeSpace = (codeSpace << 1) - counts[bitLength];
+            if (codeSpace < 0) return false;
             code = (code + counts[bitLength - 1]) << 1;
             if (code + counts[bitLength] > (1 << bitLength)) return false;
             nextCode[bitLength] = code;
         }
+
+        // zlib's inflate_table contract: the code-length alphabet must be complete;
+        // LENS/DISTS may be incomplete only for a one-bit singleton. A zero-symbol
+        // distance table is the literal-only exception and is rejected naturally
+        // when a length symbol attempts to read a distance.
+        if (codeSpace != 0 && (tableKind == DeflateTableKind.CodeLength
+            || (tableKind == DeflateTableKind.LiteralLength && maximumLength != 1)
+            || (tableKind == DeflateTableKind.Distance && maximumLength is not (0 or 1)))) return false;
         for (int symbol = 0; symbol < lengths.Length; symbol++)
         {
             int bitLength = lengths[symbol];
