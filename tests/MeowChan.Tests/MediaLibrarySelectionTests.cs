@@ -191,6 +191,114 @@ public sealed class MediaLibrarySelectionTests
         Assert.Equal(4, plan.Unavailable); // not saved, preview only, changed bytes, unreadable folder
     }
 
+    // Facts a Present original must carry before any manifest is opened: each broken entry is one tile with nothing to offer.
+    private static MediaLibraryEntry[] BrokenOriginals() =>
+    [
+        Entry("n1", "1", 'a') with { Directory = null },
+        Entry("n2", "1", 'b') with { Directory = "" },
+        Entry("n3", "1", 'c') with { Directory = "  " },
+        Entry("n4", "1", 'd') with { AssetId = null },
+        Entry("n5", "1", 'e') with { AssetId = "" },
+        Entry("n6", "1", '1') with { AssetId = " \t" },
+        Entry("n7", "1", '2') with { MediaId = null },
+        Entry("n8", "1", '3') with { MediaId = " " },
+        Entry("n9", "1", '4') with { Sha256 = null, Length = null },
+        Entry("n10", "1", '5') with { Sha256 = "" },
+        Entry("n11", "1", '6') with { Variant = "preview" },
+        Entry("n12", "1", '7') with { Variant = "Original" }, // the variant is an exact name, not a case-insensitive one
+        Entry("n13", "1", '8', missing: true) with { Directory = "/dir/n13", AssetId = "asset-n13", Sha256 = Hash('8'), MediaId = "m1" } // flagged Missing
+    ];
+
+    [Fact]
+    public async Task MeasureAndPlanAgreeOnEntriesWithInvalidOriginalFactsAndNeverPassBlankKeysToTheManifestReader()
+    {
+        MediaLibraryEntry good = Entry("ok", "1", '9');
+        MediaLibraryEntry[] broken = BrokenOriginals();
+        IReadOnlyList<MediaLibraryTile> tiles = Tiles([good, .. broken]);
+        Assert.Equal(broken.Length + 1, tiles.Count); // every entry is its own tile: nothing is grouped away
+        List<string?> opened = new();
+
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(tiles);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(tiles, (directory, _) =>
+        {
+            opened.Add(directory);
+            return Task.FromResult(Manifest(directory, good));
+        });
+
+        Assert.Equal(new MediaLibraryExportSize(1, 3, broken.Length), size);
+        Assert.Equal(size.Files, plan.Assets.Count);
+        Assert.Equal(size.NotOffered, plan.Unavailable);
+        Assert.Equal(new[] { good.Thread }, plan.Assets.Select(asset => asset.Key.Thread));
+        Assert.Equal(new[] { good.Directory }, opened); // the one valid original; no null, blank or foreign folder reached the reader
+        Assert.DoesNotContain(opened, directory => string.IsNullOrWhiteSpace(directory));
+    }
+
+    [Fact]
+    public async Task AnInvalidOriginalNeverDrawsAnotherFileOfTheSameBytesOrFolder()
+    {
+        // Same bytes in two threads are one tile; the shown occurrence is the first (by thread order). When its own facts are
+        // invalid the plan must not fall back to the twin's perfectly good file.
+        MediaLibraryEntry shown = Entry("a", "1", 'e') with { AssetId = null };
+        MediaLibraryEntry twin = Entry("b", "1", 'e');
+        IReadOnlyList<MediaLibraryTile> tiles = Tiles([shown, twin]);
+        Assert.Equal(shown, Assert.Single(tiles).Entry);
+        List<string> opened = new();
+
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(tiles);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(tiles, (directory, _) => { opened.Add(directory); return Task.FromResult(Manifest(directory, twin)); });
+
+        Assert.Equal(new MediaLibraryExportSize(0, 0, 1), size);
+        Assert.Empty(plan.Assets);
+        Assert.Equal(1, plan.Unavailable);
+        Assert.Empty(opened);
+    }
+
+    [Fact]
+    public async Task AManifestThatDoesNotHoldTheIndexedOriginalIsUnavailableAndNothingElseIsChosen()
+    {
+        MediaLibraryEntry entry = Entry("a", "1", 'a'), mediaMoved = Entry("b", "1", 'b'), otherHash = Entry("c", "1", 'c'),
+            otherVariant = Entry("d", "1", 'd'), assetGone = Entry("e", "1", 'e'), caseOnly = Entry("f", "1", 'f');
+        MediaLibraryEntry foreign = Entry("z", "9", 'z'); // a perfectly valid original of another tile, in the same folder
+        IReadOnlyList<MediaLibraryTile> tiles = Tiles([entry, mediaMoved, otherHash, otherVariant, assetGone, caseOnly]);
+        MediaAssetSnapshot Of(MediaLibraryEntry shown, MediaLibraryEntry holds) => Manifest(shown.Directory!, holds with { Name = shown.Name });
+
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(tiles, (directory, _) => Task.FromResult(
+            directory == entry.Directory ? Of(entry, entry)
+            : directory == mediaMoved.Directory ? Of(mediaMoved, mediaMoved with { MediaId = "other" })
+            : directory == otherHash.Directory ? Of(otherHash, otherHash with { Sha256 = Hash('0') })
+            : directory == otherVariant.Directory ? Of(otherVariant, otherVariant with { Variant = "preview" })
+            : directory == assetGone.Directory ? Of(assetGone, foreign) // holds only the foreign asset
+            : Of(caseOnly, caseOnly with { Sha256 = Hash('f').ToUpperInvariant() }))); // a hash differing only in case is the same hash
+
+        Assert.Equal(new[] { entry.Thread, caseOnly.Thread }, plan.Assets.Select(asset => asset.Key.Thread));
+        Assert.Equal(4, plan.Unavailable);
+        Assert.DoesNotContain(plan.Assets, asset => asset.Key.Sha256 == Hash('z'));
+    }
+
+    [Fact]
+    public async Task ACancelledPlanOpensNoManifestAndACancelRaisedWhileOpeningIsNotSwallowed()
+    {
+        MediaLibraryEntry a = Entry("a", "1", 'a'), b = Entry("b", "1", 'b');
+        IReadOnlyList<MediaLibraryTile> tiles = Tiles([a, b]);
+        int opens = 0;
+        using CancellationTokenSource cancelled = new();
+        cancelled.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => MediaLibraryExport.BuildAsync(tiles, (directory, _) => { opens++; return Task.FromResult(Manifest(directory, a)); }, cancelled.Token));
+        Assert.Equal(0, opens);
+
+        // The cancel arrives while the first manifest is read: the plan stops there instead of counting a failed tile and going on.
+        using CancellationTokenSource during = new();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => MediaLibraryExport.BuildAsync(tiles, (directory, token) =>
+        {
+            opens++;
+            during.Cancel();
+            token.ThrowIfCancellationRequested();
+            return Task.FromResult(Manifest(directory, a));
+        }, during.Token));
+        Assert.Equal(1, opens);
+    }
+
     // "Export all": the page hands every shown tile to the same plan the selection uses.
     [Fact]
     public async Task ExportAllOffersExactlyTheShownTilesOfTheFilterAndLeavesHiddenOnesOut()

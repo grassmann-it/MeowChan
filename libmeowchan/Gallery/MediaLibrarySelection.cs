@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -151,9 +152,19 @@ internal readonly record struct MediaLibraryExportSize(int Files, long Bytes, in
 
 internal static class MediaLibraryExport
 {
-    // The index facts BuildAsync needs before it opens a manifest; the same test decides count and plan, so they cannot drift.
-    private static bool HasOriginal(MediaLibraryEntry entry) => entry.Presence == MediaLibraryPresence.Present && entry.Directory != null
-        && entry.AssetId != null && entry.MediaId != null && entry.Variant == "original";
+    // The index facts BuildAsync needs before it opens a manifest. Count and plan both decide through this one method, so
+    // they cannot drift, and its non-null outputs carry the validated facts to the caller: a blank directory, asset id,
+    // media id or hash is "no original to offer" (FindById rejects a blank id, and a blank folder is not a manifest).
+    private static bool TryGetOriginal(MediaLibraryEntry entry, [NotNullWhen(true)] out string? directory,
+        [NotNullWhen(true)] out string? assetId, [NotNullWhen(true)] out string? mediaId, [NotNullWhen(true)] out string? sha256)
+    {
+        bool original = entry.Presence == MediaLibraryPresence.Present && entry.Variant == "original";
+        directory = original && !string.IsNullOrWhiteSpace(entry.Directory) ? entry.Directory : null;
+        assetId = original && !string.IsNullOrWhiteSpace(entry.AssetId) ? entry.AssetId : null;
+        mediaId = original && !string.IsNullOrWhiteSpace(entry.MediaId) ? entry.MediaId : null;
+        sha256 = original && !string.IsNullOrWhiteSpace(entry.Sha256) ? entry.Sha256 : null;
+        return directory != null && assetId != null && mediaId != null && sha256 != null;
+    }
 
     /// <summary>Count and bytes of the originals the tiles would offer, from the index only.</summary>
     internal static MediaLibraryExportSize Measure(IEnumerable<MediaLibraryTile> tiles)
@@ -163,7 +174,7 @@ internal static class MediaLibraryExport
         long bytes = 0;
         foreach (MediaLibraryTile tile in tiles)
         {
-            if (!HasOriginal(tile.Entry)) { notOffered++; continue; }
+            if (!TryGetOriginal(tile.Entry, out _, out _, out _, out _)) { notOffered++; continue; }
             files++;
             bytes += tile.Entry.Length ?? 0;
         }
@@ -187,16 +198,16 @@ internal static class MediaLibraryExport
         {
             cancellationToken.ThrowIfCancellationRequested();
             MediaLibraryEntry entry = tile.Entry;
-            if (!HasOriginal(entry)) { unavailable++; continue; }
-            if (!manifests.TryGetValue(entry.Directory, out MediaAssetSnapshot? manifest))
+            if (!TryGetOriginal(entry, out string? directory, out string? assetId, out string? mediaId, out string? sha256)) { unavailable++; continue; }
+            if (!manifests.TryGetValue(directory, out MediaAssetSnapshot? manifest))
             {
-                try { manifest = await openManifest(entry.Directory, cancellationToken).ConfigureAwait(false); }
+                try { manifest = await openManifest(directory, cancellationToken).ConfigureAwait(false); }
                 catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or System.IO.InvalidDataException) { manifest = null; }
-                manifests[entry.Directory] = manifest;
+                manifests[directory] = manifest;
             }
-            MediaAssetReference? asset = manifest?.FindById(entry.AssetId);
-            if (manifest == null || asset == null || !string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)
-                || asset.MediaIdentifier != entry.MediaId || asset.Variant != entry.Variant) { unavailable++; continue; }
+            MediaAssetReference? asset = manifest?.FindById(assetId);
+            if (manifest == null || asset == null || !string.Equals(asset.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
+                || asset.MediaIdentifier != mediaId || asset.Variant != entry.Variant) { unavailable++; continue; }
             assets.Add(FavoriteExportAsset.From(entry.Thread, manifest, asset));
         }
         return new MediaLibraryExportPlan(assets, unavailable);

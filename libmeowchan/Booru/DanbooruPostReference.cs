@@ -26,7 +26,7 @@ internal sealed record DanbooruPostReference(string PostId, Uri CanonicalUrl)
         out DanbooruPostReferenceError error) => TryParse(input, allowAliasHost: false, out reference, out error);
 
     /// <summary>
-    /// Like <see cref="TryParse"/> for text the user typed or pasted: a post link on the Safebooru alias host is the same
+    /// Like <see cref="TryParse(string?, out DanbooruPostReference?, out DanbooruPostReferenceError)"/> for text the user typed or pasted: a post link on the Safebooru alias host is the same
     /// post, so it yields the canonical Danbooru reference. Never use this for URLs a provider or a plugin reports.
     /// </summary>
     internal static bool TryParseUserInput(string? input, out DanbooruPostReference? reference,

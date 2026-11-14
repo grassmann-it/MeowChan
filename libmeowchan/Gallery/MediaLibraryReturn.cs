@@ -20,7 +20,11 @@ internal readonly record struct MediaLibraryReturnMatch(int Target, IReadOnlyLis
 /// <summary>Pure rules for the way back from a thread to the Medien page. No IO, no UI.</summary>
 internal static class MediaLibraryReturn
 {
+    /// <summary>The return point for leaving the page: the opened tile, the selection and the view position.</summary>
     /// <param name="occurrence">The occurrence whose thread is opened; for a tile of equal bytes it may be any of them.</param>
+    /// <param name="selected">The tiles selected when the page was left.</param>
+    /// <param name="anchorTile">The tile at the top of the view, null when none is known.</param>
+    /// <param name="anchorOffset">How far the anchor tile was scrolled past the top edge.</param>
     internal static MediaLibraryReturnPoint Capture(MediaLibraryEntry occurrence, IEnumerable<MediaLibraryTile> selected,
         MediaLibraryTile? anchorTile, double anchorOffset)
     {
@@ -34,6 +38,8 @@ internal static class MediaLibraryReturn
     /// Finds the tiles again by identity, not by position: a rebuild or a refreshed tag can move them. A tile that is
     /// gone is reported as -1 and never replaced by whatever now stands at its old position.
     /// </summary>
+    /// <param name="point">The return point captured when the page was left.</param>
+    /// <param name="tiles">The tiles shown now.</param>
     internal static MediaLibraryReturnMatch Locate(MediaLibraryReturnPoint point, IReadOnlyList<MediaLibraryTile> tiles)
     {
         ArgumentNullException.ThrowIfNull(point);

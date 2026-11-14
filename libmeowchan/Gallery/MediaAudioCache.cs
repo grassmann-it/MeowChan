@@ -12,7 +12,7 @@ namespace MeowChan.Gallery;
 
 /// <summary>
 /// What the probe learned per video, keyed like the page's tile grouping (SHA-256 ignoring case, plus length;
-/// equal bytes are one answer, see <see cref="KeyOf"/>). Immutable.
+/// equal bytes are one answer, see <see cref="KeyOf(string, long)"/>). Immutable.
 /// An entry records that the file was probed at the current <see cref="MediaAudioProbe.Version"/>; its
 /// state may still be Unknown when the headers could not decide. A hash without an entry has not been probed.
 /// </summary>
