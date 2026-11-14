@@ -50,7 +50,8 @@ public sealed class BackLabelRuleTests : IDisposable
     {
         Texts.SetLanguage(code);
         Assert.True(Pattern.TryGetValue(code, out Func<string, bool>? matches), "No back-label pattern for " + code);
-        var off = BackKeys.Where(key => !matches!(Texts.T(key))).Select(key => key + " = " + Texts.T(key)).ToArray();
+        // The language review shortened the ko menu label to the destination form ("to the last read position"), without the verb.
+        var off = BackKeys.Where(key => !(code == "ko" && key == "command.reader.history-back") && !matches!(Texts.T(key))).Select(key => key + " = " + Texts.T(key)).ToArray();
         Assert.True(off.Length == 0, "Back labels outside the pattern in " + code + ": " + string.Join("; ", off));
     }
 
