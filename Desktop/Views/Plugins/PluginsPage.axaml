@@ -58,7 +58,7 @@
           </StackPanel>
         </Expander>
       </Grid>
-      <Border x:Name="PluginNoSelection" Grid.Column="1" Classes="panel" Padding="20" IsVisible="False">
+      <Border x:Name="PluginNoSelection" Grid.Column="1" Classes="workspace-section" IsVisible="False">
         <TextBlock x:Name="PluginChooseHint" Classes="muted" TextWrapping="Wrap" VerticalAlignment="Center" HorizontalAlignment="Center" />
       </Border>
       <!-- One detail card, as on the Sources page: Back, heading and facts, actions, settings, the draft footer and the disclosures. -->

@@ -191,7 +191,7 @@ public sealed partial class MediaPage : UserControl
         body.Children.Add(_grid); body.Children.Add(_emptyState);
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
-        Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "panel" } };
+        Border surface = new() { Name = "MediaGridSurface", Child = body, Margin = new Thickness(12, 0, 12, 8), Classes = { "workspace-section-flush" } };
         layout.Children.Add(surface); Avalonia.Controls.Grid.SetRow(surface, 1);
         Content = layout;
 

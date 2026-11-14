@@ -39,8 +39,9 @@ public partial class MainWindow
         Grid.SetColumn(_archiveBridgeHintDismiss, 2);
         layout.Children.Add(_archiveBridgeHintOpen);
         layout.Children.Add(_archiveBridgeHintDismiss);
-        _archiveBridgeHint = new Border { Name = "ArchiveBridgeHint", IsVisible = false, Padding = new Thickness(10, 6), Child = layout };
-        _archiveBridgeHint.Classes.Add("panel");
+        _archiveBridgeHint = new Border { Name = "ArchiveBridgeHint", IsVisible = false, Child = layout };
+        _archiveBridgeHint.Classes.Add("workspace-section");
+        _archiveBridgeHint[!Border.PaddingProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Inset.Message");
         // Right below the Add results: the line answers "and now?" at the place the user just looked at.
         int after = WorkspaceIntakeStack.Children.IndexOf(AdmissionResultsPanel);
         WorkspaceIntakeStack.Children.Insert(after < 0 ? WorkspaceIntakeStack.Children.Count : after + 1, _archiveBridgeHint);

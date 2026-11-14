@@ -56,7 +56,6 @@ spacing-off-grid	Desktop/Plugins/PluginSettingsEditor.cs	1	Spacing=10
 spacing-off-grid	Desktop/Plugins/PluginSettingsEditor.cs	1	Spacing=6
 spacing-off-grid	Desktop/SectionNavigationControl.cs	1	Margin=new Thickness(0, 0, 8, 6)
 spacing-off-grid	Desktop/SectionNavigationControl.cs	1	Spacing=6
-spacing-off-grid	Desktop/Shell/MainWindow.ArchiveHint.cs	1	Padding=new Thickness(10, 6)
 spacing-off-grid	Desktop/Shell/MainWindow.DownloadsHeader.cs	1	Spacing=3
 spacing-off-grid	Desktop/Shell/MainWindow.Presentation.cs	1	Margin=new Thickness(0, compactIntake ? 4 : 6, 0, 0)
 spacing-off-grid	Desktop/Shell/MainWindow.Presentation.cs	1	new Thickness(20, 0)
@@ -129,7 +128,6 @@ spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	ItemSpacing="10"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	ItemSpacing="6"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	3	LineSpacing="6"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Margin="0,0,14,0"
-spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Padding="20"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="10"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	1	Spacing="5"
 spacing-off-grid	Desktop/Views/Plugins/PluginsPage.axaml	2	Spacing="6"

@@ -587,9 +587,14 @@
                Background 0 (window) < Panel 1 (section, table, bar) < Card 2 (content card, CardEdge 1 px)
                < Raised 3 (interactive: buttons, column heads) < Overlay 4 (menu, flyout, toast: Overlay +
                ControlBorder + Shadow.Overlay). Shadow.Overlay is the only shadow: never in lists, tiles or cards.
-               Scrim dims the content behind blocking in-window overlays.
+               Scrim dims the content behind blocking in-window overlays (every blocking dim layer uses Workspace.Scrim, no literal).
+             Cards, three classes (DS-P4): workspace-section (Panel + Border, radius 5, inset 16: the section container of a page),
+               workspace-card (Card + CardEdge, radius 5, inset Card: a content card in a list or on a section) and workspace-overlay
+               (Overlay + ControlBorder, radius 8: an in-window overlay), plus workspace-section-flush (a section with inset 0 for
+               content that runs to the edge: tables, media grids, reader content, a frame that brings its own insets).
+               Border.panel is deprecated (alias of the flush look, kept only for the sites listed in DesignLint); Border.raised is gone.
              Radius: None 0 (window, title bar, caption, tab/nav bars, transport), Badge 3 (marks under 20 dip),
-               Control 5 (buttons, inputs, cards, tiles), Group 8 (sections, overlays, dialog body),
+               Control 5 (buttons, inputs, sections, cards, tiles), Group 8 (overlays, dialog body),
                Chip 12 (pill at 24 dip), ChipCompact 9 (pill at 18 dip). Circles use Width/2 locally.
              Size: Control 30 (button), Input 32 (text box, combo box, column head), InputProminent 36 (Downloads URL entry), Nav 36, Chip 24, ChipCompact 18,
                TitleBar 48 (code mirror WorkspaceMetrics.TitleBarHeight), Caption 44 (caption-button width),
@@ -691,14 +696,15 @@
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
     <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.Reading}" /></Style>
     <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id"><Setter Property="IsVisible" Value="False" /></Style>
-    <Style Selector="Border.panel, Border.raised, Border.shell-bar">
+    <Style Selector="Border.panel, Border.shell-bar">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <!-- DS-P4: deprecated. Use workspace-section-flush (same surface, inset 0) or workspace-section (inset 16); this alias only keeps the
+         remaining pre-migration sites drawing until they move. -->
     <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
-    <Style Selector="Border.raised"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -900,11 +906,13 @@
         <Setter Property="Spacing" Value="{StaticResource Workspace.Space.12}" />
     </Style>
     <Style Selector="StackPanel.workspace-field"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.4}" /></Style>
-    <Style Selector="Border.workspace-section, Border.workspace-error, Border.workspace-warning, Border.workspace-info, Border.workspace-success, Border.workspace-status, Border.workspace-media-tools, Border.workspace-media-caption, Border.workspace-media-transport">
+    <Style Selector="Border.workspace-section, Border.workspace-section-flush, Border.workspace-error, Border.workspace-warning, Border.workspace-info, Border.workspace-success, Border.workspace-status, Border.workspace-media-tools, Border.workspace-media-caption, Border.workspace-media-transport">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Section}" />
     </Style>
+    <!-- DS-P4: the same surface with no inset, for content that runs to the edge (declared after the shared rule so the inset wins). -->
+    <Style Selector="Border.workspace-section-flush"><Setter Property="Padding" Value="0" /></Style>
     <Style Selector="Border.workspace-error">
         <Setter Property="Background" Value="{DynamicResource Workspace.ErrorSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
