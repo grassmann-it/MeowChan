@@ -27,6 +27,10 @@ internal static class SettingsFieldId
     internal const string ReaderMediaSidebarSide = nameof(ReaderMediaSidebarSide);
     internal const string ReaderMediaSidebarWidth = nameof(ReaderMediaSidebarWidth);
     internal const string ReaderMediaSidebarMinimumWidth = nameof(ReaderMediaSidebarMinimumWidth);
+    internal const string ReaderInlineVideo = nameof(ReaderInlineVideo);
+    internal const string ReaderInlineVideoAutoplayMuted = nameof(ReaderInlineVideoAutoplayMuted);
+    internal const string ReaderInlineVideoMaxPlayers = nameof(ReaderInlineVideoMaxPlayers);
+    internal const string ReaderInlineVideoMaxFileMiB = nameof(ReaderInlineVideoMaxFileMiB);
 
     /// <summary>The suffix of an input control's name on the settings page.</summary>
     internal const string InputSuffix = "Input";
