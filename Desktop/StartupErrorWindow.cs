@@ -13,7 +13,6 @@ namespace MeowChan.Desktop;
 /// <summary>Keeps profile and initialization failures visible even when MainWindow cannot be created.</summary>
 public sealed class StartupErrorWindow : Window
 {
-    private readonly TextBlock _heading;
     private readonly Button _exitButton;
     private bool _closed;
 
@@ -21,19 +20,12 @@ public sealed class StartupErrorWindow : Window
     {
         // Can open before MainWindow applies the saved theme; the variant in effect now decides.
         ThemeLogo.Follow(this);
-        Width = 560;
-        Height = 360;
-        MinWidth = 340;
-        MinHeight = 280;
+        // Modals plan MD3: ownerless and modeless (the error must stay reachable from the taskbar), on the S step.
+        DialogWindow.Configure(this, DialogSize.S, modal: false);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
-        _heading = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap
-        };
-        _heading.Classes.Add("page-title");
         SelectableTextBlock detail = new SelectableTextBlock
         {
             Text = message,
@@ -44,21 +36,15 @@ public sealed class StartupErrorWindow : Window
         // a capped local strip; heading and exit stay fixed around it.
         Border errorPanel = new Border
         {
-            Margin = new Thickness(16, 4, 16, 16),
+            Margin = new Thickness(16, 0, 16, 16),
             Child = detail
         };
         errorPanel.Classes.Add("workspace-section");
-        _exitButton = new Button
-        {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            MinWidth = 96,
-            IsCancel = true
-        };
+        _exitButton = new Button();
         _exitButton.Click += (_, _) => Close();
-        Border footer = new() { Child = _exitButton };
-        footer.Classes.Add("workspace-dialog-footer");
-        // No owner: keeps minimize so the error stays reachable from the taskbar.
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_heading, errorPanel, footer));
+        // No owner: keeps minimize so the error stays reachable from the taskbar. The title stands in the title bar only.
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, errorPanel, DialogFooter.Build(_exitButton)), modal: false);
+        DialogEscape.Attach(this);
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();
@@ -73,7 +59,6 @@ public sealed class StartupErrorWindow : Window
     private void ApplyTexts()
     {
         Title = Texts.T("startup.title");
-        _heading.Text = Title;
         _exitButton.Content = Texts.T("action.exit");
     }
 

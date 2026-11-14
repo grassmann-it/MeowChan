@@ -103,10 +103,10 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
     {
         _preview = preview;
         _view = view;
-        Title = Texts.T("wizard.title"); Width = 980; Height = 720; MinWidth = 640; MinHeight = 600;
-        MeowChan.Desktop.DialogFit.OnOpen(this);
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        // Shared dialog frame: title and task stay fixed, the rules help and board tabs scroll,
+        Title = Texts.T("wizard.title");
+        // Modals plan MD3: a modal assistant on the XL step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.XL, modal: true);
+        // Shared dialog frame: the task stays fixed (the title stands in the title bar only), the rules help and board tabs scroll,
         // the batch summary and joint actions stay fixed. Catalog failures stay tab-local next
         // to their Retry, so the frame's error strip is an empty slot.
         var intro = new StackPanel { Spacing = 8 };
@@ -196,7 +196,6 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             AutomationProperties.SetName(c, Texts.T("wizard.directFuture"));
         });
         footer.Children.Add(_direct);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var cancel = Localized(new Button { Name = "BoardAdmissionCancel" }, c =>
         {
             c.Content = Texts.T("wizard.cancel");
@@ -209,10 +208,11 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
             AutomationProperties.SetName(c, Texts.T("wizard.apply"));
         });
         _apply.Classes.Add("primary"); _apply.Click += (_, _) => Accept();
-        buttons.Children.Add(cancel); buttons.Children.Add(_apply);
-        footer.Children.Add(buttons);
-        Content = MeowChan.Desktop.WindowChrome.Frame(this, DialogFrame.Build(intro,
-            new Border { Child = body, Classes = { "workspace-dialog-body" } }, footer, DialogFrame.ErrorStrip(new TextBlock())));
+        // Apply is the primary action right-most; the joint total and the direct-future choice keep the full width above.
+        MeowChan.Desktop.Controls.DialogWindow.Frame(this, DialogFrame.Build(intro,
+            new Border { Child = body, Classes = { "workspace-dialog-body" } },
+            MeowChan.Desktop.Controls.DialogFooter.Build(_apply, new Control[] { cancel }, footer, statusAbove: true),
+            DialogFrame.ErrorStrip(new TextBlock())), modal: true);
         Opened += async (_, _) => { foreach (var draft in _drafts) { if (_closing) break; await LoadAsync(draft); } };
         Texts.Changed += OnTextsChanged;
         ApplyTexts();
@@ -221,9 +221,10 @@ internal sealed class BoardAdmissionWindow : Window, IDisposable
         KeyDown += (_, e) =>
         {
             if (e.Handled || MeowChan.Desktop.Commands.ShortcutService.IsCapturing) return;
-            if (e.Key == Avalonia.Input.Key.Escape) { e.Handled = true; Close(); }
-            else MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
+            if (e.Key != Avalonia.Input.Key.Escape) MeowChan.Desktop.Commands.CommandBindings.RouteVisibleActions(this, e);
         };
+        // Escape is the fixed dismissal of the dialog policy, never while a shortcut is being recorded.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, tryCancelLocal: () => MeowChan.Desktop.Commands.ShortcutService.IsCapturing);
         Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
     }
     private T Localized<T>(T control, Action<T> update) where T : Control
