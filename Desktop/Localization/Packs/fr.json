@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Boîtes de dialogue",
     "workview.switch.title": "Vue de travail modifiée",
     "workview.switch.summary": "{0} → {1}. Valeurs par défaut modifiées : direct {2} · sous Plus {3} · replié {4} · masqué {5}. Valeurs par défaut des colonnes : activée {6} · désactivée/sélectionnable {7} · non proposée {8}. Les choix enregistrés et l’état actif peuvent différer.",
+    "workview.switch.compactSummary": "{0} → {1} · Valeurs par défaut modifiées : {2}",
     "workview.switch.undo": "Annuler",
     "workview.switch.details": "Détails",
     "workview.switch.overviewUnavailable": "La vue d’ensemble des vues de travail n’est pas raccordée dans cette version.",

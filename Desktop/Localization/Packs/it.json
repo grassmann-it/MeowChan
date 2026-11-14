@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Finestre di dialogo",
     "workview.switch.title": "Vista di lavoro cambiata",
     "workview.switch.summary": "{0} → {1}. Valori predefiniti cambiati: diretto {2} · in Altro {3} · compresso {4} · nascosto {5}. Valori predefiniti delle colonne: attivata {6} · disattivata/selezionabile {7} · non disponibile {8}. Le scelte salvate e lo stato attivo possono differire.",
+    "workview.switch.compactSummary": "{0} → {1} · Valori predefiniti cambiati: {2}",
     "workview.switch.undo": "Annulla",
     "workview.switch.details": "Dettagli",
     "workview.switch.overviewUnavailable": "La panoramica delle viste di lavoro non è collegata in questa versione.",

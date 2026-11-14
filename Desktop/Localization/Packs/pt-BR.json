@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Caixas de diálogo",
     "workview.switch.title": "Visualização de trabalho alterada",
     "workview.switch.summary": "{0} → {1}. Valores padrão alterados: direto {2} · em Mais {3} · recolhido {4} · oculto {5}. Valores padrão das colunas: ativada {6} · desativada/selecionável {7} · não disponível {8}. As escolhas salvas e o estado ativo podem ser diferentes.",
+    "workview.switch.compactSummary": "{0} → {1} · Valores padrão alterados: {2}",
     "workview.switch.undo": "Desfazer",
     "workview.switch.details": "Detalhes",
     "workview.switch.overviewUnavailable": "O resumo das visualizações de trabalho não está conectado nesta versão.",

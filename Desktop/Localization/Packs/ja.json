@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "ダイアログ",
     "workview.switch.title": "作業ビューを切り替えました",
     "workview.switch.summary": "{0} → {1}。変更された既定の表示: 直接表示 {2} · 「その他」内 {3} · 折りたたみ {4} · 非表示 {5}。列の既定値: オン {6} · オフ／選択可能 {7} · 提供なし {8}。保存済みの選択や有効な状態は異なる場合があります。",
+    "workview.switch.compactSummary": "{0} → {1} · 変更された既定の表示: {2}",
     "workview.switch.undo": "元に戻す",
     "workview.switch.details": "詳細",
     "workview.switch.overviewUnavailable": "このビルドでは作業ビューの概要はまだ接続されていません。",

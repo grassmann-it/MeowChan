@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Diálogos",
     "workview.switch.title": "Vista de trabajo cambiada",
     "workview.switch.summary": "{0} → {1}. Valores predeterminados cambiados: directo {2} · en Más {3} · contraído {4} · oculto {5}. Valores predeterminados de columnas: activada {6} · desactivada/seleccionable {7} · no disponible {8}. Las opciones guardadas y el estado activo pueden diferir.",
+    "workview.switch.compactSummary": "{0} → {1} · Valores predeterminados cambiados: {2}",
     "workview.switch.undo": "Deshacer",
     "workview.switch.details": "Detalles",
     "workview.switch.overviewUnavailable": "El resumen de vistas de trabajo no está conectado en esta versión.",

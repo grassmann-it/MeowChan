@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Okna dialogowe",
     "workview.switch.title": "Zmieniono widok roboczy",
     "workview.switch.summary": "{0} → {1}. Zmienione ustawienia domyślne: bezpośrednio {2} · w menu Więcej {3} · zwinięte {4} · ukryte {5}. Domyślne ustawienia kolumn: włączone {6} · wyłączone/do wyboru {7} · niedostępne {8}. Zapisany wybór i bieżący stan mogą się różnić.",
+    "workview.switch.compactSummary": "{0} → {1} · Zmienione ustawienia domyślne: {2}",
     "workview.switch.undo": "Cofnij",
     "workview.switch.details": "Szczegóły",
     "workview.switch.overviewUnavailable": "Przegląd widoków roboczych nie jest podłączony w tej kompilacji.",

@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "对话框",
     "workview.switch.title": "工作视图已切换",
     "workview.switch.summary": "{0} → {1}。已更改的默认显示方式：直接显示 {2} · 在“更多”下 {3} · 折叠 {4} · 隐藏 {5}。列默认值：开启 {6} · 关闭/可选 {7} · 不提供 {8}。已保存的选择和生效状态可能有所不同。",
+    "workview.switch.compactSummary": "{0} → {1} · 已更改的默认显示方式：{2}",
     "workview.switch.undo": "撤销",
     "workview.switch.details": "详情",
     "workview.switch.overviewUnavailable": "此构建尚未接入工作视图概览。",

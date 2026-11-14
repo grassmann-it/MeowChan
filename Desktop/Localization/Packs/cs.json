@@ -86,6 +86,7 @@
     "workview.overview.page.dialogs": "Dialogová okna",
     "workview.switch.title": "Pracovní zobrazení změněno",
     "workview.switch.summary": "{0} → {1}. Změněná výchozí nastavení: přímo {2} · pod Více {3} · sbaleno {4} · skryto {5}. Výchozí nastavení sloupců: zapnuto {6} · vypnuto/lze vybrat {7} · nenabízeno {8}. Uložený výběr a aktuální stav se mohou lišit.",
+    "workview.switch.compactSummary": "{0} → {1} · Změněná výchozí nastavení: {2}",
     "workview.switch.undo": "Zpět",
     "workview.switch.details": "Podrobnosti",
     "workview.switch.overviewUnavailable": "Přehled pracovních zobrazení není v tomto sestavení připojen.",
