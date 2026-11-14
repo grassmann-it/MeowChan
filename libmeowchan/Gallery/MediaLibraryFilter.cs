@@ -212,6 +212,12 @@ internal sealed class MediaLibraryUserData
     internal IReadOnlyList<FavoriteEntry>? FavoriteSource { get; }
     internal IReadOnlyList<MediaRatingEntry>? RatingSource { get; }
 
+    /// <summary>
+    /// What <see cref="TagsOf"/>, <see cref="TagCountOf"/> and <see cref="LacksMediaTags"/> were built from (the tag store's snapshot; null: tags
+    /// unavailable). Favorites and ratings are not part of it, so a star click does not look like a change of the tags.
+    /// </summary>
+    internal object? TagSourceKey => TagSnapshot;
+
     /// <summary>True when both views were built from the very same store states.</summary>
     internal bool SameSourcesAs(MediaLibraryUserData? other) => other != null && ReferenceEquals(TagSnapshot, other.TagSnapshot)
         && ReferenceEquals(FavoriteSource, other.FavoriteSource) && ReferenceEquals(RatingSource, other.RatingSource);

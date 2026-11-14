@@ -163,7 +163,7 @@ public sealed partial class MediaPage
                 // The names of the own tags by id, made once per count (the snapshot's own lookup is a scan per tag).
                 Dictionary<Guid, string> names = new();
                 foreach (PrivateTagDefinition tag in tags?.Tags ?? []) names.TryAdd(tag.Id.Value, tag.Name.Display);
-                MediaTagCountIndex made = MediaTagCountIndex.Create(snapshot.Entries, data, ownTags, id => names.GetValueOrDefault(id),
+                MediaTagCountIndex made = MediaTagCountIndex.Create(snapshot.Entries, data.TagSourceKey, ownTags, id => names.GetValueOrDefault(id),
                     sourceTags, sourceTags == null ? null : sourceTags.TagsOf, previous);
                 return (made, made.Count(shown, counting.Token));
             }, counting.Token);
