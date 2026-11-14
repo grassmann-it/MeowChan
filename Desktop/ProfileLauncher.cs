@@ -188,20 +188,31 @@ internal static class ProfileOpenPolicy
     // Only the lease's own files prove a profile: a settings.json alone could belong to any other program.
     private static readonly string[] ProfileMarkers = { ".meowchan-profile.protocol", ".meowchan-profile.lock", ".ochan-profile.lock" };
 
-    internal static ProfileFolderKind Classify(string folder)
+    internal static ProfileFolderKind Classify(string folder) => Classify(folder, static path => Directory.EnumerateFileSystemEntries(path));
+
+    /// <summary>
+    /// Classifies <paramref name="folder"/> without listing it: the three marker files are looked up by name, and "empty" needs only the
+    /// first entry of <paramref name="enumerate"/>. A folder with 100 000 entries (a pictures folder) or on a slow network share costs
+    /// the same as an empty one. <paramref name="enumerate"/> is the test seam for the directory listing.
+    /// </summary>
+    internal static ProfileFolderKind Classify(string folder, Func<string, IEnumerable<string>> enumerate)
     {
         try
         {
             string path = ProfileLease.NormalizeDirectory(folder);
             FileSystemInfo info = new DirectoryInfo(path);
             if (!info.Exists) return File.Exists(path) || new FileInfo(path).LinkTarget != null ? ProfileFolderKind.Unusable : ProfileFolderKind.New;
-            string[] names = Directory.EnumerateFileSystemEntries(path).Select(entry => Path.GetFileName(entry)).ToArray();
-            if (names.Length == 0) return ProfileFolderKind.New;
-            return names.Any(name => ProfileMarkers.Contains(name, StringComparer.Ordinal)) ? ProfileFolderKind.Existing : ProfileFolderKind.Foreign;
+            foreach (string marker in ProfileMarkers)
+                if (MarkerExists(Path.Combine(path, marker))) return ProfileFolderKind.Existing;
+            using IEnumerator<string> entries = enumerate(path).GetEnumerator();
+            return entries.MoveNext() ? ProfileFolderKind.Foreign : ProfileFolderKind.New;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         { return ProfileFolderKind.Unusable; }
     }
+
+    // Whatever sits under a marker's name counts (a file, a folder, even a dangling link), as the former name comparison did.
+    private static bool MarkerExists(string path) => File.Exists(path) || Directory.Exists(path) || new FileInfo(path).LinkTarget != null;
 
     /// <summary>Whether <paramref name="target"/> can open in a new window now. The current profile and a profile another
     /// window holds are not started again (one window per profile); a vanished folder is not recreated from the list.</summary>

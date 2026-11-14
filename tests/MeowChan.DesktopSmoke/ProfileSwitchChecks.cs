@@ -66,6 +66,7 @@ internal static class ProfileSwitchChecks
             await UntilAsync(() => shell.ProfileDialogWindow is NewProfileDialog { IsVisible: true });
             NewProfileDialog create = (NewProfileDialog)shell.ProfileDialogWindow!;
             Require(create.Title == "New profile" && create.FolderBox.Text!.Contains(".MeowChan-profiles", StringComparison.Ordinal), "The dialog does not suggest a profile folder.");
+            Require(!create.ShowInTaskbar, "The New profile dialog has its own taskbar entry.");
             create.NameBox.Text = "Cats";
             create.FolderBox.Text = profile;
             create.CreateButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -86,6 +87,8 @@ internal static class ProfileSwitchChecks
             _ = shell.OpenSwitchProfileDialogAsync();
             await UntilAsync(() => shell.ProfileDialogWindow is SwitchProfileDialog { IsVisible: true });
             SwitchProfileDialog change = (SwitchProfileDialog)shell.ProfileDialogWindow!;
+            await UntilAsync(() => change.LoadTask.IsCompleted); // the rows appear at once; the folders answer afterwards
+            Require(!change.ShowInTaskbar, "The Switch profile dialog has its own taskbar entry.");
             Require(change.Rows.Children.Count == 2 && !change.EmptyText.IsVisible, "The switch dialog does not list two profiles.");
             Program.CaptureWindow(change, "smoke-profile-switch.png");
             Button open = OpenButton(change, target);
@@ -97,6 +100,7 @@ internal static class ProfileSwitchChecks
                 _ = shell.OpenSwitchProfileDialogAsync();
                 await UntilAsync(() => shell.ProfileDialogWindow is SwitchProfileDialog { IsVisible: true });
                 change = (SwitchProfileDialog)shell.ProfileDialogWindow!;
+                await UntilAsync(() => change.LoadTask.IsCompleted);
                 Require(!OpenButton(change, target).IsEnabled, "A profile held by another window can still be opened.");
                 Require(change.Rows.GetLogicalDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("profile.state.inUse")), "The held profile is not marked as open.");
                 Program.CaptureWindow(change, "smoke-profile-switch-in-use.png");

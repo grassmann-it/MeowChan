@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -13,6 +14,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
+using Serilog;
 
 namespace MeowChan.Desktop;
 
@@ -44,8 +46,9 @@ internal sealed class NewProfileDialog : Window
     private readonly Button _cancel = new() { Name = "NewProfileCancel" };
     private readonly Button _create = new() { Name = "NewProfileCreate" };
     private readonly StackPanel _downloadsRow = new() { Spacing = 4 };
+    private readonly ProfileFolderKindProbe _kindProbe;
     private string? _errorKey;
-    private bool _folderEdited, _downloadsEdited, _syncing, _busy, _closed;
+    private bool _folderEdited, _downloadsEdited, _syncing, _busy, _closed, _folderIsProfile;
 
     internal ProfileActionResult? Result { get; private set; }
     internal TextBox NameBox => _name;
@@ -63,8 +66,11 @@ internal sealed class NewProfileDialog : Window
     {
         _service = service; _language = language;
         Name = "NewProfileDialog";
-        Width = 600; Height = 680; MinWidth = 380; MinHeight = 420;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD1/MD3: a modal form dialog on the factory; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
+        // The folder kind is looked up off the UI thread after a pause in typing (never per keystroke on the UI thread).
+        _kindProbe = new ProfileFolderKindProbe(ProfileOpenPolicy.Classify, ProfileFolderKindProbe.DefaultDelay,
+            action => Dispatcher.UIThread.Post(action), OnFolderKind);
         _intro.Classes.Add("workspace-help");
         foreach (TextBlock label in new[] { _nameLabel, _folderLabel, _downloadsLabel, _mediaLabel }) label.Classes.Add("workspace-field-label");
         _folderHint.Classes.Add("workspace-help"); _downloadsHint.Classes.Add("workspace-help"); _mediaHint.Classes.Add("workspace-help"); _existing.Classes.Add("workspace-meta");
@@ -88,8 +94,8 @@ internal sealed class NewProfileDialog : Window
         _mediaRow.Children.Add(_mediaLabel); _mediaRow.Children.Add(FolderRow(_media, _chooseMedia)); _mediaRow.Children.Add(_mediaHint);
         body.Children.Add(nameRow); body.Children.Add(folderRow); body.Children.Add(_downloadsRow);
         body.Children.Add(_mediaOption); body.Children.Add(_mediaRow);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { _cancel, _create } };
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_intro, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)), WindowChromeKind.Dialog);
+        Border footer = DialogFooter.Build(_create, new Control[] { _cancel });
+        DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error, maxHeight: 96)), modal: true, captionName: "NewProfileChrome");
 
         _name.TextChanged += (_, _) => { if (!_syncing) { SuggestFolders(); ClearError(); } };
         _folder.TextChanged += (_, _) => { if (!_syncing) { _folderEdited = true; ClearError(); } RefreshFolderKind(); };
@@ -106,9 +112,11 @@ internal sealed class NewProfileDialog : Window
         };
         _cancel.Click += (_, _) => { if (!_busy) Close(); };
         _create.Click += async (_, _) => await CreateAsync();
+        // Enter in a text field creates (tunnelled, before the field's own handling); Escape is the factory's policy.
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        DialogEscape.Attach(this, isBusy: () => _busy);
         Closing += (_, e) => e.Cancel = _busy;
-        Closed += (_, _) => { _closed = true; Texts.Changed -= OnLanguageChanged; };
+        Closed += (_, _) => { _closed = true; _kindProbe.Cancel(); Texts.Changed -= OnLanguageChanged; };
         Opened += (_, _) => _name.Focus();
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
@@ -136,7 +144,7 @@ internal sealed class NewProfileDialog : Window
         AutomationProperties.SetName(_chooseFolder, Texts.T("profile.new.chooseFolder"));
         AutomationProperties.SetName(_chooseDownloads, Texts.T("profile.new.chooseDownloads"));
         _cancel.Content = Texts.T("profile.new.cancel");
-        RefreshFolderKind();
+        ApplyFolderKind();
         _error.Text = _errorKey == null ? string.Empty : Texts.T(_errorKey);
     }
 
@@ -155,15 +163,33 @@ internal sealed class NewProfileDialog : Window
         finally { _syncing = false; }
     }
 
+    /// <summary>The folder text changed: forget what was known about it and, for a complete path, look at it after a pause in typing, off
+    /// the UI thread. Nothing here touches the file system on the calling thread.</summary>
     private void RefreshFolderKind()
     {
         string folder = (_folder.Text ?? string.Empty).Trim();
-        bool existing = folder.Length > 0 && System.IO.Path.IsPathFullyQualified(folder)
-            && ProfileOpenPolicy.Classify(folder) == ProfileFolderKind.Existing;
-        _existing.IsVisible = existing;
+        if (folder.Length > 0 && System.IO.Path.IsPathFullyQualified(folder)) _kindProbe.Request(folder);
+        else
+        {
+            _kindProbe.Cancel();
+            _folderIsProfile = false;
+            ApplyFolderKind();
+        }
+    }
+
+    private void OnFolderKind(string folder, ProfileFolderKind kind)
+    {
+        if (_closed || !string.Equals(folder, (_folder.Text ?? string.Empty).Trim(), StringComparison.Ordinal)) return;
+        _folderIsProfile = kind == ProfileFolderKind.Existing;
+        ApplyFolderKind();
+    }
+
+    private void ApplyFolderKind()
+    {
+        _existing.IsVisible = _folderIsProfile;
         // An existing profile keeps its own download folder; the field does not apply.
-        _downloadsRow.IsEnabled = !existing && !_busy;
-        _create.Content = Texts.T(existing ? "profile.new.open" : "profile.new.create");
+        _downloadsRow.IsEnabled = !_folderIsProfile && !_busy;
+        _create.Content = Texts.T(_folderIsProfile ? "profile.new.open" : "profile.new.create");
         AutomationProperties.SetName(_create, (string)_create.Content!);
     }
 
@@ -188,8 +214,7 @@ internal sealed class NewProfileDialog : Window
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { e.Handled = true; if (!_busy) Close(); }
-        else if (e.Key == Key.Enter && e.Source is TextBox) { e.Handled = true; _ = CreateAsync(); }
+        if (e.Key == Key.Enter && e.Source is TextBox) { e.Handled = true; _ = CreateAsync(); }
     }
 
     internal async Task CreateAsync()
@@ -199,28 +224,32 @@ internal sealed class NewProfileDialog : Window
         // The option is on: the folder is checked like "Add folder…" does (it must exist, be readable and be no profile or download
         // folder) before anything is created or started, and it is never created here.
         string? media = _mediaOption.IsChecked == true ? (_media.Text ?? string.Empty).Trim() : null;
-        string? problem = media is { Length: 0 } ? "profile.error.mediaAbsolute" : _service.Validate(name, folder, downloads, media);
-        if (problem != null)
-        {
-            ShowError(problem);
-            (problem.StartsWith("profile.error.name", StringComparison.Ordinal) ? _name : problem.StartsWith("profile.error.downloads", StringComparison.Ordinal) ? _downloads
-                : problem.StartsWith("profile.error.media", StringComparison.Ordinal) ? _media : (Control)_folder).Focus();
-            return;
-        }
+        if (media is { Length: 0 }) { ShowError("profile.error.mediaAbsolute"); _media.Focus(); return; }
         SetBusy(true);
         ProfileActionResult result;
+        // The checks (folder kind, media folder, profile list) and the creation both read the file system: all of it off the UI thread.
         try { result = await Task.Run(() => _service.Create(new NewProfileRequest(name, folder, downloads, _language, media))); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            // Never the exception's own text: it is English, and it may name a path. The log has it.
+            Log.Error(error, "A new profile could not be created.");
+            result = new ProfileActionResult(ProfileActionStatus.Failed, "profile.status.prepareFailed");
+        }
         finally { SetBusy(false); }
         if (_closed) return;
         if (result.Status == ProfileActionStatus.Started) { Result = result; Close(result); return; }
         ShowError(result.MessageKey);
+        if (result.Status != ProfileActionStatus.Refused) return;
+        string problem = result.MessageKey;
+        (problem.StartsWith("profile.error.name", StringComparison.Ordinal) ? _name : problem.StartsWith("profile.error.downloads", StringComparison.Ordinal) ? _downloads
+            : problem.StartsWith("profile.error.media", StringComparison.Ordinal) ? _media : (Control)_folder).Focus();
     }
 
     private void SetBusy(bool busy)
     {
         _busy = busy;
         foreach (Control control in new Control[] { _name, _folder, _chooseFolder, _mediaOption, _media, _chooseMedia, _cancel, _create }) control.IsEnabled = !busy;
-        RefreshFolderKind();
+        ApplyFolderKind();
     }
 }
 
@@ -228,9 +257,24 @@ internal sealed class NewProfileDialog : Window
 internal sealed record ProfileSwitchOutcome(ProfileActionResult? Result, bool CloseThisWindow, bool NewProfileRequested);
 
 /// <summary>"Switch profile…": the list of known profiles with their state, Open and "Remove from list" per row, the
-/// current profile first. Opening starts a new window; this one closes only when the person ticked the option.</summary>
+/// current profile first. Opening starts a new window; this one closes only when the person ticked the option.
+/// Nothing here waits for the file system on the UI thread: the rows appear at once with "Checking…", and each folder's answer
+/// (missing, open in another window, or "status unknown" when it does not answer) fills its row in as it arrives.</summary>
 internal sealed class SwitchProfileDialog : Window
 {
+    /// <summary>One row: what the list says, what the folder answered so far (null: still being checked) and its controls.</summary>
+    private sealed class RowState
+    {
+        internal RowState(ProfileRegistryEntry entry, bool isCurrent, bool canForget) { Entry = entry; IsCurrent = isCurrent; CanForget = canForget; }
+        internal ProfileRegistryEntry Entry { get; }
+        internal bool IsCurrent { get; }
+        internal bool CanForget { get; }
+        internal ProfileRowStatus? Status { get; set; }
+        internal TextBlock? StatusText { get; set; }
+        internal Button? Open { get; set; }
+        internal Grid? Grid { get; set; }
+    }
+
     private readonly ProfileSwitchService _service;
     private readonly TextBlock _intro = new() { Name = "SwitchProfileIntro", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _listLabel = new() { Name = "SwitchProfileListLabel" };
@@ -241,19 +285,25 @@ internal sealed class SwitchProfileDialog : Window
     private readonly TextBlock _error = new() { Name = "SwitchProfileError", TextWrapping = TextWrapping.Wrap };
     private readonly Button _newProfile;
     private readonly Button _close = new() { Name = "SwitchProfileClose" };
+    private readonly List<RowState> _model = new();
+    private ProfileRegistrySnapshot? _snapshot;
+    private CancellationTokenSource? _loadCancel;
+    private int _loadVersion;
     private string? _errorKey;
-    private bool _busy, _closed;
+    private bool _busy, _closed, _focusPending;
     internal StackPanel Rows => _rows;
     internal CheckBox CloseAfterBox => _closeAfter;
     internal TextBlock ErrorText => _error;
     internal TextBlock EmptyText => _empty;
+    /// <summary>Completes when the list was read and every folder has answered (or timed out). The rows exist before that.</summary>
+    internal Task LoadTask { get; private set; } = Task.CompletedTask;
 
     internal SwitchProfileDialog(ProfileSwitchService service)
     {
         _service = service;
         Name = "SwitchProfileDialog";
-        Width = 640; Height = 560; MinWidth = 400; MinHeight = 380;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD1/MD3: a modal list dialog on the factory; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         _intro.Classes.Add("workspace-help");
         _listLabel.Classes.Add("workspace-field-label");
         _listState.Classes.Add("workspace-meta");
@@ -263,13 +313,13 @@ internal sealed class SwitchProfileDialog : Window
         _newProfile.Name = "SwitchProfileNew";
         _close.Classes.Add("subtle");
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16), Children = { _listLabel, _listState, _rows, _empty, _closeAfter } };
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { _newProfile, _close } };
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_intro, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)), WindowChromeKind.Dialog);
+        Border footer = DialogFooter.Build(_close, new Control[] { _newProfile });
+        DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error, maxHeight: 96)), modal: true, captionName: "SwitchProfileChrome");
         _close.Click += (_, _) => { if (!_busy) Close(); };
-        KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; if (!_busy) Close(); } };
+        DialogEscape.Attach(this, isBusy: () => _busy);
         Closing += (_, e) => e.Cancel = _busy;
-        Closed += (_, _) => { _closed = true; Texts.Changed -= OnLanguageChanged; };
-        Opened += (_, _) => (_rows.GetLogicalDescendantsButtons().FirstOrDefault(button => button.IsEnabled) ?? (Control)_close).Focus();
+        Closed += (_, _) => { _closed = true; _loadCancel?.Cancel(); Texts.Changed -= OnLanguageChanged; };
+        Opened += (_, _) => { _focusPending = true; _close.Focus(); if (LoadTask.IsCompleted) FocusFirstOpenWhenPending(); };
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
     }
@@ -286,15 +336,80 @@ internal sealed class SwitchProfileDialog : Window
         _closeAfter.Content = Texts.T("profile.switch.closeAfter");
         _close.Content = Texts.T("profile.switch.close");
         _error.Text = _errorKey == null ? string.Empty : Texts.T(_errorKey);
-        Refresh();
+        // A language change redraws what is known; it never asks the folders again.
+        if (_snapshot == null) LoadTask = RefreshAsync(); else Render();
     }
 
-    /// <summary>One row per profile: the current one first, then the list in its order. States are read now.</summary>
-    internal void Refresh()
+    /// <summary>Reads the list and asks every folder again. The rows are drawn as soon as the list is read, before any folder answers.</summary>
+    internal Task RefreshAsync()
     {
-        if (_closed) return;
-        ProfileRegistrySnapshot snapshot = _service.ReadList();
-        _listState.Text = snapshot.State switch
+        if (_closed) return Task.CompletedTask;
+        _loadCancel?.Cancel();
+        CancellationTokenSource cancel = _loadCancel = new CancellationTokenSource();
+        return LoadAsync(++_loadVersion, cancel.Token);
+    }
+
+    private async Task LoadAsync(int version, CancellationToken token)
+    {
+        ProfileRegistrySnapshot snapshot;
+        try { snapshot = await _service.ReadListAsync().WaitAsync(token); }
+        catch (OperationCanceledException) { return; }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            // Never the exception's own text: it is English, and it may name a path.
+            Log.Warning(error, "The profile list could not be read for the switch dialog.");
+            if (_closed || version != _loadVersion) return;
+            ShowError("profile.status.unexpected");
+            snapshot = new ProfileRegistrySnapshot(Array.Empty<ProfileRegistryEntry>(), ProfileRegistryState.Missing);
+        }
+        if (_closed || version != _loadVersion) return;
+        _snapshot = snapshot;
+        ProfileRegistryEntry current = snapshot.Entries.FirstOrDefault(entry => ProfileRegistry.SamePath(entry.Path, _service.CurrentProfile))
+            ?? new ProfileRegistryEntry(ProfileRegistry.NormalizeName(null, _service.CurrentProfile), _service.CurrentProfile, null, null);
+        _model.Clear();
+        _model.Add(new RowState(current, isCurrent: true, canForget: false) { Status = ProfileRowStatus.Ready });
+        foreach (ProfileRegistryEntry entry in snapshot.Entries.Where(entry => !ProfileRegistry.SamePath(entry.Path, _service.CurrentProfile)))
+            _model.Add(new RowState(entry, isCurrent: false, canForget: snapshot.State != ProfileRegistryState.Unsupported));
+        Render();
+
+        string[] folders = _model.Where(row => !row.IsCurrent).Select(row => row.Entry.Path).ToArray();
+        try
+        {
+            await ProfileRowProbe.RunAsync(folders, ProfileRowProbe.Probe, ProfileRowProbe.Parallelism, ProfileRowProbe.Timeout,
+                (index, status) => Dispatcher.UIThread.Post(() => ApplyStatus(version, index + 1, status)), token);
+            // The last answers were posted before this continuation: let them land before the load counts as done.
+            await Dispatcher.UIThread.InvokeAsync(static () => { }, DispatcherPriority.Background);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { Log.Warning(error, "The profile folders could not be checked for the switch dialog."); }
+        if (_closed || version != _loadVersion) return;
+        FocusFirstOpenWhenPending();
+    }
+
+    private void ApplyStatus(int version, int modelIndex, ProfileRowStatus status)
+    {
+        if (_closed || version != _loadVersion || modelIndex >= _model.Count) return;
+        RowState row = _model[modelIndex];
+        row.Status = status;
+        ApplyRow(row);
+    }
+
+    private void FocusFirstOpenWhenPending()
+    {
+        if (!_focusPending) return;
+        IInputElement? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+        if (focused != null && !ReferenceEquals(focused, _close) && !ReferenceEquals(focused, _newProfile)) { _focusPending = false; return; }
+        if (_rows.GetLogicalDescendantsButtons().FirstOrDefault(button => button.IsEnabled && button.Tag != null) is not { } first) return;
+        _focusPending = false;
+        first.Focus();
+    }
+
+    /// <summary>One row per profile: the current one first, then the list in its order, from what is known now.</summary>
+    private void Render()
+    {
+        if (_closed || _snapshot == null) return;
+        _listState.Text = _snapshot.State switch
         {
             ProfileRegistryState.Damaged => Texts.T("profile.switch.listDamaged"),
             ProfileRegistryState.RecoveredFromBackup => Texts.T("profile.switch.listRecovered"),
@@ -302,68 +417,115 @@ internal sealed class SwitchProfileDialog : Window
             _ => string.Empty
         };
         _listState.IsVisible = _listState.Text.Length > 0;
-        ProfileRegistryEntry current = snapshot.Entries.FirstOrDefault(entry => ProfileRegistry.SamePath(entry.Path, _service.CurrentProfile))
-            ?? new ProfileRegistryEntry(ProfileRegistry.NormalizeName(null, _service.CurrentProfile), _service.CurrentProfile, null, null);
         _rows.Children.Clear();
-        _rows.Children.Add(Row(current, isCurrent: true, canForget: false));
-        int others = 0;
-        foreach (ProfileRegistryEntry entry in snapshot.Entries.Where(entry => !ProfileRegistry.SamePath(entry.Path, _service.CurrentProfile)))
-        {
-            _rows.Children.Add(Row(entry, isCurrent: false, canForget: snapshot.State != ProfileRegistryState.Unsupported));
-            others++;
-        }
-        _empty.IsVisible = others == 0;
+        foreach (RowState row in _model) _rows.Children.Add(Row(row));
+        _empty.IsVisible = _model.Count <= 1;
     }
 
-    private Control Row(ProfileRegistryEntry entry, bool isCurrent, bool canForget)
+    private Control Row(RowState state)
     {
-        bool missing = !isCurrent && !System.IO.Directory.Exists(entry.Path);
-        bool inUse = !isCurrent && !missing && ProfileLease.IsInUse(entry.Path);
-        string state = isCurrent ? Texts.T("profile.state.current") : missing ? Texts.T("profile.state.missing")
-            : inUse ? Texts.T("profile.state.inUse") : entry.LastOpenedUtc is { } opened
-            ? Texts.T("profile.state.lastOpened", opened.ToLocalTime().ToString("g", Texts.Culture)) : Texts.T("profile.state.never");
+        ProfileRegistryEntry entry = state.Entry;
         TextBlock name = new() { Text = entry.Name, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
         TextBlock path = new() { Text = entry.Path, TextWrapping = TextWrapping.Wrap };
         path.Classes.Add("workspace-meta");
-        TextBlock status = new() { Text = state, TextWrapping = TextWrapping.Wrap };
-        status.Classes.Add(missing ? "workspace-error" : "workspace-meta");
+        TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+        state.StatusText = status;
         StackPanel text = new() { Spacing = 2, Children = { name, path, status } };
         Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        state.Grid = row;
         row.Children.Add(text);
-        AutomationProperties.SetName(row, entry.Name + ", " + state);
-        if (!isCurrent)
+        state.Open = null;
+        if (!state.IsCurrent)
         {
-            Button open = new() { Content = Texts.T("profile.switch.open"), IsEnabled = !missing && !inUse, Tag = entry.Path };
+            Button open = new() { Content = Texts.T("profile.switch.open"), Tag = entry.Path };
             open.Classes.Add("primary");
             AutomationProperties.SetName(open, Texts.T("profile.switch.openName", entry.Name));
             open.Click += async (_, _) => await OpenAsync(entry.Path);
+            state.Open = open;
             StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { open } };
-            if (canForget)
+            if (state.CanForget)
             {
                 Button forget = new() { Content = Texts.T("profile.switch.forget") };
                 forget.Classes.Add("subtle");
                 AutomationProperties.SetName(forget, Texts.T("profile.switch.forgetName", entry.Name));
                 ToolTip.SetTip(forget, Texts.T("profile.switch.forgetName", entry.Name));
-                forget.Click += (_, _) => { if (!_busy && _service.Forget(entry.Path)) Refresh(); };
+                forget.Click += async (_, _) => await ForgetAsync(entry.Path);
                 buttons.Children.Add(forget);
             }
             row.Children.Add(buttons); Grid.SetColumn(buttons, 1);
         }
+        ApplyRow(state);
         return new Border { Child = row, Padding = new Thickness(12, 8), Classes = { "workspace-card" } };
     }
+
+    /// <summary>Writes a row's state text, its colour and whether it can be opened.</summary>
+    private void ApplyRow(RowState state)
+    {
+        if (state.StatusText == null) return;
+        ProfileRegistryEntry entry = state.Entry;
+        string text = state.IsCurrent ? Texts.T("profile.state.current") : state.Status switch
+        {
+            null => Texts.T("profile.state.checking"),
+            ProfileRowStatus.Missing => Texts.T("profile.state.missing"),
+            ProfileRowStatus.InUse => Texts.T("profile.state.inUse"),
+            ProfileRowStatus.Unknown => Texts.T("profile.state.unknown"),
+            _ => entry.LastOpenedUtc is { } opened ? Texts.T("profile.state.lastOpened", opened.ToLocalTime().ToString("g", Texts.Culture)) : Texts.T("profile.state.never")
+        };
+        bool problem = !state.IsCurrent && state.Status is ProfileRowStatus.Missing or ProfileRowStatus.Unknown;
+        state.StatusText.Text = text;
+        state.StatusText.Classes.Set("workspace-error", problem);
+        state.StatusText.Classes.Set("workspace-meta", !problem);
+        // Only a folder that answered "fine" can be opened; a row that is still being checked or did not answer cannot.
+        if (state.Open != null) state.Open.IsEnabled = state.Status == ProfileRowStatus.Ready;
+        if (state.Grid != null) AutomationProperties.SetName(state.Grid, entry.Name + ", " + text);
+    }
+
+    private void ShowError(string key) { _errorKey = key; _error.Text = Texts.T(key); }
+
+    private void BeginBusy()
+    {
+        _busy = true; _errorKey = null; _error.Text = string.Empty;
+        SetRowsEnabled(false);
+    }
+
+    private void EndBusy() { _busy = false; SetRowsEnabled(true); }
 
     internal async Task OpenAsync(string folder)
     {
         if (_busy || _closed) return;
-        _busy = true; _errorKey = null; _error.Text = string.Empty;
-        SetRowsEnabled(false);
+        BeginBusy();
         ProfileActionResult result;
         try { result = await Task.Run(() => _service.Open(folder)); }
-        finally { _busy = false; SetRowsEnabled(true); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            Log.Error(error, "A profile could not be opened from the switch dialog.");
+            result = new ProfileActionResult(ProfileActionStatus.Failed, "profile.status.startFailed");
+        }
+        finally { EndBusy(); }
         if (_closed) return;
         if (result.Status == ProfileActionStatus.Started) { Close(new ProfileSwitchOutcome(result, _closeAfter.IsChecked == true, false)); return; }
-        _errorKey = result.MessageKey; _error.Text = Texts.T(result.MessageKey);
-        Refresh();
+        ShowError(result.MessageKey);
+        LoadTask = RefreshAsync();
+    }
+
+    /// <summary>"Remove from list": the list's lock file may be held by another window for a few seconds, so the removal runs off the UI
+    /// thread while the dialog is busy; afterwards the list is read again (it may have changed meanwhile).</summary>
+    internal async Task ForgetAsync(string folder)
+    {
+        if (_busy || _closed) return;
+        BeginBusy();
+        ProfileForgetOutcome outcome;
+        try { outcome = await _service.ForgetAsync(folder); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            Log.Error(error, "A profile could not be removed from the list in the switch dialog.");
+            outcome = ProfileForgetOutcome.Failed;
+        }
+        finally { EndBusy(); }
+        if (_closed) return;
+        if (outcome == ProfileForgetOutcome.Failed) ShowError("profile.status.forgetFailed");
+        _focusPending = true; // the focused row's button is gone after the redraw
+        LoadTask = RefreshAsync();
     }
 
     private void SetRowsEnabled(bool enabled) { _rows.IsEnabled = enabled; _closeAfter.IsEnabled = enabled; _close.IsEnabled = enabled; Commands.CommandBindings.Refresh(_newProfile); }

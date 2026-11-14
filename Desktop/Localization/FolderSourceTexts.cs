@@ -67,6 +67,7 @@ internal static class FolderSourceTexts
         ("folderSource.error.damaged", "The folder catalog could not be read. Folders are unavailable; details are in the log file.", "Der Ordnerkatalog konnte nicht gelesen werden. Ordner sind nicht verfügbar; Details stehen in der Logdatei."),
         ("folderSource.error.io", "The folder catalog could not be read or written just now, for example because the disk is full or busy. Try again; details are in the log file.",
             "Der Ordnerkatalog konnte gerade nicht gelesen oder geschrieben werden, zum Beispiel weil der Datenträger voll oder ausgelastet ist. Versuche es erneut; Details stehen in der Logdatei."),
+        ("folderSource.error.unexpected", "The folder could not be checked or saved. Details are in the log file.", "Der Ordner konnte nicht geprüft oder gespeichert werden. Details stehen in der Logdatei."),
 
         ("budgets.group.folderSources", "Folders", "Ordner"),
         ("budgets.folderSourceFiles", "Folders: files in total", "Ordner: Dateien insgesamt"),

@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using MeowChan.FolderSources;
 using MeowChan.Persistence;
 using Serilog;
@@ -25,6 +26,17 @@ internal enum ProfileActionStatus
 /// <summary>The outcome of a profile action. <see cref="MessageKey"/> names the text to show; <see cref="ListNoteKey"/> an
 /// additional note when the profile list could not take the entry (the profile still opened).</summary>
 internal sealed record ProfileActionResult(ProfileActionStatus Status, string MessageKey, string? ListNoteKey = null, object? ListNoteArgument = null);
+
+/// <summary>What "Remove from list" did.</summary>
+internal enum ProfileForgetOutcome
+{
+    /// <summary>The entry is gone from the list.</summary>
+    Removed,
+    /// <summary>Nothing to remove: the entry was not listed (another window removed it first), or it is the current profile.</summary>
+    NotListed,
+    /// <summary>The list could not be changed (in use by another window, not writable); details are in the log.</summary>
+    Failed
+}
 
 /// <summary>A validated "New profile" request.</summary>
 /// <param name="MediaFolder">A folder of the person's own that the new window adds as a read-only folder source on its first start,
@@ -154,8 +166,13 @@ internal sealed class ProfileSwitchService
                 case ProfileOpenCheck.Current: return new(ProfileActionStatus.Current, "profile.status.current");
                 case not ProfileOpenCheck.Ready: return new(ProfileActionStatus.Refused, "profile.status.notProfile");
             }
+            // The identity only labels the list entry: a damaged, linked or unreadable file leaves it out and never stops the opening.
             try { id = ProfileInstanceIdentity.TryRead(target)?.Id; }
-            catch (InvalidDataException) { id = null; }
+            catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException)
+            {
+                _logger.Warning(error, "The identity of an existing profile could not be read.");
+                id = null;
+            }
         }
         (string? note, object? argument) = List(target, request.Name, id, includeCurrent: true);
         ProfileActionResult started = Start(target, request.MediaFolder == null ? null : ProfileLease.NormalizeDirectory(request.MediaFolder.Trim()));
@@ -177,16 +194,26 @@ internal sealed class ProfileSwitchService
     }
 
     /// <summary>Removes a profile from the list only. Its folder and everything in it stay.</summary>
-    internal bool Forget(string folder)
+    internal bool Forget(string folder) => TryForget(folder) == ProfileForgetOutcome.Removed;
+
+    /// <summary>Like <see cref="Forget"/>, but says why nothing was removed. May wait for the list's lock file; callers on a UI thread use
+    /// <see cref="ForgetAsync"/>.</summary>
+    internal ProfileForgetOutcome TryForget(string folder)
     {
-        if (_registry == null || ProfileRegistry.SamePath(folder, CurrentProfile)) return false;
-        try { return _registry.Forget(folder); }
+        if (_registry == null || ProfileRegistry.SamePath(folder, CurrentProfile)) return ProfileForgetOutcome.NotListed;
+        try { return _registry.Forget(folder) ? ProfileForgetOutcome.Removed : ProfileForgetOutcome.NotListed; }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException)
         {
             _logger.Warning(error, "A profile could not be removed from the profile list.");
-            return false;
+            return ProfileForgetOutcome.Failed;
         }
     }
+
+    /// <summary>"Remove from list" off the calling thread: the list's lock file can be held by another window for up to three seconds.</summary>
+    internal Task<ProfileForgetOutcome> ForgetAsync(string folder) => Task.Run(() => TryForget(folder));
+
+    /// <summary>The list off the calling thread (it lives in a file that may sit on a slow disk).</summary>
+    internal Task<ProfileRegistrySnapshot> ReadListAsync() => Task.Run(ReadList);
 
     /// <summary>Records the profile of this window in the list (at an ordinary start). Failures are logged, never shown.</summary>
     internal ProfileRegistryChange? RecordCurrent(Guid? id)
