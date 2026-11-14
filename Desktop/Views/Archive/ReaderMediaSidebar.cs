@@ -12,6 +12,7 @@ using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -205,6 +206,10 @@ internal sealed class ReaderMediaSidebar : Border
     }.MetaText();
     // Centred on the frame, which is centred on the picture; its size follows the picture that is shown (VideoPlayMark).
     private readonly VideoPlayMarkView _play = new() { Name = "ReaderMediaSidebarPlay", IsVisible = false };
+    // MB1a demo of the shared media badges: the star of a favourite on the picture's corner, over exactly the shown picture. The sidebar
+    // keeps its own play button (MediaPlayMarkMode.External); duration, queue and tag marks follow with the migration of this surface (MB1b).
+    private readonly MediaBadgeView _badges = new() { Name = "ReaderMediaSidebarBadges", Options = MediaBadgeOptions.Sidebar };
+    private bool _badgesOn, _playable;
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
     private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow" };
@@ -283,12 +288,13 @@ internal sealed class ReaderMediaSidebar : Border
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        _image.SizeChanged += (_, e) => _play.Diameter = VideoPlayMark.Diameter(e.NewSize);
+        _image.SizeChanged += (_, e) => { _play.Diameter = VideoPlayMark.Diameter(e.NewSize); UpdateBadges(); };
         _edge.IsVisible = false;
         _frame.Children.Add(_placeholder);
         _frame.Children.Add(_image);
         _frame.Children.Add(_edge);
         _frame.Children.Add(_play);
+        _frame.Children.Add(_badges);
         _frame.Children.Add(_status);
         _frame.PointerReleased += (_, e) =>
         {
@@ -392,9 +398,20 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _favorite.IsVisible = row != null;
         if (row != null) _favorite.Configure(row.FavoriteAvailable, row.IsFavorite, row.ToggleFavoriteAsync, row.FavoriteError);
+        UpdateBadges();
     }
 
-    internal void RefreshFavorite() => _favorite.Refresh();
+    internal void RefreshFavorite() { _favorite.Refresh(); UpdateBadges(); }
+
+    /// <summary>The badges of the shown picture (smokes read it).</summary>
+    internal MediaBadgeView Badges => _badges;
+
+    private void UpdateBadges()
+    {
+        if (!_badgesOn || !_image.IsVisible) { _badges.Clear(); return; }
+        bool favorite = _favorite.IsVisible && _favorite.IsChecked == true;
+        _badges.Apply(new MediaBadgeState(Favorite: favorite, Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);
+    }
 
     internal void SetDetail(string detailLine)
     {
@@ -417,6 +434,8 @@ internal sealed class ReaderMediaSidebar : Border
         _play.IsVisible = playable;
         _placeholder.IsVisible = false;
         _status.IsVisible = false;
+        _badgesOn = true; _playable = playable;
+        UpdateBadges();
     }
 
     /// <summary>The placeholder with a short text (loading, cannot be shown); the previous picture is given back.</summary>
@@ -429,6 +448,8 @@ internal sealed class ReaderMediaSidebar : Border
         _placeholder.IsVisible = true;
         _status.Text = text;
         _status.IsVisible = text.Length > 0;
+        _badgesOn = false;
+        UpdateBadges();
     }
 
     /// <summary>
@@ -439,6 +460,8 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _play.IsVisible = false;
         _edge.IsVisible = false;
+        _badgesOn = false;
+        UpdateBadges();
         if (_bitmap != null)
         {
             _image.Opacity = 0.5;
