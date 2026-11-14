@@ -553,8 +553,13 @@ internal static class StatisticsChecks
             SmokeActionClick.Execute(page.ResetButton);
             await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
                 () => mode + ": confirmation open " + page.IsResetConfirmationOpen + ", cancel focused " + page.CancelButton.IsFocused);
+            // The overflow closes with the routed click. After native layout/focus settles, the question must still be
+            // attached to the persistent bar (2fff92ee), not to the Reset button inside that closed popup.
+            await Settle(window);
+            Require(direct || more.IsChecked != true, mode + ": Reset left the More popup open.");
             Require(page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
-                mode + ": Reset did not open its confirmation from the visible action.");
+                mode + ": Reset did not keep its confirmation on Cancel after the action popup closed.");
+            Console.WriteLine($"SMOKE statistics reset question: {mode}; {(direct ? "direct bar" : "More closed")}; question stays open on Cancel.");
             SmokeActionClick.Execute(page.CancelButton);
             await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && page.ResetButton.IsEnabled,
                 () => mode + ": confirmation open " + page.IsResetConfirmationOpen + ", reset enabled " + page.ResetButton.IsEnabled);
@@ -665,13 +670,20 @@ internal static class StatisticsChecks
         page.ConfirmButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && Hub(window).Snapshot().Sources.Count == 0 && page.Rows.All(row => row.IsTotal || false),
             () => "sources " + Hub(window).Snapshot().Sources.Count + ", rows " + page.Rows.Count);
+        // The visible page keeps sampling after Reset. Observe at least one new idle tick deliberately: an empty ring is
+        // only guaranteed inside Reset itself, not after its asynchronous UI acknowledgement. Old nonzero history must fail.
+        await Program.WaitUntilAsync(() => Hub(window).Snapshot().Series.Count > 0,
+            () => "sampling " + Hub(window).SamplingMode + ", interval " + Hub(window).SamplingIntervalMs);
         IoStatsSnapshot snapshot = Hub(window).Snapshot();
-        Require(snapshot.Total.Session.NetDown == 0 && snapshot.Total.Today.NetDown == 0 && snapshot.Series.Count == 0,
-            "Reset left counters or history behind.");
+        Require(StatisticsResetContract.IsCleared(snapshot),
+            $"Reset left counters or history behind: sources={snapshot.Sources.Count}; session={snapshot.Total.Session}; "
+            + $"today={snapshot.Total.Today}; retained={snapshot.Total.Retained}; rate={snapshot.Rate}; samples={snapshot.Series.Count}.");
         await Settle(window);
+        Require(!page.Graph.HasTraffic && !page.WriteGraph.HasTraffic && !page.ReadGraph.HasTraffic,
+            "Reset cleared the hub but left nonzero traffic in the displayed page history.");
         Program.CaptureWindow(window, "smoke-statistics-page-after-reset.png");
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
-        Console.WriteLine("SMOKE statistics reset: the confirmed reset cleared the counters and the history.");
+        Console.WriteLine($"SMOKE statistics reset: the confirmed reset cleared all counters, rates and nonzero history; {snapshot.Series.Count} fresh idle samples.");
     }
 
     private static async Task SetThemeAsync(MainWindow window, string theme)

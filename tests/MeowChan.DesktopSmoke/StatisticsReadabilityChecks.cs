@@ -59,13 +59,19 @@ internal static class StatisticsReadabilityChecks
                 double trafficPeakWidth = peakSlot.Bounds.Width;
                 Program.CaptureWindow(host, $"smoke-statistics-readability-640-{code}-{theme}.png");
 
+                // A routed Click is not native input: it neither activates this secondary fixture window nor focuses
+                // the trigger. Establish that user precondition, but leave the safe-answer focus to the real flyout.
+                host.Activate();
+                await Program.WaitUntilAsync(() => host.IsActive, () => "statistics fixture active " + host.IsActive);
+                page.ResetButton.Focus();
+                Require(page.ResetButton.IsFocused, "The active statistics fixture could not focus Reset.");
                 Point? before = page.Graph.TranslatePoint(default, host);
                 Rect beforeGraph = page.Graph.Bounds;
                 Vector beforeScroll = page.FindControl<ScrollViewer>("StatisticsScroll")!.Offset;
                 string beforeLayout = LayoutDetails(page, host);
                 page.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
-                    () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}; cancel top level {TopLevel.GetTopLevel(page.CancelButton)?.GetType().Name} active {(TopLevel.GetTopLevel(page.CancelButton) as Window)?.IsActive}; focus {TopLevel.GetTopLevel(page.CancelButton)?.FocusManager?.GetFocusedElement()?.GetType().Name}; reset visible {page.ResetButton.IsEffectivelyVisible}, enabled {page.ResetButton.IsEnabled}; cancel visible {page.CancelButton.IsEffectivelyVisible} enabled {page.CancelButton.IsEffectivelyEnabled} focusable {page.CancelButton.Focusable}");
+                    () => $"host active {host.IsActive}; open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}; cancel top level {TopLevel.GetTopLevel(page.CancelButton)?.GetType().Name} active {(TopLevel.GetTopLevel(page.CancelButton) as Window)?.IsActive}; focus {TopLevel.GetTopLevel(page.CancelButton)?.FocusManager?.GetFocusedElement()?.GetType().Name}; reset visible {page.ResetButton.IsEffectivelyVisible}, enabled {page.ResetButton.IsEnabled}; cancel visible {page.CancelButton.IsEffectivelyVisible} enabled {page.CancelButton.IsEffectivelyEnabled} focusable {page.CancelButton.Focusable}");
                 await WaitForLayoutAsync(page, host, expectTraffic: true, expectCompactRows: true);
                 Require(page.CancelButton.IsFocused, "Flyout did not open on the safe answer.");
                 RequireStableGraphLayout("reset question", page, host, before, beforeGraph, beforeScroll, beforeLayout);
