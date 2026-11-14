@@ -99,24 +99,14 @@
                     <Menu Grid.Column="3" VerticalAlignment="Center">
                         <!-- The "more" icon is the header, set in code (WorkspaceIcons); the name and tooltip come from the command adapter. -->
                         <MenuItem x:Name="WorkspaceMenuItem">
-                            <!-- Group 1: every main page, in footer order (Downloads, Archive, Media, Tagging, Booru | Rules, Plugins | Status). -->
-                            <MenuItem x:Name="DownloadsMenuItem" Tag="nav.downloads" Classes="localized" Header="Downloads" Click="OnDownloadsNavigationClick" />
-                            <MenuItem x:Name="ArchiveMenuItem" Tag="nav.archive" Classes="localized" Header="Archive" Click="OnArchiveNavigationClick" />
-                            <MenuItem x:Name="MediaMenuItem" Tag="nav.media" Classes="localized" Header="Media" Click="OnMediaNavigationClick" />
-                            <MenuItem x:Name="TaggingMenuItem" Tag="nav.tagging" Classes="localized" Header="Tagging" Click="OnTaggingNavigationClick" />
-                            <MenuItem x:Name="BooruMenuItem" Tag="nav.booru" Classes="localized" Header="Booru" Click="OnBooruNavigationClick" />
-                            <Separator x:Name="PagesGroupSeparatorWork" />
-                            <MenuItem x:Name="RulesMenuItem" Tag="nav.rules" Classes="localized" Header="Rules" Click="OnRulesNavigationClick" />
-                            <MenuItem x:Name="SourcesMenuItem" Tag="nav.sources" Classes="localized" Header="Plugins" Click="OnSourcesNavigationClick" />
-                            <Separator x:Name="PagesGroupSeparatorSetUp" />
-                            <MenuItem x:Name="StatusMenuItem" Tag="nav.status" Classes="localized" Header="Status" Click="OnStatusNavigationClick" />
-                            <Separator x:Name="MenuPagesToolsSeparator" />
-                            <!-- Group 2: tools. Continue reading, post bookmarks and Danbooru insert themselves after this anchor. -->
+                            <!-- F1 (Tom, 14.11.2026): the pages are not in this menu. They are reached through the footer buttons the person chose, the
+                                 footer's More menu (every page the footer or a work view leaves out) and the Ctrl/Cmd+digit shortcuts. -->
+                            <!-- Group 1: tools. Continue reading, post bookmarks and the tagging queue insert themselves in front of Import files (MenuToolsAnchor). -->
                             <MenuItem x:Name="ManualImportMenuItem" Tag="import.menu" Classes="localized" Header="Import files…" Click="OnManualImportMenuClick" />
                             <!-- URSA-12 shared shell hunk: group manager entry in every workspace mode. -->
                             <MenuItem x:Name="ReaderGroupsMenuItem" Header="Reader groups" />
                             <Separator x:Name="MenuToolsAppSeparator" />
-                            <!-- Group 3: the application. The update check inserts itself in front of About. -->
+                            <!-- Group 2: the application. The update check inserts itself in front of About. -->
                             <MenuItem x:Name="PauseMenuItem" Header="Pause downloads" Click="OnPauseClick" />
                             <MenuItem x:Name="SettingsMenuItem" Tag="nav.settings" Classes="localized" Header="Settings" />
                             <MenuItem x:Name="ShortcutHelpMenuItem" Header="Keyboard shortcuts" />

@@ -9,8 +9,8 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan;
 
 // The tagging page (PT2) in the shell: a main page of MainPageOrder behind Media with a footer button (TaggingNavigationButton, a More
-// entry and the ⋯ menu's TaggingMenuItem, all declared in MainWindow.axaml) and the command navigation.tagging, which has no default
-// digit. The page is built when it is first opened. "Start tagging" goes through StartTaggingFromPageAsync, which starts the queue
+// entry in the footer's More menu, all declared in MainWindow.axaml) and the command navigation.tagging, whose default digit follows the footer
+// numbering. The page is built when it is first opened. "Start tagging" goes through StartTaggingFromPageAsync, which starts the queue
 // walk in PT3's tagging mode.
 public partial class MainWindow
 {
@@ -24,8 +24,9 @@ public partial class MainWindow
 
     private void InitializeTaggingPage()
     {
-        // The ⋯ entry follows the old gating: no tagging page while a reader or the gallery covers the workspace.
-        WorkspaceMenuItem.SubmenuOpened += (_, _) => TaggingMenuItem.IsEnabled = TaggingNavigationButton.IsEnabled && CanShowTaggingPage;
+        // The More entry follows the old gating of the ⋯ entry: no tagging page while a reader or the gallery covers the workspace.
+        if (ToolsNavigationButton.Flyout is { } moreFlyout)
+            moreFlyout.Opened += (_, _) => SetMoreMenuItemEnabled("nav.tagging", TaggingNavigationButton.IsEnabled && CanShowTaggingPage);
         _workViews.Changed += (_, view) => _taggingPage?.ApplyWorkView(view);
         Closed += (_, _) =>
         {

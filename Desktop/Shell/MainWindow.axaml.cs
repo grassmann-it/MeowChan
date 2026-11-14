@@ -273,18 +273,20 @@ public partial class MainWindow : Window
         RulesNavigationButton.IsEnabled = navigationReady;
         SourcesNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
-        SourcesMenuItem.IsEnabled = navigationReady;
-        ArchiveMenuItem.IsEnabled = earlyPages;
-        MediaMenuItem.IsEnabled = navigationReady;
-        TaggingMenuItem.IsEnabled = TaggingNavigationButton.IsEnabled;
+        // The pages' entries of the footer's More menu (the ⋯ menu holds none): they follow their footer buttons.
+        SetMoreMenuItemEnabled("nav.sources", navigationReady);
+        SetMoreMenuItemEnabled("nav.archive", earlyPages);
+        SetMoreMenuItemEnabled("nav.media", navigationReady);
+        SetMoreMenuItemEnabled("nav.tagging", TaggingNavigationButton.IsEnabled && CanShowTaggingPage);
+        SetMoreMenuItemEnabled("nav.booru", BooruNavigationButton.IsEnabled);
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
-        RulesMenuItem.IsEnabled = navigationReady;
+        SetMoreMenuItemEnabled("nav.rules", navigationReady);
         bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.Projection.View.State == DesktopSessionState.RecoveryFailed);
         // Status opens after a failed recovery too (its Diagnostics segment); its Statistics segment waits for the restore.
         StatusNavigationButton.IsEnabled = diagnosticsReady;
         ToolsNavigationButton.IsEnabled = diagnosticsReady;
-        StatusMenuItem.IsEnabled = diagnosticsReady;
+        SetMoreMenuItemEnabled("nav.status", diagnosticsReady);
         _statusPage?.SetStatisticsAvailable(StatisticsSegmentAvailable);
         if (_clipboardMenuItem != null)
         {
