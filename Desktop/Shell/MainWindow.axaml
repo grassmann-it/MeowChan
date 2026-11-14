@@ -113,7 +113,7 @@
             </Grid>
         </Border>
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
-        <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" IsVisible="False" Margin="12,8,12,0">
+        <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" ShowSeverityIcon="True" IsVisible="False" Margin="12,8,12,0">
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="4">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
