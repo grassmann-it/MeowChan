@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -18,7 +19,7 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private Uri? _pendingExternalLink;
-    private Control? _externalLinkReturnFocus;
+    private OverlayFrame.Scope? _externalLinkScope;
     private bool _externalLinksTrusted;
 
     /// <summary>Test seam: receives the validated address instead of the system launcher and answers whether it started. Nothing is opened when it is set.</summary>
@@ -41,7 +42,9 @@ public partial class ArchivePage
         CloseQuotePreview();
         if (_externalLinksTrusted) { _ = LaunchExternalLinkAsync(uri); return; }
         _pendingExternalLink = uri;
-        _externalLinkReturnFocus = origin;
+        // The overlay's own focus bookkeeping returns to the activated link (or whatever held focus) when it closes.
+        _externalLinkScope ??= OverlayFrame.Attach(ReaderLinkDialog, CloseExternalLinkDialog);
+        _externalLinkScope.ReturnTo = origin;
         (string prefix, string host, string tail) = ReaderExternalLink.Display(uri);
         InlineCollection inlines = new();
         inlines.Add(new Run(prefix) { [!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") });
@@ -73,6 +76,7 @@ public partial class ArchivePage
         AutomationProperties.SetName(ReaderLinkOpen, Texts.T("reader.link.openNamed", _externalLinkAddress));
         AutomationProperties.SetHelpText(ReaderLinkOpen, announcement);
         ReaderLinkTitle.Text = Texts.T("reader.link.title");
+        OverlayFrame.MakeClose(ReaderLinkClose, Texts.T("action.close"));
         ReaderLinkHint.Text = Texts.T("reader.link.hint");
         ReaderLinkRemember.Content = Texts.T("reader.link.remember");
         ReaderLinkOpen.Content = Texts.T("reader.link.open");
@@ -82,11 +86,9 @@ public partial class ArchivePage
     internal void CloseExternalLinkDialog()
     {
         if (!ReaderLinkDialog.IsVisible) return;
-        ReaderLinkDialog.IsVisible = false;
         _pendingExternalLink = null;
-        Control? back = _externalLinkReturnFocus;
-        _externalLinkReturnFocus = null;
-        if (back is { IsEffectivelyVisible: true }) back.Focus();
+        // Hiding the overlay is what returns the focus (OverlayFrame.Scope); the origin was named when it opened.
+        ReaderLinkDialog.IsVisible = false;
     }
 
     private void OnReaderLinkCancel(object? sender, RoutedEventArgs e) => CloseExternalLinkDialog();

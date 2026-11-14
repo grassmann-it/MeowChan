@@ -1,5 +1,6 @@
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
@@ -12,6 +13,13 @@ public partial class ArchivePage
     private FilterSurfaceController _filterSurface = null!;
 
     private void InitializeFilterSurface() => _filterSurface = new FilterSurfaceController(this, ArchiveFilters, ArchiveFilterSurface, () => _ended, drivesVisibility: false, overlay: true);
+
+    // The surface names itself and carries its cross (MD4 overlay header); both follow the language and the cross keeps its name.
+    private void LocalizeFilterSurface()
+    {
+        ArchiveFilterSurfaceTitle.Text = Texts.T("archive.filters");
+        OverlayFrame.MakeClose(ArchiveFilterSurfaceClose, Texts.T("action.close"));
+    }
 
     internal bool IsFilterSurfaceOpen => ArchiveFilters.IsChecked == true;
 

@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
@@ -124,6 +125,8 @@ public partial class StatisticsPage : UserControl
         StatisticsHelpButton.HelpTextOverride = Texts.T("stats.footnote");
         ResetStatisticsButton.Content = Texts.T("stats.reset");
         StatisticsActions.RefreshOverflowLabel();
+        ResetConfirmTitle.Text = Texts.T("stats.reset");
+        OverlayFrame.MakeClose(ResetConfirmClose, Texts.T("stats.reset.cancel"));
         ResetQuestion.Text = Texts.T("stats.reset.question");
         ConfirmResetButton.Content = Texts.T("stats.reset.confirm");
         CancelResetButton.Content = Texts.T("stats.reset.cancel");
@@ -329,9 +332,8 @@ public partial class StatisticsPage : UserControl
 
     private void OnResetConfirmKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || !ResetConfirmation.IsOpen) return;
-        e.Handled = true;
-        CloseConfirmation(focusReset: true);
+        if (!ResetConfirmation.IsOpen) return;
+        OverlayFrame.TryHandleEscape(e, () => CloseConfirmation(focusReset: true));
     }
 
     private async void OnConfirmResetClick(object? sender, RoutedEventArgs e)

@@ -66,9 +66,13 @@
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="10"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
                         KeyboardNavigation.TabNavigation="Cycle">
-                    <!-- The toggle directly above names the surface; no repeated title. -->
-                    <Grid RowDefinitions="*,Auto" RowSpacing="8">
-                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" HorizontalScrollBarVisibility="Disabled">
+                    <!-- MD4 overlay header: the surface names itself (like every overlay) and its cross sits alone at the top right (OverlayFrame). -->
+                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="8">
+                        <controls:HeaderBar x:Name="ArchiveFilterSurfaceHeader">
+                            <TextBlock x:Name="ArchiveFilterSurfaceTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsEnd="True" Click="OnFilterCloseClick" />
+                        </controls:HeaderBar>
+                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="ArchiveFilterFields" Spacing="8" Margin="0,0,12,0">
                                 <!-- Every field has a visible label above it, like Settings; the placeholders stay short.
                                      WV2: each field is a group with a work-view id. Where the view moves a group off the surface it
@@ -146,7 +150,7 @@
                                 </Expander>
                             </StackPanel>
                         </ScrollViewer>
-                        <Grid Grid.Row="1" ColumnDefinitions="*,*" ColumnSpacing="8">
+                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="8">
                             <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
                             <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
                         </Grid>
@@ -615,7 +619,11 @@
                                             <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
                                                     CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <StackPanel Spacing="12">
-                                                    <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" />
+                                                    <!-- MD4 overlay header: the question on the left, the cross (cancel) alone at the top right (OverlayFrame). -->
+                                                    <controls:HeaderBar x:Name="ReaderLinkHeader">
+                                                        <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsEnd="True" Click="OnReaderLinkCancel" />
+                                                    </controls:HeaderBar>
                                                     <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
                                                     <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                                     <CheckBox x:Name="ReaderLinkRemember" />

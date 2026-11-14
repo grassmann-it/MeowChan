@@ -1082,6 +1082,7 @@ public partial class ArchivePage : UserControl
         LocalizeReaderView();
         LocalizePrivateTags();
         LocalizeExport();
+        LocalizeFilterSurface();
         LocalizeSearch();
         LocalizeEmptyState();
         UpdateArchiveEmptyState();

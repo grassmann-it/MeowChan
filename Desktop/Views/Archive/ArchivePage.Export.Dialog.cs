@@ -142,7 +142,11 @@ public partial class ArchivePage
             Child = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         StackPanel header = new() { Spacing = 8 };
-        header.Children.Add(title); header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);
+        // MD4 overlay header: the title on the left, the cross alone at the top right. The cross is the footer Close's twin: it
+        // runs the same OnExportClose, so while an export runs it cancels it, exactly as the footer button and Escape do.
+        Button headerClose = ExportName(new Button(), "ArchiveExportHeaderClose"); headerClose.Click += OnExportClose;
+        header.Children.Add(MeowChan.Desktop.Controls.OverlayFrame.Header(title, headerClose, Texts.T("action.close")));
+        header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);
         WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
@@ -189,7 +193,7 @@ public partial class ArchivePage
     }
     private void ExportModalKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { e.Handled = true; OnExportClose(sender, e); return; }
+        if (MeowChan.Desktop.Controls.OverlayFrame.TryHandleEscape(e, () => OnExportClose(sender, e))) return;
         if (e.Source is Control control && !IsExportChild(control))
         { e.Handled = true; Control<Button>("ArchiveExportClose").Focus(); }
     }
@@ -234,6 +238,7 @@ public partial class ArchivePage
         Control<CheckBox>("ArchiveExportMedia").Content = Texts.T("archive.exportMedia");
         Control<Button>("ArchiveExportBrowse").Content = Texts.T("archive.exportBrowse");
         Control<Button>("ArchiveExportClose").Content = Texts.T(_exportRunning ? "archive.exportCancel" : "action.close");
+        MeowChan.Desktop.Controls.OverlayFrame.MakeClose(Control<Button>("ArchiveExportHeaderClose"), Texts.T(_exportRunning ? "archive.exportCancel" : "action.close"));
         Control<Button>("ArchiveExportOpen").Content = Texts.T("action.openFolder");
         ToolTip.SetTip(Control<Button>("ArchiveExportOpen"), Texts.T("export.openHint")); ToolTip.SetShowOnDisabled(Control<Button>("ArchiveExportOpen"), true);
         Control<Button>("ArchiveExportStart").Content = Texts.T(_exportFormat == ExportFormat.LinkList ? "export.link.review" : "archive.exportStart");
