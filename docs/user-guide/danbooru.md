@@ -22,7 +22,10 @@ Die Fußleiste und das Appmenü ordnen die Hauptseiten als **Downloads, Archiv,
 Medien, Booru | Regeln, Quellen & Plugins | Status**. Die kontextbezogene F1-Hilfe
 folgt derselben Reihenfolge. Booru liegt unter Minimal in **Mehr**, ab Einfach
 bei ausreichender Breite direkt in der Fußleiste; bei Platzmangel wandern Ziele
-nach Mehr. Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
+nach Mehr. Nach den Gruppen folgen **Mehr** und **Einstellungen**. Mehr enthält
+nur aus der Fußleiste ausgelagerte Ziele, keine doppelten Einträge für Downloads
+oder Einstellungen; das Appmenü bietet weiterhin die verfügbaren Hauptseiten an.
+Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
 
 Strg+6 (⌘+6 auf macOS) öffnet standardmäßig Booru. Quellen & Plugins bleibt auf
 Strg+5, Status auf Strg+7; nur Strg/⌘+8 ist standardmäßig frei. Eine gespeicherte
@@ -130,8 +133,13 @@ durch Seitennavigation und begrenzte Wiederholungen mehrere HTTP-Anfragen
 benötigen, auch bei einer pausierten Beobachtung. Eine entfernte Suchbeobachtung oder eine Beobachtung im
 Provider-Cooldown sendet nichts.
 **Pause** beendet automatische Prüfungen; schon eingereihte Originale folgen den
-normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown; die globale
-Sitzungspause verhindert ebenfalls neue Prüfungen.
+normalen Warteschlangenregeln. **Fortsetzen** umgeht keinen Cooldown. Die globale
+Sitzungspause verhindert neue automatische Prüfungen; eine bereits laufende
+automatische Prüfung beendet nur noch ihre gerade geladene Seite. **Jetzt prüfen**
+führt auch während der globalen Pause eine manuelle Prüfung aus, ohne die Sitzung
+fortzusetzen oder einen Provider-Cooldown zu umgehen. Nach dem Fortsetzen gehen
+automatische Prüfungen unter dem gespeicherten Cursor weiter; individuelle Pausen
+und Cooldowns bleiben erhalten.
 
 Bei HTTP 429 bleibt die Suchbeobachtung erhalten und wartet mindestens 60 Sekunden.
 Der Retry-After-Deckel liegt standardmäßig bei **24 Stunden** und ist von **1 bis

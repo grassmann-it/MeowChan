@@ -1117,6 +1117,33 @@ its full name, current rate, and whether its series is solid or dashed. Clicking
 still opens Status → Statistics; the button keeps its full screen-reader description.
 This option also works when the graphs are hidden. Turning it off restores the words.
 
+In the same Statistics section, **Header graph** offers **Automatic**, **Network
+only**, **Disk only**, **Network and disk, stacked**, **Network and disk, side by
+side**, and **Text only, no graph**. Save applies the choice. Automatic adapts to
+width, not the work view. Network only or Disk only shows just that category's
+rates and graph; stacked keeps both categories in rows. Side by side uses two
+blocks when there is room and falls back to rows when narrower. Narrow windows
+omit graphs but keep the selected rates. Text only keeps both categories' rates
+without graphs; it does not turn off statistics collection.
+
+**Deutsch (Kopfleiste):** Unter **Einstellungen → Sitzung und Fenster → Statistik**
+bietet **Graph in der Kopfleiste** die Auswahl **Automatisch**, **Nur Netz**,
+**Nur Datenträger**, **Netz und Datenträger, übereinander**, **Netz und Datenträger,
+nebeneinander** und **Nur Text, kein Graph**. Erst **Speichern** übernimmt die Wahl.
+Automatisch richtet sich nach der Fensterbreite, nicht nach der Arbeitsansicht.
+Nur Netz bzw. Nur Datenträger zeigt nur die Werte und den Graphen dieser Kategorie.
+Nebeneinander fällt bei weniger Platz auf Zeilen zurück; schmale Fenster lassen
+die Graphen weg und behalten die gewählten Werte. Nur Text zeigt beide Kategorien
+weiter an und schaltet die Statistikmessung nicht aus.
+Die Richtungen heißen **Download / Upload** und **Lesen / Schreiben**; Download
+und Lesen sind durchgezogen mit Fläche, Upload und Schreiben gestrichelt.
+**Symbole für I/O-Werte in der Kopfleiste** ist standardmäßig aus und ersetzt nur
+die Wörter durch Richtungssymbole; Tooltip und Screenreader behalten die vollen
+Beschreibungen. Die Raten nutzen höchstens drei Ziffern mit angepasster Genauigkeit
+(zum Beispiel 127 KiB/s, 1,27 MiB/s und 12,7 MiB/s), keine neuen Dateigrößen oder
+Messgrößen. Gemessen werden MeowChans Anwendungsnutzlast und eigene Medien-I/O,
+nicht der gesamte Betriebssystemverkehr. Ein Klick öffnet **Status → Statistik**.
+
 Settings → **Session and window → Statistics** controls the sampling and persistence:
 
 | Setting | Default | Allowed |
