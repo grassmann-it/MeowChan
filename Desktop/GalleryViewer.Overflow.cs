@@ -220,17 +220,21 @@ internal sealed partial class GalleryViewer
         bool inline = SlideshowOnBarByView;
         bool inMenu = _slideshowToggle.Tag is OverflowItem;
         if (inline != inMenu && _slideshowToggle.Parent != null) return;
-        bool hadFocus = _slideshowToggle.IsKeyboardFocusWithin;
+        bool hadFocus = _slideshowToggle.IsKeyboardFocusWithin || _slideshowMenuButton.IsKeyboardFocusWithin;
+        if (!inline) CloseSlideshowMenu(); // G2: the menu button leaves the bar with the toggle, so its flyout (the borrowed rows) goes back first
         string name = AutomationProperties.GetName(_slideshowToggle) ?? string.Empty;
         (_slideshowToggle.Parent as Panel)?.Children.Remove(_slideshowToggle);
+        (_slideshowSplit.Parent as Panel)?.Children.Remove(_slideshowSplit);
         if (inline)
         {
             _overflowButtons.Remove(_slideshowToggle);
             _slideshowToggle.Tag = null;
             StyleAsOverflowRow(_slideshowToggle, false);
             _slideshowToggle.Content = name;
-            // After the tools toggle, as the control always sat in the group that survives collapsed tools.
-            _focusTools.Children.Insert(Math.Min(1, _focusTools.Children.Count), _slideshowToggle);
+            // G2: one split control (the toggle and its menu button), after the tools toggle as the toggle always sat in the group that
+            // survives collapsed tools.
+            _slideshowSplit.Children.Insert(0, _slideshowToggle);
+            _focusTools.Children.Insert(Math.Min(1, _focusTools.Children.Count), _slideshowSplit);
         }
         else
         {
@@ -238,22 +242,28 @@ internal sealed partial class GalleryViewer
             ((OverflowItem)_slideshowToggle.Tag!).Label.Text = name;
         }
         if (hadFocus && _slideshowToggle.IsEffectivelyVisible) _slideshowToggle.Focus(NavigationMethod.Tab);
+        else if (hadFocus && _overflowButton.IsEffectivelyVisible) _overflowButton.Focus(NavigationMethod.Tab);
     }
 
-    private IEnumerable<Control> OverflowFocusables() => _overflowPanel.GetVisualDescendants().OfType<Control>()
+    private IEnumerable<Control> OverflowFocusables() => MenuFocusables(_overflowPanel);
+
+    private static IEnumerable<Control> MenuFocusables(Panel root) => root.GetVisualDescendants().OfType<Control>()
         .Where(control => (control is Button || control is ComboBox || control is NumericUpDown) && control.Focusable && control.IsEffectivelyVisible
             && control.IsEffectivelyEnabled && !control.GetVisualAncestors().Any(parent => parent is ComboBox or NumericUpDown));
 
     // Arrow keys move through the rows (also past the choice boxes, which would otherwise keep Up/Down for their own
     // selection and trap the keyboard); Enter, Space or F4 still open a choice box. Escape closes the menu.
-    private void OnOverflowKeyDown(object? sender, KeyEventArgs e)
+    private void OnOverflowKeyDown(object? sender, KeyEventArgs e) => OnMenuKeyDown(e, _overflowPanel, _overflowFlyout);
+
+    // The same keys serve the slideshow flyout (G2), which borrows rows of this menu.
+    private static void OnMenuKeyDown(KeyEventArgs e, Panel root, FlyoutBase flyout)
     {
         if (e.Handled || e.Source is Visual open && open.GetSelfAndVisualAncestors().OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
-        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { _overflowFlyout.Hide(); e.Handled = true; return; }
+        if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) { flyout.Hide(); e.Handled = true; return; }
         // A number field keeps its own keys: Up/Down step the value, Home/End move the caret.
         if (e.Source is Visual number && number.GetSelfAndVisualAncestors().OfType<NumericUpDown>().Any()) return;
         if (e.KeyModifiers != KeyModifiers.None || e.Key is not (Key.Down or Key.Up or Key.Home or Key.End)) return;
-        Control[] items = OverflowFocusables().ToArray();
+        Control[] items = MenuFocusables(root).ToArray();
         if (items.Length == 0) return;
         int current = Array.FindIndex(items, item => item.IsKeyboardFocusWithin);
         int next = e.Key switch

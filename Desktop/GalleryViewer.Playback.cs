@@ -154,6 +154,7 @@ internal sealed partial class GalleryViewer
             CommandBindings.BindExisting(button, id);
             button.Click += async (_, _) => await ExecutePlaybackActionAsync(id);
         }
+        InitializeSlideshowMenu(); // G2: the menu button and the flyout of the split control (GalleryViewer.SlideshowMenu.cs)
         _interactionTimer.Tick += (_, _) => OnViewerInteractionTick();
         RefreshPlaybackControls();
     }
@@ -276,6 +277,7 @@ internal sealed partial class GalleryViewer
                 string tip = CommandBindings.Tooltip(id, reason, label);
                 ToolTip.SetTip(button, tip); AutomationProperties.SetHelpText(button, tip);
             }
+            PresentSlideshowMenu();
             PlaceSlideshowToggle();
             RefreshOverflowItems();
             RefreshSlideshowStatus();

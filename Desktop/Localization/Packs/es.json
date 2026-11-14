@@ -4567,6 +4567,8 @@
     "settings.limits.mediaTagListTop": "Modo Booru: etiquetas mostradas por grupo",
     "settings.limits.mediaTagListTop.hint": "La lista de etiquetas junto a los medios muestra esta cantidad de etiquetas por grupo, las más frecuentes primero; «Mostrar todas» lista el resto.",
     "media.tile.ownTags.one": "{0} etiqueta propia",
-    "media.tags.itemName.one": "{0}, {1} medio"
+    "media.tags.itemName.one": "{0}, {1} medio",
+    "viewer.playback.menu": "Ajustes de la presentación",
+    "viewer.playback.menuHelp": "Modo de reproducción, segundos por imagen y qué ocurre con los vídeos"
   }
 }

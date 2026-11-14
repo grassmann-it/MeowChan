@@ -4479,6 +4479,8 @@
     "media.tags.state.excluded": "제외",
     "media.tags.hint": "Enter 또는 클릭: 태그가 있는 미디어만 · Shift+Enter 또는 Alt+클릭: 숨기기 · Delete: 필터에서 태그 빼기 · 메뉴 키: 더 보기",
     "settings.limits.mediaTagListTop": "Booru 모드: 그룹당 표시할 태그 수",
-    "settings.limits.mediaTagListTop.hint": "미디어 옆 태그 목록은 그룹마다 이 개수만큼 많은 순으로 표시합니다. ‘모두 보기’로 나머지를 표시합니다."
+    "settings.limits.mediaTagListTop.hint": "미디어 옆 태그 목록은 그룹마다 이 개수만큼 많은 순으로 표시합니다. ‘모두 보기’로 나머지를 표시합니다.",
+    "viewer.playback.menu": "슬라이드쇼 설정",
+    "viewer.playback.menuHelp": "재생 모드, 이미지당 초 수, 동영상 처리 방식"
   }
 }

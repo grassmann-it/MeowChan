@@ -106,7 +106,9 @@ public static partial class WorkViewPolicy
         GalleryTool("gallery.toolbar.slideshow", Overflow, Direct, Direct, "gallery.slideshow-toggle"),
         // E2 (Tom, 14.11.): seconds per image and the playback mode are settings of the slideshow, not tools: under More in every view,
         // with their captions ("Seconds per image"), where a bare number on the bar explained nothing. The slideshow toggle is the one
-        // control that stays on the bar; the planned split button (G2) opens these same rows as a flyout at that toggle.
+        // control that stays on the bar. G2: the toggle is one split control with a menu button (a right click or the menu key on the toggle
+        // does the same); it opens these very rows as a flyout (the viewer lends them from the More menu while it is open and gives them
+        // back on close), so seconds and mode have two ways to reach them and no row of their own on the bar.
         GalleryTool("gallery.toolbar.slideshow-seconds", Overflow, Overflow, Overflow, null),
         GalleryTool("gallery.toolbar.playback-mode", Overflow, Overflow, Overflow, null),
         GalleryTool("gallery.toolbar.help", Overflow, Overflow, Direct, "viewer.shortcut-help"),

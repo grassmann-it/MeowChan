@@ -30,6 +30,7 @@ internal static class WorkspaceIcons
     internal const string Check = "check";
     internal const string ChevronLeft = "chevron-left";
     internal const string ChevronUp = "chevron-up";
+    internal const string ChevronDown = "chevron-down";
     internal const string ArrowDown = "arrow-down";
     internal const string ArrowUp = "arrow-up";
     // The tools of the media toolbar (M1): update (circular arrow), shuffle (two crossing arrows), enlarge the working area (diagonal arrows).
@@ -66,6 +67,7 @@ internal static class WorkspaceIcons
         [Check] = new("M3,8.5 L6.5,12 L13,4.5"),
         [ChevronLeft] = new("M10,3.5 L5.5,8 L10,12.5", HeavyClass),
         [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass),
+        [ChevronDown] = new("M3.5,6 L8,10.5 L12.5,6", HeavyClass),
         [ArrowDown] = new("M8,3 L8,13 M3,8 L8,13 L13,8"),
         [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8"),
         // Three quarters of a circle open at the right with an arrow head at its upper end.

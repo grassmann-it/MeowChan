@@ -4479,6 +4479,8 @@
     "media.tags.state.excluded": "除外",
     "media.tags.hint": "Enter またはクリック: そのタグのメディアだけ · Shift+Enter または Alt+クリック: 非表示 · Delete: タグをフィルターから外す · メニューキー: その他",
     "settings.limits.mediaTagListTop": "Booru モード: グループごとに表示するタグ数",
-    "settings.limits.mediaTagListTop.hint": "メディアの横のタグ一覧は、グループごとにこの数のタグを多い順に表示します。「すべて表示」で残りを表示します。"
+    "settings.limits.mediaTagListTop.hint": "メディアの横のタグ一覧は、グループごとにこの数のタグを多い順に表示します。「すべて表示」で残りを表示します。",
+    "viewer.playback.menu": "スライドショーの設定",
+    "viewer.playback.menuHelp": "再生モード、1枚あたりの秒数、動画の扱い"
   }
 }

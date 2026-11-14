@@ -4615,6 +4615,8 @@
     "media.tile.ownTags.one": "Własny tag: {0}",
     "media.tile.ownTags.few": "Własne tagi: {0}",
     "media.tags.itemName.one": "{0}, mediów: {1}",
-    "media.tags.itemName.few": "{0}, mediów: {1}"
+    "media.tags.itemName.few": "{0}, mediów: {1}",
+    "viewer.playback.menu": "Ustawienia pokazu slajdów",
+    "viewer.playback.menuHelp": "Tryb odtwarzania, liczba sekund na obraz i zasada dla wideo"
   }
 }

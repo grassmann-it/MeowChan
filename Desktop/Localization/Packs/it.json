@@ -4573,6 +4573,8 @@
     "settings.limits.mediaTagListTop": "Modalità Booru: tag mostrati per gruppo",
     "settings.limits.mediaTagListTop.hint": "L’elenco dei tag accanto ai media mostra questo numero di tag per gruppo, i più frequenti per primi; «Mostra tutti» elenca il resto.",
     "media.tile.ownTags.one": "{0} tag personale",
-    "media.tags.itemName.one": "{0}, {1} media"
+    "media.tags.itemName.one": "{0}, {1} media",
+    "viewer.playback.menu": "Impostazioni della presentazione",
+    "viewer.playback.menuHelp": "Modalità di riproduzione, secondi per immagine e regola per i video"
   }
 }

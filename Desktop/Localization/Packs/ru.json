@@ -4589,6 +4589,8 @@
     "media.tile.ownTags.one": "Своих тегов: {0}",
     "media.tile.ownTags.few": "Своих тегов: {0}",
     "media.tags.itemName.one": "{0}, медиа: {1}",
-    "media.tags.itemName.few": "{0}, медиа: {1}"
+    "media.tags.itemName.few": "{0}, медиа: {1}",
+    "viewer.playback.menu": "Настройки слайд-шоу",
+    "viewer.playback.menuHelp": "Режим воспроизведения, секунды на изображение и правило для видео"
   }
 }

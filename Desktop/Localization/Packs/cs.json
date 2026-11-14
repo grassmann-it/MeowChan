@@ -4612,6 +4612,8 @@
     "media.tile.ownTags.one": "Vlastní štítek: {0}",
     "media.tile.ownTags.few": "Vlastní štítky: {0}",
     "media.tags.itemName.one": "{0}, médií: {1}",
-    "media.tags.itemName.few": "{0}, médií: {1}"
+    "media.tags.itemName.few": "{0}, médií: {1}",
+    "viewer.playback.menu": "Nastavení prezentace",
+    "viewer.playback.menuHelp": "Režim přehrávání, počet sekund na obrázek a pravidlo pro videa"
   }
 }
