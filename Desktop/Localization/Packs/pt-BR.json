@@ -3851,6 +3851,12 @@
     "settings.headerTagline.daily": "Nova a cada dia",
     "settings.headerTagline.perStart": "Nova a cada inicialização",
     "settings.headerTagline.fixedLabel": "Frase para “Sempre a mesma”",
-    "settings.headerTagline.fixedHint": "Usada apenas com “Sempre a mesma”."
+    "settings.headerTagline.fixedHint": "Usada apenas com “Sempre a mesma”.",
+    "gallery.panel.post": "Postagem",
+    "gallery.panel.tags": "Tags",
+    "gallery.panel.segments": "Conteúdo do painel",
+    "gallery.panel.segmentHelp": "As setas para a esquerda e para a direita alternam entre a postagem e as tags.",
+    "gallery.panel.close": "Fechar o painel",
+    "gallery.panel.resize": "Largura do painel: arraste para alterar ({0}–{1})"
   }
 }

@@ -3883,6 +3883,12 @@
     "settings.headerTagline.daily": "Nová každý den",
     "settings.headerTagline.perStart": "Nová při každém spuštění",
     "settings.headerTagline.fixedLabel": "Hláška pro „Pořád stejná“",
-    "settings.headerTagline.fixedHint": "Používá se jen u volby „Pořád stejná“."
+    "settings.headerTagline.fixedHint": "Používá se jen u volby „Pořád stejná“.",
+    "gallery.panel.post": "Příspěvek",
+    "gallery.panel.tags": "Štítky",
+    "gallery.panel.segments": "Obsah panelu",
+    "gallery.panel.segmentHelp": "Šipky vlevo a vpravo přepínají mezi příspěvkem a štítky.",
+    "gallery.panel.close": "Zavřít panel",
+    "gallery.panel.resize": "Šířka panelu: změňte ji tažením ({0}–{1})"
   }
 }

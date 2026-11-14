@@ -3808,6 +3808,12 @@
     "settings.headerTagline.daily": "매일 바뀜",
     "settings.headerTagline.perStart": "시작할 때마다 바뀜",
     "settings.headerTagline.fixedLabel": "‘항상 같은 문구’에 쓸 문구",
-    "settings.headerTagline.fixedHint": "‘항상 같은 문구’를 선택했을 때만 쓰입니다."
+    "settings.headerTagline.fixedHint": "‘항상 같은 문구’를 선택했을 때만 쓰입니다.",
+    "gallery.panel.post": "게시물",
+    "gallery.panel.tags": "태그",
+    "gallery.panel.segments": "패널 내용",
+    "gallery.panel.segmentHelp": "왼쪽·오른쪽 화살표 키로 게시물과 태그를 전환합니다.",
+    "gallery.panel.close": "패널 닫기",
+    "gallery.panel.resize": "패널 너비: 끌어서 변경 ({0}–{1})"
   }
 }

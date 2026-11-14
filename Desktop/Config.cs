@@ -769,6 +769,11 @@ namespace MeowChan
         public bool ShowShortcutHelp { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryContextOpen { get; set; }
+        /// <summary>
+        /// The gallery side panel's width in dip (V2), dragged at its left edge. A view preference of the layout profile, kept as
+        /// ColumnWidths["gallery.panelWidth"]; outside the limits it is clamped.
+        /// </summary>
+        internal const int GalleryPanelWidthDefault = 320, GalleryPanelWidthMinimum = 280, GalleryPanelWidthMaximum = 480;
         [JsonConverter(typeof(DesktopPreferenceSplitWidthConverter))]
         public double ArchiveSplitWidth
         {

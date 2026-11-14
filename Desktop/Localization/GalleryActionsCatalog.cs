@@ -29,6 +29,13 @@ internal static class GalleryActionsCatalog
         ("gallery.slideshow.seconds", "{0} s", "{0} s"),
         ("gallery.slideshow.secondsLabel", "Seconds per image in the slideshow", "Sekunden pro Bild in der Diashow"),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
-        ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe")
+        ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe"),
+        // V2: the gallery side panel host (segment "Post | Tags", the isolated close button and the drag edge).
+        ("gallery.panel.post", "Post", "Post"),
+        ("gallery.panel.tags", "Tags", "Tags"),
+        ("gallery.panel.segments", "Panel content", "Panelinhalt"),
+        ("gallery.panel.segmentHelp", "The left and right arrow keys switch between post and tags.", "Die Pfeiltasten links und rechts wechseln zwischen Post und Tags."),
+        ("gallery.panel.close", "Close panel", "Panel schließen"),
+        ("gallery.panel.resize", "Panel width: drag to change ({0}–{1})", "Panelbreite: zum Ändern ziehen ({0}–{1})")
     };
 }

@@ -3889,6 +3889,12 @@
     "settings.headerTagline.daily": "Nowe codziennie",
     "settings.headerTagline.perStart": "Nowe przy każdym uruchomieniu",
     "settings.headerTagline.fixedLabel": "Hasło dla „Zawsze to samo”",
-    "settings.headerTagline.fixedHint": "Używane tylko przy „Zawsze to samo”."
+    "settings.headerTagline.fixedHint": "Używane tylko przy „Zawsze to samo”.",
+    "gallery.panel.post": "Post",
+    "gallery.panel.tags": "Tagi",
+    "gallery.panel.segments": "Zawartość panelu",
+    "gallery.panel.segmentHelp": "Strzałki w lewo i w prawo przełączają między postem a tagami.",
+    "gallery.panel.close": "Zamknij panel",
+    "gallery.panel.resize": "Szerokość panelu: przeciągnij, aby zmienić ({0}–{1})"
   }
 }

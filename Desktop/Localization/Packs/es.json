@@ -3845,6 +3845,12 @@
     "settings.headerTagline.daily": "Nueva cada día",
     "settings.headerTagline.perStart": "Nueva en cada inicio",
     "settings.headerTagline.fixedLabel": "Frase para «Siempre la misma»",
-    "settings.headerTagline.fixedHint": "Solo se usa con «Siempre la misma»."
+    "settings.headerTagline.fixedHint": "Solo se usa con «Siempre la misma».",
+    "gallery.panel.post": "Publicación",
+    "gallery.panel.tags": "Etiquetas",
+    "gallery.panel.segments": "Contenido del panel",
+    "gallery.panel.segmentHelp": "Las flechas izquierda y derecha cambian entre la publicación y las etiquetas.",
+    "gallery.panel.close": "Cerrar el panel",
+    "gallery.panel.resize": "Ancho del panel: arrástrelo para cambiarlo ({0}–{1})"
   }
 }

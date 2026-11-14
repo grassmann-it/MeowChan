@@ -3808,6 +3808,12 @@
     "settings.headerTagline.daily": "毎日変更",
     "settings.headerTagline.perStart": "起動のたびに変更",
     "settings.headerTagline.fixedLabel": "「常に同じ」で表示するひとこと",
-    "settings.headerTagline.fixedHint": "「常に同じ」を選んだときだけ使われます。"
+    "settings.headerTagline.fixedHint": "「常に同じ」を選んだときだけ使われます。",
+    "gallery.panel.post": "投稿",
+    "gallery.panel.tags": "タグ",
+    "gallery.panel.segments": "パネルの内容",
+    "gallery.panel.segmentHelp": "左右の矢印キーで投稿とタグを切り替えます。",
+    "gallery.panel.close": "パネルを閉じる",
+    "gallery.panel.resize": "パネルの幅：ドラッグで変更（{0}–{1}）"
   }
 }

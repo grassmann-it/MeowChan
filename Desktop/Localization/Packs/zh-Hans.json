@@ -3808,6 +3808,12 @@
     "settings.headerTagline.daily": "每天换一句",
     "settings.headerTagline.perStart": "每次启动换一句",
     "settings.headerTagline.fixedLabel": "“始终相同”所用的标语",
-    "settings.headerTagline.fixedHint": "仅在选择“始终相同”时使用。"
+    "settings.headerTagline.fixedHint": "仅在选择“始终相同”时使用。",
+    "gallery.panel.post": "帖子",
+    "gallery.panel.tags": "标签",
+    "gallery.panel.segments": "面板内容",
+    "gallery.panel.segmentHelp": "左右方向键在帖子和标签之间切换。",
+    "gallery.panel.close": "关闭面板",
+    "gallery.panel.resize": "面板宽度：拖动以更改（{0}–{1}）"
   }
 }

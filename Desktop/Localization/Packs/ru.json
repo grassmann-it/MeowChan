@@ -3863,6 +3863,12 @@
     "settings.headerTagline.daily": "Новая каждый день",
     "settings.headerTagline.perStart": "Новая при каждом запуске",
     "settings.headerTagline.fixedLabel": "Фраза для режима «Всегда одна и та же»",
-    "settings.headerTagline.fixedHint": "Используется только в режиме «Всегда одна и та же»."
+    "settings.headerTagline.fixedHint": "Используется только в режиме «Всегда одна и та же».",
+    "gallery.panel.post": "Пост",
+    "gallery.panel.tags": "Теги",
+    "gallery.panel.segments": "Содержимое панели",
+    "gallery.panel.segmentHelp": "Стрелки влево и вправо переключают между постом и тегами.",
+    "gallery.panel.close": "Закрыть панель",
+    "gallery.panel.resize": "Ширина панели: перетащите, чтобы изменить ({0}–{1})"
   }
 }

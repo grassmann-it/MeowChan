@@ -3845,6 +3845,12 @@
     "settings.headerTagline.daily": "Nouvelle chaque jour",
     "settings.headerTagline.perStart": "Nouvelle à chaque démarrage",
     "settings.headerTagline.fixedLabel": "Phrase pour « Toujours la même »",
-    "settings.headerTagline.fixedHint": "Utilisée uniquement avec « Toujours la même »."
+    "settings.headerTagline.fixedHint": "Utilisée uniquement avec « Toujours la même ».",
+    "gallery.panel.post": "Message",
+    "gallery.panel.tags": "Étiquettes",
+    "gallery.panel.segments": "Contenu du panneau",
+    "gallery.panel.segmentHelp": "Les flèches gauche et droite basculent entre le message et les étiquettes.",
+    "gallery.panel.close": "Fermer le panneau",
+    "gallery.panel.resize": "Largeur du panneau : faites glisser pour la modifier ({0}–{1})"
   }
 }
