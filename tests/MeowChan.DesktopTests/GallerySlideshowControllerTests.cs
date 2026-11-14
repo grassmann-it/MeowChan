@@ -371,16 +371,14 @@ public sealed class GallerySlideshowControllerTests
         Assert.Equal(0, fixture.Next);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void LeavingSlideshowStopsAndReturningRequiresExplicitStart(bool repeat)
+    [Fact]
+    public void LeavingSlideshowStopsAndReturningRequiresExplicitStart()
     {
         Fixture fixture = new();
         fixture.BeginImage(1, ready: true);
         fixture.Controller.Start();
         fixture.Advance(TimeSpan.FromSeconds(4));
-        fixture.Controller.SetMode(repeat ? GalleryPlaybackMode.Repeat : GalleryPlaybackMode.Manual);
+        fixture.Controller.SetMode(GalleryPlaybackMode.Manual); // "Repeat video" is no longer a mode; both cases leave the slideshow.
         fixture.Controller.Start();
         fixture.Advance(TimeSpan.FromDays(1));
         Assert.False(fixture.Controller.IsRunning);

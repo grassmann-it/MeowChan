@@ -154,7 +154,11 @@ internal static partial class MediaPageChecks
             Require(shell.MediaReturnAvailableForTests && !galleryReturn.IsVisible, "(b) The jump must offer only 'Back to media'.");
             archive.FindControl<Button>("ArchiveOpenGallery")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             GalleryViewer fromReader = await GalleryAsync("618");
-            RequireCloseLabel(fromReader, CommandCatalog.Label("gallery.close"), "Gallery from the archive reader");
+            // The way back names the thread (large reader) or the Archive (embedded reader) it returns to.
+            Require(fromReader.ReturnTarget is GalleryReturnTarget.Thread or GalleryReturnTarget.Archive,
+                "(b) The gallery from the archive reader must name the thread or the Archive as its way back: " + fromReader.ReturnTarget);
+            RequireCloseLabel(fromReader, Texts.T(fromReader.ReturnTarget == GalleryReturnTarget.Thread
+                ? "command.gallery.close.thread" : "command.gallery.close.archive"), "Gallery from the archive reader");
             Require(!fromReader.ClosesToMedia && !mediaReturn.IsVisible && shell.MediaReturnAvailableForTests,
                 "(b) The open gallery hides the Medien return but must keep it.");
             fromReader.Focus();

@@ -266,7 +266,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await fixture.ReadyAsync();
         GalleryViewer viewer = fixture.Viewer;
         viewer.Configure(false, true, true, false, 40);
-        viewer.ConfigurePlayback(new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat).WithControlsOverlay(overlay));
+        viewer.ConfigurePlayback(new GalleryPlaybackPreferences(VideoRepeat: true).WithControlsOverlay(overlay));
         await viewer.ShowAsync(clip, CancellationToken.None).WaitAsync(Deadline);
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()), "Notice fixture did not decode real frames.");
@@ -506,7 +506,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         int expectedSavedVolume = availableAudio ? 61 : 25;
         using var layoutTrace = new ShellGalleryLayoutTrace(shell, viewer);
         layoutTrace.Record("before repeat");
-        Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex = (int)GalleryPlaybackMode.Repeat;
+        Click(Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle"));
         layoutTrace.Record("before context");
         Click(Find<Button>(viewer, "GalleryToggleContext"));
         layoutTrace.Record("before overlay");
@@ -533,9 +533,9 @@ internal static partial class GalleryPlaybackFeatureChecks
             && ShellErrorField<bool?>(shell, "_desiredGalleryContext") == true,
             "Failed host draft/live desired volume or context was cleared by error observation.");
         GalleryPlaybackPreferences? desired = ShellErrorField<GalleryPlaybackPreferences?>(shell, "_desiredGalleryPlayback");
-        Require(desired is { Mode: GalleryPlaybackMode.Repeat, OverlayControls: true, AutoHideControls: true },
+        Require(desired is { Mode: GalleryPlaybackMode.Manual, VideoRepeat: true, OverlayControls: true, AutoHideControls: true },
             "Save failure rolled back desired mode/layout to the old durable snapshot.");
-        Require(host.Config.VideoVolume == 25 && host.Config.GalleryPlaybackMode == "Manual",
+        Require(host.Config.VideoVolume == 25 && host.Config.GalleryPlaybackMode == "Manual" && !host.Config.GalleryVideoRepeat,
             "A failed raw write was incorrectly published as durable success.");
         if (availableAudio)
             await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume == 61,
@@ -550,7 +550,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await HoldAsync(TimeSpan.FromMilliseconds(600), () =>
         {
             Require(viewer.CaptureState() == intendedSelection
-                && Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex == (int)GalleryPlaybackMode.Repeat
+                && Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle").IsChecked == true
                 && Find<ToggleButton>(viewer, "GalleryOverlayToggle").IsChecked == true,
                 "Failure presentation reverted the actual gallery mode/context/layout.");
             RequireNoShellErrorPresentation(shell);
@@ -562,7 +562,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await retriedRaw.WaitAsync(Deadline);
         await UntilAsync(() => host.PreferenceWriteCounts.Failed == 0, "Explicit shell retry did not clear the failed host draft.");
         Config saved = Config.LoadConfig(Path.GetDirectoryName(settings)!);
-        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == expectedSavedVolume && saved.GalleryPlaybackMode == "Repeat"
+        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == expectedSavedVolume && saved.GalleryVideoRepeat
             && saved.GalleryContextOpen && saved.GalleryOverlayControls && saved.GalleryAutoHideControls,
             "Explicit retry failed to commit the retained volume/mode/context/layout draft.");
         Require(viewer.CaptureState() == intendedSelection, "Successful retry changed gallery selection/context.");

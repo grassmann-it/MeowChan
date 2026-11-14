@@ -157,15 +157,6 @@ public sealed class GalleryMediaActionsTests : IDisposable
         Assert.Equal(Texts.T("reader.live.reason.captureOff"), ArchivePage.FollowLiveReason(Summary(false, ThreadSourceState.Archived), true));
     }
 
-    [Theory]
-    [InlineData(5, new[] { 3, 5, 10, 30 })]
-    [InlineData(3, new[] { 3, 5, 10, 30 })]
-    [InlineData(7, new[] { 3, 5, 7, 10, 30 })]
-    [InlineData(120, new[] { 3, 5, 10, 30, 120 })]
-    [InlineData(1, new[] { 1, 3, 5, 10, 30 })]
-    public void TheSlideshowDurationsAreTheUsualOnesPlusTheSavedValue(int saved, int[] expected) =>
-        Assert.Equal(expected, GalleryViewer.SlideshowSecondChoices(saved));
-
     [Fact]
     public void TheCompactExportLabelNamesTheObject()
     {

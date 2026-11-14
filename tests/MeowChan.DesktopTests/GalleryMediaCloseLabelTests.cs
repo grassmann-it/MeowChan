@@ -59,7 +59,7 @@ public sealed class GalleryMediaCloseLabelTests : IDisposable
         var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
         Assert.False(viewer.ClosesToMedia);
         Assert.Equal(CommandCatalog.Label("gallery.close"), viewer.CloseLabel);
-        typeof(GalleryViewer).GetField("_closesToMedia", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, true);
+        typeof(GalleryViewer).GetField("_returnTarget", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, GalleryReturnTarget.Media);
         Assert.Equal(Texts.T("command.gallery.close.media"), viewer.CloseLabel);
         // The tooltip keeps whatever shortcut and scope gallery.close has; only the leading label changes.
         string standard = CommandBindings.Tooltip("gallery.close");

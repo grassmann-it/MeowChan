@@ -185,9 +185,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             }
             finally { ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings); }
             ComboBox mode = Find<ComboBox>(fixture.Viewer, "GalleryPlaybackModeSelector");
-            Require(mode.ItemCount == 3, "Playback modes must be the exclusive Manual/Repeat/Slideshow choices.");
-            mode.SelectedIndex = (int)GalleryPlaybackMode.Repeat;
-            Require(changed?.Mode == GalleryPlaybackMode.Repeat, "Selecting Repeat did not publish the matching preference.");
+            Require(mode.ItemCount == 2, "Playback modes must be the exclusive Manual/Slideshow choices; Repeat video is its own row.");
+            Click(Find<ToggleButton>(fixture.Viewer, "GalleryVideoRepeatToggle"));
+            Require(changed?.VideoRepeat == true && changed.Mode == GalleryPlaybackMode.Manual,
+                "The Repeat video row did not publish the matching preference without changing the mode.");
             mode.SelectedIndex = (int)GalleryPlaybackMode.Slideshow;
             Require(changed?.Mode == GalleryPlaybackMode.Slideshow, "Selecting Slideshow did not publish the matching preference.");
             Click(Find<Button>(fixture.Viewer, "GalleryOverlayToggle"));
