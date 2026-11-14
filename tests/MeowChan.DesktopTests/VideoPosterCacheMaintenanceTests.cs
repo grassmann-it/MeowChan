@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -326,6 +327,44 @@ public sealed class VideoPosterCacheMaintenanceTests
         Assert.False(VideoScrubPreviewCache.Valid(scrubTooTall));
         Assert.False(VideoPosterCache.ValidStored(new byte[VideoPosterCache.MaximumPngBytes + 1]));
         Assert.False(VideoPosterCache.ValidStored(Encoding.ASCII.GetBytes("not a png at all")));
+    }
+
+    [Fact]
+    public void StoredCheckRejectsMalformedZlibEvenWhenTheChunkCrcIsValid()
+    {
+        byte[] malformed = Png(12, 8, SKColors.Coral);
+        int idat = IndexOf(malformed, "IDAT"u8);
+        Assert.True(idat >= 4);
+        int payloadLength = checked((int)BinaryPrimitives.ReadUInt32BigEndian(malformed.AsSpan(idat - 4, 4)));
+        Assert.True(payloadLength >= 3);
+
+        // Keep the PNG chunk structurally valid but make the first DEFLATE block use the reserved BTYPE=3.
+        malformed[idat + 6] = 0x07;
+        uint crc = PreviewPngIntegrity.Crc32(malformed.AsSpan(idat, 4 + payloadLength));
+        BinaryPrimitives.WriteUInt32BigEndian(malformed.AsSpan(idat + 4 + payloadLength, 4), crc);
+
+        Assert.True(PreviewPngIntegrity.TryReadStructure(malformed, malformed.Length, 960, 640, out _, out _));
+        Assert.False(VideoPosterCache.ValidStored(malformed));
+    }
+
+    [Fact]
+    public void ParserRejectsNonPositiveBoundsAndUnknownCriticalChunks()
+    {
+        byte[] png = Png(12, 8, SKColors.Coral);
+        Assert.False(PreviewPngIntegrity.TryReadStructure(png, 0, 960, 640, out _, out _));
+        Assert.False(PreviewPngIntegrity.TryReadStructure(png, png.Length, 0, 640, out _, out _));
+        Assert.False(PreviewPngIntegrity.TryReadStructure(png, png.Length, 960, 0, out _, out _));
+
+        int idat = IndexOf(png, "IDAT"u8);
+        Assert.True(idat >= 4);
+        int chunkStart = idat - 4;
+        byte[] unknownCritical = new byte[12];
+        BinaryPrimitives.WriteUInt32BigEndian(unknownCritical, 0);
+        "ABCD"u8.CopyTo(unknownCritical.AsSpan(4));
+        BinaryPrimitives.WriteUInt32BigEndian(unknownCritical.AsSpan(8), PreviewPngIntegrity.Crc32(unknownCritical.AsSpan(4, 4)));
+        byte[] withUnknownCritical = [.. png[..chunkStart], .. unknownCritical, .. png[chunkStart..]];
+
+        Assert.False(PreviewPngIntegrity.TryReadStructure(withUnknownCritical, withUnknownCritical.Length, 960, 640, out _, out _));
     }
 
     internal static byte[] Corrupt(byte[] png, string corruption)

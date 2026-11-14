@@ -181,6 +181,36 @@ public sealed class VideoScrubPreviewCacheMaintenanceTests
     }
 
     [Fact]
+    public void DeleteSeamsArePerCacheCallAndDoNotLeakThroughSharedState()
+    {
+        using TempDirectory temp = new();
+        string directory = Path.Combine(temp.Path, "scrub");
+        Directory.CreateDirectory(directory);
+        for (int index = 0; index < 9; index++)
+        {
+            string path = Path.Combine(directory, index.ToString("D2") + ".png");
+            using FileStream stream = File.Create(path);
+            stream.SetLength(1024 * 1024);
+            File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddMinutes(index - 100));
+        }
+
+        VideoScrubPreviewCache blocked = new(directory, Options(), testSeam: new VideoScrubPreviewCacheTestSeam
+        {
+            DeleteCacheFile = _ => throw new IOException("The candidate is locked."),
+        });
+        blocked.Resync();
+        VideoScrubPreviewCache deleting = new(directory, Options(), testSeam: new VideoScrubPreviewCacheTestSeam
+        {
+            DeleteCacheFile = File.Delete,
+        });
+
+        Assert.Throws<IOException>(() => blocked.TrimToBudget());
+        Assert.Equal(9, Directory.GetFiles(directory, "*.png").Length);
+        deleting.TrimToBudget();
+        Assert.Equal(8, Directory.GetFiles(directory, "*.png").Length);
+    }
+
+    [Fact]
     public async Task AWarmHitPerformsNoValidationDecode()
     {
         using TempDirectory temp = new();

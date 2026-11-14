@@ -83,9 +83,6 @@ internal sealed class VideoScrubPreviewCache
     {
         internal SharedDirectoryState(string directory) { Directory = directory; }
 
-        // Test seam replacing File.Delete for eviction candidates; the last cache constructed with a seam sets it.
-        internal Action<string>? DeleteOverride { get; set; }
-
         internal string Directory { get; }
         internal SemaphoreSlim Gate { get; } = new(1, 1);
         internal Dictionary<string, CacheEntry> Entries { get; } = new(PathComparer);
@@ -175,7 +172,7 @@ internal sealed class VideoScrubPreviewCache
             if (Entries.TryGetValue(path, out CacheEntry? entry)) TouchLocked(entry);
         }
 
-        internal void MakeRoomForLocked(string destination, long incomingLength, long maximumBytes)
+        internal void MakeRoomForLocked(string destination, long incomingLength, long maximumBytes, Action<string>? deleteOverride)
         {
             if (incomingLength > maximumBytes)
                 throw new IOException("The scrub preview is larger than the configured cache budget.");
@@ -183,7 +180,7 @@ internal sealed class VideoScrubPreviewCache
             RefreshDestinationLocked(destination);
             long oldLength = Entries.TryGetValue(destination, out CacheEntry? existing) ? existing.Length : 0;
             ulong limit = (ulong)maximumBytes;
-            EvictLocked(() => PredictedBytes(oldLength, incomingLength) > limit, destination);
+            EvictLocked(() => PredictedBytes(oldLength, incomingLength) > limit, destination, deleteOverride);
 
             // The byte budget is a hard invariant for stores: if locked candidates leave too little room, nothing is published.
             if (PredictedBytes(oldLength, incomingLength) > limit)
@@ -194,14 +191,14 @@ internal sealed class VideoScrubPreviewCache
         /// Evicts least recently used entries (never <paramref name="protectedPath"/>) until the ledger fits. Returns false when locked
         /// or otherwise undeletable candidates left it over budget; those stay accounted and are retried by the next trim.
         /// </summary>
-        internal bool TrimToBudgetLocked(long maximumBytes, string? protectedPath = null)
+        internal bool TrimToBudgetLocked(long maximumBytes, string? protectedPath = null, Action<string>? deleteOverride = null)
         {
             ulong limit = (ulong)maximumBytes;
-            EvictLocked(() => _bytes > limit, protectedPath);
+            EvictLocked(() => _bytes > limit, protectedPath, deleteOverride);
             return _bytes <= limit;
         }
 
-        private void EvictLocked(Func<bool> overBudget, string? protectedPath)
+        private void EvictLocked(Func<bool> overBudget, string? protectedPath, Action<string>? deleteOverride)
         {
             LinkedListNode<CacheEntry>? node = Lru.First;
             while (node != null && overBudget())
@@ -209,7 +206,7 @@ internal sealed class VideoScrubPreviewCache
                 LinkedListNode<CacheEntry>? next = node.Next;
                 CacheEntry candidate = node.Value;
                 if ((protectedPath == null || !PathComparer.Equals(candidate.Path, protectedPath)) && TryRefreshCandidateLocked(candidate))
-                    TryDeleteAndRemoveLocked(candidate);
+                    TryDeleteAndRemoveLocked(candidate, deleteOverride);
                 node = next;
             }
         }
@@ -243,9 +240,9 @@ internal sealed class VideoScrubPreviewCache
             return true;
         }
 
-        private bool TryDeleteAndRemoveLocked(CacheEntry entry)
+        private bool TryDeleteAndRemoveLocked(CacheEntry entry, Action<string>? deleteOverride)
         {
-            try { (DeleteOverride ?? File.Delete)(entry.Path); }
+            try { (deleteOverride ?? File.Delete)(entry.Path); }
             catch (FileNotFoundException) { }
             catch (DirectoryNotFoundException) { }
             // In use (Windows readers hold FileShare.Read without Delete), locked or protected: keep it accounted, try the next one.
@@ -373,7 +370,6 @@ internal sealed class VideoScrubPreviewCache
         _readOverride = readOverride;
         _storeOverride = storeOverride;
         _testSeam = testSeam;
-        if (testSeam?.DeleteCacheFile is { } delete) _state.DeleteOverride = delete;
     }
 
     internal string Directory { get; }
@@ -487,7 +483,7 @@ internal sealed class VideoScrubPreviewCache
                 state.TouchPathLocked(path);
                 // A valid file discovered after the initial scan is still brought under the live budget. This is a cheap ledger
                 // operation; a locked candidate only delays it and never turns a valid hit into a miss.
-                state.TrimToBudgetLocked(Options.CacheLimitBytes, path);
+                state.TrimToBudgetLocked(Options.CacheLimitBytes, path, _testSeam?.DeleteCacheFile);
             }
             else
             {
@@ -561,7 +557,7 @@ internal sealed class VideoScrubPreviewCache
             {
                 token.ThrowIfCancellationRequested();
                 state.EnsureInitializedLocked();
-                state.MakeRoomForLocked(PathOf(key), png.LongLength, Options.CacheLimitBytes);
+                state.MakeRoomForLocked(PathOf(key), png.LongLength, Options.CacheLimitBytes, _testSeam?.DeleteCacheFile);
                 token.ThrowIfCancellationRequested();
                 File.Move(temporary, PathOf(key), overwrite: true);
                 state.RecordHitLocked(PathOf(key), png.LongLength);
@@ -610,7 +606,7 @@ internal sealed class VideoScrubPreviewCache
     {
         SharedDirectoryState state = _state;
         state.Gate.Wait();
-        try { ResyncAndTrimLocked(state, maximumBytes); }
+        try { ResyncAndTrimLocked(state, maximumBytes, _testSeam?.DeleteCacheFile); }
         finally { state.Gate.Release(); }
     }
 
@@ -619,14 +615,14 @@ internal sealed class VideoScrubPreviewCache
         SharedDirectoryState state = _state;
         await state.Gate.WaitAsync(token).ConfigureAwait(false);
         // Once started the scan/eviction completes, so the ledger never stops halfway through a deletion.
-        try { await Task.Run(() => ResyncAndTrimLocked(state, maximumBytes), CancellationToken.None).ConfigureAwait(false); }
+        try { await Task.Run(() => ResyncAndTrimLocked(state, maximumBytes, _testSeam?.DeleteCacheFile), CancellationToken.None).ConfigureAwait(false); }
         finally { state.Gate.Release(); }
     }
 
-    private static void ResyncAndTrimLocked(SharedDirectoryState state, long maximumBytes)
+    private static void ResyncAndTrimLocked(SharedDirectoryState state, long maximumBytes, Action<string>? deleteOverride)
     {
         state.ResyncLocked();
-        if (!state.TrimToBudgetLocked(maximumBytes))
+        if (!state.TrimToBudgetLocked(maximumBytes, deleteOverride: deleteOverride))
             throw new IOException("The scrub preview cache could not be reduced to its configured byte budget.");
     }
 
@@ -656,9 +652,12 @@ internal sealed class VideoScrubPreviewCache
                 SharedStates.TryRemove(entry);
     }
 
-    /// <summary>Whether a coordinator entry (alive or not yet pruned) is registered for the directory (tests).</summary>
-    internal static bool HasRegisteredState(string directory) =>
-        SharedStates.ContainsKey(Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)));
+    /// <summary>Whether a live coordinator entry is registered for the directory (tests).</summary>
+    internal static bool HasRegisteredState(string directory)
+    {
+        PruneDeadStates();
+        return SharedStates.ContainsKey(Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)));
+    }
 
     /// <summary>Publish check for fresh decoder output: complete structure, CRC-32, bounds, and one successful full decode.</summary>
     internal static bool Valid(byte[] png) => Valid(png, fullDecodeObserver: null);
