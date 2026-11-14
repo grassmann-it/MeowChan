@@ -4419,6 +4419,14 @@
     "viewer.help.escape.tagging": "Esc  ヘルプまたはコンテキストを閉じる、全画面を解除、次にタグ付けに戻る",
     "tagging.page.lastShown": "最後に表示: {0} · {2} 件中 {1} 件目",
     "tagging.page.lastShown.help": "このエントリからギャラリーで続けます",
-    "tagging.page.continue.notOpen": "未処理の項目からのみ続けられます。先にこの項目を未処理にしてください。"
+    "tagging.page.continue.notOpen": "未処理の項目からのみ続けられます。先にこの項目を未処理にしてください。",
+    "command.gallery.mode-toggle": "ギャラリーモード: 表示 / タグ付け",
+    "gallery.mode.name": "ギャラリーモード",
+    "gallery.mode.view": "表示",
+    "gallery.mode.tag": "タグ付け",
+    "gallery.mode.tagUnavailable": "タグ付けはタグ付けキューを順に進みます。「タグ付けキューに追加」でこれらのメディアを追加してから、タグ付けページで続けてください。",
+    "gallery.mode.announce.tag": "タグ付けモード: お気に入り、評価、タグはタグパネルにあります。",
+    "gallery.mode.announce.view": "表示モード。",
+    "viewer.playback.status.tagHold": "タグ付け中はスライドショーが待機します — タグパネルを離れるとこのメディアから続きます"
   }
 }

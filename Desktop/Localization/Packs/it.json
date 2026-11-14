@@ -4511,6 +4511,14 @@
     "viewer.help.escape.tagging": "Esc  Chiudi guida o contesto, esci dallo schermo intero, poi torna al tagging",
     "tagging.page.lastShown": "Ultimo mostrato: {0} · posizione {1} di {2}",
     "tagging.page.lastShown.help": "Prosegue nella galleria da questa voce",
-    "tagging.page.continue.notOpen": "Si può continuare solo da una voce da fare. Segna prima questa voce come da fare."
+    "tagging.page.continue.notOpen": "Si può continuare solo da una voce da fare. Segna prima questa voce come da fare.",
+    "command.gallery.mode-toggle": "Modalità galleria: guarda / tagga",
+    "gallery.mode.name": "Modalità galleria",
+    "gallery.mode.view": "Guarda",
+    "gallery.mode.tag": "Tagga",
+    "gallery.mode.tagUnavailable": "Il tagging percorre la coda di tagging. Aggiungi questi media con «Aggiungi alla coda di tagging», poi continua dalla pagina Tagging.",
+    "gallery.mode.announce.tag": "Modalità tagging: preferito, valutazione e tag sono nel pannello dei tag.",
+    "gallery.mode.announce.view": "Modalità visualizzazione.",
+    "viewer.playback.status.tagHold": "La presentazione attende mentre tagghi — riprende con questo media quando lasci il pannello dei tag"
   }
 }

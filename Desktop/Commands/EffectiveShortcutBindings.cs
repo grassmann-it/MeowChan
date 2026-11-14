@@ -190,6 +190,10 @@ public sealed class EffectiveShortcutBindings
         // PT7 (decision on the default key): Q puts the shown medium, or the selected media of the media page, in the tagging queue. Q is free in
         // the contexts it is active in (media page and gallery); it yields to a saved binding of another command like every new default.
         ["media.queue.add"] = 9,
+        // G1 (Tom's E3 addition): Shift+T switches the gallery between View and Tag (the tagging mode). Shift+T is free in the gallery
+        // (T shows the post in the thread, Primary+Shift+T opens the tag panel); it yields to a saved binding like every new default. The
+        // integrator unifies the revision number with the other branches of this wave (DefaultsRevision stays as it is here).
+        ["gallery.mode-toggle"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

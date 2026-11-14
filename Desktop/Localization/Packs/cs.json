@@ -4548,6 +4548,14 @@
     "viewer.help.escape.tagging": "Esc  Zavřít nápovědu nebo kontext, ukončit celou obrazovku, pak zpět na štítkování",
     "tagging.page.lastShown": "Naposledy zobrazeno: {0} · pozice {1} z {2}",
     "tagging.page.lastShown.help": "Pokračuje v galerii od této položky",
-    "tagging.page.continue.notOpen": "Pokračovat lze jen od otevřené položky. Nejdřív tuto položku označte jako otevřenou."
+    "tagging.page.continue.notOpen": "Pokračovat lze jen od otevřené položky. Nejdřív tuto položku označte jako otevřenou.",
+    "command.gallery.mode-toggle": "Režim galerie: prohlížet / štítkovat",
+    "gallery.mode.name": "Režim galerie",
+    "gallery.mode.view": "Prohlížet",
+    "gallery.mode.tag": "Štítkovat",
+    "gallery.mode.tagUnavailable": "Štítkuje se fronta štítkování. Přidejte tato média pomocí „Přidat do fronty štítkování“ a pak pokračujte na stránce Štítkování.",
+    "gallery.mode.announce.tag": "Režim štítkování: oblíbené, hodnocení a štítky jsou v panelu štítků.",
+    "gallery.mode.announce.view": "Režim prohlížení.",
+    "viewer.playback.status.tagHold": "Prezentace čeká, dokud štítkujete — po opuštění panelu štítků pokračuje tímto médiem"
   }
 }

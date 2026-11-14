@@ -4419,6 +4419,14 @@
     "viewer.help.escape.tagging": "Esc  关闭帮助或上下文，退出全屏，然后返回打标签页面",
     "tagging.page.lastShown": "上次显示：{0} · 第 {1} 个（共 {2} 个）",
     "tagging.page.lastShown.help": "在图库中从此条目继续",
-    "tagging.page.continue.notOpen": "只能从待处理的条目继续。请先将此条目标记为待处理。"
+    "tagging.page.continue.notOpen": "只能从待处理的条目继续。请先将此条目标记为待处理。",
+    "command.gallery.mode-toggle": "图库模式：查看 / 打标签",
+    "gallery.mode.name": "图库模式",
+    "gallery.mode.view": "查看",
+    "gallery.mode.tag": "打标签",
+    "gallery.mode.tagUnavailable": "打标签会依次处理标签队列。请先用“加入标签队列”添加这些媒体，然后在打标签页面继续。",
+    "gallery.mode.announce.tag": "打标签模式：收藏、评分和标签都在标签面板中。",
+    "gallery.mode.announce.view": "查看模式。",
+    "viewer.playback.status.tagHold": "打标签时幻灯片会等待 — 离开标签面板后从此媒体继续"
   }
 }

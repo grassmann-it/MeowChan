@@ -26,7 +26,9 @@ public sealed class DefaultShortcutInvariantTests
         // Gallery picture and video: Shift+R turns the shown medium by 90°.
         "gallery.rotate",
         // PT7: Q puts the open medium in the tag queue (media/gallery contexts, revision 9).
-        "media.queue.add"
+        "media.queue.add",
+        // G1: Shift+T switches the gallery between View and Tag (gallery context only).
+        "gallery.mode-toggle"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -90,7 +92,7 @@ public sealed class DefaultShortcutInvariantTests
             "media.export-original", "media.show-in-folder", "reader.history-back", "gallery.return", "pagination.previous", "pagination.next",
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",
             "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot",
-            "video.ab-loop", "video.frame-step", "gallery.rotate" })
+            "video.ab-loop", "video.frame-step", "gallery.rotate", "gallery.mode-toggle" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 }

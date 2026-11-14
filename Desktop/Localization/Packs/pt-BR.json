@@ -4511,6 +4511,14 @@
     "viewer.help.escape.tagging": "Esc  Fechar ajuda ou contexto, sair da tela cheia e, depois, voltar à marcação com tags",
     "tagging.page.lastShown": "Exibido por último: {0} · posição {1} de {2}",
     "tagging.page.lastShown.help": "Continua na galeria a partir desta entrada",
-    "tagging.page.continue.notOpen": "Só é possível continuar a partir de uma entrada pendente. Marque esta entrada como pendente primeiro."
+    "tagging.page.continue.notOpen": "Só é possível continuar a partir de uma entrada pendente. Marque esta entrada como pendente primeiro.",
+    "command.gallery.mode-toggle": "Modo da galeria: ver / marcar com tags",
+    "gallery.mode.name": "Modo da galeria",
+    "gallery.mode.view": "Ver",
+    "gallery.mode.tag": "Marcar",
+    "gallery.mode.tagUnavailable": "A marcação percorre a fila de tags. Adicione estas mídias com “Adicionar à fila de tags” e continue depois na página Marcação com tags.",
+    "gallery.mode.announce.tag": "Modo de tags: favorito, avaliação e tags ficam no painel de tags.",
+    "gallery.mode.announce.view": "Modo de visualização.",
+    "viewer.playback.status.tagHold": "A apresentação espera enquanto você marca — continua com esta mídia quando você sai do painel de tags"
   }
 }

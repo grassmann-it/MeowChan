@@ -76,6 +76,14 @@ public static partial class WorkViewPolicy
         Same("gallery.toolbar.more", WorkViewPage.Gallery, WorkViewKind.Element, Required),
         Same("gallery.toolbar.read-posts", WorkViewPage.Gallery, WorkViewKind.Action, Required, "thread.read"),
 
+        // ---- G1: the mode switch "View | Tag" (Tom's E3 addition: tagging is a mode of the gallery, independent of the slideshow). ----
+        // Simple and Advanced show it always (the Tag half says why it is not possible for a list that is not the tagging queue).
+        // Barebones leaves it away until it can do something: the tagging mode itself and a walkable list are states that raise it (R6),
+        // so the way out of the mode is never missing; the key (Shift+T by default) works in every view. The mode then decides the rest of
+        // the chrome (GalleryChromePlan): in the mode the tag panel's decision row is the one favourite surface (E1), "gallery.favorite"
+        // stays Required as a function, and the star beside the way back keeps showing the state.
+        new("gallery.mode", WorkViewPage.Gallery, WorkViewKind.Action, Hidden, Direct, Direct, "gallery.mode-toggle", Alternative: "gallery.mode-toggle"),
+
         // ---- Post panel: the way to the post, its association and (later) the tag panel slot. Direct in every view. ----
         Same("gallery.toolbar.post-panel", WorkViewPage.Gallery, WorkViewKind.Action, Direct, "gallery.context-toggle"),
         Same("gallery.post-panel", WorkViewPage.Gallery, WorkViewKind.Element, Direct),

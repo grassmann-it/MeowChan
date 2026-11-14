@@ -33,6 +33,7 @@ internal static class GalleryPlaybackCatalog
         ("viewer.playback.status.failed", "Playback failed — inspect the media error", "Wiedergabe fehlgeschlagen — Medienfehler prüfen"),
         ("viewer.playback.status.seekPaused", "Paused after seeking — resume explicitly", "Nach Spulen pausiert — bewusst fortsetzen"),
         ("viewer.playback.status.paused", "Paused — resume explicitly", "Pausiert — bewusst fortsetzen"),
+        ("viewer.playback.status.tagHold", "Slideshow waits while you tag — it goes on with this medium when you leave the tag panel", "Diashow wartet, während du taggst — sie macht mit diesem Medium weiter, wenn du das Tag-Panel verlässt"),
         ("viewer.playback.manual", "Manual", "Manuell"),
         ("viewer.playback.repeat", "Repeat video", "Video wiederholen"),
         ("viewer.playback.slideshow", "Slideshow", "Diashow"),

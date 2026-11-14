@@ -4505,6 +4505,14 @@
     "viewer.help.escape.tagging": "Esc  Fermer l’aide ou le contexte, quitter le plein écran, puis revenir à l’étiquetage",
     "tagging.page.lastShown": "Dernier affiché : {0} · position {1} sur {2}",
     "tagging.page.lastShown.help": "Reprend dans la galerie à cette entrée",
-    "tagging.page.continue.notOpen": "On ne peut reprendre qu’à partir d’une entrée à faire. Marquez d’abord cette entrée comme à faire."
+    "tagging.page.continue.notOpen": "On ne peut reprendre qu’à partir d’une entrée à faire. Marquez d’abord cette entrée comme à faire.",
+    "command.gallery.mode-toggle": "Mode de la galerie : afficher / étiqueter",
+    "gallery.mode.name": "Mode de la galerie",
+    "gallery.mode.view": "Afficher",
+    "gallery.mode.tag": "Étiqueter",
+    "gallery.mode.tagUnavailable": "L’étiquetage parcourt la file d’étiquetage. Ajoutez ces médias avec « Ajouter à la file d’étiquetage », puis continuez depuis la page Étiquetage.",
+    "gallery.mode.announce.tag": "Mode étiquetage : favori, évaluation et étiquettes sont dans le panneau des étiquettes.",
+    "gallery.mode.announce.view": "Mode affichage.",
+    "viewer.playback.status.tagHold": "Le diaporama attend pendant que vous étiquetez — il reprend avec ce média quand vous quittez le panneau des étiquettes"
   }
 }

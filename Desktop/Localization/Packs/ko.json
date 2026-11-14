@@ -4419,6 +4419,14 @@
     "viewer.help.escape.tagging": "Esc  도움말 또는 컨텍스트 닫기, 전체 화면 종료, 그다음 태그 지정으로 돌아가기",
     "tagging.page.lastShown": "마지막으로 표시: {0} · {2}개 중 {1}번째",
     "tagging.page.lastShown.help": "갤러리에서 이 항목부터 계속합니다",
-    "tagging.page.continue.notOpen": "미처리 항목에서만 이어서 시작할 수 있습니다. 먼저 이 항목을 미처리로 표시하세요."
+    "tagging.page.continue.notOpen": "미처리 항목에서만 이어서 시작할 수 있습니다. 먼저 이 항목을 미처리로 표시하세요.",
+    "command.gallery.mode-toggle": "갤러리 모드: 보기 / 태그 지정",
+    "gallery.mode.name": "갤러리 모드",
+    "gallery.mode.view": "보기",
+    "gallery.mode.tag": "태그 지정",
+    "gallery.mode.tagUnavailable": "태그 지정은 태그 지정 대기열을 따라 진행됩니다. “태그 지정 대기열에 추가”로 이 미디어를 추가한 다음 태그 지정 페이지에서 계속하세요.",
+    "gallery.mode.announce.tag": "태그 지정 모드: 즐겨찾기, 평가, 태그는 태그 패널에 있습니다.",
+    "gallery.mode.announce.view": "보기 모드.",
+    "viewer.playback.status.tagHold": "태그를 지정하는 동안 슬라이드쇼가 기다립니다 — 태그 패널을 벗어나면 이 미디어부터 계속합니다"
   }
 }

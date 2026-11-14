@@ -176,6 +176,8 @@ public static class CommandCatalog
         new("gallery.zoom-out", "command.gallery.zoom-out", "Zoom out", "Verkleinern", "zoom-out", "Minus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
         // Turns the shown picture or video clockwise by 90° (a view transform, never a file change; upright again with every new medium).
         new("gallery.rotate", "command.gallery.rotate", "Rotate 90°", "90° drehen", "rotate-cw", "Shift+R", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        // G1: the gallery's mode switch "View | Tag" (enters and leaves the tagging mode of a walkable list).
+        new("gallery.mode-toggle", "command.gallery.mode-toggle", "Gallery mode: view / tag", "Galeriemodus: Ansehen / Taggen", "edit-2", "Shift+T", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.tools-toggle", "command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.slideshow-toggle", "command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren", "play", "S", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),

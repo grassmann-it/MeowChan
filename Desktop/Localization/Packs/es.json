@@ -4505,6 +4505,14 @@
     "viewer.help.escape.tagging": "Esc  Cerrar ayuda o contexto, salir de pantalla completa y después volver a Etiquetado",
     "tagging.page.lastShown": "Visto por última vez: {0} · posición {1} de {2}",
     "tagging.page.lastShown.help": "Continúa en la galería en esta entrada",
-    "tagging.page.continue.notOpen": "Solo se puede continuar desde una entrada pendiente. Marque primero esta entrada como pendiente."
+    "tagging.page.continue.notOpen": "Solo se puede continuar desde una entrada pendiente. Marque primero esta entrada como pendiente.",
+    "command.gallery.mode-toggle": "Modo de galería: ver / etiquetar",
+    "gallery.mode.name": "Modo de galería",
+    "gallery.mode.view": "Ver",
+    "gallery.mode.tag": "Etiquetar",
+    "gallery.mode.tagUnavailable": "Se etiqueta la cola de etiquetado. Añada estos medios con «Añadir a la cola de etiquetado» y continúe después en la página Etiquetado.",
+    "gallery.mode.announce.tag": "Modo etiquetar: favorito, valoración y etiquetas están en el panel de etiquetas.",
+    "gallery.mode.announce.view": "Modo ver.",
+    "viewer.playback.status.tagHold": "La presentación espera mientras usted etiqueta — continúa con este medio cuando sale del panel de etiquetas"
   }
 }

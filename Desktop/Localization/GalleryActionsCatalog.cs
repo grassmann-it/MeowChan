@@ -28,6 +28,13 @@ internal static class GalleryActionsCatalog
         ("reader.live.reason.sourceGone", "Not possible: this thread is no longer available at its source.", "Nicht möglich: Der Thread ist am Ursprung nicht mehr vorhanden."),
         ("gallery.slideshow.seconds", "{0} s", "{0} s"),
         ("gallery.slideshow.secondsLabel", "Seconds per image in the slideshow", "Sekunden pro Bild in der Diashow"),
+        // G1: the gallery's mode switch "View | Tag" (tagging is a mode of the gallery) and what the screen reader hears when it changes.
+        ("gallery.mode.name", "Gallery mode", "Galeriemodus"),
+        ("gallery.mode.view", "View", "Ansehen"),
+        ("gallery.mode.tag", "Tag", "Taggen"),
+        ("gallery.mode.tagUnavailable", "Tagging walks the tagging queue. Add these media with “Add to tagging queue”, then continue from the Tagging page.", "Getaggt wird die Tagging-Warteschlange. Füge diese Medien mit „Zur Tagging-Warteschlange hinzufügen“ hinzu und setze dann auf der Seite Taggen fort."),
+        ("gallery.mode.announce.tag", "Tag mode: favorite, rating and tags are in the tag panel.", "Modus Taggen: Favorit, Bewertung und Tags stehen im Tag-Panel."),
+        ("gallery.mode.announce.view", "View mode.", "Modus Ansehen."),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
         ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe"),
         // V2: the gallery side panel host (segment "Post | Tags", the isolated close button and the drag edge).
