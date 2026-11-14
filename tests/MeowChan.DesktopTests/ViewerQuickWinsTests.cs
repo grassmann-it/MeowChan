@@ -313,13 +313,14 @@ public sealed class ViewerQuickWinsTests : IDisposable
     }
 
     [Fact]
-    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedHasALayoutSafeSecondGesture()
+    public void TheFavoriteKeysOfTheShortcutConceptStayAndSpeedKeepsOnlyTheBrackets()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         Assert.Contains(bindings.For("favorites.add"), gesture => gesture.Key == "M" && gesture.Modifiers.Count == 0);
         Assert.Contains(bindings.For("gallery.slideshow-toggle"), gesture => gesture.Key == "S" && gesture.Modifiers.Count == 0);
-        Assert.Contains(bindings.For("video.speed-down"), gesture => gesture.Key == "OemComma" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
-        Assert.Contains(bindings.For("video.speed-up"), gesture => gesture.Key == "OemPeriod" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
+        // The "<" / ">" alias of the speed keys is gone: Shift+. is the next frame and "," / "." seek by the step setting.
+        Assert.Single(bindings.For("video.speed-down"));
+        Assert.Single(bindings.For("video.speed-up"));
         // Left/Right without a modifier stay previous/next medium.
         Assert.Contains(bindings.For("gallery.previous"), gesture => gesture.Key == "Left" && gesture.Modifiers.Count == 0);
     }

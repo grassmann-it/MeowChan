@@ -132,8 +132,7 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
-    // video.mute has Shift+M since the viewer quick wins (ViewerQuickWinsTests).
-    [InlineData("video.loop")]
+    // video.mute has Shift+M since the viewer quick wins and video.loop has L since the video keys (VideoKeyboardTests).
     [InlineData("gallery.tools-toggle")]
     public void OptionalGalleryCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
     {

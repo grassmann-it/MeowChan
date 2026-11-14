@@ -25,6 +25,7 @@ public partial class SettingsEditor
     private bool _mediaFocusHidesHeader = true;
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
+    private decimal? _galleryVideoSeekStepSeconds = Config.GalleryVideoSeekStepSecondsDefault;
     private bool _galleryLayoutResetPending;
     // H1: the filmstrip box as this draft loaded it (start, discard, after a save). A save sets the layout of both modes only when the box
     // differs from it; the gallery may have changed the live value since (L), and an untouched box must not roll that back.
@@ -52,6 +53,7 @@ public partial class SettingsEditor
     public bool MediaFocusHidesHeader { get => _mediaFocusHidesHeader; set => SetField(ref _mediaFocusHidesHeader, value, nameof(MediaFocusHidesHeader)); }
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
     public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
+    public decimal? GalleryVideoSeekStepSeconds { get => _galleryVideoSeekStepSeconds; set => SetField(ref _galleryVideoSeekStepSeconds, value, nameof(GalleryVideoSeekStepSeconds)); }
 
     /// <summary>
     /// GL4: "Reset gallery layout" was pressed in this draft: the layout choice of both modes (View and Tag) goes back to the work
@@ -102,17 +104,21 @@ public partial class SettingsEditor
     public string GalleryFilmstripPreloadLabel => Texts.T("settings.galleryFilmstripPreload");
     public string GalleryFilmstripPreloadHint => Texts.T("settings.galleryFilmstripPreloadHint",
         Config.GalleryFilmstripPreloadDefault, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
+    public string GalleryVideoSeekStepSecondsLabel => Texts.T("settings.galleryVideoSeekStep");
+    public string GalleryVideoSeekStepSecondsHint => Texts.T("settings.galleryVideoSeekStepHint",
+        Config.GalleryVideoSeekStepSecondsDefault, Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum);
 
     public string GallerySlideshowVideoSecondsHelp => FieldHelp(nameof(GallerySlideshowVideoSecondsInput), Texts.T("settings.unitSeconds") + ". " + GallerySlideshowVideoSecondsHint);
     public string GallerySlideshowVideoRepeatsHelp => FieldHelp(nameof(GallerySlideshowVideoRepeatsInput), Texts.T("settings.unitCount") + ". " + GallerySlideshowVideoRepeatsHint);
     public string ControlsIdleHideMsHelp => FieldHelp(nameof(ControlsIdleHideMsInput), Texts.T("stats.settings.unitMs") + ". " + ControlsIdleHideMsHint);
     public string GalleryFilmstripHeightHelp => FieldHelp(nameof(GalleryFilmstripHeightInput), Texts.T("settings.unitDip") + ". " + GalleryFilmstripHeightHint);
     public string GalleryFilmstripPreloadHelp => FieldHelp(nameof(GalleryFilmstripPreloadInput), Texts.T("settings.unitCount") + ". " + GalleryFilmstripPreloadHint);
+    public string GalleryVideoSeekStepSecondsHelp => FieldHelp(nameof(GalleryVideoSeekStepSecondsInput), Texts.T("settings.unitSeconds") + ". " + GalleryVideoSeekStepSecondsHint);
 
     private static readonly string[] ViewerHelpProperties =
     {
         nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp),
-        nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp)
+        nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp), nameof(GalleryVideoSeekStepSecondsHelp)
     };
 
     private static readonly string[] ViewerTextProperties =
@@ -122,7 +128,7 @@ public partial class SettingsEditor
         nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
         nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
         nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint),
-        nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint)
+        nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -173,6 +179,8 @@ public partial class SettingsEditor
         GalleryFilmstripPreload = config.GalleryFilmstripPreload;
         ResetNumber(GalleryFilmstripHeightInput, config.GalleryFilmstripHeight);
         ResetNumber(GalleryFilmstripPreloadInput, config.GalleryFilmstripPreload);
+        GalleryVideoSeekStepSeconds = config.GalleryVideoSeekStepSeconds;
+        ResetNumber(GalleryVideoSeekStepSecondsInput, config.GalleryVideoSeekStepSeconds);
     }
 
     private void ApplyViewerDraft(Config candidate)
@@ -184,6 +192,7 @@ public partial class SettingsEditor
         candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
         candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
+        candidate.GalleryVideoSeekStepSeconds = GetInteger(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsLabel, Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum);
     }
 
     /// <summary>A hidden row keeps its draft when that is valid and the saved value otherwise; it never blocks a save.</summary>
@@ -206,5 +215,7 @@ public partial class SettingsEditor
             Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum, true);
         yield return (GalleryFilmstripPreloadInput, GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Texts.T("settings.unitCount"),
             Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum, true);
+        yield return (GalleryVideoSeekStepSecondsInput, GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsLabel, Texts.T("settings.unitSeconds"),
+            Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum, true);
     }
 }

@@ -55,6 +55,14 @@ public partial class MainWindow
         _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
             NotificationType.Information, operation: "gallery.menu");
         _gallery.SaveFrameRequested += entry => _ = RunGalleryActionAsync(SaveGalleryFrameAsync, entry.Key.ToString());
+        // L repeats the shown video: a short status says what the key did ("Repeat on / off", or that a running slideshow decides).
+        _gallery.VideoLoopKeyed += (result, reason) => ShowNotification(
+            result switch
+            {
+                VideoLoopKeyResult.On => Texts.T("gallery.video.loopOn"),
+                VideoLoopKeyResult.Off => Texts.T("gallery.video.loopOff"),
+                _ => reason ?? Texts.T("gallery.video.loopOff")
+            }, string.Empty, NotificationType.Information, operation: "video.loop");
     }
 
     // Test seam: the folder the person would pick for saved frames (null: the picker was cancelled).

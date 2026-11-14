@@ -862,6 +862,7 @@ namespace MeowChan
             ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
+            GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -1011,6 +1012,9 @@ namespace MeowChan
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
+        /// <summary>How many seconds the "," and "." keys of a gallery video jump back and forward (the video seek step).</summary>
+        public int GalleryVideoSeekStepSeconds { get; set; } = GalleryVideoSeekStepSecondsDefault;
+        internal const int GalleryVideoSeekStepSecondsDefault = 5, GalleryVideoSeekStepSecondsMinimum = 1, GalleryVideoSeekStepSecondsMaximum = 60;
         /// <summary>
         /// GL4: the person's layout choice of the gallery, one set per mode (the typed value; null = nothing chosen). A profile without it reads
         /// <see cref="GalleryFilmstrip"/> instead (GalleryLayoutPreferences.FromConfig). Saved as "GalleryLayout" (<see cref="GalleryLayoutJson"/>).
@@ -1420,6 +1424,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
             if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
+            if (GalleryVideoSeekStepSeconds is < GalleryVideoSeekStepSecondsMinimum or > GalleryVideoSeekStepSecondsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryVideoSeekStepSeconds), "GalleryVideoSeekStepSeconds is outside its supported range (" + GalleryVideoSeekStepSecondsMinimum + " to " + GalleryVideoSeekStepSecondsMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -1633,6 +1639,7 @@ namespace MeowChan
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
+                GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1868,6 +1875,7 @@ namespace MeowChan
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
+            GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -2071,6 +2079,7 @@ namespace MeowChan
             // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
+            GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;

@@ -534,6 +534,15 @@
                     <TextBlock Text="{Binding GallerySlideshowVideoRepeatsHint}" Classes="workspace-help" TextWrapping="Wrap" IsVisible="{Binding IsGallerySlideshowVideoRepeats}" />
                     <CheckBox x:Name="GalleryVideoRepeatInput" IsChecked="{Binding GalleryVideoRepeat, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryVideoRepeatLabel}" AutomationProperties.HelpText="{Binding GalleryVideoRepeatHint}"><TextBlock Text="{Binding GalleryVideoRepeatLabel}" TextWrapping="Wrap" /></CheckBox>
                     <TextBlock Text="{Binding GalleryVideoRepeatHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                        <TextBlock x:Name="GalleryVideoSeekStepSecondsFieldLabel" Text="{Binding GalleryVideoSeekStepSecondsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryVideoSeekStepSecondsInput" Value="{Binding GalleryVideoSeekStepSeconds, Mode=TwoWay}" Minimum="1" Maximum="60" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryVideoSeekStepSecondsFieldLabel}" AutomationProperties.Name="{Binding GalleryVideoSeekStepSecondsLabel}" AutomationProperties.HelpText="{Binding GalleryVideoSeekStepSecondsHelp}" />
+                            <TextBlock x:Name="GalleryVideoSeekStepSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryVideoSeekStepSecondsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox x:Name="GalleryMediaFocusInput" IsChecked="{Binding GalleryMediaFocus, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryMediaFocusLabel}"><TextBlock Text="{Binding GalleryMediaFocusLabel}" TextWrapping="Wrap" /></CheckBox>
                     <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                         <CheckBox x:Name="GalleryOverlayControlsInput" IsChecked="{Binding GalleryOverlayControls, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryOverlayControlsLabel}" AutomationProperties.HelpText="{Binding GalleryOverlayHelp}"><TextBlock Text="{Binding GalleryOverlayControlsLabel}" TextWrapping="Wrap" /></CheckBox>

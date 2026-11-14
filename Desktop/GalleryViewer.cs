@@ -1092,6 +1092,7 @@ internal sealed partial class GalleryViewer : UserControl
             {
                 _video = new GalleryVideoPlayer();
                 _video.ConfigureScrubPreview(_scrubPreviewCache);
+                _video.ConfigureSeekStep(_videoSeekStepSeconds);
                 _video.CleanupDiagnostic += message =>
                 {
                     if (!_viewerInteractionStopped && !_sessionCancellation.IsCancellationRequested && _videoDiagnosticEntry != null)
@@ -1469,6 +1470,8 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.mute")) { _ = _video.ToggleMuteAsync(); e.Handled = true; return; }
             foreach (var (id, seconds) in SeekCommands)
                 if (CommandBindings.Matches(e, id)) { SeekVideo(seconds); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.step-back")) { SeekVideoByStep(forward: false); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.step-forward")) { SeekVideoByStep(forward: true); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-down")) { _video.StepRate(-1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-up")) { _video.StepRate(1); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-reset")) { _video.StepRate(0); e.Handled = true; return; }
@@ -1477,7 +1480,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (CommandBindings.Matches(e, "video.frame-step")) { _ = _video.StepFrameAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.speed-choose")) { _video.OpenSpeedMenu(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.audio-track")) { _video.CycleAudioTrack(); e.Handled = true; return; }
-            if (CommandBindings.Matches(e, "video.loop")) { _video.ToggleLoop(); e.Handled = true; return; }
+            if (CommandBindings.Matches(e, "video.loop")) { ToggleVideoLoopByKey(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.play")) { _ = _video.PlayAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.pause")) { _ = _video.PauseAsync(); e.Handled = true; return; }
             if (CommandBindings.Matches(e, "video.stop")) { _ = _video.StopPlaybackAsync(); e.Handled = true; return; }

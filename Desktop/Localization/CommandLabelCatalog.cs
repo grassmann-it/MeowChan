@@ -200,6 +200,8 @@ internal static class CommandLabelCatalog
         ("command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor"),
         ("command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück"),
         ("command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor"),
+        ("command.video.step-back", "Back by the seek step", "Um die Sprungweite zurück"),
+        ("command.video.step-forward", "Forward by the seek step", "Um die Sprungweite vor"),
         ("command.video.speed-down", "Slower", "Langsamer"),
         ("command.video.speed-up", "Faster", "Schneller"),
         ("command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit"),

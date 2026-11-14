@@ -190,8 +190,8 @@ public static class CommandCatalog
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Overlay-Bedienelemente umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
-        // GL3: the layout menu. All unbound (rebindable); the filmstrip row of the menu is the L command above.
+        new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "Shift+L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        // GL3: the layout menu. All unbound (rebindable); the filmstrip row of the menu is the Shift+L command above.
         new("gallery.layout-menu", "command.gallery.layout-menu", "Open layout menu", "Layout-Menü öffnen", "columns", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.tools", "command.gallery.layout.tools", "Layout: show / hide tools", "Layout: Werkzeuge anzeigen / ausblenden", "tool", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.layout.info", "command.gallery.layout.info", "Layout: show / hide info line", "Layout: Infozeile anzeigen / ausblenden", "info", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
@@ -334,20 +334,24 @@ public static class CommandCatalog
         new("video.volume-down", "command.video.volume-down", "Decrease video volume", "Videolautstärke verringern", "volume-x", "Down", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // M stays "Add favorite" in the gallery (shortcut concept D4); mute takes Shift+M.
         new("video.mute", "command.video.mute", "Mute / unmute", "Ton aus / an", "volume-2", "Shift+M", CommandScope.Gallery, new[] { "gallery-video-controls" }),
-        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", null, CommandScope.Gallery, new[] { "gallery-video-controls" }),
+        // L repeats the shown video (the filmstrip toggle moved to Shift+L for it; both are gallery commands, so they may not share a key).
+        new("video.loop", "command.video.loop", "Repeat video", "Video wiederholen", "refresh-cw", "L", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         // Left/Right stay previous/next medium; seeking takes Ctrl (⌘) with the arrows, far seeking adds Shift.
         new("video.seek-back", "command.video.seek-back", "Back 5 seconds", "5 Sekunden zurück", "rotate-ccw", "Primary+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward", "command.video.seek-forward", "Forward 5 seconds", "5 Sekunden vor", "refresh-cw", "Primary+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-back-far", "command.video.seek-back-far", "Back 30 seconds", "30 Sekunden zurück", "chevron-left", "Primary+Shift+Left", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.seek-forward-far", "command.video.seek-forward-far", "Forward 30 seconds", "30 Sekunden vor", "chevron-right", "Primary+Shift+Right", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        // "," and "." jump back and forward by the seek step setting (5 seconds by default, 1 to 60); they act only while a video is shown.
+        new("video.step-back", "command.video.step-back", "Back by the seek step", "Um die Sprungweite zurück", "rotate-ccw", "OemComma", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.step-forward", "command.video.step-forward", "Forward by the seek step", "Um die Sprungweite vor", "rotate-cw", "OemPeriod", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-down", "command.video.speed-down", "Slower", "Langsamer", "minus", "OemOpenBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-up", "command.video.speed-up", "Faster", "Schneller", "plus", "OemCloseBrackets", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.speed-reset", "command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit", "activity", "Back", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.snapshot", "command.video.snapshot", "Save frame as image", "Einzelbild speichern", "image", "Shift+S", CommandScope.Gallery, new[] { "gallery-menu", "gallery-keyboard" }),
-        // Transport row (plan V1): A sets A, then B, then turns the loop off; "." shows the next frame (LibVLC 3 has no step back,
-        // so "," stays free). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
+        // Transport row (plan V1): A sets A, then B, then turns the loop off; Shift+. shows the next frame (LibVLC 3 has no step back,
+        // so Shift+, stays free: there is no "previous frame" command). Audio track and the speed choices have no default key: the player menu and rebinding reach them.
         new("video.ab-loop", "command.video.ab-loop", "A–B loop", "A–B-Schleife", "repeat", "A", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
-        new("video.frame-step", "command.video.frame-step", "Next frame", "Nächstes Einzelbild", "skip-forward", "OemPeriod", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
+        new("video.frame-step", "command.video.frame-step", "Next frame", "Nächstes Einzelbild", "skip-forward", "Shift+OemPeriod", CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-keyboard" }),
         new("video.audio-track", "command.video.audio-track", "Next audio track", "Nächste Tonspur", "volume-2", null, CommandScope.Gallery, new[] { "gallery-video-menu" }),
         new("video.speed-choose", "command.video.speed-choose", "Choose speed…", "Tempo wählen…", "sliders", null, CommandScope.Gallery, new[] { "gallery-video-controls", "gallery-video-menu" }),
         new("about.copy-version", "command.about.copy-version", "Copy version", "Version kopieren", "copy", null, CommandScope.About, new[] { "about-overview" }),

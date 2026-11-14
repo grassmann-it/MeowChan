@@ -179,6 +179,7 @@ public static class SettingsTransfer
             GalleryLayout = source.GalleryLayout, // GL4: the layout choice of both modes travels with the profile settings
             GalleryFilmstripHeight = source.GalleryFilmstripHeight,
             GalleryFilmstripPreload = source.GalleryFilmstripPreload,
+            GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds,
             HeaderTagline = source.HeaderTagline,
             HeaderTaglineFixedId = source.HeaderTaglineFixedId,
             ProfileRegistryLimit = source.ProfileRegistryLimit,

@@ -654,8 +654,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         AutomationProperties.SetName(_speed, speed);
         AutomationProperties.SetHelpText(_speed, speedTip);
         ToolTip.SetTip(_speed, speedTip);
-        AutomationProperties.SetName(_seek, Texts.T("viewer.video.position"));
-        ToolTip.SetTip(_seek, Texts.T("viewer.video.position"));
+        RefreshSeekTooltip();
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
         ToolTip.SetTip(_volume, volumeLabel);

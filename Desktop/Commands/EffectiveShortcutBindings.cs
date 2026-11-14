@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 11;
+    public const int DefaultsRevision = 12;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -165,9 +165,8 @@ public sealed class EffectiveShortcutBindings
         ["navigation.booru"] = 8,
         // New in revision 9 (wave3: V1, V3, PT6, R8, M4 and PT3 each raised the table in their own branch; Status took 7, the Booru page 8): the video transport row
         // (A–B loop, next frame).
-        ["video.ab-loop"] = 9, ["video.frame-step"] = 9,
-        // New in revision 9: L shows or hides the gallery filmstrip.
-        ["gallery.filmstrip-toggle"] = 9,
+        ["video.ab-loop"] = 9,
+        // New in revision 9: the gallery filmstrip toggle (L until revision 12 gave L to the video repeat; see below).
         // New in revision 9 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
         // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
         ["media.rating.set-1"] = 9, ["media.rating.set-2"] = 9, ["media.rating.set-3"] = 9, ["media.rating.set-4"] = 9,
@@ -201,6 +200,9 @@ public sealed class EffectiveShortcutBindings
         // TG1: Alt+Home and Alt+End send the selected entry of the tagging page to the start or the end of the queue (context "tagging").
         // The wave-6 integration puts them into revision 11 (F1's), the first one after wave 5's 10; they yield like every new default.
         ["tagging.move-first"] = 11, ["tagging.move-last"] = 11,
+        // Revision 12 (video keys, on top of the footer package's revision 11): "," and "." seek by the step setting, L repeats the video, the next frame moved to Shift+. and the filmstrip
+        // toggle to Shift+L (L is the video repeat). All of them yield to a saved binding of another command like every changed default.
+        ["video.step-back"] = 12, ["video.step-forward"] = 12, ["video.loop"] = 12, ["video.frame-step"] = 12, ["gallery.filmstrip-toggle"] = 12,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -252,10 +254,7 @@ public sealed class EffectiveShortcutBindings
             case "menu.context-open": list.Add(ShortcutGesture.Parse("Apps")); break;
             case "reader.find-next": list.Add(ShortcutGesture.Parse("Primary+G")); break;
             case "reader.find-previous": list.Add(ShortcutGesture.Parse("Primary+Shift+G")); break;
-            // [ and ] sit behind AltGr/Option on many layouts (German, French …): "<"/">" as on US keyboards (Shift with the
-            // comma and period keys, the video players' convention) is the always reachable second gesture.
-            case "video.speed-down": list.Add(ShortcutGesture.Parse("Shift+OemComma")); break;
-            case "video.speed-up": list.Add(ShortcutGesture.Parse("Shift+OemPeriod")); break;
+            // Speed stays on [ and ] alone: Shift+, is free (no previous frame) and Shift+. is the next frame.
         }
         return list.AsReadOnly();
     }
