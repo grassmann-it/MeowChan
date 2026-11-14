@@ -65,7 +65,7 @@ internal static class StatisticsReadabilityChecks
                 string beforeLayout = LayoutDetails(page, host);
                 page.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
-                    () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}");
+                    () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}; cancel top level {TopLevel.GetTopLevel(page.CancelButton)?.GetType().Name} active {(TopLevel.GetTopLevel(page.CancelButton) as Window)?.IsActive}; focus {TopLevel.GetTopLevel(page.CancelButton)?.FocusManager?.GetFocusedElement()?.GetType().Name}; reset visible {page.ResetButton.IsEffectivelyVisible}, enabled {page.ResetButton.IsEnabled}; cancel visible {page.CancelButton.IsEffectivelyVisible} enabled {page.CancelButton.IsEffectivelyEnabled} focusable {page.CancelButton.Focusable}");
                 await WaitForLayoutAsync(page, host, expectTraffic: true, expectCompactRows: true);
                 Require(page.CancelButton.IsFocused, "Flyout did not open on the safe answer.");
                 RequireStableGraphLayout("reset question", page, host, before, beforeGraph, beforeScroll, beforeLayout);
