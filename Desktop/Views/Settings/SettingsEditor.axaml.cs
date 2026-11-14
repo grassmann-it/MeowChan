@@ -787,6 +787,7 @@ namespace MeowChan
             _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
+            EndResetLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
@@ -1033,6 +1034,7 @@ namespace MeowChan
                 RaiseReaderTextsChanged();
                 RaiseViewerTextsChanged();
                 RaiseQuickTagTextsChanged();
+                RaiseResetTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {

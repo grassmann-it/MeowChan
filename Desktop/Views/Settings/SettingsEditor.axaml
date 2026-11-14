@@ -63,6 +63,8 @@
         <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="20,12,20,12" MaxWidth="1088" HorizontalAlignment="Center">
             <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
             <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+            <Button x:Name="ResetAllSettingsButton" Classes="ghost" Content="{Binding ResetAllLabel}" AutomationProperties.Name="{Binding ResetAllLabel}" Click="OnResetAllClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
+            <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" />
         </StackPanel>
         <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="16" Margin="20,0,20,16" MaxWidth="1088" HorizontalAlignment="Center">
             <desktop:SectionNavigationControl x:Name="SettingsSections" Grid.ColumnSpan="2" Margin="0,0,0,12" />
@@ -74,6 +76,7 @@
             <StackPanel x:Name="SettingsContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="16">
                 <StackPanel x:Name="SettingsInterfacePage" Spacing="0" IsEnabled="{Binding IsEditable}">
                     <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" Margin="0,0,0,8" />
+                    <Button x:Name="ResetInterfaceButton" Tag="settings.interface" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetInterfaceLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                             <StackPanel VerticalAlignment="Center" Spacing="4">
@@ -132,6 +135,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsReadingMediaPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsReadingMediaHeading" Text="{Binding ReadingMediaTitle}" Classes="section-title" />
+                    <Button x:Name="ResetReadingMediaButton" Tag="settings.reading-media" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetReadingMediaLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <Expander x:Name="SettingsReadingMediaGroup" wv:WorkViewElement.Id="settings.group.reading-media" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsReadingMediaBody" Spacing="8" Margin="0,8,0,0">
                             <TextBlock x:Name="ReaderDisplayHeading" Text="{Binding ReaderDisplayTitle}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
@@ -361,6 +365,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsDownloadsPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" Margin="0,0,0,8" />
+                    <Button x:Name="ResetDownloadsButton" Tag="settings.downloads" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetDownloadsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <StackPanel Classes="workspace-field" Margin="0,0,0,12">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" Classes="workspace-field-label" />
                         <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
@@ -423,6 +428,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsWorkerBudgetsPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" />
+                    <Button x:Name="ResetWorkerBudgetsButton" Tag="settings.worker-budgets" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetWorkerBudgetsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" wv:WorkViewElement.Id="settings.safety.reserve" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
@@ -808,6 +814,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsUpdatesPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsUpdatesHeading" Text="{Binding UpdatesTitle}" Classes="section-title" />
+                    <Button x:Name="ResetUpdatesButton" Tag="settings.updates" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetUpdatesLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <CheckBox x:Name="AutomaticUpdatesInput" AutomationProperties.Name="{Binding AutomaticUpdateChecksLabel}" AutomationProperties.HelpText="{Binding UpdatePrivacyHint}" IsEnabled="{Binding UpdatesEnabled}" IsChecked="{Binding AutomaticUpdateChecks, Mode=TwoWay}">
                         <TextBlock Text="{Binding AutomaticUpdateChecksLabel}" TextWrapping="Wrap" />
                     </CheckBox>
@@ -819,6 +826,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsNotificationsSection" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsNotificationsHeading" Text="{Binding NotificationsTitle}" Classes="section-title" />
+                    <Button x:Name="ResetNotificationsButton" Tag="settings.notifications" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetNotificationsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <CheckBox x:Name="InformationNotificationsInput" IsChecked="{Binding ShowInformationNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding InformationNotificationsLabel}"><TextBlock Text="{Binding InformationNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="WarningNotificationsInput" IsChecked="{Binding ShowWarningNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding WarningNotificationsLabel}"><TextBlock Text="{Binding WarningNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
                     <CheckBox x:Name="ErrorNotificationsInput" IsChecked="{Binding ShowErrorNotifications, Mode=TwoWay}" AutomationProperties.Name="{Binding ErrorNotificationsLabel}"><TextBlock Text="{Binding ErrorNotificationsLabel}" TextWrapping="Wrap" /></CheckBox>
@@ -826,6 +834,7 @@
                 </StackPanel>
                 <StackPanel x:Name="SettingsBehaviorPage" Spacing="8" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" />
+                    <Button x:Name="ResetBehaviorButton" Tag="settings.behavior" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetBehaviorLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <Expander x:Name="SettingsBehaviorGroup" wv:WorkViewElement.Id="settings.group.behavior" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsBehaviorBody" Spacing="8" Margin="0,8,0,0">
                     <CheckBox x:Name="BoardAdmissionWizardInput" Content="{Binding BoardAdmissionWizardLabel}" IsChecked="{Binding ShowBoardAdmissionWizard, Mode=TwoWay}" />
