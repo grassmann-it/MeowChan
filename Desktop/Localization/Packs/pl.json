@@ -4482,6 +4482,8 @@
     "settings.tagging.stampSize.hint": "Ile tagów mieści stempel szybkiego tagowania. Mniejsza liczba skraca stempel od końca; nic więcej się nie zmienia.",
     "settings.tagging.walkWindow": "Kolejka tagowania: media na jedno przejście",
     "settings.tagging.walkWindow.hint": "Ile otwartych wpisów kolejki tagowania otwiera naraz jedno przejście. Następne przejście kontynuuje za nimi; z kolejki nic nie jest usuwane.",
+    "settings.tagging.undoDepth": "Kolejka tagowania: decyzje do cofnięcia",
+    "settings.tagging.undoDepth.hint": "Ile decyzji z jednego przejścia (zakończ lub pomiń) można cofnąć klawiszem cofania, zaczynając od najnowszej. Mniejsza liczba zapomina najstarsze kroki; w kolejce nic się nie zmienia.",
     "settings.tagging.cardCount": "Karty w trybie kart",
     "settings.tagging.cardCount.hint": "Ile kart pokazuje tryb kart, licząc od lewej. Każda karta ma własny klawisz, od 1 do 5. Obowiązuje od następnego przejścia.",
     "settings.tagging.cardsStart": "Zaczynaj przejścia w trybie kart",

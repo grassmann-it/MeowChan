@@ -71,6 +71,7 @@ internal static class SettingsSearchAliases
         ["StatsPersist"] = "statistics history save verlauf speichern statistik",
         ["TagStampSize"] = "stamp stempel quick tagging shortcut schnell taggen kürzel tags set",
         ["TagQueueWalkWindow"] = "walk window batch round queue durchgang runde fenster warteschlange tagging-warteschlange",
+        ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
         ["TaggingCardCount"] = "cards tinder karten kartenmodus card mode",
         ["TaggingCardsDefault"] = "cards tinder karten kartenmodus card mode start default beginnen standard",
     };

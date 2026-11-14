@@ -4436,6 +4436,8 @@
     "settings.tagging.stampSize.hint": "Cuántas etiquetas contiene el sello del etiquetado rápido. Un número menor acorta el sello desde el final; nada más cambia.",
     "settings.tagging.walkWindow": "Cola de etiquetado: medios por recorrido",
     "settings.tagging.walkWindow.hint": "Cuántas entradas abiertas de la cola de etiquetado abre de una vez un recorrido. El siguiente recorrido continúa tras ellas; no se elimina nada de la cola.",
+    "settings.tagging.undoDepth": "Cola de etiquetado: decisiones que se pueden deshacer",
+    "settings.tagging.undoDepth.hint": "Cuántas decisiones de un recorrido (terminar u omitir) puede deshacer la tecla de deshacer, empezando por la más reciente. Un número menor olvida los pasos más antiguos; la cola no cambia.",
     "settings.tagging.cardCount": "Tarjetas en el modo de tarjetas",
     "settings.tagging.cardCount.hint": "Cuántas tarjetas muestra el modo de tarjetas, contando desde la izquierda. Cada tarjeta tiene su propia tecla, de 1 a 5. Se aplica desde el siguiente recorrido.",
     "settings.tagging.cardsStart": "Iniciar los recorridos en el modo de tarjetas",

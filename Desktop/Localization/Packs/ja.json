@@ -4351,6 +4351,8 @@
     "settings.tagging.stampSize.hint": "クイックタグ付けのスタンプに入るタグの数です。小さくすると、スタンプが末尾から短くなります。ほかは変わりません。",
     "settings.tagging.walkWindow": "タグ付けキュー: 1 回に見るメディア数",
     "settings.tagging.walkWindow.hint": "タグ付けキューの未処理の項目を、1 回の巡回でいくつまとめて開くかを指定します。次の巡回はその続きから始まり、キューからは何も削除されません。",
+    "settings.tagging.undoDepth": "タグ付けキュー: 取り消せる判断の数",
+    "settings.tagging.undoDepth.hint": "1 回の巡回で行った判断（完了またはスキップ）を、取り消しキーで新しいものからいくつまで取り消せるかを指定します。数を小さくすると古い手順から忘れられますが、キューの内容は変わりません。",
     "settings.tagging.cardCount": "カードモードのカード数",
     "settings.tagging.cardCount.hint": "カードモードが左から数えて何枚のカードを表示するかを指定します。カードにはそれぞれキー 1～5 が割り当てられます。次の巡回から有効です。",
     "settings.tagging.cardsStart": "巡回をカードモードで開始",

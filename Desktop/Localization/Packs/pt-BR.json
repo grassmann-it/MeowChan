@@ -4442,6 +4442,8 @@
     "settings.tagging.stampSize.hint": "Quantas tags o carimbo da marcação rápida guarda. Um número menor encurta o carimbo pelo final; nada mais muda.",
     "settings.tagging.walkWindow": "Fila de tags: mídias por percurso",
     "settings.tagging.walkWindow.hint": "Quantas entradas abertas da fila de tags um percurso abre de uma vez. O próximo percurso continua depois delas; nada é removido da fila.",
+    "settings.tagging.undoDepth": "Fila de tags: decisões que podem ser desfeitas",
+    "settings.tagging.undoDepth.hint": "Quantas decisões de um percurso (concluir ou pular) a tecla de desfazer pode desfazer, começando pela mais recente. Um número menor esquece as etapas mais antigas; nada muda na fila.",
     "settings.tagging.cardCount": "Cartões no modo de cartões",
     "settings.tagging.cardCount.hint": "Quantos cartões o modo de cartões mostra, contando da esquerda. Cada cartão tem sua própria tecla, de 1 a 5. Vale a partir do próximo percurso.",
     "settings.tagging.cardsStart": "Iniciar percursos no modo de cartões",

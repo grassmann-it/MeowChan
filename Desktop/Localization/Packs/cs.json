@@ -4479,6 +4479,8 @@
     "settings.tagging.stampSize.hint": "Kolik štítků obsahuje razítko rychlého štítkování. Menší číslo zkrátí razítko od konce; nic dalšího se nemění.",
     "settings.tagging.walkWindow": "Fronta štítkování: médií na jeden průchod",
     "settings.tagging.walkWindow.hint": "Kolik otevřených položek fronty štítkování otevře jeden průchod najednou. Další průchod pokračuje za nimi; z fronty se nic neodebírá.",
+    "settings.tagging.undoDepth": "Fronta štítkování: vratná rozhodnutí",
+    "settings.tagging.undoDepth.hint": "Kolik rozhodnutí jednoho průchodu (dokončit nebo přeskočit) lze vrátit klávesou Zpět, od nejnovějšího. Menší číslo zapomene nejstarší kroky; ve frontě se nic nezmění.",
     "settings.tagging.cardCount": "Karet v režimu karet",
     "settings.tagging.cardCount.hint": "Kolik karet režim karet zobrazuje, počítáno zleva. Každá karta má vlastní klávesu, 1 až 5. Platí od dalšího průchodu.",
     "settings.tagging.cardsStart": "Zahajovat průchody v režimu karet",

@@ -20,8 +20,9 @@ internal sealed partial class DesktopSessionHost
     private TagQueueStore? _tagQueueStore;
     private TagQueueSnapshot? _tagQueueSnapshot;
     private Exception? _tagQueueError;
-    // Access only while holding _commands: the undo history of the current walk (memory only; the file keeps state and cursor).
-    private TagQueueDecisionLog _tagQueueDecisions = new();
+    // Access only while holding _commands: the undo history of the current walk (memory only; the file keeps state and cursor). Its depth
+    // follows the setting TagQueueUndoDepth; every committed queue forgets the decisions of entries that left it.
+    private readonly TagQueueDecisionLog _tagQueueDecisions = new();
     private long _tagQueueCommands;
 
     /// <summary>
@@ -61,8 +62,8 @@ internal sealed partial class DesktopSessionHost
     internal Task<TagQueueSnapshot> RemoveFromTagQueueAsync(IReadOnlyCollection<TagQueueKey> keys, CancellationToken token = default)
     {
         TagQueueKey[] frozen = keys.ToArray();
-        return TagQueueCommandAsync(nameof(RemoveFromTagQueueAsync), store => store.Remove(frozen, token), token,
-            onCommitted: _ => _tagQueueDecisions.Forget(frozen));
+        // The decisions of the removed entries leave the walk's history with the commit (ForgetMissing), so an undo never reaches past them.
+        return TagQueueCommandAsync(nameof(RemoveFromTagQueueAsync), store => store.Remove(frozen, token), token);
     }
 
     /// <summary>Marks entries open, finished or skipped without touching the undo history of the walk.</summary>
@@ -84,23 +85,35 @@ internal sealed partial class DesktopSessionHost
             if (index < 0) return null;
             TagQueueSnapshot after = store.SetStates([new(key, state)], DateTimeOffset.UtcNow,
                 advance ? TagQueueCursorTarget.Relative(key, 1) : TagQueueCursorTarget.Relative(key, 0), token);
-            return (after, new TagQueueDecision(key, before.Items[index].State, state, before.Cursor, after.Cursor));
-        }, token, push: true);
+            TagQueueKey? cursorKey = before.Cursor < before.Count ? before.Items[before.Cursor].Key : null;
+            return (after, new TagQueueDecision(key, before.Items[index].State, state, before.Cursor, after.Cursor, cursorKey));
+        }, token, decision =>
+        {
+            _tagQueueDecisions.Depth = TaggingSettings.UndoDepth(Config);
+            _tagQueueDecisions.Push(decision);
+        });
 
     /// <summary>
-    /// Takes the newest decision off the walk's history and writes its reverse (state and cursor, in one write). Returns null when there
-    /// is nothing to undo or the entry has left the queue meanwhile (that step is dropped).
+    /// Writes the reverse of a decision of the walk's history (state and cursor, in one write) and only then takes it off the history: the
+    /// newest one, or with <paramref name="expected"/> exactly that decision (the walk names its own step, so the two stacks never take back
+    /// different entries). Returns null without writing when there is nothing to undo, <paramref name="expected"/> is no longer in the
+    /// history, or its entry has left the queue meanwhile (that decision is dropped). A refused write keeps the decision for another try.
+    /// The cursor returns to the entry it stood on before, wherever that entry stands now.
     /// </summary>
-    internal Task<TagQueueDecision?> UndoTagQueueDecisionAsync(CancellationToken token = default)
+    internal Task<TagQueueDecision?> UndoTagQueueDecisionAsync(TagQueueDecision? expected = null, CancellationToken token = default)
         => TagQueueDecisionAsync(nameof(UndoTagQueueDecisionAsync), store =>
         {
-            if (_tagQueueDecisions.Pop() is not { } decision) return null;
+            if (_tagQueueDecisions.Find(expected) is not { } decision) return null;
             TagQueueSnapshot current = store.Read();
-            if (!current.Contains(decision.Key)) return null;
+            if (!current.Contains(decision.Key))
+            {
+                _tagQueueDecisions.Remove(decision);
+                return null;
+            }
             TagQueueSnapshot after = store.SetStates([new(decision.Key, decision.Before)], DateTimeOffset.UtcNow,
-                TagQueueCursorTarget.At(decision.CursorBefore), token);
+                decision.CursorTargetIn(current), token);
             return (after, decision);
-        }, token, push: false);
+        }, token, decision => _tagQueueDecisions.Remove(decision));
 
     internal Task<TagQueueSnapshot> SetTagQueueCursorAsync(int cursor, CancellationToken token = default)
         => TagQueueCommandAsync(nameof(SetTagQueueCursorAsync), store => store.SetCursor(cursor, token), token);
@@ -110,8 +123,7 @@ internal sealed partial class DesktopSessionHost
 
     /// <summary>Removes every entry, or only the finished ones. An unreadable file is preserved next to its place and replaced by an empty queue.</summary>
     internal Task<TagQueueSnapshot> ClearTagQueueAsync(bool finishedOnly = false, CancellationToken token = default)
-        => TagQueueCommandAsync(nameof(ClearTagQueueAsync), store => store.Clear(finishedOnly, token), token,
-            onCommitted: _ => { if (!finishedOnly) _tagQueueDecisions.Clear(); });
+        => TagQueueCommandAsync(nameof(ClearTagQueueAsync), store => store.Clear(finishedOnly, token), token);
 
     /// <summary>Replaces the stamp set (tag names; at most the fixed ceiling, the user limit applies in the surface).</summary>
     internal Task<TagQueueSnapshot> SetTagQueueStampAsync(IReadOnlyList<string> names, CancellationToken token = default)
@@ -137,6 +149,7 @@ internal sealed partial class DesktopSessionHost
                 catch (Exception error) when (IsTagQueueReadError(error)) { SetTagQueueError(error); throw; }
                 TagQueueSnapshot snapshot = snapshotOf(result);
                 Publish(snapshot);
+                _tagQueueDecisions.ForgetMissing(snapshot);
                 onCommitted?.Invoke(result, snapshot);
                 if (changed(result)) SignalChanged();
                 return result;
@@ -144,8 +157,9 @@ internal sealed partial class DesktopSessionHost
             finally { _commands.Release(); }
         });
 
+    // `committed` runs after the write succeeded and was published, still inside the command lane (push or remove the decision there).
     private Task<TagQueueDecision?> TagQueueDecisionAsync(string action,
-        Func<TagQueueStore, (TagQueueSnapshot Snapshot, TagQueueDecision Decision)?> operation, CancellationToken token, bool push)
+        Func<TagQueueStore, (TagQueueSnapshot Snapshot, TagQueueDecision Decision)?> operation, CancellationToken token, Action<TagQueueDecision> committed)
         => RunInteractiveAsync<TagQueueDecision?>(action, "queue-" + Interlocked.Increment(ref _tagQueueCommands), async () =>
         {
             await _commands.WaitAsync(token).ConfigureAwait(false);
@@ -157,7 +171,8 @@ internal sealed partial class DesktopSessionHost
                 catch (Exception error) when (IsTagQueueReadError(error)) { SetTagQueueError(error); throw; }
                 if (result is not { } done) return null;
                 Publish(done.Snapshot);
-                if (push) _tagQueueDecisions.Push(done.Decision);
+                committed(done.Decision);
+                _tagQueueDecisions.ForgetMissing(done.Snapshot);
                 SignalChanged();
                 return done.Decision;
             }
@@ -185,5 +200,5 @@ internal sealed partial class DesktopSessionHost
 
     // A refused write (limit, newer file, blocked backup) leaves the published view as it was; only an unreadable file is an error state.
     private static bool IsTagQueueReadError(Exception error) => error is InvalidDataException && !PrivateStoreLimit.TryDescribe(error, out _, out _)
-        || error is IOException && error is not InvalidDataException && error.Message.StartsWith("The tagging queue could not be read", StringComparison.Ordinal);
+        || error is TagQueueReadException;
 }

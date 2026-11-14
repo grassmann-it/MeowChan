@@ -38,15 +38,17 @@ public sealed class TaggingDecisionLogTests : IDisposable
         return host;
     }
 
-    // A host with a queue of `count` open entries and a walk over all of them (every file resolvable).
-    private static async Task<(DesktopSessionHost Host, TaggingWalk Walk)> WalkAsync(string directory, int count)
+    // A host with a queue of `count` open entries and a walk over all of them (every file resolvable), as deep as the host's setting.
+    private static async Task<(DesktopSessionHost Host, TaggingWalk Walk)> WalkAsync(string directory, int count, int? undoDepth = null)
     {
+        if (undoDepth is { } depth)
+            new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false, DownloadPath = Path.Combine(directory, "media"), TagQueueUndoDepth = depth }.SaveConfig(directory);
         DesktopSessionHost host = await StartAsync(directory);
         TagQueueItem[] items = Enumerable.Range(1, count).Select(Item).ToArray();
         await host.EnqueueTagQueueAsync(items);
         TagQueueSnapshot queue = await host.LoadTagQueueAsync();
         (IReadOnlyList<TaggingWalkItem> paired, int unavailable) = TaggingWalk.Pair(queue.Items, items.Select((_, i) => Entry(i + 1)).ToArray());
-        return (host, new TaggingWalk(paired, unavailable, queue, new HostTaggingQueueWriter(host)));
+        return (host, new TaggingWalk(paired, unavailable, queue, new HostTaggingQueueWriter(host), TaggingSettings.UndoDepth(host.Config)));
     }
 
     // ---- pairing ----------------------------------------------------------------------------------------------------
@@ -184,6 +186,93 @@ public sealed class TaggingDecisionLogTests : IDisposable
         Assert.Equal(TagQueueDecisionLog.DefaultDepth, new TaggingWalk(paired, 0, queue, writer).Depth);
     }
 
+    // W3-01 (a): an entry removed on the tagging page during the walk: its step goes, the next undo takes back the newest decision that
+    // still exists (and names it), and no other entry is ever taken back in its place.
+    [Fact]
+    public async Task AnEntryRemovedDuringTheWalkDropsItsStepAndTheUndoTakesBackTheRightEntry()
+    {
+        using TempDirectory temp = new();
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 3);
+        await using (host)
+        using (walk)
+        {
+            await walk.Decide(0, TagQueueState.Done).Write;
+            await walk.Decide(1, TagQueueState.Done).Write;
+            await host.RemoveFromTagQueueAsync(new[] { walk.Items[1].Key });
+            Assert.Equal(1, host.TagQueueUndoDepth);
+
+            TaggingUndoResult? undone = await walk.UndoAsync();
+            Assert.Equal((0, "file-1.png", TagQueueState.Open), (undone!.Index, undone.Name, undone.State));
+            TagQueueSnapshot saved = host.GetTagQueue()!;
+            Assert.Equal(2, saved.Count);
+            Assert.Equal(TagQueueState.Open, saved.Items[0].State);
+            Assert.Equal((0, 0), (walk.Steps, host.TagQueueUndoDepth));
+            Assert.Null(await walk.UndoAsync());
+        }
+    }
+
+    [Fact]
+    public async Task AStepWhoseEntryLeftTheQueueIsNotTheNewestStepOfTheSharedUndoKey()
+    {
+        using TempDirectory temp = new();
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 3);
+        await using (host)
+        using (walk)
+        using (GalleryDecisionSession decisions = new(new DecisionOwner()))
+        {
+            using TaggingUndo undo = new(walk, decisions, () => 0, _ => { });
+            await decisions.SetRatingAsync(new[] { Entry(1) }, 4);   // older: a rating
+            await walk.Decide(1, TagQueueState.Done).Write;           // newer: medium 2 is done, then removed on the tagging page
+            await host.RemoveFromTagQueueAsync(new[] { walk.Items[1].Key });
+            Assert.Equal("Undone: rating change.", await undo.UndoAsync());
+            Assert.Equal(0, undo.Steps);
+        }
+    }
+
+    // W3-01 (b): a refused undo write keeps the step and the host's decision; the next undo takes back the same entry.
+    [Fact]
+    public async Task ARefusedUndoKeepsBothStacksAndTheNextUndoTakesBackTheSameEntry()
+    {
+        using TempDirectory temp = new();
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 3);
+        await using (host)
+        using (walk)
+        {
+            await walk.Decide(0, TagQueueState.Done).Write;
+            await walk.Decide(1, TagQueueState.Skipped).Write;
+            string backup = Path.Combine(temp.Path, TagQueueStore.FileName + ".bak");
+            File.WriteAllText(backup, "{\"Version\":99}");
+
+            await Assert.ThrowsAnyAsync<InvalidOperationException>(() => walk.UndoAsync());
+            Assert.Equal((2, 2), (walk.Steps, host.TagQueueUndoDepth));
+            Assert.False(walk.Busy);
+
+            File.Delete(backup);
+            Assert.Equal(1, (await walk.UndoAsync())!.Index);
+            Assert.Equal(TagQueueState.Done, host.GetTagQueue()!.Items[0].State);
+            Assert.Equal(0, (await walk.UndoAsync())!.Index);
+            Assert.Equal((0, 0), (walk.Steps, host.TagQueueUndoDepth));
+        }
+    }
+
+    // W3-18: with the setting at 5, six decisions leave five undos; the sixth says there is nothing more.
+    [Fact]
+    public async Task TheUndoDepthSettingLimitsTheWalkAndTheHostAlike()
+    {
+        using TempDirectory temp = new();
+        (DesktopSessionHost host, TaggingWalk walk) = await WalkAsync(temp.Path, 6, undoDepth: 5);
+        await using (host)
+        using (walk)
+        {
+            Assert.Equal(5, walk.Depth);
+            for (int i = 0; i < 6; i++) await walk.Decide(i, TagQueueState.Done).Write;
+            Assert.Equal((5, 5), (walk.Steps, host.TagQueueUndoDepth));
+            for (int i = 5; i >= 1; i--) Assert.Equal(i, (await walk.UndoAsync())!.Index);
+            Assert.Null(await walk.UndoAsync());
+            Assert.Equal(TagQueueState.Done, host.GetTagQueue()!.Items[0].State);
+        }
+    }
+
     // ---- one undo key over queue decisions and favorite/rating steps ----------------------------------------------
 
     [Fact]
@@ -249,7 +338,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
             if (Missing) return Task.FromResult<TagQueueDecision?>(null);
             return Task.FromResult<TagQueueDecision?>(new TagQueueDecision(key, TagQueueState.Open, state, 0, 1));
         }
-        public Task<TagQueueDecision?> UndoAsync(CancellationToken token) => Task.FromResult<TagQueueDecision?>(null);
+        public Task<TagQueueDecision?> UndoAsync(TagQueueDecision decision, CancellationToken token) => Task.FromResult<TagQueueDecision?>(null);
         public TagQueueSnapshot? Current => Snapshot;
     }
 

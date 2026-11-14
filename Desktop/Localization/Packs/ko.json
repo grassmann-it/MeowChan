@@ -4351,6 +4351,8 @@
     "settings.tagging.stampSize.hint": "빠른 태그 지정의 스탬프에 담을 수 있는 태그 수입니다. 숫자를 줄이면 스탬프가 끝에서부터 짧아지며, 그 밖에는 달라지지 않습니다.",
     "settings.tagging.walkWindow": "태그 지정 대기열: 한 번에 둘러볼 미디어 수",
     "settings.tagging.walkWindow.hint": "한 번 둘러볼 때 태그 지정 대기열의 열린 항목을 몇 개나 한꺼번에 여는지 정합니다. 다음 둘러보기는 그 뒤부터 이어지며, 대기열에서는 아무것도 제거되지 않습니다.",
+    "settings.tagging.undoDepth": "태그 지정 대기열: 취소할 수 있는 결정 수",
+    "settings.tagging.undoDepth.hint": "한 번 둘러보는 동안 내린 결정(완료 또는 건너뛰기)을 취소 키로 최근 것부터 몇 개까지 취소할 수 있는지 정합니다. 숫자를 줄이면 가장 오래된 단계부터 잊히며, 대기열 자체는 바뀌지 않습니다.",
     "settings.tagging.cardCount": "카드 모드의 카드 수",
     "settings.tagging.cardCount.hint": "카드 모드가 왼쪽부터 몇 장의 카드를 보여 줄지 정합니다. 카드마다 1~5번의 고유한 키가 있습니다. 다음 둘러보기부터 적용됩니다.",
     "settings.tagging.cardsStart": "카드 모드로 둘러보기 시작",

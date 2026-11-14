@@ -4351,6 +4351,8 @@
     "settings.tagging.stampSize.hint": "快速打标签的印章最多包含多少个标签。数字调小会从末尾缩短印章，其他内容不变。",
     "settings.tagging.walkWindow": "标签队列：每次浏览的媒体数",
     "settings.tagging.walkWindow.hint": "每次浏览一次打开标签队列中多少个未处理条目。下一次浏览从这些条目之后继续；队列中不会删除任何内容。",
+    "settings.tagging.undoDepth": "标签队列：可撤销的决定数",
+    "settings.tagging.undoDepth.hint": "撤销键最多可撤销一次浏览中的多少个决定（完成或跳过），从最新的开始。数值越小，最早的步骤会被遗忘；队列本身不会改变。",
     "settings.tagging.cardCount": "卡片模式中的卡片数",
     "settings.tagging.cardCount.hint": "卡片模式从左数起显示多少张卡片。每张卡片有各自的按键，1 至 5。从下一次浏览起生效。",
     "settings.tagging.cardsStart": "以卡片模式开始浏览",

@@ -22,6 +22,7 @@ public sealed class TaggingSettingsTests : IDisposable
         "settings.tagging.group", "settings.tagging.stampSize", "settings.tagging.stampSize.hint", "settings.tagging.walkWindow",
         "settings.tagging.walkWindow.hint", "settings.tagging.cardCount", "settings.tagging.cardCount.hint", "settings.tagging.cardsStart",
         "settings.tagging.cardsStart.hint", "settings.tagging.cards", "settings.tagging.cards.hint", "settings.tagging.cardSlot",
+        "settings.tagging.undoDepth", "settings.tagging.undoDepth.hint",
     };
 
     // ---- the fields ------------------------------------------------------------------------------------------------------------
@@ -34,11 +35,13 @@ public sealed class TaggingSettingsTests : IDisposable
         Assert.Equal((1, 18), (Config.TagStampSizeMinimum, Config.TagStampSizeMaximum));
         Assert.Equal((10, 5_000), (Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum));
         Assert.Equal((2, 5), (Config.TaggingCardCountMinimum, Config.TaggingCardCountMaximum));
+        Assert.Equal((20, 1, 100), (config.TagQueueUndoDepth, Config.TagQueueUndoDepthMinimum, Config.TagQueueUndoDepthMaximum));
         config.Validate();
         foreach (Action<Config> breakIt in new Action<Config>[]
         {
             c => c.TagStampSize = 0, c => c.TagStampSize = Config.TagStampSizeMaximum + 1, c => c.TagStampSize = int.MinValue,
             c => c.TagQueueWalkWindow = Config.TagQueueWalkWindowMinimum - 1, c => c.TagQueueWalkWindow = Config.TagQueueWalkWindowMaximum + 1,
+            c => c.TagQueueUndoDepth = 0, c => c.TagQueueUndoDepth = Config.TagQueueUndoDepthMaximum + 1,
         })
         {
             Config bad = new();
@@ -58,7 +61,7 @@ public sealed class TaggingSettingsTests : IDisposable
         Config original = new()
         {
             TagStampSize = 14, TagQueueWalkWindow = 75, TaggingCardCount = 3, TaggingCardsDefault = true,
-            TaggingCards = new[] { "done", "rate-3", "skip", "back", "favorite" },
+            TaggingCards = new[] { "done", "rate-3", "skip", "back", "favorite" }, TagQueueUndoDepth = 7,
         };
         Config clone = original.Clone();
         Assert.Equal((14, 75, 3, true), (clone.TagStampSize, clone.TagQueueWalkWindow, clone.TaggingCardCount, clone.TaggingCardsDefault));
@@ -72,12 +75,15 @@ public sealed class TaggingSettingsTests : IDisposable
         Config copy = new();
         copy.CopyFrom(live);
         Assert.Equal((14, 75), (copy.TagStampSize, copy.TagQueueWalkWindow));
+        Assert.Equal((7, 7, 7), (original.Clone().TagQueueUndoDepth, live.TagQueueUndoDepth, copy.TagQueueUndoDepth));
 
         copy.SaveConfig(directory.Path);
         Config loaded = Config.LoadConfig(directory.Path);
         Assert.Null(loaded.LoadWarning);
         Assert.Equal((14, 75, 3, true), (loaded.TagStampSize, loaded.TagQueueWalkWindow, loaded.TaggingCardCount, loaded.TaggingCardsDefault));
         Assert.Equal(original.TaggingCards, loaded.TaggingCards);
+        Assert.Equal(7, loaded.TagQueueUndoDepth);
+        Assert.Equal(7, SettingsTransfer.Export(loaded, "1.1.0")[nameof(Config.TagQueueUndoDepth)]!.GetValue<int>());
     }
 
     [Fact]
@@ -117,6 +123,9 @@ public sealed class TaggingSettingsTests : IDisposable
         Assert.Equal(50, TaggingSettings.WalkWindow(new Config { TagQueueWalkWindow = 50 }));
         Assert.Equal(10, TaggingSettings.WalkWindow(new Config { TagQueueWalkWindow = 1 }));
         Assert.Equal(5_000, TaggingSettings.WalkWindow(new Config { TagQueueWalkWindow = 1_000_000 }));
+        Assert.Equal(20, TaggingSettings.UndoDepth(new Config()));
+        Assert.Equal(1, TaggingSettings.UndoDepth(new Config { TagQueueUndoDepth = -3 }));
+        Assert.Equal(100, TaggingSettings.UndoDepth(new Config { TagQueueUndoDepth = 5_000 }));
     }
 
     [Fact]
@@ -158,6 +167,8 @@ public sealed class TaggingSettingsTests : IDisposable
         Assert.DoesNotContain("const int TagQueueWalkWindow", queue);
         Assert.Contains("internal int TagQueueWalkWindow => TaggingSettings.WalkWindow(_config);", queue);
         Assert.Contains(".Take(TagQueueWalkWindow)", queue);
+        Assert.Contains("new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config))", queue);
+        Assert.Contains("_tagQueueDecisions.Depth = TaggingSettings.UndoDepth(Config);", Source("Desktop", "DesktopSessionHost.TagQueue.cs"));
         string tags = Source("Desktop", "Shell", "MainWindow.GalleryTags.cs");
         Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", tags);
         Assert.Contains("public QuickTagOptions Options => QuickTagSettings.SurfaceOptions(window._config);", tags); // TP5 limits and the PT7 stamp size in one place
@@ -179,7 +190,7 @@ public sealed class TaggingSettingsTests : IDisposable
         Assert.Equal("{Binding TaggingGroupLabel}", (string?)heading.Attribute("Text"));
         Assert.Contains(heading.Ancestors(), e => (string?)e.Attribute(x + "Name") == "SettingsReadingMediaPage");
         List<XElement> order = markup.Descendants().ToList();
-        foreach (string property in new[] { "TagStampSize", "TagQueueWalkWindow", "TaggingCardCount" })
+        foreach (string property in new[] { "TagStampSize", "TagQueueWalkWindow", "TagQueueUndoDepth", "TaggingCardCount" })
         {
             XElement field = Named(property + "Input");
             Assert.Equal("{Binding " + property + ", Mode=TwoWay}", (string?)field.Attribute("Value"));
@@ -211,6 +222,7 @@ public sealed class TaggingSettingsTests : IDisposable
     {
         Assert.Contains("stempel", string.Join(' ', SettingsSearchAliases.For("TagStampSize", "settings.reading-media")));
         Assert.Contains("warteschlange", string.Join(' ', SettingsSearchAliases.For("TagQueueWalkWindow", "settings.reading-media")));
+        Assert.Contains("rückgängig", string.Join(' ', SettingsSearchAliases.For("TagQueueUndoDepth", "settings.reading-media")));
         Assert.Contains("kartenmodus", string.Join(' ', SettingsSearchAliases.For("TaggingCard3", "settings.reading-media")));
         Assert.Contains("warteschlange", string.Join(' ', SettingsSearchAliases.For("TagQueueLimit", "settings.worker-budgets")));
     }

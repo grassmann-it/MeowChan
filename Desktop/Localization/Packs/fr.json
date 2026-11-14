@@ -4436,6 +4436,8 @@
     "settings.tagging.stampSize.hint": "Nombre d’étiquettes que contient le tampon de l’étiquetage rapide. Un nombre plus petit raccourcit le tampon par la fin ; rien d’autre ne change.",
     "settings.tagging.walkWindow": "File d’étiquetage : médias par parcours",
     "settings.tagging.walkWindow.hint": "Nombre d’entrées ouvertes de la file d’étiquetage qu’un parcours ouvre d’un coup. Le parcours suivant continue après elles ; rien n’est retiré de la file.",
+    "settings.tagging.undoDepth": "File d’étiquetage : décisions annulables",
+    "settings.tagging.undoDepth.hint": "Nombre de décisions d’un parcours (terminer ou passer) que la touche d’annulation peut annuler, de la plus récente à la plus ancienne. Un nombre plus petit oublie les étapes les plus anciennes ; la file ne change pas.",
     "settings.tagging.cardCount": "Cartes du mode cartes",
     "settings.tagging.cardCount.hint": "Nombre de cartes que montre le mode cartes, en comptant depuis la gauche. Chaque carte a sa propre touche, de 1 à 5. S’applique dès le prochain parcours.",
     "settings.tagging.cardsStart": "Commencer les parcours en mode cartes",

@@ -575,6 +575,16 @@
                     </StackPanel>
                     <StackPanel Spacing="4">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueUndoDepthFieldLabel" Text="{Binding TagQueueUndoDepthLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueUndoDepthInput" Value="{Binding TagQueueUndoDepth, Mode=TwoWay}" Minimum="{Binding TagQueueUndoDepthMinimum}" Maximum="{Binding TagQueueUndoDepthMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueUndoDepthFieldLabel}" AutomationProperties.Name="{Binding TagQueueUndoDepthLabel}" AutomationProperties.HelpText="{Binding TagQueueUndoDepthHelp}" />
+                                <TextBlock x:Name="TagQueueUndoDepthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueUndoDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
                             <TextBlock x:Name="TaggingCardCountFieldLabel" Text="{Binding TaggingCardCountLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="TaggingCardCountInput" Value="{Binding TaggingCardCount, Mode=TwoWay}" Minimum="{Binding TaggingCardCountMinimum}" Maximum="{Binding TaggingCardCountMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=TaggingCardCountFieldLabel}" AutomationProperties.Name="{Binding TaggingCardCountLabel}" AutomationProperties.HelpText="{Binding TaggingCardCountHelp}" />

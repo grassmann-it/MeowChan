@@ -265,6 +265,14 @@ namespace MeowChan
         internal const int TagQueueWalkWindowMinimum = 10;
         internal const int TagQueueWalkWindowMaximum = 5_000;
         /// <summary>
+        /// How many queue decisions (finish, skip) of a walk through the tagging queue can be taken back, newest first. Lowering it drops the
+        /// oldest undo steps with the next decision; nothing in the queue changes. The undo history lives in memory only.
+        /// </summary>
+        public int TagQueueUndoDepth { get; set; } = TagQueueUndoDepthDefault;
+        internal const int TagQueueUndoDepthDefault = Tags.TagQueueDecisionLog.DefaultDepth;
+        internal const int TagQueueUndoDepthMinimum = Tags.TagQueueDecisionLog.MinimumDepth;
+        internal const int TagQueueUndoDepthMaximum = Tags.TagQueueDecisionLog.MaximumDepth;
+        /// <summary>
         /// Tags the stamp set of quick tagging holds (PT5). Lowering it cuts the stamp from its end; the cut names are gone, nothing else changes.
         /// </summary>
         public int TagStampSize { get; set; } = TagStampSizeDefault;
@@ -1255,6 +1263,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
             if (TagQueueWalkWindow is < TagQueueWalkWindowMinimum or > TagQueueWalkWindowMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagQueueWalkWindow), "TagQueueWalkWindow is outside its supported range (" + TagQueueWalkWindowMinimum + " to " + TagQueueWalkWindowMaximum + ").");
+            if (TagQueueUndoDepth is < TagQueueUndoDepthMinimum or > TagQueueUndoDepthMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueUndoDepth), "TagQueueUndoDepth is outside its supported range (" + TagQueueUndoDepthMinimum + " to " + TagQueueUndoDepthMaximum + ").");
             if (TagStampSize is < TagStampSizeMinimum or > TagStampSizeMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagStampSize), "TagStampSize is outside its supported range (" + TagStampSizeMinimum + " to " + TagStampSizeMaximum + ").");
             if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
@@ -1473,6 +1483,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
+                TagQueueUndoDepth = TagQueueUndoDepth,
                 TagStampSize = TagStampSize,
                 SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
@@ -1692,6 +1703,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagQueueUndoDepth = source.TagQueueUndoDepth;
             TagStampSize = source.TagStampSize;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
@@ -1870,6 +1882,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
+            TagQueueUndoDepth = source.TagQueueUndoDepth;
             TagStampSize = source.TagStampSize;
             // The card mode choices are edited on the settings page (Tagging); K in the gallery still saves the start choice as a view preference.
             TaggingCardsDefault = source.TaggingCardsDefault;

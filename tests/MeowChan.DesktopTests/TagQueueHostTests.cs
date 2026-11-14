@@ -103,17 +103,134 @@ public sealed class TagQueueHostTests
     }
 
     [Fact]
-    public async Task ClearingEverythingForgetsTheWalkButClearingFinishedEntriesKeepsIt()
+    public async Task ClearingEverythingForgetsTheWalkAndClearingFinishedEntriesForgetsTheirDecisionsOnly()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(Items(1, 3));
+        await host.DecideTagQueueAsync(Item(1).Key, TagQueueState.Done);
+        await host.DecideTagQueueAsync(Item(2).Key, TagQueueState.Skipped);
+        await host.ClearTagQueueAsync(finishedOnly: true);
+        Assert.Equal(2, host.GetTagQueue()!.Count);
+        Assert.Equal(1, host.TagQueueUndoDepth); // the skipped entry stays, its decision too
+        await host.ClearTagQueueAsync();
+        Assert.Equal((0, 0), (host.GetTagQueue()!.Count, host.TagQueueUndoDepth));
+    }
+
+    // W3-30: after clearing the finished entries the next undo takes back the newest decision at once, not a stale step.
+    [Fact]
+    public async Task AfterClearingFinishedEntriesTheNextUndoTakesBackTheNewDecisionAtOnce()
     {
         using TempDirectory temp = new();
         await using DesktopSessionHost host = await StartAsync(temp.Path);
         await host.EnqueueTagQueueAsync(Items(1, 3));
         await host.DecideTagQueueAsync(Item(1).Key, TagQueueState.Done);
         await host.ClearTagQueueAsync(finishedOnly: true);
-        Assert.Equal(2, host.GetTagQueue()!.Count);
+        Assert.Equal(0, host.TagQueueUndoDepth);
+        TagQueueDecision? fresh = await host.DecideTagQueueAsync(Item(2).Key, TagQueueState.Done);
+        Assert.Same(fresh, await host.UndoTagQueueDecisionAsync());
+        Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+    }
+
+    // W3-01 (a): an undo that names a decision whose entry was removed meanwhile writes nothing and never takes back another entry.
+    [Fact]
+    public async Task AnUndoOfARemovedEntrysDecisionWritesNothingAndLeavesTheOlderDecisionAlone()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(Items(1, 3));
+        TagQueueDecision a = (await host.DecideTagQueueAsync(Item(1).Key, TagQueueState.Done))!;
+        TagQueueDecision b = (await host.DecideTagQueueAsync(Item(2).Key, TagQueueState.Done))!;
+        await host.RemoveFromTagQueueAsync(new[] { Item(2).Key });
+        long revision = host.GetTagQueue()!.Revision;
+
+        Assert.Null(await host.UndoTagQueueDecisionAsync(b));
+        TagQueueSnapshot after = host.GetTagQueue()!;
+        Assert.Equal(revision, after.Revision);
+        Assert.Equal(TagQueueState.Done, after.Items[0].State); // A stays done
         Assert.Equal(1, host.TagQueueUndoDepth);
-        await host.ClearTagQueueAsync();
-        Assert.Equal((0, 0), (host.GetTagQueue()!.Count, host.TagQueueUndoDepth));
+        Assert.Same(a, await host.UndoTagQueueDecisionAsync(a));
+        Assert.Equal(TagQueueState.Open, host.GetTagQueue()!.Items[0].State);
+    }
+
+    // W3-01 (b): a refused undo write keeps the decision; the next try takes back the same entry.
+    [Fact]
+    public async Task ARefusedUndoWriteKeepsTheDecisionAndTheNextTryTakesBackTheSameEntry()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(Items(1, 3));
+        TagQueueDecision a = (await host.DecideTagQueueAsync(Item(1).Key, TagQueueState.Done))!;
+        TagQueueDecision b = (await host.DecideTagQueueAsync(Item(2).Key, TagQueueState.Skipped))!;
+        string backup = Path.Combine(temp.Path, TagQueueStore.FileName + ".bak");
+        File.WriteAllText(backup, "{\"Version\":99}"); // a newer backup blocks every write
+
+        await Assert.ThrowsAsync<ProfileBackupBlockedException>(() => host.UndoTagQueueDecisionAsync(b));
+        Assert.Equal(2, host.TagQueueUndoDepth);
+        Assert.Null(host.TagQueueError); // a refused write is no read error
+        Assert.Equal(TagQueueState.Skipped, host.GetTagQueue()!.Items[1].State);
+
+        File.Delete(backup);
+        Assert.Same(b, await host.UndoTagQueueDecisionAsync(b));
+        TagQueueSnapshot after = host.GetTagQueue()!;
+        Assert.Equal((TagQueueState.Done, TagQueueState.Open, 1), (after.Items[0].State, after.Items[1].State, after.Cursor));
+        Assert.Same(a, await host.UndoTagQueueDecisionAsync());
+    }
+
+    // W3-04: the undo puts the resume point back on the entry it stood on, also after an entry before it was removed.
+    [Fact]
+    public async Task AnUndoAfterARemovalBeforeTheCursorReturnsToTheDecidedEntry()
+    {
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(Items(1, 7));
+        await host.SetTagQueueCursorAsync(5);
+        TagQueueDecision decision = (await host.DecideTagQueueAsync(Item(6).Key, TagQueueState.Done))!;
+        Assert.Equal((5, 6, Item(6).Key), (decision.CursorBefore, decision.CursorAfter, decision.CursorBeforeKey));
+        await host.RemoveFromTagQueueAsync(new[] { Item(3).Key });
+
+        await host.UndoTagQueueDecisionAsync(decision);
+        TagQueueSnapshot after = host.GetTagQueue()!;
+        Assert.Equal(4, after.Cursor);
+        Assert.Equal(Item(6).Key, after.Items[after.Cursor].Key);
+    }
+
+    // W3-18: the host's decision history is as deep as the setting.
+    [Fact]
+    public async Task TheDecisionHistoryFollowsTheUndoDepthSetting()
+    {
+        using TempDirectory temp = new();
+        new Config { AutomaticUpdateChecks = false, SaveUrlsOnExit = false, DownloadPath = Path.Combine(temp.Path, "media") }.SaveConfig(temp.Path);
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        Config draft = host.Config.Clone();
+        draft.TagQueueUndoDepth = 5;
+        await host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15));
+        await host.EnqueueTagQueueAsync(Items(1, 6));
+        for (int n = 1; n <= 6; n++) await host.DecideTagQueueAsync(Item(n).Key, TagQueueState.Done);
+        Assert.Equal(5, host.TagQueueUndoDepth);
+        for (int n = 6; n >= 2; n--) Assert.Equal(Item(n).Key, (await host.UndoTagQueueDecisionAsync())!.Key);
+        Assert.Null(await host.UndoTagQueueDecisionAsync()); // the sixth: nothing more
+        Assert.Equal(TagQueueState.Done, host.GetTagQueue()!.Items[0].State);
+    }
+
+    // W3-21: an unreadable file sets the read error by its type.
+    [Fact]
+    public async Task AFileThatCannotBeOpenedIsReportedAsUnreadable()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        using TempDirectory temp = new();
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        await host.EnqueueTagQueueAsync(Items(1, 1));
+        string file = Path.Combine(temp.Path, TagQueueStore.FileName);
+        File.SetUnixFileMode(file, UnixFileMode.None);
+        try
+        {
+            try { using (File.OpenRead(file)) { } return; } // rights that ignore the mode: nothing to check
+            catch (UnauthorizedAccessException) { }
+            await Assert.ThrowsAsync<TagQueueReadException>(() => host.LoadTagQueueAsync());
+            Assert.IsType<TagQueueReadException>(host.TagQueueError);
+        }
+        finally { File.SetUnixFileMode(file, UnixFileMode.UserRead | UnixFileMode.UserWrite); }
     }
 
     [Fact]

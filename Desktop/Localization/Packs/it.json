@@ -4442,6 +4442,8 @@
     "settings.tagging.stampSize.hint": "Quanti tag contiene il timbro del tagging rapido. Un numero minore accorcia il timbro dalla fine; nient’altro cambia.",
     "settings.tagging.walkWindow": "Coda di tagging: media per scorrimento",
     "settings.tagging.walkWindow.hint": "Quante voci aperte della coda di tagging apre in una volta un solo scorrimento. Lo scorrimento successivo prosegue dopo di esse; dalla coda non viene rimosso nulla.",
+    "settings.tagging.undoDepth": "Coda di tagging: decisioni annullabili",
+    "settings.tagging.undoDepth.hint": "Quante decisioni di uno scorrimento (concludere o saltare) il tasto Annulla può annullare, a partire dalla più recente. Un numero più piccolo dimentica i passi più vecchi; la coda non cambia.",
     "settings.tagging.cardCount": "Schede nella modalità schede",
     "settings.tagging.cardCount.hint": "Quante schede mostra la modalità schede, contando da sinistra. Ogni scheda ha il proprio tasto, da 1 a 5. Vale dal prossimo scorrimento.",
     "settings.tagging.cardsStart": "Avvia gli scorrimenti nella modalità schede",
