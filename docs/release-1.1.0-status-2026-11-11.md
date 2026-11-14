@@ -1,15 +1,19 @@
 # MeowChan 1.1.0 — Umsetzung und Abnahme, noch nicht releasefertig
 
-**Abgleich: 14.11.2026, 14:30 CET; Integrationsstand `e717a74a5eda0b1666205da6f4768b6fbf4bac0d`.**
-Produkt-/Buildpin der G0130–G0132-Nachweise ist
-**`48310c4f0b1a3353b68fb37ea93ec9eac508246c`**. Wave3 `0fc7c5cf` und der finale
-Wave4-Stapel `60449e4f` (Merge `2b0981e9` in goal) sind enthalten. Danach integrierte
-Folgecommits werden nicht durch den älteren Build mitabgenommen. Kandidaten,
-Nachläufe und Laufbelege bleiben nach Herkunft und Ausführungsstand getrennt:
+**Abgleich: 14.11.2026, 14:55 CET; Integrationsstand `9387c446d15459b97cbef04e6f394e1d9e1b0aba`.**
+Produkt-/Buildpin der G0130–G0132-Nachweise bleibt
+**`48310c4f0b1a3353b68fb37ea93ec9eac508246c`**; G0133 und die AP04-Source-only-
+Diagnose beziehen sich separat auf **`e717a74a5eda0b1666205da6f4768b6fbf4bac0d`**.
+Wave3 `0fc7c5cf` und der finale Wave4-Stapel `60449e4f` (Merge `2b0981e9` in goal)
+sind enthalten. Der aktuelle Root enthält zusätzlich Status `81678695`, AP04-
+Settingsprüfung `0dee2a89`, Cooldown-Testbaseline `c8001039` und den als `9387c446`
+integrierten Booru-WorkView-Smoke aus `83f8847d`. Quellintegration und ältere
+Builds nehmen diese Nachläufe nicht zur Laufzeit ab. Kandidaten, Nachläufe und
+Laufbelege bleiben nach Herkunft und Ausführungsstand getrennt:
 
 | Stand | Exakter SHA / Beleg | Tatsächlicher Status / Grenze |
 | --- | --- | --- |
-| Integrierter Root-Folgestand | `e717a74a5eda0b1666205da6f4768b6fbf4bac0d` | Footer `b388f0e1`, Help/API `2a6236b2` und Review-Bezugspräzisierung `e717a74a` integriert; **nicht** vom G0130-Build auf `48310c4f` erfasst. |
+| Integrierter Root-Folgestand | `9387c446d15459b97cbef04e6f394e1d9e1b0aba` | Footer `b388f0e1`, Help/API `2a6236b2`, Review-Scope `e717a74a`, Status `81678695`, AP04 `0dee2a89`, Cooldown `c8001039` und Booru-WorkView-Smoke `9387c446` integriert; kein Runtime-/Release-PASS aus Quellintegration. |
 | Final gelieferter Wave3-Stapel | `0fc7c5cf148dbbd25765451ba045231744503930` | Vollständig in Root `ce26b8af` enthalten; separate Vorläufe bleiben an ihre eigenen Quellen gebunden. |
 | G0121 Root-Appbuild (historisch) | Root `eb015068` | **PASS: 0 Fehler, 5 Warnungen.** Vorgängerbeleg, kein Runtime-, GUI- oder Release-PASS. |
 | G0120 fokussierter Wave3-/Desktop-Lauf | Root `eb015068` | **293 total, 285 PASS, 8 FAIL, 0 SKIP; 77 Booru-PASS.** Die acht Fails werden nicht durch spätere Quellen als behoben behauptet. |
@@ -20,8 +24,12 @@ Nachläufe und Laufbelege bleiben nach Herkunft und Ausführungsstand getrennt:
 | G0129 Root-FF/Neubau (historisch) | `/home/tomka/.cache/claude-ssd-tmp/g0129-root-fixture-dogfood-20261114-134526/` | Vorhandene Marker: FF auf `ce26b8af`, Root-Neubau **PASS: 0 Fehler, 5 Warnungen**. Kein daraus abgeleiteter Runtime-, GUI- oder Release-PASS. |
 | Wave4 / Help / Booru-Nachläufe | Final `60449e4fd8241857f8a91bbb7082fceb4160b44a`, Merge `2b0981e9` | Integriert; `f19f6da5` bleibt ursprünglicher Review-Zwischenanker. Help `17923d5a` → `3fd5e546`, `7daae014` → `c859914e`; Booru `31ed0352` → `cd6f0bbf` jeweils Git-geprüft patchgleich. Quellintegration, kein Runtime-/Release-PASS. |
 | G0130 Root-Appbuild | `48310c4f`; `/home/tomka/.cache/claude-ssd-tmp/g0130-root-wave4-dogfood-20261114-140605/` | **Terminal PASS: Exit 0, 0 Fehler, 5 Warnungen.** `source-sha.txt`, `root-before.txt` und `root-after.txt` pinnen denselben SHA. Kein Runtime-/GUI-/Release-PASS. |
-| G0131 Reauth-Prozessmatrix | `48310c4f`; `/home/tomka/.cache/claude-ssd-tmp/g0131-reauth-wave4-20261114-140956/` | Gestartet; beim einmaligen Existenzcheck **14:30:33 CET kein `RESULT.json`**. Kein terminales Ergebnis, kein Matrix-PASS; Zielumfang 14 Fälle / 98 Prozessaufrufe weiter offen. |
+| G0131 Reauth-Prozessmatrix | `48310c4f`; `/home/tomka/.cache/claude-ssd-tmp/g0131-reauth-wave4-20261114-140956/RESULT.json` | **Terminal: `DeadlineExceeded`, Exit 1, `passed: false`.** Nicht mehr laufend; 14 Fälle / 98 Prozessaufrufe sind nur erwarteter Umfang, kein tatsächlich bestandener Matrixlauf. |
 | G0132 Legacy-Hostworker | `48310c4f`; `/home/tomka/.cache/claude-ssd-tmp/g0132-legacy-hostworker-wave4-20261114-141248/RESULT.json` | **Terminal PASS, Exit 0:** separater Worker beobachtet, Describe-/Source-Aufrufe erfolgreich, Inputhashes unverändert. Synthetische gegen alten v1.0.2-Source gebaute Plugin-DLL mit aktuellem Debug-Runtime-Snapshot; **kein veröffentlichtes Releaseartefakt, kein AP04-/Reauth-/Release-PASS**. |
+| G0133 Root-Appbuild / Desktop-Nachlauf | `e717a74a`; `/home/tomka/.cache/claude-ssd-tmp/g0133-wave4-followup-20261114-1423/` | Appbuild **PASS: Exit 0, 0 Fehler, 5 Warnungen**. Desktop-Testteil **Exit 1**, Testhost-Verbindungsabbruch nach 90 s, TRX **0 ausgeführt**; Gesamtjob **Exit 1**, kein Test-/Gesamt-PASS. |
+| G0135 fokussierter Loopback-Nachlauf | `/home/tomka/.cache/claude-ssd-tmp/g0135-focused-e717-loopback-20261114-1439/` | Laut Parent vor Testausführung abgebrochen; vorhandene Ablage ohne `RESULT.json`/TRX, **kein Resultat und kein PASS**. |
+| AP04 Source-only-Diagnose | `e717a74a`; `/home/tomka/.cache/claude-ssd-tmp/ap4/w1432/`, daneben `w1432.driver.log` | `candidate.json`: `package: null`; Driver belegt bisher released-source/build/generate, **keinen Abschluss**. Beim einmaligen Check um 14:54 CET kein `report.json`/`report.txt`; daraus weder terminalen Ausgang noch Upgrade-PASS ableiten. Kein Finalpaketsatz, kein `SHA256SUMS`-Nachweis, kein Release-PASS; `0dee2a89` nicht enthalten. |
+| Zentraler Root-App-/Smoke-Build | `9387c446`; `/tmp/codex_current_build_evidence` → `/home/tomka/.cache/claude-ssd-tmp/codex-current-9387c446-build-145021/` | Check **14:55:23 CET**: Appbuild terminal **PASS, Exit 0, 0 Fehler, 5 Warnungen** (`app-build.exitcode`/`.log`). Smokeprojektbuild noch ohne Abschlussmarker, **offen**; kein Gesamt-/Smoke-Ausführungs-/Release-PASS. |
 | G0122 Reauth-Matrix | `/home/tomka/.cache/claude-ssd-tmp/g0122-reauth-matrix-20261114-125118/RESULT.json` | Wegen abgelaufener `heavy.lock`-Wartezeit vor der Ausführung beendet; keine Produkt-Rotprobe. Durch G0126 ist nur der fokussierte Desktop-Reauth-Teil neu grün, nicht diese Matrix. |
 
 Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme aus Quellintegration oder
@@ -32,9 +40,9 @@ Fails erhalten, ohne pauschalen Behebungsclaim für alle acht.
 
 Der frühere kombinierte Kandidat `b0989074`, der Root-Vorläufer `cf147f7f`
 und der alte Appbuild `66296fd9` bleiben als historische Herkunft erhalten.
-Der aktuelle Integrationsstand ist `e717a74a`, der Buildpin `48310c4f`;
-der separate Kandidat `3479d67e` ist kein Root-Status. Ältere G0105- bis G0109-Läufe
-bleiben eigenständige historische Belege und werden nicht zur aktuellen Root-Abnahme
+Der aktuelle Integrationsstand ist `9387c446`; G0130–G0132 bleiben auf `48310c4f`,
+der G0133-Appbuild auf `e717a74a`. Der separate Kandidat `3479d67e` ist kein
+Root-Status. Ältere G0105- bis G0109-Läufe bleiben eigenständige historische Belege und werden nicht zur aktuellen Root-Abnahme
 umetikettiert.
 
 ## Integrationsnachlauf und aktueller Rootstatus
@@ -43,6 +51,20 @@ G0129 brachte Root historisch von `eb015068` auf `ce26b8af`; G0130 belegt den
 anschließenden Wave4-Root-Appbuild auf `48310c4f` mit 0 Fehlern und 5 Warnungen.
 Die Folgecommits `b388f0e1` (Footer), `2a6236b2` (Help/API; Lieferung `e63ad158`)
 und `e717a74a` (Review-Scope) sind integriert, aber nicht von G0130 gebaut.
+G0133 belegt den Appbuild auf `e717a74a` mit Exit 0, 0 Fehlern und 5 Warnungen;
+der Desktop-Testteil brach wegen fehlender Testhost-Verbindung nach 90 s ab
+(Exit 1, TRX 0 ausgeführt). Gesamtjob Exit 1, kein Gesamt-PASS. Fehlendes Loopback
+im `unshare`-Netznamespace ist eine **plausible, nicht bewiesene Ursache**;
+der Abbruch ist kein Nachweis fehlgeschlagener Produktassertions. Die separate
+Parent-Notiz `parent-root-documentation-move.json` hält die Root-Dokubewegung
+während des Nachlaufs fest; sie macht den Job nicht grün. G0135 wurde laut Parent
+vor dem Test abgebrochen, ohne Resultat.
+
+Nach `e717a74a` sind `81678695`, `0dee2a89`, `c8001039` und `9387c446`
+integriert. Der zentrale Appbuild auf `9387c446` ist beim Check um 14:55:23 CET
+terminal grün (Exit 0, 0 Fehler, 5 Warnungen); der Smokeprojektbuild ist noch ohne
+Abschlussmarker offen. Danach sind gezielte Laufzeitprüfungen erforderlich;
+der Appbuild ist kein Gesamt-/Runtime-PASS.
 G0120 bleibt historisch **293 total, 285 PASS, 8 FAIL, 0 SKIP**; keine pauschale
 Behebung seiner acht Fails aus Quellintegration oder Neubau ableiten.
 
@@ -64,8 +86,9 @@ nur ein statischer PASS.
 
 G0128 scheiterte vor Restore an der RNG/Sandbox-Initialisierung (Exit 82), ohne
 Produkt-Rotprobe. Sandboxfix `eef5ceeb` ist integriert; das ist kein Matrixergebnis.
-G0131 läuft auf `48310c4f`, beim einmaligen Check um 14:30:33 CET ohne `RESULT.json`.
-Die 14 Fälle / 98 Prozessaufrufe bleiben damit ohne terminalen Nachweis.
+G0131 auf `48310c4f` ist laut `RESULT.json` terminal mit `DeadlineExceeded`,
+Exit 1 und `passed: false`. Die 14 Fälle / 98 Prozessaufrufe bleiben als
+Zielumfang offen, nicht als tatsächlich bestandene Matrix dokumentiert.
 
 Wave4 final `60449e4f` ist über `2b0981e9` integriert, ebenso die Help-Lieferungen
 als `3fd5e546`/`c859914e`. `31ed0352` ist patchgleich als `cd6f0bbf` enthalten;
@@ -76,7 +99,30 @@ separater Logpfad; kein Produkt-/Release-Gatelauf.
 
 G0122 endete wegen abgelaufener `heavy.lock`-Wartezeit vor der Reauth-Matrix; daraus
 gibt es keine Produkt-Rotprobe. Keine Vollsuite-/GUI-/Plattform-/Endpaketabnahme aus
-Quellintegration, G0126/G0127, G0129/G0130, G0132 oder älteren Zwischenbelegen ableiten.
+Quellintegration, G0126/G0127, G0129/G0130, G0132/G0133 oder älteren Zwischenbelegen ableiten.
+
+AP04 `w1432` ist eine Source-only-Diagnose auf `e717a74a`, kein finaler
+Paketlauf. `candidate.json` und `w1432.driver.log` belegen den Pin, fehlenden
+Paketbezug und bisherige Vorbereitung des synthetischen 1.0.2-Profils. Beim
+**einmaligen** Reportcheck um 14:54 CET lag kein `report.json`/`report.txt` vor;
+fehlender Output ist weder PASS noch Beleg eines terminalen Fehlers.
+Kein Finalpaketsatz und kein `SHA256SUMS`-Nachweis; selbst ein erfolgreicher
+Source-only-Abschluss wäre kein Release-PASS. Dieser Pin enthält `0dee2a89`
+nicht: Die dort ergänzte Prüfung effektiver skalarer Settings gegen gespeicherte
+Werte/Upgrade-Defaults **in allen drei Zyklen** benötigt einen eigenen Laufnachweis
+auf integriertem Stand. `w1432` kann diesen nicht ersetzen.
+
+In dieser Fortschreibung nur gelesene neue Belege:
+
+- G0133: `source-sha.txt`, `root-before.txt`, `root-build.log`,
+  `root-build.exitcode`, `desktop-tests.log`, `desktop-tests.exitcode`,
+  `desktop-trx/focused.trx`, `driver.log`, `driver-exitcode.txt`,
+  `parent-root-documentation-move.json` unter der oben genannten Ablage;
+- G0131/G0132: jeweiliges `RESULT.json`; G0135: vorhandene Ablage ohne Resultat;
+- AP04: `w1432/candidate.json`, `w1432.driver.log` und einmalige Report-Existenzprüfung;
+- zentraler Build: `/tmp/codex_current_build_evidence` sowie `source-sha.txt`,
+  `started.txt`, `app-build.exitcode`, `app-build.log` und noch nicht abgeschlossenes
+  `smoke-build.log` im dort referenzierten Pfad (letzter Check 14:55:23 CET).
 
 ## Entscheidung und Umfang
 
@@ -96,7 +142,7 @@ Profile. Keine Live-Providerabnahme und keine Tests gegen das persönliche Profi
 Die folgende Tabelle bewahrt den Quellstand des früheren Kandidaten `b0989074`.
 „Enthalten“ bezeichnet dort die damalige Quelle, nicht den aktuellen Root und
 nicht eine bestandene vollständige Abnahme. Der aktuelle Bezugsstand ist oben
-mit Integrationsstand `e717a74a` und Buildpin `48310c4f` dokumentiert; Wave3
+mit Integrationsstand `9387c446` und den getrennten Nachweispins dokumentiert; Wave3
 `0fc7c5cf` und Wave4 final `60449e4f` sind enthalten.
 Keine doppelte offene Implementierung aus der historischen Herkunft ableiten.
 
@@ -144,7 +190,9 @@ Im tatsächlichen Produktquellstand sind die Glue-Verträge sichtbar:
   (Medienfilterraster) sind verschiedene enthaltene Pakete.
 
 **Noch kein Abschlussclaim:** G0130 belegt auf `48310c4f` nur den Neubau mit
-0 Fehlern und 5 Warnungen, nicht die späteren integrierten Folgecommits. G0126
+0 Fehlern und 5 Warnungen; G0133 belegt den Appbuild auf `e717a74a` mit denselben
+Fehler-/Warnungszahlen, aber keinen erfolgreichen Desktop-Testlauf. Beide nehmen
+die Folgecommits bis `9387c446` nicht mit ab. G0126
 belegt auf `ce26b8af` 308 PASS, 0 FAIL und 0 SKIP einschließlich beider Desktop-
 Reauth-Brücken. G0120s acht historische Fails bleiben erhalten; nicht alle acht
 sind damit als behoben abgenommen. Keine Vollsuite, private GUI- oder Plattformabnahme.
@@ -165,7 +213,10 @@ Fehlerstatus als Erfolg; Anzeige-Aus über den echten Shell-Schalter. Die
 frühere Aussage „Fixture-Nachlauf noch nicht integriert“ ist damit überholt.
 Ein kompilierendes Smokeprojekt auf älteren Ständen und diese Quellorakel sind
 **kein ausgeführter Smoke** des Root-Bezugsstands. Native Pause-/
-Serviceverlust-/Lifetime-Regressionen bleiben auszuführen.
+Serviceverlust-/Lifetime-Regressionen bleiben auszuführen. Der neue Booru-
+WorkView-Smoke aus `83f8847d` ist als `9387c446` integriert. Dessen Quellintegration
+und der zentrale Appbuild ersetzen weder den Abschluss des Smokeprojektbuilds
+noch einen ausgeführten nativen Smoke dieses Stands.
 
 Produktiver Booru-Nachlauf auf dem Bezugsstand: Interaktions-/Auswahlrevisionen
 widerrufen einen verzögerten Medien-Handoff, ohne normale Index-/Buildwechsel
@@ -414,9 +465,12 @@ Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
 ## Offene Gates
 
 1. **Abnahme des integrierten Folgestands:** Wave3/Wave4, Help und Booru-
-   OutcomeTests sind integriert. G0130 belegt nur `48310c4f` (0 Fehler, 5 Warnungen),
-   nicht Footer `b388f0e1`, Help/API `2a6236b2` und Review-Scope `e717a74a`.
-   Deren gemeinsame Build-/gezielte Laufabnahme bleibt getrennt offen.
+   OutcomeTests sowie die Nachläufe bis `9387c446` sind integriert. G0130 belegt
+   nur `48310c4f`; G0133 belegt den Appbuild auf `e717a74a` (0 Fehler, 5 Warnungen),
+   aber Desktoptests 0 ausgeführt / Exit 1 und Gesamtjob Exit 1. G0135 hat kein
+   Resultat. Der zentrale Appbuild auf `9387c446` ist terminal grün (Exit 0,
+   0 Fehler, 5 Warnungen); der Smokeprojektbuild war um 14:55:23 CET noch offen.
+   Anschließend gezielte Laufzeitprüfungen, kein vorweggenommener Gesamt-PASS.
 2. **G0120-/Vollsuite-Einordnung:** Die acht historischen Fails bleiben sichtbar;
    beide DesktopSessionHost-Reauth-Brücken sind jedoch in G0126 auf `ce26b8af`
    grün. Kein pauschaler Behebungsclaim für alle acht. Vollsuiten müssen Core,
@@ -430,16 +484,20 @@ Reautorisierung, Vollsuiten, GUI oder Plattform-/Screenreader-Abnahme.
    nicht die Matrix mit **14 Fällen / 98 Prozessaufrufen**. G0128 (RNG/Sandbox,
    Exit 82 vor Restore) und G0122 (Lockwartezeit vor Ausführung) liefern keine
    Produkt-Rotprobe. Sandboxfix `eef5ceeb` ist integriert; G0131 auf `48310c4f`
-   hatte beim einmaligen Check um 14:30:33 CET noch kein `RESULT.json`, kein PASS.
+   ist laut `RESULT.json` terminal mit `DeadlineExceeded`, Exit 1, `passed: false`.
+   Kein tatsächlich bestandener 14-/98-Matrixnachweis; gezielter Nachlauf offen.
 5. **AP04:** exakter released 1.0.2-Code
    `eec6c0169f8d52f7481ea0bf7febfd20981e97c3`, synthetisch damit geschriebenes
    Profil, Upgrade und zwei Offline-Neustarts; danach Writes/Readbacks und
    byteidentisches `private-tags.v1.bak`. Runner/Checker liegen im Repository,
-   der finale Lauf bleibt offen. Keine echten Nutzerprofile.
+   der finale Lauf bleibt offen. `w1432` auf `e717a74a` ist nur Source-only,
+   beim einmaligen Check ohne Abschlussreport, nicht als PASS übernommen. Der Pin
+   enthält `0dee2a89` nicht; effektive Settings aller drei Zyklen benötigen einen
+   eigenen Laufnachweis auf dem integrierten Stand. Keine echten Nutzerprofile.
 6. **AP04 Paketbezug:** Der veröffentlichte 1.0.2-Quellstand ist lokal gepinnt.
    Ein optionales Release-Artefakt wird nur gegen Prüfsummen geprüft; die
-   Packaged-Apphost-Abnahme bleibt separat offen. SOURCE-ONLY ist kein
-   Release-PASS.
+   Packaged-Apphost-Abnahme bleibt separat offen. Für `w1432` kein Finalpaketsatz
+   und kein `SHA256SUMS`-Nachweis. SOURCE-ONLY ist kein Release-PASS.
 7. **Private GUI-/Plattformabnahme:** Windows, macOS, Hardware, Skalierung,
    Tastatur, Screenreader und die privaten GUI-/Plattformpfade mit Tom. Linux-
    Unit- oder Xvfb-Tests ersetzen diese nicht. Auch die native Booru-Runtime-
