@@ -1240,6 +1240,7 @@ public partial class MainWindow : Window
     {
         if (!_restoreCompleted || _isClosing || _applyingPreferences)
             throw new InvalidOperationException("The session is not ready to apply settings.");
+        List<HeldFocus> heldFocus = HoldFocusForSettingsApply();
         _applyingPreferences = true;
         UpdateInteractionState();
         try
@@ -1257,6 +1258,7 @@ public partial class MainWindow : Window
             if (!_isClosing)
             {
                 UpdateInteractionState();
+                RestoreFocusAfterSettingsApply(heldFocus);
                 TryCompleteBooruUnavailableFallback();
             }
         }
