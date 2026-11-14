@@ -69,7 +69,7 @@ public sealed class ArchiveAttachmentView : UserControl
         Child = new Avalonia.Controls.Shapes.Path
         {
             Data = Geometry.Parse("M 0,0 L 0,18 L 14,9 Z"), Fill = Brushes.White,
-            Width = 14, Height = 18, Stretch = Stretch.Uniform, Margin = new Thickness(3, 0, 0, 0),
+            Width = 14, Height = 18, Stretch = Stretch.Uniform, Margin = new Thickness(4, 0, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center
         }
     };
