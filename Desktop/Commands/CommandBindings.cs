@@ -31,13 +31,14 @@ public static class CommandBindings
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
     private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
     // One callback holder per owner. Observe swaps Refresh in place and registers the owner with the ShortcutService once per
-    // snapshot (Revision): re-applying a presentation many times must not add an observer entry each time.
+    // snapshot (Revision): re-applying a presentation many times must not add an observer entry each time. The service only
+    // invokes an entry after taking it out of its list, so an invoked holder counts as unregistered again, whatever the revision.
     private sealed class RefreshCallback
     {
         public Action Refresh;
         public readonly Action Invoke;
         public long RegisteredRevision = -1;
-        public RefreshCallback(Action refresh) { Refresh = refresh; Invoke = () => Refresh(); }
+        public RefreshCallback(Action refresh) { Refresh = refresh; Invoke = () => { RegisteredRevision = -1; Refresh(); }; }
     }
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
     private sealed record ActionPresentation(string Id, bool PreserveHelp);
