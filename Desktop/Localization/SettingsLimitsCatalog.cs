@@ -5,7 +5,7 @@ internal static class SettingsLimitsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
-        ("budgets.archiveTagFilterTagsPerList", "Archive tag filters per list", "Archiv-Tagfilter pro Liste"),
+        ("budgets.archiveTagFilterTagsPerList", "Archive tag filters per list", "Archiv-Tagfilter: Tags je Liste"),
         ("budgets.archiveTagFilterTagsPerListHint", "Maximum tags in each include/exclude filter list. Default: {0}; allowed: {1}–{2}. Lowering this does not truncate stored filters.", "Höchstzahl der Tags je Einschluss-/Ausschlussliste. Standard: {0}; erlaubt: {1}–{2}. Ein niedrigerer Wert kürzt gespeicherte Filter nicht."),
         ("budgets.urlTextExportLimitMiB", "URL text export size (MiB)", "Größe des URL-Textexports (MiB)"),
         ("budgets.urlTextExportLimitMiBHint", "Maximum size of a new URL text export. Default: {0} MiB; allowed: {1}–{2} MiB.", "Maximale Größe eines neuen URL-Textexports. Standard: {0} MiB; erlaubt: {1}–{2} MiB."),

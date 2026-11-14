@@ -9,7 +9,7 @@ internal static class TagQueueCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("media.selection.queue", "Add to tagging queue", "Zur Tagging-Warteschlange"),
-        ("media.selection.queue.hint", "Adds the selected media files to the tagging queue. Nothing is tagged by adding.", "Fügt die markierten Mediendateien der Tagging-Warteschlange hinzu. Beim Hinzufügen wird nichts getaggt."),
+        ("media.selection.queue.hint", "Adds the selected media files to the tagging queue. Nothing is tagged by adding.", "Fügt die ausgewählten Mediendateien der Tagging-Warteschlange hinzu. Beim Hinzufügen wird nichts getaggt."),
         ("media.queue.all", "Add all shown to the tagging queue…", "Alle angezeigten zur Tagging-Warteschlange hinzufügen…"),
         ("command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen"),
         ("command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen"),

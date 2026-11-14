@@ -7,7 +7,7 @@ internal static class TaggingSettingsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("settings.tagging.group", "Tagging", "Tagging"),
+        ("settings.tagging.group", "Tagging", "Taggen"),
         ("settings.tagging.stampSize", "Stamp: tags it holds", "Stempel: enthaltene Tags"),
         ("settings.tagging.stampSize.hint", "How many tags the stamp of quick tagging holds. A smaller number shortens the stamp from its end; nothing else changes.", "Wie viele Tags der Stempel des Schnell-Taggens aufnimmt. Eine kleinere Zahl kürzt den Stempel von hinten; sonst ändert sich nichts."),
         ("settings.tagging.walkWindow", "Tagging queue: media per walk", "Tagging-Warteschlange: Medien je Durchgang"),

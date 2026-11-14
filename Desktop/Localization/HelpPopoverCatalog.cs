@@ -46,7 +46,7 @@ internal static class HelpPopoverCatalog
         ("help.plugins.p1", "A plugin is code that runs on your computer. Only use plugins from sources you trust.", "Ein Plugin ist Code, der auf deinem Rechner läuft. Verwende nur Plugins aus Quellen, denen du vertraust."),
         ("help.plugins.li1", "Enabling and disabling takes effect at once; new or changed files and chosen builds apply at the next start.", "Aktivieren und Deaktivieren wirken sofort; neue oder geänderte Dateien und gewählte Fassungen gelten ab dem nächsten Start."),
         ("help.plugins.li2", "Image filters get access only for the source, board or rule you choose in Rules, never archive or write access; you can revoke it here.", "Bildfilter erhalten nur für die Quelle, das Board oder die Regel Zugriff, die du unter Regeln wählst, nie auf das Archiv oder zum Schreiben; hier kannst du ihn widerrufen."),
-        ("help.tagSuggestions.title", "Tag suggestions", "Tag-Vorschläge"),
+        ("help.tagSuggestions.title", "Tag suggestions", "Tagvorschläge"),
         ("help.tagSuggestions.p1", "Suggestions are ranked by how likely you want them; point at one to see why it is offered.", "Vorschläge sind danach geordnet, wie wahrscheinlich du sie willst; zeige auf einen, um zu sehen, warum er angeboten wird."),
         ("help.tagSuggestions.li1", "Press the number or letter shown on a suggestion to add or remove it. With an empty field, Down moves to the suggestions.", "Drücke die Ziffer oder den Buchstaben an einem Vorschlag, um ihn zu setzen oder zu entfernen. Bei leerem Feld führt Pfeil runter zu den Vorschlägen."),
         ("help.tagSuggestions.li2", "A name that does not exist yet is created as an own tag.", "Ein Name, den es noch nicht gibt, wird als eigener Tag angelegt."),
