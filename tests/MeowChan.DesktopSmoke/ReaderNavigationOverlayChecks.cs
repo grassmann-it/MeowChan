@@ -449,9 +449,12 @@ internal static class ReaderNavigationOverlayChecks
             Rect overlap = item.Box.Intersect(visibleViewport);
             Require(overlap.Width <= 1 || overlap.Height <= 1, item.Control.Name + " overlaps the media viewport.");
         }
-        Require(controls.Any(item => item.Control.Name == "ArchiveEditRatingButton")
-            && controls.Any(item => item.Control.Name == "PreviewArchiveMediaButton"),
+        // WV3: on the bar, or under the media actions' More where the view (Barebones) or the width moved them.
+        Require(ReaderWorkViewChecks.OnBarOrUnderMore(page, "ArchiveEditRatingButton")
+            && ReaderWorkViewChecks.OnBarOrUnderMore(page, "PreviewArchiveMediaButton"),
             "Small reader media tab lost its rating or preview actions.");
+        foreach (string bar in new[] { "ReaderMediaTools", "ReaderMediaActions" })
+            ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, page.FindControl<ActionToolBar>(bar)!, () => bar + " on the small media tab");
         for (int first = 0; first < controls.Length; first++)
             for (int second = first + 1; second < controls.Length; second++)
             {
@@ -463,9 +466,6 @@ internal static class ReaderNavigationOverlayChecks
     // Reader07: Rect.Intersect changed an exact 100-DIP viewport to
     // 99.99999999999994 DIP. Item intersections use the same subtraction.
     private static bool ClippedSizeAtLeast(double actual, double minimum) => actual >= minimum - GeometryEpsilonDip;
-
-    // Overflow candidates by usefulness: the trailing ones move into More first.
-    private static readonly string[] ReaderToolbarOverflowOrder = ["ReaderFindOpen", "ReaderViewOpen", "ArchiveReaderFullscreen", "ArchiveHistoryBack", "ExportArchiveButton"]; // AP2: File name and SHA-256 are scopes of the find bar
 
     private static void CheckToolbarGeometry(MainWindow window, ArchivePage page, ActionToolBar toolbar)
     {
@@ -494,12 +494,9 @@ internal static class ReaderNavigationOverlayChecks
             Require(Math.Abs(buttons[index].Box.Left - buttons[index - 1].Box.Right - 8) <= 1,
                 "Visible reader toolbar actions lost their 8-DIP horizontal spacing: " + Describe());
         Require(Math.Abs(area.Height - 32) <= 1, "Reader toolbar reserves unexplained vertical space: " + Describe());
-        // Only secondary actions may overflow, and always the least useful ones first.
-        Require(overflowed.All(ReaderToolbarOverflowOrder.Contains)
-            && overflowed.SequenceEqual(ReaderToolbarOverflowOrder.Where(overflowed.Contains))
-            && ReaderToolbarOverflowOrder.SkipWhile(name => !overflowed.Contains(name))
-                .All(name => overflowed.Contains(name) || page.FindControl<Button>(name)?.IsVisible != true),
-            "Reader toolbar moved a primary action into More or not the least useful ones first: " + Describe());
+        // WV3: the work view decides what sits under More, and the width moves the tail of the policy's keep-visible order
+        // (WorkViewPolicy.ReaderToolbarKeepVisibleOrder) first; Required actions (way back, star, state returns) never move.
+        ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, toolbar, Describe);
         Require(overflowed.Length == 0 || toolbar.More?.IsEffectivelyVisible == true, "Overflowed reader actions are unreachable without More: " + Describe());
         for (int first = 0; first < buttons.Length; first++)
             for (int second = first + 1; second < buttons.Length; second++)

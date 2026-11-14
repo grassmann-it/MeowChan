@@ -109,6 +109,7 @@ internal static class WorkViewCaptures
                                 }
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
                             }
+                            if (page == "reader" && view == "Advanced" && theme == "Light") await ReaderExportWidthCheckAsync(window);
                         }
                     await LeaveAsync(window);
                     Console.WriteLine($"SMOKE work-views page={page}; language={language}; matrix={matrix}; captures so far={cells.Count}.");
@@ -449,6 +450,13 @@ internal static class WorkViewCaptures
     {
         WorkView workView = WorkViewSetting.Parse(view);
         if (page == "media") CheckMediaPage(window, workView, view);
+        if (page == "reader")
+        {
+            if (window.ArchivePage.ReaderWorkView != workView)
+                throw new InvalidOperationException($"reader/{view}: the reader bars are laid out for {window.ArchivePage.ReaderWorkView}.");
+            ActionToolBar readerBar = window.ArchivePage.FindControl<ActionToolBar>("ReaderToolbar")!;
+            ReaderWorkViewChecks.RequireOverflowFollowsPolicy(window.ArchivePage, readerBar, () => $"reader/{view} at {window.ClientSize}");
+        }
         foreach (ActionToolBar toolbar in window.GetVisualDescendants().OfType<ActionToolBar>().Where(toolbar => toolbar.IsEffectivelyVisible))
         {
             string? fallback = toolbar.Name == "ArchiveResultActions" ? "archive.results.other" : null;
@@ -463,6 +471,27 @@ internal static class WorkViewCaptures
                 if (presence == Presence.Overflow && item.IsVisible && toolbar.DirectHost?.Children.Contains(item) == true)
                     throw new InvalidOperationException($"{page}/{view}: {item.Name ?? id} belongs under More but sits on the bar.");
             }
+        }
+    }
+
+    // WV3, owner 14.11.: HTML export is an important reader action; at 1520 and 1280 it stays on the Advanced bar while
+    // the rarely used actions (full screen, View, history, post capture) take the overflow. No capture: placement only.
+    private static async Task ReaderExportWidthCheckAsync(MainWindow window)
+    {
+        ArchivePage archive = window.ArchivePage;
+        ActionToolBar toolbar = archive.FindControl<ActionToolBar>("ReaderToolbar")!;
+        Button export = archive.FindControl<Button>("ExportArchiveButton")!;
+        foreach ((double width, double height) in new[] { (1520d, 850d), (1280d, 800d) })
+        {
+            await ResizeAsync(window, width, height);
+            await EnterAsync(window, "reader");
+            await SettleAsync(window, "reader");
+            string[] under = toolbar.OverflowHost?.Children.OfType<Control>().Where(item => item.IsVisible).Select(item => item.Name ?? "?").ToArray() ?? [];
+            string Describe() => $"client {window.ClientSize}, toolbar {toolbar.Bounds.Width:0}; under More: {string.Join(", ", under)}";
+            Console.WriteLine($"SMOKE work-views reader export width: {width:0}x{height:0}; {Describe()}.");
+            if (!export.IsVisible || toolbar.OverflowHost?.Children.Contains(export) == true || !export.IsEffectivelyVisible)
+                throw new InvalidOperationException($"reader/Advanced/{width:0}: Export as HTML… moved under More: " + Describe());
+            ReaderWorkViewChecks.RequireOverflowFollowsPolicy(archive, toolbar, Describe);
         }
     }
 

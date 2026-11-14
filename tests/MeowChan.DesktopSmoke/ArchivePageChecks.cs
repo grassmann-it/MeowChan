@@ -201,7 +201,8 @@ internal static class ArchivePageChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, width, height)
-                        && Fits(window, page.FindControl<Button>("CapturePostsButton")!)
+                        // WV3: post capture is a reader tool; Barebones and narrow windows keep it under the toolbar's More.
+                        && (Fits(window, page.FindControl<Button>("CapturePostsButton")!) || ReaderWorkViewChecks.OnBarOrUnderMore(page, "CapturePostsButton"))
                         && Fits(window, page.FindControl<Button>("ArchiveBackButton")!)
                         && page.FindControl<ListBox>("ArchivePosts")!.Bounds.Height >= 100
                         && Fits(window, window.FindControl<Button>("SettingsNavigationButton")!)
