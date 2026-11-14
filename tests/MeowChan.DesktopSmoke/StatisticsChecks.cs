@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -447,6 +448,7 @@ internal static class StatisticsChecks
         Require(AutomationProperties.GetName(page.ReadGraph)!.StartsWith(Texts.T("stats.metric.diskRead"), StringComparison.Ordinal),
             "The read graph is not named as the read series.");
         // Reset sits on the bar in Advanced and under More in Barebones and Simple (work views).
+        await CheckResetWorkViewFlowAsync(window, page);
         Require(page.ResetIsReachable && page.ResetButton.IsEnabled, "Reset is not available.");
         Require(!page.IsResetConfirmationOpen, "The reset question is open before Reset was pressed.");
         await Settle(window);
@@ -463,6 +465,78 @@ internal static class StatisticsChecks
         await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && page.ResetButton.IsEnabled);
         Require(Hub(window).Snapshot().Total.Session.NetDown >= before, "Cancel reset the counters.");
         Console.WriteLine("SMOKE statistics page: " + variant + "; rows " + page.Rows.Count + "; the reset question opens on Cancel.");
+    }
+
+    private static async Task CheckResetWorkViewFlowAsync(MainWindow window, StatisticsPage page)
+    {
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("StatisticsActions")!;
+        var more = toolbar.More ?? throw new InvalidOperationException("Statistics More action has no template.");
+        foreach ((string mode, bool direct) in new[] { ("Advanced", true), ("Simple", false), ("Barebones", false) })
+        {
+            await PresentationChecks.SwitchModeAsync(window, mode);
+            if (mode != "Barebones") await EnsureWideAsync(window);
+            if (!direct) more.IsChecked = false;
+            await WaitForResetSurfaceAsync(window, page, toolbar, direct, mode);
+            Require(page.ResetIsReachable && page.ResetButton.IsEnabled,
+                mode + ": Reset is not reachable before opening its work-view surface.");
+
+            if (!direct)
+            {
+                more.IsChecked = true;
+                await Program.WaitUntilAsync(() => more.IsChecked == true
+                    && ResetVisibleInOverflow(toolbar, page.ResetButton),
+                    () => DescribeResetSurface(page, toolbar, mode + " after More"));
+                Require(page.ResetIsReachable, mode + ": Reset became unreachable after opening More.");
+            }
+
+            SmokeActionClick.Execute(page.ResetButton);
+            await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
+                () => mode + ": confirmation open " + page.IsResetConfirmationOpen + ", cancel focused " + page.CancelButton.IsFocused);
+            Require(page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
+                mode + ": Reset did not open its confirmation from the visible action.");
+            SmokeActionClick.Execute(page.CancelButton);
+            await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && page.ResetButton.IsEnabled,
+                () => mode + ": confirmation open " + page.IsResetConfirmationOpen + ", reset enabled " + page.ResetButton.IsEnabled);
+        }
+
+        await PresentationChecks.SwitchModeAsync(window, "Advanced");
+        await EnsureWideAsync(window);
+        await WaitForResetSurfaceAsync(window, page, toolbar, direct: true, "Advanced restore");
+    }
+
+    private static bool ResetInDirectBar(ActionToolBar toolbar, Button reset) =>
+        toolbar.DirectHost?.Children.Contains(reset) == true && ReferenceEquals(reset.Parent, toolbar.DirectHost);
+
+    private static bool ResetInOverflow(ActionToolBar toolbar, Button reset) =>
+        toolbar.OverflowHost?.Children.Contains(reset) == true && ReferenceEquals(reset.Parent, toolbar.OverflowHost);
+
+    private static bool ResetVisibleInOverflow(ActionToolBar toolbar, Button reset) =>
+        ResetInOverflow(toolbar, reset) && reset.IsEffectivelyVisible && reset.Bounds.Width > 0 && reset.Bounds.Height > 0
+            && TopLevel.GetTopLevel(reset) is { IsVisible: true };
+
+    private static async Task WaitForResetSurfaceAsync(MainWindow window, StatisticsPage page, ActionToolBar toolbar,
+        bool direct, string mode)
+    {
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            bool visibleDirect = ResetInDirectBar(toolbar, page.ResetButton) && page.ResetButton.IsEffectivelyVisible
+                && page.ResetButton.Bounds.Width > 0 && page.ResetButton.Bounds.Height > 0
+                && TopLevel.GetTopLevel(page.ResetButton) is { IsVisible: true };
+            bool moreVisible = toolbar.More?.IsEffectivelyVisible == true;
+            return direct ? visibleDirect && !ResetInOverflow(toolbar, page.ResetButton)
+                : !visibleDirect && ResetInOverflow(toolbar, page.ResetButton) && moreVisible && toolbar.More?.IsChecked != true;
+        }, () => DescribeResetSurface(page, toolbar, mode));
+    }
+
+    private static string DescribeResetSurface(StatisticsPage page, ActionToolBar toolbar, string mode)
+    {
+        bool inDirectBar = ResetInDirectBar(toolbar, page.ResetButton);
+        bool inOverflow = ResetInOverflow(toolbar, page.ResetButton);
+        return mode + ": direct=" + inDirectBar + "; visible=" + page.ResetButton.IsEffectivelyVisible
+            + "; bounds=" + page.ResetButton.Bounds + "; topLevel=" + (TopLevel.GetTopLevel(page.ResetButton)?.IsVisible ?? false)
+            + "; inOverflow=" + inOverflow + "; moreVisible=" + toolbar.More?.IsEffectivelyVisible
+            + "; moreChecked=" + toolbar.More?.IsChecked + "; reachable=" + page.ResetIsReachable;
     }
 
     private static async Task HeaderAndPageCapturesAsync(MainWindow window, string variant)
