@@ -133,6 +133,7 @@ public partial class MainWindow : Window
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             RegisterTagQueueCommands();
+            RegisterTaggingPageCommands();
             // Section and rule-template registrations belong to pages built after the first frame
             // (EnsureDeferredWorkspacePages installs them there).
             RegisterTagAndFilterCommands();

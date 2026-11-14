@@ -18,7 +18,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
-    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings }
+    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings, Tagging }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
@@ -195,6 +195,7 @@ public partial class MainWindow
         InitializeReadingResume();
         InitializePostBookmarks();
         InitializeTagQueue();
+        InitializeTaggingPage();
         InitializePostFilters();
         InitializeFolderSources();
         InitializeBooru();
@@ -357,6 +358,7 @@ public partial class MainWindow
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
         BooruPageHost.IsVisible = page == WorkspacePage.Booru;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
+        TaggingPageHost.IsVisible = page == WorkspacePage.Tagging;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
         StatusNavigationButton.Classes.Set("selected", page == WorkspacePage.Status);
@@ -383,6 +385,7 @@ public partial class MainWindow
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         if (page == WorkspacePage.Media) _ = _mediaPage?.ActivateAsync();
         if (page == WorkspacePage.Booru) _ = _booruPage?.ActivateAsync();
+        if (page == WorkspacePage.Tagging) ActivateTaggingPage();
         return true;
     }
 
