@@ -14,7 +14,9 @@ internal sealed record MediaLibraryReturnPoint(MediaLibraryTileKey Target, Media
 
 /// <summary>The return point matched against the tiles shown now.</summary>
 /// <param name="Target">Position of the opened tile, -1 when it is no longer shown.</param>
+/// <param name="Selected">Positions of the previously selected tiles that are still shown, in page order.</param>
 /// <param name="Anchor">Position to scroll back to: the former top tile, else the opened tile, else -1 (leave the view).</param>
+/// <param name="AnchorOffset">How far the anchor tile was scrolled past the top edge; 0 when the opened tile stands in for a lost top tile.</param>
 internal readonly record struct MediaLibraryReturnMatch(int Target, IReadOnlyList<int> Selected, int Anchor, double AnchorOffset);
 
 /// <summary>Pure rules for the way back from a thread to the Medien page. No IO, no UI.</summary>

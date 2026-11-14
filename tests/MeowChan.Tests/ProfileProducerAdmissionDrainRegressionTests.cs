@@ -1,6 +1,7 @@
 using System.Reflection;
 using MeowChan.Booru;
 using MeowChan.Downloader;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
 namespace MeowChan.Tests;
@@ -105,7 +106,7 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
         registry.PrepareProfileProducers(lease);
         registry.RegisterProfileFinalWriteParticipant(participant);
         List<Task> started = [];
-        Task<ProfileExclusiveOutcome<bool>> owner = Task.FromResult(ProfileExclusiveOutcome<bool>.RecoveryRequired("not started"));
+        Task<ProfileExclusiveOutcome<bool>> owner = Task.FromResult(ProfileExclusiveOutcome<bool>.RecoveryRequired(false));
         BooruProducerUse? use = null;
         Task<BooruProducerUse>? waiting = null;
         try
@@ -147,7 +148,7 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
             use?.Dispose();
             lease.Admission.BeginShutdown();
             Task stop = registry.StopAsync();
-            try { await Task.WhenAll(started.Select(Observe), ObserveAny(owner), stop); }
+            try { await Task.WhenAll(Task.WhenAll(started.Select(ObserveAny)), ObserveAny(owner), stop); }
             catch (Exception) { }
             await lease.Admission.DrainAsync();
             if (lease.Admission.Phase == ProfileAdmissionPhase.Stopping)
