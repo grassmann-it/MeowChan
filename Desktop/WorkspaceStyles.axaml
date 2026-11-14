@@ -592,7 +592,7 @@
                workspace-card (Card + CardEdge, radius 5, inset Card: a content card in a list or on a section) and workspace-overlay
                (Overlay + ControlBorder, radius 8: an in-window overlay), plus workspace-section-flush (a section with inset 0 for
                content that runs to the edge: tables, media grids, reader content, a frame that brings its own insets).
-               Border.panel is deprecated (alias of the flush look, kept only for the sites listed in DesignLint); Border.raised is gone.
+               Border.panel and Border.raised are retired.
              Radius: None 0 (window, title bar, caption, tab/nav bars, transport), Badge 3 (marks under 20 dip),
                Control 5 (buttons, inputs, sections, cards, tiles), Group 8 (overlays, dialog body),
                Chip 12 (pill at 24 dip), ChipCompact 9 (pill at 18 dip). Circles use Width/2 locally.
@@ -611,6 +611,12 @@
         <x:Double x:Key="Workspace.Space.16">16</x:Double>
         <x:Double x:Key="Workspace.Space.24">24</x:Double>
         <x:Double x:Key="Workspace.Space.32">32</x:Double>
+        <!-- P2 page grid: title to subtitle inside a page header (4), gap between the cards of a page (12) and between a
+             form's label column and its value column (24); ValueColumn is the width of that value column. -->
+        <x:Double x:Key="Workspace.Space.Header">4</x:Double>
+        <x:Double x:Key="Workspace.Space.Card">12</x:Double>
+        <x:Double x:Key="Workspace.Form.Gap">24</x:Double>
+        <x:Double x:Key="Workspace.Form.ValueColumn">280</x:Double>
         <x:Double x:Key="Workspace.Text.Caption">11</x:Double>
         <!-- UI font (Inter) and reading font of post bodies only (bundled Noto Sans subset, Inter for missing glyphs).
              These are the static defaults; ReaderFonts.Apply republishes both keys in Application.Resources with the
@@ -701,7 +707,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
-    <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
+    <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,8" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -829,8 +835,13 @@
     <Style Selector="DataGridRow:selected"><Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /></Style>
     <!-- UX review 2026-11-13: a hovered row is the Hover fill with a 1-px ControlBorder start edge (the fill alone was 1.13:1 / 1.24:1); drawn
          on the background layer like the selection bar below, so cells do not move. The selected bar wins over it. -->
+    <!-- Performance review 2026-11-14 (N1): the 1-px start edge is reserved at rest (transparent) so entering and leaving a row only changes the
+         brush, never the border's thickness and with it the row's layout. The background layer is a sibling of the cells, so they do not move. -->
+    <Style Selector="DataGridRow /template/ Border#BackgroundBorder">
+        <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
     <Style Selector="DataGridRow:pointerover /template/ Border#BackgroundBorder">
-        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1,0,0,0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
     <!-- LW-06 R1/N4a: selection is never the tint alone. A 3-px accent bar like the active reader post;
          on rows it is drawn on the background layer behind the cells, so cells do not move. -->
@@ -845,22 +856,23 @@
          rows keep their size. Hover (menus: the highlighted row, :selected, also by keyboard) shows it in ControlBorder (3.34:1 / 3.37:1 on
          Hover, 4.59:1 / 4.64:1 on Overlay), pressed in the accent. A chosen drop-down or list row is AccentSurface with a 3-px accent bar at its
          start edge (5.14:1 / 5.72:1), never the tint alone. Lists with their own row design (reader posts, tile grids, chip lists, the
-         selection-bar lists above) keep it. Template parts checked against Semi 12.1.0.1: MenuItem Border#PART_LayoutRoot, ComboBoxItem and
+         selection-bar lists above) keep it. The list selectors use the child combinator (a row's logical parent is its ListBox): a row of an inner
+         list never matches through an outer list, and rows do not collect one class activator per ListBox ancestor. Template parts checked against Semi 12.1.0.1: MenuItem Border#PART_LayoutRoot, ComboBoxItem and
          ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
     <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="15,7" /></Style>
     <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
     <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
-    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item)">
+    <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item)">
         <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
     </Style>
-    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pointerover">
+    <Style Selector="ComboBoxItem:pointerover, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):pointerover">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
-    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):pressed">
+    <Style Selector="ComboBoxItem:pressed, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):pressed">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
     </Style>
-    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) ListBoxItem:not(.chip-item):selected">
+    <Style Selector="ComboBoxItem:selected, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item):selected">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" /><Setter Property="Padding" Value="9,8,12,8" />
     </Style>
 
@@ -896,7 +908,12 @@
     <Style Selector="TextBlock.workspace-status, SelectableTextBlock.workspace-status">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <Style Selector="StackPanel.workspace-page-header, StackPanel.workspace-section-header">
+    <!-- workspace-page-header: the title and its one-line subtitle of a page (4 apart); the page stack puts 8 between this header
+         and the content. workspace-section-header: the title row of a card, 8 above its content. -->
+    <Style Selector="StackPanel.workspace-page-header">
+        <Setter Property="Spacing" Value="{StaticResource Workspace.Space.Header}" />
+    </Style>
+    <Style Selector="StackPanel.workspace-section-header">
         <Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" />
     </Style>
     <Style Selector="StackPanel.workspace-section-body, StackPanel.workspace-dialog-content">
@@ -1266,6 +1283,19 @@
     <Style Selector="Path.glyph-icon.glyph-heavy"><Setter Property="StrokeThickness" Value="2" /></Style>
     <!-- A badge that states a plain fact (plugin type, file version, plugin id): the chip outline on a raised surface, no accent. -->
     <Style Selector="Border.chip-badge.chip-neutral"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
+    <!-- Quick tag surface (PLAN-SCHNELL-TAGGEN 3.3): the number or letter key on a suggestion chip, an 18 dip pill (Caption SemiBold) on the
+         raised surface with the chip outline. A chip that carries one (chip-keyed) trims its start inset so the key fits the 24 dip chip. -->
+    <Style Selector="Border.chip-badge.chip-key">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ChipCompact}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.ChipCompact}" />
+        <Setter Property="Padding" Value="4,0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-key TextBlock.chip-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip.chip-keyed"><Setter Property="Padding" Value="3,2,8,2" /></Style>
 
     <Style Selector="controls|ChipOutline.chip-source">
         <Setter Property="Background" Value="Transparent" />
@@ -1286,6 +1316,8 @@
     <Style Selector="controls|ChipOutline.chip-source.chip-compact TextBlock.chip-label">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" />
     </Style>
+    <!-- Quick tag surface: a source suggestion with a key badge (see chip-key above). -->
+    <Style Selector="controls|ChipOutline.chip-source.chip-keyed"><Setter Property="Padding" Value="3,2,8,2" /></Style>
     <Style Selector="Border.chip-category-mark">
         <Setter Property="Width" Value="3" /><Setter Property="CornerRadius" Value="1.5" /><Setter Property="Margin" Value="0,2,5,2" />
         <Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.General}" />

@@ -103,7 +103,7 @@ public partial class ArchivePage
     // the sort stays), so the chips and the link always agree on what is cleared.
     private readonly Button _appliedResetAll = new()
     {
-        Name = "ArchiveAppliedResetAll", Classes = { "link" }, MinHeight = 24, Padding = new Avalonia.Thickness(6, 2),
+        Name = "ArchiveAppliedResetAll", Classes = { "link" }, MinHeight = 24, Padding = new Avalonia.Thickness(8, 2),
         BorderThickness = new Avalonia.Thickness(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
     };
     private bool _appliedResetAllWired;

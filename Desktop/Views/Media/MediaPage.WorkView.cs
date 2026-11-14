@@ -56,7 +56,7 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_more, "media.toolbar.more");
         WorkViewElement.SetId(_refresh, "media.toolbar.refresh");
         WorkViewElement.SetId(_shuffle, "media.toolbar.shuffle");
-        WorkViewElement.SetId(_missing, "media.toolbar.missing");
+        WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
         WorkViewElement.SetId(_exportAll, "media.toolbar.export-all");
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
         WorkViewElement.SetId(_kindFilter, "media.filter.kind");
@@ -81,17 +81,15 @@ public sealed partial class MediaPage
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
         // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
-        WorkspaceIcons.MakeSquare(_more, WorkspaceIcons.More, Texts.T("workview.more"));
-        WorkspaceIcons.MakeSquare(_selMore, WorkspaceIcons.More, Texts.T("workview.more"));
+        WorkViewMoreSurface.Apply(_more, Texts.T("workview.more"));
+        WorkViewMoreSurface.Apply(_selMore, Texts.T("workview.more"));
         _workViewRegistered = true;
     }
 
     private void LocalizeWorkView()
     {
         _moreFilters.Content = Texts.T("workview.moreFilters");
-        ToolTip.SetTip(_more, Texts.T("workview.more"));
-        ToolTip.SetTip(_selMore, Texts.T("workview.more"));
-        RefreshWorkView();
+        RefreshWorkView(); // UpdateMore sets name and tooltip of both "More" buttons in the current language.
     }
 
     // ---- Presence ----
@@ -106,13 +104,14 @@ public sealed partial class MediaPage
         "media.filter.sound" => SoundFilterActive,
         "media.filter.without-media-tags" => _withoutMediaTags.IsChecked == true,
         "media.filter.tag-mode" => _tagMode.SelectedIndex > 0,
+        "media.filter.missing" => _missing.IsChecked == true,
         _ => false
     };
 
     private IEnumerable<Control> FilterFields() => new Control[]
     {
         _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagAdd,
-        _soundFilter, _withoutMediaTags, _tagMode
+        _soundFilter, _withoutMediaTags, _tagMode, _missing
     };
 
     private void RefreshWorkView()
@@ -125,9 +124,9 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_sort, view);
         WorkViewGate.Apply(_refresh, view);
         WorkViewGate.Apply(_shuffle, view, stateVisible: Sort == MediaLibrarySort.Random);
-        WorkViewGate.Apply(_missing, view, nonDefaultState: _missing.IsChecked == true);
         WorkViewGate.Apply(_exportAll, view);
         WorkViewGate.Apply(_manageRatings, view);
+        ApplyToolbarLevel(); // what the page width moves under More as well (MediaPage.Toolbar.cs)
         UpdateMore(_more, HeaderOverflow());
         // Filter fields.
         bool opened = _moreFilters.IsChecked == true, held = false;
@@ -147,7 +146,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_refresh, _shuffle, _missing, _exportAll, _manageRatings);
+    private List<Control> HeaderOverflow() => Overflowed(_refresh, _shuffle, _exportAll, _manageRatings);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selExport);
 
@@ -159,7 +158,7 @@ public sealed partial class MediaPage
     {
         more.IsVisible = items.Count > 0;
         string name = Texts.Count("workview.moreCount", items.Count);
-        AutomationProperties.SetName(more, name);
+        WorkViewMoreSurface.Apply(more, name);
         AutomationProperties.SetHelpText(more, name);
     }
 

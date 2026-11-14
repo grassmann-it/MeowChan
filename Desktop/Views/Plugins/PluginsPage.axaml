@@ -3,10 +3,10 @@
   <Grid RowDefinitions="Auto,*" Margin="{StaticResource Workspace.Inset.Page}" RowSpacing="8">
     <!-- Spacing 0: each optional row brings its own 8 dip top margin, so hidden or empty rows add no gap above the list
          (as on the Sources page, the list starts 8 dip under the subtitle). -->
-    <StackPanel Classes="workspace-page-header" Spacing="0">
+    <StackPanel Spacing="0">
       <!-- Below 900 dip the header actions move under the title, so the title and description keep the full width. -->
       <Grid x:Name="PluginsPageHeader" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
-        <StackPanel Spacing="5" MinWidth="200">
+        <StackPanel Classes="workspace-page-header" MinWidth="200">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
           <TextBlock x:Name="PluginsSubtitle" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
@@ -35,7 +35,7 @@
       </controls:WorkspaceBanner>
     </StackPanel>
     <!-- List and detail as on the Sources page: a 280 dip column of cards beside one detail card. -->
-    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="14">
+    <Grid x:Name="PluginSplit" Grid.Row="1" ColumnDefinitions="280,*" ColumnSpacing="{StaticResource Workspace.Space.Card}">
       <!-- The empty hint sits in the top stack: a hidden row of its own would still add the grid's row spacing twice. -->
       <Grid x:Name="PluginListPane" RowDefinitions="Auto,*,Auto" RowSpacing="8">
         <StackPanel Spacing="8">
@@ -48,7 +48,7 @@
         </StackPanel>
         <ScrollViewer x:Name="PluginListScroll" Grid.Row="1">
           <plugins:PluginSelectionList x:Name="PluginCards" Classes="workspace-card-list" SelectionChanged="OnPluginSelectionChanged">
-            <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="10" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
+            <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.Card}" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
           </plugins:PluginSelectionList>
         </ScrollViewer>
         <Expander x:Name="PluginDirectoryExpander" wv:WorkViewElement.Id="plugins.directory" Grid.Row="2" HorizontalAlignment="Stretch">

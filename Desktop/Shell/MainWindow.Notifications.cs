@@ -267,7 +267,7 @@ internal sealed class FeedbackToastContent : Grid
                 {
                     Name = index == 0 ? "FeedbackToastActionButton" : "FeedbackToastActionButton" + (index + 1),
                     Content = _actions[index].Label, FontWeight = Avalonia.Media.FontWeight.SemiBold,
-                    MinHeight = 32, Padding = new Avalonia.Thickness(12, 2), Margin = new Avalonia.Thickness(0, 0, 6, 0),
+                    MinHeight = 32, Padding = new Avalonia.Thickness(12, 2), Margin = new Avalonia.Thickness(0, 0, 8, 0),
                     Command = new DelegateCommand(() => _ = RunActionAsync(chosen))
                 };
                 button.Classes.Add("subtle");

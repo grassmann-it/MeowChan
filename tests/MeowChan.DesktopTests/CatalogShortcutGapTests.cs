@@ -54,6 +54,8 @@ public sealed class CatalogShortcutGapTests
         // Media and the shown medium in the gallery (the reader never reads Ctrl+T as a media shortcut).
         Assert.Equal(new[] { "archive", "reader" }, CommandCatalog.Get("thread.tags").ExecutionContexts);
         Assert.Equal(new[] { "media", "gallery" }, CommandCatalog.Get("media.tags.edit").ExecutionContexts);
+        // The catalog scope now says what the contexts and the help already claimed: the gallery tags the shown medium with it.
+        Assert.Equal(CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, CommandCatalog.Get("media.tags.edit").Scope);
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         var ctrlT = new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Control };
         var ctrlShiftT = new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift };

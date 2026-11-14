@@ -67,6 +67,7 @@ internal static partial class MediaPageChecks
             await FilterJourneyAsync(owner, profile);
             await BackgroundPresentRacesAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-present-races-"));
             await FilterSurfaceAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-filter-surface-"));
+            await SortToolbarAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-sort-toolbar-"));
             await Cx03MediaFilterClosureAsync(owner);
             await OwnStateJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));

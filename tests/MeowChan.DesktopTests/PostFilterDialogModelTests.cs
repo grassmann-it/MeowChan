@@ -323,6 +323,70 @@ public sealed class PostFilterDialogModelTests
     }
 
     [Fact]
+    public async Task SavingAnEditRefusesToUndoAChangeMadeSinceTheEditBegan()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        (PostFilterSession session, PostFilterStore store) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        PostFilterDialogModel model = new(session, Thread);
+        model.Pattern = "alpha";
+        Assert.True(await model.AddAsync());
+        Guid id = model.Rules[0].Rule.Id;
+        await model.SetEnabledAsync(id, false);
+        Assert.False(model.Rules[0].Rule.Enabled);
+
+        // The edit begins on the disabled rule; meanwhile the same rule is enabled (the list's checkbox, a second window).
+        Assert.True(model.BeginEdit(id));
+        Assert.True(model.IsEditingRule(id));
+        Assert.False(model.IsEditingRule(Guid.NewGuid()));
+        await model.SetEnabledAsync(id, true);
+        model.Pattern = "alpha edited";
+        Assert.False(await model.SaveEditAsync());
+        Assert.Equal(Texts.T("postFilter.conflict"), model.Status);
+        Assert.True(model.StatusIsError);
+        Assert.True(model.IsEditing);
+        Assert.Equal("alpha edited", model.Pattern);
+        PostFilterRule stored = model.Rules.Single().Rule;
+        Assert.Equal("alpha", stored.Pattern);
+        Assert.True(stored.Enabled);
+
+        // An explicit second save replaces the newer state and keeps its enabled state.
+        Assert.True(await model.SaveEditAsync(), model.Status);
+        stored = model.Rules.Single().Rule;
+        Assert.Equal("alpha edited", stored.Pattern);
+        Assert.True(stored.Enabled);
+
+        // A change made behind the model's back (another session over the same file) is refused too,.
+        Assert.True(model.BeginEdit(id));
+        model.Pattern = "alpha again";
+        PostFilterSnapshot external = store.SetRuleEnabled(id, false, session.Current!.Revision);
+        Assert.False(await model.SaveEditAsync());
+        Assert.Equal(Texts.T("postFilter.conflict"), model.Status);
+        Assert.Equal(external.Revision, session.Current!.Revision);
+        Assert.False(model.Rules.Single().Rule.Enabled);
+        Assert.True(await model.SaveEditAsync(), model.Status);
+        Assert.False(model.Rules.Single().Rule.Enabled);
+        Assert.Equal("alpha again", model.Rules.Single().Rule.Pattern);
+    }
+
+    [Fact]
+    public async Task TheSessionRefusesAReplacementBuiltOnAStaleRuleEvenWhenOnlyEnabledDiffers()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        (PostFilterSession session, _) = Open(lease, directory.Path);
+        await session.LoadAsync();
+        await session.AddRuleAsync(new PostFilterRuleDraft(PostFilterField.Text, PostFilterMatch.Contains, "x", PostFilterAction.Hide, false, null, null, false));
+        PostFilterRule basis = session.Current!.Rules.Single();
+        await session.SetRuleEnabledAsync(basis.Id, true);
+        PostFilterRuleDraft draft = new(PostFilterField.Text, PostFilterMatch.Contains, "y", PostFilterAction.Hide, false, null, null, false);
+        await Assert.ThrowsAsync<PostFilterRevisionException>(() => session.ReplaceRuleAsync(basis.Id, draft, default, basis));
+        Assert.True(session.Current!.Rules.Single().Enabled);
+        Assert.Equal("x", session.Current!.Rules.Single().Pattern);
+    }
+
+    [Fact]
     public async Task EditingAtTheLimitStillWorksAndAConflictKeepsTheDraftOrEndsTheEdit()
     {
         using TempDirectory directory = new();

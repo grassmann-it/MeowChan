@@ -30,8 +30,10 @@ internal sealed class MediaLibraryUserOrder
         Entries = entries;
         Data = data;
         TagRevision = data.TagSnapshot?.Revision;
-        _tagCount = Keys(entries, data.TagSnapshot == null ? null : entry => data.TagsOf(entry).Count);
-        _rating = Keys(entries, data.RatingsAvailable ? entry => data.RatingOf(entry) ?? Unknown : null);
+        // K01: the bytes identity of an entry is a string built from its hash and length; it is made once per entry for both keys.
+        string?[] byteKeys = ByteKeys(entries);
+        _tagCount = Keys(entries, byteKeys, data.TagSnapshot == null ? null : data.TagCountOf);
+        _rating = Keys(entries, byteKeys, data.RatingsAvailable ? entry => data.RatingOf(entry) ?? Unknown : null);
     }
 
     internal IReadOnlyList<MediaLibraryEntry> Entries { get; }
@@ -45,6 +47,23 @@ internal sealed class MediaLibraryUserOrder
 
     /// <summary>False when ratings were unavailable: every rating is unknown and the rating sort keeps the by-thread order.</summary>
     internal bool RatingsKnown => Data.RatingsAvailable;
+
+    /// <summary>Whether <paramref name="sort"/> reads the profile's own data (tag count, rating) and so needs a user order; the other orders never do.</summary>
+    internal static bool Needs(MediaLibrarySort sort) => sort is MediaLibrarySort.TagCount or MediaLibrarySort.Rating;
+
+    /// <summary>
+    /// The keys for a presentation: null for an order that does not use them (nothing is read, whatever is kept), else <paramref name="kept"/>
+    /// while it still fits these entries and this data state (<see cref="IsFor"/>), else a new instance. This is the one place that decides
+    /// when the keys are made, so a page can call it on a worker thread: the cost of a pass over every entry is not paid on its UI thread.
+    /// </summary>
+    internal static MediaLibraryUserOrder? For(MediaLibrarySort sort, IReadOnlyList<MediaLibraryEntry> entries, MediaLibraryUserData data,
+        MediaLibraryUserOrder? kept)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+        ArgumentNullException.ThrowIfNull(data);
+        if (!Needs(sort)) return null;
+        return kept?.IsFor(entries, data) == true ? kept : new MediaLibraryUserOrder(entries, data);
+    }
 
     /// <summary>Never null: unavailable data gives an order whose keys are all unknown.</summary>
     internal static MediaLibraryUserOrder Of(IReadOnlyList<MediaLibraryEntry> entries, MediaLibraryUserData data)
@@ -105,8 +124,15 @@ internal sealed class MediaLibraryUserOrder
         _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, "Only the tag count and the rating come from the profile's own data.")
     };
 
+    private static string?[] ByteKeys(IReadOnlyList<MediaLibraryEntry> entries)
+    {
+        string?[] keys = new string?[entries.Count];
+        for (int i = 0; i < keys.Length; i++) keys[i] = MediaLibraryGrouping.ByteKey(entries[i]);
+        return keys;
+    }
+
     // One value per occurrence (Unknown: none), then the maximum over equal bytes. An occurrence that cannot be proven equal stands alone.
-    private static int[] Keys(IReadOnlyList<MediaLibraryEntry> entries, Func<MediaLibraryEntry, int>? read)
+    private static int[] Keys(IReadOnlyList<MediaLibraryEntry> entries, string?[] byteKeys, Func<MediaLibraryEntry, int>? read)
     {
         int[] keys = new int[entries.Count];
         Array.Fill(keys, Unknown);
@@ -116,10 +142,10 @@ internal sealed class MediaLibraryUserOrder
         {
             int value = Math.Max(read(entries[i]), Unknown);
             keys[i] = value;
-            if (value > Unknown && MediaLibraryGrouping.ByteKey(entries[i]) is { } key && (!best.TryGetValue(key, out int seen) || value > seen)) best[key] = value;
+            if (value > Unknown && byteKeys[i] is { } key && (!best.TryGetValue(key, out int seen) || value > seen)) best[key] = value;
         }
         for (int i = 0; i < keys.Length; i++)
-            if (MediaLibraryGrouping.ByteKey(entries[i]) is { } key && best.TryGetValue(key, out int group)) keys[i] = group;
+            if (byteKeys[i] is { } key && best.TryGetValue(key, out int group)) keys[i] = group;
         return keys;
     }
 }

@@ -81,7 +81,8 @@ public sealed class WorkViewElement
     private static void ResetPruneCountdown() =>
         _registrationsUntilPrune = Math.Max(MinimumRegistrationsBetweenPrunes, Registered.Count);
 
-    /// <summary>Every live control with a nonempty id (any window). Callers filter by owner or page.</summary>
+    /// <summary>Every live control with a nonempty id that the calling thread may read. Callers filter by owner or page.
+    /// Other dispatcher threads are skipped; in production every control belongs to the one UI thread.</summary>
     internal static IReadOnlyList<Control> All()
     {
         lock (Registered)
@@ -94,7 +95,7 @@ public sealed class WorkViewElement
                 if (!reference.TryGetTarget(out Control? control)) continue;
                 Registered[retained++] = reference;
                 // Keep membership even while an id is cleared: reassigning it must not add a second weak slot.
-                if (!string.IsNullOrEmpty(GetId(control))) controls.Add(control);
+                if (control.CheckAccess() && !string.IsNullOrEmpty(GetId(control))) controls.Add(control);
             }
             Registered.RemoveRange(retained, Registered.Count - retained);
             ResetPruneCountdown();

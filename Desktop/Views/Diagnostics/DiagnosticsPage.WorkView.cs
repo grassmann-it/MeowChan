@@ -61,10 +61,8 @@ public partial class DiagnosticsPage
         int count = MoreCount;
         more.IsVisible = count > 0;
         string name = Texts.Count("workview.moreCount", count);
-        // The drawn "more" icon in the one icon-only square button (P6), built when first needed.
-        if (more.Content is not Avalonia.Controls.Shapes.Path) MeowChan.Desktop.Controls.WorkspaceIcons.MakeSquare(more, MeowChan.Desktop.Controls.WorkspaceIcons.More, name);
-        AutomationProperties.SetName(more, name);
-        ToolTip.SetTip(more, Texts.T("workview.more"));
+        // The drawn "more" icon in the one icon-only square button (P6), name and localized tooltip from the single source.
+        WorkViewMoreSurface.Apply(more, name);
     }
 
     // The filter group's header carries how many filters are set, so a closed group never hides one.

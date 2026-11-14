@@ -15,7 +15,8 @@ namespace MeowChan;
 // MediaPage.Filters.cs; the applied chips, error, status and selection bar stay in the header around the section.
 public sealed partial class MediaPage
 {
-    /// <summary>The most the open section may take; its fields scroll inside it, so the tiles always keep room.</summary>
+    /// <summary>The most the open section may take; its fields scroll inside it, so the tiles always keep room. A layout measure,
+    /// not a user limit (so no setting): it is a fixed ceiling by design (260 dip), and the section scrolls beyond it.</summary>
     internal const double FilterSectionMaxHeight = 260;
 
     private readonly FilterToggleButton _filters = new() { Name = "MediaFilters", VerticalAlignment = VerticalAlignment.Center };

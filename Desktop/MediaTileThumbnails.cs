@@ -75,27 +75,52 @@ internal static class MediaTileThumbnails
         return bitmap != null && key != null ? Cache.Add(key, bitmap) : bitmap;
     }
 
+    /// <summary>
+    /// Like <see cref="KeepAsync"/> for a page that bounds its decodes with a <see cref="ThumbnailDecodeGate"/>: a kept preview is leased at once,
+    /// without a slot and without a thread hop. Only a real decode waits for a slot (and looks again once it has one, since another view may
+    /// have stored the same bytes while it was queued).
+    /// </summary>
+    internal static async Task<T?> KeepGatedAsync<T>(MediaThumbnailCache<T> cache, ThumbnailDecodeGate gate, ThumbnailDecodePriority priority,
+        string? key, Func<Task<T?>> decode, CancellationToken token) where T : class, IDisposable
+    {
+        if (key != null && cache.TryAcquire(key) is { } hit) return hit;
+        return await gate.RunAsync(priority, async () =>
+        {
+            if (key != null && cache.TryAcquire(key) is { } stored) return stored;
+            T? decoded = await decode().ConfigureAwait(false);
+            return decoded != null && key != null ? cache.Add(key, decoded) : decoded;
+        }, token).ConfigureAwait(false);
+    }
+
+    internal static Task<Bitmap?> KeepGatedAsync(ThumbnailDecodeGate gate, ThumbnailDecodePriority priority, string? key,
+        Func<Task<Bitmap?>> decode, CancellationToken token) => KeepGatedAsync(Cache, gate, priority, key, decode, token);
+
     internal static string? PosterKey(MediaAssetReference asset, int width, int height) =>
         ByteKey(asset, $"@poster{width}x{height}");
 
     /// <summary>Every local video surface checks the original before leasing a decoded poster, even on a memory-cache hit.</summary>
     internal static Task<Bitmap?> LoadPosterAsync(MediaAssetSnapshot manifest, MediaAssetReference asset, string posterCacheDirectory,
-        int maximumWidth, int maximumHeight, string? key, CancellationToken token) =>
+        int maximumWidth, int maximumHeight, string? key, CancellationToken token, ThumbnailDecodeGate? gate = null) =>
         KeepVerifiedPosterAsync(Cache, key,
             cancellation => VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, cancellation, Verified),
-            (png, cancellation) => VideoPosterCache.DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, cancellation), token);
+            (png, cancellation) => VideoPosterCache.DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, cancellation), token,
+            gate);
 
     // The lease ordering is independent of Avalonia so warm-cache/integrity/cancellation cases can be exercised without a GUI.
+    // The identity check (verifiedPoster) always comes first and is bounded by the poster cache itself; a page gate, when given,
+    // only bounds the bitmap decode after a memory miss, at poster priority, so a memory hit never waits for a slot.
     internal static async Task<T?> KeepVerifiedPosterAsync<T>(MediaThumbnailCache<T> cache, string? key,
         Func<CancellationToken, Task<byte[]?>> verifiedPoster, Func<byte[], CancellationToken, Task<T?>> decode,
-        CancellationToken token) where T : class, IDisposable
+        CancellationToken token, ThumbnailDecodeGate? gate = null) where T : class, IDisposable
     {
         token.ThrowIfCancellationRequested();
         byte[]? png = await verifiedPoster(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         if (png == null) return null;
         if (key != null && cache.TryAcquire(key) is { } hit) return hit;
-        T? preview = await decode(png, token).ConfigureAwait(false);
+        T? preview = gate == null
+            ? await decode(png, token).ConfigureAwait(false)
+            : await gate.RunAsync(ThumbnailDecodePriority.Poster, () => decode(png, token), token).ConfigureAwait(false);
         if (token.IsCancellationRequested) { preview?.Dispose(); token.ThrowIfCancellationRequested(); }
         return preview != null && key != null ? cache.Add(key, preview) : preview;
     }

@@ -35,6 +35,8 @@ public sealed class WorkViewRulesSourcesPluginsTests
         string[] required =
         [
             "rules.scope.editing-header", "rules.preview.blocked", "rules.footer.save", "rules.footer.discard",
+            "rules.overview", "rules.overview.create", "rules.overview.drafts", "rules.wizard.close", "rules.wizard.back", "rules.wizard.next",
+            "rules.scope.new", "rules.preview",
             "sources.detail.media-integrity", "sources.detail.watches", "sources.detail.error",
             "plugins.header.review-repairs", "plugins.header.inventory-problems", "plugins.header.error",
             "plugins.detail.sdk-transition", "plugins.detail.draft-footer"
@@ -48,7 +50,7 @@ public sealed class WorkViewRulesSourcesPluginsTests
     public void ReducedBlocksFoldOrMoveUnderMoreInBarebonesAndShowInAdvanced()
     {
         // Barebones: the secondary blocks fold or move; the primary content of each page stays.
-        foreach (string id in new[] { "rules.scope.new", "rules.plugin-filter", "rules.preview", "sources.detail.capabilities",
+        foreach (string id in new[] { "rules.scope.saved", "rules.plugin-filter", "sources.detail.capabilities",
                      "sources.detail.technical", "plugins.directory", "plugins.detail.info" })
             Assert.Equal(Presence.Collapsed, WorkViewPolicy.Resolve(id, WorkView.Barebones));
         foreach (string id in new[] { "rules.templates", "plugins.header.add", "plugins.header.folder", "sources.detail.plugin",
@@ -75,10 +77,10 @@ public sealed class WorkViewRulesSourcesPluginsTests
     public void FoldedRulesBlocksAreDeclaredAsExpandersAndTheTemplatesCardIsGated()
     {
         string xaml = ReadSource("Desktop/Views/Rules/RulesPage.axaml");
-        foreach (string name in new[] { "NewRuleScopeExpander", "RulePluginExpander", "RulePreviewExpander", "RuleTemplatesExpander" })
+        foreach (string name in new[] { "RuleSavedScopesExpander", "RulePluginExpander", "RuleTemplatesExpander" })
             Assert.Matches(@"<Expander\b[^>]*x:Name=""" + name + @"""", xaml);
         string code = ReadSource("Desktop/Views/Rules/RulesPage.WorkViews.cs");
-        // R6: validation or a blocked preview opens the preview block; an active filter opens the filter block.
+        // R6: validation or a blocked preview marks the review step (never folded); an active filter opens the filter block.
         Assert.Contains("HasValidationError || HasPreviewBlocked", code);
         Assert.Contains("PluginFilterActive", code);
         Assert.Contains("TemplatesNeedAttention", code);
@@ -132,10 +134,14 @@ public sealed class WorkViewRulesSourcesPluginsTests
             WorkViewMoreSurface.Entry[] barebones = WorkViewMoreSurface.ForButtons(buttons, WorkView.Barebones).ToArray();
             Assert.Equal(["Add", "Folder"], barebones.Select(entry => entry.Label()));
             Assert.Empty(WorkViewMoreSurface.ForButtons(buttons, WorkView.Advanced));
-            Button more = new() { Content = new Border() }; // the icon asset needs a running application
+            Button more = new();
             WorkViewMoreSurface.Configure(more, barebones.Length);
             Assert.True(more.IsVisible);
             Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(more)));
+            // K01: the one drawn icon in the icon-only square button, with the localized tooltip.
+            Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.More, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(more.Content));
+            Assert.Contains(MeowChan.Desktop.Controls.WorkspaceIcons.SquareClass, more.Classes);
+            Assert.Equal(Texts.T("workview.more"), ToolTip.GetTip(more));
             WorkViewMoreSurface.Configure(more, 0);
             Assert.False(more.IsVisible);
         }
@@ -143,6 +149,23 @@ public sealed class WorkViewRulesSourcesPluginsTests
         {
             foreach (Button button in buttons) WorkViewElement.SetId(button, null);
         }
+    }
+
+    [Fact]
+    public void EveryMoreButtonIsBuiltBySingleSourceAndTheAppMenuIsNamedAsTheAppMenu()
+    {
+        // K01: Media, Diagnostics and the three pages without a toolbar all go through WorkViewMoreSurface.Apply (drawn icon,
+        // square button, localized tooltip); none builds its own "more" icon or tooltip.
+        Assert.Contains("MakeSquare(more, WorkspaceIcons.More", ReadSource("Desktop/WorkViews/WorkViewMoreSurface.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("CommandBindings.Icon(\"plugins.actions\")", ReadSource("Desktop/WorkViews/WorkViewMoreSurface.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewMoreSurface.Apply(", ReadSource("Desktop/Views/Media/MediaPage.WorkView.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewMoreSurface.Apply(", ReadSource("Desktop/Views/Diagnostics/DiagnosticsPage.WorkView.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkspaceIcons.MakeSquare(", ReadSource("Desktop/Views/Media/MediaPage.WorkView.cs"), StringComparison.Ordinal);
+        Assert.DoesNotContain("WorkspaceIcons.MakeSquare(", ReadSource("Desktop/Views/Diagnostics/DiagnosticsPage.WorkView.cs"), StringComparison.Ordinal);
+        // A24: the application menu's automation name is the app-menu command's label, not "Settings".
+        string presentation = ReadSource("Desktop/Shell/MainWindow.Presentation.cs");
+        Assert.Contains("SetName(WorkspaceMenuItem, CommandCatalog.Label(\"navigation.app-menu\"))", presentation, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetName(WorkspaceMenuItem, Texts.T(\"nav.settings\"))", presentation, StringComparison.Ordinal);
     }
 
     private static string ReadPageSources(WorkViewPage page)

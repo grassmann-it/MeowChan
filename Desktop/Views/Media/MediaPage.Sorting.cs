@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -48,10 +51,38 @@ public sealed partial class MediaPage
         _ => throw new ArgumentOutOfRangeException(nameof(sort), sort, "Unknown media sort.")
     };
 
+    // The order is kept in the settings (MediaSortPreference): the shell saves what the user chose and hands it back when the page is made.
+    // The random order is not kept, so it reads back as the default order.
+    private bool _restoringSort;
+
+    /// <summary>Saves the criterion and direction the user just chose (the shell writes them to the settings). Null: not kept.</summary>
+    internal Func<MediaLibrarySort, MediaLibrarySortDirection, Task>? SaveSortAsync { get; set; }
+
+    /// <summary>
+    /// Starts the page with a saved order, before it presents anything; nothing is saved again. The random order and a direction for an
+    /// order without one are not restored (the default order is).
+    /// </summary>
+    internal void RestoreSort(MediaLibrarySort sort, MediaLibrarySortDirection direction)
+    {
+        if (!Enum.IsDefined(sort) || sort == MediaLibrarySort.Random) sort = MediaSortPreference.DefaultSort;
+        if (!Enum.IsDefined(direction) || !MediaLibraryView.HasDirection(sort)) direction = MediaSortPreference.DefaultDirection;
+        _restoringSort = true;
+        try
+        {
+            _sortDirectionValue = direction;
+            _sort.SelectedIndex = Array.IndexOf(SortChoices(), sort);
+        }
+        finally { _restoringSort = false; }
+        UpdateSortDirection();
+        RefreshWorkView();
+    }
+
     private void OnSortChanged()
     {
         UpdateSortDirection();
-        if (!_localizing) Present();
+        if (_localizing || _restoringSort) return;
+        Present();
+        KeepSortChoice();
     }
 
     private void ToggleSortDirection()
@@ -61,6 +92,16 @@ public sealed partial class MediaPage
             ? MediaLibrarySortDirection.Reversed : MediaLibrarySortDirection.Default;
         UpdateSortDirection();
         Present();
+        KeepSortChoice();
+    }
+
+    private async void KeepSortChoice()
+    {
+        if (SaveSortAsync is not { } save || _lifetime.IsCancellationRequested) return;
+        MediaLibrarySort sort = Sort;
+        MediaLibrarySortDirection direction = _sortDirectionValue;
+        try { await save(sort, direction); }
+        catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.sort.save")) { /* Logged and shown; the choice still applies to this visit. */ }
     }
 
     private void UpdateSortDirection()
@@ -110,11 +151,5 @@ public sealed partial class MediaPage
         _sort.SelectedIndex = Array.FindIndex(choices, choice => choice.Value == selected);
         AutomationProperties.SetName(_sortDirection, Texts.T("media.sort.direction"));
         UpdateSortDirection();
-    }
-
-    private MediaLibraryUserOrder? UserOrderFor(MediaLibrarySnapshot snapshot)
-    {
-        if (_userOrder?.IsFor(snapshot.Entries, _userData) == true) return _userOrder;
-        return _userOrder = MediaLibraryUserOrder.Of(snapshot.Entries, _userData);
     }
 }

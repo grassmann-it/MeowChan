@@ -44,6 +44,7 @@ internal static partial class RulesPageChecks
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             await OpenRulesAsync(window);
             await RuleExtensionsLifetimeChecks.RunAsync(window);
+            await CheckOverviewFirstAsync(window, page);
             page.EditScope(MediaRuleScope.Global);
             await FlushAsync();
             RequireScopeSelection(page, MediaRuleScope.Global);
@@ -97,6 +98,9 @@ internal static partial class RulesPageChecks
 
             // Picking a scope is separate from opening it. Refreshing translated labels
             // must retain that choice and keep the current editor untouched until Open.
+            // Both pickers live in wizard step 1 now (the saved one folded); the open draft stays untouched while it is shown.
+            Require(page.ShowWizardStep(RuleWizardStep.Scope, focus: false), "The rules wizard did not return to its scope step.");
+            page.FindControl<Expander>("RuleSavedScopesExpander")!.IsExpanded = true;
             ComboBox scopes = page.FindControl<ComboBox>("RulesScopeList")!;
             scopes.SelectedItem = page.ScopeChoices.Single(choice => choice.Scope == MediaRuleScope.Global);
             page.FindControl<ComboBox>("NewRuleScopeKindInput")!.SelectedIndex = (int)MediaRuleScopeKind.Thread;
@@ -141,16 +145,21 @@ internal static partial class RulesPageChecks
             await FlushAsync();
             Require(page.HasValidationError && page.CanSave, "Save was disabled by an invalid field instead of explaining it on click.");
             Require(page.FindControl<TextBlock>("RuleExtensionsErrorText")!.IsEffectivelyVisible
-                && page.FindControl<TextBlock>("RuleMegabytesErrorText")!.Text == string.Empty
-                && page.FindControl<Control>("RuleGoToInvalidFieldButton")!.IsEffectivelyVisible,
-                "An invalid extension did not show its error text and the field link in the Rules page.");
+                && page.FindControl<TextBlock>("RuleMegabytesErrorText")!.Text == string.Empty,
+                "An invalid extension did not show its error text in the Rules page.");
+            // The field link lives in the review step; Save from there returns to the settings step and the invalid field.
+            Click(page.FindControl<Button>("RuleWizardNextButton")!);
+            await FlushAsync();
+            Require(page.WizardStep == RuleWizardStep.Review && page.FindControl<Control>("RuleGoToInvalidFieldButton")!.IsEffectivelyVisible,
+                "The review step did not show the link to the invalid field.");
             string revisionBeforeInvalidDraft = window.SessionHost.MediaRules.Revision;
             Click(page.FindControl<Button>("SaveRuleButton")!);
             await FlushAsync();
             Require(window.SessionHost.MediaRules.Revision == revisionBeforeInvalidDraft,
                 "A disabled or invalid Rules save still changed durable rules.");
-            Require(FocusWithin(window, page.FindControl<Control>("RuleExtensionsInput")!),
-                "Saving an invalid Rules draft did not move focus to the invalid field.");
+            await FlushAsync();
+            Require(page.WizardStep == RuleWizardStep.Settings && FocusWithin(window, page.FindControl<Control>("RuleExtensionsInput")!),
+                "Saving an invalid Rules draft did not return to the settings step and move focus to the invalid field.");
             Require(page.StatusMessage == Texts.T("rules.saveRejected", page.ExtensionsLabel)
                 && page.StatusLiveSetting == Avalonia.Automation.AutomationLiveSetting.Assertive,
                 "The footer did not name the invalid field after a refused save.");
@@ -193,7 +202,7 @@ internal static partial class RulesPageChecks
                     Require(rulesMenu.IsVisible && rulesMenu.IsEnabled,
                         "Rules navigation did not retain its normal app-menu route.");
                     RequireIconLabel(page.FindControl<Button>("OpenSavedRuleButton")!, page.OpenLabel);
-                    RequireIconLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, page.OpenLabel);
+                    RequireTemplatedLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, Texts.T("rules.wizard.next"));
                     RequireIconLabel(page.FindControl<Button>("DiscardRuleButton")!, page.DiscardLabel);
                     RequireIconLabel(page.FindControl<Button>("SaveRuleButton")!, page.SaveLabel);
                     double width = mode == "Barebones" ? 640 : 760;

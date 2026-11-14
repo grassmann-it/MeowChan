@@ -15,8 +15,9 @@ public sealed class MediaWorkViewTests
                 Assert.Equal(Presence.Required, P(id, view));
         Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], WorkViewSetting.All.Select(view => P("media.toolbar.refresh", view)));
         Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], WorkViewSetting.All.Select(view => P("media.toolbar.shuffle", view)));
-        Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], WorkViewSetting.All.Select(view => P("media.toolbar.missing", view)));
-        Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], WorkViewSetting.All.Select(view => P("media.toolbar.export-all", view)));
+        // S3: exporting every match is under More in every view, like the ratings manager; "missing files" is a filter field (below).
+        Assert.DoesNotContain(WorkViewPolicy.Entries, entry => entry.Id == "media.toolbar.missing");
+        Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Overflow, P("media.toolbar.export-all", view)));
         // After AP6 the ratings manager is under More in every view; its command (and so its shortcut) is the catalog's.
         Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Overflow, P("media.toolbar.manage-ratings", view)));
         Assert.Equal("media.rating.manage", WorkViewPolicy.Get("media.toolbar.manage-ratings").CommandId);
@@ -27,7 +28,7 @@ public sealed class MediaWorkViewTests
     {
         string[] always = ["media.filter.kind", "media.filter.favorites"];
         string[] fromSimple = ["media.filter.source", "media.filter.board", "media.filter.rating", "media.filter.tags"];
-        string[] fromAdvanced = ["media.filter.sound", "media.filter.without-media-tags", "media.filter.tag-mode"];
+        string[] fromAdvanced = ["media.filter.sound", "media.filter.without-media-tags", "media.filter.tag-mode", "media.filter.missing"];
         Assert.All(always, id => Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Direct, P(id, view))));
         Assert.All(fromSimple, id => Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], WorkViewSetting.All.Select(view => P(id, view))));
         Assert.All(fromAdvanced, id => Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], WorkViewSetting.All.Select(view => P(id, view))));
@@ -40,8 +41,8 @@ public sealed class MediaWorkViewTests
     [Fact]
     public void AnActiveFilterOrSwitchedOnStateIsShownInEveryView()
     {
-        string[] states = WorkViewPolicy.Entries.Where(entry => entry.Id.StartsWith("media.filter.", StringComparison.Ordinal)
-            || entry.Id == "media.toolbar.missing").Select(entry => entry.Id).ToArray();
+        string[] states = WorkViewPolicy.Entries.Where(entry => entry.Id.StartsWith("media.filter.", StringComparison.Ordinal))
+            .Select(entry => entry.Id).ToArray();
         Assert.NotEmpty(states);
         Assert.All(states, id => Assert.All(WorkViewSetting.All, view =>
             Assert.True(WorkViewPolicy.OnSurface(P(id, view, state: true)), id + " in " + view)));

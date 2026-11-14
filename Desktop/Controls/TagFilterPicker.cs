@@ -30,6 +30,9 @@ internal sealed class TagFilterPicker : Button
 
     private static readonly Lazy<Geometry> Plus = new(() => Geometry.Parse("M 8,3 L 8,13 M 3,8 L 13,8"));
 
+    // Fixed layout measures of the popover (dip), not user limits and therefore not settings: the list scrolls beyond
+    // 220 so the popover stays small however many tags exist, a tag name is trimmed at 320, and the popover keeps 280-360 wide
+    // so the search box and the include/exclude row stay readable.
     private readonly Flyout _flyout = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
     private readonly SearchBox _search = new() { Name = "TagFilterPickerSearch", MinWidth = 260 };
     private readonly ListBox _list = new() { Name = "TagFilterPickerList", MaxHeight = 220, SelectionMode = SelectionMode.Single };
@@ -59,9 +62,16 @@ internal sealed class TagFilterPicker : Button
         StackPanel body = new() { Spacing = 8, MinWidth = 280, MaxWidth = 360, Children = { _search, _list, _empty, modes, _hint, _error } };
         _flyout.Content = new Border { Padding = new Thickness(4), Child = body };
         Flyout = _flyout;
-        _flyout.Opened += (_, _) => { _error.IsVisible = false; _search.SetTextSilently(string.Empty); Refill(); _search.Focus(); };
+        _flyout.Opened += (_, _) =>
+        {
+            _error.IsVisible = false;
+            if (!KeepQueryOnDismiss) _search.SetTextSilently(string.Empty);
+            Refill();
+            _search.Focus();
+            if (KeepQueryOnDismiss) _search.SelectAll();
+        };
         _flyout.Closed += (_, _) => Refresh();
-        _search.QueryChanged += (_, _) => Refill();
+        _search.QueryChanged += (_, _) => { Refill(); PendingChanged?.Invoke(this, EventArgs.Empty); };
         _search.KeyDown += OnSearchKeyDown;
         _list.AddHandler(TappedEvent, OnListTapped, RoutingStrategies.Bubble);
         ApplyTexts();
@@ -79,6 +89,40 @@ internal sealed class TagFilterPicker : Button
     /// <summary>Descriptions of the two "Add as" choices (tooltip and help text); set by the page, whose wording says what the filter hides.</summary>
     internal string? IncludeHint { get; set; }
     internal string? ExcludeHint { get; set; }
+
+    /// <summary>
+    /// A page whose filter is applied by a separate step (the Archive draft) keeps what was typed when the popover is dismissed
+    /// without picking: that is an unfinished entry (<see cref="HasPending"/>), not something to drop silently. Pages whose filter
+    /// applies at once leave this off, and the popover starts empty every time.
+    /// </summary>
+    internal bool KeepQueryOnDismiss { get; set; }
+
+    /// <summary>Raised when the typed text changes or is cleared, so a page can clear or refresh its "unfinished entry" mark.</summary>
+    internal event EventHandler? PendingChanged;
+
+    /// <summary>
+    /// True while <see cref="KeepQueryOnDismiss"/> is on and the typed text names at least one tag that could still be added: the entry
+    /// is not finished, because the app cannot guess Include or Exclude for it.
+    /// </summary>
+    internal bool HasPending
+    {
+        get
+        {
+            if (!KeepQueryOnDismiss) return false;
+            string query = ParseQuery(_search.Text, false).Query;
+            return TagSuggestionIndex.QueryKey(query) != null && Choices(Snapshot(), Used(), query).Count > 0;
+        }
+    }
+
+    /// <summary>Drops the unfinished entry (the typed text).</summary>
+    internal void ClearPending()
+    {
+        if (!_search.HasText) return;
+        _search.SetTextSilently(string.Empty);
+        _search.CancelPendingQuery();
+        if (_flyout.IsOpen) Refill();
+        PendingChanged?.Invoke(this, EventArgs.Empty);
+    }
 
     internal bool IsPopoverOpen => _flyout.IsOpen;
     internal SearchBox Search => _search;
@@ -213,6 +257,7 @@ internal sealed class TagFilterPicker : Button
             return;
         }
         _error.IsVisible = false;
+        if (KeepQueryOnDismiss) ClearPending();
         _flyout.Hide();
         Focus(NavigationMethod.Tab);
     }

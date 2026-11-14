@@ -209,6 +209,14 @@ internal static class WorkViewCaptures
         };
         window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
+        // Rules opens on its overview; the view gates (Save/Discard, folded blocks, More) belong to the editor, so the
+        // capture opens the global rule in the in-page wizard as the page looked before the overview existed.
+        if (page == "rules")
+        {
+            await Program.WaitUntilAsync(() => window.RulesPage.IsEditable);
+            window.RulesPage.EditScope(MeowChan.Rules.MediaRuleScope.Global);
+            await Program.WaitUntilAsync(() => window.RulesPage.IsWizardOpen);
+        }
     }
 
     private static async Task OpenArchiveAsync(MainWindow window)
@@ -498,12 +506,14 @@ internal static class WorkViewCaptures
         {
             string id = WorkViewElement.GetId(control)!;
             if (derived.Contains(id)) continue;
-            bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, workView));
+            // S3: a narrow page also moves "Refresh" and "Shuffle again" under More (MediaToolbarLayout), whatever the view says.
+            bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, workView)) && !MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id);
             if (control.IsVisible != expected)
-                throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)}.");
+                throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
-        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.missing", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
-        string[] expectedMore = header.Where(id => WorkViewPolicy.Resolve(id, workView) == Presence.Overflow
+        // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
+        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
                 && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
         if (!page.HeaderMoreIds.SequenceEqual(expectedMore))

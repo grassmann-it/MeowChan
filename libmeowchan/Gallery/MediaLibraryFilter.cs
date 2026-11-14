@@ -149,6 +149,17 @@ internal sealed class MediaLibraryUserData
         return result;
     }
 
+    /// <summary>The number of tags <see cref="TagsOf"/> would hold, counted without building the set (the tag count sort asks for every entry).</summary>
+    internal int TagCountOf(MediaLibraryEntry entry)
+    {
+        (HashSet<Guid>? threadTags, HashSet<Guid>? ownTags, _) = Carried(entry);
+        if (ownTags == null) return threadTags?.Count ?? 0;
+        if (threadTags == null) return ownTags.Count;
+        int count = threadTags.Count;
+        foreach (Guid tag in ownTags) if (!threadTags.Contains(tag)) count++;
+        return count;
+    }
+
     /// <summary>
     /// True when the occurrence could carry own media tags (it has a <see cref="MediaTagSubjects"/> subject) but carries no media tag:
     /// neither on its bound version nor on its registered local revision. Its thread's tags do not count here, so a file in a tagged thread

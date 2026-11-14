@@ -76,11 +76,16 @@ internal sealed class PostFilterSession
         return MutateAsync((revision, ct) => _service.AddRuleAsync(id, normalized, revision, ct), token);
     }
 
-    /// <summary>Replaces the content of a rule, keeping its ID and place; the duplicate check leaves the rule itself out.</summary>
-    internal Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, CancellationToken token = default)
+    /// <summary>
+    /// Replaces the content of a rule, keeping its ID and place; the duplicate check leaves the rule itself out. With
+    /// <paramref name="expected"/> the replacement only happens while the stored rule still equals that snapshot (checked under the
+    /// session's gate, against the newest snapshot): an edit built on a stale rule is refused as a conflict instead of overwriting.
+    /// </summary>
+    internal Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, CancellationToken token = default, PostFilterRule? expected = null)
     {
         PostFilterRuleDraft normalized = PostFilterRules.Normalize(draft);
-        return MutateAsync((revision, ct) => _service.ReplaceRuleAsync(id, normalized, revision, ct), token);
+        return MutateAsync((revision, ct) => _service.ReplaceRuleAsync(id, normalized, revision, ct), token,
+            expected == null ? null : snapshot => snapshot.Rules.Any(rule => rule.Id == id && rule == expected));
     }
 
     internal Task<PostFilterSnapshot> SetRuleEnabledAsync(Guid id, bool enabled, CancellationToken token = default) =>
@@ -106,7 +111,8 @@ internal sealed class PostFilterSession
     internal bool IsHidden(ResourceId thread, string post) =>
         Current?.HiddenPosts.Any(entry => entry.Thread == thread && string.Equals(entry.Post, post, StringComparison.Ordinal)) == true;
 
-    private async Task<PostFilterSnapshot> MutateAsync(Func<long, CancellationToken, Task<PostFilterSnapshot>> change, CancellationToken token)
+    private async Task<PostFilterSnapshot> MutateAsync(Func<long, CancellationToken, Task<PostFilterSnapshot>> change, CancellationToken token,
+        Func<PostFilterSnapshot, bool>? precondition = null)
     {
         await _gate.WaitAsync(token);
         try
@@ -115,6 +121,7 @@ internal sealed class PostFilterSession
             if (Current == null) { LoadError = null; Publish(current); }
             try
             {
+                if (precondition != null && !precondition(current)) throw new PostFilterRevisionException(current);
                 PostFilterSnapshot committed = await change(current.Revision, token);
                 Publish(committed);
                 return committed;

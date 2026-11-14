@@ -30,19 +30,35 @@ public static class CommandBindings
     private static readonly Dictionary<string, Bitmap> IconMasks = new(StringComparer.Ordinal);
     private static readonly ConditionalWeakTable<Button, ButtonContent> ButtonContents = new();
     private static readonly ConditionalWeakTable<object, RefreshCallback> Presentations = new();
-    private sealed record RefreshCallback(Action Refresh);
+    // One callback holder per owner. Observe swaps Refresh in place and registers the owner with the ShortcutService once per
+    // snapshot (Revision): re-applying a presentation many times must not add an observer entry each time.
+    private sealed class RefreshCallback
+    {
+        public Action Refresh;
+        public readonly Action Invoke;
+        public long RegisteredRevision = -1;
+        public RefreshCallback(Action refresh) { Refresh = refresh; Invoke = () => Refresh(); }
+    }
     private static readonly ConditionalWeakTable<Control, ActionPresentation> Actions = new();
     private sealed record ActionPresentation(string Id, bool PreserveHelp);
     private static void Track(Control control, string id, bool preserveHelp = false)
     { Actions.Remove(control); Actions.Add(control, new(id, preserveHelp)); }
     private static void Observe(object owner, Action refresh)
     {
-        Action? guarded = null;
-        guarded = () => { if (Presentations.TryGetValue(owner, out var current) && ReferenceEquals(current.Refresh, guarded)) refresh(); };
-        Presentations.Remove(owner);
-        Presentations.Add(owner, new(guarded));
-        ShortcutService.Observe(guarded);
+        if (!Presentations.TryGetValue(owner, out RefreshCallback? callback))
+        {
+            callback = new RefreshCallback(refresh);
+            Presentations.Add(owner, callback);
+        }
+        else callback.Refresh = refresh;
+        // Publish clears the observer list and bumps the revision, so an entry of an older revision is gone.
+        if (callback.RegisteredRevision == ShortcutService.Revision) return;
+        callback.RegisteredRevision = ShortcutService.Revision;
+        ShortcutService.Observe(callback.Invoke);
     }
+
+    /// <summary>Number of presentations currently registered for a shortcut-snapshot refresh (tests: it must not grow on re-apply).</summary>
+    internal static int ObserverCount => ShortcutService.ObserverCount;
 
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 

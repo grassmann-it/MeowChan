@@ -310,7 +310,7 @@ public partial class MainWindow
         ToolTip.SetTip(WorkspaceSubtitle, Texts.T("shell.subtitle"));
         ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
         AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
-        AutomationProperties.SetName(WorkspaceMenuItem, Texts.T("nav.settings"));
+        AutomationProperties.SetName(WorkspaceMenuItem, CommandCatalog.Label("navigation.app-menu")); // A24: the application menu, not "Settings"
         ToolTip.SetTip(InspectorProgressBar, Texts.T("detail.knownHint"));
         UpdateWindowControls();
         RefreshSourcesPage();

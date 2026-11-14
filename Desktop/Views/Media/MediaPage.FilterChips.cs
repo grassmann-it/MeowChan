@@ -111,6 +111,9 @@ public sealed partial class MediaPage
             chips.Add(new FilterChip("rating", Texts.T("media.filter.ratingChip", _minRating.SelectedIndex), () => _minRating.SelectedIndex = 0));
         if (_favoritesOnly.IsChecked == true)
             chips.Add(new FilterChip("favorites", Texts.T("media.filter.favorites"), () => _favoritesOnly.IsChecked = false));
+        // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
+        if (_missing.IsChecked == true)
+            chips.Add(new FilterChip("missing", Texts.T("media.filter.missingChip"), () => _missing.IsChecked = false));
         return chips;
     }
 

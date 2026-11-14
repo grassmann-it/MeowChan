@@ -69,7 +69,8 @@ public partial class ArchivePage
             ("ArchiveSort", "archive.filter.sort") })
         {
             Control<TextBlock>(field + "Label").Text = Texts.T(key);
-            AutomationProperties.SetName(Control<Control>(field), Texts.T(key));
+            // The tag picker names itself ("Add tag…", labelled by this label); the others carry the label as their name.
+            if (field != "ArchiveTagChoice") AutomationProperties.SetName(Control<Control>(field), Texts.T(key));
         }
         UpdateArchiveFilterToggle();
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");

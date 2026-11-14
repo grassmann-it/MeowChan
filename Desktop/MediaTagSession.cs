@@ -114,16 +114,29 @@ internal sealed class MediaTagSession
     /// Reverts the last change of this dialog, once. A tag the change created stays in the vocabulary; it is only taken
     /// off this file again.
     /// </summary>
-    internal Task UndoAsync(CancellationToken token = default)
+    internal Task UndoAsync(CancellationToken token = default) =>
+        LastChange is { } change ? RevertAsync(change, token) : Task.CompletedTask;
+
+    /// <summary>
+    /// Writes the reverse of <paramref name="change"/> for exactly its subjects, which may be an earlier change of another
+    /// medium (the quick tag surface keeps several steps and follows the gallery). Counts as an undo: it retires
+    /// <see cref="LastChange"/> and sets <see cref="Undone"/>. A change of several files is reverted file by file.
+    /// </summary>
+    internal Task RevertAsync(TagDialogChange change, CancellationToken token = default)
     {
-        if (LastChange is not { } change) return Task.CompletedTask;
+        ArgumentNullException.ThrowIfNull(change);
         return RunAsync(async () =>
         {
-            PrivateTagCommit commit = await _set(change.Tag, change.Subjects[0], !change.Assigned, token);
-            Adopt(commit.Snapshot);
+            bool changed = false;
+            foreach (MediaTagSubject subject in change.Subjects)
+            {
+                PrivateTagCommit commit = await _set(change.Tag, subject, !change.Assigned, token);
+                Adopt(commit.Snapshot);
+                changed |= commit.Changed;
+            }
             LastChange = null;
             Undone = true;
-            return commit.Changed;
+            return changed;
         }, undo: true);
     }
 

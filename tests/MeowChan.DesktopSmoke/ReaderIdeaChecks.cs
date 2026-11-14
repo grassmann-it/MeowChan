@@ -123,6 +123,12 @@ internal static class ReaderIdeaChecks
         Run secret = RunWith("the secret");
         Require((secret.Foreground as ISolidColorBrush)?.Color == spoiler && (secret.Background as ISolidColorBrush)?.Color == spoiler && body.HasHiddenSpoilers,
             "The spoiler was not collapsed to its area.");
+        // Light/Dark review item 8: the hidden area (about 1.1:1 on the active card) carries a 1-dip interactive outline inside the
+        // body, one box per line no taller than the line; the reveal removes it.
+        IReadOnlyList<Rect> outline = body.SpoilerOutlineAreas;
+        Require(outline.Count > 0 && (body.SpoilerOutlineBrush as ISolidColorBrush)?.Color == Token(fixture.Window, "Workspace.ControlBorder")
+            && outline.All(area => area.Width > 1 && area.Height > 1 && area.Height <= body.LineHeight && area.Right <= body.Bounds.Width + 1),
+            "The hidden spoiler had no interactive outline: " + string.Join("; ", outline));
         Program.CaptureWindow(fixture.Window, "smoke-reader-i13-formatting-hidden.png");
         // A hidden spoiler is hidden for screen readers too: one neutral name instead of the words, the real text after the reveal.
         Avalonia.Automation.Peers.AutomationPeer peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(body);
@@ -134,6 +140,7 @@ internal static class ReaderIdeaChecks
         await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         Require(row.SpoilersRevealed && !body.HasHiddenSpoilers && (RunWith("the secret").Foreground as ISolidColorBrush)?.Color != spoiler,
             "Enter did not show the spoiler.");
+        Require(body.SpoilerOutlineAreas.Count == 0, "The revealed spoiler kept its hidden outline.");
         string shownName = peer.GetName();
         Require(shownName.Contains("the secret") && !shownName.Contains(MeowChan.Desktop.Localization.Texts.T("reader.spoilerHidden")),
             "The revealed spoiler text was not exposed to screen readers: " + shownName);
@@ -465,6 +472,7 @@ internal static class ReaderIdeaChecks
         string hiddenText = MeowChan.Desktop.Localization.Texts.T("reader.spoilerHidden");
         Require(secretBody.SpoilerMode == ReaderSpoilerMode.Hide && !Painted() && secretBody.HasHiddenSpoilers && !Name().Contains("the secret") && Name().Contains(hiddenText),
             "Hide mode did not hide the spoiler from the paint and the accessible name.");
+        Require(secretBody.SpoilerOutlineAreas.Count > 0, "Hide mode drew no outline around the hidden spoiler.");
         secretBody.SetSpoilerHover(true);
         Require(!Painted() && secretBody.HasHiddenSpoilers, "The pointer over the post showed a spoiler in hide mode.");
         secretBody.SetSpoilerHover(false);
@@ -473,6 +481,7 @@ internal static class ReaderIdeaChecks
         await Layout();
         Require(secretBody.SpoilerMode == ReaderSpoilerMode.Always && Painted() && !secretBody.HasHiddenSpoilers && Name().Contains("the secret") && !Name().Contains(hiddenText),
             "Always mode did not show the spoiler and its accessible text.");
+        Require(secretBody.SpoilerOutlineAreas.Count == 0, "Always mode kept the hidden-spoiler outline.");
         Require(!rows.Single(row => row.Id == "361").SpoilersRevealed, "Showing every spoiler changed the post's own reveal state.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-p5a-spoiler-always.png");
 
@@ -481,11 +490,13 @@ internal static class ReaderIdeaChecks
         Require(secretBody.SpoilerMode == ReaderSpoilerMode.Hover && !Painted() && !Name().Contains("the secret"), "Hover mode showed the spoiler without the pointer.");
         secretBody.SetSpoilerHover(true);
         await Layout();
-        Require(Painted() && !secretBody.HasHiddenSpoilers && Name().Contains("the secret"), "Hover mode did not show the spoiler while the pointer is over the post.");
+        Require(Painted() && !secretBody.HasHiddenSpoilers && Name().Contains("the secret") && secretBody.SpoilerOutlineAreas.Count == 0,
+            "Hover mode did not show the spoiler (without its hidden outline) while the pointer is over the post.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-p5a-spoiler-hover.png");
         secretBody.SetSpoilerHover(false);
         await Layout();
-        Require(!Painted() && secretBody.HasHiddenSpoilers && !Name().Contains("the secret"), "Hover mode kept the spoiler after the pointer left.");
+        Require(!Painted() && secretBody.HasHiddenSpoilers && !Name().Contains("the secret") && secretBody.SpoilerOutlineAreas.Count > 0,
+            "Hover mode kept the spoiler (or lost its outline) after the pointer left.");
         secretBody.SetSpoilerHover(true);
         secretBody.SpoilersRevealed = true; // what a click on the spoiler does
         secretBody.SetSpoilerHover(false);

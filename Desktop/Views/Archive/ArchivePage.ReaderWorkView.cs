@@ -13,10 +13,16 @@ public partial class ArchivePage
     /// <summary>The view the reader toolbars were last laid out for (smokes compare it with the window's view).</summary>
     internal WorkView ReaderWorkView => ArchiveWorkView;
 
+    // The inputs of the three toolbars' placement (view, the R6 states below, and the language of the "More" labels): the work
+    // is repeated only when one of them changed, not on every selection, busy or search change that reaches UpdateActions.
+    private ChangeGate<(WorkView View, bool Favorites, bool Rating, bool LatestOnly, string Language)> _readerWorkViewGate;
+
     private void ApplyReaderWorkView()
     {
         if (ReaderToolbar == null) return; // before InitializeComponent
         WorkView view = ArchiveWorkView;
+        if (!_readerWorkViewGate.Changed((view, _archiveFavoritesOnly, _mediaRatingFilter > 0, !_allVersions,
+                MeowChan.Desktop.Localization.Texts.Language))) return;
         WorkViewPresenter.ApplyToolBar(ReaderToolbar, view);
         // R6: a filter that narrows the saved media, or the latest-versions-only scope, is a state and stays on the bar.
         WorkViewPresenter.ApplyToolBar(ReaderMediaTools, view, nonDefaultState: item =>

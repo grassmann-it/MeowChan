@@ -16,7 +16,11 @@ public sealed record CommandDefinition(
     IReadOnlyList<string>? ActiveContexts = null)
 {
     public bool IsImplemented => Id is not ("post.open-source" or "viewer.focus-mode"
-        or "table.reset-layout" or "admission.monitor-all");
+        or "table.reset-layout" or "admission.monitor-all") && !IsAwaitingHandler;
+    /// <summary>Registered and given a default gesture ahead of its handler (quick tagging, <see cref="QuickTagCommands"/>): the
+    /// command is listed as unavailable, its default stays inactive and raises no issue until the package that wires the
+    /// handler adds the id to the wired list of <see cref="QuickTagCommands"/>.</summary>
+    public bool IsAwaitingHandler => QuickTagCommands.AwaitingHandler.Contains(Id);
     public IReadOnlyList<ShortcutGesture> DefaultGestures => EffectiveShortcutBindings.Defaults(this);
     public IReadOnlyList<string> ExecutionContexts => EffectiveShortcutBindings.ExecutionContexts(Id);
     public string Label => CommandCatalog.Label(Id);

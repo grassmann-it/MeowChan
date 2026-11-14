@@ -277,6 +277,10 @@ internal static partial class TemplateComparisonChecks
         }
         async Task OpenScopeAsync(int index)
         {
+            // Overview first: the saved-rule picker is folded in wizard step 1 (the overview's Edit is the other route).
+            await ClickAsync("RuleWizardStepScope");
+            Expander saved = page.FindControl<Expander>("RuleSavedScopesExpander")!;
+            if (!saved.IsExpanded) await evidence.ActionAsync(saved, "Expand saved rules and drafts", () => saved.IsExpanded = true);
             ComboBox list = page.FindControl<ComboBox>("RulesScopeList")!; RuleScopeChoice choice = page.ScopeChoices.Single(value => value.Scope == scopes[index]);
             await evidence.ActionAsync(list, "Select scope " + scopes[index].Board, () => list.SelectedItem = choice); await ClickAsync("OpenSavedRuleButton");
         }

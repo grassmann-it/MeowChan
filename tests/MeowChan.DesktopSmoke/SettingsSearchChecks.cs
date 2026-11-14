@@ -39,14 +39,19 @@ internal static class SettingsSearchChecks
             Require(!advanced.IsExpanded, "The advanced limits start collapsed.");
             decimal? timer = editor.RecheckTimer;
 
-            // A typo finds the setting; its group opens and the row is marked.
+            // A typo finds the setting; typing only lists it. Enter jumps: the page opens and the row is marked.
+            Control downloadsPage = editor.FindControl<Control>("SettingsDownloadsPage")!;
+            bool downloadsVisibleBefore = downloadsPage.IsVisible;
             box.Focus();
             box.Text = "bandwith";
             await Wait(() => panel.IsVisible && list.ItemCount > 0);
             Require(HitLabel(list, 0).StartsWith("Bandwidth", StringComparison.Ordinal), "A typo ('bandwith') did not find Bandwidth first: " + HitLabel(list, 0));
-            await Wait(() => editor.FindControl<Control>("SettingsDownloadsPage")!.IsVisible);
-            await Wait(() => Marked(editor, "BandwidthInput"));
+            await Task.Delay(300);
+            Require(downloadsPage.IsVisible == downloadsVisibleBefore && !Marked(editor, "BandwidthInput"), "Typing jumped to the hit.");
             Require(box.ResultText != null, "The hit count is missing.");
+            Press(box, Key.Enter);
+            await Wait(() => downloadsPage.IsVisible);
+            await Wait(() => Marked(editor, "BandwidthInput"));
 
             // An abbreviation, and hits of several groups with their group names; the arrow keys move between them.
             box.Text = "cache";
@@ -61,14 +66,20 @@ internal static class SettingsSearchChecks
             await Wait(() => list.ItemCount > 0);
             Require(HitLabel(list, 0).Contains("ownload", StringComparison.OrdinalIgnoreCase), "'dwnld' did not find a download setting: " + HitLabel(list, 0));
 
-            // A setting inside a collapsed section: the hit unfolds it, Enter moves the focus into the row and closes the list.
+            // A setting inside a collapsed section: typing leaves it folded; Enter unfolds it, moves the focus into the row and
+            // closes the list; clearing the query folds it again.
             box.Text = "production workers";
-            await Wait(() => list.ItemCount > 0 && editor.FindControl<Control>("SettingsWorkerBudgetsPage")!.IsVisible);
-            await Wait(() => advanced.IsExpanded);
+            await Wait(() => list.ItemCount > 0);
+            await Task.Delay(300);
+            Require(!advanced.IsExpanded, "Typing unfolded the collapsed section.");
             Press(box, Key.Enter);
+            await Wait(() => editor.FindControl<Control>("SettingsWorkerBudgetsPage")!.IsVisible && advanced.IsExpanded);
             await Wait(() => !panel.IsVisible);
             await Wait(() => editor.FindControl<Control>("ProductionWorkersInput")!.IsKeyboardFocusWithin);
             Require(Marked(editor, "ProductionWorkersInput"), "The chosen row is not marked.");
+            box.Focus();
+            box.ClearAndFocus();
+            await Wait(() => !advanced.IsExpanded);
 
             // Words without a match: the empty state names the query.
             box.Focus();
@@ -95,8 +106,11 @@ internal static class SettingsSearchChecks
                 ("dark mode", "Farbschema", "SettingsInterfacePage"), ("speicher", "", "SettingsWorkerBudgetsPage"),
             })
             {
+                box.Focus();
                 box.Text = query;
-                await Wait(() => list.ItemCount > 0 && editor.FindControl<Control>(page)!.IsVisible);
+                await Wait(() => list.ItemCount > 0);
+                Press(box, Key.Enter);
+                await Wait(() => editor.FindControl<Control>(page)!.IsVisible);
                 Require(expect.Length == 0 || HitLabel(list, 0).Contains(expect, StringComparison.Ordinal), $"'{query}' found '{HitLabel(list, 0)}', not {expect}.");
             }
 
@@ -120,7 +134,7 @@ internal static class SettingsSearchChecks
                 Program.CaptureWindow(window, $"smoke-settings-search-none-{testedLanguage}-{testedTheme}.png".ToLowerInvariant());
             }
             Require(commits == 0 && editor.RecheckTimer == timer, "Searching changed or saved a setting.");
-            Console.WriteLine("SMOKE settings search: typo/abbreviation/synonym hits across groups with group names, arrow keys, Enter into a collapsed section, empty state, Escape twice, EN/DE, light/dark captures passed.");
+            Console.WriteLine("SMOKE settings search: typo/abbreviation/synonym hits across groups with group names, typing without a jump, arrow keys, Enter into a collapsed section and folding it again on clear, empty state, Escape twice, EN/DE, light/dark captures passed.");
         }
         finally
         {

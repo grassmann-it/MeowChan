@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
@@ -62,15 +63,29 @@ public partial class ArchivePage
             item.Focusable && item.IsEffectivelyVisible && item.IsEffectivelyEnabled && ReferenceEquals(TopLevel.GetTopLevel(item), root));
     }
 
+    // What each results-bar action was last presented for: its disabled reason and the language. The presentation is rewritten
+    // only when that changes (shortcut changes reach it through the CommandBindings observer).
+    private readonly Dictionary<string, (string? Reason, string Language)> _resultActionPresented = new(StringComparer.Ordinal);
+
+    private bool ResultActionStale(string name, string? reason)
+    {
+        (string? Reason, string Language) now = (reason, Texts.Language);
+        if (_resultActionPresented.TryGetValue(name, out var last) && last == now) return false;
+        _resultActionPresented[name] = now;
+        return true;
+    }
+
     private void RefreshArchiveResultActions()
     {
         ActionToolBar toolbar = ArchiveResultActions;
+        bool placementChanged = false;
         foreach (object? item in toolbar.Items)
         {
             if (item is SplitButton split)
             {
                 // AP2: the saved-searches split button overflows like every other feature action (its policy row decides).
-                WorkViewPresenter.ApplyToolBarItem(split, ArchiveWorkView, "archive.results.other");
+                WorkViewPresenter.ApplyToolBarItem(split, ArchiveWorkView, "archive.results.other", false, out bool splitChanged);
+                placementChanged |= splitChanged;
                 if (split.Name == "ArchiveSavedSearches") ApplySavedSearchSplit();
                 continue;
             }
@@ -78,7 +93,8 @@ public partial class ArchivePage
             // All future feature actions participate, including saved searches and
             // reader groups. Never is reserved for the compact view selection.
             // The List/Table choice is Required (never moves); items without an id use archive.results.other.
-            WorkViewPresenter.ApplyToolBarItem(button, ArchiveWorkView, "archive.results.other");
+            WorkViewPresenter.ApplyToolBarItem(button, ArchiveWorkView, "archive.results.other", false, out bool buttonChanged);
+            placementChanged |= buttonChanged;
             CommandBindings.Refresh(button);
             // Feature actions must refresh with the page even when they were
             // created before the current language or hosted outside MainWindow.
@@ -88,7 +104,7 @@ public partial class ArchivePage
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 _ => null
             };
-            if (featureId != null)
+            if (featureId != null && ResultActionStale(button.Name + "#feature", null))
                 CommandBindings.Apply(button, featureId, iconWithLabel: button.Name == "ArchivePostBookmarks");
             string? reason = button.Name switch
             {
@@ -97,6 +113,8 @@ public partial class ArchivePage
                 "ArchiveFavoritesOverview" when !ResultActionsReady => Texts.T("archive.command.busy"),
                 _ => null
             };
+            if (button.Name is "ArchiveResultsGallery" or "ArchiveFavoritesOverview" or "ArchiveResultsExport"
+                && !ResultActionStale(button.Name, reason)) continue;
             if (button.Name == "ArchiveResultsGallery")
                 CommandBindings.Apply(button, "gallery.open-results", () => reason, iconWithLabel: true);
             else if (button.Name == "ArchiveFavoritesOverview")
@@ -111,7 +129,7 @@ public partial class ArchivePage
         }
         AutomationProperties.SetName(toolbar, Texts.T("nav.archive"));
         toolbar.RefreshOverflowLabel();
-        toolbar.InvalidateMeasure();
+        if (placementChanged) toolbar.InvalidateMeasure();
         ApplyArchiveHeaderActions();
     }
 }

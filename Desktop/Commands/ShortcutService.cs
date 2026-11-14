@@ -13,6 +13,7 @@ public static class ShortcutService
     private static readonly List<WeakReference<Action>> Refreshers = new();
     public static EffectiveShortcutBindings Current => _current;
     public static long Revision { get; private set; }
+    internal static int ObserverCount => Refreshers.Count;
     public static bool IsCapturing => _captureDepth > 0;
     public static event Action? Changed;
     public static IDisposable BeginCapture() { ++_captureDepth; return new CaptureLease(); }

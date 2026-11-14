@@ -90,6 +90,16 @@ public sealed class PaletteContrastTests
         }
     }
 
+    // Light/Dark review 2026-11-13, item 8: a hidden spoiler is one area in its own colour, only 1.10:1 (Light) and 1.09:1 (Dark)
+    // against the active card. The reader strokes it with the interactive outline (Workspace.ControlBorder), which needs 3:1
+    // against every surface a post sits on (card, active card, the page for the opening post) and against the spoiler area inside.
+    [Theory, InlineData("Dark"), InlineData("Light")]
+    public void HiddenSpoilerOutlineReadsOnEveryPostSurfaceAndAgainstTheSpoilerArea(string theme)
+    {
+        foreach (string surface in new[] { "Workspace.Card", "Workspace.AccentSurface", "Workspace.Background", "Workspace.ReaderSpoiler" })
+            AssertContrast(theme, "Workspace.ControlBorder", surface, 3.0);
+    }
+
     // The dark bars of the Light theme are the download progress bars (Workspace.Progress is the dark accent brown #4A2203 there; title
     // bar, header, footer and toolbars are warm Panel/Background tones). The fill is the bar: it needs 3:1 against every surface it
     // is drawn on and against its own track. Scrollbar thumbs are bars too.

@@ -35,7 +35,7 @@ public partial class ArchivePage : UserControl
     private readonly Action<string>? _openFolder;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-    private readonly SemaphoreSlim _thumbnailGate = new SemaphoreSlim(2, 2);
+    private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(2);
     private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
     private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _mediaGate = new SemaphoreSlim(1, 1);
@@ -744,21 +744,15 @@ public partial class ArchivePage : UserControl
                     video ? $"@poster{bounds.MaximumWidth}x{bounds.MaximumHeight}"
                         : bounds is { MaximumWidth: 240, MaximumHeight: 180 } ? string.Empty
                         : $"@reader{bounds.MaximumWidth}x{bounds.MaximumHeight}");
-                return await Task.Run(async () =>
-                {
-                    await _thumbnailGate.WaitAsync(loading.Token).ConfigureAwait(false);
-                    try
-                    {
-                        loading.Token.ThrowIfCancellationRequested(); // Coverage can change while queued for a slot.
-                        if (video)
-                            return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
-                                Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                                bounds.MaximumWidth, bounds.MaximumHeight, key, loading.Token).ConfigureAwait(false);
-                        return await MediaTileThumbnails.KeepAsync(key, () => DecodeThumbnailAsync(match, loading.Token,
-                            bounds.MaximumWidth, bounds.MaximumHeight, MediaTileThumbnails.Verified)).ConfigureAwait(false);
-                    }
-                    finally { _thumbnailGate.Release(); }
-                }, loading.Token).ConfigureAwait(false);
+                // A kept preview is leased at once (no slot, no thread hop); only a real decode takes a slot, images before posters.
+                loading.Token.ThrowIfCancellationRequested(); // Coverage can change while waiting for the manifests.
+                if (video)
+                    return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
+                        Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
+                        bounds.MaximumWidth, bounds.MaximumHeight, key, loading.Token, _thumbnailGate).ConfigureAwait(false);
+                return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, ThumbnailDecodePriority.Image, key,
+                    () => Task.Run(() => DecodeThumbnailAsync(match, loading.Token,
+                        bounds.MaximumWidth, bounds.MaximumHeight, MediaTileThumbnails.Verified), loading.Token), loading.Token).ConfigureAwait(false);
             },
             OpenPreview = async () =>
             {
@@ -804,14 +798,9 @@ public partial class ArchivePage : UserControl
         ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(manifests, summary.Id, postId, attachment);
         setBinding(resolved?.Binding);
         if (resolved == null) return null;
-        await _thumbnailGate.WaitAsync(loading.Token);
-        try
-        {
-            loading.Token.ThrowIfCancellationRequested();
-            return await ArchiveListThumbnails.LoadAsync(new(resolved.Snapshot, resolved.Asset),
-                Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"), loading.Token);
-        }
-        finally { _thumbnailGate.Release(); }
+        loading.Token.ThrowIfCancellationRequested();
+        return await ArchiveListThumbnails.LoadAsync(new(resolved.Snapshot, resolved.Asset),
+            Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"), loading.Token, _thumbnailGate);
     }, cancellationToken);
 
     internal static ArchiveAssetRow? FindMatchingAsset(ResourceId resource, string postId,

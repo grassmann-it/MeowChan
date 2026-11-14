@@ -109,7 +109,7 @@ internal static class SuggestionsPresentationChecks
                     Require(archive.ReadIdentityEditor("ArchiveSourceFilter") == sourceDraft, "Board selection changed source raw input.");
                 });
                 host.Content = rules; await Settle();
-                C<Expander>(rules, "NewRuleScopeExpander").IsExpanded = true;
+                Require(rules.ShowWizardStep(RuleWizardStep.Scope, focus: false), "The rules wizard did not show its scope step.");
                 await Settle();
                 await Field(rules, "NewRuleSourceInput", "A", false, "rules-source", PreserveRules);
                 rules.NewSourceId = ""; await Settle();

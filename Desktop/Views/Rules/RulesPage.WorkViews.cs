@@ -34,6 +34,7 @@ public partial class RulesPage
     }
 
     private bool PluginFilterActive => _draft.ImageFilter.Mode != MediaImageFilterMode.Inherit;
+    // Step 3 is never folded; a validation error or a changed saved rule names itself on the step chip instead (R6).
     private bool PreviewNeedsAttention => HasValidationError || HasPreviewBlocked;
     private bool TemplatesNeedAttention => _templateError != null || IsTemplateDecisionOpen;
 
@@ -42,12 +43,11 @@ public partial class RulesPage
         if (_ended) return;
         WorkView view = _workView;
         string scope = _draft.Scope.ToString();
-        WorkViewPresenter.ApplyExpander(NewRuleScopeExpander, view, viewChanged);
+        WorkViewPresenter.ApplyExpander(RuleSavedScopesExpander, view, viewChanged);
         WorkViewGate.Apply(RuleBreadcrumbRow, view);
         WorkViewGate.Apply(OpenTypesOriginButton, view, CanOpenTypesOrigin);
         WorkViewGate.Apply(OpenSizeOriginButton, view, CanOpenSizeOrigin);
         ApplyStateful(RulePluginExpander, "filter|" + scope, viewChanged, PluginFilterActive);
-        ApplyStateful(RulePreviewExpander, "preview|" + scope, viewChanged, PreviewNeedsAttention);
         RefreshTemplatesPresentation(view, viewChanged);
         RefreshPluginFilterHeader();
         WorkViewMoreSurface.Configure(RulesMoreButton, MoreEntries().Count);
@@ -114,6 +114,7 @@ public partial class RulesPage
     internal void RevealTemplates()
     {
         if (_ended || !IsEditable) return;
+        if (_wizard.IsOpen && _wizard.HasScope) ShowWizardStep(RuleWizardStep.Settings, focus: false);
         _templatesRevealed = true;
         _stateOpened.Remove("templates");
         RefreshWorkViewPresentation();
@@ -123,7 +124,7 @@ public partial class RulesPage
     private void InitializeWorkViewPresentation()
     {
         // The narrow layout of the rule rows reaches rows inside a block only once its content exists: re-apply on opening.
-        foreach (Expander expander in new[] { RulePreviewExpander, NewRuleScopeExpander })
+        foreach (Expander expander in new[] { RuleSavedScopesExpander, RulePluginExpander })
             expander.PropertyChanged += (_, args) =>
             {
                 if (args.Property == Expander.IsExpandedProperty && !_ended)

@@ -25,6 +25,7 @@ internal sealed class PostFilterDialogModel
     private int _busy;
     private Guid? _editingId;
     private bool _editEnabled = true;
+    private PostFilterRule? _editBase;
     private string? _editSource, _editBoard;
     private bool _keepScope;
 
@@ -101,6 +102,9 @@ internal sealed class PostFilterDialogModel
 
     internal bool IsEditing => EditingRule != null;
 
+    /// <summary>The rule is the one being edited: its enabled switch stays as it is until the edit ends, so the save cannot silently undo a change.</summary>
+    internal bool IsEditingRule(Guid id) => _editingId == id && IsEditing;
+
     /// <summary>The label of the edited rule as the list shows it, for the "Editing: …" line.</summary>
     internal string? EditingLabel => EditingRule is { } rule ? Row(rule).Label : null;
 
@@ -116,6 +120,7 @@ internal sealed class PostFilterDialogModel
         if (!CanWrite) { Report(StoreNotice, error: true); return false; }
         if (!rule.CanApply) { Report(Texts.T("postFilter.editUnsupported"), error: true); return false; }
         _editingId = id;
+        _editBase = rule;
         _editEnabled = rule.Enabled;
         _editSource = rule.Source;
         _editBoard = rule.Board;
@@ -147,6 +152,7 @@ internal sealed class PostFilterDialogModel
     private void EndEdit()
     {
         _editingId = null;
+        _editBase = null;
         _editEnabled = true;
         _editSource = _editBoard = null;
         _keepScope = false;
@@ -161,15 +167,28 @@ internal sealed class PostFilterDialogModel
     {
         if (EditingRule is not { } rule) return false;
         if (!CanSave) { Report(DraftError ?? (CanWrite ? null : StoreNotice), error: true); return false; }
+        PostFilterRule? basis = _editBase;
+        if (basis != null && rule != basis)
+        {
+            // The rule changed since the edit began (enabled switch, another window, a restore): nothing is overwritten. The draft stays,
+            // the newer state becomes the basis, and an explicit second save replaces that state (its enabled state is kept).
+            _editBase = rule;
+            _editEnabled = rule.Enabled;
+            Report(Texts.T("postFilter.conflict"), error: true);
+            return false;
+        }
         bool saved = false;
         await RunAsync(async () =>
         {
-            await _session.ReplaceRuleAsync(rule.Id, Draft(), token);
+            await _session.ReplaceRuleAsync(rule.Id, Draft(), token, basis);
             EndEdit();
             Pattern = string.Empty;
             saved = true;
             return Texts.T("postFilter.saved");
         });
+        // A refused save (the session met a newer list): when this very rule differs there, the newer state becomes the basis, so the
+        // explicit retry after the conflict sentence replaces it (enabled state kept) instead of conflicting for good.
+        if (!saved && EditingRule is { } current && basis != null && current != basis) { _editBase = current; _editEnabled = current.Enabled; }
         return saved;
     }
 
