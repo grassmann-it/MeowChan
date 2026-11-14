@@ -255,17 +255,21 @@
   writes or reads back, not thumbnails, previews, archive or index files. The header download graph
   is now a button that opens the page. It shows the two directions of the network (download
   solid with a filled area, upload dashed) and of the disk (read solid with a filled area, write
-  dashed) as two labelled blocks, **Network** with "Down … / Up …" and **Disk** with
-  "Read … / Write …" in localized words, read before write, each with its own scale that
+  dashed) as two blocks **without** the headings Network and Disk: the only words in the header
+  are **Down** and **Up** and **Read** and **Write** in your language (German: Download, Upload,
+  Lesen, Schreiben), read before write, with no arrows or letters. The values are set in one size
+  and right-aligned in equal-width columns across both blocks. **Network** and **Disk** appear
+  only in the button's name and tooltip, in the tray, in the **Header graph** choices and on the
+  Statistics page, not as header titles. Each block has its own scale that
   steps by 1, 1.5, 2, 3 and so on and a decaying maximum; the page shows network download, disk write
   and disk read as three separate graphs and counts download only (upload is shown in the header,
   the tray and the accessible name). The setting **Header graph** has six choices: Automatic
   (network and disk, each with its own graph, in every work view), Network only, Disk only, Network
   and disk stacked, Network and disk side by side, and Text only. Graphs need a window of at least
-  1000 dip and side by side one of 1280 dip; narrower windows keep the labelled values and drop the
-  graphs. The tray tooltip shows the current rates and the number of active downloads, the tray
-  menu starts with the same labelled network and disk lines while downloads run (a click opens
-  the page), and nothing is measured while the window is hidden and nothing downloads. A
+  1000 dip and side by side one of 1280 dip; narrower windows keep the values with their direction
+  words and drop the graphs. The tray tooltip shows the current rates and the number of active
+  downloads, the tray menu starts with the two lines "Network ↓ … ↑ …" and "Disk R … W …" while
+  downloads run (the tray names them, the header does not; a click opens the page), and nothing is measured while the window is hidden and nothing downloads. A
   **Statistics** block on the Behavior page holds nine settings: update interval
   (default 1000 ms, 500 to 10000), graph length (120 readings, 30 to 3600), update interval in the
   tray (5000 ms, 2000 to 60000), tray tooltip and tray menu (on), keep statistics on this computer
@@ -339,8 +343,10 @@
   20) are decoded behind it and dropped as soon as you move on; videos and GIFs are skipped, and a
   kept image is shown only while its file is unchanged since it was verified. New settings under
   **Storage and limits**: **Gallery images kept in memory (MiB)** (default 256, 0 turns it off, up
-  to 4096) and the two preload counts. Archive tiles and reader attachments now share the Media
-  page's preview cache instead of decoding again each time they scroll back into view.
+  to 4096) and the two preload counts. The preload works from a copy of only the shown image and
+  its configured neighbours, taken on the interface thread, never from the live gallery list, so
+  a long gallery is not copied for each step. Archive tiles and reader attachments now share the
+  Media page's preview cache instead of decoding again each time they scroll back into view.
 - Verify the plugin toolchain at startup outside the build gate and in parallel with reading the
   profile and scanning the plugin inventory, and re-check every verified file's identity right
   before the toolchain is used.
@@ -486,8 +492,9 @@
   global and individual pauses. It refuses a running watcher check, preserves a late HTTP 429
   and keeps the transport fence if saving fails.
 - Add directional upload metering. The request payload that MeowChan's application writes counts as
-  network upload per source (see the Statistics entry), and the header, tray and graph names show
-  download and upload, disk read and disk write separately.
+  network upload per source (see the Statistics entry). The header shows the words Down and Up and
+  Read and Write; the tray, the accessible name and the tooltip name download and upload, disk read and
+  disk write separately.
 - Add reader display settings under **Settings, Reading & media** (**Display** and **Long posts and
   previews**). Changes stay in the Settings draft until **Save** succeeds and then apply to the open
   Reader at once without losing the reading position; **Discard draft** restores the saved values,
@@ -510,8 +517,34 @@
   a value (no name, never saved, unrated) stay last in both directions, and a group of identical
   files counts its highest tag count or rating. The criterion and direction are saved and restored;
   **Random** returns to **By thread** on the next start.
-- Keep quick tagging as groundwork: the shared surface and commands are present, but the gallery
-  panel (TP2) and right-click popover (TP3) are not connected yet; existing tag dialogs remain.
+- Tag from a panel in the gallery (quick tagging, first part). **Tags** in the gallery (also
+  **Ctrl/Cmd+Shift+T**) opens a quick tag panel in the slot of the post panel instead of the tag
+  dialog; the two panels exclude each other (**P** returns to the post panel) and the placement
+  rules of the post panel apply. The panel follows the gallery from medium to medium with a fresh
+  target frozen to exactly the shown file ("Medium 4 of 27", announced politely), keeps its
+  undo steps and the text of the field, and says why a medium cannot be tagged instead of keeping
+  the previous file's target. It offers numbered suggestions ranked from the context (tags used
+  often and recently, from the thread, on nearby media, same file elsewhere, file name, thread
+  title, and Danbooru source tags as new own tags), the tags on the file, **Undo** (which names
+  another medium when it reaches back to one) and a **Thread tags** section that is a separate
+  list, because thread tags mark the thread and not its files. Default keys, rebindable and
+  yielding to saved bindings: **Page Down** and **Page Up** for next and previous medium
+  (**Cmd+Down** and **Cmd+Up** on macOS), **Ctrl/Cmd+Enter** to add the typed tag and go on,
+  **Ctrl/Cmd+T** for the thread section, **Ctrl/Cmd+Z** to undo and **Alt+1** to **Alt+9** for the
+  suggestions. **Advanced…** opens the full tag dialog (occurrences, sorting, long lists) and
+  the panel reloads afterwards. The panel texts are in all 12 languages (the ten beyond English and
+  German are unreviewed). Still open: the right-click popover (TP3) and marking several media for one
+  tag change (TP4, **Shift+Page Down/Up**) are not connected, and the other tag dialogs remain.
+- Add the seven quick tagging limits under **Storage and limits**, group **Quick tagging**:
+  suggestions shown (default 9, 3 to 18), recently used tags remembered (50, 0 to 500), undo steps
+  (20, 1 to 100), neighbouring media checked for tags (2000, 100 to 20000), file name words used
+  for tags (8, 0 to 32), source tags per medium (24, 0 to 200) and media marked for tagging (500,
+  10 to 5000, never above what the tag file accepts). A value outside its range is refused when
+  saved and reduced when a settings file is read; the search finds each row. The saved limits are
+  meant to apply when the gallery panel is opened again; connecting the panel to them is being
+  completed, and until it is in, the panel runs with the built-in defaults (**Pending**). The marked-media limit has
+  no effect until marking (TP4) is connected. The twelve language packs carry the texts (ten of
+  them unreviewed).
 - Prepare a lazy scrub preview for videos (positional thumbnails in 5 % slots keyed by the verified
   content, with a bounded disk budget): the code is in, but no control, setting or screen uses it
   yet.
@@ -522,6 +555,15 @@
 - Show verified local video posters in the Archive thread list, Reader attachments, Reader media
   and the Media page. A poster is shown only after the local original has been checked, no source
   thumbnail address is fetched, and a cached poster never stands in for a missing original.
+  Making a poster is bounded: when the decoder or the 12-second limit stops it, the video simply
+  has no poster this time, the failure is not remembered, and a later view tries again; a request
+  that you cancel still counts as cancelled, and the caller never waits longer than 14 seconds.
+- Open the Rules page on an overview of saved rules, drafts and the built-in defaults; **Create
+  rule** and **Edit** open an in-page wizard (scope, settings, review). A successful **Save** in
+  the wizard returns to the overview, says "Rule for … saved. Applies to new decisions." in a polite
+  status and focuses the saved rule's row (a new rule: its new row). A refused or failed save
+  (invalid input, a rule changed meanwhile, a store error) stays in the wizard with its field
+  error; **Discard** is unchanged. The text is in all 12 languages (ten unreviewed).
 - Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
   work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild
