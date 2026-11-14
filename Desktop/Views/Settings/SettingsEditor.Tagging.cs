@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -54,7 +55,8 @@ public partial class SettingsEditor
     private bool _taggingCardsDefault, _initialTaggingCardsDefault;
     public bool TaggingCardsDefault { get => _taggingCardsDefault; set => SetField(ref _taggingCardsDefault, value, nameof(TaggingCardsDefault)); }
     public string TaggingCardsDefaultLabel => Texts.T("settings.tagging.cardsStart");
-    public string TaggingCardsDefaultHint => Texts.T("settings.tagging.cardsStart.hint");
+    public string TaggingCardsDefaultHint => Texts.T("settings.tagging.cardsStart.hint")
+        + (CommandCatalog.ShortcutDisplay("tags.queue.cards") is string key ? " " + Texts.T("settings.tagging.cardsStart.keyHint", key) : string.Empty);
 
     public string TaggingCardsHeadingLabel => Texts.T("settings.tagging.cards");
     public string TaggingCardSlotsHint => Texts.T("settings.tagging.cards.hint");

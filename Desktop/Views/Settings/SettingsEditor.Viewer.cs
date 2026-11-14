@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -104,8 +105,9 @@ public partial class SettingsEditor
     public string MediaFocusHidesHeaderLabel => Texts.T("settings.mediaFocusHidesHeader");
     public string MediaFocusHidesHeaderHint => Texts.T("settings.mediaFocusHidesHeaderHint");
     public string GalleryFilmstripLabel => Texts.T("settings.galleryFilmstrip");
-    // The key of the filmstrip toggle is read from the binding (it may be moved), never written into the text.
-    public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint", MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("gallery.filmstrip-toggle") ?? "—");
+    // The key sentence names the filmstrip command's key as bound now (never a fixed key); an unbound command adds no sentence.
+    public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint")
+        + (CommandCatalog.ShortcutDisplay("gallery.filmstrip-toggle") is string key ? " " + Texts.T("settings.galleryFilmstripKeyHint", key) : string.Empty);
     public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
     public string GalleryFilmstripHeightHint => Texts.T("settings.galleryFilmstripHeightHint",
         Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
