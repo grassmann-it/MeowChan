@@ -23,6 +23,13 @@ namespace MeowChan;
 // explanation; it is never dropped, because that would silently show more than asked for.
 public sealed partial class MediaPage
 {
+    private int _tagFilterTagsPerList = ArchiveTagFilter.DefaultTagsPerList;
+    internal int ArchiveTagFilterTagsPerListPreference
+    {
+        get => _tagFilterTagsPerList;
+        set => _tagFilterTagsPerList = Math.Clamp(value, ArchiveTagFilter.MinimumTagsPerList, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+    }
+
     // Over a large index every keystroke would filter, sort and group again on the UI thread: the name waits 200 ms
     // after the last edit. Up to SearchImmediateEntries entries filtering is cheap and follows every keystroke.
     private static readonly TimeSpan NameFilterDebounce = TimeSpan.FromMilliseconds(200);
@@ -145,7 +152,7 @@ public sealed partial class MediaPage
         BoardChoice? board = _boardFilter.SelectedItem as BoardChoice;
         string? source = (_sourceFilter.SelectedItem as Choice)?.Value ?? board?.Source;
         return new MediaLibraryFilter(
-            ArchiveTagFilter.OrNull(_includeTags, _excludeTags, _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All),
+            ArchiveTagFilter.OrNull(_includeTags, _excludeTags, _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList),
             (MediaLibraryKindFilter)Math.Clamp(_kindFilter.SelectedIndex, 0, (int)MediaLibraryKindFilter.Other),
             _favoritesOnly.IsChecked == true, _minRating.SelectedIndex > 0 ? _minRating.SelectedIndex : null,
             source, board?.Board, _nameFilter.Text, _threadFilter?.Thread,
@@ -272,11 +279,14 @@ public sealed partial class MediaPage
     private string? TryIncludeOrExclude(Guid id, bool include)
     {
         if (_includeTags.Contains(id) || _excludeTags.Contains(id)) return null;
+        if (ArchivePage.DraftTagRefusal(include ? _includeTags : _excludeTags, Array.Empty<Guid>(), id,
+                ArchiveTagFilterTagsPerListPreference) is string refusal) return refusal;
         try
         {
-            _ = new ArchiveTagFilter(include ? _includeTags.Append(id) : _includeTags, include ? _excludeTags : _excludeTags.Append(id));
+            _ = new ArchiveTagFilter(include ? _includeTags.Append(id) : _includeTags, include ? _excludeTags : _excludeTags.Append(id),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
-        catch (ArgumentException) { return Texts.T("media.filter.error.tooManyTags"); }
+        catch (ArgumentException) { return Texts.T("coreLimits.tags.invalid"); }
         (include ? _includeTags : _excludeTags).Add(id);
         RenderTagOptions();
         FilterEdited();
@@ -291,17 +301,25 @@ public sealed partial class MediaPage
     {
         bool wasIncluded = _includeTags.Contains(id);
         if (!wasIncluded && !_excludeTags.Contains(id)) return null;
-        try
+        if (ArchivePage.DraftTagRefusal(wasIncluded ? _excludeTags : _includeTags, Array.Empty<Guid>(), id,
+                ArchiveTagFilterTagsPerListPreference) is string refusal)
         {
-            _ = new ArchiveTagFilter(wasIncluded ? _includeTags.Where(tag => tag != id) : _includeTags.Append(id),
-                wasIncluded ? _excludeTags.Append(id) : _excludeTags.Where(tag => tag != id));
-        }
-        catch (ArgumentException)
-        {
-            string refusal = Texts.T("media.filter.error.tooManyTags");
             _filterError.Text = refusal;
             _filterError.IsVisible = true;
             return refusal;
+        }
+        try
+        {
+            _ = new ArchiveTagFilter(wasIncluded ? _includeTags.Where(tag => tag != id) : _includeTags.Append(id),
+                wasIncluded ? _excludeTags.Append(id) : _excludeTags.Where(tag => tag != id),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+        }
+        catch (ArgumentException)
+        {
+            string invalid = Texts.T("coreLimits.tags.invalid");
+            _filterError.Text = invalid;
+            _filterError.IsVisible = true;
+            return invalid;
         }
         (wasIncluded ? _includeTags : _excludeTags).Remove(id);
         (wasIncluded ? _excludeTags : _includeTags).Add(id);

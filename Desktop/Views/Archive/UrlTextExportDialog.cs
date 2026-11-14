@@ -26,13 +26,19 @@ internal sealed class UrlTextExportOperation : IDisposable
     internal Task Completion { get; private set; } = Task.CompletedTask;
     internal string StatusKey { get; private set; } = "urltext.export.scope";
     internal UrlTextExportFileWriteResult? Result { get; private set; }
+    internal int LimitMiB { get; }
     internal bool Started => _started;
     internal bool Ended => _ended;
     internal event Action? Changed;
     internal UrlTextExportOperation(ArchiveUrlTextExportPlan plan, Func<Task<string?>> choose,
         Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>> write,
-        CancellationToken token)
-    { _plan = plan; _choose = choose; _write = write; _lifetime = CancellationTokenSource.CreateLinkedTokenSource(token); }
+        CancellationToken token, int limitMiB = UrlTextExportFileWriter.DefaultLimitMiB)
+    {
+        if (limitMiB is < UrlTextExportFileWriter.MinimumLimitMiB or > UrlTextExportFileWriter.MaximumLimitMiB)
+            throw new ArgumentOutOfRangeException(nameof(limitMiB));
+        LimitMiB = limitMiB;
+        _plan = plan; _choose = choose; _write = write; _lifetime = CancellationTokenSource.CreateLinkedTokenSource(token);
+    }
     internal Task ConfirmAsync()
     {
         if (_started || _ended || _lifetime.IsCancellationRequested) return Completion;
@@ -62,7 +68,13 @@ internal sealed class UrlTextExportOperation : IDisposable
                 UrlTextExportFileWriteStatus.Canceled => "canceled",
                 UrlTextExportFileWriteStatus.PartialRetained => result.Error == UrlTextExportFileWriteError.CreationUncertain
                     ? "creationUncertain" : "partialRetained",
-                _ => result.Error == UrlTextExportFileWriteError.DestinationExists ? "error.exists" : "error.write"
+                _ => result.Error switch
+                {
+                    UrlTextExportFileWriteError.DestinationExists => "error.exists",
+                    // The writer also uses LimitExceeded for path length/components, not just output bytes.
+                    UrlTextExportFileWriteError.LimitExceeded => LimitFailureKey(_plan.ByteCount, LimitMiB),
+                    _ => "error.write"
+                }
             });
         }
         catch (OperationCanceledException)
@@ -76,6 +88,10 @@ internal sealed class UrlTextExportOperation : IDisposable
             if (!_ended && !_lifetime.IsCancellationRequested) Status(writeStarted ? "partialRetained" : "error.target");
         }
     }
+    // The plan still has a separate 1 MiB format ceiling. A larger writer budget does not lift that contract.
+    internal static string LimitFailureKey(int byteCount, int limitMiB) =>
+        (long)byteCount > (long)limitMiB * 1024 * 1024 ? "error.outputLimit" : "error.pathLimit";
+
     internal Task TerminateAsync() { _ended = true; _lifetime.Cancel(); return Completion; }
     public void Dispose() { _lifetime.Dispose(); }
 }
@@ -101,10 +117,10 @@ internal sealed class UrlTextExportDialog : Window
 
     internal UrlTextExportDialog(ArchiveUrlTextExportPlan plan, Func<Task<string?>> choose,
         Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>> write,
-        CancellationToken token)
+        CancellationToken token, int limitMiB = UrlTextExportFileWriter.DefaultLimitMiB)
     {
         _plan = plan;
-        _operation = new(plan, choose, write, token);
+        _operation = new(plan, choose, write, token, limitMiB);
         Name = "UrlTextExportDialog";
         Width = 640; Height = 600; MinWidth = 360; MinHeight = 360;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -167,7 +183,7 @@ internal sealed class UrlTextExportDialog : Window
         AutomationProperties.SetName(_close, (string)_close.Content!);
         // Failures go to the local error strip; progress and outcomes stay in the footer status.
         bool failed = _operation.StatusKey.StartsWith("urltext.export.error.", StringComparison.Ordinal);
-        string message = Texts.T(_operation.StatusKey);
+        string message = Texts.T(_operation.StatusKey, _operation.LimitMiB);
         _status.Text = failed ? string.Empty : message;
         _error.Text = failed ? message : string.Empty;
     }

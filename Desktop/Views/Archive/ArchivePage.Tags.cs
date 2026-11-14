@@ -34,8 +34,23 @@ public partial class ArchivePage
     // The user's explicit choice. The bar hides while no thread is open and returns with the next one,
     // so several threads can be tagged in a row; it never takes focus when it returns.
     private bool _tagBarWanted;
-    private (ResourceId Thread, long Revision, IReadOnlyList<PrivateTagName> Names)? _tagSuggestions;
-    private (ResourceId Thread, long Revision, bool CanEdit, string? Message, string Language)? _tagBarRendered;
+    private (ResourceId Thread, long Revision, int SlashCount, IReadOnlyList<PrivateTagName> Names)? _tagSuggestions;
+    private (ResourceId Thread, long Revision, bool CanEdit, string? Message, string Language, int SlashCount)? _tagBarRendered;
+    private int _slashTagSuggestionCount = SlashTagSuggestions.DefaultSuggestionCount;
+    internal int SlashTagSuggestionCountPreference
+    {
+        get => _slashTagSuggestionCount;
+        set
+        {
+            int count = Math.Clamp(value, SlashTagSuggestions.MinimumSuggestionCount, SlashTagSuggestions.MaximumSuggestionCount);
+            if (_slashTagSuggestionCount == count) return;
+            _slashTagSuggestionCount = count;
+            _tagSuggestions = null;
+            _tagBarRendered = null;
+            UpdatePrivateTagActions();
+        }
+    }
+
     internal Task PrivateTagTask { get; private set; } = Task.CompletedTask;
     // Danbooru source tags offered below the own tags; read again each time the bar is opened.
     private readonly SourceTagSuggestions _sourceTagSuggestions = new();
@@ -277,12 +292,12 @@ public partial class ArchivePage
 
     private IReadOnlyList<PrivateTagName> ThreadTagSuggestions(ArchivedThreadView thread)
     {
-        if (_tagSuggestions is { } cached && cached.Thread == thread.Summary.Id && cached.Revision == thread.Summary.Revision)
+        if (_tagSuggestions is { } cached && cached.Thread == thread.Summary.Id && cached.Revision == thread.Summary.Revision && cached.SlashCount == SlashTagSuggestionCountPreference)
             return cached.Names;
         CapturedPost? first = thread.PostCount > 0 ? thread.GetPosts(0, 1).FirstOrDefault() : null;
-        IReadOnlyList<PrivateTagName> names = SlashTagSuggestions.Detect(thread.Summary.Title, first?.Subject,
+        IReadOnlyList<PrivateTagName> names = SlashTagSuggestions.Detect(SlashTagSuggestionCountPreference, thread.Summary.Title, first?.Subject,
             first?.Html == null ? null : ArchiveText.PlainText(first.Html));
-        _tagSuggestions = (thread.Summary.Id, thread.Summary.Revision, names);
+        _tagSuggestions = (thread.Summary.Id, thread.Summary.Revision, SlashTagSuggestionCountPreference, names);
         return names;
     }
 
@@ -298,7 +313,7 @@ public partial class ArchivePage
             ReaderTagInput.Text = string.Empty;
         }
         bool canEdit = CanEditThreadTags;
-        var key = (id, _privateTags?.Revision ?? -1, canEdit, _privateTagMessage, Texts.Language);
+        var key = (id, _privateTags?.Revision ?? -1, canEdit, _privateTagMessage, Texts.Language, SlashTagSuggestionCountPreference);
         if (_tagBarRendered == key) return;
         _tagBarRendered = key;
 

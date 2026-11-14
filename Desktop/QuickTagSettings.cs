@@ -17,7 +17,7 @@ internal static class QuickTagSettings
     {
         ArgumentNullException.ThrowIfNull(config);
         return new TagContextOptions(config.QuickTagSuggestionCount, config.QuickTagRecentCount, config.QuickTagNeighbourScan,
-            config.QuickTagFilenameTokens, config.QuickTagSourceTagsPerMedium);
+            config.QuickTagFilenameTokens, config.QuickTagSourceTagsPerMedium, config.SlashTagSuggestionCount);
     }
 
     /// <summary>The surface limits: suggestion chips shown and undo steps (pass to <see cref="Controls.QuickTagSurface"/>).</summary>

@@ -18,6 +18,14 @@ namespace MeowChan;
 // is what list, paging, gallery, export and reader navigation all use.
 public partial class ArchivePage
 {
+    private int _tagFilterTagsPerList = ArchiveTagFilter.DefaultTagsPerList;
+    // Admission only: changing this preference never edits an existing draft or applied filter.
+    internal int ArchiveTagFilterTagsPerListPreference
+    {
+        get => _tagFilterTagsPerList;
+        set => _tagFilterTagsPerList = Math.Clamp(value, ArchiveTagFilter.MinimumTagsPerList, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+    }
+
     private readonly List<Guid> _draftIncludeTags = new();
     private readonly List<Guid> _draftExcludeTags = new();
 
@@ -90,15 +98,15 @@ public partial class ArchivePage
     /// </summary>
     internal string? AddDraftTag(Guid id, bool include)
     {
-        if (DraftTagRefusal(include ? _draftIncludeTags : _draftExcludeTags, include ? _draftExcludeTags : _draftIncludeTags, id) is string refusal)
+        if (DraftTagRefusal(include ? _draftIncludeTags : _draftExcludeTags, include ? _draftExcludeTags : _draftIncludeTags, id, ArchiveTagFilterTagsPerListPreference) is string refusal)
             return refusal;
         if ((include ? _draftIncludeTags : _draftExcludeTags).Contains(id)) return null;
         try
         {
             _ = new ArchiveTagFilter(include ? _draftIncludeTags.Append(id) : _draftIncludeTags,
-                include ? _draftExcludeTags : _draftExcludeTags.Append(id));
+                include ? _draftExcludeTags : _draftExcludeTags.Append(id), ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
-        catch (ArgumentException exception) { return exception.Message; }
+        catch (ArgumentException) { return Texts.T("coreLimits.tags.invalid"); }
         (include ? _draftIncludeTags : _draftExcludeTags).Add(id);
         DataValidationErrors.ClearErrors(ArchiveTagChoiceHost);
         SearchEditorError(string.Empty);
@@ -119,12 +127,21 @@ public partial class ArchivePage
     {
         bool wasIncluded = _draftIncludeTags.Contains(id);
         if (!wasIncluded && !_draftExcludeTags.Contains(id)) return null;
+        // The destination grows; the source may already exceed a newly lowered preference.
+        if (DraftTagRefusal(wasIncluded ? _draftExcludeTags : _draftIncludeTags, Array.Empty<Guid>(), id,
+                ArchiveTagFilterTagsPerListPreference) is string refusal)
+        { SearchEditorError(refusal); return refusal; }
         try
         {
             _ = new ArchiveTagFilter(wasIncluded ? _draftIncludeTags.Where(tag => tag != id) : _draftIncludeTags.Append(id),
-                wasIncluded ? _draftExcludeTags.Append(id) : _draftExcludeTags.Where(tag => tag != id));
+                wasIncluded ? _draftExcludeTags.Append(id) : _draftExcludeTags.Where(tag => tag != id),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
-        catch (ArgumentException exception) { SearchEditorError(exception.Message); return exception.Message; }
+        catch (ArgumentException)
+        {
+            string invalid = Texts.T("coreLimits.tags.invalid");
+            SearchEditorError(invalid); return invalid;
+        }
         (wasIncluded ? _draftIncludeTags : _draftExcludeTags).Remove(id);
         (wasIncluded ? _draftExcludeTags : _draftIncludeTags).Add(id);
         SearchEditorError(string.Empty);
@@ -142,18 +159,20 @@ public partial class ArchivePage
         .Select(item => item.Name.Display).Order(StringComparer.Ordinal).ToArray();
 
     /// <summary>
-    /// Why the chosen tag cannot join the list, as a localized sentence, or null when it can. A list holds at most
-    /// <see cref="ArchiveTagFilter.MaximumTagsPerList"/> tags (a fixed limit of the search definition), and a tag cannot
-    /// be included and excluded at once. Adding a tag that is already in the list changes nothing and is allowed.
+    /// Admission to the growing list only. Existing tags are never trimmed when the preference is lowered;
+    /// an id already in the destination changes nothing and remains allowed.
     /// </summary>
     internal static string? DraftTagRefusal(IReadOnlyCollection<Guid> list, IReadOnlyCollection<Guid> otherList, Guid id) =>
+        DraftTagRefusal(list, otherList, id, ArchiveTagFilter.DefaultTagsPerList);
+
+    internal static string? DraftTagRefusal(IReadOnlyCollection<Guid> list, IReadOnlyCollection<Guid> otherList, Guid id, int tagsPerList) =>
         list.Contains(id) ? null
         : otherList.Contains(id) ? Texts.T("tags.filter.error.both")
-        : list.Count >= ArchiveTagFilter.MaximumTagsPerList ? Texts.T("tags.filter.error.tooMany", ArchiveTagFilter.MaximumTagsPerList)
+        : list.Count >= tagsPerList ? Texts.T("coreLimits.tags.tooMany", tagsPerList)
         : null;
 
     private ArchiveTagFilter? ReadTagFilterDraft() => ArchiveTagFilter.OrNull(_draftIncludeTags, _draftExcludeTags,
-        ArchiveTagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);
+        ArchiveTagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
 
     // A tag typed in the popover and not added: the app cannot guess Include or Exclude for it.
     private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;
@@ -228,9 +247,9 @@ public partial class ArchivePage
     private static ArchiveTagFilter? CopyTagFilter(ArchiveTagFilter? tags, string field, string? value) => tags == null ? null : field switch
     {
         "tags" => null,
-        "tagInclude" => ArchiveTagFilter.OrNull(tags.Include.Where(id => id.ToString("D") != value), tags.Exclude, tags.Match),
-        "tagExclude" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude.Where(id => id.ToString("D") != value), tags.Match),
-        "tagMatch" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude),
+        "tagInclude" => ArchiveTagFilter.OrNull(tags.Include.Where(id => id.ToString("D") != value), tags.Exclude, tags.Match, ArchiveTagFilter.MaximumConfigurableTagsPerList),
+        "tagExclude" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude.Where(id => id.ToString("D") != value), tags.Match, ArchiveTagFilter.MaximumConfigurableTagsPerList),
+        "tagMatch" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude, ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList),
         _ => tags
     };
 

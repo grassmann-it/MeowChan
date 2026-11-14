@@ -30,9 +30,7 @@ public partial class MainWindow
     private CoalescedUiUpdate? _workspaceRefresh;
     private string? _appliedWorkspaceMode;
     private double _workspaceInspectorWidth = 320;
-    private double _normalWorkspaceWidth = 1380;
-    private double _normalWorkspaceHeight = 850;
-    private WindowState _normalWorkspaceState;
+    private readonly BarebonesWindowGeometry _barebonesGeometry = new();
 
     private void InitializeWorkspace()
     {
@@ -144,6 +142,21 @@ public partial class MainWindow
         _updatingWorkspacePreferences = true;
         try
         {
+            // Both pages exist before InitializeWorkspace. Apply on every save, not only a view change.
+            if (_archivePage != null)
+            {
+                _archivePage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+                _archivePage.UrlTextExportLimitMiBPreference = _config.UrlTextExportLimitMiB;
+                _archivePage.SlashTagSuggestionCountPreference = _config.SlashTagSuggestionCount;
+            }
+            if (_mediaPage != null) _mediaPage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+            if (_gallery?.TagPanelController is { } tagPanel
+                && tagPanel.Suggestions.Options.SlashSuggestionCount != _config.SlashTagSuggestionCount)
+            {
+                tagPanel.Suggestions.Options = QuickTagSettings.ContextOptions(_config);
+                _gallery.ReloadTagPanel(); // re-rank without replacing the session/undo stack
+            }
+            _barebonesGeometry.DiscardIfDisabled(_config.ShrinkWindowForBarebones);
             string mode = _config.WorkspaceMode;
             WorkView view = WorkViewSetting.Parse(mode);
             bool barebones = WorkViewDensity.Compact(view);
@@ -161,11 +174,9 @@ public partial class MainWindow
                     _normalWorkspaceNarrowInspectorVisible = _workspaceNarrowInspectorVisible;
                     // Initial mode selects presentation only. Persisted geometry is
                     // already installed before the first native window is opened.
-                    if (_appliedWorkspaceMode != null)
+                    if (_barebonesGeometry.Capture(_config.ShrinkWindowForBarebones, _appliedWorkspaceMode != null,
+                            Width, Height, WindowState))
                     {
-                        _normalWorkspaceWidth = double.IsFinite(Width) ? Width : 1380;
-                        _normalWorkspaceHeight = double.IsFinite(Height) ? Height : 850;
-                        _normalWorkspaceState = WindowState;
                         WindowState = WindowState.Normal;
                         SetWorkspaceWindowSize(850, 530);
                     }
@@ -174,9 +185,12 @@ public partial class MainWindow
                 }
                 else if (_appliedWorkspaceMode != null && WorkViewDensity.Compact(WorkViewSetting.Parse(_appliedWorkspaceMode)))
                 {
-                    SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, _normalWorkspaceWidth),
-                        Math.Max(WorkspaceMinimumSize.Height, _normalWorkspaceHeight));
-                    WindowState = _normalWorkspaceState;
+                    if (_barebonesGeometry.TakeRestore(_config.ShrinkWindowForBarebones) is { } geometry)
+                    {
+                        SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, geometry.Width),
+                            Math.Max(WorkspaceMinimumSize.Height, geometry.Height));
+                        WindowState = geometry.State;
+                    }
                     _workspaceInspectorVisible = _normalWorkspaceInspectorVisible;
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;
                 }
@@ -654,5 +668,36 @@ public partial class MainWindow
     {
         if (GetWorkspaceSelection() is ThreadRow) OnRemoveThreadMenuItemClick(sender, e);
         else if (GetWorkspaceSelection() is BoardRow) OnRemoveBoardMenuItemClick(sender, e);
+    }
+}
+
+// Owns the Barebones restore geometry, not inspector/view state. The enabled startup case retains
+// the historical default restore size without resizing at startup. Disabled shrinking owns no restore.
+internal sealed class BarebonesWindowGeometry
+{
+    private (double Width, double Height, WindowState State)? _captured;
+
+    internal void DiscardIfDisabled(bool enabled)
+    {
+        if (!enabled) _captured = null;
+    }
+
+    internal bool Capture(bool enabled, bool hasPreviousMode, double width, double height, WindowState state)
+    {
+        if (!enabled) { _captured = null; return false; }
+        if (!hasPreviousMode)
+        {
+            _captured = (1380, 850, WindowState.Normal);
+            return false; // persisted startup geometry is not resized
+        }
+        _captured = (double.IsFinite(width) ? width : 1380, double.IsFinite(height) ? height : 850, state);
+        return true;
+    }
+
+    internal (double Width, double Height, WindowState State)? TakeRestore(bool enabled)
+    {
+        var captured = _captured;
+        _captured = null;
+        return enabled ? captured : null;
     }
 }

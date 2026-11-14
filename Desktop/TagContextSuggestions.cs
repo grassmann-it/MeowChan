@@ -108,8 +108,10 @@ internal sealed class TagContextOptions
     internal static TagContextOptions Default { get; } = new();
 
     internal TagContextOptions(int suggestionCount = DefaultSuggestionCount, int recentCount = DefaultRecentCount,
-        int neighbourScan = DefaultNeighbourScan, int filenameTokens = DefaultFilenameTokens, int sourceTagsPerMedium = DefaultSourceTagsPerMedium)
+        int neighbourScan = DefaultNeighbourScan, int filenameTokens = DefaultFilenameTokens, int sourceTagsPerMedium = DefaultSourceTagsPerMedium,
+        int slashSuggestionCount = SlashTagSuggestions.DefaultSuggestionCount)
     {
+        SlashSuggestionCount = Math.Clamp(slashSuggestionCount, SlashTagSuggestions.MinimumSuggestionCount, SlashTagSuggestions.MaximumSuggestionCount);
         SuggestionCount = Math.Clamp(suggestionCount, MinimumSuggestionCount, MaximumSuggestionCount);
         RecentCount = Math.Clamp(recentCount, MinimumRecentCount, MaximumRecentCount);
         NeighbourScan = Math.Clamp(neighbourScan, MinimumNeighbourScan, MaximumNeighbourScan);
@@ -117,6 +119,8 @@ internal sealed class TagContextOptions
         SourceTagsPerMedium = Math.Clamp(sourceTagsPerMedium, MinimumSourceTagsPerMedium, MaximumSourceTagsPerMedium);
     }
 
+    // Independent of the overall quick-tag display/ranking count.
+    internal int SlashSuggestionCount { get; }
     internal int SuggestionCount { get; }
     internal int RecentCount { get; }
     internal int NeighbourScan { get; }
@@ -415,7 +419,7 @@ internal static class TagContextSuggestions
         // /board/ markers do not need words; an existing tag of the name scores like an exact word, a new name less.
         if (context.TitleTexts.Count > 0)
         {
-            foreach (PrivateTagName marker in SlashTagSuggestions.Detect(context.TitleTexts.ToArray()))
+            foreach (PrivateTagName marker in SlashTagSuggestions.Detect(options.SlashSuggestionCount, context.TitleTexts.ToArray()))
             {
                 if (index.FindByKey(marker.Key) is { } tag) OwnCandidate(tag.Id)?.Offer(Slot.Title, TokenExactPoints, TagSuggestionReason.SlashMarker);
                 else GetOrAdd(found, marker, TagSuggestionOrigin.New).Offer(Slot.Title, SlashNewPoints, TagSuggestionReason.SlashMarker);
