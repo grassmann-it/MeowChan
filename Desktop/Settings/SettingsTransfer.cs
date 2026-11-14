@@ -238,6 +238,7 @@ public static class SettingsTransfer
             GallerySlideshowVideoRule = source.GallerySlideshowVideoRule,
             GallerySlideshowVideoSeconds = source.GallerySlideshowVideoSeconds,
             GallerySlideshowVideoRepeats = source.GallerySlideshowVideoRepeats,
+            GalleryPauseOnFocusLoss = source.GalleryPauseOnFocusLoss,
             GalleryMediaFocus = source.GalleryMediaFocus,
             GalleryOverlayControls = source.GalleryOverlayControls,
             GalleryAutoHideControls = source.GalleryAutoHideControls,

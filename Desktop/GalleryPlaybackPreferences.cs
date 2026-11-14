@@ -28,7 +28,8 @@ internal sealed record GalleryPlaybackPreferences(
     bool VideoRepeat = false,
     SlideshowVideoRule VideoRule = SlideshowVideoRule.PlayOnce,
     int VideoSeconds = Config.GallerySlideshowVideoSecondsDefault,
-    int VideoRepeats = Config.GallerySlideshowVideoRepeatsDefault)
+    int VideoRepeats = Config.GallerySlideshowVideoRepeatsDefault,
+    bool PauseOnFocusLoss = false)
 {
     internal const int ImageSecondsMinimum = 1, ImageSecondsMaximum = 300;
 
@@ -56,7 +57,8 @@ internal sealed record GalleryPlaybackPreferences(
         Enum.TryParse<GalleryPlaybackMode>(config.GalleryPlaybackMode, out var mode) ? mode : GalleryPlaybackMode.Manual,
         config.GallerySlideshowSeconds, config.GalleryMediaFocus, config.GalleryOverlayControls,
         config.GalleryAutoHideControls, config.GalleryOverlayPostContext, config.GalleryVideoRepeat,
-        ParseVideoRule(config.GallerySlideshowVideoRule), config.GallerySlideshowVideoSeconds, config.GallerySlideshowVideoRepeats).Normalize();
+        ParseVideoRule(config.GallerySlideshowVideoRule), config.GallerySlideshowVideoSeconds, config.GallerySlideshowVideoRepeats,
+        config.GalleryPauseOnFocusLoss).Normalize();
 
     internal void ApplyChangesTo(Config config, GalleryPlaybackPreferences baseline)
     {
@@ -77,6 +79,7 @@ internal sealed record GalleryPlaybackPreferences(
         if (edited.VideoRule != baseline.VideoRule) config.GallerySlideshowVideoRule = edited.VideoRule.ToString();
         if (edited.VideoSeconds != baseline.VideoSeconds) config.GallerySlideshowVideoSeconds = edited.VideoSeconds;
         if (edited.VideoRepeats != baseline.VideoRepeats) config.GallerySlideshowVideoRepeats = edited.VideoRepeats;
+        if (edited.PauseOnFocusLoss != baseline.PauseOnFocusLoss) config.GalleryPauseOnFocusLoss = edited.PauseOnFocusLoss;
     }
 
     internal void ApplyTo(Config config)
@@ -92,5 +95,6 @@ internal sealed record GalleryPlaybackPreferences(
         config.GallerySlideshowVideoRule = normalized.VideoRule.ToString();
         config.GallerySlideshowVideoSeconds = normalized.VideoSeconds;
         config.GallerySlideshowVideoRepeats = normalized.VideoRepeats;
+        config.GalleryPauseOnFocusLoss = normalized.PauseOnFocusLoss;
     }
 }

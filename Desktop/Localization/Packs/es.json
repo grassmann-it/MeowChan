@@ -3798,6 +3798,8 @@
     "viewer.playback.videoSecondsHelp": "La pasada que supera este tiempo se reproduce hasta el final.",
     "viewer.playback.videoRepeats": "Pasadas",
     "viewer.playback.numberHelp": "Teclas de flecha ±1, Re Pág/Av Pág ±10",
+    "viewer.playback.pauseOnFocusLoss": "Pausar cuando MeowChan pierde el foco",
+    "viewer.playback.pauseOnFocusLossHelp": "Desactivado: la presentación sigue en marcha mientras otra ventana tiene el foco, mientras MeowChan está minimizado o en la bandeja. Activado: espera hasta que usted vuelva y entonces muestra el medio actual durante el tiempo completo.",
     "viewer.playback.reducedMotion": "El movimiento reducido está activado: en la presentación los vídeos se reproducen una vez.",
     "viewer.video.speed": "Velocidad {0}",
     "viewer.video.speedHelp": "Haga clic para la siguiente velocidad (0,5×, 1×, 1,5×, 2×)",

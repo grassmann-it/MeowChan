@@ -3855,6 +3855,8 @@
     "viewer.playback.videoSecondsHelp": "Przebieg, w którym ten czas zostanie przekroczony, jest odtwarzany do końca.",
     "viewer.playback.videoRepeats": "Przebiegi",
     "viewer.playback.numberHelp": "Strzałki ±1, Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "Wstrzymuj, gdy MeowChan traci fokus",
+    "viewer.playback.pauseOnFocusLossHelp": "Wyłączone: pokaz slajdów trwa dalej, gdy fokus ma inne okno, a MeowChan jest zminimalizowany lub w zasobniku. Włączone: czeka, aż wrócisz, a potem pokazuje bieżące medium przez pełny czas.",
     "viewer.playback.reducedMotion": "Ograniczenie ruchu jest włączone: w pokazie slajdów wideo jest odtwarzane raz.",
     "viewer.video.speed": "Prędkość {0}",
     "viewer.video.speedHelp": "Kliknij, aby przejść do następnej prędkości (0,5×, 1×, 1,5×, 2×)",

@@ -3760,6 +3760,8 @@
     "viewer.playback.videoSecondsHelp": "이 시간을 넘긴 회차는 끝까지 재생됩니다.",
     "viewer.playback.videoRepeats": "재생 횟수",
     "viewer.playback.numberHelp": "화살표 키 ±1, Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "MeowChan이 포커스를 잃으면 일시 중지",
+    "viewer.playback.pauseOnFocusLossHelp": "끔: 다른 창이 포커스를 가지고 있거나 MeowChan이 최소화되었거나 트레이에 있어도 슬라이드쇼가 계속됩니다. 켬: 돌아올 때까지 기다린 뒤 현재 미디어를 정해진 시간만큼 다시 보여 줍니다.",
     "viewer.playback.reducedMotion": "동작 줄이기가 켜져 있습니다: 슬라이드쇼의 동영상은 한 번만 재생됩니다.",
     "viewer.video.speed": "속도 {0}",
     "viewer.video.speedHelp": "클릭하면 다음 속도로 바뀝니다(0.5×, 1×, 1.5×, 2×)",

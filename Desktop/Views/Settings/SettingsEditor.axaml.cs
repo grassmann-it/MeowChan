@@ -1622,7 +1622,8 @@ namespace MeowChan
             GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value == "Slideshow" ? GalleryPlaybackMode.Slideshow : GalleryPlaybackMode.Manual;
             var video = CaptureGalleryVideoDraft();
             return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext,
-                video.Repeat, video.Rule, video.Seconds, video.Repeats);
+                video.Repeat, video.Rule, video.Seconds, video.Repeats,
+                _initialGalleryPlayback.PauseOnFocusLoss); // the choice lives in the gallery's slideshow menu, not on this page
         }
 
         private static int GetInteger(decimal? value, string label, int minimum, int maximum)

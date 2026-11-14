@@ -3798,6 +3798,8 @@
     "viewer.playback.videoSecondsHelp": "Le passage qui dépasse cette durée est lu jusqu’au bout.",
     "viewer.playback.videoRepeats": "Passages",
     "viewer.playback.numberHelp": "Touches fléchées ±1, Page préc./Page suiv. ±10",
+    "viewer.playback.pauseOnFocusLoss": "Mettre en pause quand MeowChan perd le focus",
+    "viewer.playback.pauseOnFocusLossHelp": "Désactivé : le diaporama continue pendant qu’une autre fenêtre a le focus, que MeowChan est réduit ou dans la zone de notification. Activé : il attend votre retour, puis affiche le média actuel pendant toute la durée.",
     "viewer.playback.reducedMotion": "Le mouvement réduit est activé : les vidéos sont lues une fois dans le diaporama.",
     "viewer.video.speed": "Vitesse {0}",
     "viewer.video.speedHelp": "Cliquez pour la vitesse suivante (0,5×, 1×, 1,5×, 2×)",

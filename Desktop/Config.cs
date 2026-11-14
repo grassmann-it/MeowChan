@@ -936,6 +936,10 @@ namespace MeowChan
             set => _gallerySlideshowVideoRepeats = Math.Clamp(value, GallerySlideshowVideoRepeatsMinimum, GallerySlideshowVideoRepeatsMaximum);
         }
         internal const int GallerySlideshowVideoRepeatsDefault = 2, GallerySlideshowVideoRepeatsMinimum = 1, GallerySlideshowVideoRepeatsMaximum = 50;
+        /// <summary>Off (default): a running slideshow goes on while another window has the focus, while MeowChan is minimised or in the tray.
+        /// On: it waits until MeowChan is back and then shows the current medium for a full period.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool GalleryPauseOnFocusLoss { get; set; }
         /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
@@ -1683,6 +1687,7 @@ namespace MeowChan
                 GallerySlideshowVideoRule = GallerySlideshowVideoRule,
                 GallerySlideshowVideoSeconds = GallerySlideshowVideoSeconds,
                 GallerySlideshowVideoRepeats = GallerySlideshowVideoRepeats,
+                GalleryPauseOnFocusLoss = GalleryPauseOnFocusLoss,
                 GalleryMediaFocus = GalleryMediaFocus,
                 GalleryOverlayControls = GalleryOverlayControls,
                 GalleryAutoHideControls = GalleryOverlayControls,

@@ -3801,6 +3801,8 @@
     "viewer.playback.videoSecondsHelp": "A passada que ultrapassa este tempo toca até o fim.",
     "viewer.playback.videoRepeats": "Passadas",
     "viewer.playback.numberHelp": "Setas ±1, Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "Pausar quando o MeowChan perder o foco",
+    "viewer.playback.pauseOnFocusLossHelp": "Desativado: a apresentação continua enquanto outra janela tem o foco, enquanto o MeowChan está minimizado ou na bandeja. Ativado: ela espera você voltar e depois mostra a mídia atual pelo tempo completo.",
     "viewer.playback.reducedMotion": "O movimento reduzido está ativado: na apresentação os vídeos tocam uma vez.",
     "viewer.video.speed": "Velocidade {0}",
     "viewer.video.speedHelp": "Clique para a próxima velocidade (0,5×, 1×, 1,5×, 2×)",

@@ -21,8 +21,8 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
     public void ViewerEntriesAreCompleteUniqueAndUseTheGlobalCatalog()
     {
         // G1 added viewer.playback.status.tagHold (the slideshow waits while the tag panel is worked in); G2 added menu and menuHelp.
-        Assert.Equal(40, GalleryPlaybackCatalog.Entries.Length);
-        Assert.Equal(40, GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).Distinct().Count());
+        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Length);
+        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).Distinct().Count());
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
         {
             Texts.Initialize(); // refresh the normal global catalog snapshot

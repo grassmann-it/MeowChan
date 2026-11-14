@@ -3760,6 +3760,8 @@
     "viewer.playback.videoSecondsHelp": "この時間を超えた回は最後まで再生されます。",
     "viewer.playback.videoRepeats": "再生回数",
     "viewer.playback.numberHelp": "矢印キー ±1、Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "MeowChan がフォーカスを失ったら一時停止",
+    "viewer.playback.pauseOnFocusLossHelp": "オフ：別のウィンドウがフォーカスを持っている間や、MeowChan が最小化またはトレイにある間も、スライドショーは続行します。オン：戻るまで待機し、戻ったら現在のメディアを設定した時間いっぱい表示します。",
     "viewer.playback.reducedMotion": "視差効果を減らす設定がオンです：スライドショーの動画は1回だけ再生されます。",
     "viewer.video.speed": "速度 {0}",
     "viewer.video.speedHelp": "クリックで次の速度へ（0.5×、1×、1.5×、2×）",

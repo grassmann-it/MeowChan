@@ -3829,6 +3829,8 @@
     "viewer.playback.videoSecondsHelp": "Проход, в котором превышено это время, доигрывается до конца.",
     "viewer.playback.videoRepeats": "Проходы",
     "viewer.playback.numberHelp": "Стрелки ±1, Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "Приостанавливать, когда MeowChan теряет фокус",
+    "viewer.playback.pauseOnFocusLossHelp": "Выкл.: слайд-шоу продолжается, пока фокус у другого окна, а MeowChan свёрнут или находится в системном лотке. Вкл.: оно ждёт вашего возвращения, а затем снова показывает текущий медиафайл полное время.",
     "viewer.playback.reducedMotion": "Включено уменьшение движения: в слайд-шоу видео воспроизводятся один раз.",
     "viewer.video.speed": "Скорость {0}",
     "viewer.video.speedHelp": "Нажмите для следующей скорости (0,5×, 1×, 1,5×, 2×)",

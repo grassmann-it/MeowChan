@@ -87,7 +87,34 @@ internal sealed partial class GalleryViewer
         }
     }
 
-    private bool CanRunSlideshow => !_viewerInteractionStopped && _interactionAvailable && IsGalleryWindowActive && !HasGalleryDialog && !HasGalleryPopup
+    // The window's part of "may the slideshow run": the surface is usable (main window enabled, gallery shown in it, not put away for the
+    // reader) and, only with "Pause when MeowChan loses focus", the window has the focus. Without the setting, focus loss, minimise and
+    // the tray (the window hidden) do not matter; the media inside the window keep their own chain of visibility (ShownInWindow).
+    private bool SlideshowSurfaceUsable => _slideshowSurface && TopLevel.GetTopLevel(this) is Window { IsEnabled: true }
+        && IsEffectivelyEnabled && ShownInWindow(this);
+    private bool WindowHasFocus => _interactionAvailable && IsGalleryWindowActive;
+    private bool SlideshowWindowAllows => GallerySlideshowWindowGate.Allows(_playbackPreferences.PauseOnFocusLoss, SlideshowSurfaceUsable, WindowHasFocus);
+
+    /// <summary>Visible up to the window, whether the window itself is shown, minimised or hidden in the tray.</summary>
+    private static bool ShownInWindow(Visual visual)
+    {
+        for (Visual? current = visual; current != null; current = current.GetVisualParent())
+        {
+            if (current is Window) return true;
+            if (!current.IsVisible) return false;
+        }
+        return false;
+    }
+
+    // Called before the slideshow's hold is set: when the focus wait ends the shown medium starts a fresh period (like the tagging hold).
+    private void ObserveSlideshowWindow()
+    {
+        if (_slideshow == null) return;
+        if (_windowGate.Observe(_playbackPreferences.PauseOnFocusLoss, SlideshowSurfaceUsable, WindowHasFocus) && _slideshow.IsRunning)
+            _slideshow.RenewAfterHold(_slideshowGeneration);
+    }
+
+    private bool CanRunSlideshow => !_viewerInteractionStopped && SlideshowWindowAllows && !HasGalleryDialog && !HasGalleryPopup
         && !_videoSuspended && !SlideshowBlockedByPanel && !_helpOpen && !IsFavoriteConfirmOpen && !_mediaFailed && !_sessionCancellation.IsCancellationRequested
         && _entry != null && _entry.Kind != SavedMediaKind.Other;
 
@@ -641,7 +668,8 @@ internal sealed partial class GalleryViewer
             && !(_keyboardInteraction && _contextPanel.IsKeyboardFocusWithin) && !selectedPostText
             && Stopwatch.GetElapsedTime(_lastPostActivity) >= TimeSpan.FromMilliseconds(500))
             SetContextOpen(false, notify: false, hover: true);
-        UpdateSlideshowInteraction(!_interactionAvailable || !active || popup || reading || captured
+        ObserveSlideshowWindow();
+        UpdateSlideshowInteraction(!SlideshowWindowAllows || popup || reading || captured
             || _sessionCancellation.IsCancellationRequested);
         if (_lastRunning != _slideshow.IsRunning || _shownSlideshowStatus != CurrentSlideshowStatus) RefreshPlaybackControls();
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;

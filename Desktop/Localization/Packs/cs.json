@@ -3849,6 +3849,8 @@
     "viewer.playback.videoSecondsHelp": "Průchod, ve kterém je tato doba překročena, se přehraje do konce.",
     "viewer.playback.videoRepeats": "Průchody",
     "viewer.playback.numberHelp": "Šipky ±1, Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "Pozastavit při ztrátě fokusu MeowChan",
+    "viewer.playback.pauseOnFocusLossHelp": "Vypnuto: prezentace běží dál, zatímco fokus má jiné okno, MeowChan je minimalizován nebo v oznamovací oblasti. Zapnuto: počká, až se vrátíte, a pak zobrazí aktuální médium znovu po celou dobu.",
     "viewer.playback.reducedMotion": "Je zapnutý omezený pohyb: videa se v prezentaci přehrají jednou.",
     "viewer.video.speed": "Rychlost {0}",
     "viewer.video.speedHelp": "Klikněte pro další rychlost (0,5×, 1×, 1,5×, 2×)",

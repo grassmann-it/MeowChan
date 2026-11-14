@@ -3778,6 +3778,8 @@
     "viewer.playback.videoSecondsHelp": "超过此时长的那一遍会播放到结束。",
     "viewer.playback.videoRepeats": "遍数",
     "viewer.playback.numberHelp": "方向键 ±1，Page Up/Page Down ±10",
+    "viewer.playback.pauseOnFocusLoss": "MeowChan 失去焦点时暂停",
+    "viewer.playback.pauseOnFocusLossHelp": "关闭：其他窗口获得焦点、MeowChan 最小化或位于托盘时，幻灯片继续放映。开启：等待您返回，然后将当前媒体完整显示一个周期。",
     "viewer.playback.reducedMotion": "已开启减少动态效果：幻灯片中的视频只播放一次。",
     "viewer.video.speed": "速度 {0}",
     "viewer.video.speedHelp": "单击切换到下一个速度（0.5×、1×、1.5×、2×）",

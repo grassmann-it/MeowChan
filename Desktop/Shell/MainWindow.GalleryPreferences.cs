@@ -81,7 +81,9 @@ public partial class MainWindow
     {
         if (_isClosing || _gallery == null) return;
         bool activeSurface = IsActive || OwnedWindows.Any(window => window.IsActive && _gallery.OwnsOverlayWindow(window));
-        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended);
+        // The second value is the part that is not about the focus: with "Pause when MeowChan loses focus" off, a slideshow runs on while
+        // another window has the focus, while minimised or in the tray, but a disabled main window or the reader still stop it.
+        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended, IsEnabled && !_gallerySuspended);
     }
 
     private void QueueGalleryPreference(bool? context, int? volume)

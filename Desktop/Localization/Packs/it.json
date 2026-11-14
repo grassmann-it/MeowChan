@@ -3801,6 +3801,8 @@
     "viewer.playback.videoSecondsHelp": "Il passaggio che supera questa durata viene riprodotto fino alla fine.",
     "viewer.playback.videoRepeats": "Passaggi",
     "viewer.playback.numberHelp": "Frecce ±1, Pag su/Pag giù ±10",
+    "viewer.playback.pauseOnFocusLoss": "Metti in pausa quando MeowChan perde il focus",
+    "viewer.playback.pauseOnFocusLossHelp": "Disattivato: la presentazione continua mentre un’altra finestra ha il focus, mentre MeowChan è ridotto a icona o nell’area di notifica. Attivato: attende il tuo ritorno, poi mostra il media attuale per l’intera durata.",
     "viewer.playback.reducedMotion": "Il movimento ridotto è attivo: nella presentazione i video vengono riprodotti una volta.",
     "viewer.video.speed": "Velocità {0}",
     "viewer.video.speedHelp": "Fai clic per la velocità successiva (0,5×, 1×, 1,5×, 2×)",

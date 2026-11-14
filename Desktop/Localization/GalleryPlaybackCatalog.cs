@@ -60,6 +60,8 @@ internal static class GalleryPlaybackCatalog
         ("viewer.playback.videoSecondsHelp", "The pass that crosses this time plays to its end.", "Der Durchlauf, in dem diese Zeit überschritten wird, läuft bis zum Ende."),
         ("viewer.playback.videoRepeats", "Passes", "Durchläufe"),
         ("viewer.playback.numberHelp", "Arrow keys ±1, Page Up/Page Down ±10", "Pfeiltasten ±1, Bild auf/Bild ab ±10"),
+        ("viewer.playback.pauseOnFocusLoss", "Pause when MeowChan loses focus", "Bei Fokusverlust pausieren"),
+        ("viewer.playback.pauseOnFocusLossHelp", "Off: the slideshow keeps running while another window has the focus, while MeowChan is minimised or in the tray. On: it waits until you are back, then shows the current medium for a full period.", "Aus: Die Diashow läuft weiter, während ein anderes Fenster den Fokus hat, MeowChan minimiert oder im Tray ist. An: Sie wartet, bis du zurück bist, und zeigt das aktuelle Medium dann wieder die volle Zeit."),
         ("viewer.playback.reducedMotion", "Reduced motion is on: videos play once in the slideshow.", "Reduzierte Bewegung ist an: Videos laufen in der Diashow einmal."),
     };
 
