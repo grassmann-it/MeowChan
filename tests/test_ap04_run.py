@@ -554,12 +554,13 @@ class ProcessRunCleanupTests(unittest.TestCase):
 
 
 class CycleEvidenceGateTests(unittest.TestCase):
-    """Synthetic files test refusals only; no process, package or real upgrade is exercised."""
+    """Synthetic files test evidence parsing; no process, package or real upgrade is exercised."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.ctx = unittest.mock.Mock()
+        self.ctx.sha = SHA
         self.ctx.out = Path(self.temp.name)
         self.ctx.results = self.ctx.out / 'cycles'
         self.ctx.results.mkdir()
@@ -568,45 +569,107 @@ class CycleEvidenceGateTests(unittest.TestCase):
         self.trx.parent.mkdir()
         # A green console summary is not process evidence. No external command may run here.
         command = unittest.mock.patch.object(run, 'run', return_value='Passed! synthetic summary only')
-        command.start()
+        self.command = command.start()
         self.addCleanup(command.stop)
         subprocess_guard = unittest.mock.patch.object(run.subprocess, 'run', side_effect=AssertionError('no subprocess allowed'))
         subprocess_guard.start()
         self.addCleanup(subprocess_guard.stop)
 
-    def write_trx(self, outcome):
-        # The runner keys the released-upgrade fact by its exact TRX display name,
-        # not by a synthetic fully-qualified name that would test only "absent".
-        upgrade = (f'<UnitTestResult testName="{run.TEST_NAME}" outcome="{outcome}"/>'
-                   if outcome is not None else '')
-        self.trx.write_text('<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
-                            '<Results><UnitTestResult testName="Unrelated" outcome="Passed"/>'
-                            + upgrade + '</Results></TestRun>')
+    def write_trx(self, outcome, test_name=None, extra_results=()):
+        # Default to the real VSTest/xUnit representation seen in the failed
+        # w1432 run. The legacy short form is exercised separately.
+        name = test_name or run.TEST_FULL_NAME
+        results = [('Unrelated', 'Passed'), *extra_results]
+        if outcome is not None:
+            results.append((name, outcome))
+        root = run.ET.Element('TestRun', xmlns='http://microsoft.com/schemas/VisualStudio/TeamTest/2010')
+        entries = run.ET.SubElement(root, 'Results')
+        for name, outcome in results:
+            run.ET.SubElement(entries, 'UnitTestResult', testName=name, outcome=outcome)
+        run.ET.ElementTree(root).write(self.trx, encoding='utf-8', xml_declaration=True)
+
+    def write_receipts(self):
+        for index in range(3):
+            (self.ctx.results / f'cycle-{index}.json').write_text(json.dumps({
+                'Mode': 'observe',
+                'CurrentVersion': f'{run.EXPECTED_VERSION}+{SHA}',
+                'Profile': 'synthetic-profile',
+            }))
+        for name in ('current-result.json', 'released-receipt.json'):
+            (self.ctx.results / name).write_text('{}')
+
+    def test_exact_qualified_and_legacy_short_names_reach_receipt_checks(self):
+        self.write_receipts()
+        for name in (run.TEST_FULL_NAME, run.TEST_NAME):
+            with self.subTest(name=name):
+                self.write_trx('Passed', name)
+                self.assertIn('tests=2 upgrade=Passed cycles=3', run.step_cycles(self.ctx))
+
+    def test_other_classes_and_similarly_named_methods_are_not_upgrade_evidence(self):
+        for name in ('Other.Namespace.' + run.TEST_NAME,
+                     'Other.Released102RestPackageUpgradeTests.' + run.TEST_NAME,
+                     'MeowChan.DesktopTests.OtherTests.' + run.TEST_NAME,
+                     'Prefix' + run.TEST_FULL_NAME,
+                     run.TEST_FULL_NAME + 'Extra',
+                     run.TEST_FULL_NAME + '(variant: 1)',
+                     'Prefix' + run.TEST_NAME):
+            with self.subTest(name=name):
+                self.write_trx('Passed', name)
+                with self.assertRaisesRegex(run.StepFailed, 'upgrade test did not pass or was skipped: absent$'):
+                    run.step_cycles(self.ctx)
+
+    def test_both_short_and_qualified_names_are_refused_even_when_both_pass(self):
+        for other_outcome in ('Passed', 'Failed', 'NotExecuted'):
+            with self.subTest(other_outcome=other_outcome):
+                self.write_trx('Passed', extra_results=((run.TEST_NAME, other_outcome),))
+                with self.assertRaisesRegex(run.StepFailed, 'ambiguous upgrade TRX results'):
+                    run.step_cycles(self.ctx)
+
+    def test_duplicate_qualified_results_are_refused(self):
+        self.write_trx('Passed', extra_results=((run.TEST_FULL_NAME, 'Passed'),))
+        with self.assertRaisesRegex(run.StepFailed, 'duplicate TRX result'):
+            run.step_cycles(self.ctx)
 
     def test_green_summary_without_executed_upgrade_is_refused(self):
         with self.assertRaisesRegex(run.StepFailed, 'no TRX produced'):
             run.step_cycles(self.ctx)
-        for outcome in (None, 'NotExecuted', 'Failed'):
-            with self.subTest(upgrade_outcome=outcome):
-                self.write_trx(outcome)
-                with self.assertRaisesRegex(run.StepFailed,
-                                            'upgrade test did not pass or was skipped: ' + (outcome or 'absent') + '$'):
+        for name in (run.TEST_FULL_NAME, run.TEST_NAME):
+            for outcome in (None, 'NotExecuted', 'Failed', ''):
+                with self.subTest(name=name, upgrade_outcome=outcome):
+                    self.write_trx(outcome, name)
+                    with self.assertRaisesRegex(run.StepFailed,
+                                                'upgrade test did not pass or was skipped: ' + (outcome or 'absent') + '$'):
+                        run.step_cycles(self.ctx)
+
+    def test_failed_test_process_is_not_accepted_from_its_passed_trx(self):
+        self.write_trx('Passed')
+        self.write_receipts()
+        self.command.side_effect = run.StepFailed('cycles-test: exit 1')
+        with self.assertRaisesRegex(run.StepFailed, 'cycles-test: exit 1'):
+            run.step_cycles(self.ctx)
+
+    def test_other_failed_or_skipped_test_is_not_hidden_by_passed_upgrade(self):
+        for outcome in ('Failed', 'NotExecuted'):
+            with self.subTest(outcome=outcome):
+                self.write_trx('Passed', extra_results=(('OtherTest', outcome),))
+                with self.assertRaisesRegex(run.StepFailed, 'a test of the class failed: OtherTest'):
                     run.step_cycles(self.ctx)
 
     def test_passed_trx_cannot_replace_any_required_process_receipt(self):
-        self.write_trx('Passed')
         names = ('current-result.json', 'cycle-0.json', 'cycle-1.json', 'cycle-2.json', 'released-receipt.json')
-        for name in names:
-            # Presence placeholders, NOT fabricated acceptance evidence or a migrated profile.
-            (self.ctx.results / name).write_text('{}')
-        for name in names:
-            with self.subTest(missing=name):
-                path = self.ctx.results / name
-                path.unlink()
-                with self.assertRaises(run.StepFailed) as raised:
-                    run.step_cycles(self.ctx)
-                self.assertEqual('missing ' + name, str(raised.exception))
-                path.write_text('{}')
+        for test_name in (run.TEST_FULL_NAME, run.TEST_NAME):
+            self.write_trx('Passed', test_name)
+            for name in names:
+                # Presence placeholders, NOT fabricated acceptance evidence or a migrated profile.
+                (self.ctx.results / name).write_text('{}')
+            for name in names:
+                with self.subTest(test_name=test_name, missing=name):
+                    path = self.ctx.results / name
+                    path.unlink()
+                    with self.assertRaises(run.StepFailed) as raised:
+                        run.step_cycles(self.ctx)
+                    self.assertEqual('missing ' + name, str(raised.exception))
+                    path.write_text('{}')
 
     def test_even_a_complete_synthetic_report_disclaims_real_upgrade_acceptance(self):
         records = [{'name': name, 'status': 'PASS', 'seconds': 0, 'detail': 'synthetic'} for name, _ in run.STEPS]

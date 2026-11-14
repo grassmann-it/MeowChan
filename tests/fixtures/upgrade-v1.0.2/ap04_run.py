@@ -52,6 +52,7 @@ LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600
 FEED = Path('/home/tomka/.nuget/packages')
 TEST_NAME = 'ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
+TEST_FULL_NAME = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.' + TEST_NAME
 MIN_FREE_BYTES = 6 * 1024**3
 # A display or desktop session of the person running this must never reach a child.
 DROPPED = ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRESS', 'SESSION_MANAGER', 'XDG_RUNTIME_DIR',
@@ -390,6 +391,18 @@ def trx_outcome(path):
     return outcomes
 
 
+def trx_upgrade_outcome(outcomes):
+    """Accept the two exact adapter names for the upgrade fact, never a suffix.
+
+    VSTest/xUnit emits the fully-qualified name; older adapter fixtures use
+    the bare method name. A result in another class is not upgrade evidence,
+    and receiving both aliases is ambiguous even if both report Passed.
+    """
+    matches = [name for name in (TEST_FULL_NAME, TEST_NAME) if name in outcomes]
+    require(len(matches) <= 1, 'ambiguous upgrade TRX results: ' + ', '.join(matches))
+    return outcomes[matches[0]] if matches else None
+
+
 def step_cycles(ctx):
     # Passing TRX files can precede a testhost/teardown failure. The process must
     # also succeed; an earlier failed step must never become green from its files.
@@ -397,7 +410,7 @@ def step_cycles(ctx):
     trx = ctx.out / 'test-results/ap04.trx'
     require(trx.is_file(), 'no TRX produced (see logs/cycles-test.log)')
     outcomes = trx_outcome(trx)
-    upgrade = outcomes.get(TEST_NAME)
+    upgrade = trx_upgrade_outcome(outcomes)
     require(upgrade == 'Passed', f'the upgrade test did not pass or was skipped: {upgrade or "absent"}')
     require(all(v == 'Passed' for v in outcomes.values()), 'a test of the class failed: ' + ', '.join(k for k, v in outcomes.items() if v != 'Passed'))
     for name in ('current-result.json', 'cycle-0.json', 'cycle-1.json', 'cycle-2.json', 'released-receipt.json'):
