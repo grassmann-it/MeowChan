@@ -11,7 +11,7 @@ internal readonly record struct IoSample(float NetDown, float NetUp, float DiskW
 /// <summary>An oldest-first copy of the ring; every row has <see cref="Count"/> values.</summary>
 internal sealed class IoSeries
 {
-    internal static readonly IoSeries Empty = new IoSeries(Capacity: 0, Count: 0, NetDown: [], NetUp: [], DiskWrite: [], DiskRead: [], Requests: []);
+    internal static readonly IoSeries Empty = new IoSeries(capacity: 0, count: 0, netDown: [], netUp: [], diskWrite: [], diskRead: [], requests: []);
 
     internal IoSeries(int capacity, int count, float[] netDown, float[] netUp, float[] diskWrite, float[] diskRead, float[] requests)
     {
@@ -93,6 +93,6 @@ internal sealed class IoRing
             if (firstPart < _count) Array.Copy(from, 0, to, firstPart, _count - firstPart);
         }
         Copy(_down, down); Copy(_up, up); Copy(_write, write); Copy(_read, read); Copy(_requests, requests);
-        return new IoSeries(Capacity: Capacity, Count: _count, NetDown: down, NetUp: up, DiskWrite: write, DiskRead: read, Requests: requests);
+        return new IoSeries(capacity: Capacity, count: _count, netDown: down, netUp: up, diskWrite: write, diskRead: read, requests: requests);
     }
 }

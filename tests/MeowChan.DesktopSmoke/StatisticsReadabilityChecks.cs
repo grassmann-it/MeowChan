@@ -94,7 +94,7 @@ internal static class StatisticsReadabilityChecks
         return new IoStatsSnapshot
         {
             RetentionDays = 7, Rate = source.Rate, Sources = [source], Total = source,
-            Series = new IoSeries(Capacity: 300, Count: 4, NetDown: [0, 65536, 98304, 131072], NetUp: [0, 0, 0, 0], DiskWrite: [0, 0, 32768, 65536], DiskRead: [0, 0, 0, 32768], Requests: [0, 1, 1, 1])
+            Series = new IoSeries(capacity: 300, count: 4, netDown: [0, 65536, 98304, 131072], netUp: [0, 0, 0, 0], diskWrite: [0, 0, 32768, 65536], diskRead: [0, 0, 0, 32768], requests: [0, 1, 1, 1])
         };
     }
 

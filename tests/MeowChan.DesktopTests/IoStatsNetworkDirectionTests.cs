@@ -397,7 +397,7 @@ public sealed class IoStatsNetworkDirectionTests
             ("IoCounts", ["NetDown", "NetUp", "DiskWritten", "DiskRead", "Requests", "Errors"]),
             ("IoRates", ["NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
             ("IoSample", ["NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
-            ("IoSeries", ["Capacity", "Count", "NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
+            ("IoSeries", ["capacity", "count", "netDown", "netUp", "diskWrite", "diskRead", "requests"]),
             ("IoCounterReading", ["Key", "NetDown", "NetUp", "DiskWritten", "DiskRead", "Requests", "Errors"])
         ];
 
@@ -452,13 +452,14 @@ public sealed class IoStatsNetworkDirectionTests
     [Fact]
     public void DownOnlyValuesRemainExplicitlyZeroForEveryDirectionalRecord()
     {
-        Assert.Equal(new IoCounts(NetDown: 1, NetUp: 0, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5),
-            new IoCounts(NetDown: 1, NetUp: 0, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5));
-        Assert.Equal(new IoRates(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4),
-            new IoRates(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4));
-        Assert.Equal(new IoSample(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4),
-            new IoSample(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4));
-        IoSeries series = new IoSeries(Capacity: 30, Count: 2, NetDown: [1, 2], NetUp: [0, 0], DiskWrite: [3, 4], DiskRead: [5, 6], Requests: [7, 8]);
+        IoCounts counts = new(NetDown: 1, NetUp: 0, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5);
+        Assert.Equal((1L, 0L, 2L, 3L, 4L, 5L),
+            (counts.NetDown, counts.NetUp, counts.DiskWritten, counts.DiskRead, counts.Requests, counts.Errors));
+        IoRates rates = new(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4);
+        Assert.Equal((1d, 0d, 2d, 3d, 4d), (rates.NetDown, rates.NetUp, rates.DiskWrite, rates.DiskRead, rates.Requests));
+        IoSample sample = new(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4);
+        Assert.Equal((1f, 0f, 2f, 3f, 4f), (sample.NetDown, sample.NetUp, sample.DiskWrite, sample.DiskRead, sample.Requests));
+        IoSeries series = new IoSeries(capacity: 30, count: 2, netDown: [1, 2], netUp: [0, 0], diskWrite: [3, 4], diskRead: [5, 6], requests: [7, 8]);
         Assert.Equal([0f, 0f], series.NetUp);
         Assert.Equal([3f, 4f], series.DiskWrite);
         IoFakeSource source = new();
