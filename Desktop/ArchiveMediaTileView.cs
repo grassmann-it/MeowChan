@@ -19,12 +19,12 @@ namespace MeowChan.Desktop;
 public sealed class ArchiveMediaTileView : UserControl
 {
     private static readonly SemaphoreSlim ThumbnailGate = new(2, 2);
-    // MB1b: what the tile says about the medium (favourite, type, length, file missing) is drawn by the shared media badges over exactly the
-    // shown picture: one view, no child per badge (the former type chip is gone). The interactive favourite toggle stays what it was (a button,
+    // MB1b: what the tile says about the medium (favourite, type, length, file missing) is drawn by the shared media badges on the tile's
+    // slot corners (the same place on every tile of a row, the play mark on the picture): one view, no child per badge (the former type chip is gone). The interactive favourite toggle stays what it was (a button,
     // bottom right, shown while the tile is hovered or focused); the badge carries the state at rest, so the toggle is quiet unless pointed at.
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Bottom,
         Classes = { MeowChan.Desktop.Controls.WorkspaceChips.FavoriteToggleClass, QuietFavoriteClass }, Margin = new Thickness(0, 0, 2, 2) };
-    private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
+    private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.ArchiveTile };
     private ArchiveBadgeDescription _badgeText;
     private bool _missing;
     private readonly StackPanel _topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
@@ -62,7 +62,7 @@ public sealed class ArchiveMediaTileView : UserControl
     internal MediaBadgeView Badges => _badges;
     /// <summary>The badge sentence in the tile's name (empty when the tile has no badge).</summary>
     internal string BadgeDescription => DataContext is ArchiveAssetRow ? _badgeText.Get(_badges.State, _badges.Options) : string.Empty;
-    /// <summary>Where the picture is drawn, in the preview's coordinates (the badge, star and check mark sit on it).</summary>
+    /// <summary>Where the picture is drawn, in the preview's coordinates (the picture's own mark sits on it; badge, star and check mark are on the slot corners).</summary>
     internal Rect PictureBounds => _preview.PictureBounds;
     internal static bool UsesVideoPoster(ArchiveAssetRow row) =>
         MeowChan.Gallery.SavedMediaTypes.Classify(row.Asset.OriginalFileName ?? row.Asset.Path) == MeowChan.Gallery.SavedMediaKind.Video;
@@ -89,9 +89,9 @@ public sealed class ArchiveMediaTileView : UserControl
     public ArchiveMediaTileView()
     {
         MaxWidth = 190; Height = 210;
-        // The cell stays uniform (the tile grid is regular); the picture is letterboxed in it and the badge, star and check mark are
-        // arranged on the picture, not on the cell edge.
-        LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170;
+        // The cell stays uniform (the tile grid is regular); the picture is letterboxed in it. The badges, star and check mark are arranged on the
+        // slot's corners, not on the picture's, so a portrait and a landscape tile carry them at the same height.
+        LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170; preview.MarksOnSlot = true;
         _topRight.Children.Add(_selectedMark);
         preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(_badges); preview.Children.Add(_topRight); preview.Children.Add(_favorite);
         Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 4 };
@@ -163,23 +163,22 @@ public sealed class ArchiveMediaTileView : UserControl
     private void UpdateBadges(ArchiveAssetRow? row)
     {
         if (row == null) { _badges.Clear(); _badgeText.Reset(); }
-        else _badges.Apply(ArchiveMediaBadges.ForAsset(row, _missing), _preview.PictureBounds.Size);
-        // The selection check keeps clear of a badge in the same corner (a missing file is a safety fact and is never covered). The check is
-        // arranged on the marks band, which can be wider than a thin picture, so that difference is part of the inset.
-        Rect picture = _preview.PictureBounds, band = _preview.MarksBounds;
-        double inset = CornerInset + Math.Max(0, band.Right - picture.Right) + TopRightExtent(_badges.Plan, picture.Width);
+        else _badges.Apply(ArchiveMediaBadges.ForAsset(row, _missing), _preview.PictureBounds.Size, _preview.Bounds.Size);
+        // The selection check keeps clear of a badge in the same corner (a missing file is a safety fact and is never covered). The check and the
+        // badges share the slot's corner, so the badges' reach into the slot is the inset.
+        double inset = CornerInset + TopRightExtent(_badges.Plan, _preview.MarksBounds.Width);
         if (_topRight.Margin.Right != inset) _topRight.Margin = new Thickness(0, 2, inset, 0);
     }
 
     /// <summary>
-    /// How far the badges of the top-right corner reach into the picture from its right edge, plus a gap; 0 when the corner holds none. The
-    /// selection check is arranged beside them, never on top.
+    /// How far the badges of the top-right corner reach into the area they are placed on (the tile's slot) from its right edge, plus a gap; 0
+    /// when the corner holds none. The selection check is arranged beside them, never on top.
     /// </summary>
-    internal static double TopRightExtent(MediaBadgePlan plan, double pictureWidth)
+    internal static double TopRightExtent(MediaBadgePlan plan, double areaWidth)
     {
         double reach = 0;
         foreach (PlacedBadge placed in plan.Badges)
-            if (placed.Badge.Corner == MediaBadgeCorner.TopRight) reach = Math.Max(reach, pictureWidth - placed.Bounds.Left);
+            if (placed.Badge.Corner == MediaBadgeCorner.TopRight) reach = Math.Max(reach, areaWidth - placed.Bounds.Left);
         return reach > 0 ? reach + CornerGap : 0;
     }
 

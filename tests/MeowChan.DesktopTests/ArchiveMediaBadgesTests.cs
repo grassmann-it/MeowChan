@@ -127,7 +127,7 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         ArchiveMediaTileView tile = new() { DataContext = row };
         MediaBadgeState expected = new(Favorite: true, Kind: MediaBadgeKind.Video);
         Assert.Equal(expected, tile.Badges.State);
-        Assert.Equal(MediaBadgeOptions.Archive, tile.Badges.Options);
+        Assert.Equal(MediaBadgeOptions.ArchiveTile, tile.Badges.Options);
         string sentence = MediaBadgeText.Describe(expected, Archive);
         Assert.Equal("Favorite · Video", sentence);
         Assert.Equal(sentence, tile.BadgeDescription);
@@ -237,11 +237,61 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
         Assert.Equal(MediaBadgeOptions.Archive, view.Badges.Options);
         Assert.Same(view.Badges, view.GetLogicalDescendants().OfType<MediaFramePanel>().Single().Children.OfType<MediaBadgeView>().Single());
         ArchiveMediaTileView tile = new();
+        Assert.Equal(MediaBadgeOptions.ArchiveTile, tile.Badges.Options);   // the grid tile alone is anchored to its slot; rows and reader posts stay on the picture
         Assert.Same(tile.Badges, tile.GetLogicalDescendants().OfType<LetterboxPanel>().Single().Children.OfType<MediaBadgeView>().Single());
+        Assert.True(tile.GetLogicalDescendants().OfType<LetterboxPanel>().Single().MarksOnSlot);
         // No former chip, no separate play mark view.
         Assert.Empty(view.GetLogicalDescendants().OfType<VideoPlayMarkView>());
         Assert.DoesNotContain(tile.GetLogicalDescendants().OfType<Control>(), control => control.Name == "ArchiveMediaKind");
     });
+
+    // ---- the slot anchor of the grid tile ----
+
+    private static (Rect Badges, Rect Check, MediaBadgePlan Plan, Rect Play) Lay(double aspect, MediaBadgeOptions options, bool slotMarks)
+    {
+        MediaBadgeView badges = new() { Options = options };
+        Border check = new() { Width = 16, Height = 16, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+        LetterboxPanel panel = new() { Width = 170, Height = 125, Aspect = aspect, MarksOnSlot = slotMarks, Children = { new Image(), badges, check } };
+        badges.Apply(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Video, Missing: true), new Size(1, 1));
+        panel.Measure(new Size(170, 125)); panel.Arrange(new Rect(0, 0, 170, 125));
+        return (badges.Bounds, check.Bounds, badges.Plan, badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.PlayMark).Bounds);
+    }
+
+    [Fact]
+    public void TheGridTileAnchorsItsBadgesToTheSlotAndTheOtherArchiveSurfacesKeepThePicture()
+    {
+        Assert.Equal(MediaBadgeAnchor.Slot, MediaBadgeOptions.ArchiveTile.Anchor);
+        Assert.Equal(MediaBadgeOptions.Archive with { Anchor = MediaBadgeAnchor.Slot }, MediaBadgeOptions.ArchiveTile);
+        Assert.Equal(MediaBadgeAnchor.Picture, MediaBadgeOptions.Archive.Anchor);   // thread-list rows and reader posts
+        PlacedBadge[] Chips(MediaBadgePlan plan) => plan.Badges.Where(placed => placed.Badge.Id != MediaBadgeId.PlayMark).ToArray();
+        var portrait = Lay(2d / 3, MediaBadgeOptions.ArchiveTile, true);
+        var landscape = Lay(16d / 9, MediaBadgeOptions.ArchiveTile, true);
+        var wide = Lay(4, MediaBadgeOptions.ArchiveTile, true);
+        foreach (var tile in new[] { portrait, landscape, wide })
+        {
+            Assert.Equal(new Rect(0, 0, 170, 125), tile.Badges);   // the view lies on the whole slot
+            Assert.Equal(new Rect(154, 0, 16, 16), tile.Check);    // the check shares the slot's top right corner
+            Assert.Equal(85, tile.Play.Center.X, 1);               // the play mark is centred on the picture
+            Assert.Equal(62.5, tile.Play.Center.Y, 1);
+        }
+        Assert.Equal(Chips(portrait.Plan), Chips(landscape.Plan));
+        Assert.Equal(Chips(portrait.Plan), Chips(wide.Plan));
+        // The thread list and reader keep the old picture hugging: the view is as large as the letterboxed picture.
+        var hugging = Lay(2d / 3, MediaBadgeOptions.Archive, false);
+        Assert.True(hugging.Badges.Width < 100 && hugging.Badges.Height == 125);
+        Assert.NotEqual(Chips(hugging.Plan), Chips(landscape.Plan));
+    }
+
+    [Fact]
+    public void TheTileHandsItsSlotToTheBadgesAndMeasuresTheCheckOnIt()
+    {
+        string source = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop/ArchiveMediaTileView.cs"));
+        Assert.Contains("Options = MediaBadgeOptions.ArchiveTile", source);
+        Assert.Contains("preview.MarksOnSlot = true", source);
+        Assert.Contains("_preview.PictureBounds.Size, _preview.Bounds.Size", source);
+        Assert.Contains("TopRightExtent(_badges.Plan, _preview.MarksBounds.Width)", source);
+        Assert.Contains("MediaBadgeOptions.Archive }", File.ReadAllText(Path.Combine(RepoRoot(), "Desktop/ArchiveAttachmentView.cs")));
+    }
 
     // ---- the selection check keeps clear of a badge in its corner ----
 

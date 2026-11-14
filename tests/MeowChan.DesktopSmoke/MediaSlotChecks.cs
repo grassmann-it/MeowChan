@@ -305,6 +305,7 @@ internal static class MediaSlotChecks
         try
         {
             await WaitDrawnAsync(host, () => archiveTiles.All(tile => tile.HasThumbnail) && libraryTiles.All(tile => tile.HasThumbnail));
+            Dictionary<MeowChan.Desktop.Controls.MediaBadgeId, (Point Place, string Label)> archiveBadgePlaces = new();
             foreach (ArchiveMediaTileView tile in archiveTiles)
             {
                 string file = (tile.DataContext as ArchiveAssetRow)!.Name, label = "archive tile " + file + " " + name;
@@ -314,20 +315,35 @@ internal static class MediaSlotChecks
                 // Where the picture is really drawn inside the (uniform) image control.
                 Rect drawn = Marks(Drawn(picture, aspect));
                 Console.WriteLine("SMOKE media-slot archive-tile: " + JsonSerializer.Serialize(new { label, cell = cell.ToString(), control = picture.ToString(), drawn = drawn.ToString() }));
-                foreach (string overlayName in new[] { "ArchiveMediaFavorite" })
+                // MB1b: the star and the selection check sit on the corners of the tile's slot (the cell), like the badges.
+                foreach (string overlayName in new[] { "ArchiveMediaFavorite", "ArchiveMediaSelected" })
                     if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == overlayName && c.IsVisible && c.Bounds.Width > 0) is { } overlay)
-                        Expect(Inside(drawn, RectIn(overlay, host)), $"{label}: {overlayName} {RectIn(overlay, host)} is not on the drawn image {drawn}.");
-                // MB1b: one badge view lies exactly on the drawn picture (not on the marks band) and every badge is inside it.
+                        Expect(Inside(cell, RectIn(overlay, host)), $"{label}: {overlayName} {RectIn(overlay, host)} is not in the tile's slot {cell}.");
+                // MB1b: one badge view lies on the tile's slot (not on the drawn picture), every badge is inside it, a badge has the same place on every tile
+                // of the row (a portrait, a landscape and a wide tile alike) and the play mark is centred on the drawn picture.
                 MeowChan.Desktop.Controls.MediaBadgeView badges = tile.Badges;
                 Rect picture2 = Drawn(picture, aspect), badgeRect = RectIn(badges, host);
-                Expect(Same(badgeRect, picture2), $"{label}: the badge view {badgeRect} is not on the drawn image {picture2}.");
+                Expect(tile.Badges.Options.Anchor == MeowChan.Desktop.Controls.MediaBadgeAnchor.Slot, $"{label}: the archive tile's badges must be anchored to the slot.");
+                Expect(Same(badgeRect, cell), $"{label}: the badge view {badgeRect} is not on the tile's slot {cell}.");
+                foreach (MeowChan.Desktop.Controls.PlacedBadge placed in badges.Plan.Badges)
+                {
+                    if (placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.PlayMark)
+                    {
+                        Point centre = badgeRect.Position + placed.Bounds.Center;
+                        Expect(Math.Abs(centre.X - picture2.Center.X) < 1.5 && Math.Abs(centre.Y - picture2.Center.Y) < 1.5, $"{label}: the play mark centre {centre} is not the drawn picture's centre {picture2.Center}.");
+                    }
+                    else if (archiveBadgePlaces.TryGetValue(placed.Badge.Id, out var first))
+                        Expect(Math.Abs(first.Place.X - placed.Bounds.X) < 0.01 && Math.Abs(first.Place.Y - placed.Bounds.Y) < 0.01,
+                            $"{label}: badge {placed.Badge.Id} sits at {placed.Bounds.Position} but at {first.Place} on {first.Label}: a row's badges must share one height.");
+                    else archiveBadgePlaces[placed.Badge.Id] = (placed.Bounds.Position, label);
+                }
                 Expect(!badges.IsHitTestVisible, $"{label}: the badge view takes clicks.");
                 Expect(badges.State.Favorite, $"{label}: the favourite row shows no favourite badge.");
                 Expect((file == "clip.webm") == (badges.State.Kind == MeowChan.Desktop.Controls.MediaBadgeKind.Video) && (file == "wide.gif") == (badges.State.Kind == MeowChan.Desktop.Controls.MediaBadgeKind.Gif),
                     $"{label}: the badge kind {badges.State.Kind} does not follow the file name.");
                 Expect(AutomationProperties.GetName(tile)!.Contains(tile.BadgeDescription, StringComparison.Ordinal) && tile.BadgeDescription.Length > 0, $"{label}: the tile's name lacks the badge sentence.");
                 foreach (MeowChan.Desktop.Controls.PlacedBadge placed in badges.Plan.Badges)
-                    Expect(Inside(picture2, new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size)), $"{label}: badge {placed.Badge.Id} {placed.Bounds} leaves the drawn image.");
+                    Expect(Inside(cell, new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size)), $"{label}: badge {placed.Badge.Id} {placed.Bounds} leaves the slot {cell}.");
                 Console.WriteLine("SMOKE media-slot archive-badges: " + JsonSerializer.Serialize(new { label, mode = badges.Plan.Mode.ToString(), ids = badges.Plan.Badges.Select(placed => placed.Badge.Id.ToString()).ToArray(), text = tile.BadgeDescription }));
             }
             // MB1b: the badges of a media tile sit on the corners of the tile's slot, so every tile of the row carries the same badge at the same place
@@ -371,6 +387,10 @@ internal static class MediaSlotChecks
                 if (star != null)
                     foreach (MeowChan.Desktop.Controls.PlacedBadge placed in tile.Badges.Plan.Badges.Where(placed => placed.Badge.Corner == MeowChan.Desktop.Controls.MediaBadgeCorner.BottomLeft))
                         Expect(!new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size).Intersects(RectIn(star, host)), $"archive tile {(tile.DataContext as ArchiveAssetRow)!.Name} {name}: type badge and star overlap.");
+                // The selection check shares the slot's top right corner with a missing-file badge and moves in beside it.
+                if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaSelected" && c.IsVisible && c.Bounds.Width > 0) is { } selected)
+                    foreach (MeowChan.Desktop.Controls.PlacedBadge placed in tile.Badges.Plan.Badges.Where(placed => placed.Badge.Id != MeowChan.Desktop.Controls.MediaBadgeId.PlayMark))
+                        Expect(!new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size).Intersects(RectIn(selected, host)), $"archive tile {(tile.DataContext as ArchiveAssetRow)!.Name} {name}: badge {placed.Badge.Id} and the selection check overlap.");
             }
             foreach (MediaLibraryTileView tile in libraryTiles)
             {

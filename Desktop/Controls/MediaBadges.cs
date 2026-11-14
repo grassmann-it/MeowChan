@@ -87,6 +87,8 @@ internal readonly record struct MediaBadgeOptions(
     internal static MediaBadgeOptions TaggingGrid => new(ShowUntagged: true, ShowBooru: true, Anchor: MediaBadgeAnchor.Slot);
     /// <summary>The archive's attachment tiles and the thread list's thumbnails.</summary>
     internal static MediaBadgeOptions Archive => new();
+    /// <summary>The archive's saved-media grid tiles only: the archive badges with the corners on the tile's slot, so a row of tiles carries them at one height (rows and reader posts keep <see cref="Archive"/>).</summary>
+    internal static MediaBadgeOptions ArchiveTile => new(Anchor: MediaBadgeAnchor.Slot);
     /// <summary>The gallery filmstrip: small tiles, the dense play mark.</summary>
     internal static MediaBadgeOptions Filmstrip => new(Density: MediaBadgeDensity.Dense);
     /// <summary>The reader's media sidebar: the sidebar keeps its own play button.</summary>
