@@ -452,6 +452,26 @@
                                 </Grid>
                                 <TextBlock Text="{Binding ReaderMediaGridTextLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderPreviewPrefetchPostsFieldLabel" Text="{Binding ReaderPreviewPrefetchPostsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderPreviewPrefetchPostsInput" Value="{Binding ReaderPreviewPrefetchPosts, Mode=TwoWay}" Minimum="{Binding ReaderPreviewPrefetchPostsMinimum}" Maximum="{Binding ReaderPreviewPrefetchPostsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewPrefetchPostsFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewPrefetchPostsLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewPrefetchPostsHelp}" />
+                                        <TextBlock x:Name="ReaderPreviewPrefetchPostsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderPreviewPrefetchPostsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Spacing="4">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                                    <TextBlock x:Name="ReaderPreviewSizeMemoryFieldLabel" Text="{Binding ReaderPreviewSizeMemoryLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="ReaderPreviewSizeMemoryInput" Value="{Binding ReaderPreviewSizeMemory, Mode=TwoWay}" Minimum="{Binding ReaderPreviewSizeMemoryMinimum}" Maximum="{Binding ReaderPreviewSizeMemoryMaximum}" Increment="1000" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPreviewSizeMemoryFieldLabel}" AutomationProperties.Name="{Binding ReaderPreviewSizeMemoryLabel}" AutomationProperties.HelpText="{Binding ReaderPreviewSizeMemoryHelp}" />
+                                        <TextBlock x:Name="ReaderPreviewSizeMemoryInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Text="{Binding ReaderPreviewSizeMemoryHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
                         </StackPanel>
                     </Expander>
                     <TextBlock x:Name="SettingsGalleryPlaybackHeading" Text="{Binding GalleryPlaybackTitle}" Classes="section-title" Margin="0,16,0,0" />

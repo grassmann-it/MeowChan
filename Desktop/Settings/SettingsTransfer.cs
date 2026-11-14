@@ -216,6 +216,8 @@ public static class SettingsTransfer
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers,
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB,
             ReaderMediaStripLimit = source.ReaderMediaStripLimit,
+            ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts,
+            ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory,
             ReaderMediaGrid = source.ReaderMediaGrid,
             ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit,
             TagStampSize = source.TagStampSize,

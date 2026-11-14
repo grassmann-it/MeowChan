@@ -52,6 +52,8 @@ internal static class SettingsSearchAliases
         ["ReaderInlineVideoMaxFileMiB"] = "video size large file limit mib megabytes größe groß datei grenze",
         ["MediaFolders"] = "folder folders directory directories library local files scan rescan hashing add folder ordner medienordner verzeichnis verzeichnisse bibliothek lokale dateien durchsuchen hinzufügen",
         ["ReaderMediaStripLimit"] = "sidebar thumbnails strip files several images count limit leiste vorschaubilder streifen dateien mehrere bilder anzahl grenze",
+        ["ReaderPreviewPrefetchPosts"] = "preload prefetch previews thumbnails ahead scrolling jump stable posts vorausladen vorschaubilder voraus scrollen springen stabil posts",
+        ["ReaderPreviewSizeMemory"] = "remembered preview sizes memory aspect jump layout gemerkte vorschaugrößen speicher seitenverhältnis springen",
         ["ReaderMediaGrid"] = "grid tiles several images columns post layout raster kacheln mehrere bilder spalten anordnung",
         ["ReaderMediaGridTextLimit"] = "grid short text characters limit several images raster kurzer text zeichen grenze mehrere bilder",
         ["ShowShortcutHelp"] = "shortcuts keyboard hints tastenkürzel tastatur hilfe",

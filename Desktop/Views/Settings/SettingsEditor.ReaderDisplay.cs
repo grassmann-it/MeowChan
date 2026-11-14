@@ -41,6 +41,10 @@ public partial class SettingsEditor
     public int ReaderMediaStripLimitMaximum => Config.ReaderMediaStripLimitMaximum;
     public int ReaderMediaGridTextLimitMinimum => Config.ReaderMediaGridTextLimitMinimum;
     public int ReaderMediaGridTextLimitMaximum => Config.ReaderMediaGridTextLimitMaximum;
+    public int ReaderPreviewPrefetchPostsMinimum => Config.ReaderPreviewPrefetchPostsMinimum;
+    public int ReaderPreviewPrefetchPostsMaximum => Config.ReaderPreviewPrefetchPostsMaximum;
+    public int ReaderPreviewSizeMemoryMinimum => Config.ReaderPreviewSizeMemoryMinimum;
+    public int ReaderPreviewSizeMemoryMaximum => Config.ReaderPreviewSizeMemoryMaximum;
     public int ReadingHistoryLimitMaximum => Config.ReadingHistoryLimitMaximum;
     public int ReaderTextlessMediaWidthMinimum => Config.ReaderTextlessMediaWidthMinimum;
     public int ReaderTextlessMediaWidthMaximum => Config.ReaderTextlessMediaWidthMaximum;
@@ -215,6 +219,17 @@ public partial class SettingsEditor
     public string ReaderMediaGridTextLimitLabel => Texts.T("settings.reader.mediaGridText");
     public string ReaderMediaGridTextLimitHint => Texts.T("settings.reader.mediaGridText.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum);
     public string ReaderMediaGridTextLimitHelp => FieldHelp(nameof(ReaderMediaGridTextLimitInput), ReaderMediaGridTextLimitHint);
+    // Stable previews: how far ahead previews are decoded, and how many preview sizes the session remembers.
+    private decimal? _readerPreviewPrefetchPosts;
+    public decimal? ReaderPreviewPrefetchPosts { get => _readerPreviewPrefetchPosts; set => SetField(ref _readerPreviewPrefetchPosts, value, nameof(ReaderPreviewPrefetchPosts)); }
+    public string ReaderPreviewPrefetchPostsLabel => Texts.T("settings.reader.previewPrefetch");
+    public string ReaderPreviewPrefetchPostsHint => Texts.T("settings.reader.previewPrefetch.hint") + " " + Texts.T("settings.reader.range", Config.ReaderPreviewPrefetchPostsMinimum, Config.ReaderPreviewPrefetchPostsMaximum);
+    public string ReaderPreviewPrefetchPostsHelp => FieldHelp(nameof(ReaderPreviewPrefetchPostsInput), ReaderPreviewPrefetchPostsHint);
+    private decimal? _readerPreviewSizeMemory;
+    public decimal? ReaderPreviewSizeMemory { get => _readerPreviewSizeMemory; set => SetField(ref _readerPreviewSizeMemory, value, nameof(ReaderPreviewSizeMemory)); }
+    public string ReaderPreviewSizeMemoryLabel => Texts.T("settings.reader.previewSizeMemory");
+    public string ReaderPreviewSizeMemoryHint => Texts.T("settings.reader.previewSizeMemory.hint") + " " + Texts.T("settings.reader.range", Config.ReaderPreviewSizeMemoryMinimum, Config.ReaderPreviewSizeMemoryMaximum);
+    public string ReaderPreviewSizeMemoryHelp => FieldHelp(nameof(ReaderPreviewSizeMemoryInput), ReaderPreviewSizeMemoryHint);
 
     private void RefreshMediaSidebarSideChoices(string side)
     {
@@ -345,6 +360,10 @@ public partial class SettingsEditor
         ReaderMediaGrid = config.ReaderMediaGrid;
         ReaderMediaGridTextLimit = config.ReaderMediaGridTextLimit;
         ResetNumber(ReaderMediaGridTextLimitInput, ReaderMediaGridTextLimit.Value);
+        ReaderPreviewPrefetchPosts = config.ReaderPreviewPrefetchPosts;
+        ResetNumber(ReaderPreviewPrefetchPostsInput, ReaderPreviewPrefetchPosts.Value);
+        ReaderPreviewSizeMemory = config.ReaderPreviewSizeMemory;
+        ResetNumber(ReaderPreviewSizeMemoryInput, ReaderPreviewSizeMemory.Value);
         RefreshReaderChoices(config.ReaderDateStyle, config.ReaderSpoilers, config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshMediaSidebarSideChoices(config.ReaderMediaSidebarSide);
     }
@@ -401,6 +420,8 @@ public partial class SettingsEditor
         candidate.ReaderMediaStripLimit = GetInteger(ReaderMediaStripLimit, ReaderMediaStripLimitLabel, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum);
         candidate.ReaderMediaGrid = ReaderMediaGrid;
         candidate.ReaderMediaGridTextLimit = GetInteger(ReaderMediaGridTextLimit, ReaderMediaGridTextLimitLabel, Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum);
+        candidate.ReaderPreviewPrefetchPosts = GetInteger(ReaderPreviewPrefetchPosts, ReaderPreviewPrefetchPostsLabel, Config.ReaderPreviewPrefetchPostsMinimum, Config.ReaderPreviewPrefetchPostsMaximum);
+        candidate.ReaderPreviewSizeMemory = GetInteger(ReaderPreviewSizeMemory, ReaderPreviewSizeMemoryLabel, Config.ReaderPreviewSizeMemoryMinimum, Config.ReaderPreviewSizeMemoryMaximum);
         candidate.ReaderDateStyle = SelectedReaderDateStyle?.Value ?? _config.ReaderDateStyle;
         candidate.ReaderSpoilers = SelectedReaderSpoilers?.Value ?? _config.ReaderSpoilers;
         candidate.GalleryFitUpscaleLimited = IsGalleryFitLimited;
@@ -445,6 +466,8 @@ public partial class SettingsEditor
         yield return (ReaderInlineVideoMaxFileMiBInput, ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, string.Empty, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, true);
         yield return (ReaderMediaStripLimitInput, ReaderMediaStripLimit, ReaderMediaStripLimitLabel, string.Empty, Config.ReaderMediaStripLimitMinimum, Config.ReaderMediaStripLimitMaximum, true);
         yield return (ReaderMediaGridTextLimitInput, ReaderMediaGridTextLimit, ReaderMediaGridTextLimitLabel, string.Empty, Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum, true);
+        yield return (ReaderPreviewPrefetchPostsInput, ReaderPreviewPrefetchPosts, ReaderPreviewPrefetchPostsLabel, string.Empty, Config.ReaderPreviewPrefetchPostsMinimum, Config.ReaderPreviewPrefetchPostsMaximum, true);
+        yield return (ReaderPreviewSizeMemoryInput, ReaderPreviewSizeMemory, ReaderPreviewSizeMemoryLabel, string.Empty, Config.ReaderPreviewSizeMemoryMinimum, Config.ReaderPreviewSizeMemoryMaximum, true);
     }
 
     /// <summary>
@@ -523,6 +546,8 @@ public partial class SettingsEditor
         nameof(ReaderMediaStripLimitLabel), nameof(ReaderMediaStripLimitHint), nameof(ReaderMediaStripLimitHelp),
         nameof(ReaderMediaGridLabel), nameof(ReaderMediaGridHint),
         nameof(ReaderMediaGridTextLimitLabel), nameof(ReaderMediaGridTextLimitHint), nameof(ReaderMediaGridTextLimitHelp),
+        nameof(ReaderPreviewPrefetchPostsLabel), nameof(ReaderPreviewPrefetchPostsHint), nameof(ReaderPreviewPrefetchPostsHelp),
+        nameof(ReaderPreviewSizeMemoryLabel), nameof(ReaderPreviewSizeMemoryHint), nameof(ReaderPreviewSizeMemoryHelp),
         nameof(ReaderDateStyleLabel), nameof(ReaderDateStyleHint),
         nameof(ReaderSpoilersLabel), nameof(ReaderSpoilersHint),
         nameof(GalleryFitUpscaleLabel), nameof(GalleryFitUpscaleHint),
@@ -552,5 +577,7 @@ public partial class SettingsEditor
         nameof(ReaderInlineVideoMaxFileMiBHelp),
         nameof(ReaderMediaStripLimitHelp),
         nameof(ReaderMediaGridTextLimitHelp),
+        nameof(ReaderPreviewPrefetchPostsHelp),
+        nameof(ReaderPreviewSizeMemoryHelp),
     });
 }

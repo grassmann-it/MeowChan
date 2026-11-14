@@ -540,6 +540,16 @@ namespace MeowChan
         internal const int ReaderMediaGridTextLimitDefault = ReaderDisplayPreferences.MediaGridTextLimitDefault;
         internal const int ReaderMediaGridTextLimitMinimum = ReaderDisplayPreferences.MediaGridTextLimitMinimum;
         internal const int ReaderMediaGridTextLimitMaximum = ReaderDisplayPreferences.MediaGridTextLimitMaximum;
+        /// <summary>Posts before and after the visible ones whose previews the reader decodes ahead; 0 turns preloading off.</summary>
+        public int ReaderPreviewPrefetchPosts { get; set; } = ReaderPreviewPrefetchPostsDefault;
+        internal const int ReaderPreviewPrefetchPostsDefault = ReaderPreviewReservation.PrefetchPostsDefault;
+        internal const int ReaderPreviewPrefetchPostsMinimum = ReaderPreviewReservation.PrefetchPostsMinimum;
+        internal const int ReaderPreviewPrefetchPostsMaximum = ReaderPreviewReservation.PrefetchPostsMaximum;
+        /// <summary>Preview sizes the reader remembers for this session, so posts are reserved at their final size at once.</summary>
+        public int ReaderPreviewSizeMemory { get; set; } = ReaderPreviewSizeMemoryDefault;
+        internal const int ReaderPreviewSizeMemoryDefault = ReaderPreviewReservation.SizeMemoryDefault;
+        internal const int ReaderPreviewSizeMemoryMinimum = ReaderPreviewReservation.SizeMemoryMinimum;
+        internal const int ReaderPreviewSizeMemoryMaximum = ReaderPreviewReservation.SizeMemoryMaximum;
         public int GalleryFitMaxUpscalePercent { get; set; } = GalleryFitMaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
@@ -848,6 +858,8 @@ namespace MeowChan
             ReaderInlineVideoMaxFileMiB = Math.Clamp(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBMinimum, ReaderInlineVideoMaxFileMiBMaximum);
             ReaderMediaStripLimit = Math.Clamp(ReaderMediaStripLimit, ReaderMediaStripLimitMinimum, ReaderMediaStripLimitMaximum);
             ReaderMediaGridTextLimit = Math.Clamp(ReaderMediaGridTextLimit, ReaderMediaGridTextLimitMinimum, ReaderMediaGridTextLimitMaximum);
+            ReaderPreviewPrefetchPosts = Math.Clamp(ReaderPreviewPrefetchPosts, ReaderPreviewPrefetchPostsMinimum, ReaderPreviewPrefetchPostsMaximum);
+            ReaderPreviewSizeMemory = Math.Clamp(ReaderPreviewSizeMemory, ReaderPreviewSizeMemoryMinimum, ReaderPreviewSizeMemoryMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
             GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
@@ -1510,6 +1522,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaStripLimit), "ReaderMediaStripLimit is outside its supported range.");
             if (ReaderMediaGridTextLimit is < ReaderMediaGridTextLimitMinimum or > ReaderMediaGridTextLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaGridTextLimit), "ReaderMediaGridTextLimit is outside its supported range.");
+            if (ReaderPreviewPrefetchPosts is < ReaderPreviewPrefetchPostsMinimum or > ReaderPreviewPrefetchPostsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewPrefetchPosts), "ReaderPreviewPrefetchPosts is outside its supported range.");
+            if (ReaderPreviewSizeMemory is < ReaderPreviewSizeMemoryMinimum or > ReaderPreviewSizeMemoryMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ReaderPreviewSizeMemory), "ReaderPreviewSizeMemory is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
             if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
@@ -1733,6 +1749,8 @@ namespace MeowChan
                 ReaderMediaStripLimit = ReaderMediaStripLimit,
                 ReaderMediaGrid = ReaderMediaGrid,
                 ReaderMediaGridTextLimit = ReaderMediaGridTextLimit,
+                ReaderPreviewPrefetchPosts = ReaderPreviewPrefetchPosts,
+                ReaderPreviewSizeMemory = ReaderPreviewSizeMemory,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
                 GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
@@ -1974,6 +1992,8 @@ namespace MeowChan
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
             ReaderMediaGrid = source.ReaderMediaGrid;
             ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
+            ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
+            ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
@@ -2183,6 +2203,8 @@ namespace MeowChan
             ReaderMediaStripLimit = source.ReaderMediaStripLimit;
             ReaderMediaGrid = source.ReaderMediaGrid;
             ReaderMediaGridTextLimit = source.ReaderMediaGridTextLimit;
+            ReaderPreviewPrefetchPosts = source.ReaderPreviewPrefetchPosts;
+            ReaderPreviewSizeMemory = source.ReaderPreviewSizeMemory;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
             GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
