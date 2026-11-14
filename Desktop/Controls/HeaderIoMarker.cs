@@ -36,7 +36,7 @@ public sealed class HeaderIoMarker : Control
 
     private const double VectorWidth = DefaultWidth;
     private const double VectorHeight = DefaultHeight;
-    private const double StrokeThickness = 1.25;
+    private const double StrokeThickness = 1.5;
 
     private static readonly HeaderIoMarkerPath[] NetworkBody =
     [

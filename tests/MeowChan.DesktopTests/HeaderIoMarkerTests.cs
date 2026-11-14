@@ -68,8 +68,8 @@ public sealed class HeaderIoMarkerTests
         Assert.NotEqual(Describe(down.Arrow), Describe(up.Arrow));
         Assert.Equal(22, down.Arrow[0].Points[0].X);
         Assert.Equal(22, up.Arrow[0].Points[0].X);
-        Assert.True(down.Arrow.SelectMany(path => path.Points).Max(point => point.Y) > up.Arrow.SelectMany(path => path.Points).Max(point => point.Y));
-        Assert.True(up.Arrow.SelectMany(path => path.Points).Min(point => point.Y) < down.Arrow.SelectMany(path => path.Points).Min(point => point.Y));
+        Assert.True(down.Arrow[1].Points[1].Y > down.Arrow[0].Points[0].Y);
+        Assert.True(up.Arrow[1].Points[1].Y < up.Arrow[0].Points[0].Y);
 
         // The network body has three bounded nodes and two links, not a disk outline.
         Assert.Equal(3, down.Body.Count(path => path.Closed));
@@ -86,8 +86,8 @@ public sealed class HeaderIoMarkerTests
         Assert.NotEqual(Describe(read.Arrow), Describe(write.Arrow));
         Assert.Equal(4, read.Body.Count);
         Assert.Equal(2, read.Body.Count(path => path.Closed));
-        Assert.True(read.Arrow.SelectMany(path => path.Points).Max(point => point.X) > write.Arrow.SelectMany(path => path.Points).Max(point => point.X));
-        Assert.True(write.Arrow.SelectMany(path => path.Points).Min(point => point.X) < read.Arrow.SelectMany(path => path.Points).Min(point => point.X));
+        Assert.True(read.Arrow[1].Points[1].X > read.Arrow[0].Points[0].X);
+        Assert.True(write.Arrow[1].Points[1].X < write.Arrow[0].Points[0].X);
 
         // The cylinder and the node graph remain visibly different even when both use the same Stroke brush.
         Assert.NotEqual(Describe(read.Body), Describe(HeaderIoMarker.VectorFor(HeaderIoDirection.NetworkDown).Body));
