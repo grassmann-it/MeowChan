@@ -165,7 +165,7 @@
                                                 <MenuItem Header="{Binding GalleryLabel}" Click="OnThreadGalleryMenu" />
                                                 <MenuItem Header="{Binding ReadLabel}" Click="OnThreadReadMenu" />
                                                 <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" Click="OnThreadExportMenu" />
-                                                <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnArchiveSelectionDetails" />
+                                                <MenuItem Tag="action.showDetails" Classes="localized" Header="Show details" Click="OnArchiveSelectionDetails" />
                                                 <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
                                                 <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnArchiveRetrySelection" />
                                                 <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" CommandParameter="rules" Click="OnArchiveLeadAction" />
@@ -217,7 +217,7 @@
                                 <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" Click="OnThreadReadMenu" />
                                 <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection…" Click="OnThreadExportMenu" />
                                 <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" Click="OnArchiveCopySelection" />
-                                <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnArchiveSelectionDetails" />
+                                <MenuItem Tag="action.showDetails" Classes="localized" Header="Show details" Click="OnArchiveSelectionDetails" />
                                 <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
                                 <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnArchiveRetrySelection" />
                                 <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" CommandParameter="rules" Click="OnArchiveLeadAction" />

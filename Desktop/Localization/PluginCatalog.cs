@@ -197,7 +197,7 @@ internal static class PluginCatalog
         ("plugins.settingsReviewRequired", "Review required", "Prüfung erforderlich"),
         ("plugins.actions", "Actions", "Aktionen"),
         ("plugins.actionsFor", "Actions for {0}", "Aktionen für {0}"),
-        ("plugins.details", "Open details", "Details öffnen"),
+        ("plugins.details", "Show details", "Details anzeigen"),
         ("plugins.showSettings", "Open settings", "Einstellungen öffnen"),
         ("plugins.showGrants", "View permissions", "Zugriffsrechte ansehen"),
         ("plugins.showDeveloperTools", "Show developer details", "Entwicklerdetails anzeigen"),

@@ -376,6 +376,8 @@
     "admission.showInList": "Pokaż na liście",
     "admission.showInListHidden": "Ten wpis jest ukryty przez bieżące wyszukiwanie. Wyczyść wyszukiwanie, aby go pokazać.",
     "admission.results": "Wyniki importu",
+    "admission.problemsOnly": "Tylko problemy ({0})",
+    "admission.putBack": "Przywróć odrzucone do pola",
     "admission.empty": "Nie znaleziono adresów URL w danych wejściowych.",
     "admission.sessionBusy": "Nie można teraz dodać adresów URL, ponieważ sesja jest jeszcze zajęta. Spróbuj ponownie za chwilę.",
     "about.title": "O MeowChan",

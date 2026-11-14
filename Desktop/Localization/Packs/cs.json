@@ -376,6 +376,8 @@
     "admission.showInList": "Zobrazit v seznamu",
     "admission.showInListHidden": "Tato položka je skryta aktuálním hledáním. Vymažte hledání, aby se zobrazila.",
     "admission.results": "Výsledky importu",
+    "admission.problemsOnly": "Pouze problémy ({0})",
+    "admission.putBack": "Vrátit odmítnuté do pole",
     "admission.empty": "V zadání nebyly nalezeny žádné adresy URL.",
     "admission.sessionBusy": "Adresy URL teď nelze přidat, protože relace je ještě zaneprázdněná. Zkuste to za chvíli znovu.",
     "about.title": "O aplikaci MeowChan",

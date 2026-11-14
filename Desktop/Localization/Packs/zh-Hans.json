@@ -571,6 +571,8 @@
     "admission.showInList": "在列表中显示",
     "admission.showInListHidden": "此条目被当前搜索隐藏。清除搜索即可显示。",
     "admission.results": "导入结果",
+    "admission.problemsOnly": "仅显示问题（{0}）",
+    "admission.putBack": "将被拒绝的放回输入框",
     "admission.empty": "输入中未找到 URL。",
     "admission.sessionBusy": "会话仍在忙碌，暂时无法添加 URL。请稍后再试。",
     "about.title": "关于 MeowChan",

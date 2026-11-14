@@ -662,7 +662,7 @@ internal static class Program
             await WaitUntilAsync(() => VisibleText(window, "Request cooldown (12 s)"));
             await PresentationChecks.CheckBoardDetailsAsync(mainWindow, boardRow);
             await synthetic.UpdateAsync(board);
-            await WaitUntilAsync(() => VisibleText(window, "Monitoring"));
+            await WaitUntilAsync(() => VisibleText(window, "Watching"));
             Console.WriteLine("SMOKE board binding and request cooldown rendered.");
 
             string finalTitle = threadRow.Title;
