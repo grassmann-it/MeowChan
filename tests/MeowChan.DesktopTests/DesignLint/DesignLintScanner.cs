@@ -41,6 +41,12 @@ internal static class DesignRules
 /// <summary>A documented, permanent exception (not a debt): the violation is allowed because the design spec names it.</summary>
 internal sealed record DesignException(string Rule, string File, string SnippetContains, string Reason);
 
+/// <summary>A documented layout contract that the general rules would flag: one exact statement inside one exactly
+/// declared method of one file. Unlike <see cref="DesignException"/> it is never file-wide: it only matches when the method
+/// signature is as declared and the whole source line is <c>Statement</c>, and it consumes at most one violation
+/// per contract, so a second or changed statement stays reported.</summary>
+internal sealed record DesignLayoutContract(string Rule, string File, string Signature, string Statement, string Snippet, string Reason);
+
 /// <summary>
 /// Text-level lint of Desktop/**/*.axaml and Desktop/**/*.cs against the design system (UX-DESIGNSYSTEM-2026-11-13 P9).
 /// Needs no Avalonia application: it reads the sources, strips comments and runs regular expressions (XAML: XDocument for the
@@ -71,6 +77,23 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/ReaderBodyTextBlock.cs", "Colors.Black", "Opacity-mask gradient, not a visible colour."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
+    };
+
+    /// <summary>Signature of the header I/O word-matrix arrangement. The receivers named in the statements below are its parameters.</summary>
+    private const string HeaderIoArrangeSignature =
+        "internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue, TextBlock secondWord, TextBlock secondValue, bool stacked)";
+
+    /// <summary>Header I/O word matrix (explicit user spec, never 8): column gap 6 between a word and its value, row gap 2 between the
+    /// stacked pairs, and a left margin of 6 on the second word that adds up to twelve between pairs. Only these statements
+    /// of this method are covered; <c>RowSpacing = 2</c> is on the grid and is pinned by a test instead.</summary>
+    public static readonly DesignLayoutContract[] LayoutContracts =
+    {
+        new(DesignRules.SpacingOffGrid, "Desktop/Shell/MainWindow.Transfer.cs", HeaderIoArrangeSignature,
+            "grid.ColumnSpacing = 6;", "ColumnSpacing=6",
+            "Header I/O word matrix: the gap between a word and its value is six (user spec; never eight)."),
+        new(DesignRules.SpacingOffGrid, "Desktop/Shell/MainWindow.Transfer.cs", HeaderIoArrangeSignature,
+            "secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);", "Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)",
+            "Header I/O word matrix: six from ColumnSpacing plus six from this margin make twelve between pairs (user spec)."),
     };
 
     private static readonly Regex FontSizeXaml = new(
@@ -167,7 +190,11 @@ internal static class DesignLintScanner
         }
     }
 
-    public static IReadOnlyList<DesignViolation> ScanFile(string relativePath, string content, double[]? typeScale = null)
+    public static IReadOnlyList<DesignViolation> ScanFile(string relativePath, string content, double[]? typeScale = null) =>
+        ScanFileWith(relativePath, content, typeScale, LayoutContracts);
+
+    /// <summary>The scan with an explicit contract list; an empty list shows every violation the contracts would cover.</summary>
+    internal static IReadOnlyList<DesignViolation> ScanFileWith(string relativePath, string content, double[]? typeScale, IReadOnlyList<DesignLayoutContract> contracts)
     {
         if (relativePath == StylesFile) return Array.Empty<DesignViolation>();
         typeScale ??= FallbackTypeScale;
@@ -184,7 +211,55 @@ internal static class DesignLintScanner
         if (xaml) ScanPageInset(relativePath, text, found);
         else if (CodePageFiles.Contains(relativePath, StringComparer.Ordinal)) ScanCodePageInset(relativePath, text, found);
 
+        if (!xaml) ApplyLayoutContracts(relativePath, text, lines, found, contracts);
+
         return found.Where(v => !IsException(v)).OrderBy(v => v.Line).ToList();
+    }
+
+    /// <summary>Removes the violations covered by a layout contract: inside the one method with the declared signature, on a line
+    /// that is exactly the declared statement; at most one violation per contract.</summary>
+    private static void ApplyLayoutContracts(string file, string text, LineIndex lines, List<DesignViolation> found, IReadOnlyList<DesignLayoutContract> contracts)
+    {
+        foreach (DesignLayoutContract contract in contracts.Where(c => string.Equals(c.File, file, StringComparison.Ordinal)))
+        {
+            if (!TryFindContractBody(text, contract, out int bodyStart, out int bodyEnd)) continue;
+            int first = lines.LineOf(bodyStart);
+            int last = lines.LineOf(bodyEnd);
+            int index = found.FindIndex(v => v.Rule == contract.Rule && v.Snippet == contract.Snippet && v.Line >= first && v.Line <= last
+                && string.Equals(lines.LineText(text, v.Line).Trim(), contract.Statement, StringComparison.Ordinal));
+            if (index >= 0) found.RemoveAt(index);
+        }
+    }
+
+    /// <summary>Finds the body of the contract's method in comment-stripped C# text. Fails closed: no match, more than one
+    /// match, or unbalanced braces mean no body, so nothing is covered.</summary>
+    internal static bool TryFindContractBody(string strippedText, DesignLayoutContract contract, out int bodyStart, out int bodyEnd)
+    {
+        bodyStart = bodyEnd = 0;
+        string pattern = @"(?<![\w.])" + Regex.Escape(contract.Signature).Replace(@"\ ", @"\s+") + @"\s*\{";
+        MatchCollection matches = Regex.Matches(strippedText, pattern, RegexOptions.CultureInvariant);
+        if (matches.Count != 1) return false;
+        int open = matches[0].Index + matches[0].Length - 1;
+        int depth = 0;
+        for (int i = open; i < strippedText.Length; i++)
+        {
+            char c = strippedText[i];
+            if (c == '"' || c == '\'')
+            {
+                int j = i + 1;
+                while (j < strippedText.Length && strippedText[j] != c && strippedText[j] != '\n') j += strippedText[j] == '\\' ? 2 : 1;
+                i = j;
+                continue;
+            }
+            if (c == '{') depth++;
+            else if (c == '}' && --depth == 0)
+            {
+                bodyStart = open + 1;
+                bodyEnd = i;
+                return true;
+            }
+        }
+        return false;
     }
 
     private static bool IsException(DesignViolation v) =>
@@ -566,6 +641,13 @@ internal static class DesignLintScanner
         {
             for (int i = 0; i < text.Length; i++)
                 if (text[i] == '\n') _starts.Add(i + 1);
+        }
+
+        public string LineText(string text, int line)
+        {
+            int start = _starts[line - 1];
+            int end = line < _starts.Count ? _starts[line] : text.Length;
+            return text.Substring(start, end - start);
         }
 
         public int LineOf(int offset)

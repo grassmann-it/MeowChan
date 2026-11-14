@@ -348,3 +348,8 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).
 - `color-code` in `Desktop/ReaderBodyTextBlock.cs` (Colors.Black): Opacity-mask gradient, not a visible colour.
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
+
+## Layout contracts (documented, not debt)
+
+- `spacing-off-grid` in `Desktop/Shell/MainWindow.Transfer.cs`, only the statement `grid.ColumnSpacing = 6;` in `internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue, TextBlock secondWord, TextBlock secondValue, bool stacked)`: Header I/O word matrix: the gap between a word and its value is six (user spec; never eight).
+- `spacing-off-grid` in `Desktop/Shell/MainWindow.Transfer.cs`, only the statement `secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);` in `internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue, TextBlock secondWord, TextBlock secondValue, bool stacked)`: Header I/O word matrix: six from ColumnSpacing plus six from this margin make twelve between pairs (user spec).

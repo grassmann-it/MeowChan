@@ -84,6 +84,49 @@ public sealed class DesignLintTests
         }
     }
 
+    [Fact]
+    public void LayoutContractsHaveReasonsAndStillMatchTheSource()
+    {
+        foreach (DesignLayoutContract c in DesignLintScanner.LayoutContracts)
+        {
+            Assert.False(string.IsNullOrWhiteSpace(c.Reason));
+            string path = Path.Combine(RepositoryRoot(), c.File);
+            Assert.True(File.Exists(path), c.File + " no longer exists; drop the contract.");
+            string content = File.ReadAllText(path);
+            // Without the contracts the general rule finds the statement; with them it is covered, nothing else is.
+            Assert.Contains(DesignLintScanner.ScanFileWith(c.File, content, null, Array.Empty<DesignLayoutContract>()),
+                v => v.Rule == c.Rule && v.Snippet == c.Snippet);
+            Assert.DoesNotContain(DesignLintScanner.ScanFile(c.File, content), v => v.Rule == c.Rule && v.Snippet == c.Snippet);
+            Assert.NotNull(HeaderIoBody(content));
+        }
+    }
+
+    [Fact]
+    public void HeaderIoSpacingStaysSixAndTwo()
+    {
+        // The header I/O column gap six and row gap two are the user's explicit spec: never eight. RowSpacing = 2 is on the
+        // grid and the scanner cannot flag a change to 8, so the exact assigned values are pinned here.
+        string content = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Shell/MainWindow.Transfer.cs"));
+        Assert.Equal(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(content));
+        Assert.NotEqual(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource.Replace("RowSpacing = 2;", "RowSpacing = 8;", StringComparison.Ordinal)));
+        Assert.NotEqual(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource.Replace("ColumnSpacing = 6;", "ColumnSpacing = 8;", StringComparison.Ordinal)));
+        Assert.Equal(new[] { "ColumnSpacing=6", "RowSpacing=2" }, HeaderIoSpacingAssignments(HeaderIoSource));
+    }
+
+    private static string? HeaderIoBody(string content)
+    {
+        string stripped = DesignLintScanner.StripCodeComments(content);
+        return DesignLintScanner.TryFindContractBody(stripped, DesignLintScanner.LayoutContracts[0], out int start, out int end) ? stripped[start..end] : null;
+    }
+
+    private static string[] HeaderIoSpacingAssignments(string content)
+    {
+        string? body = HeaderIoBody(content);
+        Assert.NotNull(body);
+        return System.Text.RegularExpressions.Regex.Matches(body!, @"\b(?<n>(?:Column|Row)Spacing)\s*=\s*(?<v>[^;]+);")
+            .Select(m => m.Groups["n"].Value + "=" + m.Groups["v"].Value.Trim()).ToArray();
+    }
+
     // ---- the scanner itself, on synthetic sources --------------------------------------------------------------------
 
     private static string[] Run(string file, string content)
@@ -128,6 +171,65 @@ public sealed class DesignLintTests
         string[] hidden = Run("Desktop/X.cs",
             "b.Padding = new Avalonia.Thickness(6, 2); b.Margin = new(0, 14, 0, 0); b.Padding = new(8, 4); Thickness t = new(5); var u = new Avalonia.Thickness(4); x.BorderThickness = new(0, 1, 0, 0);");
         Assert.Equal(new[] { "spacing-off-grid|Padding=new Thickness(6, 2)", "spacing-off-grid|Margin=new Thickness(0, 14, 0, 0)", "spacing-off-grid|new Thickness(5)" }, hidden);
+    }
+
+    private const string TransferFile = "Desktop/Shell/MainWindow.Transfer.cs";
+
+    /// <summary>The header I/O arrangement as in MainWindow.Transfer.cs, reduced to what the lint sees.</summary>
+    private const string HeaderIoSource = @"
+partial class MainWindow
+{
+    internal static void ArrangeHeaderRates(Grid grid, TextBlock firstWord, TextBlock firstValue,
+        TextBlock secondWord, TextBlock secondValue, bool stacked)
+    {
+        grid.ColumnDefinitions = new ColumnDefinitions(stacked ? ""Auto,Auto"" : ""Auto,Auto,Auto,Auto"");
+        grid.ColumnSpacing = 6;
+        grid.RowSpacing = 2;
+        // Six from ColumnSpacing + six from this margin = twelve between pairs.
+        secondWord.Margin = new Thickness(stacked ? 0 : 6, 0, 0, 0);
+    }
+}";
+
+    [Fact]
+    public void HeaderIoLayoutContractCoversOnlyTheNamedStatements()
+    {
+        // Positive: exactly the two statements of exactly that method in exactly that file are covered.
+        Assert.Empty(Run(TransferFile, HeaderIoSource));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6", "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)" },
+            DesignLintScanner.ScanFileWith(TransferFile, HeaderIoSource, null, Array.Empty<DesignLayoutContract>()).Select(v => v.Rule + "|" + v.Snippet).ToArray());
+
+        // Negative: the same code elsewhere is not covered; the contract is never file- or folder-wide.
+        Assert.Equal(2, Run("Desktop/Shell/MainWindow.Other.cs", HeaderIoSource).Length);
+        Assert.Equal(2, Run("Desktop/Views/Statistics/Transfer.cs", HeaderIoSource).Length);
+
+        // Negative: other statements, values and receivers inside the method are still checked.
+        string[] sixToTen = Run(TransferFile, HeaderIoSource.Replace("ColumnSpacing = 6;", "ColumnSpacing = 10;", StringComparison.Ordinal));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=10" }, sixToTen);
+        string[] marginFive = Run(TransferFile, HeaderIoSource.Replace("stacked ? 0 : 6", "stacked ? 0 : 5", StringComparison.Ordinal));
+        Assert.Equal(new[] { "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 5, 0, 0, 0)" }, marginFive);
+        string[] rowFive = Run(TransferFile, HeaderIoSource.Replace("RowSpacing = 2;", "RowSpacing = 5;", StringComparison.Ordinal));
+        Assert.Equal(new[] { "spacing-off-grid|RowSpacing=5" }, rowFive);
+        string[] otherReceiver = Run(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "other.ColumnSpacing = 6;", StringComparison.Ordinal));
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, otherReceiver);
+        string[] otherMargin = Run(TransferFile, HeaderIoSource.Replace("secondWord.Margin", "firstWord.Margin", StringComparison.Ordinal));
+        Assert.Equal(new[] { "spacing-off-grid|Margin=new Thickness(stacked ? 0 : 6, 0, 0, 0)" }, otherMargin);
+
+        // Negative: a repeated statement is covered once, the repeat is reported.
+        string twice = HeaderIoSource.Replace("grid.RowSpacing = 2;", "grid.RowSpacing = 2;\n        grid.ColumnSpacing = 6;", StringComparison.Ordinal);
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, twice));
+
+        // Negative: the same statements in another method of the file, or a changed signature, are not covered.
+        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("ArrangeHeaderRates", "ArrangeSomethingElse", StringComparison.Ordinal)).Length);
+        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("bool stacked)", "bool stacked, bool extra)", StringComparison.Ordinal)).Length);
+        Assert.Equal(2, Run(TransferFile, HeaderIoSource.Replace("Grid grid", "StackPanel grid", StringComparison.Ordinal)).Length);
+        string beforeAndAfter = HeaderIoSource + "\nclass Later { void M(Grid grid) { grid.ColumnSpacing = 6; } }";
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, beforeAndAfter));
+
+        // Negative: a definition that exists twice is ambiguous and covers nothing.
+        Assert.Equal(4, Run(TransferFile, HeaderIoSource + HeaderIoSource).Length);
+
+        // Negative: a trailing statement on the same line is not the declared statement.
+        Assert.Equal(new[] { "spacing-off-grid|ColumnSpacing=6" }, Run(TransferFile, HeaderIoSource.Replace("grid.ColumnSpacing = 6;", "grid.ColumnSpacing = 6; x = 1;", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -282,6 +384,9 @@ public sealed class DesignLintTests
         sb.Append("\n## Permanent exceptions (documented, not debt)\n\n");
         foreach (DesignException e in DesignLintScanner.Exceptions)
             sb.Append($"- `{e.Rule}` in `{e.File}` ({e.SnippetContains}): {e.Reason}\n");
+        sb.Append("\n## Layout contracts (documented, not debt)\n\n");
+        foreach (DesignLayoutContract c in DesignLintScanner.LayoutContracts)
+            sb.Append($"- `{c.Rule}` in `{c.File}`, only the statement `{c.Statement}` in `{c.Signature}`: {c.Reason}\n");
         return sb.ToString();
     }
 }
