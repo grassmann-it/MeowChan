@@ -13,6 +13,6 @@ internal static class BooruCrossLinksCatalog
         ("booru.ui.watcher.showInMediaFor", "Show saved post #{0} from watcher “{1}” in Media", "Gespeicherten Post #{0} aus der Suchbeobachtung „{1}“ in Medien zeigen"),
         ("booru.crossLinks.missingLocal", "The saved original for post #{0} is no longer available in the local media library.", "Das gespeicherte Original von Post #{0} ist in der lokalen Medienbibliothek nicht mehr verfügbar."),
         ("media.toolbar.booru", "Open Booru", "Booru öffnen"),
-        ("media.toolbar.booruTip", "Open the Danbooru workbench without changing the media library or sending a request.", "Das Danbooru-Arbeitsfenster öffnen, ohne die Medienbibliothek zu ändern oder eine Anfrage zu senden."),
+        ("media.toolbar.booruTip", "Open Danbooru without changing the media library or sending a request.", "Danbooru öffnen, ohne die Medienbibliothek zu ändern oder eine Anfrage zu senden."),
     };
 }
