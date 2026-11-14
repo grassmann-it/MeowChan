@@ -179,6 +179,9 @@ public sealed class EffectiveShortcutBindings
         // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
         // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
         ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
+        // New in revision 9 (PT2): the list keys of the tagging page. They act only in its queue list (context "tagging") and
+        // yield to a saved binding of another command like every new default.
+        ["tagging.continue-here"] = 9, ["tagging.move-up"] = 9, ["tagging.move-down"] = 9, ["tagging.remove"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -272,6 +275,8 @@ public sealed class EffectiveShortcutBindings
             "tags.quick.previous" => Of("Primary+Up", "PageUp"),
             "tags.quick.mark-next" => Of("Primary+Shift+Down", "Shift+PageDown"),
             "tags.quick.mark-previous" => Of("Primary+Shift+Up", "Shift+PageUp"),
+            // The Apple delete key is Key.Back; forward Delete needs Fn and stays an extra (like watch.remove).
+            "tagging.remove" => Of("Primary+Back", "Delete"),
             _ => null
         };
     }
