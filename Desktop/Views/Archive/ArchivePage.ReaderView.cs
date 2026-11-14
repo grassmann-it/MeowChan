@@ -41,7 +41,7 @@ public partial class ArchivePage
     // Fixed menu order; options registered later (P2, P4) slot in here, unknown ones go last.
     private static readonly string[] ReaderViewOptionOrder =
         { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
-          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.post-filters" };
+          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.post-filters", "reader.quick-settings" };
 
     private ReaderPostProjection? _projection;
     private ReaderPostProjection? _announcedProjection;
@@ -87,6 +87,7 @@ public partial class ArchivePage
         RegisterPostClassifier(new ReaderMediaOnlyClassifier(_readerView));
         RegisterViewOption("reader.view.hide-media", () => _readerView.HideMedia, () => _readerView.HideMedia = !_readerView.HideMedia);
         RegisterViewOption("reader.view.media-only", () => _readerView.MediaOnly, () => _readerView.MediaOnly = !_readerView.MediaOnly);
+        RegisterViewOption("reader.quick-settings", null, OpenReaderQuickSettings);
         _readerView.Changed += (_, _) => RequestProjectionRebuild();
         // On the pane itself, so the shortcuts work in the embedded and in the detached reader.
         ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Bubble);

@@ -227,6 +227,8 @@ public static class CommandCatalog
         new("reader.view.focused-enlarge", "command.reader.view.focused-enlarge", "Enlarge focused post's media", "Medien des markierten Posts vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-view-menu" }),
         new("reader.view.hover-enlarge", "command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-view-menu" }),
         new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-view-menu" }),
+        // The reader's quick settings popover (R7): a plain item at the end of the View menu; a user shortcut opens it too.
+        new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "sliders", null, CommandScope.Reader, new[] { "reader-view-menu" }),
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),

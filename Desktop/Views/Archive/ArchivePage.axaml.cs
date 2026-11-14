@@ -1151,6 +1151,7 @@ public partial class ArchivePage : UserControl
         InvalidateFilenameSearch();
         CloseThreadFind();
         CloseQuotePreview();
+        CloseQuickSettings();
         _ended = true;
         _mediaMenuPresenter.Invalidate();
         EndMediaSelectionLifetime();
