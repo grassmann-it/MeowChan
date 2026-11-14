@@ -65,7 +65,7 @@ internal static class R08dViewerCatalog
         ("viewer.favorites.all", "All favorites", "Alle Favoriten"),
         ("viewer.favorites.search", "Filter favorites…", "Favoriten filtern…"),
         ("viewer.favorites.searchApplied", "Search results", "Suchergebnisse"),
-        ("viewer.favorites.count", "{0} favorites in scope · {1} shown", "{0} Favoriten im Umfang · {1} angezeigt"),
+        ("viewer.favorites.count", "Favorites in scope: {0} · shown: {1}", "Favoriten im Umfang: {0} · angezeigt: {1}"),
         ("viewer.favorites.loading", "Checking saved originals…", "Gespeicherte Originale werden geprüft…"),
         ("viewer.favorites.missing", "Original unavailable", "Original nicht verfügbar"),
         ("viewer.favorites.unavailable", "{0} originals are currently unavailable.", "{0} Originale sind derzeit nicht verfügbar."),
