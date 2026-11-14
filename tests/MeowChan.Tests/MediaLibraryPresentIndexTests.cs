@@ -109,12 +109,14 @@ public sealed class MediaLibraryPresentIndexTests(ITestOutputHelper output)
         from sort in Enum.GetValues<MediaLibrarySort>()
         from direction in Enum.GetValues<MediaLibrarySortDirection>()
         from includeMissing in new[] { false, true }
-        select new object[] { sort, direction, includeMissing };
+        select new object[] { (int)sort, (int)direction, includeMissing };
 
     [Theory]
     [MemberData(nameof(SortsDirectionsAndMissing))]
-    public void EverySortInEveryDirectionGivesTheTilesOfTheGeneralPath(MediaLibrarySort sort, MediaLibrarySortDirection direction, bool includeMissing)
+    public void EverySortInEveryDirectionGivesTheTilesOfTheGeneralPath(int sortValue, int directionValue, bool includeMissing)
     {
+        MediaLibrarySort sort = (MediaLibrarySort)sortValue;
+        MediaLibrarySortDirection direction = (MediaLibrarySortDirection)directionValue;
         MediaLibraryEntry[] all = Library(40, 12, seed: 4);
         MediaLibraryPresentIndex index = new(all);
         MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, UserData(all));
@@ -138,13 +140,14 @@ public sealed class MediaLibraryPresentIndexTests(ITestOutputHelper output)
     }
 
     [Theory]
-    [InlineData(MediaLibrarySort.Name)]
-    [InlineData(MediaLibrarySort.Size)]
-    [InlineData(MediaLibrarySort.References)]
-    [InlineData(MediaLibrarySort.TagCount)]
-    [InlineData(MediaLibrarySort.Rating)]
-    public void AReversedDirectionIsTheMirrorOfTheKeyedTilesAndKeepsTheUnkeyedOnesLast(MediaLibrarySort sort)
+    [InlineData((int)MediaLibrarySort.Name)]
+    [InlineData((int)MediaLibrarySort.Size)]
+    [InlineData((int)MediaLibrarySort.References)]
+    [InlineData((int)MediaLibrarySort.TagCount)]
+    [InlineData((int)MediaLibrarySort.Rating)]
+    public void AReversedDirectionIsTheMirrorOfTheKeyedTilesAndKeepsTheUnkeyedOnesLast(int sortValue)
     {
+        MediaLibrarySort sort = (MediaLibrarySort)sortValue;
         MediaLibraryEntry[] all = Library(40, 12, seed: 8);
         MediaLibraryPresentIndex index = new(all);
         MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, UserData(all));

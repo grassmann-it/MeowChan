@@ -107,7 +107,7 @@ public sealed class MediaLibrarySortDeterminismTests
         from sort in Enum.GetValues<MediaLibrarySort>()
         from direction in Enum.GetValues<MediaLibrarySortDirection>()
         from includeMissing in new[] { false, true }
-        select new object[] { sort, direction, includeMissing };
+        select new object[] { (int)sort, (int)direction, includeMissing };
 
     [Fact]
     public void TheFixtureHasATotalByThreadAndNewestOrderAndManyEqualSortKeys()
@@ -123,8 +123,10 @@ public sealed class MediaLibrarySortDeterminismTests
 
     [Theory]
     [MemberData(nameof(SortsDirectionsAndMissing))]
-    public void AnyOrderOfPassingGivesTheSameTilesOnBothPathsWhenTheKeysAreATotalOrder(MediaLibrarySort sort, MediaLibrarySortDirection direction, bool includeMissing)
+    public void AnyOrderOfPassingGivesTheSameTilesOnBothPathsWhenTheKeysAreATotalOrder(int sortValue, int directionValue, bool includeMissing)
     {
+        MediaLibrarySort sort = (MediaLibrarySort)sortValue;
+        MediaLibrarySortDirection direction = (MediaLibrarySortDirection)directionValue;
         MediaLibraryEntry[] all = TiedLibrary();
         MediaLibraryPresentIndex index = new(all);
         MediaLibraryUserOrder userOrder = MediaLibraryUserOrder.Of(all, StateA(all));
@@ -149,8 +151,10 @@ public sealed class MediaLibrarySortDeterminismTests
 
     [Theory]
     [MemberData(nameof(SortsDirectionsAndMissing))]
-    public void NoSortAndNoDirectionAddsOrLosesATileForAnyLibraryShape(MediaLibrarySort sort, MediaLibrarySortDirection direction, bool includeMissing)
+    public void NoSortAndNoDirectionAddsOrLosesATileForAnyLibraryShape(int sortValue, int directionValue, bool includeMissing)
     {
+        MediaLibrarySort sort = (MediaLibrarySort)sortValue;
+        MediaLibrarySortDirection direction = (MediaLibrarySortDirection)directionValue;
         MediaLibraryEntry[] tied = TiedLibrary();
         MediaLibraryEntry[] allMissing = tied.Select(entry => entry with
             { Presence = MediaLibraryPresence.Missing, Directory = null, AssetId = null, Sha256 = null, Length = null }).ToArray();
