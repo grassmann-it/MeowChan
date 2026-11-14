@@ -542,6 +542,15 @@
                     <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" />
                     <Button x:Name="ResetWorkerBudgetsButton" Tag="settings.worker-budgets" Classes="ghost" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetWorkerBudgetsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
                     <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <StackPanel x:Name="ProfileFolderRow" Classes="workspace-field" Spacing="4">
+                        <TextBlock x:Name="ProfileFolderFieldLabel" Text="{Binding ProfileFolderLabel}" Classes="workspace-field-label" />
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <SelectableTextBlock x:Name="ProfileFolderPathText" Text="{Binding ProfileFolderPath}" TextWrapping="Wrap" VerticalAlignment="Center" AutomationProperties.LabeledBy="{Binding ElementName=ProfileFolderFieldLabel}" AutomationProperties.Name="{Binding ProfileFolderLabel}" />
+                            <Button x:Name="ProfileFolderOpenButton" Grid.Column="1" Content="{Binding ProfileFolderOpenLabel}" AutomationProperties.Name="{Binding ProfileFolderOpenLabel}" Click="OnOpenProfileFolderClick" />
+                        </Grid>
+                        <TextBlock Text="{Binding ProfileFolderHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ProfileFolderOpenError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                    </StackPanel>
                     <Grid Classes="settings-row" wv:WorkViewElement.Id="settings.safety.reserve" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ReserveFieldLabel" Text="{Binding ReserveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
@@ -649,6 +658,14 @@
                             </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ReaderGroupLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="ProfileRegistryLimitFieldLabel" Text="{Binding ProfileRegistryLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="ProfileRegistryLimitInput" Value="{Binding ProfileRegistryLimit, Mode=TwoWay}" Minimum="1" Maximum="256" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ProfileRegistryLimitFieldLabel}" AutomationProperties.Name="{Binding ProfileRegistryLimitLabel}" AutomationProperties.HelpText="{Binding ProfileRegistryLimitHelp}" />
+                                <TextBlock x:Name="ProfileRegistryLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding ProfileRegistryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="SourcesWatchPreviewRowsFieldLabel" Text="{Binding SourcesWatchPreviewRowsLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
                         <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">

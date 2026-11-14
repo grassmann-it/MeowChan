@@ -140,6 +140,7 @@ namespace MeowChan
         private decimal? _postBookmarkLimit;
         private decimal? _savedSearchLimit;
         private decimal? _readerGroupLimit;
+        private decimal? _profileRegistryLimit;
         private decimal? _sourcesWatchPreviewRows;
         private decimal? _exportConfirmFiles;
         private decimal? _exportConfirmGiB;
@@ -263,6 +264,7 @@ namespace MeowChan
             PostBookmarkLimit = config.PostBookmarkLimit;
             SavedSearchLimit = config.SavedSearchLimit;
             ReaderGroupLimit = config.ReaderGroupLimit;
+            ProfileRegistryLimit = config.ProfileRegistryLimit;
             SourcesWatchPreviewRows = config.SourcesWatchPreviewRows;
             ExportConfirmFiles = config.ExportConfirmFiles;
             ExportConfirmGiB = config.ExportConfirmGiB;
@@ -316,6 +318,7 @@ namespace MeowChan
             ResetNumber(PostBookmarkLimitInput, PostBookmarkLimit!.Value);
             ResetNumber(SavedSearchLimitInput, SavedSearchLimit!.Value);
             ResetNumber(ReaderGroupLimitInput, ReaderGroupLimit!.Value);
+            ResetNumber(ProfileRegistryLimitInput, ProfileRegistryLimit!.Value);
             ResetNumber(SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows!.Value);
             ResetNumber(ExportConfirmFilesInput, ExportConfirmFiles!.Value);
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);
@@ -407,6 +410,14 @@ namespace MeowChan
         public string ReaderGroupLimitLabel => Texts.T("budgets.readerGroups");
         public string ReaderGroupLimitHint => Texts.T("budgets.readerGroupsHint");
         public decimal? ReaderGroupLimit { get => _readerGroupLimit; set => SetField(ref _readerGroupLimit, value, nameof(ReaderGroupLimit)); }
+        public string ProfileRegistryLimitLabel => Texts.T("budgets.profileRegistry");
+        public string ProfileRegistryLimitHint => Texts.T("budgets.profileRegistryHint");
+        public decimal? ProfileRegistryLimit { get => _profileRegistryLimit; set => SetField(ref _profileRegistryLimit, value, nameof(ProfileRegistryLimit)); }
+        // PR1: where this window's profile lives, read-only; other profiles open in their own window (⋯ › Profile).
+        public string ProfileFolderLabel => Texts.T("settings.profileFolder");
+        public string ProfileFolderHint => Texts.T("settings.profileFolderHint");
+        public string ProfileFolderOpenLabel => Texts.T("settings.profileFolderOpen");
+        public string ProfileFolderPath => _config.ProfileDirectory ?? string.Empty;
         public string SourcesWatchPreviewRowsLabel => Texts.T("budgets.sourcesWatchPreviewRows");
         public string SourcesWatchPreviewRowsHint => Texts.T("budgets.sourcesWatchPreviewRowsHint");
         public decimal? SourcesWatchPreviewRows { get => _sourcesWatchPreviewRows; set => SetField(ref _sourcesWatchPreviewRows, value, nameof(SourcesWatchPreviewRows)); }
@@ -863,6 +874,7 @@ namespace MeowChan
             PostBookmarkLimit = _config.PostBookmarkLimit;
             SavedSearchLimit = _config.SavedSearchLimit;
             ReaderGroupLimit = _config.ReaderGroupLimit;
+            ProfileRegistryLimit = _config.ProfileRegistryLimit;
             SourcesWatchPreviewRows = _config.SourcesWatchPreviewRows;
             ExportConfirmFiles = _config.ExportConfirmFiles;
             ExportConfirmGiB = _config.ExportConfirmGiB;
@@ -912,6 +924,7 @@ namespace MeowChan
             ResetNumber(PostBookmarkLimitInput, PostBookmarkLimit!.Value);
             ResetNumber(SavedSearchLimitInput, SavedSearchLimit!.Value);
             ResetNumber(ReaderGroupLimitInput, ReaderGroupLimit!.Value);
+            ResetNumber(ProfileRegistryLimitInput, ProfileRegistryLimit!.Value);
             ResetNumber(SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows!.Value);
             ResetNumber(ExportConfirmFilesInput, ExportConfirmFiles!.Value);
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);
@@ -1016,6 +1029,7 @@ namespace MeowChan
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
                     nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
+                    nameof(ProfileRegistryLimitLabel), nameof(ProfileRegistryLimitHint), nameof(ProfileRegistryLimitHelp), nameof(ProfileFolderLabel), nameof(ProfileFolderHint), nameof(ProfileFolderOpenLabel),
                     nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBLabel), nameof(AudioProbeCacheLimitMiBHint), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesLabel), nameof(AudioProbeCacheEntriesHint), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBLabel), nameof(GalleryImageCacheMiBHint), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadLabel), nameof(GalleryPreloadAheadHint), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindLabel), nameof(GalleryPreloadBehindHint), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
                     nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(ReaderPostWidthLabel), nameof(ReaderPostWidthHint), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
@@ -1295,6 +1309,7 @@ namespace MeowChan
                 candidate.PostBookmarkLimit = GetInteger(PostBookmarkLimit, PostBookmarkLimitLabel, Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum);
                 candidate.SavedSearchLimit = GetInteger(SavedSearchLimit, SavedSearchLimitLabel, Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum);
                 candidate.ReaderGroupLimit = GetInteger(ReaderGroupLimit, ReaderGroupLimitLabel, Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum);
+                candidate.ProfileRegistryLimit = GetInteger(ProfileRegistryLimit, ProfileRegistryLimitLabel, Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum);
                 candidate.SourcesWatchPreviewRows = GetInteger(SourcesWatchPreviewRows, SourcesWatchPreviewRowsLabel, Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum);
                 candidate.ExportConfirmFiles = GetInteger(ExportConfirmFiles, ExportConfirmFilesLabel, Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum);
                 candidate.ExportConfirmGiB = GetInteger(ExportConfirmGiB, ExportConfirmGiBLabel, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum);
@@ -1417,6 +1432,7 @@ namespace MeowChan
             PostBookmarkLimit = _config.PostBookmarkLimit;
             SavedSearchLimit = _config.SavedSearchLimit;
             ReaderGroupLimit = _config.ReaderGroupLimit;
+            ProfileRegistryLimit = _config.ProfileRegistryLimit;
             SourcesWatchPreviewRows = _config.SourcesWatchPreviewRows;
             ExportConfirmFiles = _config.ExportConfirmFiles;
             ExportConfirmGiB = _config.ExportConfirmGiB;
@@ -1466,6 +1482,7 @@ namespace MeowChan
             ResetNumber(PostBookmarkLimitInput, PostBookmarkLimit!.Value);
             ResetNumber(SavedSearchLimitInput, SavedSearchLimit!.Value);
             ResetNumber(ReaderGroupLimitInput, ReaderGroupLimit!.Value);
+            ResetNumber(ProfileRegistryLimitInput, ProfileRegistryLimit!.Value);
             ResetNumber(SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows!.Value);
             ResetNumber(ExportConfirmFilesInput, ExportConfirmFiles!.Value);
             ResetNumber(ExportConfirmGiBInput, ExportConfirmGiB!.Value);

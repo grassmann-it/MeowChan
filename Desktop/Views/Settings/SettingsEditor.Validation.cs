@@ -142,6 +142,7 @@ public partial class SettingsEditor
     public string PostBookmarkLimitHelp => FieldHelp(nameof(PostBookmarkLimitInput), Texts.T("settings.unitCount") + ". " + PostBookmarkLimitHint);
     public string SavedSearchLimitHelp => FieldHelp(nameof(SavedSearchLimitInput), Texts.T("settings.unitCount") + ". " + SavedSearchLimitHint);
     public string ReaderGroupLimitHelp => FieldHelp(nameof(ReaderGroupLimitInput), Texts.T("settings.unitCount") + ". " + ReaderGroupLimitHint);
+    public string ProfileRegistryLimitHelp => FieldHelp(nameof(ProfileRegistryLimitInput), Texts.T("settings.unitCount") + ". " + ProfileRegistryLimitHint);
     public string SourcesWatchPreviewRowsHelp => FieldHelp(nameof(SourcesWatchPreviewRowsInput), Texts.T("settings.unitCount") + ". " + SourcesWatchPreviewRowsHint);
     public string ExportConfirmFilesHelp => FieldHelp(nameof(ExportConfirmFilesInput), Texts.T("settings.unitCount") + ". " + ExportConfirmFilesHint);
     public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
@@ -172,6 +173,7 @@ public partial class SettingsEditor
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
             nameof(BooruRetryAfterCooldownHoursHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
+            nameof(ProfileRegistryLimitHelp),
             nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
@@ -232,6 +234,8 @@ public partial class SettingsEditor
             Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum, true);
         yield return (ReaderGroupLimitInput, ReaderGroupLimit, ReaderGroupLimitLabel, Texts.T("settings.unitCount"),
             Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum, true);
+        yield return (ProfileRegistryLimitInput, ProfileRegistryLimit, ProfileRegistryLimitLabel, Texts.T("settings.unitCount"),
+            Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum, true);
         yield return (SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows, SourcesWatchPreviewRowsLabel, Texts.T("settings.unitCount"),
             Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum, true);
         yield return (ExportConfirmFilesInput, ExportConfirmFiles, ExportConfirmFilesLabel, Texts.T("settings.unitCount"),

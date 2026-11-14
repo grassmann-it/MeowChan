@@ -45,6 +45,10 @@ public static class CommandCatalog
         new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", MainPageOrder.DefaultShortcut("navigation.downloads"), CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", "Primary+Shift+R", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
         new("import.open", "import.menu", "Import files…", "Dateien importieren…", "download-cloud", "Primary+Shift+I", CommandScope.Application, new[] { "app-menu", "workspace-keyboard" }),
+        // PR1 (profiles): the "⋯ › Profile" submenu. No default gestures; each opens or starts a window of its own.
+        new("profile.new", "command.profile.new", "New profile…", "Neues Profil…", "plus-circle", null, CommandScope.Application, new[] { "app-menu" }),
+        new("profile.switch", "command.profile.switch", "Switch profile…", "Profil wechseln…", "external-link", null, CommandScope.Application, new[] { "app-menu" }),
+        new("profile.open-folder", "command.profile.open-folder", "Open profile folder", "Profilordner öffnen", "folder", null, CommandScope.Application, new[] { "app-menu" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", MainPageOrder.DefaultShortcut("navigation.archive"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", MainPageOrder.DefaultShortcut("navigation.media"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", MainPageOrder.DefaultShortcut("navigation.rules"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),

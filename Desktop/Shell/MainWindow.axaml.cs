@@ -129,6 +129,7 @@ public partial class MainWindow : Window
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
             RegisterManualImportCommand();
+            InitializeProfileMenu();
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             RegisterTagQueueCommands();

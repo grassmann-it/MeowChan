@@ -25,6 +25,7 @@ public sealed class StoreLimitSettingsTests
         (nameof(Config.PostBookmarkLimit), 10_000, 1_000, 100_000, "postBookmarks"),
         (nameof(Config.SavedSearchLimit), 500, 50, 5_000, "savedSearches"),
         (nameof(Config.ReaderGroupLimit), 500, 50, 5_000, "readerGroups"),
+        (nameof(Config.ProfileRegistryLimit), 32, 1, 256, "profileRegistry"),
         (nameof(Config.SourcesWatchPreviewRows), 8, 3, 200, "sourcesWatchPreviewRows"),
         (nameof(Config.ExportConfirmFiles), 500, 10, 100_000, "exportConfirmFiles"),
         (nameof(Config.ExportConfirmGiB), 2, 1, 1_024, "exportConfirmGiB"),

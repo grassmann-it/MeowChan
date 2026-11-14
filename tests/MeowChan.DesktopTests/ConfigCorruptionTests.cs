@@ -28,6 +28,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.PostBookmarkLimit), Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum),
         (nameof(Config.SavedSearchLimit), Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum),
         (nameof(Config.ReaderGroupLimit), Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum),
+        (nameof(Config.ProfileRegistryLimit), Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum),
         (nameof(Config.ExportConfirmFiles), Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum),
         (nameof(Config.ExportConfirmGiB), Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum),
         (nameof(Config.PosterCacheLimitMiB), Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum),

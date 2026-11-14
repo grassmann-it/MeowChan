@@ -79,6 +79,7 @@ internal static partial class SmokeScenarios
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
         ["manual-import"] = new(SmokeStage.Ready, mainWindow => ManualImportChecks.RunAsync(mainWindow)),
+        ["profile-switch"] = new(SmokeStage.Ready, mainWindow => ProfileSwitchChecks.RunAsync(mainWindow)),
         ["booru-media"] = new(SmokeStage.Ready, mainWindow => BooruMediaChecks.RunAsync(mainWindow)),
         ["private-tags"] = new(SmokeStage.Ready, mainWindow => PrivateTagBarChecks.RunAsync(mainWindow)),
         ["reader-find"] = new(SmokeStage.Ready, mainWindow => ReaderThreadFindChecks.RunAsync(mainWindow)),
