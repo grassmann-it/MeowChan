@@ -22,6 +22,7 @@ public partial class SettingsEditor
     private decimal? _gallerySlideshowVideoRepeats = Config.GallerySlideshowVideoRepeatsDefault;
     private decimal? _controlsIdleHideMs = Config.ControlsIdleHideMsDefault;
     private bool _galleryFilmstrip = true;
+    private bool _mediaFocusHidesHeader = true;
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
 
@@ -44,6 +45,7 @@ public partial class SettingsEditor
     public decimal? GallerySlideshowVideoRepeats { get => _gallerySlideshowVideoRepeats; set => SetField(ref _gallerySlideshowVideoRepeats, value, nameof(GallerySlideshowVideoRepeats)); }
     public decimal? ControlsIdleHideMs { get => _controlsIdleHideMs; set => SetField(ref _controlsIdleHideMs, value, nameof(ControlsIdleHideMs)); }
     public bool GalleryFilmstrip { get => _galleryFilmstrip; set => SetField(ref _galleryFilmstrip, value, nameof(GalleryFilmstrip)); }
+    public bool MediaFocusHidesHeader { get => _mediaFocusHidesHeader; set => SetField(ref _mediaFocusHidesHeader, value, nameof(MediaFocusHidesHeader)); }
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
     public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
 
@@ -66,6 +68,8 @@ public partial class SettingsEditor
     public string ControlsIdleHideMsLabel => Texts.T("settings.controlsIdleHide");
     public string ControlsIdleHideMsHint => Texts.T("settings.controlsIdleHideHint",
         Config.ControlsIdleHideMsDefault, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+    public string MediaFocusHidesHeaderLabel => Texts.T("settings.mediaFocusHidesHeader");
+    public string MediaFocusHidesHeaderHint => Texts.T("settings.mediaFocusHidesHeaderHint");
     public string GalleryFilmstripLabel => Texts.T("settings.galleryFilmstrip");
     public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint");
     public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
@@ -93,7 +97,7 @@ public partial class SettingsEditor
         nameof(GallerySlideshowVideoSecondsLabel), nameof(GallerySlideshowVideoSecondsHint), nameof(GallerySlideshowVideoRepeatsLabel),
         nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
         nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
-        nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint)
+        nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -137,6 +141,7 @@ public partial class SettingsEditor
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         GalleryFilmstrip = config.GalleryFilmstrip;
+        MediaFocusHidesHeader = config.MediaFocusHidesHeader;
         GalleryFilmstripHeight = config.GalleryFilmstripHeight;
         GalleryFilmstripPreload = config.GalleryFilmstripPreload;
         ResetNumber(GalleryFilmstripHeightInput, config.GalleryFilmstripHeight);
@@ -147,6 +152,7 @@ public partial class SettingsEditor
     {
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
         candidate.GalleryFilmstrip = GalleryFilmstrip;
+        candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
         candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
     }

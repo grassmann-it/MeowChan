@@ -12,9 +12,11 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// M4: the focus mode of the media page (media.focus-mode, Shift+F). It hides the rows above the grid that are for finding (the toolbar,
-// the chips with "+ Filter", the hint row, the status line and the filter section) and shows one 32 dip row instead: the live counter and the
-// number of active filters on the left, "Exit focus ×" alone on the right. The grid and the selection bar stay and keep working.
+// M4: the focus mode of the media page (media.focus-mode, Shift+F). It hides the rows above the grid that are for finding (the page title and
+// subtitle, the toolbar, the chips with "+ Filter", the hint row, the status line and the filter section) and shows one 32 dip row instead:
+// the live counter and the number of active filters on the left, "Exit focus ×" alone on the right. The grid and the selection bar stay and
+// keep working. The shell hides its own chrome around the page on the same signal (FocusModeChanged, MainWindow.MediaFocusChrome.cs): the
+// footer navigation always, the application header when the setting asks for it.
 // The rows are only hidden, never rebuilt: the filter state, the chips and their keyboard focus are those of the page (MediaPage.Filters.cs
 // and MediaPage.FilterChips.cs are unchanged), and a refused filter keeps explaining itself above the grid. Escape ends the mode before any other
 // level (MediaFocusMode.Escape). The mode is a working state: it is not saved. Starting and ending it is announced through a polite live region.
@@ -52,7 +54,9 @@ public sealed partial class MediaPage
     /// <summary>The text the screen reader got last for the mode ("Focus mode on" / "Focus mode off"; null: never changed), for tests and smokes.</summary>
     internal string? FocusAnnouncement => _focusAnnouncement.Text;
     /// <summary>The rows above the grid that the mode hides: the toolbar with the chips, and the hint, status and filter section.</summary>
-    internal Control[] FocusHiddenRows => new Control[] { _topRows!, _bottomRows! };
+    internal Control[] FocusHiddenRows => new Control[] { _topRows!, _bottomRows!, _title, _subtitle };
+    /// <summary>Raised after the mode started or ended; the shell hides or restores the chrome around the page (the footer, the header).</summary>
+    internal event Action<bool>? FocusModeChanged;
     /// <summary>The mode can start while the header is shown (an empty library has no header to hide).</summary>
     internal bool CanToggleFocusMode => !_lifetime.IsCancellationRequested && (_focusMode || _headerBody.IsVisible);
 
@@ -102,9 +106,12 @@ public sealed partial class MediaPage
         _focusMode = on;
         _focusRow.IsVisible = on;
         _topRows!.IsVisible = _bottomRows!.IsVisible = !on;
+        // The page title and the subtitle go too: the grid gets the whole page. The counter lives on in the focus row.
+        _title.IsVisible = _subtitle.IsVisible = !on;
         if (!on) ToolTip.SetIsOpen(_focusFilters, false);
         RefreshFocusRow();
         if (announce) _focusAnnouncement.Text = MediaFocusMode.Announcement(on);
+        FocusModeChanged?.Invoke(on);
         if (on && inHeader) FocusGrid();
         else if (!on && inRow)
         {
@@ -130,6 +137,8 @@ public sealed partial class MediaPage
     {
         if (!_focusMode) return;
         _focusText.Text = MediaFocusMode.Line(_status.Text);
+        // The whole counts line (threads, media, untagged, indexing) is the tooltip, since the row itself is one short line.
+        ToolTip.SetTip(_focusText, string.IsNullOrWhiteSpace(_status.Text) ? null : _status.Text);
         int count = ActiveFilterCount;
         _focusSeparator.IsVisible = _focusFilters.IsVisible = count > 0;
         if (count == 0) return;

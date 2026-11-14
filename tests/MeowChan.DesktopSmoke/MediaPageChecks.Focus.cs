@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -12,6 +14,9 @@ namespace MeowChan.DesktopSmoke;
 // filter section are hidden; one 32 dip row shows the live counter and the filter count on the left and "Exit focus ×" alone at the right
 // end; the grid and the selection bar stay. Escape ends the mode first, the selection next. Starting and ending are announced through a
 // polite live region. A narrow page moves the toolbar button under More. Keyboard input is routed, not OS input.
+// Full screen: the page title and subtitle go with the toolbar (the counts stay in the focus row, whole as its tooltip) and the page tells the
+// shell (FocusModeChanged) so it can hide the footer and the app header (the shell half is pinned by MediaFocusFullscreenTests and looked at in the central capture of the real window).
+// The order box carries a visible "Sort" label before it, with the same accessible name.
 internal static partial class MediaPageChecks
 {
     private static async Task FocusModeAsync(Window window, MediaPage page, ThemeVariant theme, string code)
@@ -38,6 +43,21 @@ internal static partial class MediaPageChecks
                 + "' vs '" + CommandBindings.Tooltip("media.focus-mode") + "', announcement '" + page.FocusAnnouncement + "'");
         Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(C<TextBlock>(page, "MediaFocusAnnouncement")) == Avalonia.Automation.AutomationLiveSetting.Polite,
             state + ": the announcement must be a polite live region.");
+        // The visible label of the order box: before it, on its row, the same text as its accessible name, not read twice.
+        TextBlock sortLabel = C<TextBlock>(page, "MediaSortLabel");
+        ComboBox sortBox = C<ComboBox>(page, "MediaSort");
+        double LabelX(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.X;
+        double LabelMid(Control control) => control.TranslatePoint(default, page.ToolbarRow)!.Value.Y + control.Bounds.Height / 2;
+        Require(sortLabel.IsEffectivelyVisible && sortLabel.Text == Texts.T("media.sort") && !string.IsNullOrWhiteSpace(sortLabel.Text)
+            && Avalonia.Automation.AutomationProperties.GetName(sortBox) == sortLabel.Text
+            && Avalonia.Automation.AutomationProperties.GetAccessibilityView(sortLabel) == Avalonia.Automation.AccessibilityView.Raw
+            && LabelX(sortLabel) + sortLabel.Bounds.Width <= LabelX(sortBox) + 0.5 && Math.Abs(LabelMid(sortLabel) - LabelMid(sortBox)) < 3,
+            state + ": the order box must have a visible label before it: " + sortLabel.Text + " / " + sortLabel.Bounds + " / " + sortBox.Bounds);
+        Control pageTitle = page.FocusHiddenRows[2], pageSubtitle = page.FocusHiddenRows[3];
+        List<bool> modeChanges = new();
+        Action<bool> hook = modeChanges.Add;
+        page.FocusModeChanged += hook;
+        Require(pageTitle.IsEffectivelyVisible && pageSubtitle.IsEffectivelyVisible, state + ": the page title and subtitle must show before the mode.");
 
         // Start with something selected: the selection bar must stay usable.
         page.Grid.Selection.Clear();
@@ -49,6 +69,11 @@ internal static partial class MediaPageChecks
         Require(page.FocusHiddenRows.All(row => !row.IsVisible) && !toolbar.IsEffectivelyVisible && !chipRow.IsEffectivelyVisible && !status.IsEffectivelyVisible
             && !hint.IsEffectivelyVisible && !surface.IsEffectivelyVisible && !page.FilterAdd.IsEffectivelyVisible && !page.NameFilter.IsEffectivelyVisible,
             state + ": the toolbar, chips, hint, status and filter section must be hidden.");
+        Require(!pageTitle.IsEffectivelyVisible && !pageSubtitle.IsEffectivelyVisible && modeChanges.SequenceEqual([true]),
+            state + ": the page title and subtitle must be hidden and the shell told once: " + string.Join(",", modeChanges));
+        // The counts line is gone from the page; it lives on in the focus row, whole as its tooltip.
+        Require(!status.IsEffectivelyVisible && ToolTip.GetTip(C<TextBlock>(page, "MediaFocusText"))?.ToString() == C<TextBlock>(page, "MediaStatus").Text,
+            state + ": the counts must stay in the focus row's tooltip.");
         Require(page.Grid.IsEffectivelyVisible && page.Grid.Bounds.Height > 100 && selectionRow.IsEffectivelyVisible && page.SelectedTiles.Count == 2
             && C<Button>(page, "MediaSelectionClear").IsEffectivelyVisible && C<Button>(page, "MediaSelectionGallery").IsEnabled,
             state + ": the grid and the selection bar must stay: grid " + page.Grid.IsEffectivelyVisible + " " + page.Grid.Bounds + ", selection row "
@@ -79,8 +104,9 @@ internal static partial class MediaPageChecks
         page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         window.UpdateLayout();
         Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && status.IsEffectivelyVisible
-            && page.SelectedTiles.Count == 2 && page.FocusAnnouncement == Texts.T("media.focus.off"),
-            state + ": the first Escape must end the focus mode and keep the selection: " + page.SelectedTiles.Count);
+            && page.SelectedTiles.Count == 2 && page.FocusAnnouncement == Texts.T("media.focus.off")
+            && pageTitle.IsEffectivelyVisible && pageSubtitle.IsEffectivelyVisible && modeChanges.SequenceEqual([true, false]),
+            state + ": the first Escape must end the focus mode, give the title back, tell the shell and keep the selection: " + page.SelectedTiles.Count);
         page.Grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         Require(page.SelectedTiles.Count == 0 && !page.IsFocusMode, state + ": the second Escape must clear the selection.");
 
@@ -115,6 +141,7 @@ internal static partial class MediaPageChecks
             window.UpdateLayout();
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide && focus.IsEffectivelyVisible);
         }
-        Require(!page.IsFocusMode, state + ": the mode must be off at the end.");
+        page.FocusModeChanged -= hook;
+        Require(!page.IsFocusMode && pageTitle.IsEffectivelyVisible && pageSubtitle.IsEffectivelyVisible, state + ": the mode must be off at the end.");
     }
 }

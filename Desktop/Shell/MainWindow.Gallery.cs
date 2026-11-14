@@ -559,7 +559,8 @@ public partial class MainWindow
             && _gallery != null && !_gallerySuspended && host.IsVisible;
         // The shell caption is client content, so native fullscreen cannot hide it.
         // Span its existing row without changing the underlying page/reader layout.
-        WorkspaceTitleBarFrame.IsVisible = !immersive;
+        _galleryImmersive = immersive;
+        UpdateMediaFocusChrome(); // the media focus mode gives the chrome back while a gallery is open (it applies the title bar as well)
         Grid.SetRow(host, immersive ? 0 : 1);
         Grid.SetRowSpan(host, immersive ? 4 : 3);
         RefreshReadingResumePresentation();

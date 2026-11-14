@@ -552,6 +552,9 @@
                             <TextBlock Text="{Binding ReadingHistoryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
                     <CheckBox x:Name="ShowShortcutHelpInput" Content="{Binding ShowShortcutHelpLabel}" IsChecked="{Binding ShowShortcutHelp, Mode=TwoWay}" />
+                    <!-- Focus mode of the media page: whether it also hides the application header (hover strip at the top edge shows it again). -->
+                    <CheckBox x:Name="MediaFocusHidesHeaderInput" IsChecked="{Binding MediaFocusHidesHeader, Mode=TwoWay}" AutomationProperties.Name="{Binding MediaFocusHidesHeaderLabel}" AutomationProperties.HelpText="{Binding MediaFocusHidesHeaderHint}"><TextBlock Text="{Binding MediaFocusHidesHeaderLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding MediaFocusHidesHeaderHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <TextBlock x:Name="SettingsTaggingHeading" Text="{Binding TaggingGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <StackPanel Spacing="{StaticResource Workspace.Space.4}">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">

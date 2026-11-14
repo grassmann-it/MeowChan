@@ -26,6 +26,7 @@ internal static class SettingsSearchAliases
         ["GalleryOverlayControls"] = "controls buttons bedienelemente steuerung",
         ["GalleryAutoHideControls"] = "hide idle auto ausblenden",
         ["GalleryOverlayPostContext"] = "post context kontext text",
+        ["MediaFocusHidesHeader"] = "media focus mode fullscreen header title bar hide immersive medien fokusmodus vollbild kopfzeile titelleiste ausblenden",
         ["GalleryFilmstrip"] = "filmstrip thumbnails strip thumbnail preview filmstreifen vorschau vorschaubilder miniaturen",
         ["VideoVolume"] = "audio sound volume lautstärke ton",
         ["RememberReadingPosition"] = "resume continue bookmark position weiterlesen lesestand",

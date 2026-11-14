@@ -71,6 +71,11 @@ internal static class FilterSurfaceCatalog
         ("media.focus.exit.tip", "Exit focus mode and show the toolbar and filters again · Esc", "Fokusmodus beenden und Werkzeugleiste und Filter wieder zeigen · Esc"),
         ("media.focus.on", "Focus mode on", "Fokusmodus an"),
         ("media.focus.off", "Focus mode off", "Fokusmodus aus"),
+        // Focus mode, full screen: the hover strip at the top edge and the setting that lets the mode hide the application header too.
+        ("media.focus.headerStrip", "Show the app header", "App-Kopfzeile anzeigen"),
+        ("settings.mediaFocusHidesHeader", "Hide the app header in the Media focus mode", "App-Kopfzeile im Fokusmodus der Medienseite ausblenden"),
+        ("settings.mediaFocusHidesHeaderHint", "The focus mode of the Media page hides the page title, the toolbar and the footer navigation. With this option it also hides the app header with its monitor and buttons. Move the pointer to the thin strip at the top edge to show the header and the window buttons. Esc or “Exit focus ×” brings everything back.",
+            "Der Fokusmodus der Medienseite blendet Seitentitel, Werkzeugleiste und Fußnavigation aus. Mit dieser Option blendet er auch die App-Kopfzeile mit Monitor und Knöpfen aus. Den Zeiger an den dünnen Streifen am oberen Rand bewegen, um Kopfzeile und Fensterknöpfe zu zeigen. Esc oder „Fokus beenden ×“ bringt alles zurück."),
         // M5: the two states of the tag mode switch (the sentences are tags.filter.matchAll / matchAny); the section labels reuse the field texts.
         ("media.filter.match.all", "all", "alle"),
         ("media.filter.match.any", "any", "einer"),

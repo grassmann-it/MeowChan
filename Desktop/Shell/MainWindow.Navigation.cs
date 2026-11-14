@@ -71,6 +71,7 @@ public partial class MainWindow
     {
         MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.pages", "begin");
         InitializeUpdates();
+        InitializeMediaFocusChrome();
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
         _archivePage.AttachTransferImport(_session);
         _archivePage.AttachSavedSearches(_session);
@@ -355,6 +356,7 @@ public partial class MainWindow
         if (page != WorkspacePage.Settings) _settingsEditor?.EndSearchVisit();
         if (_selectedPage == WorkspacePage.Rules && page != WorkspacePage.Rules) _rulesPage?.DeactivateRuleDecisions();
         _selectedPage = page;
+        UpdateMediaFocusChrome(); // the media focus mode hides the shell's chrome on the Media page only
         WorkspaceBody.IsVisible = page == WorkspacePage.Downloads;
         SettingsPageHost.IsVisible = page == WorkspacePage.Settings;
         StatusPageHost.IsVisible = page == WorkspacePage.Status;

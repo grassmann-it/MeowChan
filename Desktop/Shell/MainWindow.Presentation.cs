@@ -144,6 +144,7 @@ public partial class MainWindow
                 _archivePage.SlashTagSuggestionCountPreference = _config.SlashTagSuggestionCount;
             }
             if (_mediaPage != null) _mediaPage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+            UpdateMediaFocusChrome(); // the "hide the app header" setting applies to a focus mode that is already on
             if (_gallery?.TagPanelController is { } tagPanel
                 && tagPanel.Suggestions.Options.SlashSuggestionCount != _config.SlashTagSuggestionCount)
             {

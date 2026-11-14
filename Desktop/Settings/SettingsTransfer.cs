@@ -236,6 +236,7 @@ public static class SettingsTransfer
             GalleryAutoHideControls = source.GalleryAutoHideControls,
             GalleryOverlayPostContext = source.GalleryOverlayPostContext,
             ShowShortcutHelp = source.ShowShortcutHelp,
+            MediaFocusHidesHeader = source.MediaFocusHidesHeader,
             ShortcutBindings = source.ShortcutBindings.Clone(),
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone(),
         };

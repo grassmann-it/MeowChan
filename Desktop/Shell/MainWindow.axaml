@@ -142,6 +142,10 @@
                 </StackPanel>
             </Grid>
         </Border>
+        <!-- The media page's focus mode can hide the title bar above (MainWindow.MediaFocusChrome.cs): this thin strip at the top edge then
+             shows it again while the pointer rests on it. It is hidden otherwise; the title bar is not touched by it. -->
+        <Border x:Name="MediaFocusHeaderStrip" Grid.RowSpan="2" Height="6" VerticalAlignment="Top" IsVisible="False" ZIndex="119"
+                Background="Transparent" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="0,2,0,0" Opacity="0.7" />
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
         <controls:WorkspaceBanner Grid.Row="0" x:Name="ShellActionErrorBanner" Type="Error" ShowSeverityIcon="True" IsVisible="False" Margin="12,8,12,0">
             <Grid ColumnDefinitions="*,Auto">
@@ -492,7 +496,7 @@
         <ContentControl Grid.Row="2" x:Name="SourcesPageHost" IsVisible="False" />
         <ContentControl Grid.Row="2" x:Name="TaggingPageHost" IsVisible="False" />
         </Grid>
-        <Border Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
+        <Border x:Name="WorkspaceStatusBar" Grid.Row="2" BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="16,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
                 <TextBlock x:Name="WorkspaceStatus" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}" TextTrimming="CharacterEllipsis" />
                 <!-- Warns from 75 percent of the favorites, thread favorites and ratings limits and names the setting. -->

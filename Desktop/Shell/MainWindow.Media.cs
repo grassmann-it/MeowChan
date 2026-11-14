@@ -77,6 +77,7 @@ public partial class MainWindow
             ? Task.CompletedTask // nothing to save: the settings keep the last non-random choice
             : _session.SaveViewPreferencesAsync(config => MediaSortPreference.Remember(config, sort, direction));
         _mediaPage.InitializeSharedMediaMenus();
+        _mediaPage.FocusModeChanged += on => { _mediaFocusActive = on; UpdateMediaFocusChrome(); };
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
         _mediaPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         _workViews.Changed += (_, view) => _mediaPage?.ApplyWorkView(view, viewChanged: true);

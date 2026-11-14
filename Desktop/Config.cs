@@ -927,6 +927,13 @@ namespace MeowChan
 
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowShortcutHelp { get; set; } = true;
+        /// <summary>
+        /// The focus mode of the media page (Shift+F) also hides the application header (title bar with the I/O monitor and the header
+        /// buttons). A thin strip at the top edge shows it again while the pointer rests there. Default on; off keeps the header and
+        /// hides only the page's own rows and the footer.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool MediaFocusHidesHeader { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryContextOpen { get; set; }
         /// <summary>
@@ -1614,6 +1621,7 @@ namespace MeowChan
                 GalleryAutoHideControls = GalleryOverlayControls,
                 GalleryOverlayPostContext = GalleryOverlayPostContext,
                 ShowShortcutHelp = ShowShortcutHelp,
+                MediaFocusHidesHeader = MediaFocusHidesHeader,
                 GalleryContextOpen = GalleryContextOpen,
                 ArchiveSplitWidth = ArchiveSplitWidth,
                 WindowWidth = WindowWidth,
@@ -1810,6 +1818,7 @@ namespace MeowChan
             VideoVolume = source.VideoVolume;
             GalleryPlaybackPreferences.FromConfig(source).ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
+            MediaFocusHidesHeader = source.MediaFocusHidesHeader;
             GalleryContextOpen = source.GalleryContextOpen;
             ArchiveSplitWidth = source.ArchiveSplitWidth;
             WindowWidth = source.WindowWidth;
@@ -2006,6 +2015,7 @@ namespace MeowChan
             else
                 galleryDraft.ApplyTo(this);
             ShowShortcutHelp = source.ShowShortcutHelp;
+            MediaFocusHidesHeader = source.MediaFocusHidesHeader;
         }
 
         // Compatibility settings host uses its existing isolated config owner.
