@@ -478,6 +478,61 @@ public sealed class QuickTagSurfaceTests : IDisposable
         }
     }
 
+    // R04 (review 14.11. night): what the user types for the next tag while a write runs is never cleared, and an Enter during
+    // the write is taken once that write is done instead of being ignored.
+    [Fact]
+    public async Task TypingOnDuringAWriteKeepsTheNewDraftAndAnEnterMeanwhileIsTakenAfterwards()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry entry = Entry("a", 'a');
+        // Continuations run inline on this thread (no context, synchronous completion): the controls are only touched here.
+        SynchronizationContext? context = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(null);
+        TaskCompletionSource gate = new();
+        bool hold = true;
+        MediaTagSession single = new(new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!), () => Load(store),
+            async (name, subject, token) =>
+            {
+                if (hold) { hold = false; await gate.Task; }
+                return store.DefineAndSetMediaSubjects(name, [subject], null, token);
+            },
+            (id, subject, assigned, token) => Task.FromResult(store.SetMediaSubjects(id, [subject], assigned, null, token)));
+        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(single));
+        using (session)
+        using (surface)
+        {
+            surface.Input.Text = "first";
+            Task running = surface.AddTypedAsync();
+            Assert.True(session.Busy);
+
+            surface.Input.Text = "sec";          // typing on for the next tag
+            await surface.AddTypedAsync();       // an Enter while busy: neither written nor dropped
+            Assert.Equal("sec", surface.Input.Text);
+            surface.Input.Text = "second";       // edited after that Enter: the deferred Enter no longer applies
+
+            gate.SetResult();
+            await running;
+            Assert.Equal(new[] { "first" }, NamesOn(store, entry));
+            Assert.Equal("second", surface.Input.Text); // the new draft survives the end of the first write
+
+            // An Enter during a write whose text is still unchanged afterwards is taken right after it.
+            hold = true;
+            gate = new();
+            surface.Input.Text = "third";
+            running = surface.AddTypedAsync();
+            surface.Input.Text = "fourth";
+            await surface.AddTypedAsync();
+            gate.SetResult();
+            await running;
+            Assert.Equal(new[] { "first", "fourth", "third" }, NamesOn(store, entry));
+            Assert.True(string.IsNullOrEmpty(surface.Input.Text));
+            Assert.Equal("fourth", session.UndoSteps[^1].Name);
+        }
+        SynchronizationContext.SetSynchronizationContext(context);
+    }
+
     [Fact]
     public void ANameThatIsAlreadyAnOwnTagStandsForItAndCarriedOrRepeatedOnesAreDropped()
     {

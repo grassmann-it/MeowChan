@@ -407,6 +407,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (snapshot == null) _input.Dismiss();
         RefreshTexts();
         RestoreFocus(zone, tag, key, index);
+        // A write the surface did not start (the host's) has ended: take an Enter that waited for it.
+        if (_deferredAdd != null) _ = ReplayDeferredAddAsync();
     }
 
     /// <summary>
@@ -568,18 +570,37 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
 
     // ---- actions ------------------------------------------------------------------------------------------------------
 
-    private async Task AddTypedAsync(bool thenNext = false)
+    /// <summary>
+    /// Enter (or Ctrl+Enter with <paramref name="thenNext"/>) in the field: adds the typed name. While another write runs the
+    /// draft stays and the Enter is taken once, right after that write, if the field still holds the same text. After the
+    /// write only the text that was written is cleared: what the user typed meanwhile for the next tag stays in the field.
+    /// </summary>
+    internal async Task AddTypedAsync(bool thenNext = false)
     {
         string name = _input.Text ?? string.Empty;
         if (!string.IsNullOrWhiteSpace(name))
         {
-            // A write is still running: keep the draft rather than dropping it silently.
-            if (!_session.Ready) return;
+            if (!_session.Ready)
+            {
+                if (_session.Snapshot != null) _deferredAdd = (name, thenNext);
+                return;
+            }
             await Guard(() => _session.AddAsync(name), "tags.quick.add");
             if (_disposed || _session.Status.IsError) return;
-            _input.Text = string.Empty;
+            if (string.Equals(_input.Text, name, StringComparison.Ordinal)) _input.Text = string.Empty;
         }
         if (thenNext) NavigationRequested?.Invoke(QuickTagNavigation.Next);
+    }
+
+    // An Enter that came while a write was running; taken once that write is done (see AddTypedAsync).
+    private (string Name, bool ThenNext)? _deferredAdd;
+
+    private Task ReplayDeferredAddAsync()
+    {
+        if (_deferredAdd is not { } deferred || _disposed || !_session.Ready) return Task.CompletedTask;
+        _deferredAdd = null;
+        // The user went on editing after that Enter: the draft is theirs again, nothing is written for them.
+        return string.Equals(_input.Text, deferred.Name, StringComparison.Ordinal) ? AddTypedAsync(deferred.ThenNext) : Task.CompletedTask;
     }
 
     private async void OnSuggestionClick(object? sender, RoutedEventArgs e)
@@ -624,10 +645,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void OnClose(object? sender, RoutedEventArgs e) => CloseRequested?.Invoke();
     private void OnMore(object? sender, RoutedEventArgs e) => _input.OpenExplicitList();
 
-    private static async Task Guard(Func<Task> action, string context)
+    private async Task Guard(Func<Task> action, string context)
     {
         try { await action(); }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, context)) { /* Logged and shown. */ }
+        await ReplayDeferredAddAsync();
     }
 
     // ---- keys ---------------------------------------------------------------------------------------------------------
