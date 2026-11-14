@@ -227,6 +227,17 @@ Lokale Evidenz:
 - Historischer Gesamtlauf:
   `/home/tomka/mc-evidence/ux103-restpakete-20261111/acceptance-83174f54/`.
 
+## API-Review-Nachtrag 14.11.2026
+
+Das [aktuelle API-Review](releases/v1.1.0-api-review-current-2026-11-14.md)
+vergleicht den veröffentlichten Tag `v1.0.2` (`eec6c016`) mit dem Quellstand
+`ab24f601`. Es trennt additive SDK-/Core-Einträge, die entwicklungsinterne
+`BooruPostId`-Umbenennung, die Versions-/Größenkonstanten und den dokumentierten
+`RestoreAsync`→`StartAsync(lease)`-Verhaltensbruch für profilgebundene
+Core-Consumer. Das deklarative Inventar ist geprüft; kompilierte Analyzer-,
+Paket-/Binärconsumer- und echte Upgrade-Nachweise bleiben die unten genannten
+Release-Gates. Kein pauschaler Binärkompatibilitäts-PASS.
+
 ## Offene Release-Gates (nach gemeinsamem finalem Integrationsfreeze)
 
 1. **Freeze und Herkunft:** eindeutiger SHA/Tree, frischer isolierter Candidate,
