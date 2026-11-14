@@ -26,7 +26,8 @@ namespace MeowChan;
 /// The search of the settings page: a field in the page header and, below it, the ranked hits of every group. The editors,
 /// their groups and their text stay where they are; the search reads them once per language (labels, hints, keys), lists
 /// what matches, and jumps to the chosen setting: it opens its group, unfolds collapsed sections and marks the row.
-/// Matching is in <see cref="SettingsSearchMatcher"/>.
+/// Typing only updates the list (after a short pause); the jump happens on Enter or a click on a hit, and the groups it opened
+/// fold again when the search ends. Matching is in <see cref="SettingsSearchMatcher"/>, the behaviour in <see cref="SettingsSearchSession"/>.
 /// </summary>
 public partial class SettingsEditor
 {
@@ -48,21 +49,37 @@ public partial class SettingsEditor
     private ListBox? _searchList;
     private TextBlock? _searchNone, _searchKeys, _searchCurrent;
     private SettingsSearchIndex? _searchIndex;
+    private string? _searchIndexLanguage;
+    private bool _searchIndexPrepareQueued;
+    private bool _searchJumping;
+    private Dictionary<Control, bool>? _inputMemo;
+    private SettingsSearchSession? _searchSession;
+    private readonly SettingsSearchGroups _searchGroups = new();
     private Dictionary<string, SearchTarget> _searchTargets = new(StringComparer.Ordinal);
     private bool _searchIndexDirty = true;
     private bool _searchSuppressSelection;
-    private IReadOnlyList<SettingsSearchHit> _searchHits = Array.Empty<SettingsSearchHit>();
+    private IReadOnlyList<SettingsSearchHit> _searchHits => _searchSession?.Hits ?? Array.Empty<SettingsSearchHit>();
     private Control? _searchMarked;
 
     private static readonly string[] HitClasses = { "settings-search-hit" };
 
     private void InitializeSearch()
     {
+        _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
         _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, Width = 460, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left };
+        SettingsSearchSession.Configure(_searchBox);
+        AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(Avalonia.Controls.Primitives.ToggleButton.IsCheckedChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(Avalonia.Controls.Primitives.SelectingItemsControl.SelectionChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(NumericUpDown.ValueChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
         _searchBox.QueryChanged += (_, _) => OnSearchQueryChanged();
         _searchBox.ExitRequested += (_, e) => { FocusSettingsContent(); e.Handled = true; };
         _searchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
-        _searchBox.GotFocus += (_, _) => { if (_searchHits.Count > 0 && _searchBox.HasText) ShowSearchPanel(); };
+        _searchBox.GotFocus += (_, _) =>
+        {
+            QueueSearchIndexPreparation();
+            if (_searchHits.Count > 0 && _searchBox.HasText) ShowSearchPanel();
+        };
         _searchBox.LostFocus += (_, _) => Dispatcher.UIThread.Post(() =>
         {
             if (_isClosed || _searchBox == null || _searchBox.IsKeyboardFocusWithin || _searchPanel?.IsPointerOver == true) return;
@@ -148,11 +165,34 @@ public partial class SettingsEditor
     /// <summary>A language change or a rebuilt navigation: texts and the read index are stale.</summary>
     private void SearchLanguageRefreshed()
     {
-        _searchIndexDirty = true;
+        InvalidateSearchIndex();
         RefreshGroupHeaders();
         if (_searchBox == null) return;
         ApplySearchTexts();
         if (_searchBox.HasText) OnSearchQueryChanged();
+    }
+
+    /// <summary>
+    /// The page changed its structure or texts (a rebuilt navigation, a language or work-view change): the read index is stale.
+    /// It is rebuilt when the UI is idle, so the first keystroke after the change does not pay for the scan.
+    /// </summary>
+    internal void InvalidateSearchIndex()
+    {
+        _searchIndexDirty = true;
+        QueueSearchIndexPreparation();
+    }
+
+    private void QueueSearchIndexPreparation()
+    {
+        if (_searchIndexPrepareQueued || _isClosed || !_searchIndexDirty && _searchIndex != null) return;
+        _searchIndexPrepareQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _searchIndexPrepareQueued = false;
+            // A hidden page is prepared on the field's first focus; the first keystroke is the fallback.
+            if (_isClosed || !IsEffectivelyVisible) return;
+            EnsureSearchIndex();
+        }, DispatcherPriority.Background);
     }
 
     private void ApplySearchTexts()
@@ -164,31 +204,41 @@ public partial class SettingsEditor
         if (_searchKeys != null) _searchKeys.Text = Texts.T("settings.search.keys");
     }
 
+    // The list follows the typed text (after the field's pause): no jump, no page switch, no group opened. That is Enter's job.
     private void OnSearchQueryChanged()
     {
-        if (_searchBox == null || _searchList == null || _searchPanel == null || _searchNone == null || _isClosed) return;
+        if (_searchBox == null || _searchList == null || _searchPanel == null || _searchNone == null || _searchSession == null || _isClosed) return;
         string query = _searchBox.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(query))
         {
-            _searchHits = Array.Empty<SettingsSearchHit>();
+            _searchSession.Search(null);
             SetSearchItems(_searchHits);
             _searchPanel.IsVisible = false;
             _searchBox.ResultText = null;
             ShowSearchAnnouncement(null);
             MarkSearchTarget(null);
+            _searchGroups.Release();
             return;
         }
-        EnsureSearchIndex();
-        _searchHits = SettingsSearchMatcher.Search(_searchIndex!, query);
-        _searchNone.IsVisible = _searchHits.Count == 0;
+        IReadOnlyList<SettingsSearchHit> hits = _searchSession.Search(query);
+        _searchNone.IsVisible = hits.Count == 0;
         _searchNone.Text = Texts.T("settings.search.none", query.Trim()) + " " + Texts.T("settings.search.noneHint");
-        _searchList.IsVisible = _searchHits.Count > 0;
-        _searchKeys!.IsVisible = _searchHits.Count > 0;
-        _searchBox.ResultText = _searchHits.Count > 0 ? Texts.Count("search.count", _searchHits.Count) : null;
-        SetSearchItems(_searchHits);
+        _searchList.IsVisible = hits.Count > 0;
+        _searchKeys!.IsVisible = hits.Count > 0;
+        _searchBox.ResultText = hits.Count > 0 ? Texts.Count("search.count", hits.Count) : null;
+        SetSearchItems(hits);
         ShowSearchPanel();
-        if (_searchHits.Count == 0) { ShowSearchAnnouncement(SettingsSearchAnnouncement.None(query)); MarkSearchTarget(null); return; }
-        _searchList.SelectedIndex = 0;
+        if (hits.Count == 0) { ShowSearchAnnouncement(SettingsSearchAnnouncement.None(query)); return; }
+        ApplySearchHighlight();
+    }
+
+    // The session's highlight into the list, without the list's selection change reaching the page, and its announcement.
+    private void ApplySearchHighlight()
+    {
+        if (_searchList == null || _searchSession == null) return;
+        _searchSuppressSelection = true;
+        try { _searchList.SelectedIndex = _searchSession.Highlight; }
+        finally { _searchSuppressSelection = false; }
         AnnounceSearchSelection();
     }
 
@@ -229,8 +279,9 @@ public partial class SettingsEditor
 
     private void OnSearchSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_searchSuppressSelection || _searchList?.SelectedItem is not SettingsSearchHit hit) return;
-        if (_searchTargets.TryGetValue(hit.Document.Id, out SearchTarget? target)) JumpToSearchTarget(target, focus: false);
+        // A selection is a highlight: the page moves on a commit only.
+        if (_searchSuppressSelection || _searchList == null || _searchSession == null) return;
+        _searchSession.Select(_searchList.SelectedIndex);
     }
 
     private void OnSearchListTapped(object? sender, TappedEventArgs e)
@@ -242,7 +293,10 @@ public partial class SettingsEditor
 
     private void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_searchList == null || e.KeyModifiers != KeyModifiers.None) return;
+        if (_searchList == null || _searchSession == null || e.KeyModifiers != KeyModifiers.None) return;
+        if (e.Key is not (Key.Down or Key.Up or Key.PageDown or Key.PageUp or Key.Enter)) return;
+        // A pause that has not elapsed yet must not leave the keys on a stale list.
+        _searchBox?.FlushQuery();
         int count = _searchHits.Count;
         switch (e.Key)
         {
@@ -251,13 +305,13 @@ public partial class SettingsEditor
                 if (_searchPanel is { IsVisible: false }) { ShowSearchPanel(); return; }
                 int step = e.Key is Key.PageDown or Key.PageUp ? 5 : 1;
                 int direction = e.Key is Key.Down or Key.PageDown ? 1 : -1;
-                int next = Math.Clamp(Math.Max(_searchList.SelectedIndex, 0) + direction * step, 0, count - 1);
-                _searchList.SelectedIndex = next;
-                _searchList.ScrollIntoView(next);
+                _searchSession.Move(direction * step);
+                ApplySearchHighlight();
+                _searchList.ScrollIntoView(_searchSession.Highlight);
                 break;
             case Key.Enter when count > 0:
                 e.Handled = true;
-                CommitSearchHit(_searchList.SelectedItem as SettingsSearchHit ?? _searchHits[0]);
+                _searchSession.Commit();
                 break;
         }
     }
@@ -273,8 +327,13 @@ public partial class SettingsEditor
     private void JumpToSearchTarget(SearchTarget target, bool focus)
     {
         if (_isClosed) return;
-        SelectCategory(target.CategoryId);
-        foreach (Expander expander in target.Expanders) expander.IsExpanded = true;
+        _searchJumping = true;
+        try
+        {
+            SelectCategory(target.CategoryId);
+            _searchGroups.Open(target.Expanders);
+        }
+        finally { _searchJumping = false; }
         MarkSearchTarget(target.Element);
         void Reveal()
         {
@@ -294,7 +353,15 @@ public partial class SettingsEditor
     internal void EndSearchVisit()
     {
         MarkSearchTarget(null);
+        _searchGroups.Release();
         if (_searchPanel != null) _searchPanel.IsVisible = false;
+    }
+
+    // The user changed a value: the search-opened groups around it stay open from now on.
+    private void OnSettingValueChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_searchJumping || _searchGroups.OpenedCount == 0 || e.Source is not Control source || !IsSettingInput(source)) return;
+        _searchGroups.NoteEdited(source.GetSelfAndLogicalAncestors().OfType<Expander>());
     }
 
     private void MarkSearchTarget(Control? element)
@@ -369,10 +436,15 @@ public partial class SettingsEditor
 
     private void EnsureSearchIndex()
     {
-        if (_searchIndex != null && !_searchIndexDirty) return;
+        // A language that changed since the read makes the index stale even when nobody marked it.
+        if (_searchIndex != null && !_searchIndexDirty && string.Equals(_searchIndexLanguage, Texts.Language, StringComparison.Ordinal)) return;
         var documents = new List<SettingsSearchDocument>();
         var targets = new Dictionary<string, SearchTarget>(StringComparer.Ordinal);
-        foreach (SearchEntryBuilder entry in ScanSearchEntries())
+        List<SearchEntryBuilder> entries;
+        _inputMemo = new Dictionary<Control, bool>();
+        try { entries = ScanSearchEntries(); }
+        finally { _inputMemo = null; }
+        foreach (SearchEntryBuilder entry in entries)
         {
             string id = "s" + documents.Count;
             string hint = string.Join(" · ", entry.Hints.Distinct(StringComparer.Ordinal));
@@ -388,6 +460,7 @@ public partial class SettingsEditor
         }
         _searchTargets = targets;
         _searchIndex = SettingsSearchMatcher.Build(documents);
+        _searchIndexLanguage = Texts.Language;
         _searchIndexDirty = false;
     }
 
@@ -491,8 +564,30 @@ public partial class SettingsEditor
         && (name.EndsWith("Error", StringComparison.Ordinal) || name.EndsWith("Status", StringComparison.Ordinal) || name.EndsWith("Warning", StringComparison.Ordinal));
 
     // A panel that holds several settings of its own (a sub-section, the content of a collapsible group) is read item by item;
-    // one that holds a single setting with its helper controls is one entry.
-    private static bool IsComposite(Panel panel) =>
+    // one that holds a single setting with its helper controls is one entry. The subtree answers are memoised while the page
+    // is scanned: every level asks about its children, so each subtree is walked once instead of once per level.
+    private bool IsComposite(Panel panel) =>
         panel is StackPanel { Orientation: Avalonia.Layout.Orientation.Vertical }
-        && panel.Children.Count(child => child.GetSelfAndLogicalDescendants().OfType<Control>().Any(IsSettingInput)) >= 2;
+        && CountChildrenWithInput(panel, 2) >= 2;
+
+    private int CountChildrenWithInput(Panel panel, int enough)
+    {
+        int count = 0;
+        foreach (Control child in panel.Children)
+            if (HoldsSettingInput(child) && ++count >= enough) break;
+        return count;
+    }
+
+    private bool HoldsSettingInput(Control control)
+    {
+        if (_inputMemo != null && _inputMemo.TryGetValue(control, out bool known)) return known;
+        bool result = IsSettingInput(control);
+        if (!result)
+        {
+            foreach (ILogical child in control.GetLogicalChildren())
+                if (child is Control inner && HoldsSettingInput(inner)) { result = true; break; }
+        }
+        _inputMemo?.TryAdd(control, result);
+        return result;
+    }
 }
