@@ -60,7 +60,9 @@ public partial class MainWindow
             {
                 // Media tags protect threads from cleanup and appear on the archive page.
                 RefreshGalleryMediaTags();
-                if (origin?.IsEffectivelyVisible == true) origin.Focus();
+                // A19: a tags action the view keeps under More returns focus to More, not to the closed menu's hidden row.
+                Control? back = _gallery?.FocusReturnTarget(origin, "media.tags.edit") ?? origin;
+                if (back?.IsEffectivelyVisible == true) back.Focus();
             }
         }
     }

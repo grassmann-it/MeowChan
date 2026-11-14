@@ -105,6 +105,7 @@ internal static class WorkViewCaptures
                                 if (page == "downloads") CheckShellAndDownloads(window, view);
                                 CheckSectionsAndMore(window, page, view);
                                 if (page == "settings") WorkViewSettingsChecks.CheckGroups(window, view);
+                                if (page == "gallery") await WorkViewGalleryChecks.CheckAsync(window, WorkViewSetting.Parse(view), view);
                                 if (page == "dialogs") CheckExportOptions(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
@@ -514,11 +515,13 @@ internal static class WorkViewCaptures
     }
 
     // Pages the window builds lazily (EnsureDeferredWorkspacePages); their rows are checked once the page was entered.
-    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics];
+    // The gallery viewer exists only while a gallery is open (WorkViewGalleryChecks.CheckRegistrations runs against it).
+    private static readonly HashSet<WorkViewPage> LazyPages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics, WorkViewPage.Gallery];
 
     private static void CheckPageRegistrations(MainWindow window, string page)
     {
         if (!Enum.TryParse(page, ignoreCase: true, out WorkViewPage workViewPage) || !LazyPages.Contains(workViewPage)) return;
+        if (workViewPage == WorkViewPage.Gallery) { WorkViewGalleryChecks.CheckRegistrations(window); return; }
         HashSet<string> registered = WorkViewElement.For(workViewPage)
             .Where(control => ReferenceEquals(TopLevel.GetTopLevel(control), window) || control.FindLogicalAncestorOfType<MainWindow>() == window)
             .Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
