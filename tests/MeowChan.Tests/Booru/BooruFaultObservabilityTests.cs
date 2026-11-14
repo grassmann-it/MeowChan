@@ -8,6 +8,7 @@ using TempDirectory = MeowChan.Tests.TempDirectory;
 namespace MeowChan.Tests.Booru;
 
 /// <summary>Deterministic fault seams for the Booru scheduler/lifecycle observability contract.</summary>
+[Collection(LoggerRoutingCollection.Name)]
 public sealed class BooruFaultObservabilityTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 11, 13, 12, 0, 0, TimeSpan.Zero);

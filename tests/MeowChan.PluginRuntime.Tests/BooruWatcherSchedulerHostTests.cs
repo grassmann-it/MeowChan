@@ -70,6 +70,42 @@ public sealed class BooruWatcherSchedulerHostTests
     }
 
     [Fact]
+    public async Task CancellationAfterHostSearchAndTheLastAdmissionReplaysWithoutASecondQueueIdentity()
+    {
+        await using Harness harness = new();
+        harness.Provider.Publish("cat", 100);
+        string id = harness.Scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await harness.RunNextAsync())!.Kind);
+        DateTimeOffset baselineAt = harness.Scheduler.GetStatus(id)!.LastCheckedAtUtc!.Value;
+        harness.Provider.Publish("cat", 101);
+        harness.Clock.Advance(Interval);
+        using CancellationTokenSource cancel = new();
+        harness.Admission.BeforeReturn = cancel.Cancel;
+
+        DanbooruWatcherCheckSummary cancelled = (await harness.RunNextAsync(cancel.Token))!;
+        Assert.Equal(DanbooruWatcherCheckKind.Cancelled, cancelled.Kind);
+        Assert.Equal(1, cancelled.Queued);
+        BooruWatcherRecord stored = Assert.Single(harness.Catalog.Read().Watchers);
+        Assert.Equal("Active", stored.State);
+        Assert.Equal("100", stored.HighWaterMark);
+        Assert.Equal(baselineAt, stored.LastCheckedAtUtc);
+        Assert.Equal(2, harness.Provider.RequestCount);
+
+        harness.Admission.BeforeReturn = null;
+        DanbooruWatcherCheckSummary replay = (await harness.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, replay.Kind);
+        Assert.Equal(1, replay.AlreadyQueuedOrLinked);
+        Assert.Equal(1, harness.Admission.Count);
+        Assert.Equal(2, harness.Admission.PerPost["101"]);
+        Assert.Equal("101", Assert.Single(harness.Catalog.Read().Watchers).HighWaterMark);
+        Assert.Equal(3, harness.Provider.RequestCount);
+        Assert.Equal(1, harness.Provider.MaxConcurrent);
+        DateTimeOffset[] starts = harness.Provider.Requests.Select(request => request.At).ToArray();
+        for (int index = 1; index < starts.Length; index++)
+            Assert.True(starts[index] - starts[index - 1] >= BooruHostHttp.MinimumStartSpacing);
+    }
+
+    [Fact]
     public async Task MoreThanOneCheckBudgetOfNewPostsIsCaughtUpThroughTheHostByBeforeIdPages()
     {
         await using Harness harness = new();
@@ -304,9 +340,9 @@ public sealed class BooruWatcherSchedulerHostTests
         internal DanbooruWatcherScheduler Scheduler { get; }
 
         /// <summary>Runs one scheduler step while advancing the clock to each pending host wait (pacing, retry).</summary>
-        internal async Task<DanbooruWatcherCheckSummary?> RunNextAsync()
+        internal async Task<DanbooruWatcherCheckSummary?> RunNextAsync(CancellationToken cancellationToken = default)
         {
-            Task<DanbooruWatcherCheckSummary?> step = Scheduler.RunNextAsync();
+            Task<DanbooruWatcherCheckSummary?> step = Scheduler.RunNextAsync(cancellationToken);
             DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
             while (!step.IsCompleted)
             {
@@ -537,15 +573,19 @@ public sealed class BooruWatcherSchedulerHostTests
         private readonly object _gate = new();
         internal Dictionary<string, int> PerPost { get; } = new(StringComparer.Ordinal);
         internal int Count { get { lock (_gate) return PerPost.Count; } }
+        internal Action? BeforeReturn { get; set; }
 
         public Task<DanbooruWatcherAdmissionResult> AdmitAsync(BooruPostClaim post, string watcherId, string query, CancellationToken cancellationToken)
         {
+            DanbooruWatcherAdmissionResult result;
             lock (_gate)
             {
                 bool first = !PerPost.ContainsKey(post.PostId);
                 PerPost[post.PostId] = PerPost.GetValueOrDefault(post.PostId) + 1;
-                return Task.FromResult(first ? DanbooruWatcherAdmissionResult.Queued : DanbooruWatcherAdmissionResult.AlreadyQueued);
+                result = first ? DanbooruWatcherAdmissionResult.Queued : DanbooruWatcherAdmissionResult.AlreadyQueued;
             }
+            BeforeReturn?.Invoke();
+            return Task.FromResult(result);
         }
     }
 }

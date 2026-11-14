@@ -466,7 +466,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         CancellationTokenSource? lifetime;
         lock (_sync)
         {
-            if (_stopping || !_loaded || _fault != null || _running != null || _claimed != null) return null;
+            if (_stopping || !_loaded || _running != null || _claimed != null) return null;
             work = PickWorkLocked(_time.GetUtcNow(), out _);
             if (work is { } picked) _claimed = picked.WatcherId;
             lifetime = _lifetime;
@@ -594,6 +594,16 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private (string WatcherId, bool Manual, ManualRequest? Request)? PickWorkLocked(DateTimeOffset now, out DateTimeOffset? wakeAt)
     {
         wakeAt = null;
+        if (Unavailable() is { } unavailable)
+        {
+            // A fault can be raised by an in-flight check or a snapshot read after the loop started.
+            // Do not repeatedly pick a still-due watcher just to reject it in Gate(): that spins the
+            // loop and overwrites unrelated check summaries. Answer already queued callers, then park.
+            foreach (ManualRequest request in _manual)
+                request.Completion.TrySetResult(Rejected(unavailable, now, true));
+            _manual.Clear();
+            return null;
+        }
         if (HoldCodeLocked(manual: true) is { } hold)
         {
             // Profile transition: nothing starts; the lifecycle change wakes the loop.
@@ -836,16 +846,16 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     return Cancelled(started, counters, manual, "superseded");
                 }
                 DateTimeOffset now = _time.GetUtcNow();
-                if (running.Use is { IsCurrent: false })
+                if (check.IsCancellationRequested || running.Use is { IsCurrent: false })
                 {
-                    // The generation was cut while the page was in flight. A provider deferral is a fact about the
-                    // provider that must survive a restart; it is the check's terminal transition and written with the
-                    // admission counted before the cut. Any other answer is discarded: the watcher returns to its
-                    // resume target with the last durable cursor and the page replays (idempotently) later.
+                    // Cancellation may race a successful port completion (including an empty page or a baseline,
+                    // neither of which passes through admission). Never commit that page after cancel/stop/cut.
+                    // A provider deferral is different: it is a fact about the provider that must survive restart,
+                    // so keep it as the terminal write with the admission counted before cancellation.
                     if (outcome is DanbooruWatcherSearchDeferred late)
                         return ApplyDeferredLocked(current, late, now, started, counters, manual, running);
                     CommitCancellationLocked(current, running);
-                    return Cancelled(started, counters, manual, ProfileSuspendedCode);
+                    return Cancelled(started, counters, manual, CancelCode(running));
                 }
                 switch (outcome)
                 {
@@ -953,11 +963,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     PreserveSupersededProviderCooldownLocked(watcherId, running);
                     return Cancelled(started, counters, manual, "superseded");
                 }
-                // Cut while the posts were handed off: the cut generation writes no new progress (F2).
-                if (running.Use is { IsCurrent: false })
+                // The last admission can complete successfully concurrently with cancel/stop/cut too.
+                // Its finding is durable and idempotent, but the page must replay from the last durable cursor.
+                if (check.IsCancellationRequested || running.Use is { IsCurrent: false })
                 {
                     CommitCancellationLocked(current, running);
-                    return Cancelled(started, counters, manual, ProfileSuspendedCode);
+                    return Cancelled(started, counters, manual, CancelCode(running));
                 }
                 if (!TryPersistLocked(applied.Watcher, out DanbooruWatcher? stored, running.Use?.Admission))
                 {
@@ -991,7 +1002,9 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         DateTimeOffset now, DateTimeOffset started, CheckCounters counters, bool manual, RunningCheck running)
     {
         DateTimeOffset retryAt = Max(deferred.RetryAtUtc.ToUniversalTime(), now + _options.MinimumDeferral);
-        if (_search.GetProviderCooldownUntilUtc() is { } transport) retryAt = Max(retryAt, transport);
+        // A failed fence read must not throw away the deferral already received from the provider.
+        // The shared fence reader records the fault and supplies the conservative bounded fallback.
+        if (TryGetTransportFenceLocked(now, out DateTimeOffset transport)) retryAt = Max(retryAt, transport);
         retryAt = Min(retryAt, AddSaturating(now, MaximumProviderCooldown()));
         _backoffUntil = Max(_backoffUntil, retryAt);
         string reason = SafeCode(deferred.ReasonCode, "provider_deferred");
@@ -1083,7 +1096,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             // A provider-fence read is an admission input. If it is unavailable while a check is
-            // being cancelled, use the bounded maximum rather than releasing an uncertain check.
+            // ending, use the bounded maximum rather than releasing an uncertain check.
             // The visible fault is intentionally sticky until a safe restart reloads the scheduler.
             MarkProviderCooldownUnavailable(exception, "transport_fence_read");
             retryAt = AddSaturating(now, MaximumProviderCooldown());

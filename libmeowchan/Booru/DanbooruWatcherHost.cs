@@ -45,6 +45,9 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
     private Task<IReadOnlyList<BooruOriginalAdmission>> _recovery = Task.FromResult<IReadOnlyList<BooruOriginalAdmission>>([]);
     private long _recoveryGeneration = -1;
     private bool _recoveryEnabled;
+    // Also cancels a StartAsync parked in EnterAsync before it can release _lifecycleGate. Null is the
+    // terminal stop fence. Accessed under _recoverySync so no new start can link to a disposed source.
+    private CancellationTokenSource? _startupStop = new();
     private bool _started;
     private bool _stopped;
 
@@ -75,7 +78,15 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
 
     internal async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        CancellationTokenSource startup;
+        lock (_recoverySync)
+        {
+            if (_startupStop is null) return;
+            startup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _startupStop.Token);
+        }
+        using CancellationTokenSource start = startup;
+        CancellationToken startToken = start.Token;
+        await _lifecycleGate.WaitAsync(startToken).ConfigureAwait(false);
         try
         {
             if (_started || _stopped) return;
@@ -83,10 +94,10 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
             // must stay retryable; otherwise a transient failure permanently disables the watchers.
             // With a lifecycle the load (its restart-recovery writes) is a counted use of an open generation; an
             // exclusive operation in progress delays the start instead of failing it.
-            BooruProducerUse? load = _lifecycle is null ? null : await _lifecycle.EnterAsync(cancellationToken).ConfigureAwait(false);
-            try { Scheduler.Load(cancellationToken, load); }
+            BooruProducerUse? load = _lifecycle is null ? null : await _lifecycle.EnterAsync(startToken).ConfigureAwait(false);
+            try { Scheduler.Load(startToken, load); }
             finally { load?.Dispose(); }
-            cancellationToken.ThrowIfCancellationRequested();
+            startToken.ThrowIfCancellationRequested();
             // An unreadable catalog is already the scheduler's visible load fault; a recovery would only fail on the
             // same read and report it a second time.
             bool recover = Scheduler.GetSnapshot().FaultCode != CatalogUnreadableFault;
@@ -96,7 +107,7 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
                 _recoveryEnabled = recover;
                 if (recover) StartRecoveryLocked();
             }
-            try { await Scheduler.StartAsync(cancellationToken).ConfigureAwait(false); }
+            try { await Scheduler.StartAsync(startToken).ConfigureAwait(false); }
             catch
             {
                 await EndRecoveryAsync().ConfigureAwait(false);
@@ -193,6 +204,19 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
 
     internal async Task StopAsync()
     {
+        CancellationTokenSource? startupStop;
+        lock (_recoverySync)
+        {
+            startupStop = _startupStop;
+            _startupStop = null;
+        }
+        // Signal before waiting for the gate: StartAsync may hold it while the profile is suspended.
+        // Only the caller that removed this source cancels/disposes it; concurrent stops still drain below.
+        if (startupStop != null)
+        {
+            try { startupStop.Cancel(); }
+            finally { startupStop.Dispose(); }
+        }
         await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try
         {
