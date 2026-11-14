@@ -428,6 +428,27 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding ControlsIdleHideMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- Gallery filmstrip (V3): on/off, thumbnail size and how many thumbnails are decoded ahead of scrolling. -->
+                    <CheckBox x:Name="GalleryFilmstripInput" IsChecked="{Binding GalleryFilmstrip, Mode=TwoWay}" AutomationProperties.Name="{Binding GalleryFilmstripLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripHint}"><TextBlock Text="{Binding GalleryFilmstripLabel}" TextWrapping="Wrap" /></CheckBox>
+                    <TextBlock Text="{Binding GalleryFilmstripHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryFilmstripHeightFieldLabel" Text="{Binding GalleryFilmstripHeightLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryFilmstripHeightInput" Value="{Binding GalleryFilmstripHeight, Mode=TwoWay}" Minimum="48" Maximum="160" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripHeightFieldLabel}" AutomationProperties.Name="{Binding GalleryFilmstripHeightLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripHeightHelp}" />
+                            <TextBlock x:Name="GalleryFilmstripHeightInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryFilmstripHeightHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
+                        <TextBlock x:Name="GalleryFilmstripPreloadFieldLabel" Text="{Binding GalleryFilmstripPreloadLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryFilmstripPreloadInput" Value="{Binding GalleryFilmstripPreload, Mode=TwoWay}" Minimum="4" Maximum="60" Increment="1"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripPreloadFieldLabel}" AutomationProperties.Name="{Binding GalleryFilmstripPreloadLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripPreloadHelp}" />
+                            <TextBlock x:Name="GalleryFilmstripPreloadInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryFilmstripPreloadHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />
                     <CheckBox Content="{Binding VideoStartMutedLabel}" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">

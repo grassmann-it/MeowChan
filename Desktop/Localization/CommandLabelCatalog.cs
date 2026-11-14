@@ -111,6 +111,7 @@ internal static class CommandLabelCatalog
         ("command.gallery.overlay-toggle", "Toggle controls overlay", "Controls-Overlay umschalten"),
         ("command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten"),
         ("command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten"),
+        ("command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden"),
         ("command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen"),
         ("command.gallery.context-close", "Back to image", "Zurück zum Bild"),
         ("command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen"),

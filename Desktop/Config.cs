@@ -754,6 +754,14 @@ namespace MeowChan
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
+        /// <summary>The filmstrip of the gallery (thumbnails of the media before and after the shown one at the top): shown or not.</summary>
+        public bool GalleryFilmstrip { get; set; } = true;
+        /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
+        public int GalleryFilmstripHeight { get; set; } = GalleryFilmstripHeightDefault;
+        internal const int GalleryFilmstripHeightDefault = 72, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
+        public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
+        internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryMediaFocus { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -1088,6 +1096,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ClipboardTextLimitKiB), "ClipboardTextLimitKiB is outside its supported range (" + ClipboardTextLimitKiBMinimum + " to " + ClipboardTextLimitKiBMaximum + ").");
             if (ControlsIdleHideMs is < ControlsIdleHideMsMinimum or > ControlsIdleHideMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
+            if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
+            if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
             if (StatsSampleIntervalMs is < StatsSampleIntervalMsMinimum or > StatsSampleIntervalMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(StatsSampleIntervalMs), "StatsSampleIntervalMs is outside its supported range (" + StatsSampleIntervalMsMinimum + " to " + StatsSampleIntervalMsMaximum + ").");
             if (StatsHistorySamples is < StatsHistorySamplesMinimum or > StatsHistorySamplesMaximum)
@@ -1259,6 +1271,9 @@ namespace MeowChan
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
+                GalleryFilmstrip = GalleryFilmstrip,
+                GalleryFilmstripHeight = GalleryFilmstripHeight,
+                GalleryFilmstripPreload = GalleryFilmstripPreload,
                 StatsHistorySamples = StatsHistorySamples,
                 StatsBackgroundIntervalMs = StatsBackgroundIntervalMs,
                 StatsTrayTooltip = StatsTrayTooltip,
@@ -1447,6 +1462,9 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryFilmstrip = source.GalleryFilmstrip;
+            GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;
@@ -1594,6 +1612,9 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            GalleryFilmstrip = source.GalleryFilmstrip;
+            GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             StatsHistorySamples = source.StatsHistorySamples;
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs;
             StatsTrayTooltip = source.StatsTrayTooltip;

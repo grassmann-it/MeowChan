@@ -21,6 +21,9 @@ public partial class SettingsEditor
     private decimal? _gallerySlideshowVideoSeconds = Config.GallerySlideshowVideoSecondsDefault;
     private decimal? _gallerySlideshowVideoRepeats = Config.GallerySlideshowVideoRepeatsDefault;
     private decimal? _controlsIdleHideMs = Config.ControlsIdleHideMsDefault;
+    private bool _galleryFilmstrip = true;
+    private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
+    private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
 
     public IReadOnlyList<SettingsChoice> GallerySlideshowVideoRuleChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
@@ -40,6 +43,9 @@ public partial class SettingsEditor
     public decimal? GallerySlideshowVideoSeconds { get => _gallerySlideshowVideoSeconds; set => SetField(ref _gallerySlideshowVideoSeconds, value, nameof(GallerySlideshowVideoSeconds)); }
     public decimal? GallerySlideshowVideoRepeats { get => _gallerySlideshowVideoRepeats; set => SetField(ref _gallerySlideshowVideoRepeats, value, nameof(GallerySlideshowVideoRepeats)); }
     public decimal? ControlsIdleHideMs { get => _controlsIdleHideMs; set => SetField(ref _controlsIdleHideMs, value, nameof(ControlsIdleHideMs)); }
+    public bool GalleryFilmstrip { get => _galleryFilmstrip; set => SetField(ref _galleryFilmstrip, value, nameof(GalleryFilmstrip)); }
+    public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
+    public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
 
     private SlideshowVideoRule SelectedVideoRule => GalleryPlaybackPreferences.ParseVideoRule(SelectedGallerySlideshowVideoRule?.Value);
     /// <summary>The seconds row is shown (and validated) only for the "at least X seconds" rule of a chosen slideshow.</summary>
@@ -60,21 +66,34 @@ public partial class SettingsEditor
     public string ControlsIdleHideMsLabel => Texts.T("settings.controlsIdleHide");
     public string ControlsIdleHideMsHint => Texts.T("settings.controlsIdleHideHint",
         Config.ControlsIdleHideMsDefault, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+    public string GalleryFilmstripLabel => Texts.T("settings.galleryFilmstrip");
+    public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint");
+    public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
+    public string GalleryFilmstripHeightHint => Texts.T("settings.galleryFilmstripHeightHint",
+        Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
+    public string GalleryFilmstripPreloadLabel => Texts.T("settings.galleryFilmstripPreload");
+    public string GalleryFilmstripPreloadHint => Texts.T("settings.galleryFilmstripPreloadHint",
+        Config.GalleryFilmstripPreloadDefault, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
 
     public string GallerySlideshowVideoSecondsHelp => FieldHelp(nameof(GallerySlideshowVideoSecondsInput), Texts.T("settings.unitSeconds") + ". " + GallerySlideshowVideoSecondsHint);
     public string GallerySlideshowVideoRepeatsHelp => FieldHelp(nameof(GallerySlideshowVideoRepeatsInput), Texts.T("settings.unitCount") + ". " + GallerySlideshowVideoRepeatsHint);
     public string ControlsIdleHideMsHelp => FieldHelp(nameof(ControlsIdleHideMsInput), Texts.T("stats.settings.unitMs") + ". " + ControlsIdleHideMsHint);
+    public string GalleryFilmstripHeightHelp => FieldHelp(nameof(GalleryFilmstripHeightInput), Texts.T("settings.unitDip") + ". " + GalleryFilmstripHeightHint);
+    public string GalleryFilmstripPreloadHelp => FieldHelp(nameof(GalleryFilmstripPreloadInput), Texts.T("settings.unitCount") + ". " + GalleryFilmstripPreloadHint);
 
     private static readonly string[] ViewerHelpProperties =
     {
-        nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp)
+        nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp),
+        nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp)
     };
 
     private static readonly string[] ViewerTextProperties =
     {
         nameof(GalleryVideoRepeatLabel), nameof(GalleryVideoRepeatHint), nameof(GallerySlideshowVideoRuleLabel), nameof(GallerySlideshowVideoRuleHint),
         nameof(GallerySlideshowVideoSecondsLabel), nameof(GallerySlideshowVideoSecondsHint), nameof(GallerySlideshowVideoRepeatsLabel),
-        nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint)
+        nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
+        nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
+        nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -117,10 +136,20 @@ public partial class SettingsEditor
     {
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
+        GalleryFilmstrip = config.GalleryFilmstrip;
+        GalleryFilmstripHeight = config.GalleryFilmstripHeight;
+        GalleryFilmstripPreload = config.GalleryFilmstripPreload;
+        ResetNumber(GalleryFilmstripHeightInput, config.GalleryFilmstripHeight);
+        ResetNumber(GalleryFilmstripPreloadInput, config.GalleryFilmstripPreload);
     }
 
-    private void ApplyViewerDraft(Config candidate) =>
+    private void ApplyViewerDraft(Config candidate)
+    {
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+        candidate.GalleryFilmstrip = GalleryFilmstrip;
+        candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
+        candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
+    }
 
     /// <summary>A hidden row keeps its draft when that is valid and the saved value otherwise; it never blocks a save.</summary>
     private static int ViewerNumber(decimal? draft, int minimum, int maximum, int saved) =>
@@ -138,5 +167,9 @@ public partial class SettingsEditor
             Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum, true);
         yield return (ControlsIdleHideMsInput, ControlsIdleHideMs, ControlsIdleHideMsLabel, Texts.T("stats.settings.unitMs"),
             Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum, true);
+        yield return (GalleryFilmstripHeightInput, GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Texts.T("settings.unitDip"),
+            Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum, true);
+        yield return (GalleryFilmstripPreloadInput, GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Texts.T("settings.unitCount"),
+            Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum, true);
     }
 }
