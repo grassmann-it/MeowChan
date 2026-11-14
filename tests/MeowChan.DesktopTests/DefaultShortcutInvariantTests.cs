@@ -16,7 +16,9 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.filmstrip-toggle",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
         // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed, A the A–B loop, "." the next frame.
-        "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step"
+        "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step",
+        // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
+        "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear"
     };
 
     [Theory, MemberData(nameof(Platforms))]

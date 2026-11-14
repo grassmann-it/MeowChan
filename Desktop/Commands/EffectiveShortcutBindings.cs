@@ -156,6 +156,10 @@ public sealed class EffectiveShortcutBindings
         ["video.ab-loop"] = 7, ["video.frame-step"] = 7,
         // New in revision 7: L shows or hides the gallery filmstrip.
         ["gallery.filmstrip-toggle"] = 7,
+        // New in revision 7 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
+        // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
+        ["media.rating.set-1"] = 7, ["media.rating.set-2"] = 7, ["media.rating.set-3"] = 7, ["media.rating.set-4"] = 7,
+        ["media.rating.set-5"] = 7, ["media.rating.clear"] = 7,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
