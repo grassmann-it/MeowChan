@@ -275,7 +275,7 @@ public sealed class VideoScrubPreviewTests
         Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = async (_, _, token) =>
         {
             storeStarted.TrySetResult();
-            using CancellationTokenRegistration registration = token.Register(storeCanceled.TrySetResult);
+            using CancellationTokenRegistration registration = token.Register(() => { storeCanceled.TrySetResult(); });
             await releaseStore.Task;
         };
         VideoScrubPreviewCache cache = Cache(temp.Path, decoder, storeOverride: store);
@@ -332,7 +332,8 @@ public sealed class VideoScrubPreviewTests
         };
         Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>> read = (_, _) =>
             Task.FromException<byte[]?>(new IOException("synthetic cache read failure"));
-        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, readOverride: read).OpenSession(manifest, asset)!;
+        VideoScrubPreviewCache cache = Cache(temp.Path, decoder, readOverride: read);
+        await using VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
         Task<VideoScrubFrame?> request = session.GetSlotAsync(6, Duration, CancellationToken.None);
         await decoder.Started.Task.WaitAsync(Patience);
         await File.WriteAllBytesAsync(asset.Path, new byte[] { 5, 6, 7, 8 });
