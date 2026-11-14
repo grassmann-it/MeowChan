@@ -21,9 +21,6 @@ glyph-icon	Desktop/Localization/ArchiveCatalog.cs	1	"↑(U+2191) Voriger Post"
 glyph-icon	Desktop/MediaLibraryStateText.cs	1	"★(U+2605)"
 glyph-icon	Desktop/ThreadRow.cs	1	"↑(U+2191)"
 glyph-icon	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	"×(U+00D7)"
-glyph-icon	Desktop/Views/Media/MediaPage.Sorting.cs	1	"↑(U+2191)"
-glyph-icon	Desktop/Views/Media/MediaPage.Sorting.cs	1	"↓(U+2193)"
-glyph-icon	Desktop/Views/Media/MediaPage.Sorting.cs	1	"↕(U+2195)"
 glyph-icon	Desktop/Views/Statistics/StatisticsPage.axaml.cs	1	"−(U+2212)"
 page-inset	Desktop/Views/Media/MediaPage.cs	1	no reference to Workspace.Inset.Page
 page-inset	Desktop/Views/Rules/RulesPage.axaml	1	Grid no inset

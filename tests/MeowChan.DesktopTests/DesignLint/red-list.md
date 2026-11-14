@@ -14,11 +14,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `color-hex` | 0 | 0 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
 | `spacing-off-grid` | 188 | 55 | P7: 0/2/4/8/12/16/24/32 or Inset token |
-| `glyph-icon` | 14 | 7 | P6: catalog path icon |
+| `glyph-icon` | 11 | 6 | P6: catalog path icon |
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 11 | 7 | P1: Workspace.Size token |
 | `page-inset` | 3 | 3 | P2: Workspace.Inset.Page |
-| **total** | **218** | 63 | |
+| **total** | **215** | 62 | |
 
 ## Counts per file
 
@@ -46,7 +46,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/Views/Archive/ArchivePage.Favorites.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Archive/PostFilterDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Media/MediaPage.Filters.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Views/Media/MediaPage.Sorting.cs` |  |  |  |  |  | 3 |  |  |  | 3 |
 | `Desktop/Views/Media/MediaSelectionTagDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Plugins/PluginsPage.Migration.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Statistics/StatisticsPage.axaml` |  |  |  |  | 2 |  | 1 |  |  | 3 |
@@ -283,10 +282,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 ### `Desktop/Views/Media/MediaPage.Selection.cs` (1)
 
 - `spacing-off-grid`: L26 `ItemSpacing=6`
-
-### `Desktop/Views/Media/MediaPage.Sorting.cs` (3)
-
-- `glyph-icon`: L68 `"↕(U+2195)"`, L77 `"↓(U+2193)"`, L77 `"↑(U+2191)"`
 
 ### `Desktop/Views/Media/MediaPage.cs` (1)
 
