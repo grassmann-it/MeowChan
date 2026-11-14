@@ -43,7 +43,7 @@ public sealed class IoStatsDisplayTests : IDisposable
     [Fact]
     public void TheGraphSentenceNamesNetworkDiskAndActiveDownloadsInBinaryUnits()
     {
-        IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
+        IoRates rates = new(NetDown: 2.4 * MiB, NetUp: 0, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
         Assert.Equal(1.5 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // what MeowChan writes, not what it reads back
         Assert.Equal("Network download 2.4 MiB/s, disk written 1.5 MiB/s, active downloads: 3. Opens the statistics.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), En));
@@ -58,7 +58,7 @@ public sealed class IoStatsDisplayTests : IDisposable
     [Fact]
     public void ReadingBackFromDiskNeverChangesTheHeaderRateOrItsSentence()
     {
-        IoRates quiet = new(NetDown: 1 * MiB, DiskWrite: 200 * 1024, DiskRead: 0, Requests: 1);
+        IoRates quiet = new(NetDown: 1 * MiB, NetUp: 0, DiskWrite: 200 * 1024, DiskRead: 0, Requests: 1);
         IoRates busyReading = quiet with { DiskRead = 80 * MiB };
         Assert.Equal(IoStatsDisplay.HeaderDiskRate(quiet), IoStatsDisplay.HeaderDiskRate(busyReading));
         Assert.Equal(IoStatsDisplay.GraphDescription(quiet, default, En), IoStatsDisplay.GraphDescription(busyReading, default, En));

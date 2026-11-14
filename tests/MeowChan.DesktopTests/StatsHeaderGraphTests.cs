@@ -166,7 +166,7 @@ public sealed class StatsHeaderGraphTests : IDisposable
     [Fact]
     public void TheAccessibleNameNamesOnlyWhatIsDrawn()
     {
-        IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
+        IoRates rates = new(NetDown: 2.4 * MiB, NetUp: 0, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3);
         IoActivity activity = new(3, 41, 0);
         string both = IoStatsDisplay.GraphDescription(rates, activity, showDisk: true, En);
         string network = IoStatsDisplay.GraphDescription(rates, activity, showDisk: false, En);

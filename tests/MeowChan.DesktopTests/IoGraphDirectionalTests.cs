@@ -16,7 +16,8 @@ public sealed class IoGraphDirectionalTests
     private const double Bottom = 16, Height = 14;
 
     private static IoSeries Series(float[] write, float[] read, float[]? net = null) =>
-        new(write.Length, write.Length, net ?? new float[write.Length], write, read, new float[write.Length]);
+        new(capacity: write.Length, count: write.Length, netDown: net ?? new float[write.Length],
+            netUp: new float[write.Length], diskWrite: write, diskRead: read, requests: new float[write.Length]);
 
     private static float[] Last(int count, float value) { float[] values = new float[count]; values[^1] = value; return values; }
 

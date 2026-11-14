@@ -16,7 +16,8 @@ public sealed class StatisticsReadabilityTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
     private static IoSeries Series(int capacity, float[] net, float[]? write = null, float[]? read = null) =>
-        new(capacity, net.Length, net, write ?? new float[net.Length], read ?? new float[net.Length], new float[net.Length]);
+        new(capacity: capacity, count: net.Length, netDown: net, netUp: new float[net.Length],
+            diskWrite: write ?? new float[net.Length], diskRead: read ?? new float[net.Length], requests: new float[net.Length]);
 
     [Theory]
     [InlineData(300, 2500, "en", "750")]

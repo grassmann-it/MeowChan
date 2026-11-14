@@ -4,7 +4,7 @@ namespace MeowChan.DesktopTests;
 
 public sealed class IoRingTests
 {
-    private static IoSample S(float v) => new(v, v * 10, v * 100, v * 1000);
+    private static IoSample S(float v) => new(NetDown: v, NetUp: 0, DiskWrite: v * 10, DiskRead: v * 100, Requests: v * 1000);
 
     private static float[] Net(IoRing ring) => ring.ToSeries().NetDown;
 
