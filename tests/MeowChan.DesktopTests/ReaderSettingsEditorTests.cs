@@ -31,6 +31,8 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         (nameof(Config.ReaderFocusedMediaScalePercent), "settings.reader.focusedScale", nameof(SettingsEditor.ReaderFocusedMediaScalePercentMinimum), nameof(SettingsEditor.ReaderFocusedMediaScalePercentMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeSize), "settings.reader.hoverSize", nameof(SettingsEditor.ReaderHoverEnlargeSizeMinimum), nameof(SettingsEditor.ReaderHoverEnlargeSizeMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.ReaderHoverEnlargeDelayMs), "settings.reader.hoverDelay", nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMinimum), nameof(SettingsEditor.ReaderHoverEnlargeDelayMsMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderMediaSidebarWidth), "settings.reader.mediaSidebarWidth", nameof(SettingsEditor.ReaderMediaSidebarWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarWidthMaximum), "SettingsReadingMediaPage"),
+        (nameof(Config.ReaderMediaSidebarMinimumWidth), "settings.reader.mediaSidebarMinimumWidth", nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMinimum), nameof(SettingsEditor.ReaderMediaSidebarMinimumWidthMaximum), "SettingsReadingMediaPage"),
         (nameof(Config.PostFilterRuleLimit), "settings.limits.postFilterRules", nameof(SettingsEditor.PostFilterRuleLimitMinimum), nameof(SettingsEditor.PostFilterRuleLimitMaximum), "SettingsWorkerBudgetsPage"),
         (nameof(Config.HiddenPostLimit), "settings.limits.hiddenPosts", nameof(SettingsEditor.HiddenPostLimitMinimum), nameof(SettingsEditor.HiddenPostLimitMaximum), "SettingsWorkerBudgetsPage"),
     };

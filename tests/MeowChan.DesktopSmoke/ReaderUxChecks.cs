@@ -138,6 +138,11 @@ internal static class ReaderUxChecks
             await ReaderDisplayChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
+        {
+            await ReaderMediaSidebarChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")
         {
             await ReaderViewChecks.RunAsync(window);
