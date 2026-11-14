@@ -77,6 +77,8 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/ReaderBodyTextBlock.cs", "Colors.Black", "Opacity-mask gradient, not a visible colour."),
         // TH1 runtime palette: the documented variation rules compute colours from the WorkspaceStyles seeds; no literal colour.
         new(DesignRules.ColorCode, "Desktop/Theming/ThemePalette.cs", "Color.FromArgb", "Variation rules derived from theme seeds (scale, mix, alpha)."),
+        // TH2 colour overrides: related seeds derived from the user's colour, black/white text on the accent, parsing stored hex.
+        new(DesignRules.ColorCode, "Desktop/Theming/ThemeCustomization.cs", "Color.FromArgb", "Seeds derived from user colours, on-colour black/white, stored hex."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
     };

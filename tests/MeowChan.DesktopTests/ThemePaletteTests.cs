@@ -259,7 +259,7 @@ public sealed class ThemePaletteTests
     private static Color Brush(IResourceNode resources, string key, ThemeVariant variant) =>
         Assert.IsAssignableFrom<ISolidColorBrush>(resources.TryGetResource(key, variant, out object? value) ? value : null).Color;
 
-    private static ThemePaletteBase Base(ThemeTokenTheme theme)
+    internal static ThemePaletteBase Base(ThemeTokenTheme theme)
     {
         ThemeTokenMap map = ThemeTokens.ForTheme(theme);
         var colors = new Dictionary<string, Color>(StringComparer.Ordinal);
@@ -279,6 +279,6 @@ public sealed class ThemePaletteTests
         return dictionary.Elements().ToDictionary(element => (string)element.Attribute(X + "Key")!, StringComparer.Ordinal);
     }
 
-    private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
+    internal static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
 }

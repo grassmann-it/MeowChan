@@ -223,6 +223,7 @@ public static class SettingsTransfer
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
             PluginEditorExecutable = source.PluginEditorExecutable,
             Theme = source.Theme,
+            ThemeOverrides = source.ThemeOverrides, // immutable: sharing the instance is a detached value copy
             Animations = source.Animations,
             Language = source.Language,
             WorkspaceMode = source.WorkspaceMode,

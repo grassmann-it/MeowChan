@@ -106,6 +106,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).
 - `color-code` in `Desktop/ReaderBodyTextBlock.cs` (Colors.Black): Opacity-mask gradient, not a visible colour.
 - `color-code` in `Desktop/Theming/ThemePalette.cs` (Color.FromArgb): Variation rules derived from theme seeds (scale, mix, alpha).
+- `color-code` in `Desktop/Theming/ThemeCustomization.cs` (Color.FromArgb): Seeds derived from user colours, on-colour black/white, stored hex.
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)

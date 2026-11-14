@@ -720,6 +720,20 @@ namespace MeowChan
         }
 
         /// <summary>
+        /// TH2: the user's colour overrides per base theme, <c>{ "Light": { seed: "#RRGGBB" | "#AARRGGBB" }, "Dark": { … } }</c>.
+        /// Each variant object has the shape of a future theme.json "seeds" object (keep them identical). Unknown or non-seed keys
+        /// and malformed colours are dropped on load with a log warning; see <see cref="Desktop.Theming.ThemeColorOverrides"/>.
+        /// Applied live by the window through ThemeRuntime.ApplyOverrides, which refuses a set below 4.5 : 1 text contrast.
+        /// </summary>
+        [JsonConverter(typeof(Desktop.Theming.ThemeColorOverridesConverter))]
+        public Desktop.Theming.ThemeColorOverrides ThemeOverrides
+        {
+            get => _themeOverrides;
+            set => _themeOverrides = value ?? Desktop.Theming.ThemeColorOverrides.Empty;
+        }
+        private Desktop.Theming.ThemeColorOverrides _themeOverrides = Desktop.Theming.ThemeColorOverrides.Empty;
+
+        /// <summary>
         /// D1: "System" follows the operating system's reduced-motion setting, "On" always animates, "Off" never does.
         /// The environment (MEOWCHAN_MOTION, MEOWCHAN_REDUCED_MOTION) still wins over this setting; see <see cref="Desktop.Motion.MotionPolicy"/>.
         /// </summary>
@@ -1660,6 +1674,7 @@ namespace MeowChan
                 TaggingCards = (string[])TaggingCards.Clone(),
                 TaggingCardCount = TaggingCardCount,
                 Theme = Theme,
+                ThemeOverrides = ThemeOverrides,
                 Animations = Animations,
                 Language = Language,
                 WorkspaceMode = WorkspaceMode,
@@ -1884,6 +1899,7 @@ namespace MeowChan
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            ThemeOverrides = source.ThemeOverrides;
             Animations = source.Animations;
             Language = source.Language;
             WorkspaceMode = source.WorkspaceMode;
@@ -2078,6 +2094,7 @@ namespace MeowChan
 
             ShortcutBindings = source.ShortcutBindings.Clone();
             Theme = source.Theme;
+            ThemeOverrides = source.ThemeOverrides;
             Animations = source.Animations;
             Language = source.Language;
             foreach (string mode in new[] { "Barebones", "Simple", "Advanced" })
