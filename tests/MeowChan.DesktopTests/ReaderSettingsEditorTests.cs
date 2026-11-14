@@ -277,6 +277,101 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.False(editor.IsGalleryFitLimited);
     }
 
+    public static IEnumerable<object[]> QuickReaderSettingIds() =>
+        ReaderQuickSettings.Fields.Select(field => new object[] { field.Id });
+
+    [Theory]
+    [MemberData(nameof(QuickReaderSettingIds))]
+    public void ConfirmedQuickSettingRefreshesOnlyItsOwnEditorAndKeepsUnrelatedDrafts(string id)
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Invoke(editor, "RefreshChoiceLabels");
+        Config saved = Get<Config>(editor, "_config");
+        QuickSettingField field = ReaderQuickSettings.Fields.Single(item => item.Id == id);
+        string value = field switch
+        {
+            QuickIntegerField number => number.Maximum.ToString(CultureInfo.InvariantCulture),
+            QuickChoiceField choice => choice.Choices.First(item => item.Value != DraftValue(editor, id)).Value,
+            _ => (!bool.Parse(field.Read(saved))).ToString(),
+        };
+        Assert.True(field.TryCreateChange(value, out Action<Config> confirm));
+        confirm(saved); // The popover has saved this field, not the page's other drafts.
+
+        // Both a valid edit and rejected raw text must survive a different setting's confirmation.
+        editor.ReaderReplyStep = 17;
+        GetInput(editor, nameof(Config.ReaderReplyStep)).Value = 17;
+        editor.ReaderFoldLines = null;
+        GetInput(editor, nameof(Config.ReaderFoldLines)).Text = "unfinished draft";
+        if (field is QuickIntegerField)
+            GetInput(editor, id).Text = "replaced by confirmed value";
+        Dictionary<string, string> before = ReaderQuickSettings.Fields.ToDictionary(item => item.Id, item => DraftValue(editor, item.Id));
+        Dictionary<string, string?> raw = ReaderSettingsPersistenceTests.Numbers()
+            .ToDictionary(row => (string)row[0], row => GetInput(editor, (string)row[0]).Text);
+        string savedBefore = System.Text.Json.JsonSerializer.Serialize(saved);
+
+        editor.RefreshConfirmedSettings(new[] { id });
+
+        Assert.Equal(value, DraftValue(editor, id));
+        foreach (QuickSettingField other in ReaderQuickSettings.Fields.Where(item => item.Id != id))
+            Assert.Equal(before[other.Id], DraftValue(editor, other.Id));
+        foreach (var pair in raw)
+        {
+            if (pair.Key == id)
+            {
+                Assert.Equal((decimal)int.Parse(value, CultureInfo.InvariantCulture), GetInput(editor, id).Value);
+                Assert.Equal(value, GetInput(editor, id).Text);
+            }
+            else Assert.Equal(pair.Value, GetInput(editor, pair.Key).Text);
+        }
+        Assert.Null(editor.ReaderFoldLines);
+        Assert.Equal(17m, editor.ReaderReplyStep);
+        Assert.Equal(savedBefore, System.Text.Json.JsonSerializer.Serialize(saved));
+        if (id == SettingsFieldId.ReadingFontSize)
+            Assert.Equal(value, Get<string>(editor, "_initialReadingFontSize"));
+    }
+
+    [Fact]
+    public void ConfirmedReaderBatchRefreshesAllNamedFieldsWithoutReloadingTheDraft()
+    {
+        SettingsEditor editor = CreateValidDraft();
+        Config saved = Get<Config>(editor, "_config");
+        saved.ReaderMediaSidebar = true;
+        saved.ReaderMediaSidebarSide = Config.ReaderMediaSidebarSideRight;
+        saved.ReaderMediaSidebarWidth = 760;
+        saved.ReaderInlineVideo = true;
+        saved.ReaderInlineVideoAutoplayMuted = false;
+        editor.ReaderInlineVideoAutoplayMuted = true; // Confirmation must also propagate false.
+        editor.ReaderPreviewDelayMs = 123;
+        GetInput(editor, nameof(Config.ReaderPreviewDelayMs)).Value = 123;
+        editor.ReaderFoldLines = null;
+        GetInput(editor, nameof(Config.ReaderFoldLines)).Text = "unfinished draft";
+
+        editor.RefreshConfirmedSettings(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarSide,
+            SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderInlineVideo, SettingsFieldId.ReaderInlineVideoAutoplayMuted });
+
+        Assert.True(editor.ReaderMediaSidebar);
+        Assert.Equal(Config.ReaderMediaSidebarSideRight, editor.SelectedReaderMediaSidebarSide!.Value);
+        Assert.Equal(760m, editor.ReaderMediaSidebarWidth);
+        Assert.Equal("760", GetInput(editor, nameof(Config.ReaderMediaSidebarWidth)).Text);
+        Assert.True(editor.ReaderInlineVideo);
+        Assert.False(editor.ReaderInlineVideoAutoplayMuted);
+        Assert.Equal(123m, editor.ReaderPreviewDelayMs);
+        Assert.Null(editor.ReaderFoldLines);
+        Assert.Equal("unfinished draft", GetInput(editor, nameof(Config.ReaderFoldLines)).Text);
+    }
+
+    private static string DraftValue(SettingsEditor editor, string id)
+    {
+        PropertyInfo property = typeof(SettingsEditor).GetProperty(id) ?? typeof(SettingsEditor).GetProperty("Selected" + id)!;
+        return property.GetValue(editor) switch
+        {
+            SettingsChoice choice => choice.Value,
+            decimal number => number.ToString(CultureInfo.InvariantCulture),
+            object value => value.ToString()!,
+            _ => string.Empty,
+        };
+    }
+
     // CLR-only entry into the same reader capture used by Save. Host tests use
     // this to verify editor -> candidate -> disk, not just Config -> Config.
     internal static Config CaptureDraft(Config saved, Config desired)
