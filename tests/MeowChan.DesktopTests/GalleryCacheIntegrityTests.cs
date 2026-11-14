@@ -191,6 +191,41 @@ public sealed class GalleryCacheIntegrityTests
         Assert.Equal(1, cache.Count);
     }
 
+    [Fact]
+    public Task ZeroDelayPreloadWithCompletedWarmVerificationRunsFileChecksOffTheCallerContext() => OnUiContextAsync(async ui =>
+    {
+        using TempDirectory temp = new();
+        GalleryEntry firstEntry = await EntryAsync(Path.Combine(temp.Path, "first"), "image.png", "first image"u8.ToArray());
+        GalleryEntry secondEntry = await EntryAsync(Path.Combine(temp.Path, "second"), "image.png", "second image"u8.ToArray());
+        IdentityProbe probe = new(ui);
+        GalleryImageCache<Img> cache = new(image => image.Size, Budget) { IdentityOf = probe.Read };
+        int decodes = 0;
+
+        async Task<(Img Bitmap, GalleryImageInfo Info)> Decode(GalleryEntry decoded, GalleryDecodeRequest _, CancellationToken token)
+        {
+            Interlocked.Increment(ref decodes);
+            await using Stream verified = await decoded.Manifest.OpenVerifiedReadAsync(decoded.Asset.AssetId, token);
+            return (new Img(100, 100), Info);
+        }
+
+        (Img first, _) = await GalleryImageCache.DecodeThrough(cache, Decode, firstEntry, Fit, CancellationToken.None);
+        cache.Release(first);
+        probe.Close();
+
+        GalleryPreloader<Img> preloader = new(cache, Decode, TimeSpan.Zero);
+        Task preload = preloader.Schedule(new[] { firstEntry, secondEntry }, 0, Fit, ahead: 1, behind: 0);
+
+        // The first warm verification is already completed by the memo, so a direct RunAsync call would reach Capture/Touch
+        // synchronously here. The closed gate proves that the explicit runner hop happens before any identity read.
+        Assert.False(preload.IsCompleted);
+        Assert.Equal(0, probe.OnUi);
+        probe.Open();
+        await preload.WaitAsync(Patience);
+
+        Assert.Equal(0, probe.OnUi);
+        Assert.Equal(2, decodes); // initial display plus the cold neighbor; the warm displayed image was reused
+    });
+
     // S02: the viewer's decode queue starts DecodeThrough on the UI thread. Reading an original's identity can stall on a sleeping
     // disk or a network share, so it must never run there, not even for an image that is already in memory.
 
