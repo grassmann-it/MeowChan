@@ -109,6 +109,9 @@ public sealed class FilterSurfaceContractTests
         Assert.Contains("ToggleDraftTag(", tags);
         Assert.Contains("DataValidationErrors.SetErrors(ArchiveTagChoiceHost, pending", editors);
         Assert.Contains("_invalidSearchEditor = ArchiveTagChoiceHost;", editors);
+        // Wave-3 smoke regression (private-tags): a stand-alone DataValidationErrors shows only its owner's errors and has no
+        // templated owner, so the pending request was set but never drawn. The host owns its own errors.
+        Assert.Contains("ArchiveTagChoiceHost.Owner = ArchiveTagChoiceHost;", tags);
         Assert.Contains("private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;", tags);
     }
 

@@ -230,7 +230,8 @@ internal static class PrivateTagBarChecks
         await f.Page.LoadThreadAsync(Tagged).WaitAsync(Deadline);
         await f.Page.MediaLoadTask.WaitAsync(Deadline);
         // The bar the user left open returns with the next opened thread, without taking focus.
-        Require(bar.IsVisible && !input.IsKeyboardFocusWithin && f.Chips().SequenceEqual(new[] { "my_tag  \u2715" }), "Returned bar is not current.");
+        Require(bar.IsVisible && !input.IsKeyboardFocusWithin && f.Chips().SequenceEqual(new[] { "my_tag" }),
+            "Returned bar is not current: visible " + bar.IsVisible + ", field focused " + input.IsKeyboardFocusWithin + ", chips " + string.Join("|", f.Chips()));
         f.Click(f.Suggestions()[1]);
         await f.SettleAsync();
         Require(taggedRow.TagsText == "Tags: my_tag, /sdg/" && !plainRow.HasTags, "List row did not follow the bar: " + taggedRow.TagsText);
@@ -249,9 +250,19 @@ internal static class PrivateTagBarChecks
         await AutocompleteAsync(f, input, bar);
 
         input.Focus();
+        bool listBefore = input.IsDropDownOpen;
+        if (listBefore)
+        {
+            // The emptied field still lists the thread's suggestions: the first Escape closes only that list (one Escape order).
+            var listEscape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
+            input.RaiseEvent(listEscape);
+            Require(listEscape.Handled && !input.IsDropDownOpen && bar.IsVisible, "The first Escape must close only the open suggestion list.");
+        }
         var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
         input.RaiseEvent(escape);
-        Require(escape.Handled && !bar.IsVisible && open.IsFocused, "Escape did not close the bar and return focus.");
+        Require(escape.Handled && !bar.IsVisible && open.IsFocused, "Escape did not close the bar and return focus: list open before " + listBefore + ", text '" + input.Text + "', dialog " + f.Page.IsReaderDialogOpen + ", capturing " + MeowChan.Desktop.Commands.ShortcutService.IsCapturing + ", handled " + escape.Handled
+            + ", bar visible " + bar.IsVisible + ", list open " + input.IsDropDownOpen + ", open visible " + open.IsEffectivelyVisible
+            + ", focused " + ((owner.FocusManager?.GetFocusedElement() as Control)?.Name ?? "none"));
         Console.WriteLine("SMOKE private-tags journey [en]: suggestions, click-to-tag, typed Enter, case variant, invalid name, remove, list rows, thread switch, Escape checked.");
     }
 
@@ -356,7 +367,7 @@ internal static class PrivateTagBarChecks
         KeyEventArgs accept = Press(Key.Enter);
         input.RaiseEvent(accept);
         Require(accept.Handled, "Enter on a highlighted suggestion was not handled.");
-        await Program.WaitUntilAsync(() => f.Chips().SequenceEqual(["/sdg/  \u2715"]) && string.IsNullOrEmpty(input.Text),
+        await Program.WaitUntilAsync(() => f.Chips().SequenceEqual(["/sdg/"]) && string.IsNullOrEmpty(input.Text),
             () => "Enter did not add the highlighted suggestion: " + string.Join("|", f.Chips()) + " text=" + input.Text);
         await f.SettleAsync();
         // An assigned tag is not offered again. The first Escape closes the list and keeps the bar.
@@ -374,7 +385,7 @@ internal static class PrivateTagBarChecks
         input.RaiseEvent(comma);
         Require(comma.Handled, "A trailing comma was typed instead of adding the tag.");
         await f.SettleAsync();
-        Require(f.Chips().SequenceEqual(["my_tag  \u2715", "/sdg/  \u2715"]) && string.IsNullOrEmpty(input.Text) && f.Stored().Tags.Count == tags,
+        Require(f.Chips().SequenceEqual(["my_tag", "/sdg/"]) && string.IsNullOrEmpty(input.Text) && f.Stored().Tags.Count == tags,
             "Comma did not reuse the completed tag: " + string.Join("|", f.Chips()));
         // A source tag is offered as its own labelled group and creates an own tag when chosen; a source tag that already
         // is an own tag (my_tag above) is never listed twice.
@@ -385,7 +396,7 @@ internal static class PrivateTagBarChecks
         Capture(f.Page, "autocomplete-source");
         input.RaiseEvent(Press(Key.Down));
         input.RaiseEvent(Press(Key.Enter));
-        await Program.WaitUntilAsync(() => f.Chips().Contains("silver_hair  \u2715"), () => "Source tag was not added: " + string.Join("|", f.Chips()));
+        await Program.WaitUntilAsync(() => f.Chips().Contains("silver_hair"), () => "Source tag was not added: " + string.Join("|", f.Chips()));
         await f.SettleAsync();
         Require(f.Stored().Tags.Count == tags + 1 && f.Stored().TagsOf(Plain).Any(tag => tag.Name.Display == "silver_hair"),
             "Choosing a source tag must create exactly one own tag on the thread.");
@@ -575,7 +586,8 @@ internal static class PrivateTagBarChecks
             validationPresenters = choice.GetVisualDescendants().OfType<DataValidationErrors>().Count(), topError = error.Text, topVisible = error.IsVisible
         }));
         Require(page.IsFilterSurfaceOpen && choice.IsEffectivelyVisible && shownUnderChoice.Length == 1 && !error.IsVisible,
-            "The Include/Exclude request is not shown exactly once, under the tag choice.");
+            "The Include/Exclude request is not shown exactly once, under the tag choice: surface open " + page.IsFilterSurfaceOpen
+            + ", choice visible " + choice.IsEffectivelyVisible + ", shown under choice " + shownUnderChoice.Length + ", top error '" + error.Text + "' visible " + error.IsVisible);
         choice.Search.Text = string.Empty; choice.Search.FlushQuery();
         Require(!choice.HasPending && !DataValidationErrors.GetHasErrors(choiceHost), "Clearing the entry did not clear its mark.");
 
@@ -649,7 +661,7 @@ internal static class PrivateTagBarChecks
         await page.LoadThreadAsync(first).WaitAsync(Deadline);
         await page.MediaLoadTask.WaitAsync(Deadline);
         f.Click("ReaderTagsOpen");
-        Require(f.Chips().SequenceEqual(new[] { "red  \u2715" }), "Fixture tag is not shown.");
+        Require(f.Chips().SequenceEqual(new[] { "red" }), "Fixture tag is not shown.");
 
         async Task<TagManagerDialog> OpenManagerAsync()
         {

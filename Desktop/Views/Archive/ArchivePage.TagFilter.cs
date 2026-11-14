@@ -39,6 +39,9 @@ public partial class ArchivePage
         ArchiveTagChoice.Picked = (id, exclude) => AddDraftTag(id, include: !exclude);
         // What was typed in the popover and not picked stays: it is an unfinished entry, explained when a search is started.
         ArchiveTagChoice.KeepQueryOnDismiss = true;
+        // The host is a stand-alone DataValidationErrors (not inside a control template), so it has no templated owner whose
+        // errors it would show; it shows its own. Without this the "choose Include or Exclude" request was set but never drawn.
+        ArchiveTagChoiceHost.Owner = ArchiveTagChoiceHost;
         ArchiveTagChoice.PendingChanged += (_, _) =>
         {
             // The "unfinished entry" mark belongs to the typed tag; it goes away as soon as the entry does.
