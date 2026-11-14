@@ -1,0 +1,66 @@
+namespace MeowChan.Desktop.Localization;
+
+// Texts of the quick tag surface (gallery tag panel and right-click tag popover, PLAN-SCHNELL-TAGGEN §1/§3): header, field
+// hint, suggestion strip with its reasons, assigned chips (tri-state for a selection), status line and footer actions.
+// Prefix reserved for this catalog: tags.quick.*. Status texts of a change reuse tags.dialog.added/removed(Many).
+// Reasons stay short (at most 24 characters in English) because they follow the name in a tooltip.
+internal static class QuickTagCatalog
+{
+    internal static readonly (string Key, string English, string German)[] Entries =
+    {
+        ("tags.quick.heading", "Tags", "Tags"),
+        ("tags.quick.title", "Tags · {0}", "Tags · {0}"),
+        ("tags.quick.name", "Tags for {0}", "Tags für {0}"),
+        ("tags.quick.help", "Suggestions: {0}, assigned: {1}. Escape closes.", "Vorschläge: {0}, zugewiesen: {1}. Escape schließt."),
+        ("tags.quick.files", "{0} media files", "{0} Medien"),
+        ("tags.quick.files.one", "{0} media file", "{0} Medium"),
+        ("tags.quick.close", "Close", "Schließen"),
+        ("tags.quick.closeTip", "Close · Esc", "Schließen · Esc"),
+        ("tags.quick.fieldHint", "{0} to {1} toggle the numbered suggestions. With an empty field, Down moves to the suggestions and Backspace to the assigned tags.",
+            "{0} bis {1} schalten die nummerierten Vorschläge um. Bei leerem Feld führt Pfeil runter zu den Vorschlägen und die Rücktaste zu den zugewiesenen Tags."),
+        ("tags.quick.fieldHintNavigation", "Page Down and Page Up show the next or previous media file, {0} adds the typed tag and moves on.",
+            "Bild runter und Bild hoch zeigen das nächste oder vorige Medium, {0} fügt den getippten Tag hinzu und geht weiter."),
+        ("tags.quick.suggestions", "Suggestions", "Vorschläge"),
+        ("tags.quick.suggestions.empty", "No suggestions yet. Type a name to add a tag.", "Noch keine Vorschläge. Einen Namen tippen, um einen Tag hinzuzufügen."),
+        ("tags.quick.suggestions.help", "Left and Right move between suggestions, Space or Enter toggles one, a number or the letter on a chip toggles it directly. Up returns to the tag field.",
+            "Pfeil links und rechts wechseln den Vorschlag, Leertaste oder Enter schaltet ihn um, eine Ziffer oder der Buchstabe am Chip schaltet ihn direkt um. Pfeil hoch führt zurück ins Tagfeld."),
+        ("tags.quick.suggestion.name", "{0}, suggestion {1} of {2}, {3}, number of uses: {4}. Enter adds it.",
+            "{0}, Vorschlag {1} von {2}, {3}, Anzahl Verwendungen: {4}. Enter fügt ihn hinzu."),
+        ("tags.quick.suggestion.nameCreate", "{0}, suggestion {1} of {2}, {3}. Enter creates it as an own tag and adds it.",
+            "{0}, Vorschlag {1} von {2}, {3}. Enter legt ihn als eigenen Tag an und fügt ihn hinzu."),
+        ("tags.quick.suggestion.tip", "{0} · {1}", "{0} · {1}"),
+        ("tags.quick.suggestion.tipShortcut", "{0} · {1} · {2}", "{0} · {1} · {2}"),
+        ("tags.quick.more", "More…", "Mehr…"),
+        ("tags.quick.moreName", "Show more own tags in the list of the tag field", "Weitere eigene Tags in der Liste des Tagfelds zeigen"),
+        ("tags.quick.assigned", "On this media file ({0})", "An diesem Medium ({0})"),
+        ("tags.quick.assignedAll", "On all ({0})", "Auf allen ({0})"),
+        ("tags.quick.assignedSome", "On some ({0})", "Auf einigen ({0})"),
+        ("tags.quick.assigned.empty", "No tags assigned yet.", "Noch keine Tags zugewiesen."),
+        ("tags.quick.assigned.help", "Left and Right move between tags, Delete removes the highlighted tag, Up returns to the suggestions.",
+            "Pfeil links und rechts wechseln den Tag, Entf entfernt den markierten Tag, Pfeil hoch führt zurück zu den Vorschlägen."),
+        ("tags.quick.chip.on", "{0}, on this media file. Delete removes it.", "{0}, an diesem Medium. Entf entfernt ihn."),
+        ("tags.quick.chip.all", "{0}, on all {1} selected media files. Delete removes it from all.",
+            "{0}, an allen {1} gewählten Medien. Entf entfernt ihn von allen."),
+        ("tags.quick.chip.some", "{0}, on {1} of {2} selected media files. Space gives it to all, Delete removes it from all.",
+            "{0}, an {1} von {2} gewählten Medien. Die Leertaste gibt ihn allen, Entf entfernt ihn von allen."),
+        ("tags.quick.chip.remove", "Remove {0}", "{0} entfernen"),
+        ("tags.quick.chip.removeAll", "Remove {0} from all", "{0} von allen entfernen"),
+        ("tags.quick.status.undoneAdd", "Undone: “{0}” taken off again.", "Rückgängig: „{0}“ wieder entfernt."),
+        ("tags.quick.status.undoneRemove", "Undone: “{0}” given back.", "Rückgängig: „{0}“ wieder zugewiesen."),
+        ("tags.quick.undo", "Undo", "Rückgängig"),
+        ("tags.quick.undoName", "Undo the last tag change, steps left: {0}", "Letzte Tagänderung rückgängig machen, verbleibende Schritte: {0}"),
+        ("tags.quick.undoTip", "Undo · {0}", "Rückgängig · {0}"),
+        ("tags.quick.advanced", "Advanced…", "Erweitert…"),
+        ("tags.quick.advancedName", "Open the full tag dialog to choose occurrences, sort and browse long lists",
+            "Den vollständigen Tagdialog öffnen, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen"),
+        ("tags.quick.reason.frequent", "often used", "häufig verwendet"),
+        ("tags.quick.reason.recent", "recently used", "zuletzt verwendet"),
+        ("tags.quick.reason.thread", "from this thread", "aus diesem Thread"),
+        ("tags.quick.reason.neighbour", "on nearby media", "an Nachbarmedien"),
+        ("tags.quick.reason.sameFile", "same file elsewhere", "gleiche Datei anderswo"),
+        ("tags.quick.reason.sameFileIn", "same file in {0}", "gleiche Datei in {0}"),
+        ("tags.quick.reason.fileName", "from the file name", "aus dem Dateinamen"),
+        ("tags.quick.reason.title", "from the thread title", "aus dem Threadtitel"),
+        ("tags.quick.reason.sourceTag", "source tag", "Quelltag"),
+    };
+}

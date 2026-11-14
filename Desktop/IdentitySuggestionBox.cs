@@ -295,6 +295,22 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     internal void EndSuggestions() { _ended = true; Dismiss(); AcceptedCandidate = null; Candidates = null; }
     internal void RestartSuggestions() { _suppressed = false; _ = PopulateAsync(); }
     internal void RefreshSuggestions() { if (!_suppressed && IsKeyboardFocusWithin) _ = PopulateAsync(); }
+    /// <summary>
+    /// Focuses the editor and opens the list as Up/Down would: an explicit request, so an empty field lists what the provider
+    /// offers for browsing (the tag fields: the most used names). Used by "More…" of the quick tag surface.
+    /// </summary>
+    internal void OpenExplicitList()
+    {
+        if (_ended || Candidates == null) return;
+        Focus();
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            if (_ended || Candidates == null || !IsKeyboardFocusWithin) return;
+            _suppressed = false;
+            IsExplicitRequest = true;
+            try { _ = PopulateAsync(); } finally { IsExplicitRequest = false; }
+        }, Avalonia.Threading.DispatcherPriority.Input);
+    }
     private bool ClearItems()
     {
         try { ItemsSource = Array.Empty<IdentitySuggestion>(); return true; }

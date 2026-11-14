@@ -1283,6 +1283,19 @@
     <Style Selector="Path.glyph-icon.glyph-heavy"><Setter Property="StrokeThickness" Value="2" /></Style>
     <!-- A badge that states a plain fact (plugin type, file version, plugin id): the chip outline on a raised surface, no accent. -->
     <Style Selector="Border.chip-badge.chip-neutral"><Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /></Style>
+    <!-- Quick tag surface (PLAN-SCHNELL-TAGGEN 3.3): the number or letter key on a suggestion chip, an 18 dip pill (Caption SemiBold) on the
+         raised surface with the chip outline. A chip that carries one (chip-keyed) trims its start inset so the key fits the 24 dip chip. -->
+    <Style Selector="Border.chip-badge.chip-key">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ChipCompact}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.ChipCompact}" />
+        <Setter Property="Padding" Value="4,0" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.ChipCompact}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.chip-badge.chip-key TextBlock.chip-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chip.chip-keyed"><Setter Property="Padding" Value="3,2,8,2" /></Style>
 
     <Style Selector="controls|ChipOutline.chip-source">
         <Setter Property="Background" Value="Transparent" />
@@ -1303,6 +1316,8 @@
     <Style Selector="controls|ChipOutline.chip-source.chip-compact TextBlock.chip-label">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" />
     </Style>
+    <!-- Quick tag surface: a source suggestion with a key badge (see chip-key above). -->
+    <Style Selector="controls|ChipOutline.chip-source.chip-keyed"><Setter Property="Padding" Value="3,2,8,2" /></Style>
     <Style Selector="Border.chip-category-mark">
         <Setter Property="Width" Value="3" /><Setter Property="CornerRadius" Value="1.5" /><Setter Property="Margin" Value="0,2,5,2" />
         <Setter Property="Background" Value="{DynamicResource Workspace.TagCategory.General}" />

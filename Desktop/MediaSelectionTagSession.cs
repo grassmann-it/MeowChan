@@ -176,9 +176,16 @@ internal sealed class MediaSelectionTagSession
     /// Reverts the last change of this dialog on exactly the files it changed, once, in one write bound to the shown
     /// revision. It does not depend on which occurrences are ticked now. A tag the change created stays in the vocabulary.
     /// </summary>
-    internal Task UndoAsync(CancellationToken token = default)
+    internal Task UndoAsync(CancellationToken token = default) =>
+        LastChange is { } change ? RevertAsync(change, token) : Task.CompletedTask;
+
+    /// <summary>
+    /// Writes the reverse of <paramref name="change"/> on exactly its subjects in one write bound to the shown revision; the
+    /// change may be older than <see cref="LastChange"/> (the quick tag surface keeps several steps). Counts as an undo.
+    /// </summary>
+    internal Task RevertAsync(TagDialogChange change, CancellationToken token = default)
     {
-        if (LastChange is not { } change) return Task.CompletedTask;
+        ArgumentNullException.ThrowIfNull(change);
         return RunAsync(async () =>
         {
             PrivateTagStoreSnapshot snapshot = Snapshot!;
