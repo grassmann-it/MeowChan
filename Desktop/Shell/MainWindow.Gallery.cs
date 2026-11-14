@@ -249,7 +249,7 @@ public partial class MainWindow
             {
                 if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
                 {
-                    Task failure = resolvingViewer.SetMediaUnavailable(FolderSourceErrorText.Describe(exception) ?? exception.Message, mediaGeneration);
+                    Task failure = resolvingViewer.SetMediaUnavailable(UserFacingError.Report(exception, "Resolving the gallery media"), mediaGeneration);
                     TrackNativeGalleryCleanup(failure);
                     await failure;
                 }
@@ -352,7 +352,7 @@ public partial class MainWindow
         {
             if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
             {
-                Task failure = resolvingViewer.SetMediaUnavailable(FolderSourceErrorText.Describe(exception) ?? exception.Message, mediaGeneration);
+                Task failure = resolvingViewer.SetMediaUnavailable(UserFacingError.Report(exception, "Resolving the gallery media"), mediaGeneration);
                 TrackNativeGalleryCleanup(failure);
                 await failure;
             }

@@ -5,6 +5,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Views.Shortcuts;
+using MeowChan.FolderSources;
 using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
@@ -132,6 +133,13 @@ public sealed class Wave3ReviewRestTests : IDisposable
         string own = StoreLimitText.Describe(refusal)!;
         Assert.Equal(own, UserFacingError.Describe(refusal));
         Assert.Equal(own, UserFacingError.Describe(StoreLimitText.Localize(refusal)));
+    }
+
+    [Fact]
+    public void AFolderCatalogRefusalKeepsItsOwnSentenceThroughTheOneHelper()
+    {
+        FolderSourceException refusal = new(FolderSourceError.CatalogNewer);
+        Assert.Equal(FolderSourceErrorText.Message(refusal), UserFacingError.Describe(refusal));
     }
 
     [Fact]
