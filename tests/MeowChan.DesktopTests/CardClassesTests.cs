@@ -12,11 +12,7 @@ public sealed class CardClassesTests
 
     // The remaining pre-migration users of the deprecated "panel" alias. This list only shrinks: move a site to
     // workspace-section-flush (content to the edge) or workspace-section (own inset) and delete its file here.
-    private static readonly string[] PanelAllowList =
-    {
-        "Desktop/Shell/MainWindow.axaml",
-        "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"
-    };
+    private static readonly string[] PanelAllowList = Array.Empty<string>();
 
     [Fact]
     public void TheFlushSectionIsTheSectionSurfaceWithInsetZeroAndTheControlRadius()

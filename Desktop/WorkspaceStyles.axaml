@@ -696,15 +696,12 @@
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
     <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.Reading}" /></Style>
     <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id"><Setter Property="IsVisible" Value="False" /></Style>
-    <Style Selector="Border.panel, Border.shell-bar">
+    <Style Selector="Border.shell-bar">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,10" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
-    <!-- DS-P4: deprecated. Use workspace-section-flush (same surface, inset 0) or workspace-section (inset 16); this alias only keeps the
-         remaining pre-migration sites drawing until they move. -->
-    <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
