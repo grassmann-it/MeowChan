@@ -14,7 +14,7 @@ namespace MeowChan;
 
 // M4: the focus mode of the media page (media.focus-mode, Shift+F). It hides the rows above the grid that are for finding (the page title and
 // subtitle, the toolbar, the chips with "+ Filter", the hint row, the status line and the filter section) and shows one 32 dip row instead:
-// the live counter and the number of active filters on the left, "Exit focus ×" alone on the right. The grid and the selection bar stay and
+// the live counter and the number of active filters on the left, the way out ("Exit focus", icon plus text) alone at the far left, set apart by a gap and a thin separator. The grid and the selection bar stay and
 // keep working. The shell hides its own chrome around the page on the same signal (FocusModeChanged, MainWindow.MediaFocusChrome.cs): the
 // footer navigation always, the application header when the setting asks for it.
 // The rows are only hidden, never rebuilt: the filter state, the chips and their keyboard focus are those of the page (MediaPage.Filters.cs
@@ -23,7 +23,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private readonly Button _focus = new() { Name = "MediaFocus" };
-    private readonly Grid _focusRow = new() { Name = "MediaFocusRow", Height = MediaFocusMode.FocusRowHeight, ColumnSpacing = 16, IsVisible = false, ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+    private readonly Grid _focusRow = new() { Name = "MediaFocusRow", Height = MediaFocusMode.FocusRowHeight, IsVisible = false, ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*") };
     private readonly TextBlock _focusText = new() { Name = "MediaFocusText", VerticalAlignment = VerticalAlignment.Center, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis };
     private readonly TextBlock _focusSeparator = new() { Name = "MediaFocusSeparator", Text = "·", VerticalAlignment = VerticalAlignment.Center, IsVisible = false };
     private readonly Button _focusFilters = new()
@@ -32,6 +32,11 @@ public sealed partial class MediaPage
         BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center
     };
     private readonly Button _focusExit = new() { Name = "MediaFocusExit", Classes = { "subtle" }, MinHeight = MediaFocusMode.FocusRowHeight, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _focusExitLabel = new() { Name = "MediaFocusExitLabel", VerticalAlignment = VerticalAlignment.Center };
+    /// <summary>The gap between the way out at the far left and the counter, and its thin separator (the same 24 dip and Workspace.Border token as the HeaderBar back slot).</summary>
+    internal const double FocusExitGap = 24, FocusExitSeparatorThickness = 1;
+    /// <summary>Below this row width (dip) the exit keeps only its icon; tooltip and accessible name still name it (the HeaderBar compact rule).</summary>
+    internal const double FocusExitCompactWidth = 360;
     // The live region: it is in the tree at no size (the row it belongs to may be hidden when the mode ends), only its text is for a screen reader.
     private readonly TextBlock _focusAnnouncement = new()
     {
@@ -47,8 +52,9 @@ public sealed partial class MediaPage
     internal Grid FocusRow => _focusRow;
     /// <summary>The tool button of the toolbar (smokes).</summary>
     internal Button FocusButton => _focus;
-    /// <summary>"Exit focus ×", alone at the right end of the focus row (smokes).</summary>
+    /// <summary>"Exit focus", alone at the far left of the focus row (smokes).</summary>
     internal Button FocusExitButton => _focusExit;
+    internal TextBlock FocusExitLabel => _focusExitLabel;
     /// <summary>The count of active filters in the focus row; shown only while one is active (smokes).</summary>
     internal Button FocusFiltersButton => _focusFilters;
     /// <summary>The text the screen reader got last for the mode ("Focus mode on" / "Focus mode off"; null: never changed), for tests and smokes.</summary>
@@ -91,9 +97,18 @@ public sealed partial class MediaPage
     {
         StackPanel left = new() { Orientation = Orientation.Horizontal, Spacing = 4, ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center };
         left.Children.Add(_focusText); left.Children.Add(_focusSeparator); left.Children.Add(_focusFilters);
-        _focusRow.Children.Add(left);
-        _focusRow.Children.Add(_focusExit); Avalonia.Controls.Grid.SetColumn(_focusExit, 1);
-        _focusExit.HorizontalAlignment = HorizontalAlignment.Right;
+        // Tom's rule 14.11. evening: the way out stands at the far left, first in the row (and in its tab order), then a gap with a thin
+        // separator, then the counter. Icon plus a short text; a narrow row keeps only the icon.
+        _focusExit.HorizontalAlignment = HorizontalAlignment.Left;
+        _focusExit.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Children = { WorkspaceIcons.Create(WorkspaceIcons.ChevronLeft), _focusExitLabel } };
+        Border separator = new() { Name = "MediaFocusExitSeparator", Width = FocusExitSeparatorThickness, HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Stretch, Margin = new Thickness(0, 6), IsHitTestVisible = false };
+        separator.Bind(Border.BackgroundProperty, separator.GetResourceObservable("Workspace.Border"));
+        Border gap = new() { Name = "MediaFocusExitGap", Width = FocusExitGap, Child = separator };
+        _focusRow.Children.Add(_focusExit); Avalonia.Controls.Grid.SetColumn(_focusExit, 0);
+        _focusRow.Children.Add(gap); Avalonia.Controls.Grid.SetColumn(gap, 1);
+        _focusRow.Children.Add(left); Avalonia.Controls.Grid.SetColumn(left, 2);
+        _focusRow.SizeChanged += (_, e) => _focusExitLabel.IsVisible = e.NewSize.Width >= FocusExitCompactWidth;
         return _focusRow;
     }
 
@@ -159,7 +174,7 @@ public sealed partial class MediaPage
     private void LocalizeFocus()
     {
         WorkspaceIcons.MakeSquare(_focus, WorkspaceIcons.Maximize, Texts.T("command.media.focus-mode"), CommandBindings.Tooltip(MediaFocusMode.CommandId));
-        _focusExit.Content = Texts.T("media.focus.exit");
+        _focusExitLabel.Text = Texts.T("media.focus.exit");
         string exit = Texts.T("media.focus.exit.tip");
         ToolTip.SetTip(_focusExit, exit);
         AutomationProperties.SetName(_focusExit, Texts.T("media.focus.exit"));

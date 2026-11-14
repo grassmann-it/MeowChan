@@ -93,7 +93,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, language + ": " + key);
         // The hint names the way back, like the exit button's tooltip does.
         Assert.Contains("Esc", Texts.T("settings.mediaFocusHidesHeaderHint").Replace("Échap", "Esc"));
-        Assert.Contains("×", Texts.T("settings.mediaFocusHidesHeaderHint"));
+        Assert.Contains(Texts.T("media.focus.exit"), Texts.T("settings.mediaFocusHidesHeaderHint")); // it quotes the button's label
         // The label is one short word (it sits next to a combo box in the toolbar row).
         Assert.True(Texts.T("media.sort").Length <= 14, language + ": " + Texts.T("media.sort"));
         if (language != "en")
