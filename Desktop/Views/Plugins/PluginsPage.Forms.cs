@@ -55,7 +55,6 @@ public partial class PluginsPage
         if (_settingsGroups.Count == 0 && !draft.NeedsMigrationAcknowledgement)
             settings.Children.Add(Label(Texts.T("plugins.noSettings")));
         FitDraftFooterRule();
-        QueuePluginNavigationVisibility();
     }
 
     // Layout only: a settings group ends with its own divider, so the draft footer draws its rule only where none is above it.
@@ -81,7 +80,6 @@ public partial class PluginsPage
         {
             if (args.Property != Expander.IsExpandedProperty) return;
             ExpansionState(entryKey)[sectionId] = group.IsExpanded;
-            QueuePluginNavigationVisibility();
         };
         _settingsGroups.Add(scope, group);
         C<StackPanel>("PluginSettings").Children.Add(group);

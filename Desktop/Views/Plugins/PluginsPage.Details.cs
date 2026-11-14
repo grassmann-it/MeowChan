@@ -108,7 +108,6 @@ public partial class PluginsPage
             {
                 if (args.Property != Expander.IsExpandedProperty || _restoringPluginTools || _pluginToolKey is not { } key) return;
                 ExpansionState(key)[id] = expander.IsExpanded;
-                QueuePluginNavigationVisibility();
             };
         }
     }
