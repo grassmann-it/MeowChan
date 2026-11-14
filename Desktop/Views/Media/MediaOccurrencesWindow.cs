@@ -53,7 +53,7 @@ internal sealed class MediaOccurrencesWindow : Window
             string description = string.Join(Environment.NewLine, new[] { where.Text, file.Text, tags.Text, claims.Text }.Where(part => !string.IsNullOrEmpty(part)));
             StackPanel row = new() { Name = "MediaOccurrence", Spacing = 4, Children = { where, file, claims, tags, show } };
             AutomationProperties.SetName(row, description);
-            rows.Children.Add(new Border { Child = row, Padding = new Thickness(8), Classes = { "panel" } });
+            rows.Children.Add(new Border { Child = row, Classes = { "workspace-card" } });
         }
         Button close = new() { Content = Texts.T("action.close"), HorizontalAlignment = HorizontalAlignment.Right };
         close.Click += (_, _) => Close();

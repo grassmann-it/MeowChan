@@ -159,7 +159,7 @@ public partial class ArchivePage
         _exportCard = new Border { Child = body, MaxWidth = 680, Margin = new Thickness(16), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Center };
         NameScope.SetNameScope(_exportCard, _exportNames);
         _exportNames.Complete();
-        _exportCard.Classes.Add("panel");
+        _exportCard.Classes.Add("workspace-section-flush"); // the DialogFrame inside carries its own insets
         KeyboardNavigation.SetTabNavigation(_exportCard, KeyboardNavigationMode.Cycle);
         _exportCard.AddHandler(KeyDownEvent, OnExportKeyDown, RoutingStrategies.Tunnel);
         Border overlay = ArchiveExportDialog;

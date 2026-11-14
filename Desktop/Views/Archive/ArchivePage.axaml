@@ -152,7 +152,7 @@
                         </Grid>
                     </Grid>
                 </Border>
-                <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
+                <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid RowDefinitions="*,Auto">
                         <ListBox x:Name="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
@@ -326,7 +326,7 @@
                         <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
-                <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="panel">
+                <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid x:Name="ReaderContentSurface">
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
@@ -674,10 +674,10 @@
                         </TabControl>
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,56" ZIndex="1">
-                            <!-- The cross is an overlay above the content: the raised backdrop is only painted (not hit-tested), and the
+                            <!-- The cross is an overlay above the content: the overlay backdrop is only painted (not hit-tested), and the
                                  button grid has no background, so a click anywhere but on one of the four buttons reaches the content below. -->
                             <Grid>
-                                <Border Classes="raised" CornerRadius="{StaticResource Workspace.Radius.Group}" IsHitTestVisible="False" />
+                                <Border Classes="workspace-overlay" IsHitTestVisible="False" />
                                 <Grid Margin="4" RowDefinitions="32,32,32" ColumnDefinitions="32,32,32" RowSpacing="2" ColumnSpacing="2">
                                     <Grid.Styles>
                                         <Style Selector="Button">
@@ -701,7 +701,7 @@
                  to show; hidden, the overlay is not hit-tested at all. Shown, it takes the pointer
                  only over its own small box, for the full-text tooltip; hovering keeps a message,
                  a click dismisses it, and messages expire on their own (ArchivePage.Feedback). -->
-            <Border x:Name="ArchiveStatusOverlay" Grid.Column="2" Classes="raised" Padding="8,4" Margin="8" MaxWidth="560"
+            <Border x:Name="ArchiveStatusOverlay" Grid.Column="2" Classes="workspace-overlay" Padding="8,4" Margin="8" MaxWidth="560"
                     HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="2"
                     IsVisible="False" Focusable="False">
                 <Grid x:Name="ArchiveStatusLine">
@@ -723,7 +723,7 @@
                 <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
             </controls:WorkspaceBanner>
         </StackPanel>
-        <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="panel" Padding="12" IsVisible="False">
+        <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="workspace-section" IsVisible="False">
             <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBlock x:Name="PreviewTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
