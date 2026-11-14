@@ -1,5 +1,52 @@
 # MeowChan 1.1.0 — Umsetzung und Abnahme, noch nicht releasefertig
 
+## Aktueller Abgleich — 14.11.2026, 16:08 CET
+
+**Integrationsstand `a2a8416243766533f5e33a34a5490e426563a10f`**, Branch `goal/gesamtprogramm-profile-a`.
+Wave3/Wave4 bleiben vollständig enthalten. Seit dem historischen Stand unten sind
+`6fa1a646` (AP04-Namensorakel), `cb79bbd2` (Release-Notes), `329ad36a`
+(Filterchip-LogicalParent-Fix), `afbe66fc` (ChipStyle-Dateipfad), `859cae94`
+(Busy-Fallback-Profilfixture) und `a2a84162` (Workbench-/Composition-Smokes auf
+Shell-Seite statt altem Fenster) hinzugekommen. Keine Releasefreigabe.
+
+| Nachweis | Pin und Ergebnis | Grenze |
+| --- | --- | --- |
+| Root-App-/Smoke-Build | `9387c446`: beide terminal Exit 0; App 0 Fehler/5 Warnungen, Smokeprojekt 0 Fehler/25 Warnungen | Neuerer Root nicht durch diesen Build abgenommen. |
+| Fokussierter Desktop-/Cooldown-Lauf | `392cd463`: 245/245 Desktop und 3/3 Core-Cooldown PASS | Kein Vollsuite-/GUI-PASS. |
+| B9-Teilproben | `6fa1a646`: Core Booru/Danbooru **652/652**, offizieller Danbooru **182/182**, OriginalMediaHttp **36/36** PASS | Gesamtlauf rot; fünf GUI-Fälle fehlgeschlagen. Root-Dokubewegung während des Laufs separat erfasst. |
+| Runtime-Booru-Nachlauf | Sauberer separater `6fa1a646`-Worktree: **256/256 PASS, 0 FAIL/SKIP, Exit 0**, beendet 15:36 CET | Behebt den zuvor fehlenden Restore; kein Reauth-Prozessmatrixlauf. |
+| Filterchip-Regressionslauf | `cb79bbd2` plus Fix-/Testpatch: **72 PASS / 1 FAIL**; alle vier neuen LogicalParent-Fälle PASS | Einziger Fail: veralteter ChipStyle-Dateipfad, danach `afbe66fc`. Noch kein gemeinsamer isolierter Nachlauf oder nativer Medien-PASS. |
+| AP04 `w1432` | Terminal **FAIL/source-only**: 13 Testfälle bestanden, Runner erkannte den vollqualifizierten Upgrade-Testnamen nicht | Alter Lauf wird nicht rückwirkend grün; Orakelfix `6fa1a646`, 53 Python-Regressionschecks PASS. |
+| AP04 `r1531` | `cb79bbd2`, beendet **15:56:41 CET**, **SOURCE-ONLY**, Runner Exit 1; alle Einzelschritte erfolgreich, **13/13 Tests**, Migration und zwei Offline-Neustarts nach neuen Writes bestanden | Synthetisches Profil aus gepinntem 1.0.2-Source `eec6c016`, keine originale Releasebinary. Kein Paketmanifest/SHA256SUMS gebunden; Endpaket-/Realprofil-/UI-/Plattformabnahme ausdrücklich nicht ausgeführt. |
+| Neue B9-Fixprüfung | Eigener sauberer `a2a84162`-Worktree; gezielte Desktop-Tests, frischer Smoke-Build und vier private native Booru-Szenarien gestartet/queued | Noch kein Ergebnis. Quelldateien bleiben während dieses Laufs unverändert; kein Root-Freeze erforderlich. |
+
+**AP04-Details:** `r1531/report.json` meldet keine `final_problems`; Settings,
+Pause, neue Tags, v1→v2-Tagkonvertierung und byte-identisches `private-tags.v1.bak`
+sind geprüft, das Plugininventar nennt 24 Plugins. `packaged_release.verification`
+bleibt `not-executed`. Source-only-Erfolg ist weder ein AP04-Release-PASS noch ein
+Ersatz für den finalen paketgebundenen Nachweis.
+
+**Offen:** Claudes fester Wave5-Stapel (insbesondere partieller Stempelwrite→Done,
+Tagging-Fußleiste/Chipmenü und Reader/Dialog-Fixes), zentrale Vollsuiten/Smokes auf
+dem finalen Pin, Reauth-Matrix 14 Fälle/98 geplante Hostaufrufe, finale
+Consumer-/API-/Paketprüfung, Upgrade mit Endpaket, Windows/macOS/native Abnahme.
+Die historische Zahl 40/68 roter Wave3-Smokes ist keine aktuelle Restfehlerzahl.
+Beim Chipmenü-Merge muss `329ad36a` erhalten bleiben.
+
+Neue Evidence:
+- `/home/tomka/.cache/claude-ssd-tmp/codex-current-9387c446-build-145021/`
+- `/home/tomka/.cache/claude-ssd-tmp/codex-focused-392cd463-145856/`
+- `/home/tomka/.cache/claude-ssd-tmp/codex-b9-6fa1a646-20261114-1520/`
+- `/home/tomka/.cache/claude-ssd-tmp/codex-runtime-booru-6fa1-20261114-1526/`
+- `/home/tomka/.cache/claude-ssd-tmp/codex-media-chip-fix-20261114-1542/`
+- `/home/tomka/.cache/claude-ssd-tmp/ap4/r1531/report.json`
+- `/home/tomka/.cache/claude-ssd-tmp/codex-b9-a2a84162-20261114-1607/` (noch offen)
+
+## Historischer Abgleich — 14.11.2026, 14:55 CET
+
+Die folgenden Herkunftsbelege behalten ihre damaligen Pins. Laufstände von
+14:55 werden durch den aktuellen Abgleich oben ersetzt, nicht umetikettiert.
+
 **Abgleich: 14.11.2026, 14:55 CET; Integrationsstand `9387c446d15459b97cbef04e6f394e1d9e1b0aba`.**
 Produkt-/Buildpin der G0130–G0132-Nachweise bleibt
 **`48310c4f0b1a3353b68fb37ea93ec9eac508246c`**; G0133 und die AP04-Source-only-
@@ -45,7 +92,7 @@ der G0133-Appbuild auf `e717a74a`. Der separate Kandidat `3479d67e` ist kein
 Root-Status. Ältere G0105- bis G0109-Läufe bleiben eigenständige historische Belege und werden nicht zur aktuellen Root-Abnahme
 umetikettiert.
 
-## Integrationsnachlauf und aktueller Rootstatus
+## Historischer Integrationsnachlauf (Stand 14:55 CET)
 
 G0129 brachte Root historisch von `eb015068` auf `ce26b8af`; G0130 belegt den
 anschließenden Wave4-Root-Appbuild auf `48310c4f` mit 0 Fehlern und 5 Warnungen.
