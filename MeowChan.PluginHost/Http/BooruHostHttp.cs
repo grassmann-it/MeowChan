@@ -698,7 +698,7 @@ public sealed class BooruHostHttp : IDisposable
         private readonly long _resetVersion;
         private int _completed;
 
-        private CooldownReset(SourceState state, long resetVersion)
+        internal CooldownReset(SourceState state, long resetVersion)
         {
             _state = state;
             _resetVersion = resetVersion;
@@ -728,7 +728,7 @@ public sealed class BooruHostHttp : IDisposable
 
     private readonly record struct RetryAfterValue(TimeSpan? Delta, DateTimeOffset? Date);
 
-    private sealed class SourceState
+    internal sealed class SourceState
     {
         internal readonly SemaphoreSlim SendGate = new(1, 1);
         internal readonly object Gate = new();
