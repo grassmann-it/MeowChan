@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -55,6 +58,27 @@ internal static class ReaderMediaSidebarRules
         if (!double.IsFinite(readerWidth) || readerWidth <= 0) return width;
         double room = readerWidth - SplitterWidth - PostsMinimumWidth;
         return Math.Max(ReaderDisplayPreferences.MediaSidebarWidthMinimum, Math.Min(width, room));
+    }
+
+    /// <summary>
+    /// Warms the cache for the neighbouring media: each is resolved and handed to <paramref name="warm"/>. Only the shown medium may
+    /// report an error, so a neighbour that cannot be resolved or warmed is skipped without a word (it is simply not ready early);
+    /// cancellation still ends the whole run.
+    /// </summary>
+    internal static async Task PreloadNeighboursAsync<T>(IEnumerable<Func<CancellationToken, Task<T?>>?> neighbours,
+        Func<T, CancellationToken, Task> warm, CancellationToken token) where T : class
+    {
+        foreach (Func<CancellationToken, Task<T?>>? resolve in neighbours)
+        {
+            token.ThrowIfCancellationRequested();
+            if (resolve == null) continue;
+            try
+            {
+                if (await resolve(token) is { } entry) await warm(entry, token);
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception error) { Serilog.Log.Debug(error, "A media sidebar neighbour could not be preloaded"); }
+        }
     }
 
     /// <summary>The shown medium of a post with <paramref name="count"/> attachments: the index kept within them, 0 without any.</summary>

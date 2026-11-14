@@ -64,17 +64,46 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     public Task PlayAsync() { _failed = false; return _disposed ? Task.CompletedTask : Player.PlayAsync(); }
     public Task PauseAsync() => _disposed ? Task.CompletedTask : Player.PauseAsync();
 
+    /// <summary>True when the player's native cleanup failed: it stays in the frame, hidden and disabled, still owning its drawable.</summary>
+    internal bool CleanupPending { get; private set; }
+
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
         _disposed = true;
         try { _show.Cancel(); } catch (ObjectDisposedException) { }
-        try { await Player.DisposeAsync(); }
-        finally
+        try
         {
-            _area.Children.Remove(Player);
-            _show.Dispose();
+            await InlineVideoDisposal.DisposeAsync(() => Player.DisposeAsync(), () => _area.Children.Remove(Player), () =>
+            {
+                // Ownership is retained (the gallery's contract): the drawable stays where it is, but nothing shows or takes input.
+                CleanupPending = true;
+                Player.IsVisible = false;
+                Player.IsEnabled = false;
+            });
         }
+        finally { _show.Dispose(); }
+    }
+}
+
+/// <summary>
+/// The disposal contract of an inline player's frame (the gallery's own): the player leaves the frame only once its native cleanup
+/// returned. When the cleanup failed it stays (the caller hides it) and the failure is raised once, to the caller.
+/// </summary>
+internal static class InlineVideoDisposal
+{
+    internal static async Task DisposeAsync(Func<ValueTask> disposePlayer, Action removeFromFrame, Action retainAfterFailure)
+    {
+        ArgumentNullException.ThrowIfNull(disposePlayer);
+        ArgumentNullException.ThrowIfNull(removeFromFrame);
+        ArgumentNullException.ThrowIfNull(retainAfterFailure);
+        try { await disposePlayer(); }
+        catch
+        {
+            retainAfterFailure();
+            throw;
+        }
+        removeFromFrame();
     }
 }
 
@@ -207,7 +236,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         catch (OperationCanceledException) { }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            if (key == _key) ShowError(Texts.T("reader.video.failed", error.Message));
+            if (key == _key) ShowError(Texts.T("reader.video.failed", UserFacingError.Report(error, "Starting an inline reader video")));
         }
         finally
         {
