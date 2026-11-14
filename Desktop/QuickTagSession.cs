@@ -97,6 +97,11 @@ internal interface IQuickTagTarget
     bool Busy { get; }
     string? MessageKey { get; }
     TagDialogChange? LastChange { get; }
+    /// <summary>
+    /// True after the last write was a revert that finished (<see cref="RevertAsync"/>). A cancelled revert leaves it false
+    /// without a <see cref="MessageKey"/>: nothing (or only part) was written back, so it is no success.
+    /// </summary>
+    bool Undone { get; }
     /// <summary>True for a selection: chips are tri-state and texts count files.</summary>
     bool IsSelection { get; }
     TagCoverage Coverage();
@@ -120,6 +125,7 @@ internal static class QuickTagTarget
         public bool Busy => session.Busy;
         public string? MessageKey => session.MessageKey;
         public TagDialogChange? LastChange => session.LastChange;
+        public bool Undone => session.Undone;
         public bool IsSelection => false;
         public TagCoverage Coverage() => session.Coverage();
         public Task AddAsync(string name, CancellationToken token) => session.AddAsync(name, token);
@@ -136,6 +142,7 @@ internal static class QuickTagTarget
         public bool Busy => session.Busy;
         public string? MessageKey => session.MessageKey;
         public TagDialogChange? LastChange => session.LastChange;
+        public bool Undone => session.Undone;
         public bool IsSelection => true;
         public TagCoverage Coverage() => session.Coverage();
         public Task AddAsync(string name, CancellationToken token) => session.AddAsync(name, token);
@@ -278,7 +285,8 @@ internal sealed class QuickTagSession : IDisposable
 
     /// <summary>
     /// Undoes the newest step for exactly its subjects. A refused undo keeps the step for another try, unless its tag no longer
-    /// exists (then there is nothing to restore and the step is dropped).
+    /// exists (then there is nothing to restore and the step is dropped). A cancelled undo (closing the surface mid-write) is no
+    /// success either: the step stays (reverting it again is idempotent per subject) and the status claims nothing.
     /// </summary>
     internal async Task UndoAsync(CancellationToken token = default)
     {
@@ -296,6 +304,7 @@ internal sealed class QuickTagSession : IDisposable
             _status = new QuickTagStatus(QuickTagStatusKind.Error, change.Name, change.Subjects.Count, key);
             if (target.Snapshot is { } snapshot && snapshot.Find(change.Tag) == null) _undo.Remove(change);
         }
+        else if (!target.Undone) _status = QuickTagStatus.None;
         else
         {
             _undo.Remove(change);

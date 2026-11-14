@@ -141,6 +141,71 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal(new[] { "cute", "red", "wip" }, store.ReadSnapshot().Tags.Select(tag => tag.Name.Display).Order(StringComparer.Ordinal));
     }
 
+    // R03 (review 14.11. night): a cancelled undo wrote nothing back, so it must neither drop the step nor report success.
+    [Fact]
+    public async Task ACancelledUndoKeepsTheStepAndClaimsNothing()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry entry = Entry("a", 'a');
+        using CancellationTokenSource closing = new();
+        bool cancelNext = false;
+        MediaTagSession single = new(new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!), () => Load(store),
+            (name, subject, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, [subject], null, token)),
+            (id, subject, assigned, token) =>
+            {
+                if (cancelNext) { closing.Cancel(); token.ThrowIfCancellationRequested(); }
+                return Task.FromResult(store.SetMediaSubjects(id, [subject], assigned, null, token));
+            });
+        using QuickTagSession session = new(QuickTagTarget.For(single));
+        await session.AddAsync("cute");
+        Assert.Single(session.UndoSteps);
+
+        cancelNext = true;
+        await session.UndoAsync(closing.Token);
+        Assert.Equal(new[] { "cute" }, NamesOn(store, entry)); // nothing was written back
+        Assert.Single(session.UndoSteps);                       // the step stays for another try
+        Assert.Equal(QuickTagStatusKind.None, session.Status.Kind);
+        Assert.False(session.Status.IsError);
+        Assert.True(session.CanUndo);
+
+        cancelNext = false;
+        await session.UndoAsync();
+        Assert.Empty(NamesOn(store, entry));
+        Assert.Empty(session.UndoSteps);
+        Assert.Equal(QuickTagStatusKind.UndoneAdd, session.Status.Kind);
+    }
+
+    [Fact]
+    public async Task ACancelledSelectionUndoKeepsTheStepAndClaimsNothing()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        MediaLibraryEntry first = Entry("a", 'a'), second = Entry("b", 'b');
+        TagId red = store.Define("red").Tag;
+        using CancellationTokenSource closing = new();
+        bool cancelNext = false;
+        IReadOnlyList<MediaLibraryTile> tiles = MediaLibraryGrouping.Build(new[] { first, second }, new[] { first, second }, MediaLibrarySort.ByThread, includeMissing: true);
+        MediaSelectionTagSession selection = new(MediaLibraryTagging.Candidates(tiles), () => Load(store),
+            (name, subjects, revision, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, subjects.ToArray(), revision, token)),
+            (tag, subjects, assigned, revision, token) =>
+            {
+                if (cancelNext) { closing.Cancel(); token.ThrowIfCancellationRequested(); }
+                return Task.FromResult(store.SetMediaSubjects(tag, subjects.ToArray(), assigned, revision, token));
+            });
+        using QuickTagSession session = new(QuickTagTarget.For(selection));
+        await session.ToggleAsync(red);
+        Assert.Equal(TagToggleState.All, session.StateOf(red));
+
+        cancelNext = true;
+        await session.UndoAsync(closing.Token);
+        Assert.Equal(TagToggleState.All, session.StateOf(red));
+        Assert.Single(session.UndoSteps);
+        Assert.Equal(QuickTagStatusKind.None, session.Status.Kind);
+    }
+
     [Theory]
     [InlineData(2, 2)]
     [InlineData(0, QuickTagOptions.MinimumUndoDepth)]
