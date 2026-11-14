@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -37,6 +38,21 @@ public partial class SettingsEditor
     private bool _resetStatusVisible;
 
     private SettingsDefaults ResetDefaults => _resetDefaults ??= new SettingsDefaults();
+
+    /// <summary>The names of the section "Reset" buttons (one per settings section; the draft-only reset of that section).</summary>
+    internal static readonly string[] SectionResetButtonNames =
+    [
+        "ResetInterfaceButton", "ResetReadingMediaButton", "ResetDownloadsButton", "ResetWorkerBudgetsButton",
+        "ResetUpdatesButton", "ResetNotificationsButton", "ResetBehaviorButton"
+    ];
+
+    // I1b: every section's Reset carries the rotate-ccw icon before its text (the same icon the "Reset all" menu entry has). The text stays
+    // the bound content, so the label, the per-section accessible name and the tooltip are unchanged; the content template draws the icon.
+    private void InitializeResetIcons()
+    {
+        foreach (string name in SectionResetButtonNames)
+            if (this.FindControl<Button>(name) is { } button) CommandBindings.EnsureIconBeforeText(button, "rotate-ccw");
+    }
 
     public string ResetLabel => Texts.T("settings.reset");
     public string ResetAllLabel => Texts.T("settings.reset.all");

@@ -217,6 +217,7 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            InitializeResetIcons();
             WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);

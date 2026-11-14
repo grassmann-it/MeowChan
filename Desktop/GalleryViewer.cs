@@ -608,6 +608,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         "GalleryClose" => Texts.T("command.gallery.close.compact"),
         "GalleryFit" => Texts.T("gallery.fit"),
+        "GalleryActual" => Texts.T("gallery.actual"), // I1b: "1:1" gets its catalog icon like its neighbour "Fit".
         "GalleryToggleContext" => Texts.T("gallery.context"),
         "GalleryFavorite" => Texts.T("command.gallery.favorite.compact"),
         "GalleryExportOriginal" => Texts.T("command.gallery.export-original.compact"),
@@ -1342,7 +1343,10 @@ internal sealed partial class GalleryViewer : UserControl
             AddFileFacts(entry);
             // The action at the bottom left: the post in its thread (T).
             StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
-            ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+            // I1b: the one action of the post card carries its command icon before the text (the label stays the content and the name).
+            CommandBindings.ShowIconBeforeText(
+                ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
+                CommandCatalog.Get("gallery.show-in-thread").Icon);
             _context.Children.Add(actions);
         }
         finally

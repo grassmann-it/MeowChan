@@ -1078,6 +1078,7 @@ public partial class ArchivePage : UserControl
         CommandBindings.ShowIconBeforeText(ReaderThreadOpen, "sliders");
         CommandBindings.ShowIconBeforeText(ReaderUnreadReturn, CommandCatalog.Get("reader.history-back").Icon);
         CommandBindings.ShowIconBeforeText(ReaderSkipUnavailableGroupMember, CommandCatalog.Get("reader.skip-unavailable-group-member").Icon);
+        InitializeToolButtonIcons();
     }
 
     private void Localize()
