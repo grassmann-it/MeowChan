@@ -17,7 +17,11 @@ public sealed class WorkViewPolicyTests
         Assert.All(WorkViewPolicy.Entries, entry =>
         {
             Assert.Matches(@"^[a-z]+(\.[A-Za-z0-9*-]+)+$", entry.Id);
-            Assert.StartsWith(entry.Page.ToString().ToLowerInvariant() + ".", entry.Id, StringComparison.Ordinal);
+            // Sources is the merged Sources & Plugins page. Plugin rows retain their stable plugins.* ids.
+            string prefix = entry.Page == WorkViewPage.Sources && entry.Id.StartsWith("plugins.", StringComparison.Ordinal)
+                ? "plugins."
+                : entry.Page.ToString().ToLowerInvariant() + ".";
+            Assert.StartsWith(prefix, entry.Id, StringComparison.Ordinal);
         });
     }
 
