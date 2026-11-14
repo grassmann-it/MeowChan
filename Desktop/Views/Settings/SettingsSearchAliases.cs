@@ -64,6 +64,9 @@ internal static class SettingsSearchAliases
     {
         var result = new List<string>();
         if (key != null && ByKey.TryGetValue(key, out string? own)) result.Add(own);
+        // A setting a quick settings popover offers is also found by the popover's words.
+        if (key != null && MeowChan.Desktop.QuickSettingsSurfaces.Contains(key))
+            result.Add("popover quick settings schnelleinstellungen");
         if (key != null)
         {
             if (key.Contains("Cache", StringComparison.Ordinal)) result.Add("cache puffer zwischenspeicher speicher memory ram");

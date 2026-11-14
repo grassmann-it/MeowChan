@@ -57,6 +57,8 @@ public partial class SettingsEditor
     private SettingsSearchSession? _searchSession;
     private readonly SettingsSearchGroups _searchGroups = new();
     private Dictionary<string, SearchTarget> _searchTargets = new(StringComparer.Ordinal);
+    // The same targets by setting id (SettingsFieldId: the input name without "Input"), for "All settings" of a quick settings popover.
+    private Dictionary<string, SearchTarget> _searchTargetsById = new(StringComparer.Ordinal);
     private bool _searchIndexDirty = true;
     private bool _searchSuppressSelection;
     private IReadOnlyList<SettingsSearchHit> _searchHits => _searchSession?.Hits ?? Array.Empty<SettingsSearchHit>();
@@ -167,6 +169,28 @@ public partial class SettingsEditor
         if (_searchHits.Count == 0 || !_searchTargets.TryGetValue(_searchHits[0].Document.Id, out SearchTarget? target)) return null;
         CommitSearchHit(_searchHits[0]);
         return (_searchHits[0].Document.Label, target.CategoryId, target.Expanders.Count, target.Expanders.All(expander => expander.IsExpanded));
+    }
+
+    /// <summary>
+    /// Opens the group of the setting <paramref name="id"/> (a <see cref="SettingsFieldId"/>), unfolds the sections around it, marks
+    /// the row and moves the focus into it: what a quick settings popover's "All settings" link does. False when the page has no
+    /// such setting (a work view does not show it, or the id is wrong).
+    /// </summary>
+    internal bool RevealSetting(string id)
+    {
+        if (_isClosed || string.IsNullOrEmpty(id)) return false;
+        EnsureSearchIndex();
+        if (!_searchTargetsById.TryGetValue(id, out SearchTarget? target)) return false;
+        JumpToSearchTarget(target, focus: true);
+        return true;
+    }
+
+    /// <summary>Whether the page offers a setting with this id (tests and smokes).</summary>
+    internal bool HasSetting(string id)
+    {
+        if (_isClosed) return false;
+        EnsureSearchIndex();
+        return _searchTargetsById.ContainsKey(id);
     }
 
     /// <summary>A language change or a rebuilt navigation: texts and the read index are stale.</summary>
@@ -448,6 +472,7 @@ public partial class SettingsEditor
         if (_searchIndex != null && !_searchIndexDirty && string.Equals(_searchIndexLanguage, Texts.Language, StringComparison.Ordinal)) return;
         var documents = new List<SettingsSearchDocument>();
         var targets = new Dictionary<string, SearchTarget>(StringComparer.Ordinal);
+        var targetsById = new Dictionary<string, SearchTarget>(StringComparer.Ordinal);
         List<SearchEntryBuilder> entries;
         _inputMemo = new Dictionary<Control, bool>();
         try { entries = ScanSearchEntries(); }
@@ -465,8 +490,10 @@ public partial class SettingsEditor
             documents.Add(new SettingsSearchDocument(id, entry.Label, hint, entry.Group, entry.Key,
                 SettingsSearchAliases.For(entry.Key, entry.CategoryId), english));
             targets[id] = new SearchTarget(entry.CategoryId, entry.Element, entry.Expanders);
+            if (entry.Key != null) targetsById.TryAdd(entry.Key, targets[id]);
         }
         _searchTargets = targets;
+        _searchTargetsById = targetsById;
         _searchIndex = SettingsSearchMatcher.Build(documents);
         _searchIndexLanguage = Texts.Language;
         _searchIndexDirty = false;
@@ -558,7 +585,7 @@ public partial class SettingsEditor
         foreach (Control input in inputs)
             if (AutomationProperties.GetHelpText(input) is { Length: > 0 } help && !string.Equals(help, label, StringComparison.Ordinal)) entry.Hints.Add(help);
         string? name = inputs.Select(control => control.Name).FirstOrDefault(n => !string.IsNullOrEmpty(n)) ?? unit.Name;
-        entry.Key = name != null && name.EndsWith("Input", StringComparison.Ordinal) && name.Length > 5 ? name[..^5] : name;
+        entry.Key = SettingsFieldId.FromInputName(name);
         return entry;
     }
 

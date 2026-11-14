@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Controls;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -309,6 +310,48 @@ public partial class SettingsEditor
         yield return (ReaderFocusedMediaScalePercentInput, ReaderFocusedMediaScalePercent, ReaderFocusedMediaScalePercentLabel, string.Empty, Config.ReaderFocusedMediaScalePercentMinimum, Config.ReaderFocusedMediaScalePercentMaximum, true);
         yield return (ReaderHoverEnlargeSizeInput, ReaderHoverEnlargeSize, ReaderHoverEnlargeSizeLabel, string.Empty, Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, true);
         yield return (ReaderHoverEnlargeDelayMsInput, ReaderHoverEnlargeDelayMs, ReaderHoverEnlargeDelayMsLabel, string.Empty, Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, true);
+    }
+
+    /// <summary>
+    /// A quick settings popover saved the settings <paramref name="ids"/> (<see cref="SettingsFieldId"/>): their editors show the
+    /// confirmed value again, so the page neither shows the old one nor saves it back over the change later. Only the named
+    /// editors are touched; an unrelated unsaved draft stays. An id this page does not know reloads the whole reader draft.
+    /// </summary>
+    internal void RefreshConfirmedSettings(IReadOnlyCollection<string> ids)
+    {
+        if (_isClosed) return;
+        bool reloadReader = false;
+        foreach (string id in ids)
+        {
+            switch (id)
+            {
+                case SettingsFieldId.ReadingFontSize:
+                    _initialReadingFontSize = _config.ReadingFontSize;
+                    SelectedReadingFontSize = ReadingFontSizeChoices.FirstOrDefault(item => item.Value == _config.ReadingFontSize) ?? SelectedReadingFontSize;
+                    break;
+                case SettingsFieldId.ReaderPostWidth:
+                    SelectedReaderPostWidth = ReaderPostWidthChoices.FirstOrDefault(item => item.Value == _config.ReaderPostWidth) ?? SelectedReaderPostWidth;
+                    break;
+                case SettingsFieldId.ReaderThumbnailWidth:
+                    ReaderThumbnailWidth = _config.ReaderThumbnailWidth;
+                    ResetNumber(ReaderThumbnailWidthInput, _config.ReaderThumbnailWidth);
+                    break;
+                case SettingsFieldId.ReaderPageSize:
+                    ReaderPageSize = _config.ReaderPageSize;
+                    ResetNumber(ReaderPageSizeInput, _config.ReaderPageSize);
+                    break;
+                case SettingsFieldId.ReaderDateStyle:
+                    SelectedReaderDateStyle = ReaderDateStyleChoices.FirstOrDefault(item => item.Value == _config.ReaderDateStyle) ?? SelectedReaderDateStyle;
+                    break;
+                case SettingsFieldId.ReaderSpoilers:
+                    SelectedReaderSpoilers = ReaderSpoilersChoices.FirstOrDefault(item => item.Value == _config.ReaderSpoilers) ?? SelectedReaderSpoilers;
+                    break;
+                default:
+                    reloadReader = true;
+                    break;
+            }
+        }
+        if (reloadReader) LoadReaderDraft(_config);
     }
 
     private void RaiseReaderTextsChanged() => Raise(new[]
