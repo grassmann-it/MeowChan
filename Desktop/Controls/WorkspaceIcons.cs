@@ -30,6 +30,8 @@ internal static class WorkspaceIcons
     internal const string Check = "check";
     internal const string ChevronLeft = "chevron-left";
     internal const string ChevronUp = "chevron-up";
+    internal const string ArrowDown = "arrow-down";
+    internal const string ArrowUp = "arrow-up";
 
     /// <summary>The style class every icon carries (size, round caps, no hit testing; see WorkspaceStyles.axaml).</summary>
     internal const string StyleClass = "glyph-icon";
@@ -52,7 +54,9 @@ internal static class WorkspaceIcons
         [StarFilled] = new("M8,1.6 L9.9,5.8 L14.4,6.3 L11.1,9.4 L12,13.8 L8,11.6 L4,13.8 L4.9,9.4 L1.6,6.3 L6.1,5.8 Z"),
         [Check] = new("M3,8.5 L6.5,12 L13,4.5"),
         [ChevronLeft] = new("M10,3.5 L5.5,8 L10,12.5", HeavyClass),
-        [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass)
+        [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass),
+        [ArrowDown] = new("M8,3 L8,13 M3,8 L8,13 L13,8"),
+        [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8")
     };
 
     private static readonly Dictionary<string, Geometry> Built = new();

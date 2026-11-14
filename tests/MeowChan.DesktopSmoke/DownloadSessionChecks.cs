@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Boards.FourChan;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -170,7 +171,8 @@ internal static class DownloadSessionChecks
             // the file it wrote, and the header graph shows that as the disk write rate.
             await Program.WaitUntilAsync(() => initial.FindControl<TextBlock>("TransferSpeedLabel")!.Text is string speed
                 && speed.EndsWith("/s", StringComparison.Ordinal)
-                && initial.FindControl<TextBlock>("TransferDownMark")!.Text == "↓"
+                && StatisticsChecks.HeaderDirectionIsDrawn(initial, "TransferDownMark", WorkspaceIcons.ArrowDown)
+                && StatisticsChecks.HeaderDirectionIsDrawn(initial, "TransferUpMark", WorkspaceIcons.ArrowUp)
                 && initial.FindControl<TextBlock>("TransferDiskLabel")!.Text is string disk && disk.EndsWith("/s", StringComparison.Ordinal) && !string.Equals(disk, "0 B/s", StringComparison.Ordinal));
             Require(initial.SettingsPageVisible && settings.DownloadPath == settingsDraft,
                 "A background download discarded the settings page or its draft.");

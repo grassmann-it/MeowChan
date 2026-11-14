@@ -118,6 +118,15 @@ internal static class StatisticsChecks
     private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskText")!.IsVisible;
     private static string TextOf(MainWindow window, string name) => window.FindControl<TextBlock>(name)!.Text ?? "";
 
+    internal static bool HeaderDirectionIsDrawn(MainWindow window, string slotName, string expectedIcon)
+    {
+        Border? slot = window.FindControl<Border>(slotName);
+        return slot?.Child is Avalonia.Controls.Shapes.Path icon && icon.Data != null
+            && WorkspaceIcons.KeyOf(icon) == expectedIcon && !slot.IsHitTestVisible
+            && AutomationProperties.GetAccessibilityView(slot) == AccessibilityView.Raw
+            && AutomationProperties.GetAccessibilityView(icon) == AccessibilityView.Raw;
+    }
+
     private static async Task RequireHeaderAsync(MainWindow window, bool disk, bool graph, string scenario)
     {
         // The graphs need room: in the narrow Barebones window every layout falls back to the labelled values.
@@ -131,7 +140,8 @@ internal static class StatisticsChecks
         // Both blocks carry a written heading and compact values: Network ↓ down ↑ up, Disk R read W write (English at this point).
         string netTitle = TextOf(window, "TransferSpeedTitle"), netValues = TextOf(window, "TransferSpeedLabel");
         string diskTitle = TextOf(window, "TransferDiskTitle"), diskValues = TextOf(window, "TransferDiskLabel");
-        Require(netTitle == Texts.T("stats.header.networkTitle") && TextOf(window, "TransferDownMark") == "↓" && TextOf(window, "TransferUpMark") == "↑"
+        Require(netTitle == Texts.T("stats.header.networkTitle") && HeaderDirectionIsDrawn(window, "TransferDownMark", WorkspaceIcons.ArrowDown)
+            && HeaderDirectionIsDrawn(window, "TransferUpMark", WorkspaceIcons.ArrowUp)
             && netValues.EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferUploadLabel").EndsWith("/s", StringComparison.Ordinal),
             scenario + ": the network block lacks its heading or its down/up values: '" + netTitle + "' '" + netValues + "'.");
         Require(text.Contains("upload", StringComparison.OrdinalIgnoreCase), scenario + ": the sentence does not name the upload: '" + text + "'.");

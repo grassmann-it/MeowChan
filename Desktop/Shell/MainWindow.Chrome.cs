@@ -21,12 +21,14 @@ public partial class MainWindow
     private static Geometry RestoreGeometry => _restoreGeometry ??= Geometry.Parse(WindowChromePolicy.RestorePath);
 
     // The shell's drawn marks that XAML cannot name (P6): the "more" icon of the application menu, the close icons of the
-    // feedback banner and the details panel. Their geometry is built when they are first shown (WorkspaceIcons).
+    // feedback banner and the details panel, and the header rate directions. Their geometry is built when first shown (WorkspaceIcons).
     private void InitializeGlyphIcons()
     {
         WorkspaceMenuItem.Header = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.More);
         MeowChan.Desktop.Controls.WorkspaceIcons.Attach(ShellFeedbackDismissIcon, MeowChan.Desktop.Controls.WorkspaceIcons.Close);
         InspectorCloseButton.Content = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close);
+        MeowChan.Desktop.Controls.WorkspaceIcons.Attach(TransferDownIcon, MeowChan.Desktop.Controls.WorkspaceIcons.ArrowDown, inheritForeground: false);
+        MeowChan.Desktop.Controls.WorkspaceIcons.Attach(TransferUpIcon, MeowChan.Desktop.Controls.WorkspaceIcons.ArrowUp, inheritForeground: false);
     }
 
     // Square corners on Windows (DWM) and native corners and traffic lights on macOS (header

@@ -52,9 +52,13 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock x:Name="TransferSpeedTitle" Classes="muted" Margin="0,0,8,0" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" Text="Network" />
-                                    <TextBlock x:Name="TransferDownMark" Grid.Column="1" Classes="muted" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" Text="↓" />
+                                    <Border x:Name="TransferDownMark" Grid.Column="1" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
+                                        <Path x:Name="TransferDownIcon" Classes="glyph-icon" Stroke="{DynamicResource Workspace.Muted}" />
+                                    </Border>
                                     <TextBlock x:Name="TransferSpeedLabel" Grid.Column="2" VerticalAlignment="Center" TextAlignment="Right" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="0 B/s" />
-                                    <TextBlock x:Name="TransferUpMark" Grid.Column="3" Classes="muted" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" Text="↑" />
+                                    <Border x:Name="TransferUpMark" Grid.Column="3" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw">
+                                        <Path x:Name="TransferUpIcon" Classes="glyph-icon" Stroke="{DynamicResource Workspace.Muted}" />
+                                    </Border>
                                     <TextBlock x:Name="TransferUploadLabel" Grid.Column="4" VerticalAlignment="Center" TextAlignment="Right" FontSize="{StaticResource Workspace.Text.Caption}" FontFamily="{DynamicResource Workspace.Font.UI}" FontFeatures="tnum" Text="0 B/s" />
                                 </Grid>
                                 <controls:IoGraph x:Name="TransferDiskGraph" Grid.Row="1" Source="DiskIo" Width="128" MinWidth="120" Height="16" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False"

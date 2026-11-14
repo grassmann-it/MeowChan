@@ -98,8 +98,8 @@ public partial class MainWindow
         if (_ioStats != null) ApplyIoSnapshot(force: true);
     }
 
-    internal static void ArrangeHeaderRates(Grid grid, TextBlock title, TextBlock firstMark, TextBlock firstValue,
-        TextBlock secondMark, TextBlock secondValue, bool stacked)
+    internal static void ArrangeHeaderRates(Grid grid, TextBlock title, Control firstMark, TextBlock firstValue,
+        Control secondMark, TextBlock secondValue, bool stacked)
     {
         Grid.SetRowSpan(title, stacked ? 2 : 1);
         Grid.SetRow(firstMark, 0); Grid.SetColumn(firstMark, 1);
