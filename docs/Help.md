@@ -874,7 +874,7 @@ tags you can store or the separate quick-tag chip count. **Video scrub preview
 cache size (MiB)** budgets derived timeline previews on disk, not original videos.
 The table gives their defaults and minimum/maximum values from Config.
 
-**Deutsch (zusätzliche Grenzen):** **Archiv-Tagfilter pro Liste** begrenzt jede
+**Deutsch (zusätzliche Grenzen):** **Archiv-Tagfilter: Tags je Liste** begrenzt jede
 Einschluss-/Ausschlussliste einzeln (Standard 32, 8 bis 128); ein niedrigerer Wert
 kürzt gespeicherte Filter nicht. **Größe des URL-Textexports (MiB)** begrenzt neue
 URL-Textausgaben (Standard 1 MiB, 1 bis 64 MiB), nicht HTML- oder Originaldatei-
@@ -1906,6 +1906,7 @@ Settings → **Reading & media → Tagging** contains:
 | --- | --- | --- |
 | Stamp: tags it holds | 9 | 1 to 18 |
 | Tagging queue: media per walk | 200 | 10 to 5000 |
+| Tagging queue: decisions to take back | 20 | 1 to 100 |
 | Cards in the card mode | 5 | 2 to 5 |
 
 **Start walks in the card mode** is off by default; K also saves that preference.
@@ -1913,6 +1914,19 @@ Settings → **Reading & media → Tagging** contains:
 rating of 1–5. Choosing an action already in another slot swaps the two; the count
 shows only the first configured slots. Card count and choices apply from the next
 walk. Saving a smaller walk size does not remove queue entries.
+
+**Tagging queue: decisions to take back** is an in-memory, newest-first history
+of finish and skip decisions. Lowering it forgets older history but does not change
+the queue. If an entry is removed from the queue during a walk, **Undo** skips
+that decision and takes back the newest decision whose entry is still present.
+
+**Deutsch:** Unter **Einstellungen → Lesen & Medien → Tagging** legt
+**Tagging-Warteschlange: rücknehmbare Entscheidungen** fest, wie viele
+Entscheidungen eines Durchgangs (Abschließen oder Überspringen) **Rückgängig**
+zurücknehmen kann (Standard 20, 1–100). Eine kleinere Zahl vergisst ältere
+Schritte, ohne die Warteschlange zu ändern. Wird ein Eintrag während des
+Durchgangs aus der Warteschlange entfernt, nimmt **Rückgängig** die neueste
+noch vorhandene Entscheidung zurück.
 
 ### Several files in a thread's media tab
 
@@ -1965,7 +1979,7 @@ rating, including one whose original is no longer available.
 
 ### Saving a video frame
 
-In the gallery, **Save frame as image** (German: **Einzelbild als Bilddatei speichern**,
+In the gallery, **Save frame as image** (German: **Einzelbild als Bild speichern**,
 Shift+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
@@ -2032,14 +2046,40 @@ Its images/videos appear on Media under **Folders**. Choose whether to include
 subfolders; folder links are not followed. Profile/download folders and overlapping
 added folders are refused. Rename changes only the name shown in MeowChan.
 
-Files are read to recognize their exact content when first opened, favorited,
-rated or tagged; remaining eligible files are read in the background while idle.
-**Pause reading** pauses that background work; **Look through again** checks for
-new, changed and missing files. Limits for folders, files, background reading and
-the catalog are under **Storage and limits → Folders**. The profile’s
-`folder-sources.db` keeps the folder catalog; own tags, favorites and ratings stay
-in the profile, not in the source files. Removing a folder leaves its files alone
-and keeps saved tags, favorites and ratings as unavailable-file records.
+A directory scan only lists eligible images and videos with their path, size,
+modification time and media kind; it does not open or hash the files. Media tiles
+and sound checks also never read a folder file in full just to learn its identity,
+so a file that has not been read yet may have no preview until the gallery, an
+explicit action or background work reads it. Exact content is recorded lazily as
+SHA-256: opening a file in the gallery reads it within the automatic size limit,
+while favoriting, rating or tagging may explicitly read even a larger file.
+Background hashing reads eligible local files only while idle and pauses while you
+work. **Pause reading** pauses that background work; **Look through again** checks
+for new, changed and missing files. Cloud placeholders are listed, but background
+hashing never reads an online-only placeholder because that could start a download;
+the gallery or an explicit user action may try to read it. Limits for folders,
+files, background reading and the catalog are under **Storage and limits → Folders**.
+The profile’s `folder-sources.db` keeps the folder catalog; own tags, favorites and
+ratings stay in the profile, not in the source files. If the folder catalog is full,
+remove a folder to make catalog space available. Removing a folder leaves its files
+alone and keeps saved tags, favorites and ratings as unavailable-file records.
+
+**Deutsch:** Ein Ordnerdurchlauf listet geeignete Bilder und Videos nur mit Pfad,
+Größe, Änderungszeit und Medienart; er öffnet und hasht die Dateien nicht. Kacheln
+und Soundprüfung lesen eine Ordnerdatei ebenfalls nie vollständig nur für ihre
+Identität. Eine noch nicht gelesene Datei kann deshalb zunächst ohne Vorschau
+bleiben, bis Hintergrundarbeit, Galerie oder eine ausdrückliche Aktion sie gelesen
+hat. Der genaue Inhalt wird bei Bedarf als SHA-256 erfasst: Beim Öffnen in der
+Galerie gilt die automatische Größenbegrenzung; Favorisieren, Bewerten oder Taggen
+kann auch eine größere Datei ausdrücklich lesen. Im Hintergrund werden nur geeignete
+lokale Dateien gelesen, solange du nichts tust; **Lesen pausieren** hält diese Arbeit
+an. Cloud-Platzhalter werden angezeigt, aber im Hintergrund nie gelesen, weil das
+einen Download auslösen könnte; Galerie oder ausdrückliche Benutzeraktion dürfen
+den Leseversuch machen. Die Grenzen stehen unter **Einstellungen → Speicher und
+Grenzen → Ordner**. Ist der Ordnerkatalog voll, kannst du einen Ordner entfernen,
+um Katalogplatz freizugeben. Tags, Favoriten und Bewertungen bleiben im Profil;
+Entfernen lässt die Quelldateien unverändert und bewahrt diese Angaben als nicht
+verfügbare Dateieinträge.
 
 If a folder file changes after tagging, its tags stay with the previous exact
 version. Selecting it on Media shows a hint; **All occurrences…** opens details
@@ -2062,6 +2102,18 @@ choice is added as a read-only folder source on the new window’s first start.
 If adding it fails there, the new window still starts and explains the refusal.
 The shared list of known profiles is outside the profiles and contains folder
 references; removing a list entry deletes neither the profile nor its media.
+
+Rows in **Switch profile…** appear immediately with **Checking…**. Their folder
+state is filled in asynchronously; a folder that does not answer is shown as
+**Status unknown: the folder does not answer**. While a row is still being checked
+or its status is unknown, **Open** is disabled; only a confirmed usable folder can
+be opened.
+
+**Deutsch:** Im Dialog **Profil wechseln…** erscheinen die Zeilen sofort mit
+**Wird geprüft…**. Der Zustand des Ordners wird danach asynchron nachgetragen; ein
+nicht antwortender Ordner steht als **Status unbekannt: Der Ordner antwortet nicht**
+da. Solange geprüft wird oder der Status unbekannt ist, bleibt **Öffnen**
+deaktiviert; öffnen lässt sich nur ein bestätigter nutzbarer Ordner.
 
 ## Missing media and finished threads
 
