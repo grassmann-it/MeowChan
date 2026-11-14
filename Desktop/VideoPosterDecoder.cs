@@ -32,8 +32,10 @@ internal static class VideoPosterDecoder
     internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight, CancellationToken token)
     {
         if (start < TimeSpan.Zero) { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(start)); }
-        if (maximumWidth is < 1 or > PosterMaximumWidth || maximumHeight is < 1 or > PosterMaximumHeight)
+        if (maximumWidth is < 1 or > PosterMaximumWidth)
         { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumWidth), "The frame bounds exceed the poster limits."); }
+        if (maximumHeight is < 1 or > PosterMaximumHeight)
+        { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumHeight), "The frame bounds exceed the poster limits."); }
         return DecodeCoreAsync(verifiedVideo, start, maximumWidth, maximumHeight, "video.scrub.decode", token);
     }
 

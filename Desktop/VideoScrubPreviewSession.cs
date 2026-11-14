@@ -39,6 +39,9 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
     private readonly VerifiedFileMemo _verifiedFiles;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _verifyGate = new(1, 1); // one hash of this original at a time; later opens hit the memo
+    // Linearizes the final store/publish with the session-wide unavailable cut. A frame cannot be stored after a
+    // verification failure has won this gate, even if the decode completed at the same time.
+    private readonly SemaphoreSlim _commitGate = new(1, 1);
     private readonly object _lock = new();
     private readonly byte[]?[] _frames = new byte[]?[VideoScrubSlots.Count];
     private readonly bool[] _failed = new bool[VideoScrubSlots.Count];
@@ -209,14 +212,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             opening = true;
             await (await OpenVerifiedAsync(bounded.Token).ConfigureAwait(false)).DisposeAsync().ConfigureAwait(false);
             opening = false;
-            lock (_lock) if (_unavailable || _disposing) return null;
-            try { await _cache.StoreAsync(key, png, bounded.Token).ConfigureAwait(false); }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                // The thumbnail is still shown for this session; only its persistence failed.
-                Log.Warning(exception, "Could not store a video scrub preview; it stays available while the video is shown.");
-            }
-            return Publish(work, png);
+            return await CommitAsync(work, key, png, bounded.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested || abandoned)
         {
@@ -230,15 +226,11 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             Log.Warning(exception, original
                 ? "The recorded video could not be verified; it has no scrub previews while it is shown."
                 : "Could not generate a video scrub preview; the seek bar works without it.");
-            lock (_lock)
+            if (original)
+                await MarkUnavailableAsync().ConfigureAwait(false);
+            else
             {
-                if (original)
-                {
-                    // The cut: from here on no slot hands out a thumbnail; Publish and every reader check it under this lock.
-                    _unavailable = true;
-                    Array.Clear(_frames);
-                }
-                else _failed[work.Slot] = true;
+                lock (_lock) _failed[work.Slot] = true;
             }
             return null;
         }
@@ -259,6 +251,43 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             }
             work.Cancel.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Stores and publishes a completed decode as one session commit. The gate is also used when an integrity failure
+    /// closes the session, so a late decode cannot pass the availability check and then write after that cut.
+    /// </summary>
+    private async Task<byte[]?> CommitAsync(Work work, VideoScrubFrameKey key, byte[] png, CancellationToken token)
+    {
+        await _commitGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            lock (_lock)
+                if (_unavailable || _disposing) return null;
+            try { await _cache.StoreAsync(key, png, token).ConfigureAwait(false); }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // The thumbnail is still shown for this session; only its persistence failed.
+                Log.Warning(exception, "Could not store a video scrub preview; it stays available while the video is shown.");
+            }
+            return Publish(work, png);
+        }
+        finally { _commitGate.Release(); }
+    }
+
+    private async Task MarkUnavailableAsync()
+    {
+        await _commitGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            lock (_lock)
+            {
+                // The cut: from here on no slot hands out a thumbnail; Publish and every reader check it under this lock.
+                _unavailable = true;
+                Array.Clear(_frames);
+            }
+        }
+        finally { _commitGate.Release(); }
     }
 
     /// <summary>Holds and returns <paramref name="png"/>, or null once the session lost its original or is being disposed.</summary>
@@ -303,6 +332,9 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             Array.Clear(_frames);
             Array.Clear(_work);
         }
+        _verifyGate.Dispose();
+        _commitGate.Dispose();
+        _lifetime.Dispose();
         _disposed.TrySetResult();
     }
 }

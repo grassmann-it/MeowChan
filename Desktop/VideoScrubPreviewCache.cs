@@ -100,13 +100,19 @@ internal sealed class VideoScrubPreviewCache
     {
         if (!Valid(png)) throw new InvalidDataException("The scrub thumbnail exceeds its safe limits.");
         System.IO.Directory.CreateDirectory(Directory);
-        lock (_storeLock) VideoPosterCache.Trim(Directory, png.Length, Options.CacheLimitBytes, int.MaxValue);
         string temporary = Path.Combine(Directory, TemporaryPrefix + Guid.NewGuid().ToString("N") + ".tmp");
         try
         {
+            // Write before taking the store lock. The temporary file is deliberately not a PNG, so concurrent writers
+            // do not make Trim's size accounting optimistic. Trim and the final rename are one critical section.
             await File.WriteAllBytesAsync(temporary, png, token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
-            File.Move(temporary, PathOf(key), overwrite: true);
+            lock (_storeLock)
+            {
+                token.ThrowIfCancellationRequested();
+                VideoPosterCache.Trim(Directory, png.Length, Options.CacheLimitBytes, int.MaxValue);
+                File.Move(temporary, PathOf(key), overwrite: true);
+            }
         }
         finally { try { File.Delete(temporary); } catch (IOException) { } }
     }

@@ -339,6 +339,11 @@ public sealed class VideoScrubPreviewTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             VideoPosterDecoder.DecodeAtAsync(tooLarge, TimeSpan.FromSeconds(1), VideoPosterDecoder.PosterMaximumWidth + 1, 180, CancellationToken.None));
         Assert.True(tooLarge.Disposed);
+        TrackingStream tooTall = new();
+        ArgumentOutOfRangeException height = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+            VideoPosterDecoder.DecodeAtAsync(tooTall, TimeSpan.FromSeconds(1), 320, VideoPosterDecoder.PosterMaximumHeight + 1, CancellationToken.None));
+        Assert.Equal("maximumHeight", height.ParamName);
+        Assert.True(tooTall.Disposed);
         // The first-frame poster keeps the bounds its cache validates against.
         Assert.True(VideoPosterCache.Valid(Png(VideoPosterDecoder.PosterMaximumWidth, VideoPosterDecoder.PosterMaximumHeight)));
         Assert.False(VideoPosterCache.Valid(Png(VideoPosterDecoder.PosterMaximumWidth + 1, VideoPosterDecoder.PosterMaximumHeight)));
