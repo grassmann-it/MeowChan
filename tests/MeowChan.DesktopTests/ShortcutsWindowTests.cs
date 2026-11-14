@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
@@ -67,6 +68,46 @@ public sealed class ShortcutsWindowTests : IDisposable
         editor.SearchInput.Text = "no action is called like this";
         Assert.Empty(editor.ActionList.Items);
         Assert.True(((TextBlock)Field(editor, "_empty")).IsVisible);
+    }
+
+    [Fact]
+    public void TheTableIsAPlainHeaderRowOverAlignedRowsAndTheToolbarHasTwoRows()
+    {
+        var editor = new ShortcutBindingsEditor();
+        // Header: text labels with header semantics, no buttons, no sort state.
+        Border headerRule = ((Grid)Field(editor, "_root")).Children.OfType<Border>().Single(b => b.Child is Grid { Name: ShortcutBindingsEditor.HeaderName });
+        Grid header = (Grid)headerRule.Child!;
+        TextBlock[] heads = header.Children.OfType<TextBlock>().ToArray();
+        Assert.Equal(3, header.Children.Count);
+        Assert.Equal(new[] { Texts.T("settings.shortcutsEditor.action"), Texts.T("shortcuts.window.shortcut"), Texts.T("shortcuts.window.status") },
+            heads.Select(h => h.Text));
+        Assert.Equal(heads.Select(h => h.Text), heads.Select(h => Avalonia.Automation.AutomationProperties.GetName(h)));
+        Assert.All(heads, h => Assert.Equal(Avalonia.Automation.Peers.AutomationControlType.HeaderItem, Avalonia.Automation.AutomationProperties.GetControlTypeOverride(h)));
+        Assert.Equal(Avalonia.Automation.Peers.AutomationControlType.Header, Avalonia.Automation.AutomationProperties.GetControlTypeOverride(header));
+        Assert.Equal(new Thickness(0, 0, 0, 1), headerRule.BorderThickness);
+        Assert.Empty(editor.DescendantsOfType<Button>().Where(b => b.Tag != null && b.Tag.GetType().Name.Contains("Sort")));
+        // Rows and the header share the column layout.
+        string[] columns = header.ColumnDefinitions.Select(c => c.Width.ToString()).ToArray();
+        ListBoxItem row = editor.ActionList.Items.OfType<ListBoxItem>().First(i => i.Tag is string);
+        Assert.Equal(columns, ((Grid)row.Content!).ColumnDefinitions.Select(c => c.Width.ToString()));
+        Assert.Equal(((Grid)row.Content!).ColumnSpacing, header.ColumnSpacing);
+        // Toolbar: search and area share row 1 half and half; the options are row 2.
+        StackPanel toolbar = ((Grid)Field(editor, "_root")).Children.OfType<StackPanel>().First();
+        Grid find = Assert.IsType<Grid>(toolbar.Children[0]);
+        Assert.Equal(new[] { "1*", "1*" }, find.ColumnDefinitions.Select(c => c.Width.ToString()));
+        Assert.Same(editor.SearchInput, find.Children[0]);
+        Assert.Same(Field(editor, "_area"), find.Children[1]);
+        Panel options = Assert.IsAssignableFrom<Panel>(toolbar.Children[1]);
+        Assert.Equal(new object[] { Field(editor, "_assignedOnly"), Field(editor, "_grouped"), Field(editor, "_conflicts") }, options.Children.Cast<object>());
+    }
+
+    [Fact]
+    public void TheShortcutTableSourceHasNoSortUi()
+    {
+        string editor = Source("Desktop/Views/Shortcuts/ShortcutBindingsEditor.cs");
+        Assert.DoesNotContain("ToggleSort", editor);
+        Assert.DoesNotContain("_sortButtons", editor);
+        Assert.DoesNotContain("ShortcutSortColumn", Source("Desktop/Commands/ShortcutTableModel.cs"));
     }
 
     [Fact]

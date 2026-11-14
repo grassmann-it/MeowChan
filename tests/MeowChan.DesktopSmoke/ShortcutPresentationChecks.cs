@@ -106,6 +106,10 @@ internal static class ShortcutPresentationChecks
                     "The shortcuts table does not show the committed replacement as keycaps.");
                 Require(help.Editor.Context.Area == ShortcutGroups.Pages[0] && !help.Editor.CollapsedGroups.Contains(ShortcutGroups.Pages[0]),
                     "F1 on Downloads did not open the Downloads group expanded and on top.");
+                // The table is a plain header row (labels, no sort buttons) above rows that share its column layout.
+                Grid helpHead = help.Editor.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == ShortcutBindingsEditor.HeaderName);
+                Require(helpHead.Children.OfType<TextBlock>().Count() == 3 && !helpHead.GetVisualDescendants().OfType<Button>().Any(),
+                    "The shortcuts table header is not a plain row of three labels.");
                 await CaptureWindowAsync(help, cell, "help", help.Editor.SearchInput);
                 Press(window, new KeyGesture(Key.Escape));
                 await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) == null);

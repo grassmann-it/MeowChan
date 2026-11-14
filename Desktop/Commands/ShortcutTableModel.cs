@@ -6,7 +6,6 @@ using System.Linq;
 namespace MeowChan.Desktop.Commands;
 
 public enum ShortcutRowStatus { Default, Custom, Unavailable }
-public enum ShortcutSortColumn { None, Action, Shortcut, Status }
 
 /// <summary>Another action that claims the same gesture where both can run; <see cref="BlocksSave"/> false for an advisory
 /// (a new default that yields to the user's own binding).</summary>
@@ -28,7 +27,7 @@ public sealed class ShortcutTableRow
     public CommandDefinition Command { get; }
     public string CommandId => Command.Id;
     public string Label { get; }
-    /// <summary>Position in the command catalog: the stable order and the last tie-break of every sort.</summary>
+    /// <summary>Position in the command catalog: the fixed order of the rows within a group.</summary>
     public int CatalogIndex { get; }
     public string Group { get; }
     public IReadOnlyList<string> Areas { get; }
@@ -54,13 +53,13 @@ public sealed class ShortcutTableRow
 
 public sealed record ShortcutTableGroup(string Key, bool IsCurrent, IReadOnlyList<ShortcutTableRow> Rows);
 
-/// <summary>What the table shows: search text, area, filters, grouping and sort order.</summary>
+/// <summary>What the table shows: search text, area, filters and grouping. The order is fixed (no column sorting).</summary>
 public sealed record ShortcutTableQuery(string Text = "", string? Area = null, bool AssignedOnly = false, bool ConflictsOnly = false,
-    bool Grouped = true, ShortcutSortColumn Sort = ShortcutSortColumn.None, bool Descending = false);
+    bool Grouped = true);
 
 /// <summary>
 /// The pure table of the shortcuts window (modals plan KS1): one row per catalog command with its group, gestures, status and
-/// conflicts, plus filtering, grouping and sorting. Built from a draft, never from presentation state, so it is testable.
+/// conflicts, plus filtering and grouping in a fixed order. Built from a draft, never from presentation state, so it is testable.
 /// </summary>
 public sealed class ShortcutTableModel
 {
@@ -146,8 +145,8 @@ public sealed class ShortcutTableModel
 
     /// <summary>
     /// The visible groups for <paramref name="query"/>, in table order with the current area first. An area filter keeps the rows
-    /// that run in that area, all in its group. Rows keep catalog order within a group unless a column sorts them; the opening
-    /// context's preferred commands come first in the default order.
+    /// that run in that area, all in its group. Rows keep catalog order within a group; the opening context's preferred
+    /// commands come first.
     /// </summary>
     public IReadOnlyList<ShortcutTableGroup> Query(ShortcutTableQuery query)
     {
@@ -157,32 +156,14 @@ public sealed class ShortcutTableModel
             visible = visible.Where(row => row.Group == area || row.Areas.Contains(area, StringComparer.Ordinal));
         ShortcutTableRow[] rows = visible.ToArray();
         if (!query.Grouped)
-            return rows.Length == 0 ? Array.Empty<ShortcutTableGroup>() : new[] { new ShortcutTableGroup(ShortcutGroups.All, false, Sort(rows, query)) };
+            return rows.Length == 0 ? Array.Empty<ShortcutTableGroup>() : new[] { new ShortcutTableGroup(ShortcutGroups.All, false, Ordered(rows)) };
         if (query.Area is { } only)
-            return rows.Length == 0 ? Array.Empty<ShortcutTableGroup>() : new[] { new ShortcutTableGroup(only, only == CurrentArea, Sort(rows, query)) };
+            return rows.Length == 0 ? Array.Empty<ShortcutTableGroup>() : new[] { new ShortcutTableGroup(only, only == CurrentArea, Ordered(rows)) };
         return ShortcutGroups.OrderFor(CurrentArea)
-            .Select(key => new ShortcutTableGroup(key, key == CurrentArea, Sort(rows.Where(row => row.Group == key), query)))
+            .Select(key => new ShortcutTableGroup(key, key == CurrentArea, Ordered(rows.Where(row => row.Group == key))))
             .Where(group => group.Rows.Count > 0).ToArray();
     }
 
-    private static IReadOnlyList<ShortcutTableRow> Sort(IEnumerable<ShortcutTableRow> rows, ShortcutTableQuery query)
-    {
-        IOrderedEnumerable<ShortcutTableRow> ordered = query.Sort switch
-        {
-            ShortcutSortColumn.Action => Order(rows, row => row.Label, StringComparer.CurrentCultureIgnoreCase, query.Descending),
-            // Unbound rows go last in both directions; the first gesture decides, the label breaks ties.
-            ShortcutSortColumn.Shortcut => rows.OrderBy(row => row.IsBound ? 0 : 1)
-                .ThenBy(row => row.GestureTexts.FirstOrDefault() ?? "", query.Descending ? Reverse(StringComparer.CurrentCultureIgnoreCase) : StringComparer.CurrentCultureIgnoreCase)
-                .ThenBy(row => row.Label, StringComparer.CurrentCultureIgnoreCase),
-            ShortcutSortColumn.Status => Order(rows, row => (int)row.Status, Comparer<int>.Default, query.Descending)
-                .ThenBy(row => row.Label, StringComparer.CurrentCultureIgnoreCase),
-            _ => rows.OrderBy(row => row.Preference)
-        };
-        return ordered.ThenBy(row => row.CatalogIndex).ToArray();
-    }
-
-    private static IOrderedEnumerable<ShortcutTableRow> Order<T>(IEnumerable<ShortcutTableRow> rows, Func<ShortcutTableRow, T> key, IComparer<T> comparer, bool descending)
-        => descending ? rows.OrderByDescending(key, comparer) : rows.OrderBy(key, comparer);
-
-    private static IComparer<string> Reverse(IComparer<string> comparer) => Comparer<string>.Create((a, b) => comparer.Compare(b, a));
+    private static IReadOnlyList<ShortcutTableRow> Ordered(IEnumerable<ShortcutTableRow> rows)
+        => rows.OrderBy(row => row.Preference).ThenBy(row => row.CatalogIndex).ToArray();
 }

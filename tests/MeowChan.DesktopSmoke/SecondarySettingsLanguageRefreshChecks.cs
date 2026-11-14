@@ -357,12 +357,12 @@ internal static class SecondarySettingsLanguageRefreshChecks
         Require(editor.GetVisualDescendants().OfType<CheckBox>().Any(box => box.Content as string == T("shortcuts.window.assignedOnly"))
             && editor.GetVisualDescendants().OfType<CheckBox>().Any(box => box.Content as string == T("shortcuts.window.grouped")),
             "Stale shortcut filter checkboxes.");
-        // Column heads are the sort buttons: label text and the localized accessible name.
-        Button[] heads = editor.GetVisualDescendants().OfType<Button>().Where(button => button.Tag is ShortcutSortColumn).ToArray();
+        // Column heads are a plain header row: label text, header semantics, no buttons.
+        Grid head = editor.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == ShortcutBindingsEditor.HeaderName);
         string[] labels = { T("settings.shortcutsEditor.action"), T("shortcuts.window.shortcut"), T("shortcuts.window.status") };
-        Require(heads.Length == 3 && heads.Select(head => ((StackPanel)head.Content!).Children.OfType<TextBlock>().Single().Text)
-            .SequenceEqual(labels) && heads.Select(head => AutomationProperties.GetName(head))
-            .SequenceEqual(labels.Select(label => Texts.T("shortcuts.window.sortBy", label))), "Stale shortcut table headings.");
+        TextBlock[] heads = head.Children.OfType<TextBlock>().ToArray();
+        Require(heads.Length == 3 && head.Children.Count == 3 && heads.Select(text => text.Text).SequenceEqual(labels)
+            && heads.Select(text => AutomationProperties.GetName(text)).SequenceEqual(labels), "Stale shortcut table headings.");
         foreach (string suffix in new[] { "resetAll", "recordAdditional", "clearBinding", "restoreDefault", "applyRecording", "takeOver", "cancelRecording" })
         {
             Button button = ActionButton(editor, suffix);

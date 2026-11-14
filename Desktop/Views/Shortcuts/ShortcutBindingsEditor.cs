@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -32,23 +33,25 @@ public sealed class ShortcutBindingsEditor : UserControl
     internal const string SaveName = "ShortcutsSave";
     internal const string StatusName = "ShortcutsStatus";
     internal const string ErrorsName = "ShortcutsErrors";
+    internal const string HeaderName = "ShortcutsTableHeader";
+    /// <summary>The columns of the header, the rows and the section rows: Action, Shortcut, Status.</summary>
+    private const string TableColumns = "2*,1.4*,*";
+    /// <summary>Every table row (action or section) is at least this high, so single-line rows all look alike.</summary>
+    private const double TableRowHeight = 32;
 
     private readonly ShortcutDraftSession _session;
     private ShortcutHelpContext _context = ShortcutHelpContext.Settings;
     private ShortcutTableModel _model;
     private readonly HashSet<string> _collapsed = new(StringComparer.Ordinal);
-    private ShortcutSortColumn _sort;
-    private bool _descending;
 
     private readonly Grid _root = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,*,Auto,Auto,Auto") };
-    private readonly MeowChan.Desktop.Controls.SearchBox _search = new() { Name = SearchName, MinWidth = 240 };
-    private readonly ComboBox _area = new() { Name = "ShortcutsArea", MinWidth = 160 };
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new() { Name = SearchName, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _area = new() { Name = "ShortcutsArea", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _assignedOnly = new() { Name = "ShortcutsAssignedOnly" };
     private readonly CheckBox _grouped = new() { Name = "ShortcutsGrouped", IsChecked = true };
     private readonly ToggleButton _conflicts = new() { Name = "ShortcutsConflicts" };
     private readonly TextBlock _notes = new() { Name = "ShortcutsNotes", TextWrapping = TextWrapping.Wrap };
-    private readonly Grid _header = new() { ColumnDefinitions = new ColumnDefinitions("2*,1.4*,*"), ColumnSpacing = 12 };
-    private readonly Button[] _sortButtons = new Button[3];
+    private readonly Grid _header = new() { ColumnDefinitions = new ColumnDefinitions(TableColumns), ColumnSpacing = 12 };
     private readonly ListBox _actions = new() { Name = ListName };
     private readonly TextBlock _empty = new() { Name = "ShortcutsEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly StackPanel _detail = new() { Spacing = 8 };
@@ -207,8 +210,7 @@ public sealed class ShortcutBindingsEditor : UserControl
         (_area.SelectedItem as ComboBoxItem)?.Tag as string,
         _assignedOnly.IsChecked == true,
         _conflicts.IsChecked == true,
-        _grouped.IsChecked == true,
-        _sort, _descending);
+        _grouped.IsChecked == true);
 
     private void Localize()
     {
@@ -364,60 +366,61 @@ public sealed class ShortcutBindingsEditor : UserControl
 
     private void BuildFrame()
     {
-        // Toolbar: search, area, filters, conflicts.
-        var toolbar = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
-        toolbar.Children.Add(_search);
+        // Toolbar, two rows: search and area share the width half and half; the options (filters, conflicts) sit below.
+        var toolbar = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 8) };
+        var find = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 8 };
+        find.Children.Add(_search);
         // A plain list as the source: Items.Add would bind a collection listener to the creating thread.
         _area.ItemsSource = new[] { AreaItem(null) }.Concat(ShortcutGroups.Order.Select(group => AreaItem(group))).ToArray();
         _area.SelectedIndex = 0;
-        toolbar.Children.Add(_area);
+        Grid.SetColumn(_area, 1);
+        find.Children.Add(_area);
+        toolbar.Children.Add(find);
+        var options = new WrapPanel { ItemSpacing = 16, LineSpacing = 8 };
+        foreach (Control option in new Control[] { _assignedOnly, _grouped, _conflicts }) option.VerticalAlignment = VerticalAlignment.Center;
         Localized(_assignedOnly, () => Texts.T("shortcuts.window.assignedOnly"));
-        toolbar.Children.Add(_assignedOnly);
+        options.Children.Add(_assignedOnly);
         Localized(_grouped, () => Texts.T("shortcuts.window.grouped"));
-        toolbar.Children.Add(_grouped);
-        toolbar.Children.Add(_conflicts);
+        options.Children.Add(_grouped);
+        options.Children.Add(_conflicts);
+        toolbar.Children.Add(options);
         _root.Children.Add(toolbar);
 
         var notesHost = new Border { Child = _notes, Margin = new Thickness(16, 0, 16, 8) };
         Grid.SetRow(notesHost, 1);
         _root.Children.Add(notesHost);
 
-        // Column heads: each sorts its column (ascending, descending, catalog order).
-        _header.Margin = new Thickness(24, 0, 24, 4);
-        foreach (var (column, index, label) in new (ShortcutSortColumn, int, Func<string>)[]
+        // Column heads: a plain header row of the table (text, no buttons; the order is fixed). Its inset is that of a row's content
+        // (a list row's border and padding are 12 wide on both sides), so the labels sit above their columns.
+        _header.Name = HeaderName;
+        _header.MinHeight = 28;
+        AutomationProperties.SetControlTypeOverride(_header, AutomationControlType.Header);
+        foreach (var (index, label) in new (int, Func<string>)[]
         {
-            (ShortcutSortColumn.Action, 0, () => Texts.T("settings.shortcutsEditor.action")),
-            (ShortcutSortColumn.Shortcut, 1, () => Texts.T("shortcuts.window.shortcut")),
-            (ShortcutSortColumn.Status, 2, () => Texts.T("shortcuts.window.status")),
+            (0, () => Texts.T("settings.shortcutsEditor.action")),
+            (1, () => Texts.T("shortcuts.window.shortcut")),
+            (2, () => Texts.T("shortcuts.window.status")),
         })
         {
-            var button = new Button { HorizontalAlignment = HorizontalAlignment.Left, Tag = column };
-            button.Classes.Add("subtle");
-            var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
-            text.Classes.Add("workspace-field-label");
-            var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-            content.Children.Add(text);
-            button.Content = content;
+            var text = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+            text.Classes.Add("workspace-meta");
+            AutomationProperties.SetControlTypeOverride(text, AutomationControlType.HeaderItem);
             void Refresh()
             {
                 text.Text = label();
-                bool active = _sort == column;
-                AutomationProperties.SetName(button, !active ? Texts.T("shortcuts.window.sortBy", label())
-                    : Texts.T(_descending ? "shortcuts.window.sortedDescending" : "shortcuts.window.sortedAscending", label()));
-                if (content.Children.Count > 1) content.Children.RemoveAt(1);
-                if (active && button.IsAttachedToVisualTree())
-                    content.Children.Add(CommandBindings.NamedIcon(_descending ? "arrow-down" : "arrow-up", 12));
+                AutomationProperties.SetName(text, text.Text);
             }
-            button.AttachedToVisualTree += (_, _) => Refresh();
             _frameTexts.Add(Refresh);
             Refresh();
-            button.Click += (_, _) => ToggleSort(column);
-            Grid.SetColumn(button, index);
-            _header.Children.Add(button);
-            _sortButtons[index] = button;
+            Grid.SetColumn(text, index);
+            _header.Children.Add(text);
         }
-        Grid.SetRow(_header, 2);
-        _root.Children.Add(_header);
+        var headerRule = new Border { Margin = new Thickness(16, 0, 16, 4), Padding = new Thickness(12, 0), Child = _header,
+            BorderThickness = new Thickness(0, 0, 0, 1) };
+        headerRule[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Border");
+        Grid.SetRow(headerRule, 2);
+        _root.Children.Add(headerRule);
 
         var listHost = new Grid { Margin = new Thickness(16, 0) };
         listHost.Children.Add(_actions);
@@ -479,15 +482,6 @@ public sealed class ShortcutBindingsEditor : UserControl
         return item;
     }
 
-    private void ToggleSort(ShortcutSortColumn column)
-    {
-        if (_sort != column) { _sort = column; _descending = false; }
-        else if (!_descending) _descending = true;
-        else { _sort = ShortcutSortColumn.None; _descending = false; }
-        foreach (var refresh in _frameTexts) refresh();
-        RefreshList();
-    }
-
     private void RefreshConflictChip()
     {
         int count = _model.BlockingCount;
@@ -545,7 +539,7 @@ public sealed class ShortcutBindingsEditor : UserControl
             RenderTransform = collapsed ? null : new RotateTransform(90) };
         var title = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
         title.Classes.Add("section-title");
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, MinHeight = TableRowHeight };
         content.Children.Add(chevron);
         content.Children.Add(title);
         var item = new ListBoxItem { Tag = new GroupTag(group.Key), Content = content, HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -582,8 +576,8 @@ public sealed class ShortcutBindingsEditor : UserControl
     private ListBoxItem Row(ShortcutTableRow row)
     {
         ShortcutPlatform platform = _model.Platform;
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("2*,1.4*,*"), ColumnSpacing = 12, Margin = new Thickness(12, 0, 0, 0) };
-        var labelColumn = new StackPanel { Spacing = 2 };
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(TableColumns), ColumnSpacing = 12, MinHeight = TableRowHeight };
+        var labelColumn = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
         var label = new TextBlock { Text = row.Label, TextWrapping = TextWrapping.Wrap };
         labelColumn.Children.Add(label);
         var meta = new TextBlock { TextWrapping = TextWrapping.Wrap };

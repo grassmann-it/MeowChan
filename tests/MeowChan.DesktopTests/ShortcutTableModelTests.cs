@@ -100,31 +100,22 @@ public sealed class ShortcutTableModelTests : IDisposable
     }
 
     [Fact]
-    public void SortingIsStableInBothDirectionsAndUnboundShortcutsStayLast()
+    public void TheTableHasOneFixedOrderWithoutColumnSorting()
     {
+        // The window has no sortable columns: the query carries no sort and the order is the same on every call.
+        Assert.DoesNotContain(typeof(ShortcutTableQuery).GetProperties(), p => p.Name.Contains("Sort") || p.Name == "Descending");
         ShortcutTableModel model = ShortcutTableModel.Build(new ShortcutBindingsSection(), ShortcutPlatform.Linux);
-        foreach (ShortcutSortColumn column in Enum.GetValues<ShortcutSortColumn>())
-            foreach (bool descending in new[] { false, true })
-            {
-                var query = new ShortcutTableQuery(Sort: column, Descending: descending);
-                var a = model.Query(query).Select(g => g.Rows.Select(r => r.CommandId).ToArray()).ToArray();
-                var b = model.Query(query).Select(g => g.Rows.Select(r => r.CommandId).ToArray()).ToArray();
-                Assert.Equal(a, b);
-            }
-        IReadOnlyList<ShortcutTableRow> byAction = model.Query(new ShortcutTableQuery(Grouped: false, Sort: ShortcutSortColumn.Action)).Single().Rows;
-        Assert.Equal(byAction.Select(r => r.Label).Order(StringComparer.CurrentCultureIgnoreCase), byAction.Select(r => r.Label));
-        IReadOnlyList<ShortcutTableRow> reversed = model.Query(new ShortcutTableQuery(Grouped: false, Sort: ShortcutSortColumn.Action, Descending: true)).Single().Rows;
-        Assert.Equal(byAction.Select(r => r.Label).Reverse(), reversed.Select(r => r.Label));
-        foreach (bool descending in new[] { false, true })
-        {
-            IReadOnlyList<ShortcutTableRow> byShortcut = model.Query(new ShortcutTableQuery(Grouped: false, Sort: ShortcutSortColumn.Shortcut, Descending: descending)).Single().Rows;
-            int firstUnbound = byShortcut.ToList().FindIndex(r => !r.IsBound);
-            Assert.True(firstUnbound > 0);
-            Assert.All(byShortcut.Skip(firstUnbound), r => Assert.False(r.IsBound));
-        }
-        // Default order: catalog order inside a group.
+        var a = model.Query(new ShortcutTableQuery()).Select(g => g.Rows.Select(r => r.CommandId).ToArray()).ToArray();
+        var b = model.Query(new ShortcutTableQuery()).Select(g => g.Rows.Select(r => r.CommandId).ToArray()).ToArray();
+        Assert.Equal(a, b);
+        // Catalog order inside a group (no preferred commands here), grouped or flat.
         Assert.All(model.Query(new ShortcutTableQuery()), group =>
             Assert.Equal(group.Rows.Select(r => r.CatalogIndex).Order(), group.Rows.Select(r => r.CatalogIndex)));
+        IReadOnlyList<ShortcutTableRow> flat = model.Query(new ShortcutTableQuery(Grouped: false)).Single().Rows;
+        Assert.Equal(flat.Select(r => r.CatalogIndex).Order(), flat.Select(r => r.CatalogIndex));
+        // The current area leads, the groups follow in their fixed order.
+        ShortcutTableModel inReader = ShortcutTableModel.Build(new ShortcutBindingsSection(), ShortcutPlatform.Linux, ShortcutGroups.Reader);
+        Assert.Equal(ShortcutGroups.Reader, inReader.Query(new ShortcutTableQuery()).First().Key);
     }
 
     [Fact]
