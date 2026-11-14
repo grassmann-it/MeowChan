@@ -61,10 +61,15 @@
     </UserControl.Styles>
     <Grid RowDefinitions="Auto,*,Auto">
         <StackPanel x:Name="SettingsHeader" Classes="workspace-page-header" Margin="20,12,20,12" MaxWidth="1088" HorizontalAlignment="Center">
-            <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
-            <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
-            <Button x:Name="SettingsMoreButton" Classes="ghost" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
-            <Button x:Name="ResetAllSettingsButton" Classes="ghost" Content="{Binding ResetAllLabel}" AutomationProperties.Name="{Binding ResetAllLabel}" Click="OnResetAllClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Right" />
+            <!-- One head row: title and subtitle at the start, the single "More" button at the end. Export and "Reset all" are its two entries
+                 (Reset all is rare and destructive, so it is not a button of its own); the reset result line sits right-aligned under the row. -->
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Classes="workspace-page-header">
+                    <TextBlock Text="{Binding SettingsTitle}" Classes="page-title" />
+                    <TextBlock Text="{Binding SettingsSubtitle}" Classes="muted" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button x:Name="SettingsMoreButton" Grid.Column="1" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
+            </Grid>
             <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" />
         </StackPanel>
         <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="16" Margin="20,0,20,16" MaxWidth="1088" HorizontalAlignment="Center">

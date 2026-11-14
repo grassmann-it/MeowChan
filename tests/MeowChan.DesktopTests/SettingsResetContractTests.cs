@@ -24,9 +24,12 @@ public sealed class SettingsResetContractTests
         XDocument markup = Markup();
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
 
-        XElement all = SingleNamed(markup, x, "ResetAllSettingsButton");
-        Assert.Equal("OnResetAllClick", (string?)all.Attribute("Click"));
-        Assert.Equal("{Binding IsEditable}", (string?)all.Attribute("IsEnabled"));
+        // "Reset all" is an entry of the head's one More button (with the export), not a button of its own; the section resets stay buttons.
+        XElement more = SingleNamed(markup, x, "SettingsMoreButton");
+        Assert.Equal("OnSettingsMoreClick", (string?)more.Attribute("Click"));
+        Assert.Equal("{Binding IsEditable}", (string?)more.Attribute("IsEnabled"));
+        Assert.DoesNotContain(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "ResetAllSettingsButton");
+        Assert.Contains("OpenResetConfirmation(origin, SettingsResetScope.All)", File.ReadAllText(Root("Desktop/Views/Settings/SettingsEditor.Transfer.cs")));
 
         foreach ((string name, string scope) in SectionResets)
         {
