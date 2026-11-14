@@ -254,18 +254,38 @@ public sealed class ReaderPostSurfaceTests
     }
 
     [Fact]
-    public void ReadingMarkLineSitsAboveTheHeaderAndIsOnlyVisibleOnTheMarkedPost()
+    public void ReadingMarkLineIsARowOfItsOwnOutsideTheCardAndOnlyVisibleOnTheMarkedPost()
     {
-        XElement line = PostRoot().Elements().First();
+        XElement panel = Assert.Single(Posts().Element(A + "ListBox.ItemTemplate")!.Element(A + "DataTemplate")!.Elements());
+        Assert.Equal(A + "Panel", panel.Name);
+        // The line is a sibling of the card's content, not a child of it: it never sits inside the card.
+        XElement host = panel.Elements().First();
+        Assert.Equal("ReaderUnreadLineHost", host.Name.LocalName);
+        Assert.Equal(A + "StackPanel", panel.Elements().Last().Name);
+        Assert.DoesNotContain(PostRoot().Descendants(), element => element.Name.LocalName == "ReaderUnreadLineHost");
+        Assert.Equal("{Binding HasUnreadLine}", (string?)host.Attribute("IsVisible"));
+        Assert.Equal("{Binding UnreadLabel}", (string?)host.Attribute("AutomationProperties.Name"));
+        Assert.Equal("False", (string?)host.Attribute("IsHitTestVisible"));
+        XElement line = Assert.Single(host.Elements());
         Assert.Equal(A + "Grid", line.Name);
-        Assert.Equal("{Binding HasUnreadLine}", (string?)line.Attribute("IsVisible"));
-        Assert.Equal("{Binding UnreadLabel}", (string?)line.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding UnreadLabel}", (string?)line.Element(A + "TextBlock")!.Attribute("Text"));
         Assert.All(line.Elements(A + "Rectangle"), rule => Assert.Equal("{DynamicResource Workspace.Accent}", (string?)rule.Attribute("Fill")));
         Assert.Equal(2, line.Elements(A + "Rectangle").Count()); // A rule on both sides of the count.
-        // The divider cancels the card's inner margin, so it runs to the card edges instead of sitting inside the padding.
-        Assert.Equal("-8,-8,-8,0", (string?)line.Attribute("Margin"));
+        Assert.Null(line.Attribute("Margin")); // No negative margin: the host places the line, the card keeps its own padding.
         Assert.Equal("8,8,8,12", (string?)PostRoot().Attribute("Margin"));
+    }
+
+    [Fact]
+    public void ReadingMarkLineGetsEightDipOfAirAboveAndBelowAndTheMarkedCardReservesTheRoom()
+    {
+        Assert.Equal(8, MeowChan.Desktop.ReaderUnreadLineHost.Air);
+        // Gap between the card above and the marked card: air + line + air; two plain cards are already 8 dip apart.
+        double room = ArchivePage.ReaderUnreadLineRoom;
+        Assert.Equal(MeowChan.Desktop.ReaderUnreadLineHost.Air * 2 + MeowChan.Desktop.ReaderUnreadLineHost.LineHeight, 8 + room);
+        Assert.Equal(new Avalonia.Thickness(8, 4 + room, 8, 4), ArchivePage.ReaderPostIndentMargin(0, 1000, room));
+        Assert.Equal(new Avalonia.Thickness(8, 4, 8, 4), ArchivePage.ReaderPostIndentMargin(0, 1000));
+        // The line ends 8 dip above the card's top edge, and a jump to the post scrolls to the line, not to the card.
+        Assert.Equal(MeowChan.Desktop.ReaderUnreadLineHost.Air + MeowChan.Desktop.ReaderUnreadLineHost.LineHeight, MeowChan.Desktop.ReaderUnreadLineHost.Reach);
     }
 
     [Theory]
@@ -342,7 +362,8 @@ public sealed class ReaderPostSurfaceTests
     {
         XElement template = Posts().Element(A + "ListBox.ItemTemplate")!.Element(A + "DataTemplate")!;
         Assert.Equal("desktop:ArchivePostRow", (string?)template.Attribute(X + "DataType"));
-        return Assert.Single(template.Elements());
+        XElement root = Assert.Single(template.Elements()); // The card content sits beside the reading-line host in one panel.
+        return root.Name == A + "Panel" ? Assert.Single(root.Elements(A + "StackPanel")) : root;
     }
 
     private static XElement Posts() => Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml")

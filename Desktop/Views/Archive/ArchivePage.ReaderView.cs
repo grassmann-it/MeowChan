@@ -486,18 +486,23 @@ public partial class ArchivePage
         return string.IsNullOrEmpty(reason) ? text.TrimEnd().TrimEnd('·').TrimEnd() : text;
     }
 
-    internal static Thickness ReaderPostIndentMargin(int depth, double listWidth)
+    internal static Thickness ReaderPostIndentMargin(int depth, double listWidth, double extraTop = 0)
     {
         double indent = ReaderNavigationLayout.ConversationIndent(depth, listWidth, ReaderNavigationLayout.CardMaxWidth);
-        return new Thickness(ReaderPostCardMargin.Left + indent, ReaderPostCardMargin.Top, ReaderPostCardMargin.Right, ReaderPostCardMargin.Bottom);
+        return new Thickness(ReaderPostCardMargin.Left + indent, ReaderPostCardMargin.Top + extraTop, ReaderPostCardMargin.Right, ReaderPostCardMargin.Bottom);
     }
+
+    // The room the reading line needs above its post: the line sits in the gap between two cards (see ReaderUnreadLineHost).
+    internal static double ReaderUnreadLineRoom =>
+        ReaderUnreadLineHost.ExtraTopMargin(ReaderPostCardMargin.Top + ReaderPostCardMargin.Bottom);
 
     // Placeholder, highlight and indentation of a (possibly recycled) post container, before it is measured.
     private void DecorateReaderPost(Control container, ArchivePostRow? row)
     {
         container.Classes.Set("reader-stub", row?.IsStub == true);
         container.Classes.Set("reader-highlight", row?.IsHighlighted == true);
-        if (row is { Depth: > 0 }) container.Margin = ReaderPostIndentMargin(row.Depth, ArchivePosts.Bounds.Width);
+        double lineRoom = row is { HasUnreadLine: true } ? ReaderUnreadLineRoom : 0;
+        if (row is { Depth: > 0 } || lineRoom > 0) container.Margin = ReaderPostIndentMargin(row?.Depth ?? 0, ArchivePosts.Bounds.Width, lineRoom);
         else if (container.IsSet(Layoutable.MarginProperty)) container.ClearValue(Layoutable.MarginProperty);
     }
 }

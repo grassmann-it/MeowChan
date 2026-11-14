@@ -475,14 +475,18 @@
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
-                                                    <StackPanel Margin="8,8,8,12" Spacing="8" AutomationProperties.HelpText="{Binding DepthLabel}">
-                                                        <!-- Reading mark: a full-width divider at the top edge of the first post after the last one read. It runs to the
-                                                             card edges (it cancels the card's inner margin) and carries the count between two rules. -->
-                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8" Margin="-8,-8,-8,0" IsVisible="{Binding HasUnreadLine}" AutomationProperties.Name="{Binding UnreadLabel}">
+                                                    <Panel>
+                                                    <!-- Reading mark: its own row between two cards, never inside one. The marked post's container reserves the
+                                                         gap as extra top margin (8 dip of air each side); the host arranges the line into it across the full list width. -->
+                                                    <desktop:ReaderUnreadLineHost HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" IsVisible="{Binding HasUnreadLine}"
+                                                                                  AutomationProperties.Name="{Binding UnreadLabel}">
+                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="8">
                                                             <Rectangle Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
-                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" Margin="0,4" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                             <Rectangle Grid.Column="2" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
                                                         </Grid>
+                                                    </desktop:ReaderUnreadLineHost>
+                                                    <StackPanel Margin="8,8,8,12" Spacing="8" AutomationProperties.HelpText="{Binding DepthLabel}">
                                                         <!-- Placeholder of a post the view hides: number, reason and Show instead of the post. -->
                                                         <WrapPanel ItemSpacing="8" LineSpacing="2" IsVisible="{Binding IsStub}">
                                                             <TextBlock Text="{Binding StubText}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -579,6 +583,7 @@
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>
                                                     </StackPanel>
+                                                    </Panel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
