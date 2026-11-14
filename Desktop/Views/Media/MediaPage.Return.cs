@@ -75,12 +75,12 @@ public sealed partial class MediaPage
     }
 
     /// <summary>Focuses exactly one already-present tile, without falling back to an ID substring or a neighbouring tile.</summary>
-    internal Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
+    internal async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
     {
         ArgumentNullException.ThrowIfNull(match);
         object run = new();
         _returnRun = run;
-        return FocusExactEntryAsync(match, missingText, run);
+        return await FocusExactEntryAsync(match, missingText, run).ConfigureAwait(true) == ExactEntryFocusResult.Focused;
     }
 
     // Captures both requested and applied presentation generations: PresentCount alone cannot detect a
@@ -103,46 +103,54 @@ public sealed partial class MediaPage
             && !_presentPending && selection == _selectionStamp;
     }
 
-    private async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText, object run,
+    internal enum ExactEntryFocusResult { Focused, Missing, Cancelled, Failed }
+
+    private async Task<ExactEntryFocusResult> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText, object run,
         Func<bool>? stillRequested = null)
     {
         Func<bool> context = CaptureNavigationContext(run, awaitingPresent: false);
-        if (!context() || !IsEffectivelyVisible || stillRequested?.Invoke() == false) return false;
+        if (!context() || !IsEffectivelyVisible || stillRequested?.Invoke() == false) return ExactEntryFocusResult.Cancelled;
         int[] matches = _shown.Select((entry, index) => (entry, index)).Where(item => match(item.entry)).Select(item => item.index).ToArray();
         if (matches.Length != 1)
         {
-            ShowSelectionNote(missingText);
-            return false;
+            // Absence from a filtered/partial presentation and duplicate identity are not proof
+            // that an original disappeared. Only an authoritative index can establish Missing.
+            if (matches.Length == 0 && _snapshot is { Complete: true } snapshot && !snapshot.Entries.Any(match))
+            {
+                ShowSelectionNote(missingText);
+                return ExactEntryFocusResult.Missing;
+            }
+            return ExactEntryFocusResult.Failed;
         }
         int index = matches[0];
         var shown = _shown;
         var tiles = _tiles;
         object? rows = _grid.ItemsSource;
         MediaLibraryEntry exact = shown[index];
+        if (index >= tiles.Count || index >= _grid.ItemCount || !ReferenceEquals(exact, tiles[index].Entry))
+            return ExactEntryFocusResult.Failed;
         // Full occurrence/row identity, not just byte grouping: another post may have identical bytes.
         bool Current() => context() && IsEffectivelyVisible && (stillRequested?.Invoke() ?? true)
             && ReferenceEquals(shown, _shown) && ReferenceEquals(tiles, _tiles) && ReferenceEquals(rows, _grid.ItemsSource)
             && index < _shown.Count && index < _tiles.Count && index < _grid.ItemCount
             && ReferenceEquals(exact, _shown[index]) && ReferenceEquals(exact, _tiles[index].Entry) && match(_shown[index]);
-        if (!Current()) return false;
+        if (!Current()) return ExactEntryFocusResult.Cancelled;
         for (int attempt = 0; attempt < 2 && _grid.ContainerFromIndex(index) is not Control; attempt++)
         {
             _grid.ScrollIntoView(index);
-            if (!Current()) return false; // Scrolling can reenter layout/presentation.
+            if (!Current()) return ExactEntryFocusResult.Cancelled; // Scrolling can reenter layout/presentation.
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-            if (!Current()) return false;
+            if (!Current()) return ExactEntryFocusResult.Cancelled;
         }
-        if (!Current()) return false;
-        if (_grid.ContainerFromIndex(index) is not Control tile)
-        {
-            ShowSelectionNote(missingText);
-            return false;
-        }
+        if (!Current()) return ExactEntryFocusResult.Cancelled;
+        if (_grid.ContainerFromIndex(index) is not Control tile) return ExactEntryFocusResult.Failed;
         // A recycled container must still carry this exact row and occurrence, never the neighbour now at index.
         if (tile.DataContext is not MediaLibraryTileRow row || row.Index != index
             || !ReferenceEquals(row, _grid.Items[index]) || !ReferenceEquals(row.Tile, _tiles[index])
-            || !ReferenceEquals(row.Entry, exact) || !tile.IsEffectivelyVisible || !Current()) return false;
-        return tile.Focus();
+            || !ReferenceEquals(row.Entry, exact) || !tile.IsEffectivelyVisible) return ExactEntryFocusResult.Failed;
+        bool focused = tile.Focus();
+        if (!Current()) return ExactEntryFocusResult.Cancelled;
+        return focused ? ExactEntryFocusResult.Focused : ExactEntryFocusResult.Failed;
     }
 
     // Any own input on the page ends a pending second restore: the user has taken over.

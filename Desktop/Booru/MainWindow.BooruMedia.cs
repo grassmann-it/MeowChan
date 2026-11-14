@@ -36,6 +36,11 @@ public partial class MainWindow
             && catalog?.TryGetPost(BooruMediaIdentity.Source, postId) is { LocalAssetId: { Length: > 0 } };
     }
 
+    // The passive button-visibility probe may fail closed, but an invoked navigation must
+    // distinguish a readable catalog with no saved post from an unavailable/failed catalog.
+    internal static bool CatalogHasSavedBooruPostForNavigation(Func<BooruCatalogSnapshot?> readCatalog, string postId) =>
+        CatalogHasSavedBooruPost(readCatalog() ?? throw new InvalidOperationException("The local Booru catalog is unavailable."), postId);
+
     private bool IsSavedBooruPost(string postId)
     {
         if (_isClosing || !CatalogHasSavedBooruPost(SafeReadBooruCatalog(), postId)) return false;
@@ -58,7 +63,7 @@ public partial class MainWindow
         if (!CanOpenBooru || _mediaPage is not { } page || _booruPage is not { } sourcePage
             || !ReferenceEquals(sourcePage.View, origin)) return Cancelled();
         // Only an admitted, current click may report that its saved original is missing.
-        if (!IsSavedBooruPost(postId)) return false;
+        if (!CatalogHasSavedBooruPostForNavigation(_session.ReadBooruCatalog, postId)) return false;
         BooruWorkbenchServices services = sourcePage.Services;
         if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return Cancelled();
         Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();

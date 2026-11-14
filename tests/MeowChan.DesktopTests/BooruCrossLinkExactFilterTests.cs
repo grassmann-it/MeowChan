@@ -256,9 +256,9 @@ public sealed class BooruCrossLinkExactFilterTests
     public void FocusWiringRechecksAfterTheLayoutAwaitAndRequiresTheExactContainerRow()
     {
         string returns = Source("Desktop/Views/Media/MediaPage.Return.cs");
-        string focus = returns[returns.IndexOf("private async Task<bool> FocusExactEntryAsync", StringComparison.Ordinal)..];
+        string focus = returns[returns.IndexOf("private async Task<ExactEntryFocusResult> FocusExactEntryAsync", StringComparison.Ordinal)..];
         focus = focus[..focus.IndexOf("// Any own input", StringComparison.Ordinal)];
-        Assert.Contains("await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);\n            if (!Current()) return false;", focus);
+        Assert.Contains("await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);\n            if (!Current()) return ExactEntryFocusResult.Cancelled;", focus);
         foreach (string guard in new[] { "ReferenceEquals(shown, _shown)", "ReferenceEquals(tiles, _tiles)",
             "ReferenceEquals(rows, _grid.ItemsSource)", "ReferenceEquals(exact, _shown[index])",
             "ReferenceEquals(row, _grid.Items[index])", "ReferenceEquals(row.Tile, _tiles[index])", "ReferenceEquals(row.Entry, exact)" })
@@ -268,7 +268,8 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.DoesNotContain("FirstTileInView(", focus);
         string navigation = Source("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs");
         Assert.Contains("await PresentTask.ConfigureAwait(true);\n            if (!Current()) return Cancelled();", navigation);
-        Assert.Contains("if (!Current() || !focused) return Cancelled();", navigation);
+        Assert.Contains("if (!Current() || focused == ExactEntryFocusResult.Cancelled) return Cancelled();", navigation);
+        Assert.Contains("if (focused == ExactEntryFocusResult.Failed) return Failed();", navigation);
         Assert.Contains("run, stillRequested).ConfigureAwait(true)", navigation);
         Assert.DoesNotContain("SetTextSilently(postId)", navigation);
         foreach (string persistence in new[] { "SaveConfig(", "SaveSortAsync", "SaveFilter", "ReadUserData(" })

@@ -24,6 +24,16 @@ public sealed partial class MediaPage
         && entry.MediaId == BooruMediaIdentity.MediaIdentifier(postId)
         && entry.Variant == "original";
 
+    internal enum BooruOriginalAvailability { Present, Missing, Unavailable }
+
+    // A partial index may prove presence, never absence. Shared by admission and its pure contracts.
+    internal static BooruOriginalAvailability SavedBooruOriginalAvailability(MediaLibrarySnapshot? snapshot, string postId)
+    {
+        if (snapshot == null) return BooruOriginalAvailability.Unavailable;
+        if (snapshot.Entries.Any(entry => IsSavedBooruEntry(entry, postId))) return BooruOriginalAvailability.Present;
+        return snapshot.Complete ? BooruOriginalAvailability.Missing : BooruOriginalAvailability.Unavailable;
+    }
+
     /// <summary>
     /// Explicit reset-navigation to a local Danbooru original: only source and exact post/thread remain active.
     /// No catalog/provider request is made here; the host has already admitted the local post.
@@ -31,11 +41,17 @@ public sealed partial class MediaPage
     internal async Task<bool> ShowBooruPostAsync(string postId, Func<bool>? stillRequested = null, Action? cancelNotice = null)
     {
         bool Cancelled() { cancelNotice?.Invoke(); return false; }
+        bool Failed()
+        {
+            ShowSelectionNote(Texts.T("booru.crossLinks.navigationFailed", postId));
+            throw new InvalidOperationException("The local media index or exact media focus is unavailable.");
+        }
         if (stillRequested?.Invoke() == false || _lifetime.IsCancellationRequested || !IsEffectivelyVisible || _building != null) return Cancelled();
         ResourceId thread = BooruMediaIdentity.Thread(postId);
         if (!BooruMediaIdentity.IsBooruThread(thread)) return false;
-        if (_snapshot == null) return Cancelled(); // An unavailable index is not proof of a missing original.
-        if (!_snapshot.Entries.Any(entry => IsSavedBooruEntry(entry, postId)))
+        BooruOriginalAvailability available = SavedBooruOriginalAvailability(_snapshot, postId);
+        if (available == BooruOriginalAvailability.Unavailable) return Failed();
+        if (available == BooruOriginalAvailability.Missing)
         {
             ShowSelectionNote(Texts.T("booru.crossLinks.missingLocal", postId));
             return false;
@@ -55,12 +71,13 @@ public sealed partial class MediaPage
         {
             await PresentTask.ConfigureAwait(true);
             if (!Current()) return Cancelled();
-            bool focused = await FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId),
+            ExactEntryFocusResult focused = await FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId),
                 Texts.T("booru.crossLinks.missingLocal", postId), run, stillRequested).ConfigureAwait(true);
-            // The media page owns any active focus/missing-row note. A superseded presentation or
-            // unsuccessful focus must not publish a delayed missing-original notice in the old view.
-            if (!Current() || !focused) return Cancelled();
-            return true;
+            // Retired requests have no notice authority. A current layout/focus failure is an
+            // honest action failure, not cancellation and not proof that the saved original is gone.
+            if (!Current() || focused == ExactEntryFocusResult.Cancelled) return Cancelled();
+            if (focused == ExactEntryFocusResult.Failed) return Failed();
+            return focused == ExactEntryFocusResult.Focused;
         }
         catch (Exception error) when (error is not OutOfMemoryException && !Current())
         {
