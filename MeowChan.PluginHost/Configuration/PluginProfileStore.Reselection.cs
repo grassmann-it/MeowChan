@@ -17,7 +17,11 @@ public sealed partial class PluginProfileStore
         cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(directory)) return new(0, []);
         await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
-        return PreviewReselections(WithCurrentRepairRestrictions(await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)));
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        BundledCandidateReselectionPreview preview = PreviewReselections(WithCurrentRepairRestrictions(document));
+        // A replaced bundled identity is not a missing plugin to choose a new build for.
+        IReadOnlySet<string> superseded = Configuration.SupersededBundledPlugins.InProfile(document.Profile, SupersededBundledPlugins);
+        return superseded.Count == 0 ? preview : preview with { Rows = preview.Rows.Where(row => !superseded.Contains(row.PluginId)).ToArray() };
     }
 
     private static BundledCandidateReselectionPreview PreviewReselections(BundledProfileDocument document)

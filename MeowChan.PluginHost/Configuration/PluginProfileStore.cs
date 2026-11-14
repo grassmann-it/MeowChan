@@ -47,6 +47,10 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         lockPath = Path.Combine(directory, "state.lock");
     }
 
+    /// <summary>Host-owned table of replaced bundled plugin identities (old ID → successor ID); see <see cref="SupersededBundledPlugins"/>.
+    /// Empty by default: no identity is ever treated as replaced unless the host says so.</summary>
+    public IReadOnlyDictionary<string, string> SupersededBundledPlugins { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
     public string StorePath => path;
     /// <summary>Immutable original v1 envelope, not an automatic recovery source. Restore only
     /// with the application closed and the matching full profile snapshot; older readers reject v2.</summary>
@@ -136,11 +140,14 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     ? new PluginCandidateObservation(candidate.CandidateId, owner, null, null,
                         $"Candidate plugin identity changed from '{owner}' to '{candidate.PluginId}'. Install it as a separate candidate to select the new identity explicitly.", candidate.CandidatePath)
                     : candidate).ToArray();
+            // A bundled identity replaced by its delivered successor keeps its record but no longer claims sources.
+            HashSet<string> superseded = Configuration.SupersededBundledPlugins.AtStartup(state, startup, proofs, SupersededBundledPlugins);
             // Preserve the old ownership of active source IDs before any new candidates are considered.
             Dictionary<string, string> sourceOwners = new(StringComparer.Ordinal);
-            foreach (PluginActivationSnapshot old in state.Plugins.Where(plugin => plugin.Active is not null))
+            foreach (PluginActivationSnapshot old in state.Plugins.Where(plugin => plugin.Active is not null && !superseded.Contains(plugin.PluginId)))
                 foreach (SourceDescription source in old.Active!.Description.Sources) sourceOwners.TryAdd(source.SourceId, old.PluginId);
-            foreach ((string sourceId, string owner) in state.SelectedSourceOwners) sourceOwners[sourceId] = owner;
+            foreach ((string sourceId, string owner) in state.SelectedSourceOwners)
+                if (!superseded.Contains(owner)) sourceOwners[sourceId] = owner;
             List<PluginActivationSnapshot> plugins = new();
             IEnumerable<string> pluginIds = state.Plugins.Select(plugin => plugin.PluginId)
                 .Concat(startup.Select(candidate => candidate.PluginId)).Distinct(StringComparer.Ordinal);
@@ -163,7 +170,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
                 bool sdkUpgrade = false;
-                if (old.Pinned is not null)
+                if (superseded.Contains(pluginId))
+                    next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
+                else if (old.Pinned is not null)
                     release = old.Pending is not null && SameBuild(old.Pending, old.Pinned) ? old.Pending : old.Pinned;
                 else if (selected is null)
                     next = next with { Problem = present.Length > 1 ? "Multiple candidates require an explicit selection." : "Plugin is missing." };
@@ -338,7 +347,11 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(directory)) return new(0, []);
         await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
-        return BundledCandidateMigration.Preview(WithCurrentRepairRestrictions(await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)));
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        BundledCandidateRepairPreview preview = BundledCandidateMigration.Preview(WithCurrentRepairRestrictions(document));
+        // A replaced bundled identity has nothing to repair: its successor serves its sources.
+        IReadOnlySet<string> superseded = Configuration.SupersededBundledPlugins.InProfile(document.Profile, SupersededBundledPlugins);
+        return superseded.Count == 0 ? preview : preview with { Rows = preview.Rows.Where(row => !superseded.Contains(row.PluginId)).ToArray() };
     }
 
     public Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
