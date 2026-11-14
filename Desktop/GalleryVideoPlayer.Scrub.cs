@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -43,8 +44,6 @@ internal sealed partial class GalleryVideoPlayer
     {
         Name = "GalleryVideoScrubPreviewFrame",
         BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(5),
-        Padding = new Thickness(6),
         IsHitTestVisible = false
     };
     private CancellationTokenSource? _scrubHoverCancellation;
@@ -55,6 +54,8 @@ internal sealed partial class GalleryVideoPlayer
     private long _scrubSessionGeneration;
     private int _scrubHoverRevision;
     private int _scrubHoverSlot = -1;
+    // Completed retirement tasks are removed on every media change; unfinished tasks stay rooted until disposal
+    // because they still own the session's verified/native resources.
     private readonly List<Task> _scrubRetirements = new();
 
     /// <summary>
@@ -89,11 +90,14 @@ internal sealed partial class GalleryVideoPlayer
 
     private void InitializeScrubPreview()
     {
-        StackPanel content = new() { Spacing = 3, IsHitTestVisible = false };
+        StackPanel content = new() { IsHitTestVisible = false };
+        content[!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8");
         content.Children.Add(_scrubImage);
         content.Children.Add(_scrubTime);
         _scrubPreviewFrame[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _scrubPreviewFrame[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Accent");
+        _scrubPreviewFrame[!Border.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Chip");
+        _scrubPreviewFrame[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
         _scrubPreviewFrame.Child = content;
         _scrubPopup.Child = _scrubPreviewFrame;
         _scrubPopup.PlacementTarget = _seek;
@@ -158,7 +162,7 @@ internal sealed partial class GalleryVideoPlayer
             if (frame == null || cancellation.IsCancellationRequested) return;
             await Dispatcher.UIThread.InvokeAsync(() => ShowScrubFrame(session, generation, revision, slot, frame));
         }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             // Pointer movement/media retirement is an expected cancellation, not a playback failure.
         }
@@ -166,9 +170,9 @@ internal sealed partial class GalleryVideoPlayer
         {
             // The owning session was retired while the optional preview was loading.
         }
-        catch (Exception) when (!IsDisposed)
+        catch (InvalidOperationException) when (IsDisposed || Environment.HasShutdownStarted)
         {
-            // A preview failure must never affect the seek control or native playback.
+            // Dispatcher/session teardown is an expected optional-preview failure.
         }
         finally
         {
@@ -197,8 +201,19 @@ internal sealed partial class GalleryVideoPlayer
             using MemoryStream png = new(frame.Png, writable: false);
             bitmap = new Bitmap(png);
         }
-        catch (Exception) when (!IsDisposed)
+        catch (ArgumentException) when (!IsDisposed)
         {
+            // A malformed optional PNG must not affect the seek control or native playback.
+            return;
+        }
+        catch (InvalidOperationException)
+        {
+            // Avalonia may reject a late/retired bitmap as an optional preview error.
+            return;
+        }
+        catch (NotSupportedException)
+        {
+            // A codec-independent bitmap failure is also optional; playback remains untouched.
             return;
         }
 
@@ -244,22 +259,31 @@ internal sealed partial class GalleryVideoPlayer
         bitmap?.Dispose();
     }
 
-    private static async Task DisposeScrubSessionAsync(VideoScrubPreviewSession session)
+    private static Task DisposeScrubSessionAsync(VideoScrubPreviewSession session) => session.DisposeAsync().AsTask();
+
+    private void ReapCompletedScrubRetirements()
     {
-        try { await session.DisposeAsync().ConfigureAwait(false); }
-        catch (Exception) when (!Environment.HasShutdownStarted) { }
+        for (int index = _scrubRetirements.Count - 1; index >= 0; index--)
+        {
+            if (!_scrubRetirements[index].IsCompleted) continue;
+            _ = _scrubRetirements[index].Exception;
+            _scrubRetirements.RemoveAt(index);
+        }
     }
 
     private void RetireScrubSession(VideoScrubPreviewSession session)
     {
+        ReapCompletedScrubRetirements();
         _scrubRetirements.Add(DisposeScrubSessionAsync(session));
+        // Pending work is never dropped: it still owns the retired session. Completed work was reaped above.
     }
 
     private async Task DisposeScrubPreviewAsync()
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            await Dispatcher.UIThread.InvokeAsync(DisposeScrubPreviewAsync).ConfigureAwait(false);
+            Task inner = await Dispatcher.UIThread.InvokeAsync(DisposeScrubPreviewAsync).ConfigureAwait(false);
+            await inner.ConfigureAwait(false);
             return;
         }
 

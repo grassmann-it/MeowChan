@@ -1034,6 +1034,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_video == null)
             {
                 _video = new GalleryVideoPlayer();
+                _video.ConfigureScrubPreview(_scrubPreviewCache);
                 _video.CleanupDiagnostic += message =>
                 {
                     if (!_viewerInteractionStopped && !_sessionCancellation.IsCancellationRequested && _videoDiagnosticEntry != null)

@@ -216,6 +216,11 @@ namespace MeowChan
         internal const int ExportConfirmGiBMaximum = 1024;
         /// <summary>Size limit of the video preview cache in MiB. Previews are derived files: when the cache is full the oldest are removed and recreated when needed. A single preview (4 MiB) and the video size that gets one (512 MiB) are fixed technical limits.</summary>
         public int PosterCacheLimitMiB { get; set; } = PosterCacheLimitMiBDefault;
+        /// <summary>Size limit of the seek-hover video scrub cache in MiB. It is separate from poster files and is recreated when entries are evicted.</summary>
+        public int VideoScrubCacheLimitMiB { get; set; } = VideoScrubCacheLimitMiBDefault;
+        internal const int VideoScrubCacheLimitMiBDefault = VideoScrubPreviewOptions.CacheLimitMiBDefault;
+        internal const int VideoScrubCacheLimitMiBMinimum = VideoScrubPreviewOptions.CacheLimitMiBMinimum;
+        internal const int VideoScrubCacheLimitMiBMaximum = VideoScrubPreviewOptions.CacheLimitMiBMaximum;
         internal const int PosterCacheLimitMiBDefault = (int)(Desktop.VideoPosterCache.DefaultCacheBytes / (1024 * 1024));
         internal const int PosterCacheLimitMiBMinimum = 16;
         internal const int PosterCacheLimitMiBMaximum = 8192;
@@ -528,6 +533,7 @@ namespace MeowChan
             QuickTagFilenameTokens = Math.Clamp(QuickTagFilenameTokens, QuickTagFilenameTokensMinimum, QuickTagFilenameTokensMaximum);
             QuickTagSourceTagsPerMedium = Math.Clamp(QuickTagSourceTagsPerMedium, QuickTagSourceTagsPerMediumMinimum, QuickTagSourceTagsPerMediumMaximum);
             QuickTagMarkedMediaLimit = Math.Clamp(QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitMinimum, QuickTagMarkedMediaLimitMaximum);
+            VideoScrubCacheLimitMiB = Math.Clamp(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBMinimum, VideoScrubCacheLimitMiBMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -954,6 +960,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ExportConfirmGiB), "ExportConfirmGiB is outside its supported range (" + ExportConfirmGiBMinimum + " to " + ExportConfirmGiBMaximum + ").");
             if (PosterCacheLimitMiB is < PosterCacheLimitMiBMinimum or > PosterCacheLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheLimitMiB), "PosterCacheLimitMiB is outside its supported range (" + PosterCacheLimitMiBMinimum + " to " + PosterCacheLimitMiBMaximum + ").");
+            if (VideoScrubCacheLimitMiB is < VideoScrubCacheLimitMiBMinimum or > VideoScrubCacheLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(VideoScrubCacheLimitMiB), "VideoScrubCacheLimitMiB is outside its supported range (" + VideoScrubCacheLimitMiBMinimum + " to " + VideoScrubCacheLimitMiBMaximum + ").");
             if (PosterCacheFileLimit is < PosterCacheFileLimitMinimum or > PosterCacheFileLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PosterCacheFileLimit), "PosterCacheFileLimit is outside its supported range (" + PosterCacheFileLimitMinimum + " to " + PosterCacheFileLimitMaximum + ").");
             if (AudioProbeCacheLimitMiB is < AudioProbeCacheLimitMiBMinimum or > AudioProbeCacheLimitMiBMaximum)
@@ -1114,6 +1122,7 @@ namespace MeowChan
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
                 PosterCacheLimitMiB = PosterCacheLimitMiB,
+                VideoScrubCacheLimitMiB = VideoScrubCacheLimitMiB,
                 PosterCacheFileLimit = PosterCacheFileLimit,
                 AudioProbeCacheLimitMiB = AudioProbeCacheLimitMiB,
                 AudioProbeCacheEntries = AudioProbeCacheEntries,
@@ -1282,6 +1291,7 @@ namespace MeowChan
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
+            VideoScrubCacheLimitMiB = source.VideoScrubCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
             AudioProbeCacheLimitMiB = source.AudioProbeCacheLimitMiB;
             AudioProbeCacheEntries = source.AudioProbeCacheEntries;
@@ -1409,6 +1419,7 @@ namespace MeowChan
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
             PosterCacheLimitMiB = source.PosterCacheLimitMiB;
+            VideoScrubCacheLimitMiB = source.VideoScrubCacheLimitMiB;
             PosterCacheFileLimit = source.PosterCacheFileLimit;
             AudioProbeCacheLimitMiB = source.AudioProbeCacheLimitMiB;
             AudioProbeCacheEntries = source.AudioProbeCacheEntries;

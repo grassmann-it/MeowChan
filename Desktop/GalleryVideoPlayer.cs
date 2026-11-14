@@ -254,6 +254,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (mode == VideoPlaybackMode.Stopped)
         {
             CancelSeekGesture();
+            CancelScrubPreviewRequest();
             _ended = false;
         }
         return CommandAsync(playback =>
