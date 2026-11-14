@@ -170,17 +170,17 @@ public sealed class TaggingPageMenuTests : IDisposable
     }
 
     [Fact]
-    public void ATileNamesNumberStateVideoAndTagsInTheSentenceAScreenReaderReads()
+    public void ATileNamesNumberStateAndTheBadgeSentenceInTheSentenceAScreenReaderReads()
     {
         TagQueueSnapshot queue = Queue(Item(1), Item(2, TagQueueState.Done, kind: SavedMediaKind.Video));
         IReadOnlyList<TaggingQueueRow> rows = TaggingQueueView.Rows(queue, TaggingQueueFilter.All);
         Assert.Equal("Entry 1: file-1.png, Open, the walk continues here", rows[0].TileName(null));
-        Assert.Equal("Entry 2: file-2.png, Finished, Video, Tags: 3", rows[1].TileName(3));
+        Assert.Equal("Entry 2: file-2.png, Finished, Video · Tagging done · 3 tags", rows[1].TileName(3));
         Assert.True(rows[1].IsVideo);
         Assert.Equal("check", rows[1].StateIcon);
         Assert.Equal("circle", rows[0].StateIcon);
         Texts.SetLanguage("de");
-        Assert.Equal("Eintrag 2: file-2.png, Erledigt, Video, Tags: 3", rows[1].TileName(3));
+        Assert.Equal("Eintrag 2: file-2.png, Erledigt, Video · Tagging erledigt · 3 Tags", rows[1].TileName(3));
     }
 
     [Fact]

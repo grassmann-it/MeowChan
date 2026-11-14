@@ -82,6 +82,29 @@ internal sealed class TaggingThumbnail : Border
     /// <summary>True while a verified preview or poster is shown.</summary>
     internal bool HasPicture => _image.Source != null;
 
+    /// <summary>Raised when the shown picture or the thumbnail's size changed: the badges over it follow <see cref="PictureSize"/>.</summary>
+    internal event Action? PictureChanged;
+
+    /// <summary>
+    /// The size of the picture as it is drawn (letterboxed in the thumbnail, scaled uniformly); the thumbnail's whole size while no picture
+    /// is shown (a placeholder), so the badges still have a face to sit on.
+    /// </summary>
+    internal Size PictureSize => FittedSize(_image.Source?.Size, Bounds.Size);
+
+    /// <summary>The size a picture of <paramref name="source"/> takes in a slot, uniformly scaled; the slot itself when the picture is unknown.</summary>
+    internal static Size FittedSize(Size? source, Size slot)
+    {
+        if (source is not { Width: > 0, Height: > 0 } picture || !(slot.Width > 0) || !(slot.Height > 0)) return slot;
+        double scale = Math.Min(slot.Width / picture.Width, slot.Height / picture.Height);
+        return new Size(picture.Width * scale, picture.Height * scale);
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == BoundsProperty) PictureChanged?.Invoke();
+    }
+
     /// <summary>The entry shown now (null clears the picture).</summary>
     internal TagQueueItem? Item
     {
@@ -104,6 +127,7 @@ internal sealed class TaggingThumbnail : Border
             _bitmap = cached;
             _image.Source = cached;
             _placeholder.IsVisible = false;
+            PictureChanged?.Invoke();
             return;
         }
         using CancellationTokenSource loading = new();
@@ -120,6 +144,7 @@ internal sealed class TaggingThumbnail : Border
             _image.Source = bitmap;
             _placeholder.Text = bitmap == null && _showText ? Texts.T("archive.previewUnavailable") : string.Empty;
             _placeholder.IsVisible = bitmap == null && _showText;
+            PictureChanged?.Invoke();
         }
         catch (OperationCanceledException) { }
         catch (Exception) { if (request == _request && _showText) { _placeholder.Text = Texts.T("archive.previewUnavailable"); _placeholder.IsVisible = true; } }
@@ -135,5 +160,6 @@ internal sealed class TaggingThumbnail : Border
         if (_bitmap != null) MediaTileThumbnails.Release(_bitmap);
         _bitmap = null;
         _placeholder.IsVisible = false;
+        PictureChanged?.Invoke();
     }
 }

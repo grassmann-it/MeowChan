@@ -79,11 +79,18 @@ public sealed class TaggingPageSelectionTests : IDisposable
         string badges = Read("Desktop/Views/Tagging/TaggingTileBadges.cs");
         string tile = Read("Desktop/Views/Tagging/TaggingQueueTileView.cs");
         Assert.Contains("internal sealed class TaggingTileBadges", badges);
-        // The tile lays the overlay on its picture and hands it the row; none of the marks is drawn in the tile or the page.
-        Assert.Contains("_badges.Overlay", tile);
-        Assert.Contains("_badges.Show(row, tags)", tile);
-        Assert.DoesNotContain("CornerMark", tile);
-        Assert.DoesNotContain("CornerBadge", tile);
+        // MB1b: the one drawn thing is the shared badge view with the tagging grid's options; nothing of the old corner marks is left.
+        Assert.Contains("new() { Name = \"TaggingTileBadges\", Options = MediaBadgeOptions.TaggingGrid }", badges);
+        foreach (string gone in new[] { "CornerMark", "CornerBadge", "CheckMark", "SkipMark", "NextMark", "VideoMark", "TagMark", "Overlay" })
+        {
+            Assert.DoesNotContain(gone, badges);
+            Assert.DoesNotContain(gone, tile);
+        }
+        // The tile lays the view over the picture and hands it the row and the shown picture's size; the badges add no focus stop.
+        Assert.Contains("_badges.View", tile);
+        Assert.Contains("_badges.Show(row, tags, _preview.PictureSize)", tile);
+        Assert.Contains("_badges.Place(_preview.PictureSize)", tile);
+        Assert.DoesNotContain("Focusable = true", badges);
         Assert.DoesNotContain("TaggingTileBadges", Read("Desktop/Views/Tagging/TaggingPage.cs"));
     }
 

@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.VisualTree;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -116,6 +118,12 @@ internal static class TaggingPageChecks
                 "The grid view is not shown after the switch.");
             Require(tagging.TileGrid.SelectedItems!.Count == 2 && tagging.SelectionText.Text == "2 selected", "The grid lost the selection: " + tagging.TileGrid.SelectedItems.Count);
             Require(tagging.TileGrid.ContainerFromIndex(0) is ListBoxItem, "The grid built no tile.");
+            // MB1b: the badges are the shared view over the picture: not focusable, not hit-testable, and their sentence is in the tile's name.
+            TaggingQueueTileView? firstTile = ((Control)tagging.TileGrid.ContainerFromIndex(0)!).GetVisualDescendants().OfType<TaggingQueueTileView>().FirstOrDefault();
+            Require(firstTile?.Row != null && !firstTile.Badges.View.Focusable && !firstTile.Badges.View.IsHitTestVisible
+                && AutomationProperties.GetName(firstTile).StartsWith(firstTile.Row.AccessibleName, StringComparison.Ordinal)
+                && (firstTile.Badges.Description.Length == 0 || AutomationProperties.GetName(firstTile).EndsWith(firstTile.Badges.Description, StringComparison.Ordinal)),
+                "The tile's badges or its name: " + (firstTile == null ? "no tile" : AutomationProperties.GetName(firstTile)));
             Require(tagging.ListMenuModel() is { } gridMenu && gridMenu.Entries.Count() == 17, "The grid has no context menu for its selection.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "Grid", () => "saved view " + Config.LoadConfig().TaggingPageView);
             Program.CaptureWindow(window, "smoke-tagging-page-grid.png");

@@ -22,13 +22,13 @@ internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next)
     internal string SourceText => TaggingQueueView.SourceText(Item);
     internal string StateText => TaggingQueueView.StateText(Item.State);
     internal string AccessibleName => Texts.T(Next ? "tagging.page.row.next" : "tagging.page.row", Number, Name, StateText);
-    /// <summary>True for a video: its tile carries a video mark (TG1).</summary>
+    /// <summary>True for a video: its tile's badges carry the play mark (TG1).</summary>
     internal bool IsVideo => Item.Kind == SavedMediaKind.Video;
     /// <summary>The catalog icon of the state (a drawn mark besides the text, never colour alone): open, finished, skipped.</summary>
     internal string StateIcon => TaggingQueueView.StateIcon(Item.State);
     /// <summary>
-    /// The name of a grid tile for a screen reader and its tooltip: the row's own sentence, then the kind of a video and the number of own
-    /// tags when they are known (<paramref name="tagCount"/> null: not read yet, nothing is said).
+    /// The name of a grid tile for a screen reader and its tooltip: the row's own sentence, then the sentence of the tile's badges (video,
+    /// tagging state, number of own tags or none, booru source; <paramref name="tagCount"/> null: not read yet, nothing is said about tags).
     /// </summary>
     internal string TileName(int? tagCount) => TaggingQueueView.TileName(this, tagCount);
 }
@@ -153,10 +153,8 @@ internal static class TaggingQueueView
     internal static string TileName(TaggingQueueRow row, int? tagCount)
     {
         ArgumentNullException.ThrowIfNull(row);
-        string text = row.AccessibleName;
-        if (row.IsVideo) text += ", " + KindText(SavedMediaKind.Video);
-        if (tagCount is { } count) text += ", " + Texts.T("tagging.page.tile.tags", count.ToString("N0", Texts.Culture));
-        return text;
+        string badges = TaggingTileBadges.DescribeOf(row, tagCount);
+        return badges.Length == 0 ? row.AccessibleName : row.AccessibleName + ", " + badges;
     }
 
     internal static string StateText(TagQueueState state) => Texts.T(state switch
