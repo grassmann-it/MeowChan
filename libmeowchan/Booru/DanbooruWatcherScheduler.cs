@@ -317,6 +317,12 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         lock (_sync)
         {
             if (Unavailable() is { } code) return new(false, code, null);
+            // The host barrier is held by the caller, but it cannot make a scheduler continuation
+            // that already received a provider answer disappear. Do not clear durable cooldowns
+            // while a check is still unwinding (or has been claimed but not registered); its late
+            // 429 must either be persisted by that check or leave the whole reset unapplied.
+            if (_running != null || _claimed != null)
+                return new(false, "check_already_running", null);
             using BooruProducerUse? use = _lifecycle?.TryEnter();
             if (_lifecycle != null && use is null) return new(false, ProfileSuspendedCode, null);
 
@@ -326,7 +332,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 DanbooruWatcherTransition reset = DanbooruWatcher.ResetProviderCooldown(watcher);
                 if (!reset.Accepted) continue;
                 if (!TryPersistLocked(reset.Watcher, out _, use?.Admission))
+                {
+                    // The transport barrier is still held by the caller. Keep this scheduler
+                    // unusable as well: a partial durable reset must never become an ordinary
+                    // scheduling state that could later outlive the retained host fence.
+                    _fault = "persist_failed";
                     return new(false, "persist_failed", null);
+                }
             }
             // This is the scheduler's provider fence, not the user's global session pause or a
             // persistence quiet period. Keep _sessionPaused, _lastAutomaticStart and _persistBackoffUntil.
@@ -735,9 +747,8 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             if (ReferenceEquals(_running, running) && _watchers.TryGetValue(watcherId, out DanbooruWatcher? live)
                 && live.State == DanbooruWatcherState.Checking)
             {
-                CommitWithoutRequestLocked(cancelled
-                    ? DanbooruWatcher.CancelCheck(live).Watcher
-                    : DanbooruWatcher.ApplyError(live, "check_faulted", _time.GetUtcNow()).Watcher, running);
+                if (cancelled) CommitCancellationLocked(live, running);
+                else CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(live, "check_faulted", _time.GetUtcNow()).Watcher, running);
             }
         }
         return cancelled
@@ -777,7 +788,11 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             {
                 lock (_sync)
                 {
-                    if (!IsCurrentLocked(watcherId, current)) return Cancelled(started, counters, manual, "superseded");
+                    if (!IsCurrentLocked(watcherId, current))
+                    {
+                        PreserveSupersededProviderCooldownLocked(watcherId, running);
+                        return Cancelled(started, counters, manual, "superseded");
+                    }
                     CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "cursor_missing", _time.GetUtcNow()).Watcher, running);
                 }
                 return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "cursor_missing", manual);
@@ -812,7 +827,11 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             IReadOnlyList<BooruPostClaim> claims = Array.Empty<BooruPostClaim>();
             lock (_sync)
             {
-                if (!IsCurrentLocked(watcherId, current)) return Cancelled(started, counters, manual, "superseded");
+                if (!IsCurrentLocked(watcherId, current))
+                {
+                    PreserveSupersededProviderCooldownLocked(watcherId, running);
+                    return Cancelled(started, counters, manual, "superseded");
+                }
                 DateTimeOffset now = _time.GetUtcNow();
                 if (running.Use is { IsCurrent: false })
                 {
@@ -822,7 +841,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     // resume target with the last durable cursor and the page replays (idempotently) later.
                     if (outcome is DanbooruWatcherSearchDeferred late)
                         return ApplyDeferredLocked(current, late, now, started, counters, manual, running);
-                    CommitWithoutRequestLocked(DanbooruWatcher.CancelCheck(current).Watcher, running);
+                    CommitCancellationLocked(current, running);
                     return Cancelled(started, counters, manual, ProfileSuspendedCode);
                 }
                 switch (outcome)
@@ -855,7 +874,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     case DanbooruWatcherSearchUnavailable unavailable:
                     {
                         _backoffUntil = Max(_backoffUntil, now + _options.UnavailableRetry);
-                        CommitWithoutRequestLocked(DanbooruWatcher.CancelCheck(current).Watcher, running);
+                        CommitCancellationLocked(current, running);
                         return Summary(DanbooruWatcherCheckKind.SourceUnavailable, started, counters,
                             SafeCode(unavailable.Code, "source_unavailable"), manual, _backoffUntil);
                     }
@@ -926,11 +945,15 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             lock (_sync)
             {
                 // Paused/removed while the posts were handed off: discard; the page replays idempotently.
-                if (!IsCurrentLocked(watcherId, current)) return Cancelled(started, counters, manual, "superseded");
+                if (!IsCurrentLocked(watcherId, current))
+                {
+                    PreserveSupersededProviderCooldownLocked(watcherId, running);
+                    return Cancelled(started, counters, manual, "superseded");
+                }
                 // Cut while the posts were handed off: the cut generation writes no new progress (F2).
                 if (running.Use is { IsCurrent: false })
                 {
-                    CommitWithoutRequestLocked(DanbooruWatcher.CancelCheck(current).Watcher, running);
+                    CommitCancellationLocked(current, running);
                     return Cancelled(started, counters, manual, ProfileSuspendedCode);
                 }
                 if (!TryPersistLocked(applied.Watcher, out DanbooruWatcher? stored, running.Use?.Admission))
@@ -969,7 +992,14 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
         retryAt = Min(retryAt, AddSaturating(now, MaximumProviderCooldown()));
         _backoffUntil = Max(_backoffUntil, retryAt);
         string reason = SafeCode(deferred.ReasonCode, "provider_deferred");
-        CommitWithoutRequestLocked(DanbooruWatcher.ApplyDeferred(current, retryAt, reason, now).Watcher, running);
+        if (!CommitWithoutRequestLocked(DanbooruWatcher.ApplyDeferred(current, retryAt, reason, now).Watcher, running))
+        {
+            // The in-memory backoff is not a durable reset barrier. Once its snapshot write failed,
+            // keep every future admission fail-closed instead of returning a successful deferral
+            // that would be forgotten on restart.
+            _fault = "persist_failed";
+            return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "persist_failed", manual);
+        }
         return Summary(DanbooruWatcherCheckKind.Deferred, started, counters, reason, manual, retryAt);
     }
 
@@ -978,13 +1008,85 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     {
         lock (_sync)
         {
-            if (!IsCurrentLocked(watcherId, current)) return Cancelled(started, counters, manual, "superseded");
-            // Shutdown/cancel/cut: back to the resume target with the cursor unchanged. With a lifecycle this is
-            // written with the generation admission counted before the cut or stop. Without one, a profile that
-            // already refuses writes recovers the stored Checking record identically on the next start.
-            CommitWithoutRequestLocked(DanbooruWatcher.CancelCheck(current).Watcher, running);
+            if (!IsCurrentLocked(watcherId, current))
+            {
+                // Pause/Remove may have won the watcher mutation while the old HTTP request was
+                // still unwinding. If that request was a late 429, preserve the transport fence on
+                // the still-live watcher; otherwise a restart would forget a provider answer. A
+                // removed watcher is never resurrected.
+                PreserveSupersededProviderCooldownLocked(watcherId, running);
+                return Cancelled(started, counters, manual, "superseded");
+            }
+            // Shutdown/cancel/cut: back to the resume target with the cursor unchanged. A provider
+            // fence observed while cancellation races the response is durable before the check is
+            // released, rather than being lost as an ordinary cancellation.
+            CommitCancellationLocked(current, running);
         }
         return Cancelled(started, counters, manual, code ?? CancelCode(running));
+    }
+
+    /// <summary>
+    /// Commits cancellation without discarding a provider fence that was observed while the
+    /// response raced cancellation. A failed write faults the scheduler, because the transport
+    /// fence is process-local and cannot be the only protection across restart.
+    /// </summary>
+    private void CommitCancellationLocked(DanbooruWatcher current, RunningCheck running)
+    {
+        DanbooruWatcher cancelled = CancellationStateLocked(current, out bool providerFence);
+        if (!CommitWithoutRequestLocked(cancelled, running) && providerFence)
+            _fault = "persist_failed";
+    }
+
+    private DanbooruWatcher CancellationStateLocked(DanbooruWatcher current, out bool providerFence)
+    {
+        DateTimeOffset now = _time.GetUtcNow();
+        providerFence = TryGetTransportFenceLocked(now, out DateTimeOffset retryAt);
+        if (!providerFence) return DanbooruWatcher.CancelCheck(current).Watcher;
+        DanbooruWatcherTransition preserved = DanbooruWatcher.PreserveProviderCooldown(
+            current, retryAt, "booru-cooldown", now);
+        if (!preserved.Accepted)
+        {
+            providerFence = false;
+            return DanbooruWatcher.CancelCheck(current).Watcher;
+        }
+        _backoffUntil = Max(_backoffUntil, retryAt);
+        return preserved.Watcher;
+    }
+
+    private void PreserveSupersededProviderCooldownLocked(string watcherId, RunningCheck running)
+    {
+        if (!ReferenceEquals(_running, running) || !_watchers.TryGetValue(watcherId, out DanbooruWatcher? live)
+            || live.State == DanbooruWatcherState.Removed) return;
+        DateTimeOffset now = _time.GetUtcNow();
+        if (!TryGetTransportFenceLocked(now, out DateTimeOffset retryAt)) return;
+        DanbooruWatcherTransition preserved = DanbooruWatcher.PreserveProviderCooldown(
+            live, retryAt, "booru-cooldown", now);
+        if (!preserved.Accepted) return;
+        _backoffUntil = Max(_backoffUntil, retryAt);
+        if (!CommitWithoutRequestLocked(preserved.Watcher, running))
+            _fault = "persist_failed";
+    }
+
+    private bool TryGetTransportFenceLocked(DateTimeOffset now, out DateTimeOffset retryAt)
+    {
+        try
+        {
+            if (_search.GetProviderCooldownUntilUtc() is { } transport && transport > now)
+            {
+                retryAt = Min(transport, AddSaturating(now, MaximumProviderCooldown()));
+                return retryAt > now;
+            }
+        }
+        catch
+        {
+            // A provider-fence read is an admission input. If it is unavailable while a check is
+            // being cancelled, use the bounded maximum rather than releasing an uncertain check.
+            _fault = "provider_cooldown_unavailable";
+            retryAt = AddSaturating(now, MaximumProviderCooldown());
+            return retryAt > now;
+        }
+        retryAt = default;
+        return false;
     }
 
     /// <summary>The code of a cancelled check: a profile transition is reported as such.</summary>
@@ -1107,12 +1209,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private bool IsCurrentLocked(string watcherId, DanbooruWatcher current) =>
         _watchers.TryGetValue(watcherId, out DanbooruWatcher? live) && ReferenceEquals(live, current);
 
-    private void CommitWithoutRequestLocked(DanbooruWatcher watcher, RunningCheck running)
+    private bool CommitWithoutRequestLocked(DanbooruWatcher watcher, RunningCheck running)
     {
         // A terminal transition of a check must reach memory even when the profile no longer accepts
         // writes (shutdown without a lifecycle); the last durable record then recovers to the same resume target.
-        if (!TryPersistLocked(watcher, out _, running.Use?.Admission))
-            _watchers[watcher.WatcherId] = DanbooruWatcherRecordMapper.CompactKnownPostIds(watcher);
+        if (TryPersistLocked(watcher, out _, running.Use?.Admission)) return true;
+        _watchers[watcher.WatcherId] = DanbooruWatcherRecordMapper.CompactKnownPostIds(watcher);
+        return false;
     }
 
     /// <summary>

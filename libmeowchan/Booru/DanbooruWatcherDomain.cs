@@ -307,6 +307,35 @@ internal sealed record DanbooruWatcher
         }, true);
     }
 
+    /// <summary>
+    /// Keeps a provider fence observed after a check was superseded by a user command. A late transport 429
+    /// must not be lost merely because Pause/Remove raced the check's terminal cancellation. Removed watchers
+    /// are deliberately not resurrected; the scheduler decides whether another live watcher can carry the fence.
+    /// </summary>
+    internal static DanbooruWatcherTransition PreserveProviderCooldown(DanbooruWatcher watcher,
+        DateTimeOffset retryAtUtc, string reasonCode, DateTimeOffset observedAtUtc)
+    {
+        if (watcher.State == DanbooruWatcherState.Removed)
+            return Reject(watcher, "watcher_removed");
+        if (watcher.State == DanbooruWatcherState.Checking)
+            return ApplyDeferred(watcher, retryAtUtc, reasonCode, observedAtUtc);
+        if (watcher.State is not (DanbooruWatcherState.Active or DanbooruWatcherState.Paused))
+            return Reject(watcher, "watcher_not_resumable");
+        if (string.IsNullOrWhiteSpace(reasonCode)) return Fail(watcher, "missing_reason");
+        DanbooruWatcherState resume = watcher.State == DanbooruWatcherState.Paused
+            || watcher.ResumeState == DanbooruWatcherState.Paused
+            ? DanbooruWatcherState.Paused : DanbooruWatcherState.Active;
+        return new DanbooruWatcherTransition(watcher with
+        {
+            State = DanbooruWatcherState.Cooldown,
+            ResumeState = resume,
+            CooldownUntilUtc = retryAtUtc.ToUniversalTime(),
+            ErrorCode = reasonCode,
+            LastCheckedAtUtc = observedAtUtc.ToUniversalTime(),
+            Progress = watcher.Progress with { PagesCheckedInRun = 0, BudgetLimited = false }
+        }, true);
+    }
+
     /// <summary>Clears a persisted provider cooldown without changing pause, progress, HWM or findings.</summary>
     internal static DanbooruWatcherTransition ResetProviderCooldown(DanbooruWatcher watcher)
     {

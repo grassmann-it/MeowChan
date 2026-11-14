@@ -713,16 +713,19 @@ public sealed class BooruHostHttp : IDisposable
         private bool Complete(bool clear)
         {
             if (Interlocked.Exchange(ref _completed, 1) != 0) return false;
+            bool cleared = false;
             lock (_state.Gate)
             {
                 // A late 429 from a request admitted before the barrier changed the version. It is
-                // never removed, whether this transaction commits or aborts.
-                if (clear && _state.CooldownVersion == _resetVersion) _state.CooldownUntil = default;
+                // never removed, whether this transaction commits or aborts. Report that the commit
+                // did not clear the fence, so the caller cannot expose a false reset success.
+                cleared = _state.CooldownVersion == _resetVersion;
+                if (clear && cleared) _state.CooldownUntil = default;
                 _state.Resetting = false;
                 _state.ResetCompleted!.TrySetResult();
             }
             _state.SendGate.Release();
-            return true;
+            return !clear || cleared;
         }
     }
 
