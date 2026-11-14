@@ -837,13 +837,14 @@ public partial class ArchivePage : UserControl
         using var decode = PerformanceDiagnostics.Measure("gallery.thumbnail.decode", request, asset: row.Asset.AssetId);
         using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
         if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
-        if (codec.Info.Width <= 0 || codec.Info.Height <= 0 || (long)codec.Info.Width * codec.Info.Height > 40_000_000
-            || (long)codec.Info.Height > 180L * codec.Info.Width)
+        PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: a rotated photo has its width and height exchanged
+        if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 40_000_000
+            || (long)shown.Height > 180L * shown.Width)
             throw new InvalidDataException(Texts.T("archive.tooLarge"));
-        int width = Math.Min(codec.Info.Width, Math.Min(maximumWidth, Math.Max(1, (int)((long)maximumHeight * codec.Info.Width / codec.Info.Height))));
+        int width = Math.Min(shown.Width, Math.Min(maximumWidth, Math.Max(1, (int)((long)maximumHeight * shown.Width / shown.Height))));
         stream.Position = 0;
         cancellationToken.ThrowIfCancellationRequested();
-        Bitmap bitmap = Bitmap.DecodeToWidth(stream, width);
+        Bitmap bitmap = ImageOrientation.DecodeToWidth(stream, width);
         if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
         return bitmap;
     }
@@ -877,11 +878,12 @@ public partial class ArchivePage : UserControl
                 using (SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false)))
                 {
                     if (codec == null) throw new InvalidDataException(Texts.T("archive.invalidImage"));
-                    if (codec.Info.Width <= 0 || codec.Info.Height <= 0 || (long)codec.Info.Width * codec.Info.Height > 80_000_000)
+                    PixelSize shown = ImageOrientation.DisplaySize(codec);
+                    if (shown.Width <= 0 || shown.Height <= 0 || (long)shown.Width * shown.Height > 80_000_000)
                         throw new InvalidDataException(Texts.T("archive.tooLarge"));
-                    int width = Math.Min(codec.Info.Width, Math.Min(1200, Math.Max(1, (int)(1200L * codec.Info.Width / codec.Info.Height))));
+                    int width = Math.Min(shown.Width, Math.Min(1200, Math.Max(1, (int)(1200L * shown.Width / shown.Height))));
                     stream.Position = 0;
-                    return Bitmap.DecodeToWidth(stream, width);
+                    return ImageOrientation.DecodeToWidth(stream, width);
                 }
             }, cancellationToken);
             if (_ended || request != _previewRequest || !ArchivePreview.IsVisible) { bitmap?.Dispose(); return; }

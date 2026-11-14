@@ -72,7 +72,8 @@ internal static class GalleryImageDecoder
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
         using SKCodec? codec = SKCodec.Create(managed);
         if (codec == null) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
-        GalleryImageInfo info = new(codec.Info.Width, codec.Info.Height, codec.EncodedFormat.ToString(),
+        PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: width and height exchanged for a rotated photo
+        GalleryImageInfo info = new(shown.Width, shown.Height, codec.EncodedFormat.ToString(),
             codec.EncodedFormat == SKEncodedImageFormat.Gif || codec.FrameCount > 1);
         if (info.Width <= 0 || info.Height <= 0 || info.Pixels > maximumPixels)
             throw new InvalidDataException(Localization.Texts.T("gallery.image.error.pixelLimit"));
@@ -121,7 +122,7 @@ internal static class GalleryImageDecoder
             Bitmap bitmap;
             using (PerformanceDiagnostics.Measure(request is GalleryDecodeRequest.Original
                 ? "gallery.decoder.original" : "gallery.decoder.fit", asset: entry.Asset.AssetId))
-                bitmap = request is GalleryDecodeRequest.Original ? new Bitmap(stream) : DecodeFit(stream, target);
+                bitmap = request is GalleryDecodeRequest.Original ? ImageOrientation.DecodeOriginal(stream) : DecodeFit(stream, target);
             PerformanceDiagnostics.Record("gallery.decoder.pixels", "decoded", asset: entry.Asset.AssetId,
                 value: (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height);
             if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
@@ -137,23 +138,9 @@ internal static class GalleryImageDecoder
     internal static Bitmap DecodeFit(Stream stream, PixelSize target)
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
-        using SKCodec codec = SKCodec.Create(managed) ?? throw new InvalidDataException(
-            Localization.Texts.T("gallery.image.error.unsupported"));
-        SKSizeI supported = codec.GetScaledDimensions(Math.Min((float)target.Width / codec.Info.Width,
-            (float)target.Height / codec.Info.Height));
-        using SKBitmap decoded = SKBitmap.Decode(codec,
-            new SKImageInfo(supported.Width, supported.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
-            ?? throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
-        if (decoded.Width == target.Width && decoded.Height == target.Height)
-            return CopyPixels(decoded);
-        using SKBitmap scaled = decoded.Resize(new SKImageInfo(target.Width, target.Height,
-            SKColorType.Bgra8888, SKAlphaType.Premul), new SKSamplingOptions(SKCubicResampler.Mitchell))
-            ?? throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
-        return CopyPixels(scaled);
+        using SKCodec codec = ImageOrientation.OpenCodec(managed);
+        return ImageOrientation.DecodeScaled(codec, target); // target is the displayed size; a rotated photo is moved upright
     }
-
-    private static Bitmap CopyPixels(SKBitmap bitmap) => new(PixelFormats.Bgra8888, AlphaFormat.Premul,
-        bitmap.GetPixels(), new PixelSize(bitmap.Width, bitmap.Height), new Vector(96, 96), bitmap.RowBytes);
 
 }
 

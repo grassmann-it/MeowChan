@@ -1115,8 +1115,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0
                 || (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
             stream.Position = 0;
-            int width = Math.Min(codec.Info.Width, PreviewSize * 2);
-            Bitmap bitmap = Bitmap.DecodeToWidth(stream, width);
+            int width = Math.Min(ImageOrientation.DisplaySize(codec).Width, PreviewSize * 2);
+            Bitmap bitmap = ImageOrientation.DecodeToWidth(stream, width);
             if (cached is not null) cached.Bitmap.Dispose();
             _bitmaps[id] = new CachedBitmap(bytes, bitmap);
             return bitmap;
