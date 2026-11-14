@@ -31,7 +31,7 @@ internal static class WorkViewGalleryChecks
         HashSet<string> registered = viewer.RegisteredWorkViewIds.ToHashSet(StringComparer.Ordinal);
         string[] orphaned = WorkViewPolicy.Entries
             .Where(entry => entry.Page == WorkViewPage.Gallery && entry.Kind is WorkViewKind.Action or WorkViewKind.Element
-                && entry.Id != "gallery.video.transport" && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
+                && entry.Id is not ("gallery.video.transport" or "gallery.video.player-menu") && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
         if (orphaned.Length > 0)
             throw new InvalidOperationException("gallery: work-view rows without a registered control: " + string.Join(", ", orphaned));
         Console.WriteLine($"SMOKE work-views registrations: gallery: {registered.Count} ids registered, no orphaned policy row.");

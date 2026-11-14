@@ -15,8 +15,8 @@ public sealed class DefaultShortcutInvariantTests
         "gallery.context-toggle", "gallery.show-in-thread", "gallery.slideshow-toggle",
         "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out",
         "media.details", "media.rating.edit", "viewer.shortcut-help",
-        // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed.
-        "video.mute", "video.snapshot", "video.speed-down", "video.speed-up"
+        // Gallery video: Shift+M mute, Shift+S frame snapshot, [ ] and Shift+, / Shift+. speed, A the A–B loop, "." the next frame.
+        "video.mute", "video.snapshot", "video.speed-down", "video.speed-up", "video.ab-loop", "video.frame-step"
     };
 
     [Theory, MemberData(nameof(Platforms))]
@@ -79,7 +79,8 @@ public sealed class DefaultShortcutInvariantTests
             "media.select-all", "reader.find-next", "reader.find-previous", "gallery.slideshow-toggle", "media.details", "media.rating.edit",
             "media.export-original", "media.show-in-folder", "reader.history-back", "gallery.return", "pagination.previous", "pagination.next",
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",
-            "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot" })
+            "video.seek-forward-far", "video.speed-down", "video.speed-up", "video.speed-reset", "video.snapshot",
+            "video.ab-loop", "video.frame-step" })
             Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
     }
 }
