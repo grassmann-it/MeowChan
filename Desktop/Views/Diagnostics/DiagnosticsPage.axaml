@@ -9,6 +9,8 @@
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
     </UserControl.Styles>
+    <!-- Hosted by the Status page: no page header, hint or summary of its own (the Status head carries them). The page inset is
+         the one the Status head and segment bar use, so the sides line up at 12 dip, not 24. -->
     <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="8">
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner. The Status page above
              already carries the title, the hint and the counts, so the segment starts with its filters. The content root
@@ -47,8 +49,8 @@
                                     <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                                 </DataGrid.Columns>
                             </DataGrid>
-                            <TextBlock x:Name="DiagnosticsEmpty" Classes="muted" Margin="12,44,12,12"
-                                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Top" IsHitTestVisible="False" />
+                            <TextBlock x:Name="DiagnosticsEmpty" Classes="muted" Margin="12"
+                                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" />
                         </Grid>
                     </Border>
                     <Border x:Name="DiagnosticDetailPane" wv:WorkViewElement.Id="diagnostics.details" Grid.Row="1" Classes="workspace-section">
@@ -63,7 +65,7 @@
                 <!-- Facts about this machine (always the same few rows): a closed group with its count, not rows in the table. -->
                 <Expander x:Name="DiagnosticPlatformSection" wv:WorkViewElement.Id="diagnostics.platform" Grid.Row="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <DataGrid x:Name="PlatformGrid" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="180"
-                              SelectionMode="Single" GridLinesVisibility="None" RowHeight="44" CanUserReorderColumns="False"
+                              SelectionMode="Single" GridLinesVisibility="None" CanUserReorderColumns="False"
                               SelectionChanged="OnPlatformSelectionChanged">
                         <DataGrid.Columns>
                             <DataGridTextColumn Width="*" MinWidth="180" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />

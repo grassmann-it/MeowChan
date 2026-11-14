@@ -230,10 +230,10 @@ internal static class DiagnosticsScopedRetryChecks
         Require(!dismiss.IsEnabled, "Acknowledgement enabled without a selected entry.");
         grid.SelectedItem = store.Entries.Single(entry => entry.Id == first.Id);
         await FlushAsync();
-        Require(dismiss.IsEnabled && AutomationProperties.GetName(dismiss) == Texts.T("feedback.dismiss"),
+        Require(dismiss.IsEnabled && AutomationProperties.GetName(dismiss) == Texts.T("feedback.markRead"),
             "Central acknowledgement missing localized selection action: enabled=" + dismiss.IsEnabled
             + "; selected=" + (grid.SelectedItem as SessionFeedback)?.Id + "; expected=" + first.Id
-            + "; name=" + AutomationProperties.GetName(dismiss) + "; label=" + Texts.T("feedback.dismiss"));
+            + "; name=" + AutomationProperties.GetName(dismiss) + "; label=" + Texts.T("feedback.markRead"));
         string? details = page.FindControl<TextBox>("SessionFeedbackDetails")!.Text;
         Click(page, "DismissSessionFeedbackButton");
         Require(store.IsDismissed(first) && !store.IsDismissed(other) && store.Entries.Count == 2
@@ -246,8 +246,8 @@ internal static class DiagnosticsScopedRetryChecks
             foreach (string current in new[] { "en", "de" })
             {
                 Texts.SetLanguage(current); page.AttachFeedback(store);
-                Require(AutomationProperties.GetName(dismiss) == Texts.T("feedback.dismiss")
-                    && Equals(dismiss.Content, Texts.T("feedback.dismiss")) && !dismiss.IsEnabled,
+                Require(AutomationProperties.GetName(dismiss) == Texts.T("feedback.markRead")
+                    && dismiss.Content is StackPanel { Children: [_, TextBlock label] } && label.Text == Texts.T("feedback.markRead") && !dismiss.IsEnabled,
                     "Acknowledgement lost localization or dismissal state after redraw.");
             }
         }

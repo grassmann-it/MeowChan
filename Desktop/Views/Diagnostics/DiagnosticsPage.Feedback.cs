@@ -61,7 +61,7 @@ public partial class DiagnosticsPage
             button.Content = new StackPanel
             {
                 Orientation = Avalonia.Layout.Orientation.Horizontal,
-                Spacing = 5,
+                Spacing = 8,
                 Tag = icon,
                 VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center,
                 Children = { CommandBindings.NamedIcon(icon), new TextBlock { Text = label, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center } }
