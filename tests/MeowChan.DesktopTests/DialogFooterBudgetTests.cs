@@ -126,7 +126,12 @@ public sealed class DialogFooterBudgetTests : IDisposable
             CultureInfo.InvariantCulture);
         XElement Named(string name) => markup.Descendants().Single(element => (string?)element.Attribute(x + "Name") == name);
         XElement strip = Named("DialogFrameErrorStrip").Descendants().First(element => element.Name.LocalName == "ScrollViewer");
-        return (Attribute(root, "MinWidth"), Attribute(root, "MinHeight"), Attribute(strip, "MaxHeight"), Attribute(Named("SavedSearchStatusHost"), "MaxHeight"));
+        // Modals plan MD3: the minimum width is the L step's, the minimum height the dialog's own (the step's is lower).
+        Avalonia.Size step = WorkspaceMetrics.DialogMinimumSize(DialogSize.L);
+        Assert.Contains("DialogWindow.Configure(this, DialogSize.L, modal: true);", File.ReadAllText(Source("Desktop/Views/Collections/SavedArchiveSearchesDialog.axaml.cs")));
+        Assert.Null(root.Attribute("MinWidth"));
+        Assert.Null(root.Attribute("MinHeight"));
+        return (step.Width, Math.Max(step.Height, SavedArchiveSearchesDialog.MinimumHeight), Attribute(strip, "MaxHeight"), Attribute(Named("SavedSearchStatusHost"), "MaxHeight"));
     }
 
     [Fact]

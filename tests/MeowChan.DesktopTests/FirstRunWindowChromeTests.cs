@@ -16,10 +16,10 @@ public sealed class FirstRunWindowChromeTests
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
         Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
-        Assert.Equal("720", (string?)window.Attribute("Width"));
-        Assert.Equal("700", (string?)window.Attribute("Height"));
-        Assert.Equal("440", (string?)window.Attribute("MinWidth"));
-        Assert.Equal("400", (string?)window.Attribute("MinHeight"));
+        // Modals plan MD3: the size comes from the dialog factory's L step, not from XAML literals.
+        foreach (string literal in new[] { "WindowStartupLocation", "Width", "Height", "MinWidth", "MinHeight" })
+            Assert.Null(window.Attribute(literal));
+        Assert.Contains("DialogWindow.Configure(this, DialogSize.L, modal: true);", File.ReadAllText(Source("Desktop/Views/Settings/FirstRunSetupWindow.axaml.cs")));
 
         XElement root = window.Elements().Single(e => e.Name.LocalName == "Grid");
         Assert.Equal("Auto,*", (string?)root.Attribute("RowDefinitions"));

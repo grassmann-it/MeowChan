@@ -197,25 +197,34 @@ public sealed class WindowChromeCoverageTests
             int inline = Regex.Matches(source, @"\bWindow \w+ = (new\(\)|(MeowChan\.Desktop\.Controls\.)?DialogWindow\.Create\()").Count;
             if (!subclass && inline == 0) continue;
             windows += (subclass ? 1 : 0) + inline;
-            // The dialog factory frames through WindowChrome.Frame as well (DialogWindow.Frame).
-            int framed = Regex.Matches(source, @"\b(WindowChrome\.(Frame|WrapContent|Apply)|DialogWindow\.Frame)\(").Count;
+            // The dialog factory frames through WindowChrome.Frame as well (DialogWindow.Frame, and Wrap for XAML windows).
+            int framed = Regex.Matches(source, @"\b(WindowChrome\.(Frame|WrapContent|Apply)|DialogWindow\.(Frame|Wrap))\(").Count;
             if (framed < (subclass ? 1 : 0) + inline) missing.Add(relative);
         }
         Assert.Empty(missing);
         Assert.True(windows >= 30, "window sweep found only " + windows);
     }
 
+    // The small modal prompts take the Dialog caption (no minimize) from the dialog factory (modals plan MD1/MD3).
     [Theory]
-    [InlineData("Desktop/Views/Admission/ExperimentalActivationDialog.axaml.cs")]
-    [InlineData("Desktop/Shell/MainWindow.ArchiveDeletion.cs")]
-    public void SmallModalPromptsUseTheDialogVariant(string path) =>
-        Assert.Contains("WindowChromeKind.Dialog", File.ReadAllText(Source(path)));
+    [InlineData("Desktop/Views/Admission/ExperimentalActivationDialog.axaml.cs", @"DialogWindow\.Wrap\(this, modal: true\)")]
+    [InlineData("Desktop/Shell/MainWindow.ArchiveDeletion.cs", @"DialogWindow\.Frame\(dialog, [^;]*modal: true\)")]
+    public void SmallModalPromptsUseTheDialogVariant(string path, string factoryCall) =>
+        Assert.Matches(factoryCall, File.ReadAllText(Source(path)));
 
     // Windows on the dialog factory (modals plan MD1) state modal or modeless; a modal one gets the Dialog caption there.
     [Theory]
     [InlineData("Desktop/MediaRatingDialog.cs", true)]
-    [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", true)]
     [InlineData("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs", true)]
+    [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", true)]
+    [InlineData("Desktop/Views/Collections/SavedArchiveSearchesDialog.axaml.cs", true)]
+    [InlineData("Desktop/Views/Admission/BoardAdmissionWindow.cs", true)]
+    [InlineData("Desktop/Views/Admission/ExperimentalActivationDialog.axaml.cs", true)]
+    [InlineData("Desktop/Shell/MainWindow.ArchiveDeletion.cs", true)]
+    [InlineData("Desktop/Views/Archive/ArchivePage.Favorites.cs", true)]
+    [InlineData("Desktop/Views/Plugins/PluginsPage.Migration.cs", true)]
+    [InlineData("Desktop/Views/Booru/BooruWorkbenchWindow.cs", false)]
+    [InlineData("Desktop/StartupErrorWindow.cs", false)]
     [InlineData("Desktop/Views/Media/MediaOccurrencesWindow.cs", false)]
     [InlineData("Desktop/Shell/MainWindow.GalleryActions.cs", true)]
     [InlineData("Desktop/Views/Archive/ArchivePage.Commands.cs", true)]
@@ -238,7 +247,8 @@ public sealed class WindowChromeCoverageTests
     {
         string source = File.ReadAllText(Source(path));
         Assert.Matches(@"DialogWindow\.(Configure|Create)\(", source);
-        Assert.Matches(@"DialogWindow\.Frame\([^;]*modal: " + (modal ? "true" : "false") + @"[,)]", source);
+        // Class windows frame through DialogWindow.Frame, XAML windows through DialogWindow.Wrap; both state modal or modeless.
+        Assert.Matches(@"DialogWindow\.(Frame|Wrap)\([^;]*modal: " + (modal ? "true" : "false") + @"[,)]", source);
         Assert.Equal(WindowChromeKind.Dialog, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true));
         Assert.Equal(WindowChromeKind.Window, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: false));
     }
@@ -255,7 +265,7 @@ public sealed class WindowChromeCoverageTests
     public void ModelessBookmarkListKeepsMinimizeWhileItsConfirmationIsADialog()
     {
         string source = File.ReadAllText(Source("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs"));
-        Assert.Contains("        WindowChrome.WrapContent(this);", source);
+        Assert.Contains("DialogWindow.Wrap(this, modal: false);", source);
         Assert.Contains("DialogWindow.Frame(confirm, ", source);
         Assert.Contains("DialogWindow.Create(Title ?? string.Empty, DialogSize.S, modal: true", source);
     }
