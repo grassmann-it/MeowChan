@@ -306,10 +306,9 @@ internal sealed partial class GalleryViewer
                 // Restore transport before detaching/hiding its overlay host, including a
                 // Windows transparency failure. Never leave the usable controls on a hidden window.
                 _video?.SetExternalTransportHost(null);
-                MoveOverlayControl(_chrome, _visualRoot);
-                MoveOverlayControl(_infoOverlay, _visualRoot);
-                Grid.SetRow(_chrome, _nativeOverlayFallback ? 2 : 1); Grid.SetRowSpan(_chrome, 1);
-                Grid.SetRow(_infoOverlay, _nativeOverlayFallback ? 3 : 2); Grid.SetRowSpan(_infoOverlay, 1);
+                MoveOverlayControl(_chrome, _dockStack);
+                MoveOverlayControl(_infoOverlay, _dockStack);
+                Grid.SetRow(_dockStack, _nativeOverlayFallback ? 2 : 1); Grid.SetRowSpan(_dockStack, 1);
                 // Keep the hidden footer parented. Removing it here would detach the
                 // source ancestor while its chrome/transport transfers are still queued.
             }
@@ -327,7 +326,11 @@ internal sealed partial class GalleryViewer
         finally { _applyingOverlayPlacement = false; }
     }
 
-    private void MoveOverlayControl(Control control, Panel target)
+    private void MoveOverlayControl(Control control, Panel target) => MoveOverlayControlAt(control, target, -1);
+
+    // GL1: the same move at a place (the filmstrip is the first child of the dock); a separate name keeps the two-argument method's
+    // signature, which the transfer smoke calls by reflection.
+    private void MoveOverlayControlAt(Control control, Panel target, int index)
     {
         if (_terminalRetirement) return;
         Control? focused = control.IsKeyboardFocusWithin
@@ -343,7 +346,7 @@ internal sealed partial class GalleryViewer
         // Submit even when target is the actual parent: this may retarget a pending move.
         GalleryControlTransfer.Move(control, target, () => !_terminalRetirement
             && (!(ReferenceEquals(control, _controlsEdgeIndicator) || ReferenceEquals(control, _postEdgeIndicator))
-                || !_viewerInteractionStopped), restoreFocus);
+                || !_viewerInteractionStopped), restoreFocus, index);
     }
 
     // The post panel (and the slot a later tag panel shares with it) starts below the top row of the way back and the star. In the

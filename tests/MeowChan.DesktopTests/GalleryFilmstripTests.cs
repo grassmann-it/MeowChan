@@ -369,6 +369,151 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Contains("72", Texts.T("settings.galleryFilmstripHeightHint", 72, 48, 160));
     }
 
+    // ---- GL1: the place of the band (bottom of the dock by default, top selectable) ----
+
+    private const double TopRow = 56; // GalleryViewer.TopRowClearance: the row of the way back and the star
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheBottomBandIsInTheDockOrTheFooterAndTakesNothingFromThePicture(bool overlay)
+    {
+        GalleryFilmstripPlan.Host host = overlay ? GalleryFilmstripPlan.Host.OverlayFooter : GalleryFilmstripPlan.Host.Dock;
+        foreach (bool show in new[] { false, true })
+        {
+            var place = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Bottom, overlay, show, Tile, TopRow, panelRight: 320);
+            Assert.Equal(host, place.Host);
+            Assert.Equal(0, place.PictureTopInset);   // the picture keeps the whole band's height (Tom: it wins 80 dip)
+            Assert.False(place.PeeksAtTopEdge);        // the bottom band comes with the controls: no top edge zone, no peek
+            Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Left);
+            Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Right); // an open side panel is not the bottom band's business
+            Assert.Equal(GalleryFilmstripPlan.DockMargin, place.Top);   // the gap above, the toolbar's own top margin is the gap below
+            Assert.Equal(0, place.Bottom);
+        }
+    }
+
+    [Fact]
+    public void TheTopBandKeepsTheOldPlacementBelowTheWayBackAndTheStar()
+    {
+        var docked = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, overlay: false, show: true, Tile, TopRow, panelRight: 0);
+        Assert.Equal(GalleryFilmstripPlan.Host.Picture, docked.Host);
+        Assert.Equal(TopRow, docked.Top);                       // never above the top row: it covers neither the back button nor the star
+        Assert.Equal(12, docked.Left);
+        Assert.Equal(12, docked.Right);
+        Assert.Equal(TopRow + GalleryFilmstripPlan.BandHeight(Tile) + 2, docked.PictureTopInset); // docked: the picture starts below the band
+        Assert.False(docked.PeeksAtTopEdge);                    // docked it is permanent: nothing to peek
+        Assert.Equal(0, GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, false, show: false, Tile, TopRow, 0).PictureTopInset);
+
+        var floating = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, overlay: true, show: true, Tile, TopRow, panelRight: 332);
+        Assert.Equal(GalleryFilmstripPlan.Host.Picture, floating.Host);
+        Assert.Equal(0, floating.PictureTopInset);              // floating: it covers the picture and moves nothing
+        Assert.True(floating.PeeksAtTopEdge);                   // and the top edge shows it
+        Assert.Equal(12 + 332, floating.Right);                 // it ends before an open side panel
+    }
+
+    [Theory]
+    [InlineData(48)]
+    [InlineData(72)]
+    [InlineData(160)]
+    public void TheBottomBandNeverAsksForMoreRoomThanTheTopBand(int tile)
+    {
+        var top = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Top, false, true, tile, TopRow, 0);
+        var bottom = GalleryFilmstripPlan.Place(GalleryFilmstripDock.Bottom, false, true, tile, TopRow, 0);
+        Assert.True(top.PictureTopInset >= TopRow + GalleryFilmstripPlan.BandHeight(tile));
+        Assert.Equal(0, bottom.PictureTopInset);
+        // The bottom band costs the picture its own height at the foot instead, and only while it is shown: not shown, nothing is reserved.
+        Assert.Equal(top.PictureTopInset - TopRow - 2, GalleryFilmstripPlan.BandHeight(tile));
+    }
+
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, true, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, true)]
+    public void ThePeekFollowsThePlanForEveryDockAndOverlayState(bool top, bool overlay, bool peeks)
+    {
+        GalleryFilmstripDock dock = top ? GalleryFilmstripDock.Top : GalleryFilmstripDock.Bottom;
+        var plan = GalleryChromePlan.Resolve(new(GalleryChromeMode.View, WorkView.Simple, new GalleryLayoutChoice(FilmstripDock: dock), false,
+            overlay, false, false, false, false, 1920, 1030));
+        Assert.True(plan.Filmstrip);
+        Assert.Equal(peeks, plan.FilmstripPeek);
+        var place = GalleryFilmstripPlan.Place(plan.FilmstripDock, overlay, true, Tile, TopRow, 0);
+        Assert.Equal(plan.FilmstripPeek, place.PeeksAtTopEdge); // the viewer's rule and the plan agree
+    }
+
+    [Fact]
+    public void TheDefaultIsTheBottomAndTheWorkViewStillDecidesWhetherThereIsAStrip()
+    {
+        foreach (bool overlay in new[] { false, true })
+        {
+            var simple = GalleryChromePlan.Resolve(new(GalleryChromeMode.View, WorkView.Simple, GalleryLayoutChoice.Default, false, overlay, false, false, false, false, 1280, 800));
+            Assert.True(simple.Filmstrip);
+            Assert.Equal(GalleryFilmstripDock.Bottom, simple.FilmstripDock);
+            Assert.False(simple.FilmstripPeek);
+            var barebones = GalleryChromePlan.Resolve(new(GalleryChromeMode.View, WorkView.Barebones, GalleryLayoutChoice.Default, false, overlay, false, false, false, false, 1280, 800));
+            Assert.False(barebones.Filmstrip); // gallery.filmstrip is Hidden in Barebones: availability stays with the work view
+            Assert.True(GalleryChromePlan.Resolve(new(GalleryChromeMode.View, WorkView.Barebones, new GalleryLayoutChoice(Filmstrip: true), false, overlay, false, false, false, false, 1280, 800)).Filmstrip);
+        }
+    }
+
+    [Fact]
+    public void TheViewerPutsTheBottomBandFirstInTheDockAndInTheFooterAndOnlyTheTopBandPeeks()
+    {
+        string filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
+        Assert.Contains("MoveOverlayControlAt(_filmstrip, _dockStack, 0)", filmstrip);
+        Assert.Contains("MoveOverlayControlAt(_filmstrip, _overlayFooter, 0)", filmstrip);
+        Assert.Contains("_viewport.Margin = new Thickness(0, place.PictureTopInset, 0, 0)", filmstrip);   // no hand-made inset any more
+        Assert.DoesNotContain("TopRowClearance + GalleryFilmstripPlan.BandHeight", filmstrip);
+        Assert.Contains("if (_filmstripPeek && !plan.FilmstripPeek) _filmstripPeek = false;", filmstrip);
+        Assert.Contains("picture.Children.IndexOf(_close) + 1", filmstrip); // the top band is the tab stop after the way back
+        Assert.Contains("FilmstripPeeksAtTop", filmstrip);
+        // The hot zone and the peek start only through the top-band rule.
+        Assert.Contains("OverlayControlsEffective && FilmstripPeeksAtTop;", filmstrip);
+        Assert.Contains("!_helpOpen && FilmstripPeeksAtTop;", filmstrip);
+        // The dock exists once, below the picture; the tools and the info line are its children after the band.
+        string viewer = Source("Desktop/GalleryViewer.cs");
+        Assert.Contains("_dockStack.Children.Add(_chrome);", viewer);
+        Assert.Contains("_dockStack.Children.Add(_infoOverlay);", viewer);
+        string overlay = Source("Desktop/GalleryViewer.Overlay.cs");
+        Assert.Contains("MoveOverlayControl(_chrome, _dockStack);", overlay);
+        Assert.Contains("MoveOverlayControl(_chrome, _overlayFooter);", overlay);
+        Assert.Contains("private void MoveOverlayControl(Control control, Panel target) => MoveOverlayControlAt(control, target, -1);", overlay);
+        // The transfer keeps the place of a control that re-attaches to the same parent and inserts at the requested place.
+        string transfer = Source("Desktop/GalleryControlTransfer.cs");
+        Assert.Contains("target.Children.Insert(Math.Min(_index, target.Children.Count), _control)", transfer);
+        Assert.Contains("parent.Children.IndexOf(control)", transfer);
+    }
+
+    [Fact]
+    public void TheBandTellsAScreenReaderWhereItIsInEveryLanguage()
+    {
+        string englishBottom = LanguageText("en", "gallery.filmstrip.dock.bottom"), englishTop = LanguageText("en", "gallery.filmstrip.dock.top");
+        Assert.Contains("below the picture", englishBottom);
+        Assert.Contains("above the picture", englishTop);
+        foreach (string code in Texts.BundledPackCodes().Prepend("de"))
+        {
+            string bottom = LanguageText(code, "gallery.filmstrip.dock.bottom"), top = LanguageText(code, "gallery.filmstrip.dock.top");
+            Assert.NotEqual("gallery.filmstrip.dock.bottom", bottom);   // a real text, not the key
+            Assert.NotEqual("gallery.filmstrip.dock.top", top);
+            Assert.NotEqual(englishBottom, bottom);                      // and a translation, not the English source
+            Assert.NotEqual(englishTop, top);
+            Assert.NotEqual(bottom, top);
+            Assert.NotEqual(LanguageText("en", "settings.galleryFilmstripHint"), LanguageText(code, "settings.galleryFilmstripHint"));
+        }
+        // The settings hint describes the new default and no longer says that the row sits under the back and star buttons.
+        Assert.StartsWith("A row of thumbnails of the gallery's media. By default it sits at the bottom", LanguageText("en", "settings.galleryFilmstripHint"));
+        Assert.Contains("unten", LanguageText("de", "settings.galleryFilmstripHint"));
+    }
+
+    private static string LanguageText(string code, string key)
+    {
+        Texts.SetLanguage(code);
+        try { return Texts.T(key); } finally { Texts.SetLanguage("en"); }
+    }
+
+    private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string source = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", relative)));
+
     private sealed class Profile : IDisposable
     {
         public string Path { get; } = Directory.CreateTempSubdirectory("meowchan-filmstrip-").FullName;

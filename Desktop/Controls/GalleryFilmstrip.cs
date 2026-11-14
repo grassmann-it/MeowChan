@@ -61,6 +61,7 @@ internal sealed class GalleryFilmstrip : Border
     private double _pressOffset;
     private int _pressedTile = -1;
     private bool _keyboardFocus;
+    private bool _atBottom = true; // GL1: the band's place; only its accessible description depends on it (the viewer sets margins and parent)
 
     internal GalleryFilmstrip()
     {
@@ -407,10 +408,19 @@ internal sealed class GalleryFilmstrip : Border
         UpdateTileNames();
     }
 
+    /// <summary>The band sits at the bottom of the dock (true) or at the top under the way back (false): a screen reader hears where it is.</summary>
+    internal void SetDock(bool bottom)
+    {
+        if (_atBottom == bottom) return;
+        _atBottom = bottom;
+        RefreshTexts();
+    }
+
     private void RefreshTexts()
     {
         string name = Texts.T("gallery.filmstrip.name", _count);
         AutomationProperties.SetName(this, name);
+        AutomationProperties.SetHelpText(this, Texts.T(_atBottom ? "gallery.filmstrip.dock.bottom" : "gallery.filmstrip.dock.top"));
         ToolTip.SetTip(this, null);
         string back = Texts.T("gallery.filmstrip.scrollBack"), forward = Texts.T("gallery.filmstrip.scrollForward");
         AutomationProperties.SetName(_back, back); ToolTip.SetTip(_back, back);

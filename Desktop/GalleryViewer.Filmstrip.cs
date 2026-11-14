@@ -17,13 +17,17 @@ using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
-// V3: the filmstrip at the top of the gallery (thumbnails of the media before and after the shown one). Its band starts below the
-// top row of the way back and the star (TopRowClearance), so it never covers either of them.
-//   * Overlay mode ("Hide controls after"): the strip comes with the controls and, on its own, when the pointer touches the top edge
-//     (a 24 dip zone like the bottom edge's); it hides with the controls and never while the pointer or the keyboard is on it.
-//   * Docked mode ("Don't hide controls"): a permanent band above the picture; the picture starts below it.
+// V3, GL1: the filmstrip of the gallery (thumbnails of the media before and after the shown one). Where it sits is the plan's
+// FilmstripDock (Tom, GL E1: Bottom by default, Top stays selectable); GalleryFilmstripPlan.Place turns it into a host and margins.
+//   * Bottom: the first child of the dock (docked) or of the floating footer (overlay), above the video bar and the tools. It comes and
+//     goes with the controls: no peek, no top edge zone. It lies below the way back, the star and the side panel, so it covers none.
+//   * Top: below the top row of the way back and the star (TopRowClearance), so it never covers either of them.
+//     - Overlay mode ("Hide controls after"): the strip comes with the controls and, on its own, when the pointer touches the top edge
+//       (a 24 dip zone like the bottom edge's); it hides with the controls and never while the pointer or the keyboard is on it.
+//     - Docked mode ("Don't hide controls"): a permanent band above the picture; the picture starts below it.
 //   * The work view decides whether it is there by default (Barebones: no, Simple and Advanced: yes); the user's own choice (the
 //     setting, the L key, the ⋯ row) wins in every view, see FilmstripPolicyVisible.
+//   * The tab order follows the picture: the bottom strip is the first stop of the dock, before the toolbar.
 internal sealed partial class GalleryViewer
 {
     /// <summary>Height of the top edge zone that shows a hidden filmstrip (dip; the same width as the bottom and right edge zones).</summary>
@@ -123,36 +127,53 @@ internal sealed partial class GalleryViewer
     private bool FilmstripFits => Bounds.Height <= 0 || Bounds.Height >= FilmstripMinimumHeight;
 
     // G1/GL0: the chrome plan decides: the view's default, the person's choice (the setting, L, later GL4's layout choice), the state.
-    private bool FilmstripEffective => BuildChromePlan().Filmstrip && _filmstrip.Count > 0 && !_terminalRetirement
+    private bool FilmstripEffective => FilmstripEffectiveFor(BuildChromePlan());
+
+    private bool FilmstripEffectiveFor(GalleryChromePlan plan) => plan.Filmstrip && _filmstrip.Count > 0 && !_terminalRetirement
         && !_viewerInteractionStopped && FilmstripFits;
 
     private bool FilmstripHolds => _pointerInFilmstrip || _keyboardInteraction && _filmstrip.IsKeyboardFocusWithin;
 
-    private bool FilmstripShownNow => FilmstripEffective && (!OverlayControlsEffective || !_overlayHidden || _filmstripPeek);
+    private bool FilmstripShownNow => FilmstripShownFor(BuildChromePlan());
+
+    // At the bottom the strip is a part of the footer: it is on the screen exactly when the controls are, a peek never shows it alone.
+    private bool FilmstripShownFor(GalleryChromePlan plan) => FilmstripEffectiveFor(plan)
+        && (!OverlayControlsEffective || !_overlayHidden || _filmstripPeek && plan.FilmstripPeek);
 
     // Places the band, sizes it and shows or hides it. Cheap and idempotent: it runs with every placement, reveal and hide.
     private void UpdateFilmstripPlacement()
     {
         if (_terminalRetirement || _filmstrip == null) return; // (null: a viewer built without its constructor, as the overlay tests do)
         bool overlay = OverlayControlsEffective;
-        bool show = FilmstripShownNow;
-        Panel host = overlay ? OverlayHost : _visualRoot;
-        MoveOverlayControl(_filmstrip, host);
-        Grid.SetRow(_filmstrip, _nativeOverlayFallback && !_nativeOverlayActive ? 1 : 0); Grid.SetRowSpan(_filmstrip, 1);
-        // The band ends before an open post panel (which starts below the same top row) and starts after the page margin.
-        double panelWidth = double.IsFinite(_contextPanel.Width) && _contextPanel.Width > 0 ? _contextPanel.Width : _contextPanel.Bounds.Width;
-        bool panelDocked = ReferenceEquals(_contextPanel.Parent, _body) && host == _visualRoot;
-        bool panelOver = ReferenceEquals(_contextPanel.Parent, host);
-        double right = 12 + (_contextOpen && _contextPanel.IsVisible && panelDocked ? panelWidth - 4 : _contextOpen && _contextPanel.IsVisible && panelOver ? panelWidth + 12 : 0);
-        _filmstrip.Margin = new Thickness(12, TopRowClearance, right, 0);
+        GalleryChromePlan plan = BuildChromePlan();
+        // A band that moved to the bottom (or lost its overlay) leaves no peek behind: the bottom strip comes with the controls.
+        if (_filmstripPeek && !plan.FilmstripPeek) _filmstripPeek = false;
+        bool show = FilmstripShownFor(plan);
         int tile = Bounds.Height > 0 && Bounds.Height < FilmstripCompactHeight
             ? Math.Min(_filmstripHeight, Config.GalleryFilmstripHeightMinimum) : _filmstripHeight;
+        // The band ends before an open post panel (which starts below the same top row) and starts after the page margin. Only the top
+        // band shares a row with the panel; the bottom band lies below it (docked) or in the footer the panel is lifted over (overlay).
+        double panelWidth = double.IsFinite(_contextPanel.Width) && _contextPanel.Width > 0 ? _contextPanel.Width : _contextPanel.Bounds.Width;
+        Panel picture = overlay ? OverlayHost : _visualRoot;
+        bool panelDocked = ReferenceEquals(_contextPanel.Parent, _body) && picture == _visualRoot;
+        bool panelOver = ReferenceEquals(_contextPanel.Parent, picture);
+        double panelRight = _contextOpen && _contextPanel.IsVisible && panelDocked ? panelWidth - 4 : _contextOpen && _contextPanel.IsVisible && panelOver ? panelWidth + 12 : 0;
+        GalleryFilmstripPlan.Placement place = GalleryFilmstripPlan.Place(plan.FilmstripDock, overlay, show, tile, TopRowClearance, panelRight);
+        switch (place.Host)
+        {
+            case GalleryFilmstripPlan.Host.Dock: MoveOverlayControlAt(_filmstrip, _dockStack, 0); break;
+            case GalleryFilmstripPlan.Host.OverlayFooter: MoveOverlayControlAt(_filmstrip, _overlayFooter, 0); break;
+            // The top band follows the way back in the tab order (the way back is the first stop), before the picture and the toolbar.
+            default: MoveOverlayControlAt(_filmstrip, picture, _close != null && ReferenceEquals(_close.Parent, picture) ? picture.Children.IndexOf(_close) + 1 : -1); break;
+        }
+        Grid.SetRow(_filmstrip, _nativeOverlayFallback && !_nativeOverlayActive ? 1 : 0); Grid.SetRowSpan(_filmstrip, 1);
+        _filmstrip.Margin = new Thickness(place.Left, place.Top, place.Right, place.Bottom);
+        _filmstrip.SetDock(plan.FilmstripDock == GalleryFilmstripDock.Bottom);
         _filmstrip.Configure(tile, _filmstripPreload);
         ApplyFilmstripBackground(overlay);
         WorkViewGate.Apply(_filmstrip, _workView, stateVisible: show, nonDefaultState: FilmstripForced);
-        // Docked, the picture starts below the band; the overlay floats over it.
-        double inset = show && !overlay ? TopRowClearance + GalleryFilmstripPlan.BandHeight(tile) + 2 : 0;
-        if (_viewport.Margin.Top != inset) _viewport.Margin = new Thickness(0, inset, 0, 0);
+        // The top band, docked, pushes the picture down; the overlay floats over it. The bottom band never touches the picture.
+        if (_viewport.Margin.Top != place.PictureTopInset) _viewport.Margin = new Thickness(0, place.PictureTopInset, 0, 0);
         _filmstrip.Refresh();
         RefreshFilmstripPosition();
         RefreshFilmstripToggle();
@@ -192,7 +213,7 @@ internal sealed partial class GalleryViewer
             {
                 Point point = surface.PointToClient(pixel);
                 bool inside = new Rect(surface.Bounds.Size).Contains(point);
-                _filmstripTopHot = inside && point.Y < FilmstripEdgeBand && OverlayControlsEffective && FilmstripEffective;
+                _filmstripTopHot = inside && point.Y < FilmstripEdgeBand && OverlayControlsEffective && FilmstripPeeksAtTop;
                 _pointerInFilmstrip = _filmstrip.IsVisible && _filmstrip.IsAttachedToVisualTree()
                     && new Rect(_filmstrip.Bounds.Size).Contains(_filmstrip.PointToClient(pixel));
             }
@@ -206,9 +227,13 @@ internal sealed partial class GalleryViewer
         if (changed) { UpdateFilmstripPlacement(); UpdateViewerInteractionTimer(); }
     }
 
+    // The top edge zone and the peek exist only for a filmstrip at the top with the controls floating (the plan's FilmstripPeek); a
+    // strip at the bottom has no zone of its own: the controls' bottom edge zone brings the whole footer, strip included.
+    private bool FilmstripPeeksAtTop => BuildChromePlan() is { FilmstripPeek: true } plan && FilmstripEffectiveFor(plan);
+
     // The same restraint as the other edge reveals: no drag or press in progress, an active window, no dialog or popup.
     private bool CanPeekFilmstrip => IsGalleryWindowActive && _interactionAvailable && !HasGalleryDialog && !HasGalleryPopup
-        && !_dragging && _pressedPointers.Count == 0 && _lastPointer?.Captured == null && !_helpOpen;
+        && !_dragging && _pressedPointers.Count == 0 && _lastPointer?.Captured == null && !_helpOpen && FilmstripPeeksAtTop;
 
     // ---- keyboard and commands ----
 

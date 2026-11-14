@@ -101,6 +101,9 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
         Margin = new Thickness(8, 8, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+    // GL1: the docked dock, one surface below the picture. First the filmstrip (when it is at the bottom), then the tools and the info
+    // line; the floating footer (_overlayFooter) has the same order. GL2 hosts the video bar in it as well.
+    private readonly StackPanel _dockStack = new() { Name = "GalleryDock", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
         Margin = new Thickness(8, 0, 8, 8), HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _statusPlate = new() { Classes = { "workspace-media-caption" },
@@ -441,8 +444,9 @@ internal sealed partial class GalleryViewer : UserControl
         root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
         GalleryControlTransfer.Track(_close, () => !_terminalRetirement);
         root.Children.Add(_body);
-        root.Children.Add(_chrome); Grid.SetRow(_chrome, 1);
-        root.Children.Add(_infoOverlay); Grid.SetRow(_infoOverlay, 2);
+        _dockStack.Children.Add(_chrome);
+        _dockStack.Children.Add(_infoOverlay);
+        root.Children.Add(_dockStack); Grid.SetRow(_dockStack, 1);
         root.Children.Add(_helpPanel);
         root.Children.Add(_modeAnnouncement); // the mode's live region, at no size (GalleryViewer.Chrome.cs)
         Content = root;
@@ -975,8 +979,7 @@ internal sealed partial class GalleryViewer : UserControl
         Grid.SetRow(_helpPanel, 0);
         Grid.SetRow(_favoriteConfirmPanel, fallback ? 1 : 0);
         Grid.SetRow(_body, fallback ? 1 : 0);
-        Grid.SetRow(_chrome, fallback ? 2 : 1);
-        Grid.SetRow(_infoOverlay, fallback ? 3 : 2);
+        Grid.SetRow(_dockStack, fallback ? 2 : 1);
         // In the fallback row 0 lies above the picture and the way back is in the picture row, so the help needs no clearance there.
         _helpPanel.Margin = fallback ? new Thickness(12) : new Thickness(12, TopRowClearance, 12, 12);
         ApplyOverlayPlacement();

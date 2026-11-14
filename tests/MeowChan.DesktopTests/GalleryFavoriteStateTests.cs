@@ -432,6 +432,8 @@ public sealed class GalleryFavoriteStateTests
         SetField(h.Viewer, "_favoriteConfirmPanel", new Border());
         SetField(h.Viewer, "_chrome", new Border());
         SetField(h.Viewer, "_infoOverlay", new Border());
+        var dock = new StackPanel(); // GL1: the tools and the info line live in the dock, which owns the row below the picture
+        SetField(h.Viewer, "_dockStack", dock);
         h.Viewer.SetFavorite(true);
         // Invoke actual fallback row configuration, but not window activation or player setup.
         Invoke(h.Viewer, "SetVideoFallbackLayout", true);
@@ -440,6 +442,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(GridLength.Auto, h.ManagedRoot.RowDefinitions[0].Height);
         Assert.Equal(0, Grid.GetRow(h.Managed));
         Assert.Equal(1, Grid.GetRow(body));
+        Assert.Equal(2, Grid.GetRow(dock));
         Assert.True(h.Managed.IsVisible);
         Assert.False(h.Native.IsVisible);
         Assert.Same(h.ManagedRoot, h.Managed.Parent);
@@ -447,6 +450,7 @@ public sealed class GalleryFavoriteStateTests
         Invoke(h.Viewer, "SetVideoFallbackLayout", false);
         Invoke(h.Viewer, "UpdateFavoriteIndicators");
         Assert.Equal(3, h.ManagedRoot.RowDefinitions.Count);
+        Assert.Equal(1, Grid.GetRow(dock));
         Assert.Equal(0, Grid.GetRow(body));
         Assert.Equal(0, Grid.GetRow(h.Managed));
         Assert.True(h.Managed.IsVisible);

@@ -313,7 +313,7 @@ public sealed class GalleryChromePlanTests
             Assert.DoesNotContain(block, viewer);
         Assert.DoesNotContain("UpdateMediaFocusVisibility", viewer);
         Assert.Contains("ApplyChrome(force: true);", Source("Desktop/GalleryViewer.WorkView.cs"));
-        Assert.Contains("BuildChromePlan().Filmstrip", Source("Desktop/GalleryViewer.Filmstrip.cs"));
+        Assert.Contains("FilmstripEffectiveFor(BuildChromePlan())", Source("Desktop/GalleryViewer.Filmstrip.cs"));
         Assert.Contains("SlideshowBlockedByPanel", Source("Desktop/GalleryViewer.Overlay.cs"));
         Assert.Contains("bool tagHold = UpdateTaggingHold();", Source("Desktop/GalleryViewer.Overlay.cs"));
         Assert.False(File.Exists(Root("Desktop/GalleryTaggingChrome.cs"))); // folded into the plan

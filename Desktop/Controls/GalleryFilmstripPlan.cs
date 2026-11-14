@@ -16,6 +16,35 @@ internal static class GalleryFilmstripPlan
     /// <summary>Vertical room above and below the tiles inside the band, in dip.</summary>
     internal const double BandPadding = 4;
 
+    /// <summary>Where the band sits in the gallery's tree: over the picture (Top), first in the docked dock, or first in the floating footer.</summary>
+    internal enum Host { Picture, Dock, OverlayFooter }
+
+    /// <summary>
+    /// The place of the band (GL1): which parent holds it, its margins (dip), how far the docked picture is pushed down, and whether
+    /// the top edge of the viewer shows a hidden band (peek and edge zone; the bottom band comes and goes with the controls).
+    /// </summary>
+    internal readonly record struct Placement(Host Host, double Left, double Top, double Right, double Bottom, double PictureTopInset, bool PeeksAtTopEdge);
+
+    /// <summary>Margin of the band inside the dock or the footer: the page margin of the toolbar below it, so both stand on one line.</summary>
+    internal const double DockMargin = 8;
+
+    /// <summary>Margin at the sides of the band over the picture (below the top row of the way back and the star).</summary>
+    internal const double PictureMargin = 12;
+
+    /// <summary>
+    /// Where the band goes. <b>Bottom</b> (Tom's default, E1): the first child of the dock (docked) or of the floating footer (overlay), so
+    /// it lies above the video bar and the tools, never touches the top row or the side panel, leaves the picture its whole height and
+    /// has no peek. <b>Top</b>: under the way back and the star; docked it pushes the picture down by its band, as a floating strip it peeks
+    /// in at the top edge. <paramref name="panelRight"/> is the width of an open side panel the top band must stop before.
+    /// </summary>
+    internal static Placement Place(GalleryFilmstripDock dock, bool overlay, bool show, double tile, double topClearance, double panelRight)
+    {
+        if (dock == GalleryFilmstripDock.Bottom)
+            return new(overlay ? Host.OverlayFooter : Host.Dock, DockMargin, DockMargin, DockMargin, 0, 0, false);
+        double inset = show && !overlay ? topClearance + BandHeight(tile) + 2 : 0;
+        return new(Host.Picture, PictureMargin, topClearance, PictureMargin + Math.Max(0, panelRight), 0, inset, overlay);
+    }
+
     /// <summary>A closed range of tile indices; <see cref="Empty"/> when it holds none.</summary>
     internal readonly record struct TileRange(int First, int Last)
     {

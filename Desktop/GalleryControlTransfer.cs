@@ -30,11 +30,16 @@ internal static class GalleryControlTransfer
         transfer.RememberCurrentRoot();
     }
 
-    internal static void Move(Control control, Panel target, Func<bool>? canAttach = null, Action? moved = null)
+    /// <summary>
+    /// Moves <paramref name="control"/> into <paramref name="target"/>: appended, or at <paramref name="index"/> when that is not
+    /// negative (GL1: the filmstrip is the first child of the dock, so the focus order follows the visual order). The index is
+    /// read when the move runs, after the control left its old parent.
+    /// </summary>
+    internal static void Move(Control control, Panel target, Func<bool>? canAttach = null, Action? moved = null, int index = -1)
     {
         Dispatcher.UIThread.VerifyAccess();
         Track(control);
-        Transfers.GetValue(control, static value => new Transfer(value)).Request(target, canAttach, moved);
+        Transfers.GetValue(control, static value => new Transfer(value)).Request(target, canAttach, moved, index);
     }
 
     // Terminal only. Temporary hides/detachments must remain reusable.
@@ -63,6 +68,7 @@ internal static class GalleryControlTransfer
         private Panel? _target;
         private Func<bool>? _canAttach;
         private Action? _moved;
+        private int _index = -1;
         private bool _queued, _running;
         internal bool _cancelled;
         private long _revision;
@@ -78,7 +84,7 @@ internal static class GalleryControlTransfer
                 // Retain presentation history even when VideoView.Content, rather than
                 // the tracked control itself, was detached/reinstalled by its owner.
                 if (!_cancelled && !IsPending && _roots.Count > 1 && control.Parent is Panel parent)
-                    Request(parent, null, null);
+                    Request(parent, null, null, parent.Children.IndexOf(control)); // back to the same place, not to the end
             };
             control.DetachedFromVisualTree += (_, e) => Remember(e.RootVisual);
         }
@@ -93,16 +99,18 @@ internal static class GalleryControlTransfer
             if (CurrentRoot(_control) is { } root) _roots.Add(root);
         }
 
-        internal void Request(Panel target, Func<bool>? canAttach, Action? moved)
+        internal void Request(Panel target, Func<bool>? canAttach, Action? moved, int index = -1)
         {
             if (_cancelled) return;
             RememberCurrentRoot();
             bool unchanged = ReferenceEquals(_target, target);
             // A completed same-target placement is a no-op, but a queued A->B->A
-            // must overwrite B even though the physical parent is still A.
-            if (ReferenceEquals(_control.Parent, target) && _roots.Count <= 1
+            // must overwrite B even though the physical parent is still A. A requested place that differs from the current one is not a no-op.
+            bool inPlace = index < 0 || target.Children.IndexOf(_control) == Math.Min(index, target.Children.Count - 1);
+            if (ReferenceEquals(_control.Parent, target) && _roots.Count <= 1 && inPlace
                 && (!_queued && !_running || _running && unchanged)) return;
             _target = target;
+            _index = index;
             _canAttach = canAttach;
             // Layout callbacks without captured focus must not erase the original
             // same-target focus restoration; a different destination replaces it.
@@ -121,7 +129,7 @@ internal static class GalleryControlTransfer
             if (_cancelled) return;
             RememberCurrentRoot();
             _cancelled = true;
-            _target = null; _canAttach = null; _moved = null; _revision++;
+            _target = null; _canAttach = null; _moved = null; _index = -1; _revision++;
             // Never restore terminal controls to an attached main window. Removing
             // them is safe during a drain and prevents a pending attach immediately.
             if (_control.Parent is Panel parent) parent.Children.Remove(_control);
@@ -172,7 +180,8 @@ internal static class GalleryControlTransfer
                 {
                     if (!_cancelled && appliedRevision == _revision)
                     {
-                        target.Children.Add(_control);
+                        if (_index >= 0) target.Children.Insert(Math.Min(_index, target.Children.Count), _control);
+                        else target.Children.Add(_control);
                         if (!_cancelled && appliedRevision == _revision) _moved?.Invoke();
                     }
                 }
@@ -185,7 +194,7 @@ internal static class GalleryControlTransfer
                 if (completed)
                 {
                     if (!_cancelled && (needsDeferredDrain || appliedRevision != _revision)) Queue();
-                    else { _target = null; _canAttach = null; _moved = null; }
+                    else { _target = null; _canAttach = null; _moved = null; _index = -1; }
                 }
             }
         }
