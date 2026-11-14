@@ -375,7 +375,7 @@ internal sealed partial class GalleryViewer
         }
         else
         {
-            _contextPanel.Width = 320;
+            _contextPanel.Width = DockedContextWidth;
             _contextPanel.HorizontalAlignment = HorizontalAlignment.Stretch;
             _contextPanel.VerticalAlignment = VerticalAlignment.Stretch;
             // Native chrome covers only the video viewport in a separate window.

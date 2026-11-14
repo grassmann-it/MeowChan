@@ -77,6 +77,11 @@ public static partial class WorkViewPolicy
         // ---- Post panel: the way to the post, its association and (later) the tag panel slot. Direct in every view. ----
         Same("gallery.toolbar.post-panel", WorkViewPage.Gallery, WorkViewKind.Action, Direct, "gallery.context-toggle"),
         Same("gallery.post-panel", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
+        // V2: the segment "Post | Tags" in the head of the side panel (the host stays "gallery.post-panel"). It is the panel's own
+        // navigation, so no view reduces it. Elements, not actions: the commands (P, Ctrl+Shift+T) keep their rows on the bar
+        // ("gallery.toolbar.post-panel", "gallery.toolbar.tags"), which decide where a dialog returns the focus to.
+        Same("gallery.panel.post", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
+        Same("gallery.panel.tags", WorkViewPage.Gallery, WorkViewKind.Element, Direct),
 
         // ---- Picture tools next to the post panel: fit and 1:1 are frequent and cost one icon each. ----
         Same("gallery.toolbar.fit", WorkViewPage.Gallery, WorkViewKind.Action, Direct, "gallery.fit"),

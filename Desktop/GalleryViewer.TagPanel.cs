@@ -12,10 +12,11 @@ using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
-// The quick tag panel (PLAN-SCHNELL-TAGGEN §1.1, decision E1): a side panel that takes the slot of the post panel. It is the same
-// bordered slot (_contextPanel), so its placement (docked from 900 dip, over the picture below), the auto-hide hold of the controls
-// while it is open, the work-view policy row "gallery.post-panel" and the focus handling are shared and not copied; only the child
-// of the slot changes. Post panel and tag panel exclude each other (P switches to the post panel, Ctrl+Shift+T to the tags).
+// The quick tag panel (PLAN-SCHNELL-TAGGEN §1.1, decision E1): the Tags segment of the gallery side panel host (V2,
+// GalleryViewer.SidePanel.cs). It is the same bordered slot (_contextPanel), so its placement (docked from 900 dip, over the picture
+// below), the auto-hide hold of the controls while it is open, the work-view policy row "gallery.post-panel" and the focus handling
+// are shared and not copied; only the shown segment changes. Post and tags exclude each other (P and the Post segment switch to the
+// post, Ctrl+Shift+T and the Tags segment to the tags); the host's × closes both.
 // The viewer shows state and raises requests; everything that touches the tag store lives in the owner (IGalleryTagPanelOwner).
 internal sealed partial class GalleryViewer
 {
@@ -26,7 +27,6 @@ internal sealed partial class GalleryViewer
     private StackPanel? _tagExtra;
     private TextBlock? _tagReason;
     private IGalleryTagPanelOwner? _tagOwner;
-    private Control? _postContent;
     private bool _tagPanelOpen;
 
     /// <summary>True while the tag panel (not the post panel) holds the slot.</summary>
@@ -70,12 +70,13 @@ internal sealed partial class GalleryViewer
         controller.Suggestions.Ready += OnTagSuggestionsReady;
         _tagController = controller;
         _tagSurface = surface;
+        surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
-        _postContent ??= _contextPanel.Child;
         _tagPanelOpen = true;
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
-        _contextPanel.Child = surface;
+        _sidePanel.TagContent = surface;
+        _sidePanel.Segment = GallerySidePanelSegment.Tags;
         if (_contextOpen)
         {
             LayoutContext();
@@ -108,7 +109,8 @@ internal sealed partial class GalleryViewer
             surface.ThreadSectionRequested -= OnTagThreadSectionRequested;
         }
         if (controller != null) controller.Suggestions.Ready -= OnTagSuggestionsReady;
-        if (_contextPanel.Child == surface) _contextPanel.Child = _postContent;
+        if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
+        _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();
         surface?.Dispose();
         controller?.Dispose();
@@ -118,16 +120,11 @@ internal sealed partial class GalleryViewer
         return true;
     }
 
-    // P: while the tag panel holds the slot the post panel takes it over (and is remembered as open); otherwise the plain toggle.
+    // P: while the tag panel holds the slot the post takes it over (and is remembered as open); otherwise the plain toggle.
     private void ToggleContext()
     {
         if (!_tagPanelOpen) { SetContextOpen(!_contextOpen); return; }
-        ReleaseTagPanel();
-        EnsureContextCurrent();
-        LayoutContext();
-        UpdateContextButton();
-        RefreshPlaybackControls();
-        ContextOpenChanged?.Invoke(true);
+        ShowPostSegment();
         FocusGallerySurface();
     }
 

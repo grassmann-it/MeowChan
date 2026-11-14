@@ -21,6 +21,7 @@ using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Archive;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Diagnostics;
 
 namespace MeowChan.Desktop;
@@ -417,11 +418,11 @@ internal sealed partial class GalleryViewer : UserControl
         };
         _body.Children.Add(_viewport);
         // Inherit native control states from the host, including popups and focus.
-        _contextPanel.Child = new ScrollViewer
+        CreateSidePanel(new ScrollViewer
         {
             Content = _context,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        };
+        });
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
         GalleryControlTransfer.Track(_close, () => !_terminalRetirement);
@@ -869,6 +870,7 @@ internal sealed partial class GalleryViewer : UserControl
         _contextToggle.IsChecked = postOpen;
         AutomationProperties.SetName(_contextToggle, label);
         ToolTip.SetTip(_contextToggle, label);
+        SyncSidePanel();
     }
 
     private void SetHelp(bool open, bool expanded = false)
@@ -1227,26 +1229,16 @@ internal sealed partial class GalleryViewer : UserControl
         _context.Children.Clear();
         if (_entry == null) return;
         GalleryEntry entry = _entry;
-        Button ContextCommand(string name, string label, Action action) => Command(_context, name, label, () =>
+        Button ContextCommand(Panel panel, string name, string label, Action action) => Command(panel, name, label, () =>
         {
             if (generation == _contextGeneration && _contextOpen) action();
         });
-        // The panel closes with × at its top right (and Esc); its name says where it returns to (the picture).
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        TextBlock title = new() { Text = Texts.T("gallery.context"), Classes = { "section-title" }, VerticalAlignment = VerticalAlignment.Center };
-        header.Children.Add(title);
-        Button returnImage = CloseLayerButton("GalleryReturnImage", () => { if (generation == _contextGeneration && _contextOpen) SetContextOpen(false); });
-        RefreshCloseLayerButton(returnImage, Texts.T("gallery.viewer7"));
-        header.Children.Add(returnImage); Grid.SetColumn(returnImage, 1);
-        _context.Children.Add(header);
+        // V2: the post as a card. The host's header (segment and ×) is GallerySidePanel; the card starts with where the post is.
         try
         {
-            AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread);
-            AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName);
-            AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length));
-            string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
-            if (provenance.Length > 0) AddContext(provenance);
-            if (entry.Historical) AddContext(Texts.T("gallery.viewer8"));
+            var post = entry.Post;
+            AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
+                + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere");
             IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
             if (associations.Count > 1)
             {
@@ -1261,23 +1253,39 @@ internal sealed partial class GalleryViewer : UserControl
                 };
                 _context.Children.Add(selector);
             }
-            if (entry.Post is not { } post)
+            if (post == null)
             {
                 IReadOnlyList<string>? provider = ProviderContext?.Invoke(entry);
                 if (provider == null) AddContext(Texts.T("gallery.noPost"));
                 else foreach (string line in provider) AddContext(line);
+                AddFileFacts(entry);
                 return;
             }
-            AddContext("#" + post.PostId + " · " + ArchivePresentation.PlainText(post.Author) + " · " + post.PostedAt?.ToString("g", Texts.Culture));
-            AddContext(ArchivePresentation.PlainText(post.Subject));
-            AddContext(ArchivePresentation.PlainText(post.Html));
+            string byline = string.Join(" · ", new[] { ArchivePresentation.PlainText(post.Author), post.PostedAt?.ToString("g", Texts.Culture) }
+                .Where(part => !string.IsNullOrWhiteSpace(part)));
+            if (byline.Length > 0) AddContext(byline, "workspace-meta", "GalleryPostByline");
+            string subject = ArchivePresentation.PlainText(post.Subject);
+            if (!string.IsNullOrWhiteSpace(subject)) AddContext(subject, null, "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
+            string text = ArchivePresentation.PlainText(post.Html);
+            if (!string.IsNullOrWhiteSpace(text)) AddContext(text, null, "GalleryPostText");
+            // Quotes as a row of offered chips; a click opens the quoted post as before.
             if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
+            {
+                WrapPanel quotes = new() { Name = "GalleryPostQuotes", ItemSpacing = 8, LineSpacing = 8 };
                 foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
                 {
                     if (quote.Target == null || quote.IsExternal) continue;
-                    ContextCommand("GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); }).Tag = quote.Target;
+                    Button chip = ContextCommand(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
+                    WorkspaceChips.MarkOffered(chip);
+                    chip.Tag = quote.Target;
                 }
-            ContextCommand("GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+                if (quotes.Children.Count > 0) _context.Children.Add(quotes);
+            }
+            AddFileFacts(entry);
+            // The action at the bottom left: the post in its thread (T).
+            StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
+            ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+            _context.Children.Add(actions);
         }
         finally
         {
@@ -1289,9 +1297,19 @@ internal sealed partial class GalleryViewer : UserControl
                 Control? replacement = _context.GetVisualDescendants().OfType<Control>().Where(value =>
                     value.GetType() == focused.GetType() && value.Name == focused.Name && Equals(value.Tag, focused.Tag))
                     .Skip(Math.Max(0, focusPosition)).FirstOrDefault();
-                (replacement ?? _context.Children.OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
+                (replacement ?? _context.GetVisualDescendants().OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
             }
         }
+    }
+
+    // The file of the card: its name, the saved size (KiB/MiB with the exact byte count), its provenance and the historical note.
+    private void AddFileFacts(GalleryEntry entry)
+    {
+        AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, "workspace-meta", "GalleryPostFile");
+        AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length), "workspace-meta", "GalleryPostFileSize");
+        string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
+        if (provenance.Length > 0) AddContext(provenance);
+        if (entry.Historical) AddContext(Texts.T("gallery.viewer8"), "workspace-help");
     }
     /// <summary>A "×" that closes the layer it sits in (help, post panel): 32×32, top right, tooltip "{what it does} · Esc".</summary>
     private static Button CloseLayerButton(string name, Action close)
@@ -1315,7 +1333,15 @@ internal sealed partial class GalleryViewer : UserControl
         ToolTip.SetTip(button, tip);
     }
 
-    private void AddContext(string text) => _context.Children.Add(new SelectableTextBlock { Text = text, TextWrapping = TextWrapping.Wrap, [!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") });
+    private SelectableTextBlock AddContext(string text, string? style = null, string? name = null)
+    {
+        SelectableTextBlock line = new() { Text = text, Name = name, TextWrapping = TextWrapping.Wrap };
+        // The meta and help classes bring their own muted foreground; the post's own text stays the full text colour.
+        if (style == null) line[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
+        else line.Classes.Add(style);
+        _context.Children.Add(line);
+        return line;
+    }
     private void LayoutContext()
     {
         if (_terminalRetirement) return;
@@ -1342,6 +1368,7 @@ internal sealed partial class GalleryViewer : UserControl
         // The Menu key and Shift+F10 open the same media menu as a right-click, for the medium shown now.
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
+        if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
         if (_tagPanelOpen && RouteTagPanelKey(e)) return;
         // This is part of the existing gallery handler, not a second router. Only
         // actual owned transport sliders may opt into these four effective commands.

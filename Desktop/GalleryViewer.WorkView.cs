@@ -94,6 +94,8 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_readPosts, "gallery.toolbar.read-posts"); Mark(_readPosts);
         WorkViewElement.SetId(_contextToggle, "gallery.toolbar.post-panel"); Mark(_contextToggle);
         WorkViewElement.SetId(_contextPanel, "gallery.post-panel"); Mark(_contextPanel);
+        WorkViewElement.SetId(_sidePanel.PostButton, "gallery.panel.post"); Mark(_sidePanel.PostButton);
+        WorkViewElement.SetId(_sidePanel.TagsButton, "gallery.panel.tags"); Mark(_sidePanel.TagsButton);
         WorkViewElement.SetId(_fit, "gallery.toolbar.fit"); Mark(_fit);
         WorkViewElement.SetId(_actual, "gallery.toolbar.actual"); Mark(_actual);
         WorkViewElement.SetId(_ratingButton, "gallery.toolbar.rating"); Mark(_ratingButton);

@@ -73,5 +73,6 @@ internal sealed partial class GalleryViewer
         AutomationProperties.SetName(_tagsButton, label);
         AutomationProperties.SetHelpText(_tagsButton, tip);
         _tagsButton.IsEnabled = _entry != null && _tagNames != null;
+        SyncSidePanel(); // the Tags segment of the side panel follows the same availability
     }
 }
