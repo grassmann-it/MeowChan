@@ -1,7 +1,6 @@
 using System;
 using System.Globalization;
 using System.IO;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
@@ -90,18 +89,9 @@ public partial class SettingsEditor
 /// <summary>Testable save-dialog boundary. No path conversion, persistence, or mutation of the editor draft.</summary>
 internal static class SettingsExportUi
 {
-    internal static Config CaptureSavedSnapshot(Config saved)
-    {
-        ArgumentNullException.ThrowIfNull(saved);
-        // Clone's compatibility getters may materialize absent layout profiles. Restore the source's exact dictionary.
-        var originalProfiles = saved.LayoutProfiles.ToArray();
-        try { return saved.Clone(); }
-        finally
-        {
-            saved.LayoutProfiles.Clear();
-            foreach (var pair in originalProfiles) saved.LayoutProfiles.Add(pair.Key, pair.Value);
-        }
-    }
+    // Config.Clone is an editor-baseline operation, not a read-only snapshot: its compatibility
+    // getters materialize source profiles and it normalizes/couples otherwise portable values.
+    internal static Config CaptureSavedSnapshot(Config saved) => SettingsTransfer.CreatePortableSnapshot(saved);
 
     internal static FilePickerSaveOptions SaveOptions(DateTime date) => new()
     {

@@ -365,8 +365,10 @@ public sealed class SettingsTransferTests
         Assert.False(enumerator.MoveNext());
     }
 
-    [Fact]
-    public void ExportCopiesEveryPortableSerializedValueIncludingAllNumericAndBooleanSettings()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExportCopiesEveryPortableSerializedValueIncludingAllNumericAndBooleanSettings(bool throughUiSnapshot)
     {
         Config source = CreateSourceWithLayouts(3);
         // Use the existing public serialization metadata in this test only. Non-default values detect
@@ -408,7 +410,8 @@ public sealed class SettingsTransferTests
         foreach (string key in ExcludedKeys) expected.Remove(key);
         expected["ExportedBy"] = "MeowChan 1.1.0";
 
-        JsonObject export = SettingsTransfer.Export(source, "1.1.0+build42");
+        Config input = throughUiSnapshot ? SettingsExportUi.CaptureSavedSnapshot(source) : source;
+        JsonObject export = SettingsTransfer.Export(input, "1.1.0+build42");
 
         Assert.Equal(expected.Select(pair => pair.Key).Order(), export.Select(pair => pair.Key).Order());
         foreach ((string key, JsonNode? value) in expected)

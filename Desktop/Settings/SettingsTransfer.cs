@@ -65,8 +65,11 @@ public static class SettingsTransfer
         return node?.AsObject() ?? throw new InvalidOperationException("Config serialization returned no object.");
     }
 
-    private static Config CreatePortableSnapshot(Config source)
+    // Capture on the owning thread before awaiting a picker. The caller owns this detached value copy;
+    // serialization (including compatibility getters) and background I/O must only see the copy.
+    internal static Config CreatePortableSnapshot(Config source)
     {
+        ArgumentNullException.ThrowIfNull(source);
         // Do not use Config.Clone(): it reads ActiveProfile and GetLayoutProfile for editor baselines,
         // materializing missing entries on source. An explicit portable value copy also keeps consent,
         // runtime state, geometry and last-used directories out of the serialization input altogether.
