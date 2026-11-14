@@ -3590,6 +3590,7 @@
     "rules.overview.deleteDraftBody": "L’ambito torna poi a ereditare i suoi valori e la sua bozza non salvata viene scartata. I file salvati non vengono modificati.",
     "rules.overview.deleted": "Regola eliminata. {0} torna a ereditare i suoi valori.",
     "rules.overview.enabledStatus": "Regola per {0} attivata. Vale per le nuove decisioni.",
+    "rules.overview.saved": "Regola per {0} salvata. Vale per le nuove decisioni.",
     "rules.overview.disabledStatus": "Regola per {0} disattivata. L’ambito usa i valori ereditati.",
     "rules.overview.discarded": "Bozza per {0} scartata.",
     "rules.wizard.new": "Nuova regola",

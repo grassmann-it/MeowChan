@@ -3590,6 +3590,7 @@
     "rules.overview.deleteDraftBody": "Depois disso, o escopo volta a herdar seus valores e seu rascunho não salvo é descartado. Os arquivos salvos não são alterados.",
     "rules.overview.deleted": "Regra excluída. {0} volta a herdar seus valores.",
     "rules.overview.enabledStatus": "Regra de {0} ativada. Vale para novas decisões.",
+    "rules.overview.saved": "Regra de {0} salva. Vale para novas decisões.",
     "rules.overview.disabledStatus": "Regra de {0} desativada. O escopo usa valores herdados.",
     "rules.overview.discarded": "Rascunho de {0} descartado.",
     "rules.wizard.new": "Nova regra",

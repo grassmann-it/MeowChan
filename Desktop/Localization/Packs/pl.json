@@ -3627,6 +3627,7 @@
     "rules.overview.deleteDraftBody": "Zakres ponownie dziedziczy wtedy swoje wartości, a jego niezapisana wersja robocza zostaje odrzucona. Zapisane pliki nie są zmieniane.",
     "rules.overview.deleted": "Reguła usunięta. {0} ponownie dziedziczy swoje wartości.",
     "rules.overview.enabledStatus": "Reguła dla {0} włączona. Dotyczy nowych decyzji.",
+    "rules.overview.saved": "Reguła dla {0} zapisana. Dotyczy nowych decyzji.",
     "rules.overview.disabledStatus": "Reguła dla {0} wyłączona. Zakres używa odziedziczonych wartości.",
     "rules.overview.discarded": "Wersja robocza dla {0} odrzucona.",
     "rules.wizard.new": "Nowa reguła",

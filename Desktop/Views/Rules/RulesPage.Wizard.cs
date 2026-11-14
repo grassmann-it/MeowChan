@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -84,6 +85,22 @@ public partial class RulesPage
         _statusKey = null;
         RaiseAll();
         FocusOverviewRow(target);
+    }
+
+    /// <summary>
+    /// Save from the wizard. A successful save closes the wizard onto the overview, which confirms it ("Rule for … saved", a polite
+    /// live status like Enable/Disable) and focuses the saved rule's row (a new rule: its new row). A refused or failed save (validation,
+    /// revision conflict, store error) stays in the wizard exactly as before, with its field focus and error.
+    /// </summary>
+    internal async Task<bool> SaveAndReturnToOverviewAsync()
+    {
+        MediaRuleScope scope = _draft.Scope;
+        bool saved = await SaveCurrentAsync();
+        if (!saved || _ended || !_wizard.IsOpen || _draft.Scope != scope) return saved;
+        _overviewStatus = ("rules.overview.saved", FormatScope(scope));
+        _wizardReturnScope = scope; // focus goes to the saved rule, not to the row the wizard was opened from
+        CloseWizard();
+        return true;
     }
 
     private void FocusFirstWizardField()

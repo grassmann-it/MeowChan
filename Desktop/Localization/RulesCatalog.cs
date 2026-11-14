@@ -128,6 +128,7 @@ internal static class RulesCatalog
         ("rules.overview.deleted", "Rule deleted. {0} inherits its values again.", "Regel gelöscht. {0} erbt wieder seine Werte."),
         ("rules.overview.enabledStatus", "Rule for {0} enabled. Applies to new decisions.", "Regel für {0} aktiviert. Gilt für neue Entscheidungen."),
         ("rules.overview.disabledStatus", "Rule for {0} disabled. The scope uses inherited values.", "Regel für {0} deaktiviert. Der Bereich verwendet geerbte Werte."),
+        ("rules.overview.saved", "Rule for {0} saved. Applies to new decisions.", "Regel für {0} gespeichert. Gilt für neue Entscheidungen."),
         ("rules.overview.discarded", "Draft for {0} discarded.", "Entwurf für {0} verworfen."),
         ("rules.wizard.new", "New rule", "Neue Regel"),
         ("rules.wizard.newScope", "New rule: {0}", "Neue Regel: {0}"),

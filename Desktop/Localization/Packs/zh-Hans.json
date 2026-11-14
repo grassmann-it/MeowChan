@@ -3548,6 +3548,7 @@
     "rules.overview.deleteDraftBody": "之后该范围将重新继承其值，其未保存的草稿将被丢弃。已保存的文件不会更改。",
     "rules.overview.deleted": "规则已删除。{0} 重新继承其值。",
     "rules.overview.enabledStatus": "{0} 的规则已启用。适用于新的决定。",
+    "rules.overview.saved": "{0} 的规则已保存。适用于新的决定。",
     "rules.overview.disabledStatus": "{0} 的规则已停用。该范围使用继承的值。",
     "rules.overview.discarded": "{0} 的草稿已丢弃。",
     "rules.wizard.new": "新规则",

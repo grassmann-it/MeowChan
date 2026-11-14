@@ -478,10 +478,17 @@ internal static partial class RulesPageChecks
         await FlushAsync();
         Require(page.CanSave, "A valid changed rule did not enable Save.");
         string revision = window.SessionHost.MediaRules.Revision;
+        MediaRuleScope scope = page.ActiveScope;
         Click(page.FindControl<Button>("SaveRuleButton")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && (page.HasError || window.SessionHost.MediaRules.Revision != revision));
         Require(!page.HasError && window.SessionHost.MediaRules.Revision != revision,
             "A Rules save did not commit: " + page.ErrorMessage);
+        // A successful save leaves the wizard for the overview, confirmed and with focus on the saved rule's row.
+        await CheckSaveReturnedToOverviewAsync(window, page, scope);
+        // The rest of this smoke keeps editing the same scope: open it again (its draft is the saved, clean one).
+        page.EditScope(scope);
+        await FlushAsync();
+        Require(page.IsWizardOpen && page.ActiveScope == scope, "Re-opening the saved scope after the overview confirmation did not open the wizard.");
     }
 
     private static async Task OpenRulesAsync(MainWindow window)

@@ -46,7 +46,7 @@ public sealed class RulesPageValidationContractTests
         Assert.Contains("RuleMegabytesInput.Classes.Set(\"workspace-invalid\", HasMegabytesError);", code);
         Assert.Contains("ursa|TagInput.workspace-invalid /template/ Border", ReadSource("Desktop/WorkspaceStyles.axaml"));
         // A refused save moves focus to the first invalid field before it returns, and writes nothing.
-        string save = Between(code, "internal async Task SaveCurrentAsync()", "internal void DiscardCurrentDraft()");
+        string save = Between(code, "internal async Task<bool> SaveCurrentAsync()", "internal void DiscardCurrentDraft()");
         Assert.True(save.IndexOf("FocusInvalidField();", StringComparison.Ordinal) is > 0 and var focus
             && focus < save.IndexOf("_saveRules(", StringComparison.Ordinal));
     }

@@ -3548,6 +3548,7 @@
     "rules.overview.deleteDraftBody": "이후 이 범위는 다시 값을 상속하며 저장되지 않은 초안은 삭제됩니다. 저장된 파일은 변경되지 않습니다.",
     "rules.overview.deleted": "규칙을 삭제했습니다. {0}은(는) 다시 값을 상속합니다.",
     "rules.overview.enabledStatus": "{0}의 규칙을 활성화했습니다. 새 결정에 적용됩니다.",
+    "rules.overview.saved": "{0}의 규칙을 저장했습니다. 새 결정에 적용됩니다.",
     "rules.overview.disabledStatus": "{0}의 규칙을 비활성화했습니다. 이 범위는 상속된 값을 사용합니다.",
     "rules.overview.discarded": "{0}의 초안을 버렸습니다.",
     "rules.wizard.new": "새 규칙",

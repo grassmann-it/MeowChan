@@ -415,40 +415,43 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         catch (OverflowException) { return false; }
     }
 
-    internal async Task SaveCurrentAsync()
+    /// <summary>Saves the current draft. True only when the catalog took it; a refusal or failure stays in the editor.</summary>
+    internal async Task<bool> SaveCurrentAsync()
     {
-        if (!IsEditable) return;
+        if (!IsEditable) return false;
         RuleExtensionsInput.FlushPendingText();
         RefreshConfirmedRules();
-        if (!IsEditable || _draft.Stale) return;
+        if (!IsEditable || _draft.Stale) return false;
         MediaRule rule;
         try { rule = BuildDraft(); }
         catch (RuleInputException exception)
         {
             _validationKey = exception.Key; _saveRejectedKey = exception.Key; RaiseAll();
             if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else FocusInvalidField();
-            return;
+            return false;
         }
-        if (!_draft.Dirty) return;
+        if (!_draft.Dirty) return false;
         MediaRule[] proposed = _draft.Baseline.Rules.Where(item => item.Scope != _draft.Scope).Append(rule).ToArray();
         string revision = _draft.Baseline.Revision;
         MediaRuleScope scope = _draft.Scope;
         ClearOperationError();
         _statusKey = null;
+        bool saveSucceeded = false;
         SetBusy(true);
         try
         {
-            if (!await ValidateRuleFilterAsync(rule)) return;
+            if (!await ValidateRuleFilterAsync(rule)) return false;
             MediaRuleSet saved = await _saveRules(proposed, revision);
-            if (_ended) return;
+            if (_ended) return false;
             _drafts[scope] = new RuleDraft(scope, saved);
             _draft = _drafts[scope];
             AcceptConfirmed(saved);
             _statusKey = "rules.saved"; _saveRejectedKey = null;
+            saveSucceeded = true;
         }
         catch (Exception exception)
         {
-            if (_ended) return;
+            if (_ended) return false;
             _operationErrorKey = "rules.saveFailed";
             _operationErrorDetail = exception.Message;
             try { AcceptConfirmed(_getRules()); } catch (Exception) { }
@@ -458,6 +461,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             SetBusy(false);
             if (!_ended) { UpdatePreview(); RefreshScopeChoices(); RaiseAll(); }
         }
+        return saveSucceeded;
     }
 
     internal void DiscardCurrentDraft()
@@ -478,7 +482,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RaiseAll();
     }
 
-    private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveCurrentAsync();
+    private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveAndReturnToOverviewAsync();
     private void OnGoToInvalidField(object? sender, RoutedEventArgs e) => FocusInvalidField();
 
     /// <summary>Moves focus to the field the current error belongs to. A disabled rule cannot take focus in its fields, so the
