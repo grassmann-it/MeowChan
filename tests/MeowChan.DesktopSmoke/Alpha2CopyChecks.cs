@@ -315,8 +315,13 @@ internal static class Alpha2CopyChecks
         AssertTextFits(error);
     }
 
-    private static void Navigate(MainWindow window, string key) => window.GetLogicalDescendants().OfType<MenuItem>()
-        .First(item => Equals(item.Tag, key)).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    // F1: the pages are footer buttons or entries of the footer's More menu, no longer entries of the ⋯ menu.
+    private static void Navigate(MainWindow window, string key) => SmokeNavigation.GoTo(window, key switch
+    {
+        "nav.sources" => MainWindow.WorkspacePage.Sources,
+        "nav.rules" => MainWindow.WorkspacePage.Rules,
+        _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Not a page this fixture opens.")
+    });
     private static async Task RevealAsync(MainWindow window, Control target)
     {
         await Program.WaitUntilAsync(() => { window.UpdateLayout(); target.BringIntoView(); window.UpdateLayout(); return InViewport(window, target); });

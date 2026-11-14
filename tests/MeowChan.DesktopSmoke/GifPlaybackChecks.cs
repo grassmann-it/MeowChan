@@ -475,7 +475,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         {
             await host.StartAsync().WaitAsync(Deadline);
             await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled, "Private GIF Reader session did not become ready.");
-            SmokeActionClick.Execute(shell.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage; await UntilAsync(() => !page.IsBusy, "Private archive did not load.");
             await page.LoadThreadAsync(id);
             SmokeActionClick.Execute(page.FindControl<Button>("ArchiveReadPosts")!);

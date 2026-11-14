@@ -70,7 +70,7 @@ internal static class LocalMediaTagChecks
         MainWindow shell = new(host) { Width = 1300, Height = 900 };
         shell.Show(owner);
         await UntilAsync(() => host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
-        shell.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
         ArchivePage page = shell.ArchivePage;
         await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Archive && !page.IsBusy);
         await page.LoadThreadAsync(Loose).WaitAsync(Deadline);

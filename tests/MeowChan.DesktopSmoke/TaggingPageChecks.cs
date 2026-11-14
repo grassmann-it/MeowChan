@@ -11,7 +11,7 @@ using MeowChan.Tags;
 namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_TAGGING_PAGE_ONLY. PT2: the tagging page in the real main window over the real host and tag-queue.json
-// (three synthetic queue entries, no media files): the app-menu entry opens it, progress and start label, Delete and Alt+Down from
+// (three synthetic queue entries, no media files): the footer button opens it, progress and start label, Delete and Alt+Down from
 // the list, the context menu, the stamp editor, the state filter, the clear question, the three work views and Light/Dark/English/
 // German captures. "Start tagging" uses PT1's walk; with no saved files it only says that nothing is available. Managed input only.
 internal static class TaggingPageChecks
@@ -31,14 +31,21 @@ internal static class TaggingPageChecks
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
             await window.SessionHost.EnqueueTagQueueAsync(new[] { Item(1), Item(2), Item(3) });
 
-            // The page has a footer button behind Media (Ctrl+1…7 stay as shipped, so it owns no digit) and keeps its ⋯ entry.
-            MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-            MenuItem entry = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, "Tagging"));
+            // The page has a footer button behind Media (its digit follows the visible footer buttons: Ctrl+4 in the default footer) and an entry
+            // in the footer's More menu. Since F1 the ⋯ menu lists no pages.
             Button footerButton = window.FindControl<Button>("TaggingNavigationButton") ?? throw new InvalidOperationException("The tagging page has no footer button.");
             Require(Avalonia.Automation.AutomationProperties.GetName(footerButton) == "Tagging" && ToolTip.GetTip(footerButton) is string footerTip
                 && footerTip.StartsWith("Tagging", StringComparison.Ordinal), "The tagging footer button lost its accessible name or tooltip.");
-            Require(entry.Name == "TaggingMenuItem" && entry.IsEnabled, "The ⋯ entry of the tagging page is missing or disabled.");
-            entry.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            MenuItem? moreEntry = SmokeNavigation.MoreEntry(window, MainWindow.WorkspacePage.Tagging);
+            Require(moreEntry != null && moreEntry.Tag as string == "nav.tagging" && Equals(moreEntry.Header, "Tagging"),
+                "The More entry of the tagging page is missing.");
+            Require(window.FindControl<MenuItem>("TaggingMenuItem") == null
+                && window.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>().All(item => item.Tag as string != "nav.tagging"),
+                "The ⋯ menu still lists the tagging page.");
+            Require(MeowChan.Desktop.Commands.MainPageOrder.Digit("navigation.tagging") == 4,
+                "The tagging page is not the fourth footer button of the default footer.");
+            Require(footerButton.IsEnabled, "The footer button of the tagging page is disabled.");
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Tagging);
             await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Tagging && window.TaggingPage is { IsBusy: false } page
                 && page.Rows.Count == 3, () => "page " + window.SelectedPage + ", rows " + window.TaggingPage?.Rows.Count);
             TaggingPage tagging = window.TaggingPage!;
@@ -99,12 +106,12 @@ internal static class TaggingPageChecks
             }
             await SetThemeAsync(window, "Dark");
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
-            await ReopenAsync(window, entry, tagging);
+            await ReopenAsync(window, tagging);
             Require(tagging.ProgressText.Text == "Offen: 1 · Erledigt: 1 · Übersprungen: 0", "German progress: " + tagging.ProgressText.Text);
             Program.CaptureWindow(window, "smoke-tagging-page-dark-de.png");
             await SetThemeAsync(window, "Light");
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
-            await ReopenAsync(window, entry, tagging);
+            await ReopenAsync(window, tagging);
 
             // Start: PT1's walk; the synthetic entries have no saved files, so the gallery does not open.
             await tagging.StartAsync(null);
@@ -119,7 +126,7 @@ internal static class TaggingPageChecks
             await Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 0 && tagging.Rows.Count == 0);
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
-            Console.WriteLine("SMOKE tagging-page: app-menu entry, progress, Delete/Alt+Down, context menu, stamp, filter, work views, clear; Light/Dark EN/DE captures.");
+            Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, stamp, filter, work views, clear; Light/Dark EN/DE captures.");
         }
         finally
         {
@@ -129,10 +136,10 @@ internal static class TaggingPageChecks
     }
 
     // Saving the language goes through Settings and returns to Downloads (FooterNavigationChecks.PersistLanguageAsync); the page is
-    // an app-menu destination, so the smoke opens it again the way the user does and expects the same page object with its queue.
-    private static async Task ReopenAsync(MainWindow window, MenuItem entry, TaggingPage tagging)
+    // a footer destination, so the smoke opens it again the way the user does and expects the same page object with its queue.
+    private static async Task ReopenAsync(MainWindow window, TaggingPage tagging)
     {
-        entry.Command!.Execute(null);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Tagging);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Tagging && ReferenceEquals(window.TaggingPage, tagging) && !tagging.IsBusy,
             () => "page " + window.SelectedPage);
         await SettleAsync(window);

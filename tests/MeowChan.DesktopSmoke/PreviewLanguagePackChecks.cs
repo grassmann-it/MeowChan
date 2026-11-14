@@ -153,7 +153,7 @@ internal static class PreviewLanguagePackChecks
             window.UpdateLayout();
             Program.CaptureWindow(window, $"smoke-language-{suffix}-settings-storage.png");
 
-            window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             ArchivePage page = window.ArchivePage;
             ListBox threads = page.FindControl<ListBox>("ArchiveThreads")!;
             await Program.WaitUntilAsync(() => page.IsEffectivelyVisible && !page.IsBusy && threads.ItemCount > 0);

@@ -376,8 +376,7 @@ internal static class ArchivePageChecks
         }
     }
 
-    private static void OpenArchive(MainWindow window) => window.FindControl<MenuItem>("ArchiveMenuItem")!
-        .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static void OpenArchive(MainWindow window) => SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
     private static async Task CheckGalleryLanguageFocusAsync(MainWindow window, GalleryViewer viewer)
     {
         string originalLanguage = Texts.Language;

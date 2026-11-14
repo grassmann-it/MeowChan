@@ -16,7 +16,7 @@ internal static class ReaderMediaSidebarChecks
     internal static async Task RunAsync(MainWindow window)
     {
         window.Width = 1600; window.Height = 960;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";

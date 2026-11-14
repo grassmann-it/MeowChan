@@ -58,7 +58,7 @@ internal static partial class TemplateComparisonChecks
         string originalLanguage = Texts.Language, originalMode = window.SessionHost.Config.WorkspaceMode;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         double originalWidth = window.Width, originalHeight = window.Height;
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => rules.Current, (values, revision) => rules.SaveAsync(values, revision));
         page.AttachTemplateServices(() => templates.LoadAsync(), (values, revision) => templates.SaveAsync(values, revision));

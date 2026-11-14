@@ -66,17 +66,13 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
 
     internal static async Task EnterAsync(MainWindow window)
     {
-        MenuItem workspace = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-        MenuItem route = window.FindControl<MenuItem>("BooruMenuItem")!;
-        workspace.IsSubMenuOpen = true;
-        try
-        {
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-            Require(route.IsVisible && route.IsEffectivelyEnabled && route.Command?.CanExecute(null) == true,
-                "The real shell Booru menu route is unavailable.");
-        }
-        finally { workspace.IsSubMenuOpen = false; }
-        route.Command!.Execute(null);
+        // F1: the pages are not in the ⋯ menu; Booru is hidden in the footer by default, so the route is the More menu (or the footer
+        // button once the person shows it). GoToAsync refreshes the footer first: the fixture composed the services without a resize.
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        SmokeNavigation.RefreshNavigation(window);
+        Require(SmokeNavigation.Route(window, MainWindow.WorkspacePage.Booru) is "footer" or "more"
+            && SmokeNavigation.IsEnabled(window, MainWindow.WorkspacePage.Booru), "The real shell Booru footer/More route is unavailable.");
+        await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Booru);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Booru
             && window.BooruPageForTests is { IsEffectivelyVisible: true }
             && window.FindControl<ContentControl>("BooruPageHost")!.IsVisible,

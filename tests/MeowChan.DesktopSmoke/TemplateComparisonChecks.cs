@@ -128,7 +128,7 @@ internal static partial class TemplateComparisonChecks
         Evidence evidence = new(output, window, source, fixtureHash); Exception? failure = null;
         string language = Texts.Language; ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         string mode = window.SessionHost.Config.WorkspaceMode; double width = window.Width, height = window.Height;
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => rules.Current, (values, revision) => rules.SaveAsync(values, revision));
         page.AttachTemplateServices(() => templates.LoadAsync(), (values, revision) => templates.SaveAsync(values, revision)); host.Content = page;

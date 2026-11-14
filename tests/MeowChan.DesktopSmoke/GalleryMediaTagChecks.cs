@@ -244,8 +244,7 @@ internal static class GalleryMediaTagChecks
             shell.Show(owner);
             await UntilAsync(() => session.State == DesktopSessionState.Ready
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
-            MenuItem archive = shell.FindControl<MenuItem>("ArchiveMenuItem")!;
-            archive.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage;
             await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Archive && !page.IsBusy);
             await page.LoadThreadAsync(Resource).WaitAsync(Deadline);

@@ -103,19 +103,26 @@ internal static class BooruCompositionChecks
                 "Ordinary navigation replaced the page or discarded its draft.");
             page = await OpenAsync(shell, menu);
             Require(ReferenceEquals(page, retainedPage), "Returning to Booru replaced the same-service page.");
-            CheckBox booruVisibility = shell.FindControl<CheckBox>("ShowBooruToolsToggle")!;
-            Require(booruVisibility.IsVisible && booruVisibility.IsChecked == true,
-                "The Booru presentation switch is not visible and checked while the page is open.");
-            booruVisibility.IsChecked = false;
+            // F1: the footer check box is gone; the switch is "Show Booru actions" in Settings (Config.ShowBooruTools), and the page's entry
+            // of the footer is the More menu (Booru is hidden from the footer buttons by default).
+            SmokeNavigation.RefreshNavigation(shell);
+            Require(shell.SessionHost.Config.ShowBooruTools && SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true },
+                "Booru actions are not on, or the More menu offers no Booru entry, while the page is open.");
+            Require(shell.FindControl<CheckBox>("ShowBooruToolsToggle") == null, "The footer still has the Show Booru check box.");
+            await SetBooruActionsAsync(shell, false);
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Downloads);
             await Program.WaitUntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Downloads
                 && !shell.FindControl<ContentControl>("BooruPageHost")!.IsVisible
                 && ReferenceEquals(shell.BooruPageForTests, page)
-                && booruVisibility.IsChecked == false, () => "hiding Booru did not retain the hosted page");
+                && !shell.SessionHost.Config.ShowBooruTools
+                && SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: false }, () => "hiding Booru did not retain the hosted page");
             Require(page.Model.Search.View.Input == "draft_kept_across_hide",
                 "Hiding Booru discarded the draft from the same page composition.");
-            booruVisibility.IsChecked = true;
-            await Program.WaitUntilAsync(() => booruVisibility.IsChecked == true
-                && shell.FindControl<MenuItem>("BooruMenuItem")!.IsVisible, () => "showing Booru did not restore its presentation entry");
+            await SetBooruActionsAsync(shell, true);
+            await Program.WaitUntilAsync(() => shell.SessionHost.Config.ShowBooruTools, () => "showing Booru did not restore the setting");
+            SmokeNavigation.RefreshNavigation(shell);
+            Require(SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true }, "showing Booru did not restore its More entry");
+            await RequireEntryVisibleAsync(menu, visible: true);
             page = await OpenAsync(shell, menu);
             Require(ReferenceEquals(page, retainedPage), "Showing Booru replaced the same-service page.");
             Require(page.Model.Search.View.Input == "draft_kept_across_hide",
@@ -333,6 +340,19 @@ internal static class BooruCompositionChecks
         Require(entry.IsVisible == visible, "The Danbooru entry visibility is " + entry.IsVisible + ", expected " + visible + ".");
         menu.IsSubMenuOpen = false;
         await SettleAsync();
+    }
+
+    // "Show Booru actions" in Settings > Appearance > Footer (F1), saved like any setting; returns once the shell applied it.
+    private static async Task SetBooruActionsAsync(MainWindow shell, bool on)
+    {
+        SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Settings);
+        await Program.WaitUntilAsync(() => shell.SettingsPageVisible);
+        SettingsEditor settings = shell.SettingsEditor;
+        settings.ShowBooruActions = on;
+        settings.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => !settings.IsBusy && shell.SessionHost.Config.ShowBooruTools == on,
+            () => "Show Booru actions was not applied: " + shell.SessionHost.Config.ShowBooruTools);
+        await SettleAsync(shell);
     }
 
     private static async Task<BooruPage> OpenAsync(MainWindow shell, MenuItem menu)

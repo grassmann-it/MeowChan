@@ -153,7 +153,7 @@ internal static class MediaMenuSurfacesChecks
 
     private static async Task<(string[] Table, string[] Tiles, string[] Inline, string[] Loose)> ArchiveJourneyAsync(MainWindow shell)
     {
-        shell.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
         ArchivePage page = shell.ArchivePage;
         await UntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Archive && !page.IsBusy);
         await page.LoadThreadAsync(ThreadA).WaitAsync(Deadline);

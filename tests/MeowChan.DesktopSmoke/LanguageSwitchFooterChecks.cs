@@ -15,9 +15,9 @@ internal static class LanguageSwitchFooterChecks
 {
     private sealed record NavigationTarget(string Button, string? MenuItem, string CommandId, string LabelKey);
 
+    // F1: the pages are footer buttons and entries of the footer's More menu (checked in CheckToolsFlyoutAsync); the ⋯ menu has no page entries.
     private static readonly NavigationTarget[] NavigationTargets = MainPageOrder.CommandIds.Select(id =>
-        new NavigationTarget(MainPageOrder.ControlStem(id) + "NavigationButton",
-            id == "navigation.downloads" ? null : MainPageOrder.ControlStem(id) + "MenuItem", id, "command." + id))
+        new NavigationTarget(MainPageOrder.ControlStem(id) + "NavigationButton", null, id, "command." + id))
         .Concat(new[] {
             new NavigationTarget("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
             new NavigationTarget("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
@@ -125,6 +125,9 @@ internal static class LanguageSwitchFooterChecks
                 Require(visibleLabels.Any(text => text.Text == expected),
                     $"{buttonName} kept a stale visible command label for {Texts.Language}.");
 
+            if (commandId != "navigation.settings" && commandId != "navigation.tools-menu")
+                Require(window.FindControl<MenuItem>(MainPageOrder.ControlStem(commandId) + "MenuItem") == null,
+                    $"The ⋯ menu lists the page {commandId} again; pages belong to the footer and its More menu.");
             if (menuName != null)
             {
                 MenuItem menu = window.FindControl<MenuItem>(menuName)!;

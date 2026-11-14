@@ -44,7 +44,7 @@ internal static class CommandButtonContrastChecks
                 await Program.WaitUntilAsync(() => window.SettingsEditor.IsEffectivelyVisible);
                 await InspectStatesAsync(window, window.SettingsEditor.FindControl<Button>("SaveSettingsButton")!, theme, mouse, failures);
                 await InspectStatesAsync(window, window.SettingsEditor.FindControl<Button>("CancelSettingsButton")!, theme, mouse, failures);
-                window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
                 await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && window.RulesPage.IsEditable);
                 window.RulesPage.EditScope(MediaRuleScope.Global);
                 CheckBox enabled = window.RulesPage.FindControl<CheckBox>("RuleEnabledInput")!;

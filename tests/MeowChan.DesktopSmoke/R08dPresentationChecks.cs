@@ -96,7 +96,7 @@ internal static class R08dPresentationChecks
                     ThreadSourceState.Archived, DateTimeOffset.UtcNow, profile,
                     new[] { new CapturedPost("808", 0, PostFieldPresence.All, Html: "<p>Offline reader fixture</p>") }));
 
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             ContentControl host = window.FindControl<ContentControl>("ArchivePageHost")!;
             await Program.WaitUntilAsync(() => host.IsEffectivelyVisible);
             object? retained = host.Content;

@@ -315,8 +315,13 @@ internal static class SourceIntegrityChecks
         control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Source = control, Key = key });
         await Settle();
     }
-    private static void Navigate(MainWindow window, string key) => window.GetLogicalDescendants().OfType<MenuItem>()
-        .First(item => Equals(item.Tag, key)).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    // F1: the pages are footer buttons or entries of the footer's More menu, no longer entries of the ⋯ menu.
+    private static void Navigate(MainWindow window, string key) => SmokeNavigation.GoTo(window, key switch
+    {
+        "nav.sources" => MainWindow.WorkspacePage.Sources,
+        "nav.rules" => MainWindow.WorkspacePage.Rules,
+        _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Not a page this fixture opens.")
+    });
     private static async Task RevealAsync(MainWindow window, Control control)
     {
         await Program.WaitUntilAsync(() => { window.UpdateLayout(); control.BringIntoView(); window.UpdateLayout(); return InViewport(window, control); });

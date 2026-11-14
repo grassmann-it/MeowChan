@@ -34,7 +34,7 @@ internal static class StatusDeepLinkChecks
     {
         window.Width = 1000;
         window.Height = 700;
-        window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Sources, () => "page " + window.SelectedPage);
         SourcesPage sources = (SourcesPage)window.FindControl<ContentControl>("SourcesPageHost")!.Content!;
         Button diagnostics = sources.FindControl<Button>("SourceDiagnosticsButton")!;

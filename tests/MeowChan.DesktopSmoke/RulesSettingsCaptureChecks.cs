@@ -41,7 +41,7 @@ internal static class RulesSettingsCaptureChecks
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
-            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
             host.Content = page;
             page.IsAvailable = true; page.EditScope(board);
             await Program.WaitUntilAsync(() => page.CanExecuteTemplateCommand("rules.template-edit") || page.CanExecuteTemplateCommand("rules.template-create"));

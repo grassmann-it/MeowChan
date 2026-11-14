@@ -40,7 +40,7 @@ internal static class ReaderShortcutContextChecks
                 return;
             }
             window.Width = 1440; window.Height = 920;
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             ArchivePage page = window.ArchivePage;
             await Program.WaitUntilAsync(() => !page.IsBusy);
             Click(page.FindControl<Button>("ArchiveLayoutTable")!);

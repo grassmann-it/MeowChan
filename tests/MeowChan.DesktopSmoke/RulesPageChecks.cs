@@ -198,9 +198,9 @@ internal static partial class RulesPageChecks
                     Require(rulesNavigation.IsVisible || (toolsNavigation.IsVisible && toolsNavigation.IsEffectivelyEnabled
                         && Fits(window, toolsNavigation) && rulesOverflow[0].IsEnabled),
                         "Hidden Rules navigation did not retain a usable Tools route.");
-                    MenuItem rulesMenu = window.FindControl<MenuItem>("RulesMenuItem")!;
-                    Require(rulesMenu.IsVisible && rulesMenu.IsEnabled,
-                        "Rules navigation did not retain its normal app-menu route.");
+                    // F1: the header menu holds no page entries any more; the footer or More is the route (checked above).
+                    Require(window.FindControl<MenuItem>("RulesMenuItem") == null,
+                        "The header menu still lists the Rules page.");
                     RequireIconLabel(page.FindControl<Button>("OpenSavedRuleButton")!, page.OpenLabel);
                     RequireTemplatedLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, Texts.T("rules.wizard.next"));
                     RequireIconLabel(page.FindControl<Button>("DiscardRuleButton")!, page.DiscardLabel);
@@ -493,7 +493,7 @@ internal static partial class RulesPageChecks
 
     private static async Task OpenRulesAsync(MainWindow window)
     {
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && window.RulesPage.IsEditable);
     }
 

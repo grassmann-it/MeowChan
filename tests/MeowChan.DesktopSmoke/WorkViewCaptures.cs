@@ -232,18 +232,19 @@ internal static class WorkViewCaptures
                 await Program.WaitUntilAsync(() => ExportDialog(archive)?.IsVisible == true && !archive.IsBusy);
                 return;
         }
-        (string item, MainWindow.WorkspacePage target) = page switch
+        // F1: the pages are not in the ⋯ menu. SmokeNavigation takes the footer button of the view, or the More entry where the view moves it.
+        MainWindow.WorkspacePage target = page switch
         {
-            "media" => ("MediaMenuItem", MainWindow.WorkspacePage.Media),
-            "rules" => ("RulesMenuItem", MainWindow.WorkspacePage.Rules),
-            "sources" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
-            "plugins" => ("SourcesMenuItem", MainWindow.WorkspacePage.Sources),
-            // Diagnostics and Statistics are segments of Status: the menu entry opens Status, the segment is chosen below.
-            "diagnostics" or "statistics" => ("StatusMenuItem", MainWindow.WorkspacePage.Status),
-            "settings" => ("SettingsMenuItem", MainWindow.WorkspacePage.Settings),
+            "media" => MainWindow.WorkspacePage.Media,
+            "rules" => MainWindow.WorkspacePage.Rules,
+            "sources" => MainWindow.WorkspacePage.Sources,
+            "plugins" => MainWindow.WorkspacePage.Sources,
+            // Diagnostics and Statistics are segments of Status: the footer entry opens Status, the segment is chosen below.
+            "diagnostics" or "statistics" => MainWindow.WorkspacePage.Status,
+            "settings" => MainWindow.WorkspacePage.Settings,
             _ => throw new ArgumentOutOfRangeException(nameof(page), page, "Not a work-view page.")
         };
-        window.FindControl<MenuItem>(item)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, target);
         await Program.WaitUntilAsync(() => window.SelectedPage == target);
         if (page == "plugins" && window.FindControl<ContentControl>("SourcesPageHost")?.Content is SourcesPage sources)
             await sources.ActivateAsync(SourcesPluginsFilter.AllPlugins);
@@ -267,7 +268,7 @@ internal static class WorkViewCaptures
     {
         ArchivePage archive = window.ArchivePage;
         if (window.SelectedPage != MainWindow.WorkspacePage.Archive)
-            window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Archive && !archive.IsBusy
             && archive.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
     }
@@ -447,11 +448,17 @@ internal static class WorkViewCaptures
             if (!window.FindControl<Control>(name)!.IsEffectivelyVisible)
                 throw new InvalidOperationException($"{scene}: the neutral header element {name} is not visible.");
         MenuItem appMenu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
-        string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem",
-            "StatusMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
+        // F1: the ⋯ menu lists the tools and the application, no pages (those are the footer buttons, the footer's More menu and the digits).
+        string[] required = ["ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
             "WorkViewMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem"];
         string[] missing = required.Where(name => !appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"{scene}: the app menu lost {string.Join(", ", missing)}.");
+        string[] pageEntries = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "TaggingMenuItem", "BooruMenuItem", "RulesMenuItem",
+            "SourcesMenuItem", "StatusMenuItem", "BooruToolsMenuItem"];
+        string[] stray = pageEntries.Where(name => appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
+        if (stray.Length > 0) throw new InvalidOperationException($"{scene}: the app menu still lists {string.Join(", ", stray)}.");
+        if (window.FindControl<CheckBox>("ShowBooruToolsToggle") != null)
+            throw new InvalidOperationException($"{scene}: the footer still has the Show Booru check box.");
         MenuItem group = window.FindControl<MenuItem>("WorkViewMenuItem")!;
         MenuItem[] radios = group.Items.OfType<MenuItem>().Where(item => item.ToggleType == MenuItemToggleType.Radio).ToArray();
         string checkedViews = string.Join(",", radios.Where(item => item.IsChecked).Select(item => item.Name));
@@ -464,7 +471,7 @@ internal static class WorkViewCaptures
         DataGridColumn missingMedia = window.FindControl<DataGrid>("ThreadsDataGrid")!.Columns.Single(column => column.SortMemberPath == "MissingMedia");
         if (offered != (workView != WorkView.Barebones) || (!offered && missingMedia.IsVisible))
             throw new InvalidOperationException($"{scene}: the technical work columns do not follow the policy.");
-        Console.WriteLine($"SMOKE work-views {scene}: app menu complete, view group checked {checkedViews}, header neutral.");
+        Console.WriteLine($"SMOKE work-views {scene}: app menu complete without page entries, view group checked {checkedViews}, header neutral.");
     }
 
     // ---- One-time notice for existing profiles (plan AP5 question 3) ----

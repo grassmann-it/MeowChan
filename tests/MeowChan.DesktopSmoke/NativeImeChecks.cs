@@ -79,7 +79,7 @@ internal static class NativeImeChecks
             await ObserveAsync("download-url-normal-enter", downloadUrl);
             if (downloadSubmits != 1) throw new InvalidOperationException("The separate non-composition Enter did not cross exactly one real submit boundary.");
 
-            Navigate("ArchiveMenuItem");
+            Navigate(MainWindow.WorkspacePage.Archive);
             await Program.WaitUntilAsync(() => !archive.IsBusy && archive.AppliedSearchSpec != null);
             TextBox query = archive.FindControl<TextBox>("ArchiveSearchText")!;
             query.Text = "";
@@ -123,7 +123,7 @@ internal static class NativeImeChecks
             pluginHost.Content = originalPlugins;
         }
 
-        void Navigate(string menu) => owner.FindControl<MenuItem>(menu)!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        void Navigate(MainWindow.WorkspacePage page) => SmokeNavigation.GoTo(owner, page);
 
         async Task ObserveAsync(string id, Control target)
         {
