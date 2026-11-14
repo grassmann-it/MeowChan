@@ -22,6 +22,16 @@ internal static class StatusDeepLinkChecks
 
     private static async Task SourcesLeadToTheFilteredDiagnosticsAsync(MainWindow window)
     {
+        // Work views (19e3c513, "Apply work views to the Rules, Sources and Plugins pages"): Barebones moves the source's
+        // Diagnostics action under More; Simple and Advanced show it directly. This check follows the direct button, so it
+        // runs in Simple and puts the smoke profile's Barebones view back afterwards.
+        await PresentationChecks.SwitchModeAsync(window, "Simple");
+        try { await SourcesLeadToTheFilteredDiagnosticsInSimpleAsync(window); }
+        finally { await PresentationChecks.SwitchModeAsync(window, "Barebones"); }
+    }
+
+    private static async Task SourcesLeadToTheFilteredDiagnosticsInSimpleAsync(MainWindow window)
+    {
         window.Width = 1000;
         window.Height = 700;
         window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
@@ -29,10 +39,19 @@ internal static class StatusDeepLinkChecks
         SourcesPage sources = (SourcesPage)window.FindControl<ContentControl>("SourcesPageHost")!.Content!;
         Button diagnostics = sources.FindControl<Button>("SourceDiagnosticsButton")!;
         await Program.WaitUntilAsync(() => diagnostics.IsEffectivelyVisible && diagnostics.IsEnabled,
-            () => "The Diagnostics button of the Sources page is not usable.");
-        string identity = sources.FindControl<TextBlock>("SourceIdentity")!.Text ?? string.Empty;
-        diagnostics.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await Program.WaitUntilAsync(() => window.DiagnosticsSegmentShown, () => "segment " + window.StatusSegmentSelected + " page " + window.SelectedPage);
+            () => $"The Diagnostics button of the Sources page is not usable: visible={diagnostics.IsEffectivelyVisible}, enabled={diagnostics.IsEnabled}, busy={sources.IsBusy}.");
+        TextBlock identityText = sources.FindControl<TextBlock>("SourceIdentity")!;
+        await Program.WaitUntilAsync(() => !string.IsNullOrEmpty(identityText.Text),
+            () => "The Sources page shows no source identity: heading '" + sources.FindControl<TextBlock>("SourceHeading")!.Text + "'.");
+        string identity = identityText.Text ?? string.Empty;
+        // The page ignores a click while it is busy (a plugin catalog refresh can start after the button became usable):
+        // click again whenever it is usable until the Diagnostics segment is shown.
+        await Program.WaitUntilAsync(() =>
+        {
+            if (!window.DiagnosticsSegmentShown && diagnostics.IsEffectivelyVisible && diagnostics.IsEnabled && !sources.IsBusy)
+                diagnostics.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            return window.DiagnosticsSegmentShown;
+        }, () => "segment " + window.StatusSegmentSelected + " page " + window.SelectedPage + ", sources busy " + sources.IsBusy);
         DiagnosticsPage page = (DiagnosticsPage)window.DiagnosticsPageHost.Content!;
         string? source = page.SourceFilter;
         Require(source != null && identity.Contains(source, StringComparison.Ordinal),
@@ -72,7 +91,13 @@ internal static class StatusDeepLinkChecks
         finally
         {
             if (shell != null) await CloseAsync(shell);
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
+            if (host != null)
+            {
+                // The failed restore refuses the final preference writes by contract; the host reports that once more on dispose.
+                try { await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15)); }
+                catch (AggregateException expected) when (expected.InnerExceptions.All(inner => inner.GetType().Name == "FinalWriteUnavailableException"))
+                { Console.WriteLine("SMOKE status deep links: the failed-restore host reported its refused final preference write on dispose, as designed."); }
+            }
             owner.Activate();
         }
     }
@@ -88,6 +113,18 @@ internal static class StatusDeepLinkChecks
     {
         var close = typeof(MainWindow).GetMethod("CloseApplicationAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         await ((Task)close.Invoke(shell, null)!).WaitAsync(TimeSpan.FromSeconds(15));
+        // A failed restore intentionally refuses the final preference writes (see StartupPreviewChecks): the shutdown
+        // contract then leaves a safely disposed shell for error acknowledgement. Wait for the real stop and release, then
+        // acknowledge with a second real Close instead of forcing the lifecycle flags.
+        System.Reflection.BindingFlags nonPublic = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+        await Program.WaitUntilAsync(() => shell.SessionHost.State == DesktopSessionState.Stopped && shell.SessionHost.IsProfileReleased
+            && !(bool)typeof(MainWindow).GetField("_shutdownRunning", nonPublic)!.GetValue(shell)!,
+            () => "host " + shell.SessionHost.State + ", profile released " + shell.SessionHost.IsProfileReleased);
+        if (shell.IsVisible)
+        {
+            Require((bool)typeof(MainWindow).GetField("_allowClose", nonPublic)!.GetValue(shell)!, "The terminal shell cannot acknowledge its shutdown error.");
+            shell.Close();
+        }
         await Program.WaitUntilAsync(() => !shell.IsVisible);
     }
 

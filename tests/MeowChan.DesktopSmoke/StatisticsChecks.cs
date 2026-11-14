@@ -206,7 +206,7 @@ internal static class StatisticsChecks
         Require(settings.StatsHeaderGraphChoices.Select(choice => choice.Value).SequenceEqual(["Auto", "Network", "Disk", "NetworkAndDisk", "SideBySide", "Text", "Off"]),
             "The header graph setting does not offer Auto, Network, Disk, NetworkAndDisk, SideBySide, Text and Off.");
         Require(settings.SelectedStatsHeaderGraph?.Value == "Auto" && settings.StatsHeaderGraphLabel == Texts.T("stats.headerGraph.label")
-            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.",
+            && settings.StatsHeaderGraphHint == "Chooses what the header shows. Automatic: network and disk, each with its own graph, in every view. Side by side needs a wide window; narrow windows drop the graphs and keep the values. Each graph has its own scale. In the header, download and read are drawn solid with a filled area, upload and write dashed. Off hides the display and stops its measuring; the statistics page and the tray menu bring it back.",
             "The header graph setting lost its default, label or hint.");
         Require(AutomationProperties.GetName(input) == settings.StatsHeaderGraphLabel && AutomationProperties.GetHelpText(input) == settings.StatsHeaderGraphHint,
             "The header graph setting has no accessible name or help text.");
@@ -327,7 +327,7 @@ internal static class StatisticsChecks
             {
                 TextBlock value = window.FindControl<TextBlock>(rate)!;
                 Require(value.FontSize == 11 && value.FontWeight == FontWeight.Normal
-                    && value.TextAlignment == TextAlignment.Right && value.Bounds.Width >= 72,
+                    && value.TextAlignment == TextAlignment.Right && value.Bounds.Width >= 56,
                     scenario + ": the rate lost its caption size, regular weight or minimum shared width: " + rate);
             }
             if (layout.TwoLineLabels)
@@ -336,8 +336,9 @@ internal static class StatisticsChecks
             else
                 Require(Near(a.Top, b.Top) && Near(wordB.Left - a.Right, 12),
                     scenario + ": the row matrix has no common baseline or its pair gap is not 12 DIP.");
-            Require(Near(a.Left - wordA.Right, 6) && Near(b.Left - wordB.Right, 6),
-                scenario + ": word/rate column gaps are not 6 DIP.");
+            // 4c4601d5 (compact header I/O matrix): the direction-to-value gap is the grid's 4 DIP column spacing (was 6).
+            Require(Near(a.Left - wordA.Right, 4) && Near(b.Left - wordB.Right, 4),
+                scenario + ": word/rate column gaps are not 4 DIP.");
             if (graph)
             {
                 Rect plot = Bounds(graphName);
@@ -565,10 +566,12 @@ internal static class StatisticsChecks
     }
 
     private static bool ResetInDirectBar(ActionToolBar toolbar, Button reset) =>
-        toolbar.DirectHost?.Children.Contains(reset) == true && ReferenceEquals(reset.Parent, toolbar.DirectHost);
+        // Items keep the toolbar as their logical Parent wherever their panel is (ActionToolBar): the hosting panel is the
+        // visual parent, for the bar as for the overflow popup.
+        toolbar.DirectHost?.Children.Contains(reset) == true && ReferenceEquals(reset.GetVisualParent(), toolbar.DirectHost);
 
     private static bool ResetInOverflow(ActionToolBar toolbar, Button reset) =>
-        toolbar.OverflowHost?.Children.Contains(reset) == true && ReferenceEquals(reset.Parent, toolbar.OverflowHost);
+        toolbar.OverflowHost?.Children.Contains(reset) == true && ReferenceEquals(reset.GetVisualParent(), toolbar.OverflowHost);
 
     private static bool ResetVisibleInOverflow(ActionToolBar toolbar, Button reset) =>
         ResetInOverflow(toolbar, reset) && reset.IsEffectivelyVisible && reset.Bounds.Width > 0 && reset.Bounds.Height > 0

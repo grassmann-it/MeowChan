@@ -290,8 +290,10 @@ public partial class StatisticsPage : UserControl
         _statusHide?.Dispose();
         _restoreResetFocus = true;
         ++_resetFocusGeneration;
-        // Where Reset sits under More, the closed popup cannot anchor the question: the bar does.
-        ResetConfirmation.ShowAt(ResetStatisticsButton.IsEffectivelyVisible ? ResetStatisticsButton : StatisticsActions);
+        // Where Reset sits under More, the popup cannot anchor the question: it closes with this very click, and a question
+        // anchored to a button inside it would close with it. The bar does.
+        bool underMore = StatisticsActions.OverflowHost?.Children.Contains(ResetStatisticsButton) == true;
+        ResetConfirmation.ShowAt(ResetStatisticsButton.IsEffectivelyVisible && !underMore ? ResetStatisticsButton : StatisticsActions);
     }
 
     private void CloseConfirmation(bool focusReset)

@@ -58,7 +58,13 @@ public static class WorkViewPresenter
             ApplyToolBarItem(item, view, fallbackId, nonDefaultState?.Invoke(item) == true, out bool itemChanged);
             changed |= itemChanged;
         }
-        if (changed) toolbar.InvalidateMeasure();
+        if (changed)
+        {
+            // The overflow decision is made in the items panel's own measure: invalidating only the toolbar lets that panel
+            // keep its valid measure at an unchanged width, so an item moved to or from "More" would stay where it was.
+            toolbar.DirectHost?.InvalidateMeasure();
+            toolbar.InvalidateMeasure();
+        }
         return changed;
     }
 

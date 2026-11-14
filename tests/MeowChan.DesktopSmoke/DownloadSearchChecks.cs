@@ -178,8 +178,11 @@ internal static class DownloadSearchChecks
                         bool copyOverflow = toolbar.OverflowHost!.Children.Contains(copy);
                         Require(mode != "Barebones" || more.IsEffectivelyVisible && columnsOverflow && copyOverflow,
                             "Barebones exposed rare actions outside More after resizing.");
-                        Require(mode == "Barebones" || width < 1380 || !columnsOverflow && !copyOverflow && !more.IsVisible,
-                            "A wide Simple/Advanced header retained its overflow menu.");
+                        // WV1 (46d79bf3): Columns and Copy URLs are Direct only in Advanced; Simple keeps them under More at any width.
+                        Require(mode == "Barebones" || width < 1380 || (mode == "Simple"
+                                ? columnsOverflow && copyOverflow && more.IsEffectivelyVisible
+                                : !columnsOverflow && !copyOverflow && !more.IsVisible),
+                            "A wide " + mode + " header does not follow the work-view matrix (Simple: Columns and Copy URLs under More; Advanced: no overflow menu).");
                         Require(window.FindControl<Button>("DownloadSearchButton")!.IsEffectivelyVisible
                             && window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible,
                             "Header resizing hid a primary action.");
