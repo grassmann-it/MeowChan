@@ -80,8 +80,8 @@ internal static class ContextMenusHeaderChecks
         await Program.WaitUntilAsync(() => host.OpenMenu == null, () => "the menu stayed open");
         speed.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
         await WaitOpenAsync(host);
-        Invoke(host, "navigation.statistics");
-        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Statistics, () => "page " + window.SelectedPage);
+        Invoke(host, "navigation.status");
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Status, () => "page " + window.SelectedPage);
 
         await CheckOffAsync(window);
         Console.WriteLine("SMOKE context menus header: menu key and context request open it, seven arrangements (the last one, Off, hides the display and stops its measuring; the statistics page's checkbox brings it back) with the stored one checked, a choice applies at once and persists, settings and statistics entries work, Escape closes, focus returns.");
@@ -126,7 +126,7 @@ internal static class ContextMenusHeaderChecks
         Require(items.Take(7).All(item => item.ToggleType == MenuItemToggleType.Radio), "A header menu choice is not a radio entry.");
         MenuItem[] isChecked = items.Take(7).Where(item => item.IsChecked).ToArray();
         Require(isChecked.Length == 1 && (string)isChecked[0].Tag! == HeaderIoMenu.EntryId(selected), $"The header menu does not check {selected}.");
-        Require(items[7].Tag as string == "navigation.statistics" && items[8].Tag as string == "navigation.settings", "The header menu lacks the statistics and settings entries.");
+        Require(items[7].Tag as string == "navigation.status" && items[8].Tag as string == "navigation.settings", "The header menu lacks the statistics and settings entries.");
     }
 
     private static void Choose(ContextMenuHost host, string value) => Invoke(host, HeaderIoMenu.EntryId(value));

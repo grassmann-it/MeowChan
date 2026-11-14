@@ -32,7 +32,7 @@ internal static class HeaderIoMenu
 
     /// <param name="current">The stored value of <c>Config.StatsHeaderGraph</c> (anything unknown reads as Auto, as the header does).</param>
     /// <param name="choose">Selects a value of <see cref="IoStatsDisplay.HeaderGraphChoices"/>; it is not called for the value already selected.</param>
-    /// <param name="openStatistics">Opens the statistics page (command <c>navigation.statistics</c>).</param>
+    /// <param name="openStatistics">Opens the statistics page on the Status page (command <c>navigation.status</c>).</param>
     /// <param name="openSettings">Opens the settings at the statistics block (command <c>navigation.settings</c>).</param>
     internal static ContextMenuBuilder Compose(string? current, Action<string> choose, Action openStatistics, Action openSettings)
     {
@@ -47,7 +47,7 @@ internal static class HeaderIoMenu
             menu.Radio(Group, EntryId(value), Texts.T(TextKey(value)), value == selected, () => { if (chosen != selected) choose(chosen); });
         }
         return menu.Section()
-            .Command("navigation.statistics", openStatistics, label: Texts.T("header.io.menu.openStatistics"))
+            .Command("navigation.status", openStatistics, label: Texts.T("header.io.menu.openStatistics"))
             .Command("navigation.settings", openSettings, label: Texts.T("header.io.menu.settings"));
     }
 }

@@ -3,8 +3,8 @@ using Avalonia.Controls;
 namespace MeowChan;
 
 /// <summary>
-/// The tray menu's two page entries, below pause and the update reminder and above Exit: the statistics ("Status" once that page
-/// is merged; today the statistics page) and the settings. Like the other tray entries they restore the window first, also from the
+/// The tray menu's two page entries, below pause and the update reminder and above Exit: the Status page (it opens on its statistics
+/// segment) and the settings. Like the other tray entries they restore the window first, also from the
 /// tray or a minimized state.
 /// </summary>
 public partial class MainWindow
@@ -13,7 +13,7 @@ public partial class MainWindow
 
     private void AddTrayNavigationItems(NativeMenu menu)
     {
-        _trayStatusItem = CreateTrayCommandItem("navigation.statistics");
+        _trayStatusItem = CreateTrayCommandItem("navigation.status");
         _trayStatusItem.Click += (_, _) => ShowStatisticsFromTray();
         menu.Items.Add(_trayStatusItem);
         _traySettingsItem = CreateTrayCommandItem("navigation.settings");
@@ -29,7 +29,7 @@ public partial class MainWindow
 
     private void RefreshTrayNavigationIcons()
     {
-        if (_trayStatusItem != null) ApplyTrayCommandItem(_trayStatusItem, "navigation.statistics");
+        if (_trayStatusItem != null) ApplyTrayCommandItem(_trayStatusItem, "navigation.status");
         if (_traySettingsItem != null) ApplyTrayCommandItem(_traySettingsItem, "navigation.settings");
     }
 

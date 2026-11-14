@@ -93,7 +93,7 @@ public sealed class HeaderIoMenuTests : IDisposable
         ContextMenuModel model = Model("Auto", statistics: () => statistics++, settings: () => settings++);
         Assert.Equal(2, model.Sections.Count);
         ContextMenuEntry[] actions = model.Sections[1].ToArray();
-        Assert.Equal(new[] { "navigation.statistics", "navigation.settings" }, actions.Select(entry => entry.CommandId));
+        Assert.Equal(new[] { "navigation.status", "navigation.settings" }, actions.Select(entry => entry.CommandId));
         Assert.Equal(new[] { "Open statistics", "Settings: Statistics…" }, actions.Select(entry => entry.Label));
         Assert.All(actions, entry => Assert.True(CommandCatalog.TryGet(entry.CommandId!, out _)));
         actions[0].Invoke!();
