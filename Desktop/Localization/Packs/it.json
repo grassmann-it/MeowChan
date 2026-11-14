@@ -4012,7 +4012,7 @@
     "booru.media.tags.selection.count.one": "{0} tag contrassegnato.",
     "booru.media.tags.selection.tooMany.one": "{0} tag contrassegnato. Una ricerca Danbooru accetta al massimo {1} tag: togli il contrassegno ad alcuni per usarli come ricerca. Copiarli come tag semplici funziona con qualsiasi numero.",
     "booru.media.tags.copied.one": "Copiato {0} tag.",
-    "export.resultsAction.one": "Esporta il {0} risultato…",
+    "export.resultsAction.one": "Esporta il {0} risultato",
     "export.resultsFrozen.one": "{0} thread corrispondente fissato per questa esportazione",
     "export.legacyFound.one": "Trovato {0} candidato corrispondente alla fonte (controllate al massimo 500 cartelle). Verifica la cartella prima di associarla esplicitamente.",
     "setup.parallelEffective.one": "Al massimo {0} file viene scaricato contemporaneamente (hai chiesto {1}; limite massimo {2}).",

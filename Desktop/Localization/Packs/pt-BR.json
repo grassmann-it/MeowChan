@@ -4012,7 +4012,7 @@
     "booru.media.tags.selection.count.one": "{0} tag marcada.",
     "booru.media.tags.selection.tooMany.one": "{0} tag marcada. Uma pesquisa do Danbooru aceita no máximo {1}: desmarque algumas para usá-las como pesquisa. Copiá-las como tags simples funciona com qualquer quantidade.",
     "booru.media.tags.copied.one": "{0} tag copiada.",
-    "export.resultsAction.one": "Exportar o {0} resultado…",
+    "export.resultsAction.one": "Exportar o {0} resultado",
     "export.resultsFrozen.one": "{0} tópico correspondente fixado para esta exportação",
     "export.legacyFound.one": "{0} candidato com fonte correspondente encontrado (no máximo 500 pastas verificadas). Verifique a pasta antes de associá-la explicitamente.",
     "setup.parallelEffective.one": "Até {0} arquivo é baixado ao mesmo tempo (você pediu {1}; limite máximo {2}).",

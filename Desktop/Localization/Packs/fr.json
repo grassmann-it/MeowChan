@@ -4006,7 +4006,7 @@
     "booru.media.tags.selection.count.one": "{0} tag marqué.",
     "booru.media.tags.selection.tooMany.one": "{0} tag marqué. Une recherche Danbooru en accepte {1} au maximum : démarquez-en pour les utiliser comme recherche. Comme simples tags, on peut en copier n’importe quel nombre.",
     "booru.media.tags.copied.one": "{0} tag copié.",
-    "export.resultsAction.one": "Exporter le {0} résultat…",
+    "export.resultsAction.one": "Exporter le {0} résultat",
     "export.resultsFrozen.one": "{0} fil correspondant figé pour cet export",
     "export.legacyFound.one": "{0} candidat correspondant à la source trouvé (au plus 500 dossiers vérifiés). Vérifiez le dossier avant de l’associer explicitement.",
     "setup.parallelEffective.one": "Limite effective après validation : {0} transfert de fichiers multimédias simultané (demandés : {1} ; plafond de sécurité : {2}).",

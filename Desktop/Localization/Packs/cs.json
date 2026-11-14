@@ -4044,7 +4044,7 @@
     "booru.media.tags.selection.count.one": "Označené štítky: {0}.",
     "booru.media.tags.selection.tooMany.one": "Označené štítky: {0}. Hledání na Danbooru přijme nejvýše {1}: zrušte označení některých, chcete-li je použít jako hledání. Kopírování jako prostých štítků funguje s libovolným počtem.",
     "booru.media.tags.copied.one": "Zkopírované štítky: {0}.",
-    "export.resultsAction.one": "Exportovat všechny výsledky ({0})…",
+    "export.resultsAction.one": "Exportovat všechny výsledky ({0})",
     "export.resultsFrozen.one": "Pro tento export zafixováno odpovídajících vláken: {0}",
     "export.legacyFound.one": "Nalezeno kandidátů s odpovídajícím zdrojem: {0} (zkontrolováno nejvýše 500 složek). Před výslovným přiřazením složku ověřte.",
     "setup.parallelEffective.one": "Nejvyšší počet souborů stahovaných současně: {0} (požadovali jste {1}; horní hranice {2}).",

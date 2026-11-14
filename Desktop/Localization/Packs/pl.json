@@ -4050,7 +4050,7 @@
     "booru.media.tags.selection.count.one": "Oznaczone tagi: {0}.",
     "booru.media.tags.selection.tooMany.one": "Oznaczone tagi: {0}. Wyszukiwanie Danbooru przyjmuje najwyżej {1}: odznacz część, aby użyć ich jako wyszukiwania. Kopiowanie jako zwykłe tagi działa przy dowolnej liczbie.",
     "booru.media.tags.copied.one": "Skopiowane tagi: {0}.",
-    "export.resultsAction.one": "Eksportuj wszystkie wyniki ({0})…",
+    "export.resultsAction.one": "Eksportuj wszystkie wyniki ({0})",
     "export.resultsFrozen.one": "Pasujące wątki ustalone dla tego eksportu: {0}",
     "export.legacyFound.one": "Znalezieni kandydaci pasujący do źródła: {0} (sprawdzono najwyżej 500 folderów). Zweryfikuj folder przed jawnym powiązaniem.",
     "setup.parallelEffective.one": "Najwyższa liczba plików pobieranych jednocześnie: {0} (żądano {1}; górny limit {2}).",

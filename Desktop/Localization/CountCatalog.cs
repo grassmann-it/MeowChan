@@ -48,7 +48,7 @@ internal static class CountCatalog
         ("booru.media.tags.selection.count.one", "{0} tag marked.", "{0} Tag markiert."),
         ("booru.media.tags.selection.tooMany.one", "{0} tag marked. A Danbooru search takes at most {1}: unmark some to use them as a search. Copying them as plain tags works with any number.", "{0} Tag markiert. Eine Danbooru-Suche nimmt höchstens {1}: einige Markierungen aufheben, um sie als Suche zu verwenden. Als einfache Tags lassen sich beliebig viele kopieren."),
         ("booru.media.tags.copied.one", "Copied {0} tag.", "{0} Tag kopiert."),
-        ("export.resultsAction.one", "Export the {0} result…", "{0} Treffer exportieren…"),
+        ("export.resultsAction.one", "Export the {0} result", "{0} Treffer exportieren"),
         ("export.resultsFrozen.one", "{0} matching thread fixed for this export", "{0} Treffer für diesen Export festgehalten"),
         ("export.legacyFound.one", "Found {0} source-matching candidate (at most 500 folders checked). Verify the folder before explicitly associating it.", "{0} Kandidat mit passender Quelle gefunden (höchstens 500 Ordner geprüft). Ordner vor dem ausdrücklichen Zuordnen prüfen."),
         ("setup.parallelEffective.one", "Up to {0} file downloads at the same time (you asked for {1}; upper limit {2}).", "Es lädt höchstens {0} Datei gleichzeitig (gewünscht: {1}; Obergrenze: {2})."),

@@ -4006,7 +4006,7 @@
     "booru.media.tags.selection.count.one": "{0} etiqueta marcada.",
     "booru.media.tags.selection.tooMany.one": "{0} etiqueta marcada. Una búsqueda en Danbooru admite como máximo {1}: desmarca algunas para usarlas como búsqueda. Como etiquetas simples se puede copiar cualquier cantidad.",
     "booru.media.tags.copied.one": "Se copió {0} etiqueta.",
-    "export.resultsAction.one": "Exportar el {0} resultado…",
+    "export.resultsAction.one": "Exportar el {0} resultado",
     "export.resultsFrozen.one": "{0} hilo coincidente fijado para esta exportación",
     "export.legacyFound.one": "Se encontró {0} candidato coincidente con la fuente (se comprobaron como máximo 500 carpetas). Verifique la carpeta antes de asociarla explícitamente.",
     "setup.parallelEffective.one": "Límite efectivo tras aceptar: {0} transferencia de archivos multimedia simultánea (solicitadas: {1}; límite de seguridad: {2}).",
