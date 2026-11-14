@@ -19,8 +19,12 @@ internal static class DialogFooter
     internal const string StatusName = "DialogFooterStatus";
     internal const string ActionsName = "DialogFooterActions";
 
-    /// <summary>Builds the footer border (class <c>workspace-dialog-footer</c>, so <see cref="DialogFrame"/> adopts it as is).</summary>
-    internal static Border Build(Control? primary, IReadOnlyList<Control>? secondary = null, Control? status = null)
+    /// <summary>
+    /// Builds the footer border (class <c>workspace-dialog-footer</c>, so <see cref="DialogFrame"/> adopts it as is).
+    /// <paramref name="statusAbove"/> stacks a long, multi-line status (a result summary that wraps) above the actions
+    /// instead of docking it to their left, so it keeps the full width.
+    /// </summary>
+    internal static Border Build(Control? primary, IReadOnlyList<Control>? secondary = null, Control? status = null, bool statusAbove = false)
     {
         WrapPanel actions = new()
         {
@@ -34,6 +38,12 @@ internal static class DialogFooter
         // Docked right, the actions are measured against the real width and still wrap; the status takes what is left.
         status.Name ??= StatusName;
         status.VerticalAlignment = VerticalAlignment.Center;
+        if (statusAbove)
+        {
+            status.Margin = default;
+            footer.Child = new StackPanel { Spacing = 12, Children = { status, actions } };
+            return footer;
+        }
         status.Margin = new Avalonia.Thickness(0, 0, 8, 0);
         DockPanel row = new() { LastChildFill = true };
         DockPanel.SetDock(actions, Dock.Right);
