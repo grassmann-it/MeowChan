@@ -105,10 +105,10 @@ the archive list, use the app-menu entry to check the reading-position state.
 
 ### Integrated work-view behavior
 
-The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
-**WV3 Reader**, **WV4 Gallery**, **WV5 Media**, the **Booru** page, and the **WV6** setup pages **Rules**,
-**Sources & Plugins**, plus **WV7 Diagnostics and Statistics** within **Status**, **WV8 Settings** and
-**WV9 dialogs and menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
+The integrated work-view behavior covers **Downloads**, **Archive**, **Reader**,
+**Gallery**, **Media**, **Booru**, **Rules**, **Sources & Plugins**,
+**Diagnostics and Statistics** within **Status**, **Settings**, and **dialogs and
+menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
 Advanced (**Erweitert**) change how much is shown directly, not whether the data
 can be reached. The work view decides which settings groups and buttons are shown
 directly; the rest is under **More** (**Mehr**), **More filters** (**Weitere Filter**),
@@ -126,7 +126,7 @@ on the page.
 - **Reader:** the way back, state messages, tabs and saved-media data stay
   available. Reader tools and media-tab actions can move into the same **More**
   menu without hiding capture, live-follow, errors or active state.
-- **Gallery (WV4):** rating, media tags and slideshow controls are under More in
+- **Gallery:** rating, media tags and slideshow controls are under More in
   Barebones and on the toolbar from Simple on; playback mode and shortcut help
   join them in Advanced. A chosen or running slideshow keeps its toggle on the
   toolbar even in Barebones. Back, favorite state, position, video transport,
@@ -150,20 +150,21 @@ on the page.
   (**Zurück zur Quelle**) returns to the source without changing pages.
   Older **Show plugin** (German: **Plugin anzeigen**) and **Show in Sources** (German:
   **In Quellen anzeigen**) routes refer to this same shared page, not two footer destinations.
-- **Status (WV7 Diagnostics and Statistics):** Diagnostics starts with its filters
+- **Status (Diagnostics and Statistics):** Diagnostics starts with its filters
   collapsed in Barebones; a non-default filter opens the group. **Check now**,
   retrying the selection and showing it in Downloads stay directly available.
   Copy moves under More in Barebones; retrying all filtered entries stays under
   More in Barebones and Simple. Statistics keeps current values, history and
   source rows visible in every view; **Reset statistics** is under More in
   Barebones and Simple, directly available in Advanced, and always asks first.
-- **Settings (WV8):** Barebones keeps the core settings direct and the six extra
+- **Settings:** Barebones keeps the core settings direct and the six extra
   groups collapsed. Simple opens interface extras, download extras, reading/media
-  and behavior; storage limits and the shortcut table remain collapsed. Advanced
+  and behavior; storage limits and the keyboard-shortcuts group remain collapsed.
+  Advanced
   opens all six groups. A changed or invalid field opens its group; the settings
   search covers every group and opens the setting it jumps to. Save/Discard,
   errors and the free-space reserve are never hidden inside those groups.
-- **Dialogs and menus (WV9):** board-admission text rules start collapsed only in
+- **Dialogs and menus:** board-admission text rules start collapsed only in
   Barebones; export update/backup options start collapsed in Barebones and Simple.
   Active rules or an update in progress open the relevant section. Previews,
   confirmations, integrity consent and explicit manager dialogs are not reduced.
@@ -175,11 +176,11 @@ can be rebound. Existing profiles affected by the reduction can show a one-time
 notice with **Switch to Advanced** (**Zu Erweitert wechseln**) and **Got it**
 (**Verstanden**). This does not silently change the saved view.
 
-In the gallery, **Tags** and **Edit media tags…** open the quick tag panel in the
+In the gallery, **Tags** and **Tag…** open the quick tag panel in the
 slot of the post panel instead of a dialog; it follows the post panel's work-view
 row, placement and controls hold. See [Gallery tag panel](#gallery-tag-panel).
-The quick-tag popover for other pages and marking several media for one change
-are not available yet.
+Media, reader attachments and Archive media tiles use a small tag popover;
+the gallery panel can change tags on explicitly marked media together.
 
 For a read-only comparison of the defaults, open Settings → **Work views**;
 see [Work-view overview and switch notice](#work-view-overview-and-switch-notice).
@@ -573,7 +574,7 @@ The platform-specific exceptions are listed below:
 | Shift+Delete | Permanently delete selected Archive threads and their local media (confirmation required) |
 | F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
 | Ctrl+R | Open the lead entry's **Media rules…** |
-| Ctrl+T / Ctrl+Shift+T | Open the lead thread's **Tags…** in Archive or the reader / **Edit media tags…** on Media, or the tag panel in the gallery |
+| Ctrl+T / Ctrl+Shift+T | Open the lead thread's **Tags…** in Archive or the reader / **Tag…** popover on Media, or the tag panel in the gallery |
 | Ctrl+D | Favorite or unfavorite the thread in Archive or the reader |
 | Ctrl+Shift+F | Open a board's **Thread filters…**; in the Archive, **Filters and sorting** |
 | Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / open its source in the browser |
@@ -633,15 +634,34 @@ If letter keys trigger actions by mistake, for example with speech input, turn o
 shortcuts** in Settings. Shortcuts with Ctrl or ⌘, the F-keys, Enter, Space and the
 arrow keys stay, and so do your own bindings.
 
+### Header tagline and help notes
+
+Settings → **Interface → Header tagline** can turn the tagline off, keep one quip,
+choose one daily or choose one at each start. When space is short it uses a shorter
+form or disappears rather than clipping. Right-click it to choose another quip,
+hide it or open its settings.
+
+A round **?** beside a section opens a short explanation with paragraphs and
+bullet points. Esc closes it and returns focus to the button.
+
 ### Customizing shortcuts
 
-In 1.0 Settings → **Keyboard shortcuts** (German: **Tastenkürzel**), search for an
-action and select it. Choose **Record additional shortcut**, press the desired
-combination, then **Apply recording**. This adds a gesture to the Settings draft;
-use **Remove** on an existing gesture when replacing it. **Clear binding** leaves
-the action unbound; **Restore default** restores its supplied keys. Finish with
-Settings **Save** to activate and keep the changes for this profile in every view.
-**Discard draft** abandons unapplied changes.
+**F1** opens the **Keyboard shortcuts** window (German: **Tastenkürzel**) at the
+current area. The app/Help menu and Settings → **Keyboard shortcuts → Open keyboard
+shortcuts…** open the same window, not another copy. It stays open while you use
+the main window, reader or gallery. In the gallery it starts with Gallery, followed
+by Tag panel. Search, filter by area or assigned bindings, and sort the table to
+find an action. F1 again or Esc closes the window; Esc first cancels a recording
+or local question, and unsaved changes prompt before closing.
+
+Select an action to edit it. Choose **Record new shortcut** to replace its binding
+or **Record additional shortcut** to add another. Press the desired combination,
+then **Apply recording** to change the draft;
+**Clear binding** leaves the action unbound; **Restore default** restores its
+supplied keys. Finish with **Save** in the shortcuts window to activate and keep
+the changes for this profile in every view. The window shares its draft with
+Settings; **Discard** abandons unapplied shortcut changes. Conflicting bindings
+are marked and prevent saving until resolved.
 
 Review any conflict before saving. **Take over conflicting gesture** deliberately
 removes that gesture from conflicting actions in the draft. **Reset all known
@@ -692,7 +712,7 @@ without its required acknowledgement.
 Where a row has a way out, it stands alone at the right edge of that row, after a
 gap and apart from the row's own actions, and comes last in the Tab order. This
 holds for the Downloads search bar (**Close**) and details panel (**Hide details**,
-German: **Details ausblenden**), the F1 help panel, the Archive reader's header
+German: **Details ausblenden**), the Archive reader's header
 (**Back to thread list**, **Back to gallery**, **Back to media** and **Close
 reader**; German: **Zurück zur Threadliste**, **Zurück zur Galerie**, **Zurück zu
 Medien**, **Reader schließen**), the reader's find bar (**Close find**, **Suche
@@ -700,7 +720,11 @@ schließen**) and tag row (**Close tags**, **Tags schließen**), and the Archive
 preview (**Close preview**, **Vorschau schließen**). Several of these are a drawn
 cross; each keeps its name as tooltip and screen-reader name. The gallery keeps its
 own placement of **Back to {target}** at the top right. Esc closes as before.
-Dialogs and other rows are not moved by this layout yet.
+Dialogs use their title-bar ×; information windows such as media details and
+About have no extra Close button. Esc first ends a local edit, recording or
+question; it does not close while saving or deleting. Settings asks about unsaved
+changes. In an in-window overlay, the top-right × and Esc close the overlay;
+during HTML export they cancel the export instead.
 
 ### Rule templates
 
@@ -874,13 +898,16 @@ suggestions, and offered source tags. A value of 0 switches off recent tags, fil
 name words or source tags where the range allows it. **Save** applies a new value
 to panels you open afterwards; an already open panel keeps the limits it opened
 with. The one exception is **Recently used tags remembered**: a lower saved value,
-including 0, trims the remembered list at once, keeping the newest entries. **Media marked for tagging** is stored for the later marking feature and has
-no effect yet; its tag-store write limit stays fixed and separate.
+including 0, trims the remembered list at once, keeping the newest entries.
+**Media marked for tagging** limits the [gallery marking selection](#gallery-tag-panel)
+(default 500, 10–5000); its tag-store write limit stays fixed and separate.
+The separate [Tagging settings](#tagging-queue-and-settings) control stamp size,
+media per walk and decision cards, not the number of suggestion chips.
 
 Cache and confirmation limits behave differently from collection limits. A full
 video-preview cache evicts old **derived previews**, never saved originals; the
 in-memory thumbnail cache drops least-recently-used previews. If a media index is
-too large to save, Media rebuilds it after a restart. The **Export all matches…**
+too large to save, Media rebuilds it after a restart. The **Export all matches**
 thresholds ask before a large copy; confirming does not silently truncate its
 selection, but missing files, errors or cancellation can still prevent copies.
 
@@ -932,7 +959,8 @@ exact diagnostic text; changed error details can represent a separate occurrence
 
 **English:** Use **Reset** beside one of the seven editable section headings
 (Interface, Reading & media, Downloads, Storage and limits, Updates,
-Notifications, Session and window), or **Reset all editable settings** at the top. Confirm
+Notifications, Session and window), or **Reset all editable settings** in the
+page’s **⋯ (More settings actions)** menu. Confirm
 with **Reset draft** or choose **Cancel**. Reset changes only the unsaved draft;
 it does not save settings, delete local data or revoke/grant source permissions.
 You still need **Save** to apply the defaults; **Discard draft** returns to your
@@ -952,8 +980,8 @@ export error is shown on the settings page without saving the draft.
 
 **Deutsch:** Nutze **Zurücksetzen** neben einer der sieben bearbeitbaren
 Abschnittsüberschriften (Oberfläche, Lesen & Medien, Downloads, Speicher und Grenzen,
-Updates, Benachrichtigungen, Sitzung und Fenster) oder oben **Alle bearbeitbaren Einstellungen
-zurücksetzen**. Bestätige mit **Entwurf zurücksetzen** oder wähle **Abbrechen**.
+Updates, Benachrichtigungen, Sitzung und Fenster) oder **Alle bearbeitbaren
+Einstellungen zurücksetzen** im **⋯-Menü (Weitere Einstellungsaktionen)** oben. Bestätige mit **Entwurf zurücksetzen** oder wähle **Abbrechen**.
 Zurücksetzen ändert nur den ungespeicherten Entwurf. Es speichert keine Einstellungen,
 löscht keine lokalen Daten und ändert keine Quellenerlaubnis. Erst **Speichern**
 übernimmt die Standards; **Entwurf verwerfen** kehrt dagegen zu deinen gespeicherten
@@ -1088,8 +1116,8 @@ Open **Status → Statistics** from **More** or the app
 menu, or by clicking the header graph. Ctrl+7 (Command+7 on macOS) opens Status
 on its last-used segment; Ctrl+8 is no longer assigned by default. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
-media-I/O counters, not operating-system totals. **Network I/O (`NetworkIo`)** keeps
-Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Read and Write
+media-I/O counters, not operating-system totals. **Network I/O** keeps
+Down and Up as separate directions; **Disk I/O** keeps Read and Write
 separate as well. Each category has its own scale, and retries or failed transfers
 can contribute bytes without a saved file. The header uses the same directional
 categories; **Auto** keeps both available in every work view where the layout fits.
@@ -1166,15 +1194,20 @@ own I/O counters rather than operating-system totals. The menu lines open Statis
 exit. With it off, totals last for the session and an existing file remains
 untouched. Retention includes today; older days are pruned on load and at midnight.
 Further sources beyond the row limit are grouped as **Other sources**.
-**Header graph → Auto** keeps both **Network I/O (`NetworkIo`)** and **Disk I/O
-(`DiskIo`)** available in every work view where the layout fits. Down and Up remain
+**Header graph → Auto** keeps both **Network I/O** and **Disk I/O** available in every work view where the layout fits. Down and Up remain
 separate network directions; Read and Write remain separate disk directions. An
 explicit layout can select Network, Disk or text without summing the categories or
 claiming system-wide traffic. The visible header keeps **Down / Up** and **Read / Write** in solid-series / dashed-series order, with no Network or Disk headings, even when the graph layout
 changes. The Statistics page keeps its directional histories regardless of this
 setting.
-These controls do not alter
-provider limits, download rules or the saved-media progress count.
+Right-click the header display (or use the Menu key / Shift+F10) to choose Auto,
+Network, Disk, stacked, side-by-side, text only or **Off**, or open its settings or
+Statistics. The display choice is saved. Off hides the display and stops its
+own sampling claim, not downloads or other statistics sampling. Restore it in
+Settings or with the Statistics page’s header-display checkbox; the tray’s
+Statistics entry can open that page even with the header display hidden.
+These controls do not alter provider limits, download rules or the saved-media
+progress count.
 
 ### Animations
 
@@ -1246,11 +1279,16 @@ native keys. Explicit Reader or application shortcut bindings take precedence.
 The configurable **Open in gallery** command remains separate.
 
 Newly captured posts leave the open reader unchanged. A **Show new posts** notice
-lets you load them and jump to the first newly appended post. **Follow live** is
+lets you load them and jump to the first newly appended post. **View → Show new
+posts automatically** (Ctrl+Shift+L / Command+Shift+L) is
 an explicit choice for a currently watched thread with post capture enabled; it
 follows newly saved posts to the end without starting any network work. It waits
 while a gallery or export dialog is open. Changing threads or removing the watch
 turns following off. Repeated source polls without new posts show no notice.
+The reader status line shows when
+automatic display is active. **Thread**, beside **View**, groups post capture,
+Check now, retry missing media, media rules, details, folder/source opening, link
+copying and removing the watch. Unavailable entries are dimmed with a reason.
 
 Settings → **Reading & media → Post width** selects **Fit to content** (the
 default), **Centered column** or **Full width**. Fit makes each card only as wide
@@ -1277,11 +1315,20 @@ and gallery.
 The gallery uses the window's remaining work area. Left/Right or its navigation buttons
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
 Fractional touchpad deltas produce finer zoom changes. Zooming out stops at Fit;
-the image is then centered and pan resets. Drag a zoomed image to pan. Double-click the image to switch Fit/1:1. Escape closes the gallery.
+the image is then centered and pan resets. Drag a zoomed image or video to pan;
+wheel zoom and double-click Fit/1:1 work on
+videos too. **Shift+R** or **Rotate 90°** under More (also in the player menu)
+rotates the shown image or video clockwise. Rotation changes only the view, never
+the file, and resets for each new medium. Escape closes the gallery.
 The gallery keeps decoded images in memory and prepares the next three and previous two images in the background, so
 moving either direction can show them immediately. The cache is 256 MiB by default; set it to 0 to keep nothing.
 **Gallery image cache**, **Gallery images decoded ahead** and **Gallery images decoded behind** are under Settings →
 **Storage and limits**; their allowed ranges are 0–4096 MiB, 0–20 and 0–20.
+The optional filmstrip above the picture shows neighbouring media; click a
+thumbnail to go there, or press **L** to show/hide the strip. With auto-hidden
+controls it appears with them or at the top edge; with docked controls it sits
+above the picture. Very short windows leave it out. Its height and thumbnail
+preload are under **Gallery & playback**.
 Use the gallery's optional **media focus** view to fold away tools and details
 and give the current medium more room. Navigation remains available; restore the
 controls when you want to use the gallery tools or read the saved-post context.
@@ -1324,8 +1371,9 @@ on the first press even while controls are hidden. A pointer click on
 Start does not pin the controls; keyboard focus, active gestures and menus do.
 Keyboard access remains available. **Hide controls after** sets the idle delay
 for the gallery overlay and reader navigation cross (initially 2000 ms, 500–30000).
-The post panel and shortcut help close with their top-right × or Esc; Esc closes
-only the topmost layer first. **Post overlay** reveals at the right edge,
+The post panel closes with its top-right × or Esc; Esc closes only the topmost
+local layer first. Shortcut help uses the separate, modeless
+[Keyboard shortcuts window](#customizing-shortcuts). **Post overlay** reveals at the right edge,
 stays open while you read inside it and collapses after leaving; hover does not
 save a new preference. It pauses slideshow without automatic resume when closed.
 An explicitly opened/pinned context retains its normal toggle behavior. Its
@@ -1348,15 +1396,18 @@ gallery uses the saved **Start videos muted** preference, not the last manual mu
 
 **Local reading continuation** is off by default. In Settings → Reading & media,
 enable **Remember the last reading position locally** and Save. MeowChan then
-keeps exactly one deliberately opened reader position for this profile. After
+keeps the last deliberately opened reader position and a local history with one
+place per thread for this profile. Right-click **Continue reading** to choose a
+recent thread; **Reading history entries** sets the history size (default 10,
+5–25) under Reading & media. After
 restarting, choose the **Continue reading** book icon left of Pause in the header,
 or the labelled **Continue reading** entry in the app menu. The app keeps its
 normal start page until you choose that action. Only
 locally captured posts are read; no source request or download is started.
 
-**Forget reading position** removes the entry immediately and keeps the setting
-on. It starts remembering again only with your next deliberate reader action.
-Saving the setting as off also deletes the entry. Missing local content is
+**Forget reading position** removes the position and history immediately and keeps
+the setting on. It starts remembering again only with your next deliberate reader
+action. Saving the setting as off also deletes the position and history. Missing local content is
 explained without silently choosing another thread; if a saved post disappeared,
 the first captured post is explicitly identified as a replacement position.
 Settings uses **Discard draft** to revert unapplied edits; forgetting is a separate,
@@ -1394,15 +1445,41 @@ On **Media**, the **Order** selector (German: **Sortierung**) offers **By thread
 between its default and reversed order. **Random** has no direction toggle;
 **Shuffle again** (German: **Neu mischen**) changes its stable shuffle seed.
 The sort criterion and direction are saved for the next start; **Random** is not
-remembered, and the next start uses **By thread** instead.
+remembered, and the next start returns to your last non-random criterion and
+direction (initially **By thread**).
 
 Search and Filters sit on the left of the Media toolbar, Order on the right.
-**Export all matches…** (German: **Alle Treffer exportieren…**) and **Manage saved
+Refresh and Shuffle again are icon buttons beside the order, named in tooltips.
+**Export all matches** (German: **Alle Treffer exportieren**) and **Manage saved
 ratings…** (**Gespeicherte Bewertungen verwalten…**) stay under **More** (**Mehr**).
 In narrow windows Refresh and Shuffle again also move under More; Order stays
 visible. **Show captured but missing files** (**Erfasste, aber fehlende Dateien
 zeigen**) is in Filters, with the active chip **Including missing files**
 (**Mit fehlenden Dateien**).
+
+### Media filters and focus mode
+
+Active filters appear as chips. For tag, type, source and board chips, clicking
+the body or its small toggle, or pressing Enter, switches include/exclude;
+Delete or × removes the chip. The context menu offers include, exclude, remove
+and editing. **+ Filter** searches across filter groups; Enter includes,
+Shift+Enter or a leading minus excludes, and a comma adds without closing the
+picker. With at least two included tags, choose **all** or **any** beside the tag
+control. **Reset all** in the chip row clears the filters.
+
+In the Media search field, you can write, for example,
+`type:video -tag:wip board:g rating:>=3 sound:none fav`. Enter turns recognized
+terms into filter chips; the rest remains file-name search text. A leading minus
+excludes tags, types, sources or boards only. Quotes keep spaces together.
+Unrecognized terms remain in the field with an explanation below the chips.
+Localized field names work too, such as German `typ:`, `quelle:`, `bewertung:`
+and `favorit`. **Copy filters as text** in the chip/row context menu copies the
+active filters as query text.
+
+**Shift+F** or the focus button hides the toolbar, filter chips and filter section
+for more grid space. A slim row keeps the result count and active-filter count;
+**Exit focus ×** or Esc restores the tools. The grid and selection bar keep working.
+Esc exits focus before clearing selection. Focus mode is not saved.
 
 ### Reading posts as cards
 
@@ -1464,7 +1541,8 @@ When you return to a thread through **Continue reading** or load new posts with
 **Show new posts**, a thin line with **… new posts since last time** marks the
 first new post. Once you have scrolled past the line, **Back to last read** in the
 reader toolbar takes you back to it. A thread you open from the list and a refresh
-through **Follow live** start without a line.
+through **Show new posts automatically** start without a line. The reading line
+sits between the last-read and first new card, across the full list width.
 
 ### Reader display settings
 
@@ -1507,6 +1585,47 @@ The conversation switch itself stays under **View** and is not a saved preferenc
 Post-filter rule and individually hidden-post limits are under **Storage and limits**,
 not here; lowering them keeps existing entries and only prevents growth beyond the limit.
 
+### Reader media sidebar and inline video
+
+**View → Reader settings…** opens a small panel with frequently used display
+settings. Changes are saved and apply immediately; **All reader settings** opens
+the full Settings page. The panel includes reading history, media enlargement,
+sidebar and inline-video controls. The full Settings page still uses Save/Discard.
+
+**Larger images in posts without text**, **Enlarge the focused post’s media** and
+**Enlarge an image while the pointer rests on it** are also switches in View;
+their widths, scale and hover delay are under Settings → **Reading & media**.
+
+**Media sidebar in the large reader** is off by default. When enabled in View or
+Settings, it shows the selected post’s media beside the posts, following Up/Down
+navigation. Choose left or right, step through multiple attachments with its
+buttons, or open the shown item in the gallery. Drag the divider to change its
+saved width. The sidebar hides when the reader is too narrow and returns when
+there is room; it does not replace the embedded reader with a second gallery.
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Media sidebar width (px) | 480 | 240 to 1200 |
+| Hide the media sidebar below this reader width (px) | 1280 | 800 to 3840 |
+| Video players kept in the reader | 2 | 1 to 4 |
+| Largest video played in the reader (MiB) | 256 | 1 to 4096 |
+
+**Play videos in the reader** is a separate opt-in, off by default. A click or
+Enter on a saved video attachment or sidebar video then plays it in place rather
+than opening the gallery; Space on the video pauses or resumes it. It uses the
+same transport controls as the gallery. Only one inline video plays at a time.
+It pauses out of view, when the gallery covers the reader or the window is
+minimized; closing the reader, changing threads or disabling the option releases
+the players. On Windows, a video not wholly inside the post viewport is released
+rather than drawn over the reader controls. Players kept ready are bounded as
+above; the least recently used is released first. A file above the inline size
+limit shows a reason and can still be opened in the gallery, subject to its normal
+playback checks.
+
+**Autoplay videos muted** is another opt-in, also off by default. It needs inline
+video enabled and starts the selected post/sidebar video without sound after the
+selection rests briefly. Neither option fetches video from a source.
+
 ### Gallery Fit enlargement
 
 Under Settings → **Reading & media → Gallery & playback**, **Enlarge small images
@@ -1517,8 +1636,13 @@ stops at the configured percentage; manual zoom is not capped by this setting.
 | Setting | Default | Allowed |
 | --- | --- | --- |
 | Maximum enlargement (%) | 200 | 100 to 1600 |
+| Maximum zoom (%) | 1600 | 200 to 6400 |
 
-The percentage field is available only with **Up to a limit**. Choosing **No limit**
+**Maximum zoom (%)** limits manual enlargement of images and videos, not Fit.
+It is independent of the Fit limit above.
+
+The **Maximum enlargement (%)** field is available only with **Up to a limit**.
+Choosing **No limit**
 does not erase a valid percentage: **Save** keeps it for when you enable the limit
 again, but does not use it to constrain Fit while **No limit** is selected. An invalid
 hidden percentage does not block an unrelated save; the last saved valid value is
@@ -1643,10 +1767,13 @@ count on Media, or use that filter, to start tagging those items.
 
 In Archive, right-click a thread and choose **Tags…**, or use Ctrl+T (Command+T
 on macOS), to open its own-tag editor beside the posts. The inline editor follows
-the open thread until you close it. **Edit media tags…** (German: **Medientags
-bearbeiten…**, Ctrl+Shift+T / Command+Shift+T) opens the medium's tag dialog on
-Media; in the gallery it opens the [tag panel](#gallery-tag-panel), whose
-**Advanced…** button leads to the same dialog. That dialog has a search field, selection counts for
+the open thread until you close it. **Tag…** (German: **Tag…**, Ctrl+Shift+T /
+Command+Shift+T) opens a small
+anchored tag popover on Media, reader attachments and Archive media tiles; in the
+gallery it opens the [tag panel](#gallery-tag-panel). The popover uses the same
+suggestions, Alt+1–9 toggles, stamp and Ctrl+Z undo; Esc closes it. **Advanced…**
+in either surface opens the full tag dialog. That dialog has a search field,
+selection counts for
 group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
 own tags first and Danbooru source tags in a separate group. Choosing a source tag as an
 own tag creates a local tag; it does not edit Danbooru. Clicking a tag chip on a
@@ -1659,12 +1786,15 @@ a replacement for a complete backup.
 
 ### Gallery tag panel
 
-**Tags** on the gallery toolbar (under **More** in Barebones), **Edit media tags…**
+**Tags** on the gallery toolbar (under **More** in Barebones), **Tag…**
 in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open the
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **P** switches to the post panel.
-Outside the gallery, Media still opens the full tag dialog.
+The side panel has **Post | Tags** at the top left and × alone at the right. When
+the switch has focus, Left/Right selects the segment. Closing returns focus to
+the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
+layout profile. Below 900 DIP it overlays the picture.
 
 **Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
 give your own tag to the shown medium; a new name creates a local own tag. With an
@@ -1672,8 +1802,9 @@ empty field the panel offers suggestion chips; hover a chip, or read its accessi
 name, for why it is offered: often used, recently used, from this thread, on nearby
 media, same file elsewhere, from the file name, from the thread title or source tag.
 Choosing a chip, or the number on it, gives or takes off that tag at once. Each
-change is written to the tag store immediately, only for the medium it was made on.
-**On this media file** lists what the medium carries; select a tag and press Delete
+change is written to the tag store immediately, for the shown medium or the
+explicitly marked media described below.
+**On this media file** lists what a single target carries; select a tag and press Delete
 to remove it. A medium that cannot be tagged, for example without a bound version
 or while the tag index is unavailable, shows the reason with a disabled field
 instead of writing to the previous medium.
@@ -1686,19 +1817,29 @@ field focused; the counter reads “Medium 4 of 27” or “Medium 4 of at least
 more threads are still being resolved. Ctrl+Enter (Command+Enter) adds the typed
 tag and moves to the next medium. Undo is the **Undo** button or Ctrl+Z
 (Command+Z); with text in the field Ctrl+Z edits that text instead. These
-shortcuts are rebindable. Marking with Shift+Page Down and Shift+Page Up does
-nothing yet.
+shortcuts are rebindable. **Shift+Page Down** marks the shown medium and advances;
+**Shift+Page Up** goes back and removes the mark from the medium it reaches.
+With marks present, tag changes apply to all marked media, not an unmarked shown
+medium. A tag carried by only some is under **On some**; one click gives it to
+all, the next removes it from all. **Clear marks** clears the marking selection.
+The **Media marked for tagging** setting bounds it (default 500, 10–5000).
 
 **Undo.** The panel keeps a stack of changes up to the **Tag undo steps** setting
 and drops older steps. The stack stays while you page, so an undo can reach a change
-made on an earlier medium; it reverses exactly that step on that medium and the
-status line names it. A tag created by a step stays in your own tag list after its
-undo. Closing the panel ends the stack. Favorites and ratings are separate gallery
-actions: tagging never changes them, and a favorite is not a tag.
+made on an earlier medium; it reverses exactly the media changed by that step
+and the status line names it. A tag created by a step stays in your own tag list after its
+undo. Closing the panel ends the stack. The favorite/rating row above the field
+acts on the shown medium or all marked media. **Shift+1** through **Shift+5** set
+a rating, **Shift+0** removes it; **R** still opens the rating dialog. The shifted
+digits also work in an empty tag field with its suggestion list closed; with text
+present they type normally.
+Ctrl+Z undoes the newest tag, favorite or rating change made through the panel.
+Tags, favorites and ratings remain distinct: adding a tag never changes a rating
+or favorite by itself, and a favorite is not a tag.
 
 **Medium, thread and source tags are different things.**
-- **Medium tags** are your own tags on exactly the shown file; the main list of the
-  panel changes only these.
+- **Medium tags** are your own tags on exact media revisions. The main list of
+  the panel changes these on the shown medium or marked media, never thread tags.
 - **Thread tags** mark the thread, not its media files. Ctrl+T (Command+T) opens the
   **Thread tags** section of the shown medium's thread with its own field; click a
   tag to remove it, and Ctrl+T again collapses the section. They do not appear under
@@ -1709,8 +1850,64 @@ actions: tagging never changes them, and a favorite is not a tag.
 
 **Advanced…** opens the full tag dialog for the same medium (occurrences, sorting
 and long lists). When it closes, the panel reloads and shows what the dialog
-changed. The quick-tag popover outside the gallery and marking several media for
-one change are not available yet.
+changed. Outside the gallery, **Tag…** opens the small popover described above.
+
+**Stamp.** Right-click an own-tag chip to add it to or remove it from the stamp.
+The gallery panel, Media/reader/Archive popovers and Tagging page share the same
+stamp for this profile, saved with its settings. Missing stamp tags come first
+in suggestions, within the suggestion-chip limit. **Stamp** or Ctrl+Shift+Enter
+(Command+Shift+Enter) gives all missing stamp tags to the current target or marked
+selection; each tag is its own undo step. It never assigns tags automatically.
+The stamp holds nine tags by default; its separate size setting allows 1–18.
+Lowering that size removes names from the end of the stamp, not tags from media.
+
+### Tagging queue and settings
+
+**Add to tagging queue** on Media, in Archive media and in the gallery saves media
+for later work; it assigns no tags, favorites or ratings. **Q** is the default
+shortcut for adding the current medium where that action is available. Queue
+storage limits are under **Storage and limits**.
+
+Open **Tagging** (German: **Taggen**) in the app’s ⋯ menu to see queue progress,
+the shared stamp editor and entries marked **Open**, **Finished** or **Skipped**.
+**Start tagging** or **Continue at n of m** opens a gallery walk over open entries.
+In the list, Enter continues at the selected entry, Delete removes it, Alt+Up/Down
+moves it, and the context menu changes its state. **Remove finished** and
+**Clear queue…** change only the queue: media tags, favorites and ratings stay.
+**Walk through tagging queue** in the app menu’s tools also resumes a walk. Missing
+files stay in the queue and are reported rather than silently marked finished.
+
+In a walk, the gallery opens in **tagging mode** with progress and decision
+buttons. Outside the tag panel, **Enter** marks the medium finished and advances
+to the next open one, **Space** skips it and **Backspace** undoes the newest step;
+undoing a queue decision returns to that medium. If there is no step, Backspace
+only goes back. Inside the tag panel, typing and chip keys keep their normal
+roles: Enter adds a typed tag, and only an empty field’s Enter finishes the medium.
+Ctrl+Enter adds the typed tag and finishes. Ctrl+Shift+Enter applies the stamp and
+advances; an empty stamp or refused write leaves the medium open. **Shift+Space**
+plays/pauses video or animation outside the tag panel; Page Down/Page Up browse
+without deciding. The next walk resumes at the last shown still-open entry.
+
+**K** toggles **card mode** during a walk. Keys **1–5** choose the displayed cards
+under the picture, outside the tag panel and text entry. The defaults, from left to right, are
+**Back**, **Skip**, **Favorite & next**, **Stamp & next**, **Done & next**. Back
+undoes; Skip leaves the item skipped; favorite, stamp, done or a configured rating
+card apply their decision and advance. These keys replace ordinary gallery digit
+keys only while card mode is active.
+
+Settings → **Reading & media → Tagging** contains:
+
+| Setting | Default | Allowed |
+| --- | --- | --- |
+| Stamp: tags it holds | 9 | 1 to 18 |
+| Tagging queue: media per walk | 200 | 10 to 5000 |
+| Cards in the card mode | 5 | 2 to 5 |
+
+**Start walks in the card mode** is off by default; K also saves that preference.
+**Decision cards** assigns the five slots: Back, Skip, Done, Favorite, Stamp or a
+rating of 1–5. Choosing an action already in another slot swaps the two; the count
+shows only the first configured slots. Card count and choices apply from the next
+walk. Saving a smaller walk size does not remove queue entries.
 
 ### Several files in a thread's media tab
 
@@ -1720,7 +1917,7 @@ selects all, Escape clears the selection. A status line says how many files are
 selected.
 
 With two or more files selected, **Tag together…**, **Selection as gallery**,
-**Export originals…** and **Clear selection** act on all of them. Every other
+**Export originals** and **Clear selection** act on all of them. Every other
 command still acts on exactly the file you clicked, and the gallery opens at it.
 The context menu acts on the focused file; only its selection actions act on all
 selected files.
@@ -1734,7 +1931,7 @@ thread media. **Show favorites** opens a searchable overview scoped to the curre
 thread, selected threads, matching threads or all favorites. Missing originals
 remain identified as unavailable.
 
-Choose **Export original…** for one item, or **Export favorite originals…** for the
+Choose **Export original** for one item, or **Export favorite originals** for the
 favorites in the chosen scope. Choose a local destination folder and start the
 copy. It uses verified saved originals and fetches nothing remotely. Files are
 organized by source, board and thread; existing files are not overwritten. The
@@ -1793,8 +1990,9 @@ gibt es noch nicht.
 Video attachments in captured posts can show an offline
 still preview generated from the verified saved video. These previews are reused
 across restarts without fetching remote thumbnails. If a preview cannot be made,
-the original stays available to open in the gallery; playback remains a gallery
-action rather than starting inside the reader. Preview generation needs a working
+the original stays available to open in the gallery. Reader playback is optional
+as described under [inline video](#reader-media-sidebar-and-inline-video).
+Preview generation needs a working
 local VLC backend too.
 
 The gallery includes a bounded LibVLC player for local video, including WebM.
@@ -1806,11 +2004,59 @@ volume control uses the effective previous/next-media bindings; Up/Down adjusts
 available video volume. Timeline keyboard seeking is disabled; mouse seeking and
 volume remain available and preserve Playing/Paused. Other native controls and
 Reader arrows keep their own roles.
+
+In the video transport, **A** sets the start of an A–B loop, a second press sets
+its end and a third clears it. The endpoints must be at least 0.2 seconds apart.
+**.** advances one frame. Hover over the speaker for the volume slider; the wheel
+changes volume by five percentage points. Right-click the speed for choices from
+0.25× to 4×. The transport’s More menu includes speed, audio tracks when there are
+several, saving a frame, repeat and rotation. These controls affect playback/view,
+not the original file.
+
 Linux uses either the selected private bundled VLC or the supported system VLC
 runtime, checked before startup as described above. Windows/macOS use official
 VideoLAN native assets. All desktop variants include .NET; bundled Linux archives
 and AppImages also include VLC. Individual decode failures remain per-file errors. See the [platform record](platform-support.md) for native package/playback
 evidence and limits; audio, GPU and other OS coverage must be assessed there.
+
+### Read-only media folders
+
+Under **Sources & Plugins → Folders → Add folder…**, add a media folder without
+copying it. MeowChan only reads it: it never writes, moves or renames files there.
+Its images/videos appear on Media under **Folders**. Choose whether to include
+subfolders; folder links are not followed. Profile/download folders and overlapping
+added folders are refused. Rename changes only the name shown in MeowChan.
+
+Files are read to recognize their exact content when first opened, favorited,
+rated or tagged; remaining eligible files are read in the background while idle.
+**Pause reading** pauses that background work; **Look through again** checks for
+new, changed and missing files. Limits for folders, files, background reading and
+the catalog are under **Storage and limits → Folders**. The profile’s
+`folder-sources.db` keeps the folder catalog; own tags, favorites and ratings stay
+in the profile, not in the source files. Removing a folder leaves its files alone
+and keeps saved tags, favorites and ratings as unavailable-file records.
+
+If a folder file changes after tagging, its tags stay with the previous exact
+version. Selecting it on Media shows a hint; **All occurrences…** opens details
+with **Copy tags from the previous version**. After confirmation, MeowChan verifies
+the current file and copies the tags without removing them from the old version.
+The offered **Undo** removes only the tags added by this copy from the new version.
+
+### Profiles in separate windows
+
+App menu **⋯ → Profile → New profile…** creates another profile with its own
+settings, archive, tags, favorites and download folder in a separate window;
+this window stays open. **Switch profile…** lists known profiles and opens the
+chosen one rather than replacing this window’s data. An already open profile is
+not started twice. **Open profile folder** opens the current profile’s folder.
+You can also start one with `MeowChan --profile <folder>`.
+
+A new profile can optionally receive an existing media folder. The dialog checks
+the path and explains unsuitable choices without creating the folder. A valid
+choice is added as a read-only folder source on the new window’s first start.
+If adding it fails there, the new window still starts and explains the refusal.
+The shared list of known profiles is outside the profiles and contains folder
+references; removing a list entry deletes neither the profile nor its media.
 
 ## Missing media and finished threads
 

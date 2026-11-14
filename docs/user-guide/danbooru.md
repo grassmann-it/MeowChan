@@ -37,6 +37,13 @@ Standard über deiner gespeicherten Wahl. Fußleiste und Menü folgen der aktuel
 Verfügbarkeit. F1 kann auch ein ausgeblendetes oder nicht verfügbares Seitenkürzel
 weiter auflisten; das schaltet die Seite nicht frei.
 
+Mit F1 öffnest du das gemeinsame Fenster **Tastenkürzel** beim aktuellen Bereich.
+Es bleibt offen, während du die Hauptseite weiter bedienst. Du kannst die
+Belegungen suchen, nach Bereich filtern, sortieren und bearbeiten; Änderungen
+gelten erst nach **Speichern**, Kollisionen verhindern das Speichern. F1 oder Esc
+schließt das Fenster wieder; Esc beendet zuerst eine laufende Aufnahme, und bei
+ungespeicherten Änderungen fragt das Fenster nach.
+
 **Booru anzeigen** in Fußleiste und Appmenü ist ein gespeicherter, profilweiter
 Anzeigeschalter, standardmäßig an. Ohne eingebundene Booru-Dienste fehlen Schalter
 und Seitenziel. Ausschalten blendet die Booru-Ziele in Fußleiste, Mehr und Appmenü
