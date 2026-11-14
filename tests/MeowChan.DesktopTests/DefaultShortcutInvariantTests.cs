@@ -63,9 +63,10 @@ public sealed class DefaultShortcutInvariantTests
     [Theory, MemberData(nameof(Platforms))]
     public void EveryCommandWithADefaultIsImplementedAndHasALabelInBothLanguages(ShortcutPlatform platform)
     {
+        // Quick-tag commands are registered ahead of their handlers (QuickTagCommands.AwaitingHandler); QuickTagCommandTests pins that list.
         foreach (var command in CommandCatalog.All.Where(command => EffectiveShortcutBindings.Defaults(command, platform).Count > 0))
         {
-            Assert.True(command.IsImplemented, command.Id);
+            Assert.True(command.IsImplemented || command.IsAwaitingHandler, command.Id);
             Assert.False(string.IsNullOrWhiteSpace(command.LabelEn) || string.IsNullOrWhiteSpace(command.LabelDe), command.Id);
         }
     }

@@ -107,7 +107,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 5;
+    public const int DefaultsRevision = 6;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -141,6 +141,13 @@ public sealed class EffectiveShortcutBindings
         ["video.mute"] = 5, ["video.seek-back"] = 5, ["video.seek-forward"] = 5, ["video.seek-back-far"] = 5,
         ["video.seek-forward-far"] = 5, ["video.speed-down"] = 5, ["video.speed-up"] = 5, ["video.speed-reset"] = 5,
         ["video.snapshot"] = 5,
+        // New in revision 6: quick tagging in the gallery tag panel and the tag popover (QuickTagCommands). Not yet wired
+        // commands are inactive (CommandDefinition.IsAwaitingHandler), their defaults already yield like any new default.
+        ["tags.quick.next"] = 6, ["tags.quick.previous"] = 6, ["tags.quick.commit-next"] = 6, ["tags.quick.mark-next"] = 6,
+        ["tags.quick.mark-previous"] = 6, ["tags.quick.undo"] = 6, ["tags.quick.thread-section"] = 6,
+        ["tags.quick.suggestion-1"] = 6, ["tags.quick.suggestion-2"] = 6, ["tags.quick.suggestion-3"] = 6,
+        ["tags.quick.suggestion-4"] = 6, ["tags.quick.suggestion-5"] = 6, ["tags.quick.suggestion-6"] = 6,
+        ["tags.quick.suggestion-7"] = 6, ["tags.quick.suggestion-8"] = 6, ["tags.quick.suggestion-9"] = 6,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -229,6 +236,11 @@ public sealed class EffectiveShortcutBindings
             // Fn is never the only way on a Mac: the Diagnostics retry shares the gesture of "Retry missing media"
             // (they never apply on the same page).
             "diagnostics.retry-selection" => Of("Primary+Alt+Shift+R"),
+            // Quick tagging: an Apple keyboard has no PageUp/PageDown (Fn+arrow), so the ⌘-arrow is the first gesture there.
+            "tags.quick.next" => Of("Primary+Down", "PageDown"),
+            "tags.quick.previous" => Of("Primary+Up", "PageUp"),
+            "tags.quick.mark-next" => Of("Primary+Shift+Down", "Shift+PageDown"),
+            "tags.quick.mark-previous" => Of("Primary+Shift+Up", "Shift+PageUp"),
             _ => null
         };
     }
@@ -329,7 +341,8 @@ public sealed class EffectiveShortcutBindings
         var requested = new Dictionary<string, IReadOnlyList<ShortcutGesture>>(values, StringComparer.Ordinal);
         foreach (var command in CommandCatalog.All.Where(command => !command.IsImplemented))
         {
-            if (values[command.Id].Count > 0)
+            // A command that only waits for its handler keeps its default silently; a saved binding of the user is still reported.
+            if (values[command.Id].Count > 0 && !(command.IsAwaitingHandler && !section.HasOverride(command.Id)))
                 issues.Add(ShortcutIssue.FromReason(command.Id, new("notImplemented", "Action not implemented; binding retained but inactive / Aktion nicht implementiert; Belegung erhalten, aber inaktiv"), blocksSave: false));
             values[command.Id] = Array.Empty<ShortcutGesture>();
         }
