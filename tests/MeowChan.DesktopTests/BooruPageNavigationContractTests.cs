@@ -137,8 +137,8 @@ public sealed class BooruPageNavigationContractTests
         Assert.Contains("ReferenceEquals(_session.BooruServices, services)", bridge, StringComparison.Ordinal);
         int activation = bridge.IndexOf("await page.ActivateAsync()", StringComparison.Ordinal);
         int capture = bridge.IndexOf("page.CaptureBooruHandoffInteraction()", StringComparison.Ordinal);
-        int recheck = bridge.IndexOf("if (!Current() || !interactionCurrent()) return false;", activation, StringComparison.Ordinal);
-        int selection = bridge.IndexOf("await page.ShowBooruPostAsync(postId, Current)", StringComparison.Ordinal);
+        int recheck = bridge.IndexOf("if (!Current() || !interactionCurrent()) return Cancelled();", activation, StringComparison.Ordinal);
+        int selection = bridge.IndexOf("await page.ShowBooruPostAsync(postId, Current, cancelNotice)", StringComparison.Ordinal);
         Assert.True(capture >= 0 && activation > capture && recheck > activation && selection > recheck,
             "A delayed media activation must revalidate navigation and source lifetime before changing selection.");
     }

@@ -20,6 +20,76 @@ public sealed class BooruLinkLifetimeTests
     private const string PostId = "42";
     private const string Url = "https://danbooru.donmai.us/posts/42";
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CancelledHostNavigationCannotPublishALateMissingOrFailureNotice(bool fault) => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        TaskCompletionSource<bool> release = NewSource<bool>();
+        Action? cancelNotice = null;
+        view.ShowInMedia = _ =>
+        {
+            cancelNotice = view.CaptureLinkActionCancellation();
+            return release.Task;
+        };
+        ShowInMediaButton(view).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.NotNull(cancelNotice);
+        cancelNotice(); // The workbench remains alive; user takeover retired only this host request.
+        if (fault) release.SetException(new InvalidOperationException("retired navigation"));
+        else release.SetResult(false);
+        await AwaitClickHandlersAsync();
+        Assert.False(LinkNote(view).IsVisible);
+    });
+
+    [Fact]
+    public void OldHostCancellationCannotInvalidateANewerNavigationNotice() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        TaskCompletionSource<bool> first = NewSource<bool>();
+        TaskCompletionSource<bool> second = NewSource<bool>();
+        Action? cancelFirst = null;
+        int calls = 0;
+        view.ShowInMedia = _ =>
+        {
+            if (++calls == 1)
+            {
+                cancelFirst = view.CaptureLinkActionCancellation();
+                return first.Task;
+            }
+            return second.Task;
+        };
+        Button action = ShowInMediaButton(view);
+        action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        action.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.Equal(2, calls);
+        Assert.NotNull(cancelFirst);
+        cancelFirst(); // CAS must leave the second action's revision intact.
+        second.SetResult(false);
+        await AwaitClickHandlersAsync();
+        string missing = Texts.T("booru.crossLinks.missingLocal", PostId);
+        Assert.Equal(missing, LinkNote(view).Text);
+        first.SetException(new InvalidOperationException("old host retired"));
+        await AwaitClickHandlersAsync();
+        Assert.Equal(missing, LinkNote(view).Text);
+    });
+
+    [Fact]
+    public void CurrentMissingLocalNavigationStillReportsTheMissingOriginal() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        view.ShowInMedia = _ => Task.FromResult(false);
+        ShowInMediaButton(view).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await AwaitClickHandlersAsync();
+        Assert.Equal(Texts.T("booru.crossLinks.missingLocal", PostId), LinkNote(view).Text);
+    });
+
     [Fact]
     public void DisposingDuringShowInMediaNavigationSuppressesTheLateMissingNotice() => OnDispatcher(async () =>
     {

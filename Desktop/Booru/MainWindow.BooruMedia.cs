@@ -73,7 +73,7 @@ public partial class MainWindow
             await page.ActivateAsync().ConfigureAwait(true);
             // User edits win even when the old workbench remains alive behind the Media page.
             if (!Current() || !interactionCurrent()) return Cancelled();
-            bool shown = await page.ShowBooruPostAsync(postId, Current).ConfigureAwait(true);
+            bool shown = await page.ShowBooruPostAsync(postId, Current, cancelNotice).ConfigureAwait(true);
             if (!Current() || !interactionCurrent()) return Cancelled();
             return shown;
         }

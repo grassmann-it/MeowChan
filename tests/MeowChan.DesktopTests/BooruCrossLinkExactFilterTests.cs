@@ -230,7 +230,9 @@ public sealed class BooruCrossLinkExactFilterTests
         using var model = new FilterModel(Entry("123", Md5Name));
         model.IncompatibleFilters();
         model.Get<CancellationTokenSource>("_lifetime").Cancel();
-        Assert.False(model.Page.ShowBooruPostAsync("123").GetAwaiter().GetResult());
+        int cancelledNotices = 0;
+        Assert.False(model.Page.ShowBooruPostAsync("123", cancelNotice: () => cancelledNotices++).GetAwaiter().GetResult());
+        Assert.Equal(1, cancelledNotices);
         Assert.Equal("a different filename", model.Page.NameFilter.Text);
         Assert.True(model.Page.CurrentFilter().FavoritesOnly);
         Assert.Equal(2, model.Get<List<MediaFilterTerm>>("_terms").Count(term => term.Field == MediaFilterField.Tag)); // both old tags kept (M2 term set)
@@ -241,9 +243,10 @@ public sealed class BooruCrossLinkExactFilterTests
     {
         using var model = new FilterModel(Entry("123", Md5Name));
         model.IncompatibleFilters();
-        int gateCalls = 0;
-        Assert.False(model.Page.ShowBooruPostAsync("123", () => { gateCalls++; return false; }).GetAwaiter().GetResult());
+        int gateCalls = 0, cancelledNotices = 0;
+        Assert.False(model.Page.ShowBooruPostAsync("123", () => { gateCalls++; return false; }, () => cancelledNotices++).GetAwaiter().GetResult());
         Assert.Equal(1, gateCalls);
+        Assert.Equal(1, cancelledNotices);
         Assert.Equal("a different filename", model.Page.NameFilter.Text);
         Assert.True(model.Page.CurrentFilter().FavoritesOnly);
         Assert.Equal(2, model.Get<List<MediaFilterTerm>>("_terms").Count(term => term.Field == MediaFilterField.Tag)); // both old tags kept (M2 term set)
@@ -265,7 +268,7 @@ public sealed class BooruCrossLinkExactFilterTests
         Assert.DoesNotContain("FirstTileInView(", focus);
         string navigation = Source("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs");
         Assert.Contains("await PresentTask.ConfigureAwait(true);\n        if (!Current()) return false;", navigation);
-        Assert.Contains("return Current() && focused;", navigation);
+        Assert.Contains("if (!Current() || !focused) return Cancelled();", navigation);
         Assert.Contains("run, stillRequested).ConfigureAwait(true)", navigation);
         Assert.DoesNotContain("SetTextSilently(postId)", navigation);
         foreach (string persistence in new[] { "SaveConfig(", "SaveSortAsync", "SaveFilter", "ReadUserData(" })

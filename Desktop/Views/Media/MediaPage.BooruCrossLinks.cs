@@ -28,12 +28,14 @@ public sealed partial class MediaPage
     /// Explicit reset-navigation to a local Danbooru original: only source and exact post/thread remain active.
     /// No catalog/provider request is made here; the host has already admitted the local post.
     /// </summary>
-    internal async Task<bool> ShowBooruPostAsync(string postId, Func<bool>? stillRequested = null)
+    internal async Task<bool> ShowBooruPostAsync(string postId, Func<bool>? stillRequested = null, Action? cancelNotice = null)
     {
-        if (stillRequested?.Invoke() == false || _lifetime.IsCancellationRequested || !IsEffectivelyVisible || _building != null) return false;
+        bool Cancelled() { cancelNotice?.Invoke(); return false; }
+        if (stillRequested?.Invoke() == false || _lifetime.IsCancellationRequested || !IsEffectivelyVisible || _building != null) return Cancelled();
         ResourceId thread = BooruMediaIdentity.Thread(postId);
         if (!BooruMediaIdentity.IsBooruThread(thread)) return false;
-        if (_snapshot == null || !_snapshot.Entries.Any(entry => IsSavedBooruEntry(entry, postId)))
+        if (_snapshot == null) return Cancelled(); // An unavailable index is not proof of a missing original.
+        if (!_snapshot.Entries.Any(entry => IsSavedBooruEntry(entry, postId)))
         {
             ShowSelectionNote(Texts.T("booru.crossLinks.missingLocal", postId));
             return false;
@@ -42,18 +44,28 @@ public sealed partial class MediaPage
         // This is navigation, not a refinement of the previous query. Like Reset all, it changes only the
         // page's transient controls (no saved user settings). The existing chips describe the entire new
         // context: source + exact thread/post, never a filename substring masquerading as a post identity.
-        if (!ApplyBooruNavigationFilters(thread, postId)) return false;
+        if (!ApplyBooruNavigationFilters(thread, postId)) return Cancelled();
         object run = new();
         _returnRun = run; // Supersedes any earlier return/focus; own input cancels this run too.
         RenderTagOptions();
         PresentEditedFilters();
         Func<bool> context = CaptureNavigationContext(run, awaitingPresent: true);
         bool Current() => context() && IsEffectivelyVisible && (stillRequested?.Invoke() ?? true);
-        await PresentTask.ConfigureAwait(true);
-        if (!Current()) return false;
-        bool focused = await FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId),
-            Texts.T("booru.crossLinks.missingLocal", postId), run, stillRequested).ConfigureAwait(true);
-        return Current() && focused;
+        try
+        {
+            await PresentTask.ConfigureAwait(true);
+            if (!Current()) return Cancelled();
+            bool focused = await FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId),
+                Texts.T("booru.crossLinks.missingLocal", postId), run, stillRequested).ConfigureAwait(true);
+            // The media page owns any active focus/missing-row note. A superseded presentation or
+            // unsuccessful focus must not publish a delayed missing-original notice in the old view.
+            if (!Current() || !focused) return Cancelled();
+            return true;
+        }
+        catch (Exception error) when (error is not OutOfMemoryException && !Current())
+        {
+            return Cancelled();
+        }
     }
 
     // One atomic edit: no intermediate unfiltered presentation and no events with a half-reset query.
