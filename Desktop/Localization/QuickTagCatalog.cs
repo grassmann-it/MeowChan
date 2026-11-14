@@ -19,7 +19,7 @@ internal static class QuickTagCatalog
         ("tags.quick.fieldHint", "{0} to {1} toggle the numbered suggestions. With an empty field, Down moves to the suggestions and Backspace to the assigned tags.",
             "{0} bis {1} schalten die nummerierten Vorschläge um. Bei leerem Feld führt Pfeil runter zu den Vorschlägen und die Rücktaste zu den zugewiesenen Tags."),
         ("tags.quick.fieldHintNavigation", "Page Down and Page Up show the next or previous media file, {0} adds the typed tag and moves on.",
-            "Bild runter und Bild hoch zeigen das nächste oder vorige Medium, {0} fügt den getippten Tag hinzu und geht weiter."),
+            "Bild ab und Bild auf zeigen das nächste oder vorige Medium, {0} fügt den getippten Tag hinzu und geht weiter."),
         ("tags.quick.suggestions", "Suggestions", "Vorschläge"),
         ("tags.quick.suggestions.empty", "No suggestions yet. Type a name to add a tag.", "Noch keine Vorschläge. Einen Namen tippen, um einen Tag hinzuzufügen."),
         ("tags.quick.suggestions.help", "Left and Right move between suggestions, Space or Enter toggles one, a number or the letter on a chip toggles it directly. Up returns to the tag field.",
