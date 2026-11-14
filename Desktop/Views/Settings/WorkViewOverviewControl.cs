@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Data;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -22,7 +23,8 @@ namespace MeowChan.Desktop.Views.Settings;
 /// <summary>
 /// Standalone, read-only WV11 settings category. All methods (including Dispose) require the UI thread.
 /// Parent: create once, call EnsureLoaded when selecting settings.workviews (not while indexing settings search),
-/// SetActiveView on applied view changes, SetPageFilter for a page deep-link, and LocaleRefresh after Texts changes.
+/// SetActiveView on applied view changes, SetPageFilter for a page deep-link, SetDifferenceFilter for WV12 Details,
+/// and LocaleRefresh after Texts changes. Difference filtering never changes the actually applied view.
 /// Dispose with the settings editor, NOT on category switches. No global event subscription, config writes or page creation.
 /// Prefer a bounded-height host; a vertical ScrollViewer gets a finite 480-dip measuring viewport to retain virtualization.
 /// </summary>
@@ -35,6 +37,8 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
     private DataGrid? _table;
     private ComboBox? _pages;
     private TextBox? _filter;
+    private Button? _clearFilters;
+    private HashSet<string>? _differenceIds;
     private TextBlock? _description, _status, _pageLabel, _textLabel;
     private WorkView _activeView;
     private WorkViewPage? _pageFilter;
@@ -71,13 +75,17 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         _pages.SelectionChanged += OnPageChanged;
         _filter.TextChanged += OnTextChanged;
         var pageField = new StackPanel { Spacing = 4, Children = { _pageLabel, _pages } };
-        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 8 };
+        var fields = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,Auto"), ColumnSpacing = 8 };
         fields.Children.Add(pageField);
         // A visible label, not only a placeholder which disappears while searching.
         _textLabel = Wrap("");
         _textLabel.Name = "WorkViewOverviewTextLabel";
         var textField = new StackPanel { Spacing = 4, Children = { _textLabel, _filter } };
         Grid.SetColumn(textField, 1); fields.Children.Add(textField);
+        _clearFilters = new Button { Name = "WorkViewOverviewClearFilters", MinWidth = 0,
+            VerticalAlignment = VerticalAlignment.Bottom };
+        _clearFilters.Click += OnClearFilters;
+        Grid.SetColumn(_clearFilters, 2); fields.Children.Add(_clearFilters);
 
         _table = new DataGrid
         {
@@ -154,13 +162,38 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
     {
         VerifyUsable();
         _textFilter = text ?? "";
-        if (_filter != null && _filter.Text != _textFilter) _filter.Text = _textFilter;
-        else RefreshFilter();
+        _updating = true;
+        try { if (_filter != null && _filter.Text != _textFilter) _filter.Text = _textFilter; }
+        finally { _updating = false; }
+        RefreshFilter();
+    }
+
+    /// <summary>
+    /// WV12 Details: snapshot changed policy ids, not commands, labels or the current visual tree.
+    /// May be set before EnsureLoaded without projecting rows or building UI. Null removes the difference restriction.
+    /// Either call clears page/text so the entire selected set is shown; subsequent page/text filters AND with these ids.
+    /// The filter survives locale reprojection and applied-view changes; it never switches the active column or writes config.
+    /// </summary>
+    internal void SetDifferenceFilter(DiffSummary? diff)
+    {
+        VerifyUsable();
+        _differenceIds = diff == null ? null : new HashSet<string>(diff.Changes.Select(change => change.Entry.Id), StringComparer.Ordinal);
+        _pageFilter = null;
+        _textFilter = "";
+        _updating = true;
+        try
+        {
+            if (_pages != null)
+                _pages.SelectedItem = _pages.ItemsSource!.Cast<PageChoice>().First(choice => choice.Page == null);
+            if (_filter != null) _filter.Text = "";
+        }
+        finally { _updating = false; }
+        RefreshFilter();
     }
 
     /// <summary>
     /// Parent forwards locale changes on UIThread. Re-captures names of already registered controls; never constructs pages.
-    /// Retains active view, literal filters and selected policy id. Before first open this remains lazy.
+    /// Retains active view, difference ids, literal filters and selected policy id. Before first open this remains lazy.
     /// </summary>
     internal void LocaleRefresh()
     {
@@ -203,8 +236,12 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         AutomationProperties.SetName(this, T("settings.section.workViews"));
         AutomationProperties.SetName(_pages, T("workview.overview.page"));
         AutomationProperties.SetName(_filter!, T("workview.overview.filter"));
+        // Reuse the existing generic filter-reset wording; no new catalog entry or raw UI text.
+        string clearLabel = Texts.T("diagnostics.clearFilters");
+        _clearFilters!.Content = Wrap(clearLabel);
+        AutomationProperties.SetName(_clearFilters, clearLabel);
         AutomationProperties.SetName(_table, T("settings.section.workViews"));
-        _view = new DataGridCollectionView(_rows) { Filter = item => WorkViewOverview.Matches((WorkViewOverview.Row)item, _pageFilter, _textFilter) };
+        _view = new DataGridCollectionView(_rows) { Filter = item => MatchesFilter((WorkViewOverview.Row)item) };
         _view.GroupDescriptions.Add(new DataGridPathGroupDescription(nameof(WorkViewOverview.Row.PageLabel)));
         _table.ItemsSource = _view;
         _table.SelectedItem = _view.Cast<WorkViewOverview.Row>().FirstOrDefault(row => row.Id == selectedId);
@@ -219,6 +256,9 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         foreach (OverviewCell cell in _cells) cell.Refresh();
     }
 
+    private bool MatchesFilter(WorkViewOverview.Row row) =>
+        (_differenceIds == null || _differenceIds.Contains(row.Id)) && WorkViewOverview.Matches(row, _pageFilter, _textFilter);
+
     private void RefreshFilter()
     {
         _view?.Refresh(); // Same projection and grid; filtering does not recreate rows or registered pages.
@@ -227,6 +267,8 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
 
     private void UpdateStatus()
     {
+        if (_clearFilters != null)
+            _clearFilters.IsEnabled = _differenceIds != null || _pageFilter.HasValue || _textFilter.Length != 0;
         if (_status == null || _view == null) return;
         _status.Text = _view.Count == 0 ? T("workview.overview.empty") : T("workview.overview.count", _view.Count, _rows.Count);
     }
@@ -240,9 +282,14 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
 
     private void OnTextChanged(object? sender, TextChangedEventArgs e)
     {
-        if (_disposed) return;
+        if (_updating || _disposed) return;
         _textFilter = _filter!.Text ?? "";
         RefreshFilter();
+    }
+
+    private void OnClearFilters(object? sender, RoutedEventArgs e)
+    {
+        if (!_disposed) SetDifferenceFilter(null);
     }
 
     private void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
@@ -276,12 +323,13 @@ internal sealed class WorkViewOverviewControl : UserControl, IDisposable
         KeyDown -= OnKeyDown;
         if (_pages != null) { _pages.SelectionChanged -= OnPageChanged; _pages.ItemsSource = null; }
         if (_filter != null) _filter.TextChanged -= OnTextChanged;
+        if (_clearFilters != null) _clearFilters.Click -= OnClearFilters;
         if (_table != null) _table.ItemsSource = null;
         if (_view != null) _view.Filter = null;
-        _view = null; _rows = Array.Empty<WorkViewOverview.Row>();
+        _view = null; _rows = Array.Empty<WorkViewOverview.Row>(); _differenceIds = null;
         Content = null;
         _cells.Clear(); _headers.Clear();
-        _table = null; _pages = null; _filter = null; _description = null; _pageLabel = null; _status = null; _textLabel = null;
+        _table = null; _pages = null; _filter = null; _clearFilters = null; _description = null; _pageLabel = null; _status = null; _textLabel = null;
     }
 
     private sealed record PageChoice(WorkViewPage? Page, string Label)
