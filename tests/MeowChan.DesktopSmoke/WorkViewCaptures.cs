@@ -520,7 +520,7 @@ internal static class WorkViewCaptures
                 throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
         // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
-        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] header = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
         string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
                 && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
