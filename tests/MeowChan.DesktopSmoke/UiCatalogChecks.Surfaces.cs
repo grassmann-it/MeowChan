@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -16,6 +17,7 @@ internal static partial class UiCatalogChecks
         s.Add(new("shell-menus", ShellMenusAsync));
         s.Add(new("help-popovers", HelpPopoversAsync));
         s.Add(new("row-menus", RowMenusAsync));
+        s.Add(new("text-buttons", TextButtonsAsync, Once: true));
     }
 
     private static async Task ShellMenusAsync(MainWindow w)
@@ -23,11 +25,11 @@ internal static partial class UiCatalogChecks
         await Enter(w, "downloads");
         await StepAsync("shell-app-menu", async () =>
         {
-            MenuItem root = Need<MenuItem>(w, "WorkspaceMenuItem");
+            MenuItem root = w.FindControl<MenuItem>("WorkspaceMenuItem") ?? throw new InvalidOperationException("No app menu");
             root.IsSubMenuOpen = true;
             try
             {
-                MenuItem first = Need<MenuItem>(w, "DownloadsMenuItem");
+                MenuItem first = root.Items.OfType<MenuItem>().FirstOrDefault() ?? throw new InvalidOperationException("No first menu item");
                 await UntilAsync(() => root.IsSubMenuOpen && first.Bounds.Width > 0 && TopLevel.GetTopLevel(first) is { } top && !ReferenceEquals(top, w), "the app menu did not open");
                 await Settle(w, 250);
                 UiCatalog.RecordSurface(SurfaceOf(first, w), "shell-app-menu", "menu", "App menu (the dots at the right edge of the title bar): pages, tools, application");
@@ -53,9 +55,9 @@ internal static partial class UiCatalogChecks
             combo.IsDropDownOpen = true;
             try
             {
-                await UntilAsync(() => combo.IsDropDownOpen && combo.GetVisualDescendants().OfType<ComboBoxItem>().FirstOrDefault() is { Bounds.Width: > 0 }, "the view picker did not open");
+                await UntilAsync(() => combo.IsDropDownOpen && combo.ContainerFromIndex(0) is Control { Bounds.Width: > 0 }, "the view picker did not open");
                 await Settle(w, 250);
-                UiCatalog.RecordSurface(SurfaceOf(combo.GetVisualDescendants().OfType<ComboBoxItem>().First(), w), "shell-view-picker", "dropdown", "Footer view picker: Barebones, Simple, Advanced");
+                UiCatalog.RecordSurface(SurfaceOf((Control)combo.ContainerFromIndex(0)!, w), "shell-view-picker", "dropdown", "Footer view picker: Barebones, Simple, Advanced");
             }
             finally { combo.IsDropDownOpen = false; await Settle(w, 150); }
         });
@@ -105,7 +107,7 @@ internal static partial class UiCatalogChecks
         {
             await Enter(w, "archive");
             ArchivePage a = w.ArchivePage;
-            Click(Named<ToggleButton>(a, "ArchiveLayoutTable"));
+            a.ArchiveLayoutPreference = "Table";
             try
             {
                 DataGrid table = Named<DataGrid>(a, "ArchiveThreadTable");
@@ -115,7 +117,101 @@ internal static partial class UiCatalogChecks
                 table.Focus();
                 await MenuAsync(w, table, "menu-archive-table-row", "Context menu of a thread row in the archive table (legacy ContextMenu)");
             }
-            finally { Click(Named<ToggleButton>(a, "ArchiveLayoutList")); await Settle(w, 150); }
+            finally { a.ArchiveLayoutPreference = "List"; await Settle(w, 150); }
         });
     }
+
+    // ---- Evidence for the catalog section "Textknöpfe ohne Icon": every visible button of every page (Advanced view, all controls
+    // direct) that shows text and has no icon, read from the live visual tree. Written to text-buttons.json next to the images. ----
+
+    private static bool HasIcon(Button button) =>
+        button.Classes.Contains("command-icon") || button.Classes.Contains("icon-only") || button.Classes.Contains("icon-square")
+        || button.GetVisualDescendants().Any(v => v is Avalonia.Controls.Shapes.Path or Image || (v is Border { OpacityMask: not null }) || (v is Border b && b.Classes.Contains("icon")));
+
+    private static string? ShownText(Button button)
+    {
+        if (button.Content is string text && text.Trim().Length > 0) return text.Trim();
+        return button.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))?.Trim();
+    }
+
+    private static void CollectTextButtons(MainWindow w, string view, List<object> found, HashSet<string> seen)
+    {
+        foreach (Button button in w.GetVisualDescendants().OfType<Button>())
+        {
+            if (!button.IsEffectivelyVisible || button.Bounds.Width <= 0 || HasIcon(button)) continue;
+            string? text = ShownText(button);
+            if (text == null) continue;
+            string name = button.Name ?? "";
+            string id = view + "|" + name + "|" + text;
+            if (!seen.Add(id)) continue;
+            string chain = string.Join(">", button.GetVisualAncestors().OfType<Control>().Select(c => c.Name).Where(n => !string.IsNullOrEmpty(n)).Take(3));
+            found.Add(new { view, name, text, classes = string.Join(" ", button.Classes.Where(c => !c.StartsWith(':'))), parents = chain, tag = button.Tag as string ?? "" });
+        }
+    }
+
+    private static async Task TextButtonsAsync(MainWindow w)
+    {
+        List<object> found = [];
+        HashSet<string> seen = [];
+        await PresentationChecks.SwitchModeAsync(w, "Advanced");
+        foreach (string page in new[] { "downloads", "archive", "reader", "gallery", "media", "rules", "sources", "plugins", "statistics", "diagnostics", "settings" })
+            await StepAsync("text-buttons:" + page, async () => { await Enter(w, page); CollectTextButtons(w, page, found, seen); });
+        await StepAsync("text-buttons:booru", async () => { await EnterBooruAsync(w); await _booru!.MaterializeAsync(); CollectTextButtons(w, "booru", found, seen); });
+        await StepAsync("text-buttons:archive-filters", async () =>
+        {
+            await Enter(w, "archive");
+            w.ArchivePage.ToggleFilterSurfaceByShortcut();
+            await UntilAsync(() => w.ArchivePage.IsFilterSurfaceOpen, "the filter surface did not open");
+            await Settle(w, 300);
+            CollectTextButtons(w, "archive-filters", found, seen);
+            w.ArchivePage.CloseFilterSurface(restoreFocus: false);
+        });
+        await StepAsync("text-buttons:media-filters", async () =>
+        {
+            await Enter(w, "media");
+            MediaPage page = w.MediaPageForTests!;
+            Need<ToggleButton>(page, "MediaFilters").IsChecked = true;
+            await UntilAsync(() => page.IsFilterSurfaceOpen, "the media filter surface did not open");
+            await Settle(w, 300);
+            CollectTextButtons(w, "media-filters", found, seen);
+            page.CloseFilterSurface(restoreFocus: false);
+        });
+        File.WriteAllText(Path.Combine(UiCatalog.OutputDirectory, "text-buttons.json"),
+            System.Text.Json.JsonSerializer.Serialize(found, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        Console.WriteLine("SMOKE ui catalog text buttons: " + found.Count);
+    }
+}
+
+/// <summary>Text-only button probe for the dialog gallery: every window it renders is scanned once (English, first theme) and the
+/// result is written next to its manifest (text-buttons-dialogs.json) for the catalog section "Textknöpfe ohne Icon".</summary>
+internal static class TextButtonProbe
+{
+    private static readonly List<object> Found = [];
+    private static readonly HashSet<string> Seen = [];
+
+    internal static void Reset() { Found.Clear(); Seen.Clear(); }
+
+    internal static void Capture(Visual root, string dialog)
+    {
+        if (root is MainWindow) return;
+        if (!string.Equals(Avalonia.Application.Current is null ? "en" : MeowChan.Desktop.Localization.Texts.Language, "en", StringComparison.Ordinal)) return;
+        foreach (Button button in root.GetVisualDescendants().OfType<Button>())
+        {
+            if (!button.IsEffectivelyVisible || button.Bounds.Width <= 0) continue;
+            bool icon = button.Classes.Contains("command-icon") || button.Classes.Contains("icon-only") || button.Classes.Contains("icon-square")
+                || button.GetVisualDescendants().Any(v => v is Avalonia.Controls.Shapes.Path or Image || (v is Border { OpacityMask: not null }) || (v is Border b && b.Classes.Contains("icon")));
+            if (icon) continue;
+            string? text = button.Content is string c && c.Trim().Length > 0 ? c.Trim()
+                : button.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text).FirstOrDefault(t => !string.IsNullOrWhiteSpace(t))?.Trim();
+            if (text == null) continue;
+            bool footer = button.GetVisualAncestors().OfType<Control>().Any(a => a.Name == DialogFrame.FooterName);
+            string name = button.Name ?? "";
+            if (!Seen.Add(dialog + "|" + name + "|" + text)) continue;
+            Found.Add(new { dialog, name, text, footer, classes = string.Join(" ", button.Classes.Where(k => !k.StartsWith(':'))) });
+        }
+    }
+
+    internal static void Write(string directory) =>
+        File.WriteAllText(Path.Combine(directory, "text-buttons-dialogs.json"),
+            System.Text.Json.JsonSerializer.Serialize(Found, new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
 }

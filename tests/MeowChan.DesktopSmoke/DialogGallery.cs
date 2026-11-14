@@ -62,6 +62,7 @@ internal static class DialogGallery
     internal static void Record(Control root, string name, string variant, string note)
     {
         Visual visual = root is Window ? root : (Visual?)TopLevel.GetTopLevel(root) ?? root;
+        TextButtonProbe.Capture(visual, name);
         RenderTo(visual, name, variant, note, root);
     }
 
@@ -106,6 +107,7 @@ internal static class DialogGallery
         File.WriteAllText(Path.Combine(_directory, "manifest.json"), JsonSerializer.Serialize(new { run = runLabel, shots = Shots, gaps = Gaps, layoutFindings = Findings },
             new JsonSerializerOptions { WriteIndented = true }));
         File.WriteAllText(Path.Combine(_directory, "index.html"), Html(runLabel));
+        TextButtonProbe.Write(_directory);
         Console.WriteLine("SMOKE dialog gallery: " + Shots.Count + " images, " + Gaps.Count + " gaps, " + Findings.Count + " layout findings in " + _directory);
         return Shots.Count;
     }

@@ -31,7 +31,7 @@ internal static partial class UiCatalogChecks
     private static readonly (string Language, string Theme)[] Cells = [("en", "Light"), ("en", "Dark"), ("de", "Light"), ("de", "Dark")];
 
     // A scene: a name, an optional cell restriction ("tier" scenes run in two cells only) and the run.
-    private sealed record Scene(string Name, Func<MainWindow, Task> Run, bool TiersOnly = false);
+    private sealed record Scene(string Name, Func<MainWindow, Task> Run, bool TiersOnly = false, bool Once = false);
 
     private static string _baselineMode = "Simple";
     private static WorkViewBooruChecks? _booru;
@@ -70,6 +70,7 @@ internal static partial class UiCatalogChecks
                 foreach (Scene scene in scenes)
                 {
                     // Tier scenes show the layout, not colour or language: two cells (EN Light, DE Dark) cover both.
+                    if (scene.Once && cell != 0) continue;
                     if (scene.TiersOnly && !(language == "en" && theme == "Light") && !(language == "de" && theme == "Dark")) continue;
                     try
                     {

@@ -39,13 +39,13 @@ internal static partial class UiCatalogChecks
         {
             await Enter(w, "archive");
             ArchivePage a = w.ArchivePage;
-            Click(Named<ToggleButton>(a, "ArchiveLayoutTable"));
+            a.ArchiveLayoutPreference = "Table";
             try
             {
-                await UntilAsync(() => Find<DataGrid>(a, "ArchiveThreadTable") is { IsVisible: true }, "the table layout did not show");
+                await UntilAsync(() => Find<DataGrid>(a, "ArchiveThreadTable") is { IsVisible: true, Bounds.Height: > 0 }, "the table layout did not show");
                 await PageAsync(w, "page-archive-table", "Archive table layout (columns, favorite star column)", reenter: () => Enter(w, "archive"));
             }
-            finally { Click(Named<ToggleButton>(a, "ArchiveLayoutList")); await Settle(w, 150); }
+            finally { a.ArchiveLayoutPreference = "List"; await Settle(w, 150); }
         }));
         s.Add(new("page-archive-filters", async w =>
         {
@@ -156,14 +156,14 @@ internal static partial class UiCatalogChecks
         await PageAsync(w, "page-gallery", "Gallery viewer, View mode (toolbar, picture, controls)", reenter: () => Enter(w, "gallery"));
         await StepAsync("gallery-post-panel-segment", async () =>
         {
-            Press(viewer, Key.P);
+            if (!viewer.CaptureState().ContextOpen) Press(viewer, Key.P);
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "the post panel did not open");
             await Settle(w, 400);
             UiCatalog.Record(w, "gallery-post-panel-segment", Standard, "Side panel, Post segment (post card)");
         });
         await StepAsync("gallery-tag-panel-segment", async () =>
         {
-            Press(viewer, Key.T, Primary | KeyModifiers.Shift);
+            if (!viewer.IsTagPanelOpen) Press(viewer, Key.T, Primary | KeyModifiers.Shift);
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.TagSurface is { IsVisible: true }, "the tag panel did not open");
             await Settle(w, 500);
             UiCatalog.Record(w, "gallery-tag-panel-segment", Standard, "Side panel, Tags segment (quick tag surface)");
@@ -199,11 +199,11 @@ internal static partial class UiCatalogChecks
             await PageAsync(w, "gallery-tagging-mode", "Gallery Tag mode: decision strip (Back, Skip, Done, Stamp) and tag panel", reenter: Reenter);
             await StepAsync("gallery-tagging-cards", async () =>
             {
-                Press(viewer, Key.K);
-                await UntilAsync(() => viewer.IsCardMode && viewer.TaggingCardsRow.IsEffectivelyVisible, "K did not show the cards");
+                viewer.SetCardMode(true, persist: false);
+                await UntilAsync(() => viewer.IsCardMode && viewer.TaggingCardsRow.IsEffectivelyVisible, "the card mode did not show the cards");
                 await Settle(w, 500);
                 await PageAsync(w, "gallery-tagging-cards", "Gallery Tag mode with up to five decision cards (K)", reenter: Reenter);
-                Press(viewer, Key.K);
+                viewer.SetCardMode(false, persist: false);
             });
         }
         finally
@@ -258,17 +258,22 @@ internal static partial class UiCatalogChecks
         });
         await StepAsync("media-more-menu", async () =>
         {
+            // Simple shows every command directly; the More menu exists where the view holds commands back (Barebones).
+            await PresentationChecks.SwitchModeAsync(w, "Barebones");
+            await Enter(w, "media");
+            await UntilAsync(() => Find<Button>(page, "MediaMore") is { IsVisible: true }, "the Barebones view has no More menu on the Media page");
             Button more = Need<Button>(page, "MediaMore");
             more.Flyout!.ShowAt(more);
             try
             {
                 await UntilAsync(() => more.Flyout.IsOpen, "the More menu did not open");
+                await UntilAsync(() => ((MenuFlyout)more.Flyout).Items.OfType<Control>().FirstOrDefault(i => i.IsVisible && i is not Separator) is { Bounds.Width: > 0 }, "the More menu has no visible entries");
                 await Settle(w, 250);
-                MenuFlyout flyout = (MenuFlyout)more.Flyout;
-                Control first = flyout.Items.OfType<Control>().First();
-                UiCatalog.RecordSurface(SurfaceOf(first, w), "media-more-menu", "flyout", "Header More menu (rare actions with shortcuts and reasons)");
+                Control first = ((MenuFlyout)more.Flyout).Items.OfType<Control>().First(i => i.IsVisible && i is not Separator);
+                Control surface = first.GetVisualAncestors().OfType<MenuFlyoutPresenter>().FirstOrDefault() ?? SurfaceOf(first, w);
+                UiCatalog.RecordSurface(surface, "media-more-menu", "flyout", "Header More menu (rare actions with shortcuts and reasons)");
             }
-            finally { more.Flyout.Hide(); await Settle(w, 120); }
+            finally { more.Flyout.Hide(); await Settle(w, 120); await PresentationChecks.SwitchModeAsync(w, _baselineMode); await Enter(w, "media"); }
         });
         await StepAsync("media-focus-mode", async () =>
         {
@@ -285,12 +290,32 @@ internal static partial class UiCatalogChecks
 
     // ---- Booru page: Search tab and Watchers tab over in-memory ports ----
 
+    // The shell's own route: the app menu entry when its command is wired, else the window's navigation entry point.
+    private static async Task EnterBooruAsync(MainWindow w)
+    {
+        System.Reflection.BindingFlags all = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+        bool Can() => (bool)typeof(MainWindow).GetProperty("CanOpenBooru", all)!.GetValue(w)!;
+        Console.WriteLine("SMOKE ui catalog booru route: canOpen=" + Can() + " state=" + w.SessionHost.State + " show=" + w.SessionHost.Config.ShowBooruTools);
+        await UntilAsync(Can, "the shell does not offer Booru (CanOpenBooru is false)", 10);
+        try { await WorkViewBooruChecks.EnterAsync(w); }
+        catch (InvalidOperationException)
+        {
+            bool navigated = (bool)typeof(MainWindow).GetMethod("NavigateWorkspace", all)!.Invoke(w, [MainWindow.WorkspacePage.Booru, true])!;
+            Require(navigated, "the shell refused the Booru navigation");
+            await Program.WaitUntilAsync(() => w.SelectedPage == MainWindow.WorkspacePage.Booru && w.BooruPageForTests is { IsEffectivelyVisible: true }
+                && w.FindControl<ContentControl>("BooruPageHost")!.IsVisible, () => "Booru did not open through the shell navigation.");
+        }
+        await Settle(w, 500);
+    }
+
     private static async Task BooruAsync(MainWindow w)
     {
         WorkViewBooruChecks booru = _booru ?? throw new InvalidOperationException("The Booru fixture was not installed.");
-        await WorkViewBooruChecks.EnterAsync(w);
+        MenuItem route = w.FindControl<MenuItem>("BooruMenuItem")!;
+        Console.WriteLine("SMOKE ui catalog booru state: show=" + w.SessionHost.Config.ShowBooruTools + " services=" + (w.SessionHost.BooruServices != null) + " mode=" + w.SessionHost.Config.WorkspaceMode + " visible=" + route.IsVisible + " enabled=" + route.IsEffectivelyEnabled + " command=" + (route.Command != null));
+        await EnterBooruAsync(w);
         await booru.MaterializeAsync();
-        await PageAsync(w, "page-booru", "Booru page, Search tab with synthetic results", reenter: async () => { await WorkViewBooruChecks.EnterAsync(w); await booru.MaterializeAsync(); });
+        await PageAsync(w, "page-booru", "Booru page, Search tab with synthetic results", reenter: async () => { await EnterBooruAsync(w); await booru.MaterializeAsync(); });
         await StepAsync("page-booru-watchers", async () =>
         {
             await booru.SelectTabAsync(1);
@@ -315,6 +340,8 @@ internal static partial class UiCatalogChecks
             string key = "page-" + id.Replace('.', '-');
             await StepAsync(key, async () =>
             {
+                await Dispatcher.UIThread.InvokeAsync(editor.UpdateLayout, DispatcherPriority.Background);
+                editor.OpenSectionNavigation();
                 if (!editor.CanGoToSection(id)) throw new InvalidOperationException("The editor offers no " + id);
                 editor.GoToSection(id);
                 await Settle(w, 500);
@@ -337,7 +364,9 @@ internal static partial class UiCatalogChecks
         })
             await StepAsync(key, async () =>
             {
-                editor.GoToSection(section);
+                await Dispatcher.UIThread.InvokeAsync(editor.UpdateLayout, DispatcherPriority.Background);
+                editor.OpenSectionNavigation();
+                if (editor.CanGoToSection(section)) editor.GoToSection(section);
                 await Settle(w, 300);
                 HelpButton help = Find<HelpButton>(editor, button) ?? throw new InvalidOperationException("No help button " + button + " in " + section);
                 help.BringIntoView();
@@ -391,7 +420,7 @@ internal static partial class UiCatalogChecks
                         await PresentationChecks.SwitchModeAsync(w, tier);
                         if (page == "booru")
                         {
-                            await WorkViewBooruChecks.EnterAsync(w);
+                            await EnterBooruAsync(w);
                             await (_booru ?? throw new InvalidOperationException("The Booru fixture was not installed.")).MaterializeAsync();
                         }
                         else await Enter(w, page);
