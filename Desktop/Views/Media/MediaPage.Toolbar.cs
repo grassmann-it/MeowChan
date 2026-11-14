@@ -7,7 +7,9 @@ using MeowChan.Gallery;
 namespace MeowChan;
 
 // S3: the media toolbar is one row in two groups (the shop pattern). Left: the file name search and the filter toggle. Right: the order
-// (criterion and direction), "Shuffle again" in front of it while the order is random, then "Refresh" and "More" (⋯). Export all and the
+// (criterion and direction), "Shuffle again" in front of it while the order is random, then "Refresh" and "More" (⋯). M1: the shuffle and
+// the refresh are drawn icons in square buttons (name as tooltip and accessible name), so the only text in the group is the criterion;
+// the focus mode (M4) joins the group as one more square between "Refresh" and "More". Export all and the
 // saved-ratings manager always sit under More; "show missing files" is a filter (a field of the filter section and a chip of the active
 // filters). When the row runs short the less important tools move under More first and the order stays visible (MediaToolbarLayout).
 public sealed partial class MediaPage

@@ -56,7 +56,7 @@ public sealed partial class MediaPage : UserControl
     // The shared empty state (centered, one sentence, one primary action); its sentence and actions are added in the constructor.
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "MediaEmptyState", IsVisible = false };
     // Everything under the title: it is hidden while the library is empty, so the empty page shows the sentence and its action only.
-    private readonly StackPanel _headerBody = new() { Spacing = 4 };
+    private readonly StackPanel _headerBody = new() { Spacing = 8 };
     private MediaLibrarySnapshot? _snapshot;
     private IReadOnlyList<MediaLibraryEntry> _shown = Array.Empty<MediaLibraryEntry>();
     private IReadOnlyList<MediaLibraryTile> _tiles = Array.Empty<MediaLibraryTile>();
@@ -160,7 +160,9 @@ public sealed partial class MediaPage : UserControl
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
-        StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
+        // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
+        // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
+        StackPanel header = new() { Margin = new Thickness(12, 8, 12, 8), Classes = { "workspace-page-header" } };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
@@ -1014,9 +1016,10 @@ public sealed partial class MediaPage : UserControl
         _title.Text = Texts.T("media.title");
         _subtitle.Text = Texts.T("media.subtitle");
         AutomationProperties.SetName(_sort, Texts.T("media.sort"));
-        _shuffle.Content = Texts.T("media.shuffle");
+        // The tools of the row beside the order are icons (M1); the name is the tooltip and the accessible name.
+        WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");
-        IconButtons.Apply(_refresh, "refresh-cw", Texts.T("media.refresh"));
+        WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T("media.refresh"));
         LocalizeWorkView();
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;

@@ -46,11 +46,22 @@ public sealed class FilterSurfaceContractTests
     public void MediaRefreshIsAnIconButtonAndTheTagComboAndItsTwoButtonsAreGone()
     {
         string page = Source("Desktop/Views/Media/MediaPage.cs"), filters = Source("Desktop/Views/Media/MediaPage.Filters.cs");
-        Assert.Contains("IconButtons.Apply(_refresh, \"refresh-cw\", Texts.T(\"media.refresh\"));", page);
+        Assert.Contains("WorkspaceIcons.MakeSquare(_refresh, WorkspaceIcons.Refresh, Texts.T(\"media.refresh\"));", page);
         Assert.Contains("Name = \"MediaRefresh\"", page);
         Assert.Contains("new() { Name = \"MediaTagAdd\" }", filters);
         foreach (string gone in new[] { "MediaTagChoice", "MediaTagInclude", "MediaTagExclude" })
             Assert.DoesNotContain(gone, filters);
+    }
+
+    [Fact]
+    public void TheMediaHeadFollowsThePageGridAndShuffleAndRefreshAreSquareIcons()
+    {
+        string page = Source("Desktop/Views/Media/MediaPage.cs");
+        Assert.Contains("Margin = new Thickness(12, 8, 12, 8), Classes = { \"workspace-page-header\" }", page);
+        Assert.Contains("_headerBody = new() { Spacing = 8 }", page);
+        Assert.Contains("WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T(\"media.shuffle\"));", page);
+        Assert.DoesNotContain("_shuffle.Content = Texts.T", page);
+        Assert.DoesNotContain("refresh-cw", page);
     }
 
     [Fact]

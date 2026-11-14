@@ -32,6 +32,10 @@ internal static class WorkspaceIcons
     internal const string ChevronUp = "chevron-up";
     internal const string ArrowDown = "arrow-down";
     internal const string ArrowUp = "arrow-up";
+    // The tools of the media toolbar (M1): update (circular arrow), shuffle (two crossing arrows), enlarge the working area (diagonal arrows).
+    internal const string Refresh = "refresh";
+    internal const string Shuffle = "shuffle";
+    internal const string Maximize = "maximize";
     // The four message severities of a banner: four different shapes, so the severity is not carried by colour alone.
     internal const string SeverityError = "severity-error";
     internal const string SeverityWarning = "severity-warning";
@@ -62,6 +66,12 @@ internal static class WorkspaceIcons
         [ChevronUp] = new("M3.5,10 L8,5.5 L12.5,10", HeavyClass),
         [ArrowDown] = new("M8,3 L8,13 M3,8 L8,13 L13,8"),
         [ArrowUp] = new("M8,13 L8,3 M3,8 L8,3 L13,8"),
+        // Three quarters of a circle open at the right with an arrow head at its upper end.
+        [Refresh] = new("M13.5,8 A5.5,5.5 0 1 1 11.9,4.1 M11.9,1.5 L11.9,4.1 L9.3,4.1"),
+        // Two paths that cross (the lower one is broken at the crossing), each ending in an arrow head on the right.
+        [Shuffle] = new("M2,4.5 L4.5,4.5 C7,4.5 8,11.5 10.5,11.5 L13.5,11.5 M11.5,9.5 L13.5,11.5 L11.5,13.5 M2,11.5 L4.5,11.5 C5.4,11.5 6.1,11.1 6.7,10.4 M9.3,5.6 C9.9,4.9 10.5,4.5 11.5,4.5 L13.5,4.5 M11.5,2.5 L13.5,4.5 L11.5,6.5"),
+        // Two corner arrows pointing apart along the diagonal.
+        [Maximize] = new("M9.5,2.5 L13.5,2.5 L13.5,6.5 M13.5,2.5 L8.8,7.2 M6.5,13.5 L2.5,13.5 L2.5,9.5 M2.5,13.5 L7.2,8.8"),
         // Circle with a cross (error), triangle with a stroke and a dot (warning), circle with an "i" (information), circle with a tick (success).
         [SeverityError] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M5.9,5.9 L10.1,10.1 M10.1,5.9 L5.9,10.1"),
         [SeverityWarning] = new("M8,2 L14.6,13.6 L1.4,13.6 Z M8,6.4 L8,9.4 M8,11.5 L8.1,11.5"),
@@ -128,7 +138,8 @@ internal static class WorkspaceIcons
     /// </summary>
     internal static void MakeSquare(Button button, string key, string name, string? tip = null, bool subtle = true)
     {
-        button.Content = Create(key);
+        // Calling it again (a language change) renames the button and keeps its icon.
+        if (KeyOf(button.Content) != key) button.Content = Create(key);
         if (!button.Classes.Contains(SquareClass)) button.Classes.Add(SquareClass);
         if (subtle && !button.Classes.Contains("subtle")) button.Classes.Add("subtle");
         AutomationProperties.SetName(button, name);
