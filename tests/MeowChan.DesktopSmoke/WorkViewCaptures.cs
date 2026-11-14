@@ -78,6 +78,7 @@ internal static class WorkViewCaptures
             rows = await SyntheticShellRows.CreateAsync(window, DownloadEntries());
             CheckRegistrations(window);
             await ShortcutProbeAsync(window);
+            await ViewCycleProbeAsync(window);
             foreach (string language in Languages)
             {
                 await FooterNavigationChecks.PersistLanguageAsync(window, language);
@@ -98,6 +99,7 @@ internal static class WorkViewCaptures
                                 await SettleAsync(window, page);
                                 RequireState(window, page, view, theme, language);
                                 CheckPresence(window, page, view);
+                                if (page == "downloads") CheckShellAndDownloads(window, view);
                                 string file = $"smoke-wv-{page}-{view.ToLowerInvariant()}-{theme.ToLowerInvariant()}-{language}-{w:0}x{h:0}.png";
                                 Program.CaptureWindow(window, file, output);
                                 cells.Add(new(page, view, theme, language, sizeName, file, $"{window.ClientSize.Width:0}x{window.ClientSize.Height:0}"));
@@ -325,6 +327,68 @@ internal static class WorkViewCaptures
             await PresentationChecks.SwitchModeAsync(window, modeBefore);
         }
         Console.WriteLine("SMOKE work-views shortcut finding: " + string.Join("; ", findings) + ".");
+    }
+
+    // ---- View switch at run time (R8): the command, the radio group and the footer agree, and the session is kept ----
+
+    private static async Task ViewCycleProbeAsync(MainWindow window)
+    {
+        string modeBefore = window.SessionHost.Config.WorkspaceMode;
+        try
+        {
+            Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            int rows = window.FindControl<DataGrid>("ThreadsDataGrid")!.ItemsSource is System.Collections.IEnumerable list
+                ? list.Cast<object>().Count() : -1;
+            List<string> visited = new() { window.SessionHost.Config.WorkspaceMode };
+            for (int step = 0; step < 3; step++)
+            {
+                await window.CycleWorkViewAsync();
+                await Program.WaitUntilAsync(() => window.SessionHost.Config.WorkspaceMode != visited[^1]);
+                for (int pass = 0; pass < 2; pass++)
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                visited.Add(window.SessionHost.Config.WorkspaceMode);
+                CheckShellAndDownloads(window, visited[^1]);
+            }
+            if (!visited.SequenceEqual(["Barebones", "Simple", "Advanced", "Barebones"]))
+                throw new InvalidOperationException("workspace.view-cycle visited " + string.Join(" > ", visited) + ".");
+            int rowsAfter = window.FindControl<DataGrid>("ThreadsDataGrid")!.ItemsSource is System.Collections.IEnumerable after
+                ? after.Cast<object>().Count() : -1;
+            if (window.SelectedPage != MainWindow.WorkspacePage.Downloads || rows != rowsAfter)
+                throw new InvalidOperationException("Switching the view changed the page or the Downloads rows.");
+            Console.WriteLine("SMOKE work-views view cycle: " + string.Join(" > ", visited) + "; page and rows kept.");
+        }
+        finally { await PresentationChecks.SwitchModeAsync(window, modeBefore); }
+    }
+
+    // Header and app menu of the cell (plan §1.1, R3/R8) plus what the Downloads page promises (plan §1.3).
+    private static void CheckShellAndDownloads(MainWindow window, string view)
+    {
+        WorkView workView = WorkViewSetting.Parse(view);
+        string scene = "downloads/" + view;
+        foreach (string name in new[] { "TransferSpeed", "PauseButton", "FullscreenButton", "ThemeToggleButton" })
+            if (!window.FindControl<Control>(name)!.IsEffectivelyVisible)
+                throw new InvalidOperationException($"{scene}: the neutral header element {name} is not visible.");
+        MenuItem appMenu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
+        string[] required = ["DownloadsMenuItem", "ArchiveMenuItem", "MediaMenuItem", "RulesMenuItem", "SourcesMenuItem", "PluginsMenuItem",
+            "DiagnosticsMenuItem", "StatisticsMenuItem", "ManualImportMenuItem", "PauseMenuItem", "ThemeMenuItem", "FullscreenMenuItem",
+            "WorkViewMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem"];
+        string[] missing = required.Where(name => !appMenu.Items.OfType<MenuItem>().Any(item => item.Name == name)).ToArray();
+        if (missing.Length > 0) throw new InvalidOperationException($"{scene}: the app menu lost {string.Join(", ", missing)}.");
+        MenuItem group = window.FindControl<MenuItem>("WorkViewMenuItem")!;
+        MenuItem[] radios = group.Items.OfType<MenuItem>().Where(item => item.ToggleType == MenuItemToggleType.Radio).ToArray();
+        string checkedViews = string.Join(",", radios.Where(item => item.IsChecked).Select(item => item.Name));
+        if (radios.Length != 3 || checkedViews != view + "WorkViewMenuItem" || window.FindControl<MenuItem>("WorkViewCycleMenuItem") == null)
+            throw new InvalidOperationException($"{scene}: the view radio group shows {checkedViews} of {radios.Length} entries.");
+        if (window.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem is not ComboBoxItem { Tag: string footer } || footer != view)
+            throw new InvalidOperationException($"{scene}: the footer selector disagrees with the work view.");
+        // Columns… offers the technical work columns from Simple on, off by default.
+        bool offered = WorkViewPolicy.ColumnOffered(WorkViewPolicy.DownloadColumnId("ThreadsDataGrid", "MissingMedia"), workView);
+        DataGridColumn missingMedia = window.FindControl<DataGrid>("ThreadsDataGrid")!.Columns.Single(column => column.SortMemberPath == "MissingMedia");
+        if (offered != (workView != WorkView.Barebones) || (!offered && missingMedia.IsVisible))
+            throw new InvalidOperationException($"{scene}: the technical work columns do not follow the policy.");
+        Console.WriteLine($"SMOKE work-views {scene}: app menu complete, view group checked {checkedViews}, header neutral.");
     }
 
     // ---- Policy self-checks (plan §3.3) ----
