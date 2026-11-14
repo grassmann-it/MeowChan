@@ -25,6 +25,7 @@ public partial class ArchivePage
     private bool _exportOffersResults;
     // After a successful export Close becomes the primary action until the draft changes again.
     private bool _exportPrimaryClose;
+    private bool _exportFormatChanging;
     private ExportChoiceField? _exportFormatField;
     private ExportChoiceField? _exportScopeField;
 
@@ -32,21 +33,21 @@ public partial class ArchivePage
     internal ExportScope CurrentExportScope => _exportAllResults ? ExportScope.AllResults : ExportScope.Selection;
     internal bool ExportPrimaryIsClose => _exportPrimaryClose;
     // A link list names exactly one page, so it is offered only when the entry froze a single thread.
-    private bool ExportSessionSingle => _exportSessionMembers.Length == 1;
+    private bool ExportSessionSingle => FrozenLinkListThread != null;
     private bool ExportResultsOffered => _exportOffersResults && (_exportAllResults || _appliedSearch != null && _listTotal > 0);
 
     private void BeginExportSession(ResourceId[] members, bool offerResults, ExportFormat format)
     {
         _exportSessionMembers = members;
         _exportOffersResults = offerResults;
-        _exportFormat = format == ExportFormat.LinkList && members.Length != 1 ? ExportFormat.Html : format;
+        _exportFormat = format == ExportFormat.LinkList && !ExportSessionSingle ? ExportFormat.Html : format;
     }
 
     private Control BuildExportChoices()
     {
         _exportFormatField = RegisterExportChoice(new ExportChoiceField("ArchiveExportFormat"));
         _exportScopeField = RegisterExportChoice(new ExportChoiceField("ArchiveExportScope"));
-        _exportFormatField.Chosen += value => OnExportFormatChosen((ExportFormat)value);
+        _exportFormatField.Chosen += async value => await OnExportFormatChosenAsync((ExportFormat)value);
         _exportScopeField.Chosen += async value => await OnExportScopeChosenAsync((ExportScope)value);
         WrapPanel row = ExportName(new WrapPanel { Orientation = Orientation.Horizontal, ItemSpacing = 16, LineSpacing = 6 }, "ArchiveExportChoices");
         row.Children.Add(_exportFormatField);
@@ -66,7 +67,7 @@ public partial class ArchivePage
     private void UpdateExportChoices()
     {
         if (_exportFormatField == null || _exportScopeField == null) return;
-        bool enabled = !_exportRunning && !_exportPicking;
+        bool enabled = !_exportRunning && !_exportPicking && !_exportFormatChanging;
         List<ExportChoiceField.Option> formats = new() { new(ExportFormat.Html, Texts.T("export.format.html")) };
         if (ExportSessionSingle) formats.Add(new(ExportFormat.LinkList, Texts.T("export.format.linkList")));
         _exportFormatField.Set(Texts.T("export.format"), formats, _exportFormat, enabled);
@@ -77,23 +78,36 @@ public partial class ArchivePage
         _exportScopeField.Set(Texts.T("export.scope"), scopes, CurrentExportScope, enabled);
     }
 
-    private void OnExportFormatChosen(ExportFormat format)
+    private async Task OnExportFormatChosenAsync(ExportFormat format)
     {
         if (format == _exportFormat || !ArchiveExportDialog.IsVisible || !ExportRequestIsCurrent(_exportRequest)) return;
-        if (_exportRunning || _exportPicking) { UpdateExportActions(); return; }
-        _exportFormat = format;
-        _exportPrimaryClose = false;
-        ExportStatus(string.Empty);
-        ExportError(string.Empty);
-        // A link list names one page: leaving "all matches" returns to the thread the entry froze.
-        if (format == ExportFormat.LinkList && _exportAllResults) { _ = SwitchExportScopeAsync(ExportScope.Selection); return; }
+        if (!CanChangeExportChoice || _exportFormatChanging) { UpdateExportActions(); return; }
+        _exportFormatChanging = true;
         UpdateExportActions();
+        try
+        {
+            // Keep HTML published until this request has actually returned to the frozen selection.
+            if (format == ExportFormat.LinkList)
+            {
+                if (!await TryChooseLinkListAsync(() => SwitchExportScopeAsync(ExportScope.Selection),
+                    () => ArchiveExportDialog.IsVisible)) return;
+            }
+            else _exportFormat = format;
+            _exportPrimaryClose = false;
+            ExportStatus(string.Empty);
+            ExportError(string.Empty);
+        }
+        finally
+        {
+            _exportFormatChanging = false;
+            if (!_ended) UpdateExportActions();
+        }
     }
 
     private async Task OnExportScopeChosenAsync(ExportScope scope)
     {
         if (scope == CurrentExportScope || !ArchiveExportDialog.IsVisible) return;
-        if (_exportRunning || _exportPicking) { UpdateExportActions(); return; }
+        if (!CanChangeExportChoice || _exportFormatChanging) { UpdateExportActions(); return; }
         await SwitchExportScopeAsync(scope);
     }
 
@@ -129,6 +143,7 @@ public partial class ArchivePage
         OpenExportOptionsForUpdate();
         Button start = Control<Button>("ArchiveExportStart");
         Button close = Control<Button>("ArchiveExportClose");
+        if (_exportFormatChanging) start.IsEnabled = false;
         bool closePrimary = _exportPrimaryClose && !_exportRunning;
         start.Classes.Set("primary", !closePrimary);
         close.Classes.Set("primary", closePrimary);
@@ -168,7 +183,9 @@ public partial class ArchivePage
     // export surface at a time, so the dialog closes first (restoring its origin) and hands over the frozen thread.
     private async Task StartLinkListReviewAsync()
     {
-        if (_exportThread is not ResourceId id || !ExportSessionSingle) return;
+        if (_exportFormat != ExportFormat.LinkList || _exportFormatChanging || !CanChangeExportChoice
+            || _exportLoading || _exportResolving || !ArchiveExportDialog.IsVisible
+            || LinkListReviewThread is not ResourceId id) return;
         Control? origin = _exportOrigin;
         OnExportClose(this, new RoutedEventArgs());
         if (ArchiveExportDialog.IsVisible) return;
