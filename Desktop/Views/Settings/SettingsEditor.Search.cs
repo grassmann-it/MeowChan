@@ -15,6 +15,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -60,6 +61,7 @@ public partial class SettingsEditor
     private bool _searchSuppressSelection;
     private IReadOnlyList<SettingsSearchHit> _searchHits => _searchSession?.Hits ?? Array.Empty<SettingsSearchHit>();
     private Control? _searchMarked;
+    private readonly SettingsSearchEnterGuard _searchEnterGuard = new();
 
     private static readonly string[] HitClasses = { "settings-search-hit" };
 
@@ -75,6 +77,11 @@ public partial class SettingsEditor
         _searchBox.QueryChanged += (_, _) => OnSearchQueryChanged();
         _searchBox.ExitRequested += (_, e) => { FocusSettingsContent(); e.Handled = true; };
         _searchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
+        // A held Enter must not click the control that just took the focus: repeats are swallowed until Enter is released.
+        AddHandler(KeyDownEvent, (_, e) => { if (_searchEnterGuard.SwallowKeyDown(e.Key)) e.Handled = true; }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, (_, e) => _searchEnterGuard.KeyUp(e.Key), RoutingStrategies.Tunnel, handledEventsToo: true);
+        DetachedFromVisualTree += (_, _) => _searchEnterGuard.Reset();
+        LostFocus += (_, _) => { if (!IsKeyboardFocusWithin) _searchEnterGuard.Reset(); };
         _searchBox.GotFocus += (_, _) =>
         {
             QueueSearchIndexPreparation();
@@ -311,6 +318,7 @@ public partial class SettingsEditor
                 break;
             case Key.Enter when count > 0:
                 e.Handled = true;
+                _searchEnterGuard.Arm();
                 _searchSession.Commit();
                 break;
         }

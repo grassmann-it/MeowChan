@@ -298,7 +298,7 @@ internal sealed class PostFilterDialog : Window
             CheckBox enabled = new()
             {
                 Content = new TextBlock { Text = row.Label, TextWrapping = TextWrapping.Wrap }, IsChecked = row.Supported && row.Rule.Enabled,
-                IsEnabled = idle && row.Supported, Tag = id
+                IsEnabled = idle && row.Supported && !_model.IsEditingRule(id), Tag = id
             };
             AutomationProperties.SetName(enabled, Texts.T("postFilter.enabled") + ": " + row.Label);
             enabled.IsCheckedChanged += (_, _) => { if (!_refreshing) _ = _model.SetEnabledAsync(id, enabled.IsChecked == true, _lifetime); };
