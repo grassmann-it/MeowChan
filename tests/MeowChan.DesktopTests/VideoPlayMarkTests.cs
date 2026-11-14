@@ -72,6 +72,17 @@ public sealed class VideoPlayMarkTests
     }
 
     [Fact]
+    public void TheMarkIsADarkDiscInBothThemesBecauseItLiesOnArbitraryPictures()
+    {
+        // Palette item 4: no theme token (a light disc on a light picture has too little contrast); the same dark disc and white ring always.
+        VideoPlayMarkView mark = new();
+        Avalonia.Media.SolidColorBrush disc = Assert.IsType<Avalonia.Media.SolidColorBrush>(mark.Background);
+        Assert.True(disc.Color.R < 40 && disc.Color.G < 40 && disc.Color.B < 40 && disc.Color.A >= 180);
+        Avalonia.Media.SolidColorBrush ring = Assert.IsType<Avalonia.Media.SolidColorBrush>(mark.BorderBrush);
+        Assert.True(ring.Color.R > 240 && ring.Color.G > 240 && ring.Color.B > 240);
+    }
+
+    [Fact]
     public void TheMarkIsNeverAClickTarget_ThePictureAlwaysIs() =>
         Assert.False(new VideoPlayMarkView().IsHitTestVisible);
 

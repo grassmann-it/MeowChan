@@ -3,7 +3,6 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 
 namespace MeowChan.Desktop;
@@ -51,7 +50,7 @@ internal static class VideoPlayMark
 
 /// <summary>
 /// The play mark: a disc with a triangle. It takes its size from <see cref="Diameter"/> (the owner derives it from the shown picture
-/// with <see cref="VideoPlayMark.Diameter"/>), uses theme tokens only and is not hit-testable.
+/// with <see cref="VideoPlayMark.Diameter"/>), has the same dark look in both themes and is not hit-testable.
 /// </summary>
 internal sealed class VideoPlayMarkView : Border
 {
@@ -67,9 +66,11 @@ internal sealed class VideoPlayMarkView : Border
         IsHitTestVisible = false;
         BorderThickness = new Thickness(1);
         HorizontalAlignment = HorizontalAlignment.Center; VerticalAlignment = VerticalAlignment.Center;
-        this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
-        this[!BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
-        _glyph[!Shape.FillProperty] = new DynamicResourceExtension("Workspace.Text");
+        // Theme-independent on purpose (palette review, item 4): the mark lies on arbitrary pictures, and a light disc on a light picture
+        // has too little contrast. Dark disc, white triangle and ring in both themes.
+        Background = new SolidColorBrush(Color.FromArgb(205, 13, 16, 22));
+        BorderBrush = new SolidColorBrush(Color.FromArgb(180, 255, 255, 255));
+        _glyph.Fill = Brushes.White;
         // Parsed on first use from the UI path: Geometry.Parse needs the render platform, never a static initializer.
         _glyph.AttachedToVisualTree += (_, _) => _glyph.Data ??= Geometry.Parse("M 0,0 L 0,18 L 14,9 Z");
         Child = _glyph;

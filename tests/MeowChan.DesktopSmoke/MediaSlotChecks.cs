@@ -202,6 +202,9 @@ internal static class MediaSlotChecks
                 // The file line is one trimmed line with the full text in its tooltip.
                 TextBlock line = view.GetVisualDescendants().OfType<TextBlock>().Single(c => c.MaxLines == 1 && ToolTip.GetTip(c) is string tip && tip.StartsWith(entry.File, StringComparison.Ordinal));
                 Expect(line.TextWrapping == TextWrapping.NoWrap && line.Bounds.Height < line.FontSize * 2, $"{label}: the file line is {line.Bounds.Height:0.#} high, more than one line.");
+                // The file favourite is never wired in the list (the thread's star is on the right): hidden, so the line has the whole slot.
+                Expect(view.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "ArchiveMediaFavorite").IsVisible == false, $"{label}: the dead file star is still shown in the list row.");
+                Expect(RectIn(line, host).Right <= viewRect.Right + Tolerance, $"{label}: the file line {RectIn(line, host)} leaves the slot {viewRect}.");
                 if (entry.Video)
                 {
                     Border play = view.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "VideoPlayOverlay");

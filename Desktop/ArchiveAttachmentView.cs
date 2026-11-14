@@ -358,6 +358,9 @@ public sealed class ArchiveAttachmentView : UserControl
         _label.MaxLines = compact ? 1 : 2;
         ToolTip.SetTip(_label, compact ? _label.Text : null);
         _column.CenterFrame = compact;
+        // The thread list never wires the file favourite (the thread's own star is on the right): no dead, always disabled star there,
+        // the file line takes the full width. Reader posts keep it.
+        _favorite.IsVisible = !compact;
         _column.InvalidateArrange();
         _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
         _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
