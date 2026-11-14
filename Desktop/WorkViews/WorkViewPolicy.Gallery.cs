@@ -111,7 +111,13 @@ public static partial class WorkViewPolicy
         GalleryMenuRow("gallery.menu.video-rule", null, 170),
         GalleryMenuRow("gallery.menu.overlay-toggle", "gallery.overlay-toggle", 180),
         GalleryMenuRow("gallery.menu.post-overlay-toggle", "gallery.post-overlay-toggle", 190),
+        GalleryMenuRow("gallery.menu.filmstrip-toggle", "gallery.filmstrip-toggle", 195),
         GalleryMenuRow("gallery.menu.fullscreen", "window.fullscreen", 200),
+
+        // ---- Filmstrip (V3): the thumbnails of the media before and after the shown one, at the top. Barebones leaves it away by default
+        // (the way to it is L and the row under More); Simple and Advanced show it. A user's own choice (the setting, L, the row) wins
+        // in every view: the viewer raises the element to Direct as a changed state (R6). ----
+        new("gallery.filmstrip", WorkViewPage.Gallery, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "gallery.filmstrip-toggle"),
 
         // ---- Information lines under the picture. ----
         // "Where am I" (thread or result list with its source): Barebones leaves it to the details (I, the media context menu

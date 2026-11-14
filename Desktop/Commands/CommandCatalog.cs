@@ -157,6 +157,7 @@ public static class CommandCatalog
         new("gallery.overlay-toggle", "command.gallery.overlay-toggle", "Toggle controls overlay", "Controls-Overlay umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.overlay-autohide-toggle", "command.gallery.overlay-autohide-toggle", "Toggle overlay auto-hide", "Automatisches Ausblenden umschalten", "sliders", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.post-overlay-toggle", "command.gallery.post-overlay-toggle", "Toggle post overlay", "Post-Overlay umschalten", "file-text", null, CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
+        new("gallery.filmstrip-toggle", "command.gallery.filmstrip-toggle", "Show / hide filmstrip", "Filmstreifen anzeigen / ausblenden", "columns", "L", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.context-toggle", "command.gallery.context-toggle", "Show post context", "Post-Kontext anzeigen", "file-text", "P", CommandScope.Gallery, new[] { "gallery-toolbar" }),
         new("gallery.context-close", "command.gallery.context-close", "Back to image", "Zurück zum Bild", "image", null, CommandScope.Gallery, new[] { "gallery-post-context" }),
         new("gallery.show-in-thread", "command.gallery.show-in-thread", "Show in thread", "Im Thread anzeigen", "file-text", "T", CommandScope.Gallery | CommandScope.Media, new[] { "gallery-post-context", "media-page" }),

@@ -180,6 +180,7 @@ internal sealed partial class GalleryViewer
 
     private void UpdateEdgeIndicators()
     {
+        UpdateFilmstripPlacement();
         // Buttons have no native resources to Dispose. On stop/detach release their
         // parent and any tooltip popup; do not reparent them into a closing window.
         if (_viewerInteractionStopped)
@@ -490,6 +491,7 @@ internal sealed partial class GalleryViewer
         if (_controlsHot || _pointerInControls || _pointerOnControlsIndicator || wasControls) _lastOverlayActivity = now;
         if (_postHot || _pointerInPost || _pointerOnPostIndicator || wasPost) _lastPostActivity = now;
         if (!_postHot && !_pointerInPost && !_pointerOnPostIndicator) _suppressPostHoverUntilExit = false;
+        RefreshFilmstripHover();
     }
 
     private void RevealHoveredPanels()
@@ -621,7 +623,7 @@ internal sealed partial class GalleryViewer
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
             _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText,
-            Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator);
+            Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds);
         if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity), _controlsIdleHideMs))
         {
             if (controlHasFocus) { FocusGallerySurface(); _keyboardInteraction = false; }

@@ -166,6 +166,7 @@ internal sealed partial class GalleryViewer
         PresentMovableTools();
         UpdateMediaFocusVisibility();
         RefreshOverflowItems();
+        UpdateFilmstripPlacement();
         if (focusInMenu) _overflowFlyout.Hide(); // The rows changed under an open menu: close it, focus goes back to "More".
     }
 

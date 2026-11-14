@@ -278,6 +278,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         cancellationToken.ThrowIfCancellationRequested();
         SetAssociationIndex(associations, revision);
+        FilmstripShown(entry, associations);
         return ShowAsync(entry, cancellationToken);
     }
 
@@ -491,6 +492,7 @@ internal sealed partial class GalleryViewer : UserControl
         _close.SizeChanged += (_, _) => { UpdateFavoriteIndicators(); if (_contextOpen) LayoutContextPlacement(); };
         InitializeWorkViewTools();
         RegisterWorkViewIds();
+        InitializeFilmstrip();
         UpdateFavorite();
         _exportOriginal.IsEnabled = false;
         UpdateContextButton();
@@ -1385,6 +1387,7 @@ internal sealed partial class GalleryViewer : UserControl
             if (_video.MatchesTransportShortcut(e, "video.volume-down")) { AdjustVideoVolume(-1); e.Handled = true; return; }
         }
         if (!IsGalleryShortcutInput(e)) return;
+        if (HandleFilmstripKey(e)) return;
         foreach (var (_, id) in PlaybackActions())
             if (CommandBindings.Matches(e, id)) { e.Handled = true; _ = ExecutePlaybackActionAsync(id); return; }
         if (CommandBindings.Matches(e, "favorites.add")) { RequestFavorite(true); e.Handled = true; return; }
@@ -1664,6 +1667,7 @@ internal sealed partial class GalleryViewer : UserControl
         foreach (Control control in new Control[] { _overlayFooter, _chrome, _infoOverlay,
             _contextPanel, _helpPanel, _favoriteConfirmPanel, _controlsEdgeIndicator, _postEdgeIndicator, _close })
             GalleryControlTransfer.Cancel(control);
+        RetireFilmstrip();
         _video?.RetireTransportPlacement();
         StopViewerInteraction();
         UnbindVideoPlaybackSignals();
