@@ -69,6 +69,7 @@ internal sealed partial class GalleryViewer
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite);
         StackPanel content = new() { Spacing = 4 };
         content.Children.Add(_taggingActions);
+        AddCardsRow(content); // the card mode's cards (PT4)
         content.Children.Add(_taggingStatus);
         _taggingStrip.Child = content;
         AutomationProperties.SetName(_taggingStrip, Texts.T("tagging.strip.name"));
@@ -96,6 +97,7 @@ internal sealed partial class GalleryViewer
         _taggingStrip.IsVisible = true;
         _taggingStatus.Text = TaggingModeText.Start(walk);
         RefreshTaggingStrip();
+        StartCards(); // the saved card setting (PT4)
         if (_tagPanelOpen && _tagSurface != null && _tagController != null) CoupleTaggingPanel(_tagSurface, _tagController);
         else ShowTagPanel(owner);
         UpdateHelp();
@@ -107,6 +109,7 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging is not { } walk) return;
         walk.Changed -= OnTaggingChanged;
+        EndCards();
         UncoupleTaggingPanel(_taggingSurface);
         _tagging = null;
         _taggingOwner = null;
@@ -161,6 +164,7 @@ internal sealed partial class GalleryViewer
         _taggingDone.IsEnabled = decidable;
         _taggingSkip.IsEnabled = decidable;
         _taggingStamp.IsEnabled = decidable;
+        RefreshCards();
     }
 
     private void OnTaggingChanged() => RefreshTaggingStrip();
@@ -170,6 +174,7 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging == null) return;
         ApplyTaggingLabels();
+        RefreshCardTexts();
         RefreshTaggingStrip();
     }
 
@@ -203,7 +208,7 @@ internal sealed partial class GalleryViewer
         if (CommandBindings.Matches(e, "tags.queue.skip")) return Handled(e, () => TaggingDecide(TagQueueState.Skipped));
         if (CommandBindings.Matches(e, "tags.queue.back")) return Handled(e, () => _ = TaggingBackAsync());
         if (CommandBindings.Matches(e, "tags.queue.play-pause")) return Handled(e, ToggleTaggingPlayback);
-        return false;
+        return RouteCardKey(e); // K and the card keys (PT4)
 
         static bool Handled(KeyEventArgs args, Action action)
         {
@@ -225,7 +230,7 @@ internal sealed partial class GalleryViewer
     /// status line (the state then shows what the store kept). Ignored while the next medium is still being shown, so a quick second key
     /// never decides a medium nobody saw.
     /// </summary>
-    private void TaggingDecide(TagQueueState state)
+    private void TaggingDecide(TagQueueState state, string? prefix = null)
     {
         if (_tagging is not { } walk || _entry is not { } entry || _navigationPending || _terminalRetirement) return;
         int index = walk.IndexOf(entry.EntryKey);
@@ -236,7 +241,7 @@ internal sealed partial class GalleryViewer
             return;
         }
         if (result.Outcome != TaggingDecisionOutcome.Decided) return;
-        SayTagging(TaggingModeText.Decided(walk, result, state));
+        SayTagging(prefix == null ? TaggingModeText.Decided(walk, result, state) : prefix + " " + TaggingModeText.Decided(walk, result, state));
         if (result.Next is { } next && next != index) Move(next - index);
         _ = ObserveTaggingWriteAsync(walk, result);
     }
@@ -335,8 +340,9 @@ internal sealed partial class GalleryViewer
     {
         if (_tagging == null) return;
         _helpContent.Children.Add(new TextBlock { Text = Texts.T("tagging.help.heading"), Classes = { "section-title" }, TextWrapping = TextWrapping.Wrap });
-        foreach (string id in new[] { "tags.queue.done-next", "tags.queue.skip", "tags.queue.back", QuickTagCommands.StampApply, QuickTagCommands.CommitNext, "tags.queue.play-pause" })
+        foreach (string id in new[] { "tags.queue.done-next", "tags.queue.skip", "tags.queue.back", QuickTagCommands.StampApply, QuickTagCommands.CommitNext, "tags.queue.play-pause", TaggingCardCommands.Toggle })
             _helpContent.Children.Add(new TextBlock { Text = CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
         _helpContent.Children.Add(new TextBlock { Text = TaggingModeText.HelpNote(), Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap });
+        _helpContent.Children.Add(new TextBlock { Text = TaggingCardsText.HelpNote(), Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap });
     }
 }

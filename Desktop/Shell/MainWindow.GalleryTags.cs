@@ -50,6 +50,24 @@ public partial class MainWindow
     }
     internal MediaTagDialog? GalleryMediaTagWindow { get; private set; }
 
+    // K in the tagging mode: the walk's start choice is a direct view preference (Config.TaggingCardsDefault); the live copy changes at once.
+    private void SaveTaggingCardsActive(bool active)
+    {
+        if (_isClosing) return;
+        _config.TaggingCardsDefault = active;
+        _ = SaveTaggingCardsActiveAsync(active);
+    }
+
+    private async Task SaveTaggingCardsActiveAsync(bool active)
+    {
+        try { await _session.SaveViewPreferencesAsync(config => config.TaggingCardsDefault = active); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", error.Message),
+                Avalonia.Controls.Notifications.NotificationType.Error, context: "gallery", operation: "preferences.tagging-cards");
+        }
+    }
+
     private void OpenGalleryTagPanel()
     {
         if (_isClosing || _gallery == null) return;
@@ -57,7 +75,7 @@ public partial class MainWindow
     }
 
     // What the gallery tag panel needs from the window: the frozen targets, the list, limits and the full dialog.
-    private sealed class GalleryTagPanelOwner(MainWindow window) : IGalleryTagPanelOwner, IGalleryDecisionOwner
+    private sealed class GalleryTagPanelOwner(MainWindow window) : IGalleryTagPanelOwner, IGalleryDecisionOwner, ITaggingCardsOwner
     {
         // Favorite and rating of a medium (PT6): the same stores, queues and error paths as the toolbar star and the rating keys. A pending
         // favorite write counts as its target value. Unreadable stores answer null (the row says so); the session reads again after every
@@ -138,6 +156,10 @@ public partial class MainWindow
 
         public void OpenAdvanced(GalleryEntry entry) =>
             _ = window.RunGalleryActionAsync(() => window.EditGalleryMediaTagsAsync(entry), entry.Key.ToString());
+
+        // The card mode of the tagging mode (PT4): the cards and the start choice come from the settings; K saves the choice.
+        public TaggingCardSettings Cards => TaggingCardSettings.FromConfig(window._config);
+        public void SaveCardsActive(bool active) => window.SaveTaggingCardsActive(active);
     }
 
     private void RefreshGalleryMediaTags()
