@@ -1959,6 +1959,7 @@
     "settings.search.keys": "↑ ↓ scegli · Invio apre l’impostazione · Esc cancella",
     "settings.search.none": "Nessuna impostazione corrisponde a «{0}».",
     "settings.search.noneHint": "Controlla l’ortografia o prova un’altra parola, ad esempio «cache» o «limite».",
+    "settings.search.current": "{0} di {1}: {2}, {3}",
     "command.input.focus-settings-search": "Cerca nelle impostazioni",
     "command.archive.clear-filter": "Rimuovi filtro",
     "command.table.choose-columns": "Scegli colonne…",

@@ -2239,6 +2239,7 @@
     "settings.search.keys": "↑ ↓ choisir · Entrée ouvre le paramètre · Échap efface",
     "settings.search.none": "Aucun paramètre ne correspond à « {0} ».",
     "settings.search.noneHint": "Vérifiez l’orthographe ou essayez un autre mot, par exemple « cache » ou « limite ».",
+    "settings.search.current": "{0} sur {1} : {2}, {3}",
     "command.input.focus-settings-search": "Rechercher dans les paramètres",
     "command.export.open-all-results-html-dialog": "Exporter tous les résultats…",
     "command.archive.refresh": "Actualiser les archives",

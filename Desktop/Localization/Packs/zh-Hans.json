@@ -2087,6 +2087,7 @@
     "settings.search.keys": "↑ ↓ 选择 · Enter 转到该设置 · Esc 清除",
     "settings.search.none": "没有与“{0}”匹配的设置。",
     "settings.search.noneHint": "请检查拼写，或换一个词试试，例如“缓存”或“限制”。",
+    "settings.search.current": "第 {0} 项，共 {1} 项：{2}，{3}",
     "command.input.focus-settings-search": "搜索设置",
     "command.export.open-all-results-html-dialog": "导出所有结果…",
     "command.archive.refresh": "刷新归档",

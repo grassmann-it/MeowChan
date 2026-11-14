@@ -1969,6 +1969,7 @@
     "settings.search.keys": "↑ ↓ vybrat · Enter otevře nastavení · Esc vymaže",
     "settings.search.none": "Žádné nastavení neodpovídá výrazu „{0}“.",
     "settings.search.noneHint": "Zkontrolujte pravopis nebo zkuste jiné slovo, například „cache“ nebo „limit“.",
+    "settings.search.current": "{0} z {1}: {2}, {3}",
     "command.input.focus-settings-search": "Hledat v nastavení",
     "command.archive.clear-filter": "Odebrat filtr",
     "command.table.choose-columns": "Zvolit sloupce…",

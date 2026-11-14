@@ -2087,6 +2087,7 @@
     "settings.search.keys": "↑ ↓ 선택 · Enter로 해당 설정으로 이동 · Esc로 지우기",
     "settings.search.none": "“{0}”와(과) 일치하는 설정이 없습니다.",
     "settings.search.noneHint": "철자를 확인하거나 “캐시”, “한도”처럼 다른 단어로 검색해 보세요.",
+    "settings.search.current": "{1}개 중 {0}번째: {2}, {3}",
     "command.input.focus-settings-search": "설정 검색",
     "command.export.open-all-results-html-dialog": "모든 결과 내보내기…",
     "command.archive.refresh": "보관함 새로 고침",

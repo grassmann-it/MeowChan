@@ -45,7 +45,7 @@ public partial class SettingsEditor
     private SearchBox? _searchBox;
     private Border? _searchPanel;
     private ListBox? _searchList;
-    private TextBlock? _searchNone, _searchKeys;
+    private TextBlock? _searchNone, _searchKeys, _searchCurrent;
     private SettingsSearchIndex? _searchIndex;
     private Dictionary<string, SearchTarget> _searchTargets = new(StringComparer.Ordinal);
     private bool _searchIndexDirty = true;
@@ -84,8 +84,17 @@ public partial class SettingsEditor
         _searchList.SelectionChanged += OnSearchSelectionChanged;
         _searchList.Tapped += OnSearchListTapped;
         AutomationProperties.SetLiveSetting(_searchList, AutomationLiveSetting.Polite);
+        _searchList.SelectionChanged += (_, _) => AnnounceSearchSelection();
 
         _searchNone = new TextBlock { Name = "SettingsSearchNone", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(Space(8), Space(4)), IsVisible = false };
+        // Avalonia has no active-descendant link from the field to the list: the hit the arrow keys have reached is spoken by this
+        // polite line (and mirrored in the field's help text), "3 of 12: Download folder, Downloads".
+        _searchCurrent = new TextBlock { Name = "SettingsSearchCurrent", TextWrapping = TextWrapping.Wrap, IsVisible = false,
+            Margin = new Thickness(Space(8), Space(2), Space(8), 0) };
+        _searchCurrent[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
+        _searchCurrent[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+        AutomationProperties.SetLiveSetting(_searchCurrent, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_searchNone, AutomationLiveSetting.Polite);
         _searchKeys = new TextBlock { Name = "SettingsSearchKeys", Margin = new Thickness(Space(8), Space(4), Space(8), Space(2)), TextWrapping = TextWrapping.Wrap };
         _searchKeys[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
         _searchKeys[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
@@ -93,6 +102,7 @@ public partial class SettingsEditor
         var content = new StackPanel { Spacing = Space(2) };
         content.Children.Add(_searchList);
         content.Children.Add(_searchNone);
+        content.Children.Add(_searchCurrent);
         content.Children.Add(_searchKeys);
         // The one in-window overlay look (surface, edge, radius); its width is the search field's.
         _searchPanel = new Border
@@ -147,6 +157,7 @@ public partial class SettingsEditor
             SetSearchItems(_searchHits);
             _searchPanel.IsVisible = false;
             _searchBox.ResultText = null;
+            ShowSearchAnnouncement(null);
             MarkSearchTarget(null);
             return;
         }
@@ -159,8 +170,28 @@ public partial class SettingsEditor
         _searchBox.ResultText = _searchHits.Count > 0 ? Texts.Count("search.count", _searchHits.Count) : null;
         SetSearchItems(_searchHits);
         ShowSearchPanel();
-        if (_searchHits.Count == 0) { MarkSearchTarget(null); return; }
+        if (_searchHits.Count == 0) { ShowSearchAnnouncement(SettingsSearchAnnouncement.None(query)); MarkSearchTarget(null); return; }
         _searchList.SelectedIndex = 0;
+        AnnounceSearchSelection();
+    }
+
+    // The current hit as the sentence a screen reader hears; the empty result is announced by its own text.
+    private void AnnounceSearchSelection()
+    {
+        if (_searchSuppressSelection || _searchList == null || _searchHits.Count == 0) return;
+        if (_searchList.SelectedItem is not SettingsSearchHit hit) return;
+        int position = _searchList.SelectedIndex + 1;
+        ShowSearchAnnouncement(SettingsSearchAnnouncement.Current(position, _searchHits.Count, hit.Document.Label, hit.Document.Group));
+    }
+
+    private void ShowSearchAnnouncement(string? text)
+    {
+        if (_searchCurrent == null || _searchBox == null) return;
+        string value = text ?? string.Empty;
+        if (!string.Equals(_searchCurrent.Text, value, StringComparison.Ordinal)) _searchCurrent.Text = value;
+        _searchCurrent.IsVisible = _searchHits.Count > 0 && value.Length > 0;
+        AutomationProperties.SetHelpText(_searchBox, value.Length > 0 ? value : null);
+        if (_searchList != null) AutomationProperties.SetHelpText(_searchList, _searchHits.Count > 0 && value.Length > 0 ? value : null);
     }
 
     private void SetSearchItems(IReadOnlyList<SettingsSearchHit> hits)

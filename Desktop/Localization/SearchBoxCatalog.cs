@@ -12,6 +12,7 @@ internal static class SearchBoxCatalog
         ("settings.search.keys", "↑ ↓ choose · Enter go to setting · Esc clear", "↑ ↓ wählen · Eingabe öffnet die Einstellung · Esc leert"),
         ("settings.search.none", "No setting matches “{0}”.", "Keine Einstellung passt zu „{0}“."),
         ("settings.search.noneHint", "Check the spelling or try another word, such as “cache” or “limit”.", "Prüfe die Schreibweise oder versuche ein anderes Wort, etwa „Cache“ oder „Limit“."),
+        ("settings.search.current", "{0} of {1}: {2}, {3}", "{0} von {1}: {2}, {3}"),
         ("command.scope.input.focus-media-search", "Media · file name filter", "Medien · Dateinamenfilter"),
     };
 }

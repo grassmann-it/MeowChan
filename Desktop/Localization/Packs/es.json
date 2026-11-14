@@ -2239,6 +2239,7 @@
     "settings.search.keys": "↑ ↓ elegir · Intro abre el ajuste · Esc borra",
     "settings.search.none": "Ningún ajuste coincide con «{0}».",
     "settings.search.noneHint": "Revise la ortografía o pruebe otra palabra, por ejemplo «caché» o «límite».",
+    "settings.search.current": "{0} de {1}: {2}, {3}",
     "command.input.focus-settings-search": "Buscar en la configuración",
     "command.export.open-all-results-html-dialog": "Exportar todos los resultados…",
     "command.archive.refresh": "Actualizar archivo",

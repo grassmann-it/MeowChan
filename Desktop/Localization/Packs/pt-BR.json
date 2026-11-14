@@ -1959,6 +1959,7 @@
     "settings.search.keys": "↑ ↓ escolher · Enter abre a configuração · Esc limpa",
     "settings.search.none": "Nenhuma configuração corresponde a “{0}”.",
     "settings.search.noneHint": "Verifique a grafia ou tente outra palavra, como “cache” ou “limite”.",
+    "settings.search.current": "{0} de {1}: {2}, {3}",
     "command.input.focus-settings-search": "Pesquisar nas configurações",
     "command.archive.clear-filter": "Remover filtro",
     "command.table.choose-columns": "Escolher colunas…",

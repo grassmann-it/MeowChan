@@ -2087,6 +2087,7 @@
     "settings.search.keys": "↑ ↓ で選択 · Enter でその設定へ移動 · Esc でクリア",
     "settings.search.none": "「{0}」に一致する設定はありません。",
     "settings.search.noneHint": "つづりを確認するか、「キャッシュ」や「上限」など別の語句をお試しください。",
+    "settings.search.current": "{1}件中{0}件目：{2}、{3}",
     "command.input.focus-settings-search": "設定を検索",
     "command.export.open-all-results-html-dialog": "すべての結果をエクスポート…",
     "command.archive.refresh": "アーカイブを更新",
