@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
@@ -124,8 +125,21 @@ public sealed class BooruStatusCatalogTests : IDisposable
             .Distinct(StringComparer.Ordinal).ToArray();
         Assert.Contains("cooldown_active", codes);
         Assert.Contains("page_binding_mismatch", codes);
-        foreach (string code in codes.Where(code => code is not ("missing_reason" or "missing_error")))
-            Assert.True(BuiltInCatalog.English.ContainsKey("booru.watcher.problem." + code), code);
+        Assert.Contains(BooruCodes.WatcherNotResumable, codes);
+        Assert.Contains(BooruCodes.CooldownNotActive, codes);
+        foreach (string code in codes)
+        {
+            Assert.True(BooruCodes.IsKnown(code), code);
+            string key = BooruCodes.Key(code);
+            Assert.True(BuiltInCatalog.English.ContainsKey(key), "en " + code);
+            Assert.True(BuiltInCatalog.German.ContainsKey(key), "de " + code);
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                Assert.Equal(Texts.T(key), BooruMessages.WatcherProblem(code));
+                Assert.Equal(Texts.T(key), BooruCodeTexts.Localized(code));
+            }
+        }
     }
 
     [Fact]

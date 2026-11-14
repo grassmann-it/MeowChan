@@ -49,6 +49,8 @@ namespace MeowChan.Desktop.Booru
         internal const string CooldownActive = "cooldown_active";
 
         // Domain (DanbooruWatcherDomain) rejections and error codes without an existing text.
+        internal const string WatcherNotResumable = "watcher_not_resumable";
+        internal const string CooldownNotActive = "cooldown_not_active";
         internal const string MissingReason = "missing_reason";
         internal const string MissingError = "missing_error";
 
@@ -82,7 +84,7 @@ namespace MeowChan.Desktop.Booru
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
             SearchResultUnknown, AdmissionFailed, ProviderCooldown, ProviderCooldownUnavailable, TransportResetFailed,
             TransportResetUnavailable, WatcherError, CheckFaulted, CheckAlreadyRunning, CooldownActive,
-            MissingReason, MissingError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
+            WatcherNotResumable, CooldownNotActive, MissingReason, MissingError, WorkerUnavailable, MalformedPost, NotAdmitted, BooruSource,
             BooruCooldown, ProviderThrottled, ProviderUnavailable,
             Busy, Canceled, Closed, Exception, Error, NoWorker, UnknownResult, PageBinding, WrongPost,
             // Domain codes whose texts already exist on goal (BooruStatusCatalog).
@@ -149,6 +151,10 @@ namespace MeowChan.Desktop.Localization
                 "In dieser Sitzung kann die Anbieterpause nicht zurückgesetzt werden. Die bestehende Pause bleibt aktiv; MeowChan hat keine Wiederherstellung bestätigt."),
             (P + "watcher_error", "The watcher stopped after an error. Resume it to check again.", "Die Suchbeobachtung wurde nach einem Fehler angehalten. Setze sie fort, um wieder zu prüfen."),
             (P + "check_faulted", "The watcher check failed unexpectedly. Resume it to try again.", "Die Prüfung der Suchbeobachtung ist unerwartet fehlgeschlagen. Setze sie fort, um es erneut zu versuchen."),
+            (P + "watcher_not_resumable", "The provider cooldown cannot be applied to this watcher in its current state. The watcher is unchanged.",
+                "Die Anbieterpause kann im aktuellen Zustand nicht für diese Suchbeobachtung übernommen werden. Die Suchbeobachtung ist unverändert."),
+            (P + "cooldown_not_active", "This watcher has no active provider cooldown to reset. The watcher is unchanged.",
+                "Diese Suchbeobachtung hat keine aktive Anbieterpause zum Zurücksetzen. Die Suchbeobachtung ist unverändert."),
             (P + "missing_reason", "The provider pause came without a reason. The check was stopped.", "Die Anbieterpause kam ohne Grund. Die Prüfung wurde abgebrochen."),
             (P + "missing_error", "The check failed without an error code.", "Die Prüfung ist ohne Fehlercode fehlgeschlagen."),
             (P + "worker_unavailable", "The Danbooru plugin could not be started. Nothing was requested.", "Das Danbooru-Plugin konnte nicht gestartet werden. Es wurde nichts angefragt."),
