@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using MeowChan.Archive;
 using MeowChan.Desktop;
@@ -564,7 +565,8 @@ public sealed class GalleryMarkingTests : IDisposable
         // The marks outlive the panel: they belong to the viewer, not to the controller that is disposed with the slot.
         Assert.Contains("_marks ??= new GalleryMarks(", host);
         Assert.DoesNotContain("Marks", ReadSource("Desktop/GalleryViewer.Overlay.cs"));
-        Assert.DoesNotContain("Marks", ReadSource("Desktop/GalleryVideoPlayer.cs"));
+        // The seek bar's own loop-range canvas (_seekMarks, V1 transport) is not tag marking; only that identifier is allowed.
+        Assert.DoesNotContain("Marks", Regex.Replace(ReadSource("Desktop/GalleryVideoPlayer.cs"), @"\b_seekMarks\b", ""));
         // The commands are wired only here: the ids are in the wired list and the handlers exist.
         Assert.Contains("MarkNext, MarkPrevious, ThreadSection, Undo, StampApply }", ReadSource("Desktop/Commands/QuickTagCommands.cs"));
     }
