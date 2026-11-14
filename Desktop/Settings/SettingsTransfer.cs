@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Text.Json;
@@ -22,11 +21,16 @@ public static class SettingsTransfer
     /// Returns an export using an explicit product version. Build metadata after '+' is not part of the displayed version.
     /// </summary>
     public static JsonObject Export(Config source, string productVersion)
+        => Export(source, productVersion, SerializeSnapshot);
+
+    // Per-call seam for observing the serialization boundary (including failures), without global test state.
+    internal static JsonObject Export(Config source, string productVersion, Func<Config, JsonObject> serializeSnapshot)
     {
         ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(serializeSnapshot);
         string version = NormalizeProductVersion(productVersion);
 
-        JsonObject document = SerializeWithoutMaterializingLayoutProfile(source);
+        JsonObject document = serializeSnapshot(CreatePortableSnapshot(source));
         foreach (string key in ExcludedKeys)
             document.Remove(key);
 
@@ -54,23 +58,145 @@ public static class SettingsTransfer
         nameof(Config.ArchiveBridgeHintSeen),
     ];
 
-    private static JsonObject SerializeWithoutMaterializingLayoutProfile(Config source)
+    private static JsonObject SerializeSnapshot(Config snapshot)
     {
-        // Config's compatibility properties are backed by the active LayoutProfiles entry. Reading one of them
-        // during normal source-generated serialization creates that entry when a profile has none. Serialize is
-        // otherwise read-only, so restore the dictionary exactly to keep Export pure even for a fresh Config.
-        KeyValuePair<string, PresentationProfile>[] originalProfiles = source.LayoutProfiles.ToArray();
-        try
+        JsonNode? node = JsonSerializer.SerializeToNode(snapshot, ConfigJsonContext.Default.Config);
+        return node?.AsObject() ?? throw new InvalidOperationException("Config serialization returned no object.");
+    }
+
+    private static Config CreatePortableSnapshot(Config source)
+    {
+        // Do not use Config.Clone(): it reads ActiveProfile and GetLayoutProfile for editor baselines,
+        // materializing missing entries on source. An explicit portable value copy also keeps consent,
+        // runtime state, geometry and last-used directories out of the serialization input altogether.
+        // Keep this list in sync with Config; SettingsTransferTests compares every portable JSON key/value.
+        Config snapshot = new()
         {
-            JsonNode? node = JsonSerializer.SerializeToNode(source, ConfigJsonContext.Default.Config);
-            return node?.AsObject() ?? throw new InvalidOperationException("Config serialization returned no object.");
-        }
-        finally
-        {
-            source.LayoutProfiles.Clear();
-            foreach ((string name, PresentationProfile profile) in originalProfiles)
-                source.LayoutProfiles.Add(name, profile);
-        }
+            SchemaVersion = source.SchemaVersion,
+            DownloadPath = source.DownloadPath,
+            RecheckTimer = source.RecheckTimer,
+            SaveUrlsOnExit = source.SaveUrlsOnExit,
+            ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard,
+            RememberReadingPosition = source.RememberReadingPosition,
+            MonitorClipboardUrls = source.MonitorClipboardUrls,
+            MinimizeToTray = source.MinimizeToTray,
+            CloseToTray = source.CloseToTray,
+            BandwidthLimiter = source.BandwidthLimiter,
+            MaxParallelDownloads = source.MaxParallelDownloads,
+            ParallelDownloadsSafetyLimit = source.ParallelDownloadsSafetyLimit,
+            AutomaticUpdateChecks = source.AutomaticUpdateChecks,
+            ShowInformationNotifications = source.ShowInformationNotifications,
+            ShowWarningNotifications = source.ShowWarningNotifications,
+            ShowErrorNotifications = source.ShowErrorNotifications,
+            IncludePrereleaseUpdates = source.IncludePrereleaseUpdates,
+            MinimumFreeSpaceGiB = source.MinimumFreeSpaceGiB,
+            PluginMaximumProductionWorkers = source.PluginMaximumProductionWorkers,
+            PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes,
+            PluginSourceHeapMiB = source.PluginSourceHeapMiB,
+            PluginFilterHeapMiB = source.PluginFilterHeapMiB,
+            BooruCatalogLimitMiB = source.BooruCatalogLimitMiB,
+            BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours,
+            ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList,
+            UrlTextExportLimitMiB = source.UrlTextExportLimitMiB,
+            SlashTagSuggestionCount = source.SlashTagSuggestionCount,
+            ShrinkWindowForBarebones = source.ShrinkWindowForBarebones,
+            PrivateTagLimit = source.PrivateTagLimit,
+            PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB,
+            MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB,
+            FavoriteEntryLimit = source.FavoriteEntryLimit,
+            FavoriteFileLimitMiB = source.FavoriteFileLimitMiB,
+            PostBookmarkLimit = source.PostBookmarkLimit,
+            SavedSearchLimit = source.SavedSearchLimit,
+            ReaderGroupLimit = source.ReaderGroupLimit,
+            SourcesWatchPreviewRows = source.SourcesWatchPreviewRows,
+            ExportConfirmFiles = source.ExportConfirmFiles,
+            ExportConfirmGiB = source.ExportConfirmGiB,
+            PosterCacheLimitMiB = source.PosterCacheLimitMiB,
+            VideoScrubCacheLimitMiB = source.VideoScrubCacheLimitMiB,
+            PosterCacheFileLimit = source.PosterCacheFileLimit,
+            AudioProbeCacheLimitMiB = source.AudioProbeCacheLimitMiB,
+            AudioProbeCacheEntries = source.AudioProbeCacheEntries,
+            ThumbnailCacheTiles = source.ThumbnailCacheTiles,
+            ClipboardUrlLimit = source.ClipboardUrlLimit,
+            ClipboardTextLimitKiB = source.ClipboardTextLimitKiB,
+            StatsSampleIntervalMs = source.StatsSampleIntervalMs,
+            ControlsIdleHideMs = source.ControlsIdleHideMs,
+            StatsHistorySamples = source.StatsHistorySamples,
+            StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs,
+            StatsTrayTooltip = source.StatsTrayTooltip,
+            StatsTrayMenu = source.StatsTrayMenu,
+            StatsPersist = source.StatsPersist,
+            StatsRetentionDays = source.StatsRetentionDays,
+            StatsPersistIntervalMinutes = source.StatsPersistIntervalMinutes,
+            StatsMaxSources = source.StatsMaxSources,
+            StatsHeaderGraph = source.StatsHeaderGraph,
+            StatsHeaderIcons = source.StatsHeaderIcons,
+            GalleryImageCacheMiB = source.GalleryImageCacheMiB,
+            GalleryPreloadAhead = source.GalleryPreloadAhead,
+            GalleryPreloadBehind = source.GalleryPreloadBehind,
+            ImportMaxFilesPerBatch = source.ImportMaxFilesPerBatch,
+            ImportMaxBatchGiB = source.ImportMaxBatchGiB,
+            ImportMaxFileMiB = source.ImportMaxFileMiB,
+            ImportMaxTotalFiles = source.ImportMaxTotalFiles,
+            ImportMaxTagsPerBatch = source.ImportMaxTagsPerBatch,
+            ImportMaxBatches = source.ImportMaxBatches,
+            MediaIndexMaxEntries = source.MediaIndexMaxEntries,
+            MediaIndexMaxThreads = source.MediaIndexMaxThreads,
+            ImportCatalogLimitMiB = source.ImportCatalogLimitMiB,
+            ReaderThumbnailWidth = source.ReaderThumbnailWidth,
+            ReaderFoldLines = source.ReaderFoldLines,
+            ReaderPreviewLines = source.ReaderPreviewLines,
+            ReaderPreviewDelayMs = source.ReaderPreviewDelayMs,
+            ReaderReplyStep = source.ReaderReplyStep,
+            ReaderReplyLines = source.ReaderReplyLines,
+            ReaderPageSize = source.ReaderPageSize,
+            ReaderThreadingDepth = source.ReaderThreadingDepth,
+            GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent,
+            PostFilterRuleLimit = source.PostFilterRuleLimit,
+            HiddenPostLimit = source.HiddenPostLimit,
+            QuickTagSuggestionCount = source.QuickTagSuggestionCount,
+            QuickTagRecentCount = source.QuickTagRecentCount,
+            QuickTagUndoDepth = source.QuickTagUndoDepth,
+            QuickTagNeighbourScan = source.QuickTagNeighbourScan,
+            QuickTagFilenameTokens = source.QuickTagFilenameTokens,
+            QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium,
+            QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit,
+            ReaderDateStyle = source.ReaderDateStyle,
+            ReaderSpoilers = source.ReaderSpoilers,
+            MediaSort = source.MediaSort,
+            MediaSortDirection = source.MediaSortDirection,
+            GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited,
+            PluginEditorExecutable = source.PluginEditorExecutable,
+            Theme = source.Theme,
+            Animations = source.Animations,
+            Language = source.Language,
+            WorkspaceMode = source.WorkspaceMode,
+            ReaderPostWidth = source.ReaderPostWidth,
+            VideoAutoplay = source.VideoAutoplay,
+            VideoStartMuted = source.VideoStartMuted,
+            VideoVolume = source.VideoVolume,
+            GalleryPlaybackMode = source.GalleryPlaybackMode,
+            GallerySlideshowSeconds = source.GallerySlideshowSeconds,
+            GalleryVideoRepeat = source.GalleryVideoRepeat,
+            GallerySlideshowVideoRule = source.GallerySlideshowVideoRule,
+            GallerySlideshowVideoSeconds = source.GallerySlideshowVideoSeconds,
+            GallerySlideshowVideoRepeats = source.GallerySlideshowVideoRepeats,
+            GalleryMediaFocus = source.GalleryMediaFocus,
+            GalleryOverlayControls = source.GalleryOverlayControls,
+            GalleryAutoHideControls = source.GalleryAutoHideControls,
+            GalleryOverlayPostContext = source.GalleryOverlayPostContext,
+            ShowShortcutHelp = source.ShowShortcutHelp,
+            ShortcutBindings = source.ShortcutBindings.Clone(),
+            PluginEditorArguments = (string[])source.PluginEditorArguments.Clone(),
+        };
+
+        // Use the dictionary getter, not GetLayoutProfile/legacy aliases or the normalizing setter.
+        // Clone every profile and its column dictionaries without validating, dropping unknown entries,
+        // or coupling legacy values. Only the detached snapshot may materialize its active profile when
+        // the existing serializer reads compatibility getters (and it may fail without touching source).
+        foreach ((string name, PresentationProfile profile) in source.LayoutProfiles)
+            snapshot.LayoutProfiles.Add(name, profile.Clone());
+        return snapshot;
     }
 
     private static string ProductVersion()
