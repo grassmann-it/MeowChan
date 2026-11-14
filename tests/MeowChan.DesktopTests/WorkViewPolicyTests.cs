@@ -7,11 +7,8 @@ namespace MeowChan.DesktopTests;
 /// <summary>Plan AP5 §3.3: the rules every row of <see cref="WorkViewPolicy"/> must keep (pure, no window).</summary>
 public sealed class WorkViewPolicyTests
 {
-    // Pages whose partial is still empty after the foundation; each page package (WV3–WV9) removes its page here.
-    private static readonly WorkViewPage[] PagesWithoutRowsYet =
-    [
-        WorkViewPage.Gallery
-    ];
+    // Pages whose partial is still empty after the foundation; each page package (WV3–WV9) removed its page here.
+    private static readonly WorkViewPage[] PagesWithoutRowsYet = [];
 
     [Fact]
     public void IdsAreUniqueAndShapedByPage()
