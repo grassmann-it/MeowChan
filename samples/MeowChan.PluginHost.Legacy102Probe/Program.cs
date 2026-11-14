@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginSdk;
+using SdkThreadSnapshot = MeowChan.PluginSdk.ThreadSnapshot;
 
 namespace MeowChan.PluginHost.Legacy102Probe;
 
@@ -174,7 +175,7 @@ internal static class Program
         }
         && catalogThread == thread;
 
-        bool threadOk = threadResult is ThreadSnapshot
+        bool threadOk = threadResult is SdkThreadSnapshot
         {
             Snapshot.Thread: var returnedThread,
             Snapshot.Title: "Synthetic legacy thread",
