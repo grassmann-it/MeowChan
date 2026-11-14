@@ -32,7 +32,7 @@ public sealed class PluginFileImportTests : IDisposable
         return path;
     }
 
-    private string[] FolderEntries() => Directory.EnumerateFileSystemEntries(_plugins).Select(Path.GetFileName).Order().ToArray()!;
+    private string[] FolderEntries() => Directory.EnumerateFileSystemEntries(_plugins).Where(path => Path.GetFileName(path) != PluginImportStaging.DirectoryName).Select(Path.GetFileName).Order().ToArray()!;
 
     [Fact]
     public async Task ACsFileIsCopiedByteForByteAndTheInventoryListsItWithoutProblems()
@@ -50,6 +50,7 @@ public sealed class PluginFileImportTests : IDisposable
         Assert.Equal(content, File.ReadAllBytes(source));              // the chosen file is untouched
         PluginInventory scan = await new PluginInstallationInventory().ScanAsync(_plugins);
         PluginInstallationCandidate listed = Assert.Single(scan.Candidates);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(_plugins, PluginImportStaging.DirectoryName)));
         Assert.Equal(result.CandidateId, listed.CandidateId);          // the page can select exactly this entry
         Assert.Equal(PluginCandidateKind.Source, listed.Kind);
         Assert.Empty(listed.Diagnostics);
@@ -184,6 +185,40 @@ public sealed class PluginFileImportTests : IDisposable
         Assert.Equal(accepted, inventoryAccepts);
         Assert.Equal(inventoryAccepts, result.Succeeded);
         Assert.Equal(inventoryAccepts ? 1 : 0, FolderEntries().Length);
+    }
+
+    [Fact]
+    public async Task ConcurrentImportsOfOneNamePublishExactlyOneCompleteFile()
+    {
+        string first = Outside("race.cs", "// first"u8.ToArray());
+        string secondDirectory = Path.Combine(_root, "second-download");
+        Directory.CreateDirectory(secondDirectory);
+        string second = Path.Combine(secondDirectory, "race.cs");
+        File.WriteAllText(second, "// second");
+
+        PluginFileImportResult[] results = await Task.WhenAll(
+            PluginFileImport.ImportAsync(first, _plugins), PluginFileImport.ImportAsync(second, _plugins));
+
+        Assert.Single(results.Where(result => result.Status == PluginFileImportStatus.Imported));
+        Assert.Single(results.Where(result => result.Status == PluginFileImportStatus.NameTaken));
+        Assert.Contains(File.ReadAllText(Path.Combine(_plugins, "race.cs")), new[] { "// first", "// second" });
+        Assert.Empty(Directory.EnumerateFileSystemEntries(Path.Combine(_plugins, PluginImportStaging.DirectoryName)));
+    }
+
+    [Fact]
+    public async Task AStagingSymlinkCannotRedirectTheImportOutsideThePluginFolder()
+    {
+        if (OperatingSystem.IsWindows()) return;
+        string staging = Path.Combine(_plugins, PluginImportStaging.DirectoryName);
+        Directory.CreateSymbolicLink(staging, _outside);
+        string source = Outside("safe.cs");
+
+        PluginFileImportResult result = await PluginFileImport.ImportAsync(source, _plugins);
+
+        Assert.Equal(PluginFileImportStatus.Failed, result.Status);
+        Assert.Equal(new[] { "safe.cs" }, Directory.EnumerateFileSystemEntries(_outside).Select(Path.GetFileName));
+        Assert.False(File.Exists(Path.Combine(_plugins, "safe.cs")));
+        Directory.Delete(staging);
     }
 
     [Fact]

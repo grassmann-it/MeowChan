@@ -62,20 +62,17 @@ internal static class PluginFileImport
             if (File.Exists(destination) || Directory.Exists(destination) || new FileInfo(destination).LinkTarget != null)
                 return new(PluginFileImportStatus.NameTaken, fileName);
 
-            // Copy the bounded bytes to a staging file beside the plugin folder (same volume), then rename it into place:
-            // the folder never shows a half-written file to the inventory scan, and the rename refuses to overwrite.
+            // Stage strictly inside the plugin folder: even if that folder is a separate mount, publication
+            // is a same-filesystem, no-overwrite rename. The lease protects the payload from startup cleanup.
             byte[] bytes = await CompilerWire.ReadBoundedAsync(source, PluginInstallationInventory.DefaultMaximumSourceBytes, cancellationToken).ConfigureAwait(false);
-            string staging = Path.Combine(Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(directory)) ?? directory, ".plugin-import-" + Guid.NewGuid().ToString("N") + ".tmp");
+            using PluginImportStaging staging = PluginImportStaging.Create(directory);
             try
             {
-                await using (FileStream output = new(staging, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
-                    await output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                File.Move(staging, destination, overwrite: false);
+                await staging.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
+                staging.Publish(destination, cancellationToken);
             }
-            catch (IOException) when (File.Exists(destination) || Directory.Exists(destination))
-            { TryDelete(staging); return new(PluginFileImportStatus.NameTaken, fileName); }
-            catch { TryDelete(staging); throw; }
+            catch (IOException) when (File.Exists(destination) || Directory.Exists(destination) || new FileInfo(destination).LinkTarget != null)
+            { return new(PluginFileImportStatus.NameTaken, fileName); }
 
             // The copy is what will be built: inspect it the way the inventory will.
             PluginInstallationCandidate copy = await PluginInstallationInventory.InspectAsync(destination, cancellationToken: CancellationToken.None).ConfigureAwait(false);
