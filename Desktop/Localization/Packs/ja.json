@@ -571,6 +571,8 @@
     "admission.showInList": "一覧で表示",
     "admission.showInListHidden": "この項目は現在の検索で隠れています。表示するには検索をクリアしてください。",
     "admission.results": "取り込み結果",
+    "admission.problemsOnly": "問題のみ（{0}）",
+    "admission.putBack": "拒否されたものを入力欄に戻す",
     "admission.empty": "入力にURLが見つかりません。",
     "admission.sessionBusy": "セッションがまだ処理中のため、今はURLを追加できません。しばらくしてからもう一度お試しください。",
     "about.title": "MeowChanについて",

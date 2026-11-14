@@ -612,6 +612,8 @@
     "admission.showInList": "Afficher dans la liste",
     "admission.showInListHidden": "Cette entrée est masquée par la recherche actuelle. Effacez la recherche pour l’afficher.",
     "admission.results": "Résultats de l’importation",
+    "admission.problemsOnly": "Problèmes uniquement ({0})",
+    "admission.putBack": "Remettre les refusées dans le champ",
     "admission.empty": "Aucune URL trouvée dans la saisie.",
     "admission.sessionBusy": "Les URL ne peuvent pas être ajoutées pour l’instant car la session est encore occupée. Réessayez dans un instant.",
     "about.title": "À propos de MeowChan",

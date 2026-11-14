@@ -571,6 +571,8 @@
     "admission.showInList": "목록에서 표시",
     "admission.showInListHidden": "이 항목은 현재 검색으로 숨겨져 있습니다. 보려면 검색을 지우세요.",
     "admission.results": "가져오기 결과",
+    "admission.problemsOnly": "문제만 보기({0})",
+    "admission.putBack": "거부된 항목을 입력란으로 되돌리기",
     "admission.empty": "입력에서 URL을 찾을 수 없습니다.",
     "admission.sessionBusy": "세션이 아직 작업 중이라 지금은 URL을 추가할 수 없습니다. 잠시 후 다시 시도하세요.",
     "about.title": "MeowChan 정보",

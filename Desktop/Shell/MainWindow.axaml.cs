@@ -138,6 +138,7 @@ public partial class MainWindow : Window
             InitializeSelectionCommands();
             InitializeStatusColumnRedundancy();
             InitializeArchiveBridgeHint();
+            InitializeAdmissionProblemTools();
             Texts.Changed += OnLanguageChanged;
             RecordStartupTiming(StartupTimingPoint.TrayBegin);
             try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
@@ -547,6 +548,8 @@ public partial class MainWindow : Window
         if (!_restoreCompleted || _isClosing) return false;
         NoteAdmissionStart();
         _admissionResults.Clear();
+        _admissionProblemsOnly = false;
+        _admissionSubmittedInput = input;
         bool allAccepted = true;
         try
         {
@@ -591,7 +594,10 @@ public partial class MainWindow : Window
         rows.Children.Clear();
         int added = _admissionResults.Count(item => item.Status == AdmissionStatus.Added);
         int duplicate = _admissionResults.Count(item => item.Status == AdmissionStatus.AlreadyPresent);
-        AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
+        int rejected = _admissionResults.Count - added - duplicate;
+        AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, rejected);
+        RefreshAdmissionProblemTools(rejected, _admissionResults.Count);
+        bool problemsOnly = _admissionProblemsOnly && rejected > 0 && rejected < _admissionResults.Count;
         OfferArchiveBridgeHint(added);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
@@ -599,7 +605,7 @@ public partial class MainWindow : Window
         {
             Name = "AdmissionReport", IsReadOnly = true, AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap, MaxHeight = 150,
-            Text = string.Join(Environment.NewLine, _admissionResults.Select(item =>
+            Text = string.Join(Environment.NewLine, _admissionResults.Where(item => !problemsOnly || IsRejectedAdmission(item)).Select(item =>
             {
                 string key = item.Skipped ? "activation.skippedLabel" : item.Status switch
                 {
@@ -617,7 +623,7 @@ public partial class MainWindow : Window
         rows.Children.Add(report);
         // A URL that is already watched says where: one link per duplicate (the first few) selects its row.
         foreach (AdmissionFeedback known in _admissionResults
-                     .Where(item => item.Status == AdmissionStatus.AlreadyPresent && item.WatchId != null).Take(MaxDuplicateLinks))
+                     .Where(item => !problemsOnly && item.Status == AdmissionStatus.AlreadyPresent && item.WatchId != null).Take(MaxDuplicateLinks))
             rows.Children.Add(CreateShowInListLink(known));
         if (repairSources != null)
         {

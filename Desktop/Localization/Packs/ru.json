@@ -612,6 +612,8 @@
     "admission.showInList": "Показать в списке",
     "admission.showInListHidden": "Эта запись скрыта текущим поиском. Очистите поиск, чтобы показать её.",
     "admission.results": "Результаты импорта",
+    "admission.problemsOnly": "Только проблемы ({0})",
+    "admission.putBack": "Вернуть отклонённые в поле",
     "admission.empty": "Во вводе не найдены URL.",
     "admission.sessionBusy": "Сейчас нельзя добавить URL, потому что сеанс ещё занят. Повторите попытку через мгновение.",
     "about.title": "О MeowChan",

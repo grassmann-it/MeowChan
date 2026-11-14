@@ -35,13 +35,14 @@ internal static class DownloadsFeedbackChecks
             CheckTrayPauseEntry(window);
             await CheckDuplicateLinkAsync(window);
             await CheckArchiveBridgeHintAsync(window);
+            await CheckAdmissionProblemToolsAsync(window);
         }
         finally
         {
             config.ShowInformationNotifications = information;
             Texts.SetLanguage(language);
         }
-        Console.WriteLine("SMOKE downloads feedback: undo toast with action, tray pause entry, show-in-list link, one-time Archive hint and empty toolbar passed.");
+        Console.WriteLine("SMOKE downloads feedback: undo toast with action, tray pause entry, show-in-list link, one-time Archive hint, empty toolbar and the problems-only filter with put-back passed.");
     }
 
     private static NotificationCard[] Cards(MainWindow window) => window.GetVisualDescendants().OfType<NotificationCard>().ToArray();
@@ -140,6 +141,63 @@ internal static class DownloadsFeedbackChecks
         {
             results.Clear();
             refresh.Invoke(window, null);
+        }
+    }
+
+    /// <summary>
+    /// UX flows AP16: a large Add with rejected URLs offers the counters, a "Problems only" filter for the report and an
+    /// action that puts the rejected URLs back into the Add field. Fake admission results only: nothing is admitted.
+    /// </summary>
+    private static async Task CheckAdmissionProblemToolsAsync(MainWindow window)
+    {
+        Type feedbackType = typeof(MainWindow).GetNestedType("AdmissionFeedback", BindingFlags.NonPublic)!;
+        System.Collections.IList results = (System.Collections.IList)typeof(MainWindow).GetField("_admissionResults", Instance)!.GetValue(window)!;
+        MethodInfo refresh = typeof(MainWindow).GetMethod("RefreshAdmissionResults", Instance)!;
+        StackPanel tools = window.AdmissionProblemToolsForTests ?? throw new InvalidOperationException("The problem tools were not built.");
+        TextBox field = window.FindControl<TextBox>("UrlInput")!;
+        string fieldText = field.Text ?? string.Empty;
+        string language = Texts.Language;
+        void Add(string url, MeowChan.AdmissionStatus status) =>
+            results.Add(Activator.CreateInstance(feedbackType, url, status, null, false, (long?)null));
+        TextBox Report() => window.FindControl<StackPanel>("AdmissionResultRows")!.Children.OfType<TextBox>().Single(box => box.Name == "AdmissionReport");
+        try
+        {
+            foreach (string current in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(current);
+                results.Clear();
+                field.Text = string.Empty;
+                for (int index = 1; index <= 6; index++) Add("https://boards.4chan.org/g/thread/" + index, MeowChan.AdmissionStatus.Added);
+                Add("not a url", MeowChan.AdmissionStatus.Invalid);
+                Add("https://example.invalid/x", MeowChan.AdmissionStatus.Unsupported);
+                refresh.Invoke(window, null);
+                CheckBox problemsOnly = tools.Children.OfType<CheckBox>().Single();
+                Button putBack = tools.Children.OfType<Button>().Single();
+                Require(tools.IsVisible && problemsOnly.IsVisible, "The problem tools are hidden although URLs were rejected.");
+                Require(Equals(problemsOnly.Content, Texts.T("admission.problemsOnly", 2)) && Equals(putBack.Content, Texts.T("admission.putBack")),
+                    "The problem tools do not show their " + current + " labels.");
+                Require(window.FindControl<TextBlock>("AdmissionResultsTitle")!.Text == Texts.T("admission.summary", 6, 0, 2), "The result counters changed.");
+                Require(Report().Text!.Split('\n').Length == 8, "The unfiltered report does not list all eight results.");
+                problemsOnly.IsChecked = true;
+                Require(Report().Text!.Split('\n').Length == 2 && window.FindControl<Expander>("AdmissionResultsExpander")!.IsExpanded,
+                    "The filter does not reduce the visible report to the two rejected URLs.");
+                SmokeActionClick.Execute(putBack);
+                Require(field.Text == "not a url" + Environment.NewLine + "https://example.invalid/x", "The rejected URLs were not put back into the Add field.");
+                // Nothing rejected: the tools disappear again.
+                results.Clear();
+                for (int index = 1; index <= 3; index++) Add("https://boards.4chan.org/g/thread/" + index, MeowChan.AdmissionStatus.Added);
+                refresh.Invoke(window, null);
+                Require(!tools.IsVisible, "The problem tools stay visible without a rejected URL.");
+            }
+            await Task.CompletedTask;
+        }
+        finally
+        {
+            results.Clear();
+            field.Text = fieldText;
+            window.FindControl<Expander>("AdmissionResultsExpander")!.IsExpanded = false;
+            refresh.Invoke(window, null);
+            Texts.SetLanguage(language);
         }
     }
 
