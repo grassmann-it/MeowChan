@@ -183,7 +183,7 @@ internal static class ArchiveCatalog
         ("archive.titleSort", "Title A–Z", "Titel A–Z"),
         ("archive.historyBack", "Previous reading position", "Vorherige Leseposition"),
         ("archive.references", "References", "Verweise"),
-        ("archive.referencesCount", "References ({0})", "Verweise ({0})"),
+        ("archive.referencesCount", "References ({0})", "Antworten ({0})"),
         ("archive.referencesHelp", "Captured replies that quote the selected post. Choose one to jump to it.", "Erfasste Antworten, die den gewählten Post zitieren. Eine auswählen, um dorthin zu springen."),
         ("archive.backlinks", "Replies to #{0}", "Antworten auf #{0}"),
         ("archive.noBacklinks", "No captured replies to #{0}.", "Keine erfassten Antworten auf #{0}."),

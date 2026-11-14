@@ -9,7 +9,7 @@ internal static class SearchBoxCatalog
         ("search.count", "{0} results", "{0} Treffer"),
         ("settings.search.placeholder", "Search settings", "Einstellungen durchsuchen"),
         ("settings.search.results", "Settings search results", "Suchergebnisse in den Einstellungen"),
-        ("settings.search.keys", "↑ ↓ choose · Enter go to setting · Esc clear", "↑ ↓ wählen · Eingabe öffnet die Einstellung · Esc leert"),
+        ("settings.search.keys", "↑ ↓ choose · Enter go to setting · Esc clear", "↑ ↓ wählen · Enter öffnet die Einstellung · Esc leert"),
         ("settings.search.none", "No setting matches “{0}”.", "Keine Einstellung passt zu „{0}“."),
         ("settings.search.noneHint", "Check the spelling or try another word, such as “cache” or “limit”.", "Prüfe die Schreibweise oder versuche ein anderes Wort, etwa „Cache“ oder „Limit“."),
         ("settings.search.current", "{0} of {1}: {2}, {3}", "{0} von {1}: {2}, {3}"),

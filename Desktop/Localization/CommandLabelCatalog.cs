@@ -192,7 +192,7 @@ internal static class CommandLabelCatalog
         ("command.video.speed-down", "Slower", "Langsamer"),
         ("command.video.speed-up", "Faster", "Schneller"),
         ("command.video.speed-reset", "Normal speed", "Normale Geschwindigkeit"),
-        ("command.video.snapshot", "Save frame as image", "Einzelbild als Bild speichern"),
+        ("command.video.snapshot", "Save frame as image", "Einzelbild als Bilddatei speichern"),
         ("command.about.copy-version", "Copy version", "Version kopieren"),
         ("command.about.open-license", "Open license text", "Lizenztext öffnen"),
         ("command.about.show-credits", "Acknowledgements", "Danksagungen"),

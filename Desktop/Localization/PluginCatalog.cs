@@ -149,7 +149,7 @@ internal static class PluginCatalog
         ("plugins.step.state.next", "next", "als Nächstes"),
         ("plugins.step.state.later", "later", "später"),
         ("plugins.step.state.problem", "needs attention", "braucht Aufmerksamkeit"),
-        ("plugins.step.next.missing", "Next: the file is no longer in the plugin folder. Add it again with “{0}” or restore it there, then refresh the status.", "Als Nächstes: Die Datei liegt nicht mehr im Pluginordner. Füge sie mit „{0}“ erneut hinzu oder lege sie dort wieder ab und aktualisiere dann den Status."),
+        ("plugins.step.next.missing", "Next: the file is no longer in the plugin folder. Add it again with “{0}” or restore it there, then refresh the status.", "Als Nächstes: Die Datei liegt nicht mehr im Pluginordner. Mit „{0}“ erneut hinzufügen oder dort wieder ablegen, dann den Status aktualisieren."),
         ("plugins.step.next.fix", "Next: fix the problem described here, then restart MeowChan.", "Als Nächstes: das hier beschriebene Problem beheben und MeowChan dann neu starten."),
         ("plugins.step.next.restart", "Next: restart MeowChan. A new or changed file is built and registered only at startup.", "Als Nächstes: MeowChan neu starten. Eine neue oder geänderte Datei wird nur beim Start gebaut und registriert."),
         ("plugins.step.next.restartSaved", "Next: restart MeowChan to use the build that is saved for the next start.", "Als Nächstes: MeowChan neu starten, um die für den nächsten Start gespeicherte Fassung zu verwenden."),
