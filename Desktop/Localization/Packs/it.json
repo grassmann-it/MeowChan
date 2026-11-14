@@ -3661,6 +3661,21 @@
     "tags.quick.reason.sameFileIn": "stesso file in {0}",
     "tags.quick.reason.fileName": "dal nome del file",
     "tags.quick.reason.title": "dal titolo del thread",
-    "tags.quick.reason.sourceTag": "tag della fonte"
+    "tags.quick.reason.sourceTag": "tag della fonte",
+    "budgets.group.quickTag": "Tag rapidi",
+    "budgets.quickTagSuggestions": "Suggerimenti di tag mostrati",
+    "budgets.quickTagSuggestionsHint": "Quanti chip di suggerimento mostra il campo dei tag rapidi quando è vuoto. Solo i primi nove hanno un tasto numerico. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagRecent": "Tag usati di recente da ricordare",
+    "budgets.quickTagRecentHint": "Quanti tag personali usati di recente vengono ricordati fino alla chiusura dell’app e mostrati più in alto nei suggerimenti. 0 disattiva questa funzione. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagUndo": "Passaggi di annullamento per i tag",
+    "budgets.quickTagUndoHint": "Quante modifiche ai tag di uno stesso pannello dei tag possono essere annullate una dopo l’altra. I passaggi più vecchi vengono scartati. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagNeighbours": "Media vicini controllati per i tag",
+    "budgets.quickTagNeighboursHint": "Quante voci di media attorno a quella visualizzata vengono controllate per trovare tag adatti. Un valore più alto trova più tag, ma richiede più tempo negli elenchi molto grandi. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagFilename": "Parole del nome del file usate per i tag",
+    "budgets.quickTagFilenameHint": "Quante parole del nome del file e del titolo vengono confrontate con i tuoi tag personali. 0 disattiva il confronto delle parole. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagSourceTags": "Tag della fonte per file multimediale",
+    "budgets.quickTagSourceTagsHint": "Quanti dei tag elencati da una fonte come Danbooru per un file multimediale vengono proposti come nuovi tag personali. 0 disattiva questi suggerimenti. Valore predefinito: {0}, consentiti: da {1} a {2}.",
+    "budgets.quickTagMarked": "Media contrassegnati per i tag",
+    "budgets.quickTagMarkedHint": "Quanti media possono essere contrassegnati nella galleria per assegnare loro tag in un solo passaggio. Il file dei tag mantiene il proprio limite fisso di assegnazioni. Valore predefinito: {0}, consentiti: da {1} a {2}."
   }
 }

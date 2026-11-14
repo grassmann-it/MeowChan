@@ -3661,6 +3661,21 @@
     "tags.quick.reason.sameFileIn": "mesmo arquivo em {0}",
     "tags.quick.reason.fileName": "do nome do arquivo",
     "tags.quick.reason.title": "do título do tópico",
-    "tags.quick.reason.sourceTag": "tag de origem"
+    "tags.quick.reason.sourceTag": "tag de origem",
+    "budgets.group.quickTag": "Tags rápidas",
+    "budgets.quickTagSuggestions": "Sugestões de tags exibidas",
+    "budgets.quickTagSuggestionsHint": "Quantos chips de sugestão o campo de tags rápidas mostra enquanto está vazio. Apenas os nove primeiros têm uma tecla numérica. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagRecent": "Tags usadas recentemente mantidas na memória",
+    "budgets.quickTagRecentHint": "Quantas tags próprias usadas recentemente são lembradas até o app ser fechado e aparecem mais acima nas sugestões. 0 desativa esse recurso. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagUndo": "Etapas para desfazer alterações de tags",
+    "budgets.quickTagUndoHint": "Quantas alterações de tags de um mesmo painel de tags podem ser desfeitas uma após a outra. As etapas mais antigas são descartadas. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagNeighbours": "Mídias próximas verificadas em busca de tags",
+    "budgets.quickTagNeighboursHint": "Quantas entradas de mídia ao redor da exibida são verificadas em busca de tags adequadas. Um valor maior encontra mais tags, mas demora mais em listas muito grandes. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagFilename": "Palavras do nome do arquivo usadas para tags",
+    "budgets.quickTagFilenameHint": "Quantas palavras do nome do arquivo e do título são comparadas com suas tags próprias. 0 desativa a comparação de palavras. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagSourceTags": "Tags de origem por arquivo de mídia",
+    "budgets.quickTagSourceTagsHint": "Quantas das tags que uma fonte como o Danbooru lista para um arquivo de mídia são oferecidas como novas tags próprias. 0 desativa essas sugestões. Padrão: {0}, permitido: {1} a {2}.",
+    "budgets.quickTagMarked": "Mídias marcadas para adicionar tags",
+    "budgets.quickTagMarkedHint": "Quantas mídias podem ser marcadas na galeria para receber tags em uma única etapa. O arquivo de tags mantém seu próprio limite fixo de atribuições. Padrão: {0}, permitido: {1} a {2}."
   }
 }
