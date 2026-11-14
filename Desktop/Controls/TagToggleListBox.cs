@@ -135,7 +135,7 @@ internal sealed class TagToggleRowView : Grid
 {
     private readonly CheckBox _box = new()
     {
-        Focusable = false, IsHitTestVisible = false, MinWidth = 0, Margin = new Thickness(0, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center,
+        Focusable = false, IsHitTestVisible = false, MinWidth = 0, Margin = new Thickness(0, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center,
         [AutomationProperties.AccessibilityViewProperty] = AccessibilityView.Raw
     };
     private readonly TextBlock _name = new() { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
@@ -182,7 +182,7 @@ internal sealed class TagToggleRowView : Grid
         _box.IsChecked = row.IsChecked;
         _name.Text = row.Label;
         _name.FontWeight = header ? FontWeight.SemiBold : FontWeight.Normal;
-        _name.Margin = header ? new Thickness(0, 6, 0, 0) : new Thickness(0);
+        _name.Margin = header ? new Thickness(0, 8, 0, 0) : new Thickness(0);
         _count.Text = row.CountText;
         _count.IsVisible = !header && row.CountText.Length > 0;
         _uses.Text = row.UsesText;

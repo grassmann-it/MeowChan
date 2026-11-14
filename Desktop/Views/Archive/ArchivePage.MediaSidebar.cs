@@ -460,8 +460,11 @@ public partial class ArchivePage
         catch (OperationCanceledException) { }
         catch (Exception error)
         {
-            if (IsCurrentSidebarRequest(request))
-                sidebar.ShowPlaceholder(string.IsNullOrWhiteSpace(error.Message) ? Texts.T("reader.sidebar.unavailable") : error.Message);
+        {
+            // The shown medium's own failure: a localized sentence, the cause in the log (never the exception's English text).
+            Serilog.Log.Warning(error, "Showing a media sidebar item failed");
+            if (IsCurrentSidebarRequest(request)) sidebar.ShowPlaceholder(Texts.T("reader.sidebar.unavailable"));
+        }
         }
         finally
         {
@@ -483,18 +486,12 @@ public partial class ArchivePage
                     neighbours.Add(near.Attachments[0]);
         }
         GalleryDecodeRequest.Fit fit = new(target.Width, target.Height);
-        foreach (ArchiveAttachmentRow neighbour in neighbours)
+        await ReaderMediaSidebarRules.PreloadNeighboursAsync(neighbours.Select(neighbour => neighbour.ResolveEntry), async (entry, ct) =>
         {
-            token.ThrowIfCancellationRequested();
-            if (neighbour.ResolveEntry == null || await neighbour.ResolveEntry(token) is not { Kind: SavedMediaKind.Image } entry) continue;
-            try
-            {
-                (Bitmap bitmap, _) = await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared, GalleryImageDecoder.DecodeBackgroundAsync,
-                    entry, fit, token);
-                GalleryImageCache.Shared.Release(bitmap);
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception) { } // A neighbour that cannot be decoded is simply not ready early.
-        }
+            if (entry.Kind != SavedMediaKind.Image) return;
+            (Bitmap bitmap, _) = await GalleryImageCache.DecodeThrough(GalleryImageCache.Shared, GalleryImageDecoder.DecodeBackgroundAsync,
+                entry, fit, ct);
+            GalleryImageCache.Shared.Release(bitmap);
+        }, token);
     }
 }

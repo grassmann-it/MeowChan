@@ -177,7 +177,7 @@ public static class CommandBindings
             content = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 5,
+                Spacing = 4,
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { content, text }
             };
@@ -293,7 +293,7 @@ public static class CommandBindings
             return new StackPanel
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 5,
+                Spacing = 4,
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { ButtonIcon(icon, size, text, byKey: true), text }
             };

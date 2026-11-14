@@ -24,14 +24,14 @@ public sealed class SearchCarryOffer : Border
     {
         IsVisible = false;
         Classes.Add("search-carry-offer");
-        Padding = new Thickness(8, 6);
+        Padding = new Thickness(8, 4);
         CornerRadius = new CornerRadius(4);
         BorderThickness = new Thickness(1);
         this[!BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Border");
         AutomationProperties.SetLiveSetting(_text, AutomationLiveSetting.Polite);
-        WrapPanel actions = new() { ItemSpacing = 6, LineSpacing = 4 };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4 };
         actions.Children.Add(_use); actions.Children.Add(_keep);
-        Child = new StackPanel { Spacing = 6, Children = { _text, actions } };
+        Child = new StackPanel { Spacing = 8, Children = { _text, actions } };
         _use.Click += (_, _) => { Action? apply = _apply; Hide(); apply?.Invoke(); };
         _keep.Click += (_, _) => Hide();
         Localize();

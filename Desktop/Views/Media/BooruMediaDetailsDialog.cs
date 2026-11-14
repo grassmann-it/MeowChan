@@ -63,7 +63,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         // the title bar only, and a lone Close button is left out: × at the top right and Escape close it.
         DialogWindow.Configure(this, DialogSize.M, modal: true);
 
-        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16, 0, 16, 16) };
+        StackPanel body = new() { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(Badges(details));
         foreach (string line in fileLines)
             body.Children.Add(new SelectableTextBlock { Text = line, TextWrapping = TextWrapping.Wrap });
@@ -116,7 +116,7 @@ internal sealed class BooruMediaDetailsDialog : Window
 
     private static Control Badges(BooruMediaDetails? details)
     {
-        WrapPanel row = new() { Name = "BooruBadges", ItemSpacing = 6, LineSpacing = 6 };
+        WrapPanel row = new() { Name = "BooruBadges", ItemSpacing = 8, LineSpacing = 8 };
         row.Children.Add(Chip("BooruBadgeSource", Texts.T("booru.media.badge")));
         if (details != null)
         {
@@ -144,8 +144,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         _initialFocus = open;
         open.Click += async (_, _) => await RunAsync(() => _open(details.PostUrl), null, "booru.media.openFailed");
         copy.Click += async (_, _) => await RunAsync(() => _copy(details.PostUrl), "booru.media.copied", "booru.media.copyFailed");
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, Children = { open, copy } };
-        return new StackPanel { Name = "BooruPostRow", Spacing = 6, Children = { where, actions } };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, Children = { open, copy } };
+        return new StackPanel { Name = "BooruPostRow", Spacing = 8, Children = { where, actions } };
     }
 
     private async Task RunAsync(Func<Task> action, string? successKey, string failureKey)
@@ -219,7 +219,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         copyAll.Click += async (_, _) => await CopyTagsAsync(details.Tags.Select(tag => tag.Name).ToArray());
         _copySelectedTags.Content = Texts.T("booru.media.tags.copySelected");
         _copySelectedTags.Click += async (_, _) => await CopyTagsAsync(SelectedTagNames());
-        WrapPanel actions = new() { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel actions = new() { Name = "BooruSourceTagActions", ItemSpacing = 8, LineSpacing = 8 };
         actions.Children.Add(copyAll);
         actions.Children.Add(_copySelectedTags);
         if (IsSearchActionAvailable())
@@ -248,7 +248,7 @@ internal sealed class BooruMediaDetailsDialog : Window
             AutomationProperties.SetName(copyCategory, Texts.T("booru.media.tags.copyCategoryFor", category));
             ToolTip.SetTip(copyCategory, Texts.T("booru.media.tags.copyCategoryFor", category));
             copyCategory.Click += async (_, _) => await CopyTagsAsync(names);
-            Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 6, 0, 0) };
+            Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 8, 0, 0) };
             header.Children.Add(title);
             Grid.SetColumn(copyCategory, 1); header.Children.Add(copyCategory);
             panel.Children.Add(header);

@@ -40,7 +40,16 @@ internal sealed partial class GalleryVideoPlayer
     /// <summary>The area the picture is placed in (the video surface's cell, in dip).</summary>
     internal Size SurfaceSize => SurfaceControl.Bounds.Size;
     internal Control SurfaceControl => UsesSoftwareVideo ? _softwareHost : _video;
-    internal bool CanRotate => !IsDisposed && _sourceSize != null && RotateRequested != null;
+    /// <summary>
+    /// The picture can be turned now. On Windows the output only turns when the input reopens at the same position, which a playing
+    /// video that is not (yet) known as seekable cannot do: the command is unavailable then rather than promised and not shown.
+    /// </summary>
+    internal bool CanRotate => !IsDisposed && _sourceSize != null && RotateRequested != null && TurnsNow;
+    /// <summary>The surface can turn at this moment (always on the software surface; on Windows see <see cref="CanRotate"/>).</summary>
+    internal bool TurnsNow => UsesSoftwareVideo
+        || VideoNativeRotation.Decide(_intent.Current.Mode, _length, _knownSeekable) != NativeRotationAction.Unavailable;
+    /// <summary>Windows: the wanted rotation has not reached the output yet (it waits for a seekable input; nothing is applied meanwhile).</summary>
+    internal bool NativeRotationPending => !UsesSoftwareVideo && _nativeRotation != _nativeRotationApplied;
 
     /// <summary>Whether <paramref name="source"/> is the picture itself (not the transport or another control of the player).</summary>
     internal bool OwnsSurface(object? source) => source is Visual visual
@@ -115,7 +124,7 @@ internal sealed partial class GalleryVideoPlayer
             string wanted = _wantedCrop ?? string.Empty;
             if ((_appliedCrop ?? string.Empty) == wanted) return;
             try { playback.Player.CropGeometry = wanted.Length == 0 ? null : wanted; _appliedCrop = wanted; }
-            catch (Exception) { /* A refused crop leaves the picture whole; playback goes on. */ }
+            catch (Exception error) { Serilog.Log.Debug(error, "The native video output refused a crop; the picture stays whole and playback goes on."); }
         });
     }
 
@@ -128,12 +137,16 @@ internal sealed partial class GalleryVideoPlayer
         {
             while (_nativeRotation != _nativeRotationApplied && IsCurrent(generation) && !IsDisposed)
             {
-                int target = _nativeRotation;
-                bool reopen = _intent.Current.Mode != VideoPlaybackMode.Stopped && _length > 0 && _knownSeekable;
+                int target = _nativeRotation, attached = _nativeRotationApplied;
+                NativeRotationAction action = VideoNativeRotation.Decide(_intent.Current.Mode, _length, _knownSeekable);
+                // A playing input that cannot reopen at its position keeps its orientation: nothing is added or marked as applied,
+                // the wish stays pending and the next view update tries again once the video is seekable.
+                if (action == NativeRotationAction.Unavailable) break;
+                bool reopen = action == NativeRotationAction.ReopenAtPosition;
                 long position = _timeline.DisplayPosition;
                 await CommandAsync(playback =>
                 {
-                    AddRotationOptions(playback.Media, target);
+                    AddRotationOptions(playback.Media, attached, target);
                     if (reopen) playback.Player.Stop();
                 }).ConfigureAwait(true);
                 _nativeRotationApplied = target;
@@ -142,7 +155,7 @@ internal sealed partial class GalleryVideoPlayer
                     _ = _seeks.Enqueue(request);
             }
         }
-        catch (Exception) { /* The player keeps its last orientation. */ }
+        catch (Exception error) { Serilog.Log.Warning(error, "Turning the native video output failed; the player keeps its last orientation."); }
         finally { Interlocked.Exchange(ref _rotationRunning, 0); }
     }
 
@@ -153,15 +166,15 @@ internal sealed partial class GalleryVideoPlayer
         int turn => new[] { ":video-filter=transform", ":transform-type=" + turn }
     };
 
-    private static void AddRotationOptions(Media media, int degrees)
+    private static void AddRotationOptions(Media media, int attached, int degrees)
     {
-        foreach (string option in RotationOptions(degrees)) media.AddOption(option);
+        foreach (string option in VideoNativeRotation.OptionsToAdd(attached, degrees)) media.AddOption(option);
     }
 
     // A medium shown again with its rotation (a video back from the reader) opens already turned.
     private void AddInitialRotation(Media media)
     {
-        if (!UsesSoftwareVideo && _nativeRotation != 0) { AddRotationOptions(media, _nativeRotation); _nativeRotationApplied = _nativeRotation; }
+        if (!UsesSoftwareVideo && _nativeRotation != 0) { AddRotationOptions(media, 0, _nativeRotation); _nativeRotationApplied = _nativeRotation; }
     }
 
     // Windows reports the video size once its output exists: ask on the worker after the first time ticks, until it is known.
@@ -193,4 +206,32 @@ internal sealed partial class GalleryVideoPlayer
             });
         });
     }
+}
+
+/// <summary>What a wanted native (Windows) rotation can do now.</summary>
+internal enum NativeRotationAction
+{
+    /// <summary>Add the options and reopen the input at its position (a seekable playing or paused video).</summary>
+    ReopenAtPosition,
+    /// <summary>No input is running: the options go on the media and take effect when it next opens.</summary>
+    ApplyOnNextOpen,
+    /// <summary>A running input that cannot seek back to its position: the output would stay upright, so nothing is applied.</summary>
+    Unavailable
+}
+
+/// <summary>The rule of the native rotation (W3-17), apart from the player so it needs no window or engine.</summary>
+internal static class VideoNativeRotation
+{
+    internal static NativeRotationAction Decide(VideoPlaybackMode mode, long length, bool knownSeekable) =>
+        mode == VideoPlaybackMode.Stopped ? NativeRotationAction.ApplyOnNextOpen
+        : length > 0 && knownSeekable ? NativeRotationAction.ReopenAtPosition
+        : NativeRotationAction.Unavailable;
+
+    /// <summary>
+    /// The media options to add for <paramref name="wanted"/> when <paramref name="attached"/> is what the media already carries:
+    /// none when they agree, otherwise the one option set of the wanted turn (options are only ever appended to a media, the later
+    /// win, so a repeated or no-op request must add nothing).
+    /// </summary>
+    internal static string[] OptionsToAdd(int attached, int wanted) =>
+        GalleryRotation.Normalize(attached) == GalleryRotation.Normalize(wanted) ? Array.Empty<string>() : GalleryVideoPlayer.RotationOptions(wanted);
 }

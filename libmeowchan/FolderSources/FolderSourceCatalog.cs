@@ -70,6 +70,9 @@ internal sealed record FolderSourceItem(Guid Id, Guid RootId, string RelativePat
     internal DateTimeOffset Modified => new(Math.Clamp(ModifiedTicks, DateTime.MinValue.Ticks, DateTime.MaxValue.Ticks), TimeSpan.Zero);
 }
 
+/// <summary>A digest to record: the item and the length and write time its bytes had while they were hashed.</summary>
+internal sealed record FolderSourceDigest(Guid Item, long Length, long ModifiedTicks, string Sha256);
+
 /// <summary>Counts of one folder source (active items, hashed ones, missing rows).</summary>
 internal sealed record FolderSourceCounts(Guid RootId, int Files, int Hashed, int Missing);
 
@@ -77,14 +80,24 @@ internal sealed record FolderSourceCounts(Guid RootId, int Files, int Hashed, in
 internal sealed class FolderSourceCatalogSnapshot
 {
     private readonly Dictionary<Guid, FolderSourceRoot> _roots;
+    private readonly FolderSourceRoot[] _rootArray;
+    private readonly FolderSourceItem[] _itemArray;
 
     internal FolderSourceCatalogSnapshot(long revision, string virtualRoot, IEnumerable<FolderSourceRoot> roots, IEnumerable<FolderSourceItem> items)
+        : this(revision, virtualRoot, roots.OrderBy(root => root.CreatedUtc).ThenBy(root => root.Id).ToArray(), items.ToArray(), null, null) { }
+
+    private FolderSourceCatalogSnapshot(long revision, string virtualRoot, FolderSourceRoot[] roots, FolderSourceItem[] items,
+        Dictionary<Guid, int>? positions, Dictionary<(Guid, string), FolderSourceItem[]>? versions)
     {
         Revision = revision;
         VirtualRoot = virtualRoot;
-        Roots = Array.AsReadOnly(roots.OrderBy(root => root.CreatedUtc).ThenBy(root => root.Id).ToArray());
-        Items = Array.AsReadOnly(items.ToArray());
-        _roots = Roots.ToDictionary(root => root.Id);
+        _rootArray = roots;
+        _itemArray = items;
+        Roots = Array.AsReadOnly(roots);
+        Items = Array.AsReadOnly(items);
+        _roots = roots.ToDictionary(root => root.Id);
+        _positions = positions;
+        _versions = versions;
     }
 
     internal static FolderSourceCatalogSnapshot Empty(string virtualRoot) =>
@@ -97,13 +110,33 @@ internal sealed class FolderSourceCatalogSnapshot
     internal IReadOnlyList<FolderSourceItem> Items { get; }
     internal FolderSourceRoot? Root(Guid id) => _roots.GetValueOrDefault(id);
 
-    private Dictionary<Guid, FolderSourceItem>? _items;
+    private Dictionary<Guid, int>? _positions;
 
-    /// <summary>One item by id (the lookup is built on first use).</summary>
+    /// <summary>One item by id (the lookup is built on first use and shared with the views <see cref="WithHashed"/> derives).</summary>
     internal FolderSourceItem? Item(Guid id)
     {
-        Dictionary<Guid, FolderSourceItem> items = Volatile.Read(ref _items) ?? BuildItems();
-        return items.GetValueOrDefault(id);
+        Dictionary<Guid, int> positions = Volatile.Read(ref _positions) ?? BuildPositions();
+        return positions.TryGetValue(id, out int position) ? _itemArray[position] : null;
+    }
+
+    /// <summary>
+    /// This view after the given digests were recorded (W3-06): the same rows in the same order, each named item now hashed, under
+    /// <paramref name="revision"/>. The id lookup and the earlier-version lookup are shared (recording a digest changes neither the
+    /// order nor any missing row), so keeping the view current while hashing costs one array copy per committed batch instead of a
+    /// full read of the catalog.
+    /// </summary>
+    internal FolderSourceCatalogSnapshot WithHashed(long revision, IReadOnlyCollection<(Guid Item, string Sha256)> hashed)
+    {
+        Dictionary<Guid, int> positions = Volatile.Read(ref _positions) ?? BuildPositions();
+        FolderSourceItem[] items = _itemArray;
+        if (hashed.Count > 0)
+        {
+            items = (FolderSourceItem[])_itemArray.Clone();
+            foreach ((Guid id, string sha) in hashed)
+                if (positions.TryGetValue(id, out int position) && items[position].State == FolderSourceItemState.Seen)
+                    items[position] = items[position] with { Sha256 = sha, State = FolderSourceItemState.Hashed };
+        }
+        return new(revision, VirtualRoot, _rootArray, items, positions, Volatile.Read(ref _versions));
     }
 
     private Dictionary<(Guid, string), FolderSourceItem[]>? _versions;
@@ -128,12 +161,12 @@ internal sealed class FolderSourceCatalogSnapshot
         return versions;
     }
 
-    private Dictionary<Guid, FolderSourceItem> BuildItems()
+    private Dictionary<Guid, int> BuildPositions()
     {
-        Dictionary<Guid, FolderSourceItem> items = new(Items.Count);
-        foreach (FolderSourceItem item in Items) items[item.Id] = item;
-        Volatile.Write(ref _items, items);
-        return items;
+        Dictionary<Guid, int> positions = new(_itemArray.Length);
+        for (int index = 0; index < _itemArray.Length; index++) positions[_itemArray[index].Id] = index;
+        Volatile.Write(ref _positions, positions);
+        return positions;
     }
 }
 
@@ -142,8 +175,9 @@ internal sealed class FolderSourceCatalogSnapshot
 /// (own file, no change to <c>archive.db</c>). Holds the roots (path, name, options), the items (relative path, length, last
 /// write time, SHA-256 once known, kind, state) and the scan runs. Writes are admitted like every profile store
 /// (<see cref="ProfileLease.RunStoreWrite{T}"/>) and run in short transactions, so a scan of 100,000 files never holds the
-/// profile for long. The catalog file is created by the first added folder; reading a profile without one writes nothing.
-/// Nothing here opens the user's files.
+/// profile for long. Reads never take the profile-wide lease monitor (W3-06): the catalog is its own file, so its own lock
+/// serializes its readers and writers, and a long read of 2 million rows delays no other store. The catalog file is created by
+/// the first added folder; reading a profile without one writes nothing. Nothing here opens the user's files.
 /// </summary>
 internal sealed class FolderSourceCatalog
 {
@@ -166,6 +200,8 @@ internal sealed class FolderSourceCatalog
     private readonly ProfileLease _lease;
     private readonly string _path;
     private readonly string _virtualRoot;
+    // Lock order: _io (this file), then the lease monitor (only inside a write transaction), then _sync (the kept view).
+    private readonly object _io = new();
     private readonly object _sync = new();
     private FolderSourceCatalogSnapshot? _cached;
     private long _limitBytes = (long)DefaultCatalogLimitMiB * 1024 * 1024;
@@ -193,6 +229,16 @@ internal sealed class FolderSourceCatalog
         set => Interlocked.Exchange(ref _limitBytes, Math.Clamp(value, (long)MinimumCatalogLimitMiB * 1024 * 1024, (long)CatalogLimitMiBCeiling * 1024 * 1024));
     }
 
+    /// <summary>Test seam: a size limit below the settings range, so a test can fill a catalog to its limit with a few rows.</summary>
+    internal void SetLimitBytesForTests(long bytes) => Interlocked.Exchange(ref _limitBytes, Math.Max(0, bytes));
+
+    /// <summary>Test seam: runs under the catalog's file lock before every read or write of the file.</summary>
+    internal Action? BeforeFileAccessForTests { get; set; }
+
+    private int _fullReads;
+    /// <summary>How often <see cref="Read"/> read every row from the file (not from the kept view).</summary>
+    internal int FullReads => Volatile.Read(ref _fullReads);
+
     /// <summary>Most active (not missing) items over all roots (a setting). Lowering it keeps every row; scans add no more.</summary>
     internal int MaxFiles { get => Volatile.Read(ref _maxFiles); set => Volatile.Write(ref _maxFiles, Math.Clamp(value, MinimumMaxFiles, MaxFilesCeiling)); }
 
@@ -205,29 +251,30 @@ internal sealed class FolderSourceCatalog
     /// The whole catalog, reused while its revision is unchanged (one small query). A profile without a catalog file is
     /// empty. A damaged or newer catalog throws <see cref="FolderSourceException"/>; it is never turned into "no sources".
     /// </summary>
-    internal FolderSourceCatalogSnapshot Read() => _lease.RunExclusive(() =>
+    internal FolderSourceCatalogSnapshot Read() => ReadFile(() =>
     {
-        lock (_sync)
-        {
-            if (!File.Exists(_path)) return _cached = FolderSourceCatalogSnapshot.Empty(_virtualRoot);
-            using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
-            using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-            Validate(connection, transaction);
-            long revision = Revision(connection, transaction);
-            if (_cached is { } cached && cached.Revision == revision && revision > 0) return cached;
-            List<FolderSourceRoot> roots = ReadRoots(connection, transaction);
-            List<FolderSourceItem> items = new();
-            using (SqliteCommand command = Command(connection, transaction,
-                "SELECT id,root_id,rel_path,length,mtime_ticks,sha256,kind,state,first_seen_utc FROM items ORDER BY root_id, rel_path, first_seen_utc"))
-            using (SqliteDataReader reader = command.ExecuteReader())
-                while (reader.Read()) items.Add(ItemOf(reader));
-            transaction.Commit();
-            return _cached = new FolderSourceCatalogSnapshot(revision, _virtualRoot, roots, items);
-        }
+        if (!File.Exists(_path)) { lock (_sync) return _cached = FolderSourceCatalogSnapshot.Empty(_virtualRoot); }
+        using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
+        using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+        Validate(connection, transaction);
+        long revision = Revision(connection, transaction);
+        lock (_sync) if (_cached is { } cached && cached.Revision == revision && revision > 0) return cached;
+        List<FolderSourceRoot> roots = ReadRoots(connection, transaction);
+        List<FolderSourceItem> items = new();
+        Interlocked.Increment(ref _fullReads);
+        using (SqliteCommand command = Command(connection, transaction,
+            "SELECT id,root_id,rel_path,length,mtime_ticks,sha256,kind,state,first_seen_utc FROM items ORDER BY root_id, rel_path, first_seen_utc"))
+        using (SqliteDataReader reader = command.ExecuteReader())
+            while (reader.Read()) items.Add(ItemOf(reader));
+        transaction.Commit();
+        FolderSourceCatalogSnapshot read = new(revision, _virtualRoot, roots, items);
+        // No write can run meanwhile (both hold _io), so this view is the current one.
+        lock (_sync) _cached = read;
+        return read;
     });
 
     /// <summary>The roots only (cheap; the Sources page lists them).</summary>
-    internal IReadOnlyList<FolderSourceRoot> ReadRoots() => _lease.RunExclusive(() =>
+    internal IReadOnlyList<FolderSourceRoot> ReadRoots() => ReadFile(() =>
     {
         if (!File.Exists(_path)) return (IReadOnlyList<FolderSourceRoot>)Array.Empty<FolderSourceRoot>();
         using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
@@ -239,14 +286,20 @@ internal sealed class FolderSourceCatalog
     });
 
     /// <summary>One item and its root, or null when either is unknown (one indexed query).</summary>
-    internal (FolderSourceItem Item, FolderSourceRoot Root)? Find(Guid item) => _lease.RunExclusive(() =>
+    internal (FolderSourceItem Item, FolderSourceRoot Root)? Find(Guid item)
     {
-        // Only this process writes the catalog (the profile lease is exclusive) and every write drops the kept view, so a kept
-        // view is current: a gallery window of 200 files needs no 200 queries.
+        ObjectDisposedException.ThrowIf(!_lease.IsHeld, _lease);
+        // Only this process writes the catalog (the profile lease is exclusive) and every write patches or drops the kept view, so
+        // a kept view is current: a gallery window of 200 files needs no 200 queries, and the lookup waits for no file access.
         lock (_sync)
             if (_cached is { Revision: > 0 } cached)
-                return cached.Item(item) is { } known && cached.Root(known.RootId) is { } owner ? (known, owner) : ((FolderSourceItem, FolderSourceRoot)?)null;
-        if (!File.Exists(_path)) return ((FolderSourceItem, FolderSourceRoot)?)null;
+                return cached.Item(item) is { } known && cached.Root(known.RootId) is { } owner ? (known, owner) : null;
+        return ReadFile(() => FindInFile(item));
+    }
+
+    private (FolderSourceItem Item, FolderSourceRoot Root)? FindInFile(Guid item)
+    {
+        if (!File.Exists(_path)) return null;
         using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
         using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
         Validate(connection, transaction);
@@ -254,10 +307,10 @@ internal sealed class FolderSourceCatalog
         FolderSourceRoot? root = found == null ? null : ReadRoots(connection, transaction).FirstOrDefault(candidate => candidate.Id == found.RootId);
         transaction.Commit();
         return found == null || root == null ? null : (found, root);
-    });
+    }
 
     /// <summary>Counts per root (active files, hashed ones, missing rows).</summary>
-    internal IReadOnlyList<FolderSourceCounts> Counts() => _lease.RunExclusive(() =>
+    internal IReadOnlyList<FolderSourceCounts> Counts() => ReadFile(() =>
     {
         if (!File.Exists(_path)) return (IReadOnlyList<FolderSourceCounts>)Array.Empty<FolderSourceCounts>();
         using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
@@ -282,7 +335,7 @@ internal sealed class FolderSourceCatalog
     /// Up to <paramref name="count"/> unhashed items for the background pass, in catalog order after <paramref name="afterRow"/>,
     /// no larger than <paramref name="maximumLength"/>. Returns the row cursor to continue from.
     /// </summary>
-    internal (IReadOnlyList<FolderSourceItem> Items, long NextRow) NextUnhashed(int count, long maximumLength, long afterRow) => _lease.RunExclusive(() =>
+    internal (IReadOnlyList<FolderSourceItem> Items, long NextRow) NextUnhashed(int count, long maximumLength, long afterRow) => ReadFile(() =>
     {
         if (!File.Exists(_path)) return ((IReadOnlyList<FolderSourceItem>)Array.Empty<FolderSourceItem>(), afterRow);
         using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
@@ -326,7 +379,7 @@ internal sealed class FolderSourceCatalog
             insert.Parameters.AddWithValue("$sub", includeSubfolders ? 1 : 0);
             insert.ExecuteNonQuery();
             return added;
-        }, create: true);
+        }, create: true, grows: true);
     }
 
     internal FolderSourceRoot RenameRoot(Guid root, string name, CancellationToken token = default)
@@ -344,7 +397,8 @@ internal sealed class FolderSourceCatalog
 
     /// <summary>
     /// Removes a folder source and its catalog rows only. The user's folder is not touched; tags, favorites and ratings that
-    /// named its files stay stored and show up as orphans (as for any missing loose file).
+    /// named its files stay stored and show up as orphans (as for any missing loose file). Allowed above the size limit, and the
+    /// file gives the freed pages back afterwards (W3-03), so removing a source is always the way out of a full catalog.
     /// </summary>
     internal void RemoveRoot(Guid root, CancellationToken token = default) => Write<object?>(token, (connection, transaction) =>
     {
@@ -357,7 +411,23 @@ internal sealed class FolderSourceCatalog
         roots.Parameters.AddWithValue("$id", id);
         if (roots.ExecuteNonQuery() != 1) throw new FolderSourceException(FolderSourceError.UnknownRoot);
         return null;
-    });
+    }, afterCommit: Shrink);
+
+    // A SQLite file does not shrink on DELETE. A catalog made with auto_vacuum=INCREMENTAL frees its pages cheaply; an older one is
+    // rewritten once (VACUUM) and then has that mode. The rows are already removed: a failure here only leaves the file larger.
+    private static void Shrink(SqliteConnection connection)
+    {
+        try
+        {
+            using SqliteCommand mode = connection.CreateCommand();
+            mode.CommandText = "PRAGMA auto_vacuum";
+            bool incremental = Convert.ToInt32(mode.ExecuteScalar(), CultureInfo.InvariantCulture) == 2;
+            using SqliteCommand shrink = connection.CreateCommand();
+            shrink.CommandText = incremental ? "PRAGMA incremental_vacuum;" : "PRAGMA auto_vacuum=INCREMENTAL; VACUUM;";
+            shrink.ExecuteNonQuery();
+        }
+        catch (SqliteException) { }
+    }
 
     /// <summary>
     /// Applies one scan of a root. New files become <see cref="FolderSourceItemState.Seen"/>; an unhashed file whose length or
@@ -375,7 +445,7 @@ internal sealed class FolderSourceCatalog
         Dictionary<string, FolderSourceItem> active = new(StringComparer.Ordinal);
         Dictionary<(string, long, long), FolderSourceItem> missing = new();
         int activeElsewhere, rows;
-        (activeElsewhere, rows) = _lease.RunExclusive(() =>
+        (activeElsewhere, rows) = ReadFile(() =>
         {
             using SqliteConnection connection = Open(SqliteOpenMode.ReadOnly);
             using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
@@ -398,7 +468,9 @@ internal sealed class FolderSourceCatalog
             transaction.Commit();
             return (elsewhere, all);
         });
-        List<Action<SqliteConnection, SqliteTransaction>> operations = new();
+        // Operations that change or drop rows run first, new rows last: a replaced file's old row is missing before its new row exists
+        // (one active row per path), and a full catalog still records what is gone and what changed (W3-03).
+        List<Action<SqliteConnection, SqliteTransaction>> operations = new(), inserts = new();
         int added = 0, changed = 0, replaced = 0, revived = 0, gone = 0, unchanged = 0;
         bool limitReached = scan.LimitReached;
         int budget = Math.Max(0, MaxFiles - activeElsewhere);
@@ -427,7 +499,7 @@ internal sealed class FolderSourceCatalog
                 operations.Add((c, t) => SetState(c, t, old, FolderSourceItemState.Missing));
                 if (rows >= MaximumItems) { limitReached = true; continue; }
                 rows++;
-                operations.Add((c, t) => Insert(c, t, Guid.NewGuid(), root, file, now));
+                inserts.Add((c, t) => Insert(c, t, Guid.NewGuid(), root, file, now));
                 continue;
             }
             if (missing.TryGetValue((file.RelativePath, file.Length, file.ModifiedTicks), out FolderSourceItem? back))
@@ -444,7 +516,7 @@ internal sealed class FolderSourceCatalog
             kept++;
             rows++;
             added++;
-            operations.Add((c, t) => Insert(c, t, Guid.NewGuid(), root, file, now));
+            inserts.Add((c, t) => Insert(c, t, Guid.NewGuid(), root, file, now));
         }
         if (scan.Complete)
             foreach (FolderSourceItem item in active.Values)
@@ -454,20 +526,15 @@ internal sealed class FolderSourceCatalog
                 Guid id = item.Id;
                 operations.Add((c, t) => SetState(c, t, id, FolderSourceItemState.Missing));
             }
+        WriteBatches(operations, grows: false, token);
+        // New rows stop at the size limit: what was written stays, the scan is recorded, and the caller learns the catalog is full.
+        bool full = false;
+        try { WriteBatches(inserts, grows: true, token); }
+        catch (FolderSourceException error) when (error.Error == FolderSourceError.CatalogFull) { full = true; limitReached = true; }
         FolderSourceScanStatus status = !scan.RootAvailable ? FolderSourceScanStatus.RootUnavailable
             : limitReached ? FolderSourceScanStatus.LimitReached
             : !scan.Complete ? FolderSourceScanStatus.Incomplete : FolderSourceScanStatus.Complete;
         FolderSourceScanResult result = new(status, scan.Files.Count, added, changed, replaced, revived, gone, unchanged, scan.UnreadableFolders, scan.SkippedLinks);
-        for (int offset = 0; offset < operations.Count; offset += WriteBatchSize)
-        {
-            token.ThrowIfCancellationRequested();
-            List<Action<SqliteConnection, SqliteTransaction>> batch = operations.GetRange(offset, Math.Min(WriteBatchSize, operations.Count - offset));
-            Write<object?>(token, (connection, transaction) =>
-            {
-                foreach (Action<SqliteConnection, SqliteTransaction> operation in batch) operation(connection, transaction);
-                return null;
-            });
-        }
         Write<object?>(token, (connection, transaction) =>
         {
             using (SqliteCommand update = Command(connection, transaction, "UPDATE roots SET last_scan_utc = $at, last_scan_status = $status WHERE id = $id"))
@@ -496,55 +563,111 @@ internal sealed class FolderSourceCatalog
             trim.ExecuteNonQuery();
             return null;
         });
+        if (full) throw new FolderSourceException(FolderSourceError.CatalogFull);
         return result;
+    }
+
+    private void WriteBatches(List<Action<SqliteConnection, SqliteTransaction>> operations, bool grows, CancellationToken token)
+    {
+        for (int offset = 0; offset < operations.Count; offset += WriteBatchSize)
+        {
+            token.ThrowIfCancellationRequested();
+            List<Action<SqliteConnection, SqliteTransaction>> batch = operations.GetRange(offset, Math.Min(WriteBatchSize, operations.Count - offset));
+            Write<object?>(token, (connection, transaction) =>
+            {
+                foreach (Action<SqliteConnection, SqliteTransaction> operation in batch) operation(connection, transaction);
+                return null;
+            }, grows: grows);
+        }
     }
 
     /// <summary>
     /// Records the SHA-256 of an item, only while its row still describes exactly the bytes that were hashed (same length
     /// and write time, still active). An item already hashed keeps its digest. False when nothing was recorded.
     /// </summary>
-    internal bool RecordHash(Guid item, long length, long modifiedTicks, string sha256, DateTimeOffset nowUtc, CancellationToken token = default)
+    internal bool RecordHash(Guid item, long length, long modifiedTicks, string sha256, DateTimeOffset nowUtc, CancellationToken token = default) =>
+        RecordHashes(new[] { new FolderSourceDigest(item, length, modifiedTicks, sha256) }, nowUtc, token)[0];
+
+    /// <summary>
+    /// <see cref="RecordHash"/> for many items in one transaction (W3-06: the hasher commits its digests in batches). Allowed above
+    /// the size limit: a digest fills a column of an existing row. The kept view is updated in place instead of being dropped, so
+    /// lookups and the media index keep reading memory while files are hashed. One result per digest, in order.
+    /// </summary>
+    internal IReadOnlyList<bool> RecordHashes(IReadOnlyList<FolderSourceDigest> digests, DateTimeOffset nowUtc, CancellationToken token = default)
     {
-        if (sha256 is not { Length: 64 } || !sha256.All(Uri.IsHexDigit)) throw new ArgumentException("A SHA-256 is required.", nameof(sha256));
-        string digest = sha256.ToLowerInvariant();
+        ArgumentNullException.ThrowIfNull(digests);
+        string[] normalized = digests.Select(digest => digest.Sha256 is { Length: 64 } sha && sha.All(Uri.IsHexDigit)
+            ? sha.ToLowerInvariant() : throw new ArgumentException("A SHA-256 is required.", nameof(digests))).ToArray();
+        if (digests.Count == 0) return Array.Empty<bool>();
         return Write(token, (connection, transaction) =>
         {
+            bool[] recorded = new bool[digests.Count];
             using SqliteCommand update = Command(connection, transaction,
                 "UPDATE items SET sha256 = $sha, state = 1, hashed_utc = $at WHERE id = $id AND state = 0 AND length = $len AND mtime_ticks = $mtime");
-            update.Parameters.AddWithValue("$sha", digest);
+            SqliteParameter sha = update.Parameters.Add("$sha", SqliteType.Text), id = update.Parameters.Add("$id", SqliteType.Text);
+            SqliteParameter length = update.Parameters.Add("$len", SqliteType.Integer), modified = update.Parameters.Add("$mtime", SqliteType.Integer);
             update.Parameters.AddWithValue("$at", nowUtc.UtcTicks);
-            update.Parameters.AddWithValue("$id", FolderSourceIdentity.Format(item));
-            update.Parameters.AddWithValue("$len", length);
-            update.Parameters.AddWithValue("$mtime", modifiedTicks);
-            return update.ExecuteNonQuery() == 1;
-        });
+            for (int index = 0; index < digests.Count; index++)
+            {
+                token.ThrowIfCancellationRequested();
+                (sha.Value, id.Value, length.Value, modified.Value) = (normalized[index], FolderSourceIdentity.Format(digests[index].Item),
+                    digests[index].Length, digests[index].ModifiedTicks);
+                recorded[index] = update.ExecuteNonQuery() == 1;
+            }
+            return (IReadOnlyList<bool>)recorded;
+        }, patch: (recorded, kept, revision) => kept.WithHashed(revision,
+            Enumerable.Range(0, digests.Count).Where(index => recorded[index]).Select(index => (digests[index].Item, normalized[index])).ToArray()));
     }
 
     // ---- Plumbing ----
 
-    private T Write<T>(CancellationToken token, Func<SqliteConnection, SqliteTransaction, T> operation, bool create = false)
+    // Reads hold this catalog's own lock only, never the lease monitor shared by every store (W3-06).
+    private T ReadFile<T>(Func<T> read)
+    {
+        ObjectDisposedException.ThrowIf(!_lease.IsHeld, _lease);
+        lock (_io)
+        {
+            ObjectDisposedException.ThrowIf(!_lease.IsHeld, _lease);
+            BeforeFileAccessForTests?.Invoke();
+            return read();
+        }
+    }
+
+    /// <summary>
+    /// One write transaction. Only a growing write (<paramref name="grows"/>: a new root, new rows) is refused above the size limit
+    /// (W3-03); removing, renaming, state changes and digests always run, so a full catalog can always be shrunk. After the commit
+    /// <paramref name="patch"/> may carry the kept view to the new revision; without it the view is dropped.
+    /// </summary>
+    private T Write<T>(CancellationToken token, Func<SqliteConnection, SqliteTransaction, T> operation, bool create = false, bool grows = false,
+        Func<T, FolderSourceCatalogSnapshot, long, FolderSourceCatalogSnapshot>? patch = null, Action<SqliteConnection>? afterCommit = null)
     {
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
-        return _lease.RunStoreWrite(admission, () =>
-        {
-            lock (_sync)
+        lock (_io)
+            return _lease.RunStoreWrite(admission, () =>
             {
                 token.ThrowIfCancellationRequested();
+                BeforeFileAccessForTests?.Invoke();
                 bool exists = File.Exists(_path);
                 if (!exists && !create) throw new FolderSourceException(FolderSourceError.UnknownRoot);
-                if (exists && new FileInfo(_path).Length > LimitBytes) throw new FolderSourceException(FolderSourceError.CatalogFull);
+                if (grows && exists && new FileInfo(_path).Length > LimitBytes) throw new FolderSourceException(FolderSourceError.CatalogFull);
                 using SqliteConnection connection = Open(SqliteOpenMode.ReadWriteCreate);
                 if (!exists) CreateSchema(connection);
-                using SqliteTransaction transaction = connection.BeginTransaction(deferred: false);
-                Validate(connection, transaction);
-                T result = operation(connection, transaction);
-                using (SqliteCommand bump = Command(connection, transaction, "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'revision'"))
-                    bump.ExecuteNonQuery();
-                transaction.Commit();
-                _cached = null;
+                T result;
+                long revision;
+                using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
+                {
+                    Validate(connection, transaction);
+                    result = operation(connection, transaction);
+                    using (SqliteCommand bump = Command(connection, transaction, "UPDATE meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'revision'"))
+                        bump.ExecuteNonQuery();
+                    revision = Revision(connection, transaction);
+                    transaction.Commit();
+                }
+                lock (_sync)
+                    _cached = patch != null && _cached is { Revision: > 0 } kept && kept.Revision == revision - 1 ? patch(result, kept, revision) : null;
+                afterCommit?.Invoke(connection);
                 return result;
-            }
-        });
+            });
     }
 
     private SqliteConnection Open(SqliteOpenMode mode)
@@ -569,6 +692,7 @@ internal sealed class FolderSourceCatalog
     {
         using SqliteCommand command = connection.CreateCommand();
         command.CommandText = $"""
+            PRAGMA auto_vacuum=INCREMENTAL;
             PRAGMA journal_mode=DELETE;
             PRAGMA application_id={ApplicationId};
             PRAGMA user_version={SchemaVersion};

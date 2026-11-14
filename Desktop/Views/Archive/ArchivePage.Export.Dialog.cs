@@ -105,7 +105,7 @@ public partial class ArchivePage
         ComboBox previous = ExportName(new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportHistory");
         previous.SelectionChanged += (_, _) => UpdateExportMode();
         extras.Children.Add(previous);
-        WrapPanel modes = new() { Orientation = Orientation.Horizontal, ItemSpacing = 12, LineSpacing = 6 };
+        WrapPanel modes = new() { Orientation = Orientation.Horizontal, ItemSpacing = 12, LineSpacing = 8 };
         RadioButton fresh = ExportName(new RadioButton { GroupName = "exportMode", IsChecked = true }, "ArchiveExportNew");
         RadioButton update = ExportName(new RadioButton { GroupName = "exportMode" }, "ArchiveExportUpdate");
         fresh.IsCheckedChanged += (_, _) => UpdateExportMode();
@@ -113,11 +113,11 @@ public partial class ArchivePage
         modes.Children.Add(fresh); modes.Children.Add(update); extras.Children.Add(modes);
         // Vertical actions inherit the finite scroll-content width; wrapping a
         // row of buttons would not constrain an individual long label.
-        StackPanel historyActions = new() { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch };
+        StackPanel historyActions = new() { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
         Button prior = ExportName(new Button(), "ArchiveExportPrevious"); prior.Click += OnExportPrevious;
         Button associate = ExportName(new Button(), "ArchiveExportAssociate"); associate.Click += OnExportAssociate;
         historyActions.Children.Add(prior); historyActions.Children.Add(associate); extras.Children.Add(historyActions);
-        StackPanel legacyContent = new() { Spacing = 6 };
+        StackPanel legacyContent = new() { Spacing = 8 };
         Button legacyFind = ExportName(new Button(), "ArchiveExportLegacyFind"); legacyFind.Click += OnExportLegacyFind; legacyContent.Children.Add(legacyFind);
         ComboBox legacy = ExportName(new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch }, "ArchiveExportLegacy");
         legacy.SelectionChanged += (_, _) => UpdateExportActions(); legacyContent.Children.Add(legacy);
@@ -147,7 +147,7 @@ public partial class ArchivePage
         Button headerClose = ExportName(new Button(), "ArchiveExportHeaderClose"); headerClose.Click += OnExportClose;
         header.Children.Add(MeowChan.Desktop.Controls.OverlayFrame.Header(title, headerClose, Texts.T("action.close")));
         header.Children.Add(BuildExportChoices()); header.Children.Add(compactScope); header.Children.Add(fixedScope);
-        WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel actions = new() { HorizontalAlignment = HorizontalAlignment.Right, ItemSpacing = 8, LineSpacing = 8 };
         Button close = ExportName(new Button(), "ArchiveExportClose"); close.Click += OnExportClose;
         Button open = ExportName(new Button(), "ArchiveExportOpen"); open.Click += OnExportOpen;
         Button start = ExportName(new Button(), "ArchiveExportStart"); start.Click += OnExportStart;

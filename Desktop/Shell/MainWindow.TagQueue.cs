@@ -115,7 +115,7 @@ public partial class MainWindow
         GalleryEntryKey start)
     {
         (IReadOnlyList<TaggingWalkItem> items, int unavailable) = TaggingWalk.Pair(walk, entries);
-        TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session));
+        TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session), TaggingSettings.UndoDepth(_config));
         await OpenMediaGalleryAsync(entries, start, stillRequested: () => !_isClosing && _gallery == null);
         StartGalleryTagging(tagging, entries);
     }

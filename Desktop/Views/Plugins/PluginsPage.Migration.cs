@@ -66,7 +66,7 @@ public partial class PluginsPage
             StackPanel rows = new() { Spacing = 16 };
             StackPanel repairRows = new() { Spacing = 16 };
             StackPanel selectionRows = new() { Spacing = 16 };
-            StackPanel receipts = new() { Spacing = 6 };
+            StackPanel receipts = new() { Spacing = 8 };
             List<(CheckBox Ack, PluginApprovalChoice Choice)> reauthorizations = new();
             // Neutral progress/outcome text sits politely above the footer actions; only real problems use the
             // assertive error strip. Exactly one of the two carries a message at a time, so nothing is announced twice.
@@ -195,7 +195,7 @@ public partial class PluginsPage
                 {
                     string automationPrefix = "BundledRepairReauthorization" + repairRowIndex++;
                     BundledRepairPermissions? permissions = ReadBundledRepairPermissions(row);
-                    StackPanel content = new() { Spacing = 6 };
+                    StackPanel content = new() { Spacing = 8 };
                     content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
                     Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,
                         Content = RepairText(Texts.T("plugins.repair.identities", row.OldCandidateId,
@@ -287,7 +287,7 @@ public partial class PluginsPage
                 {
                     // Capture the exact backend row and revision. Never reconstruct settings or infer old provenance.
                     var choice = new PluginApprovalChoice(PluginApprovalKind.Reselection, selections.ProfileRevision, Selection: row);
-                    StackPanel content = new() { Spacing = 6 };
+                    StackPanel content = new() { Spacing = 8 };
                     content.Children.Add(RepairText(Texts.T("plugins.reselection.section")));
                     content.Children.Add(new TextBlock { Text = row.PluginId, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
                     Expander technical = new() { Header = PluginChangeReviewCatalog.T("plugins.changeReview.technical"), IsExpanded = false,

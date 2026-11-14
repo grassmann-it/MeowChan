@@ -115,7 +115,7 @@ internal sealed partial class GalleryViewer
             label: () => GalleryPlaybackCatalog.Get("viewer.playback.repeat"), host: _slideshowHome);
         _videoRepeatToggle.Click += (_, _) => ChangePlaybackPreferences(_playbackPreferences with { VideoRepeat = !_playbackPreferences.VideoRepeat });
         foreach (Control choice in new Control[] { _playbackMode, _slideshowSeconds, _videoRule, _videoSeconds, _videoRepeats })
-        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = new Thickness(6, 0); }
+        { choice.HorizontalAlignment = HorizontalAlignment.Stretch; choice.Margin = new Thickness(8, 0); }
         _slideshowHome.Children.Add(_modeCaption);
         _slideshowHome.Children.Add(_playbackMode);
         _slideshowHome.Children.Add(_secondsCaption);

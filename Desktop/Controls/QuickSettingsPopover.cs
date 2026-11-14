@@ -269,7 +269,7 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     private void OnFailed(IReadOnlyList<string> ids, Exception error)
     {
         if (_disposed) return;
-        _status.Text = Texts.T("quicksettings.failed", error.Message);
+        _status.Text = Texts.T("quicksettings.failed", UserFacingError.Report(error, "Applying a quick setting"));
         _status.IsVisible = true;
         SyncFromConfig();
     }

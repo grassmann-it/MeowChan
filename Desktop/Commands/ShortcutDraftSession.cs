@@ -10,7 +10,9 @@ public enum ShortcutDraftChange
     /// <summary>An explicit user edit (set, clear, restore, reset, single keys, undo).</summary>
     Edited,
     /// <summary>The draft was replaced from outside (load, discard, commit); recordings in progress are void.</summary>
-    Reloaded
+    Reloaded,
+    /// <summary>A save finished while the draft had newer edits: only the baseline moved, the draft and recordings are untouched.</summary>
+    Rebased
 }
 
 /// <summary>What happened to a recorded gesture offered to <see cref="ShortcutDraftSession.TryAdd"/>.</summary>
@@ -26,7 +28,14 @@ public sealed class ShortcutDraftSession
     /// <summary>Gestures per action. The profile schema rejects more (EffectiveShortcutBindings), so this is a fixed ceiling, not a setting.</summary>
     public const int GestureLimit = 8;
 
-    private readonly Stack<ShortcutBindingsSection> _undo = new();
+    /// <summary>
+    /// Edits that can be undone in a row (the oldest are dropped). Fixed ceiling, not a setting: it only bounds the memory of the
+    /// history, since every step holds a whole section.
+    /// </summary>
+    public const int UndoDepth = 200;
+
+    // The newest step last; a list because the oldest step falls off at the ceiling.
+    private readonly List<ShortcutBindingsSection> _undo = new();
     private ShortcutBindingsSection _baseline = new();
     private ShortcutBindingsSection _draft = new();
     private EffectiveShortcutBindings? _snapshot;
@@ -43,6 +52,8 @@ public sealed class ShortcutDraftSession
     public bool IsDirty { get; private set; }
     public bool IsEditable => _draft.IsEditable;
     public bool CanUndo => _undo.Count > 0;
+    /// <summary>Steps <see cref="Undo"/> can take back now (at most <see cref="UndoDepth"/>).</summary>
+    public int UndoCount => _undo.Count;
     public event EventHandler<ShortcutDraftChange>? Changed;
 
     /// <summary>The validated view of the draft for <paramref name="platform"/> (cached until the next change).</summary>
@@ -76,6 +87,20 @@ public sealed class ShortcutDraftSession
 
     /// <summary>The draft has been committed as is: it becomes the baseline, nothing is pending any more.</summary>
     public void MarkCommitted() => Load(_draft);
+
+    /// <summary>
+    /// <paramref name="saved"/> (the draft as it was handed to the save) was persisted. It becomes the baseline. When the draft is still
+    /// that section this is <see cref="MarkCommitted"/>; when either surface edited the draft while the save ran, those edits stay in
+    /// the draft (and in the undo history), the session stays dirty and the change count is taken against the saved state.
+    /// </summary>
+    public void CommitSaved(ShortcutBindingsSection saved)
+    {
+        ArgumentNullException.ThrowIfNull(saved);
+        if (saved.Raw.GetRawText() == _draft.Raw.GetRawText()) { Load(saved); return; }
+        _baseline = saved.Clone();
+        IsDirty = true;
+        Changed?.Invoke(this, ShortcutDraftChange.Rebased);
+    }
 
     /// <summary>Back to the baseline (Discard).</summary>
     public void Discard() => Load(_baseline);
@@ -127,7 +152,8 @@ public sealed class ShortcutDraftSession
     public bool Undo()
     {
         if (_undo.Count == 0) return false;
-        _draft = _undo.Pop();
+        _draft = _undo[^1];
+        _undo.RemoveAt(_undo.Count - 1);
         IsDirty = true;
         Invalidate();
         Changed?.Invoke(this, ShortcutDraftChange.Edited);
@@ -153,7 +179,8 @@ public sealed class ShortcutDraftSession
     private void Edit(ShortcutBindingsSection next)
     {
         if (next.Raw.GetRawText() == _draft.Raw.GetRawText()) return;
-        _undo.Push(_draft);
+        _undo.Add(_draft);
+        if (_undo.Count > UndoDepth) _undo.RemoveAt(0);
         _draft = next;
         IsDirty = true;
         Invalidate();

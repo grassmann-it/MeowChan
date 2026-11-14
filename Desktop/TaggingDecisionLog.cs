@@ -23,8 +23,11 @@ internal interface ITaggingQueueWriter
 {
     /// <summary>Sets the state of the entry and moves the resume point behind it; null when the entry is no longer in the queue.</summary>
     Task<TagQueueDecision?> DecideAsync(TagQueueKey key, TagQueueState state, CancellationToken token);
-    /// <summary>Writes the reverse of the newest decision; null when there is none or its entry left the queue.</summary>
-    Task<TagQueueDecision?> UndoAsync(CancellationToken token);
+    /// <summary>
+    /// Writes the reverse of exactly this decision (one the writer returned from <see cref="DecideAsync"/>) and only then forgets it; null
+    /// without a write when the writer no longer holds it or its entry left the queue. A refused write keeps it for another try.
+    /// </summary>
+    Task<TagQueueDecision?> UndoAsync(TagQueueDecision decision, CancellationToken token);
     /// <summary>The last committed queue, or null while it is unknown or unreadable.</summary>
     TagQueueSnapshot? Current { get; }
 }
@@ -35,7 +38,7 @@ internal sealed class HostTaggingQueueWriter(DesktopSessionHost host) : ITagging
     public Task<TagQueueDecision?> DecideAsync(TagQueueKey key, TagQueueState state, CancellationToken token) =>
         host.DecideTagQueueAsync(key, state, advance: true, token);
 
-    public Task<TagQueueDecision?> UndoAsync(CancellationToken token) => host.UndoTagQueueDecisionAsync(token);
+    public Task<TagQueueDecision?> UndoAsync(TagQueueDecision decision, CancellationToken token) => host.UndoTagQueueDecisionAsync(decision, token);
 
     public TagQueueSnapshot? Current
     {
@@ -91,7 +94,8 @@ internal sealed class TaggingWalk : IDisposable
     private int _running;
     private bool _disposed;
 
-    private sealed record Step(int Index, TagQueueKey Key, long Stamp);
+    // The decision the host returned: the undo names it, so the walk and the host's history always take back the same entry.
+    private sealed record Step(int Index, TagQueueKey Key, long Stamp, TagQueueDecision Decision);
 
     internal TaggingWalk(IReadOnlyList<TaggingWalkItem> items, int unavailable, TagQueueSnapshot snapshot, ITaggingQueueWriter writer,
         int depth = TagQueueDecisionLog.DefaultDepth)
@@ -139,7 +143,7 @@ internal sealed class TaggingWalk : IDisposable
     internal int Depth { get; }
     /// <summary>The queue as the last write (or the opening) left it.</summary>
     internal TagQueueSnapshot Snapshot => _snapshot;
-    /// <summary>Queue decisions of this walk that can be undone.</summary>
+    /// <summary>Queue decisions of this walk that can be undone (see <see cref="DropGoneSteps"/> for entries that left the queue).</summary>
     internal int Steps => _steps.Count;
     /// <summary>The stamp of the queue decision undone next (shared order with tag and favorite/rating steps); 0 without one.</summary>
     internal long NewestStamp => _steps.Count == 0 ? 0 : _steps[^1].Stamp;
@@ -242,7 +246,7 @@ internal sealed class TaggingWalk : IDisposable
                 }
                 Settle(item.Key, state);
                 if (decision == null) return new TaggingWriteResult(TaggingWriteKind.Missing);
-                _steps.Add(new Step(index, item.Key, stamp));
+                _steps.Add(new Step(index, item.Key, stamp, decision));
                 if (_steps.Count > Depth) _steps.RemoveRange(0, _steps.Count - Depth);
                 return new TaggingWriteResult(TaggingWriteKind.Saved);
             }
@@ -252,16 +256,19 @@ internal sealed class TaggingWalk : IDisposable
         finally { End(); }
     }
 
-    // The write ended: the store's view replaces the state it was saving (a later decision of the same entry keeps its own).
+    // The write ended: the store's view replaces the state it was saving (a later decision of the same entry keeps its own). The new
+    // view comes first, so a reader in between never sees neither the pending nor the saved state.
     private void Settle(TagQueueKey key, TagQueueState state)
     {
-        if (_pending.TryGetValue(key, out TagQueueState pending) && pending == state) _pending.Remove(key);
         Refresh();
+        if (_pending.TryGetValue(key, out TagQueueState pending) && pending == state) _pending.Remove(key);
     }
 
     /// <summary>
     /// Takes back the newest queue decision of this walk after every running write: the entry gets its old state and the resume point its
-    /// old place. Null when there is nothing to undo, or the entry left the queue meanwhile (that step is dropped).
+    /// old place. Steps whose entries left the queue meanwhile (removed or cleared on the tagging page) are dropped first, so the undo
+    /// takes back the newest decision that still exists. Null when there is nothing to undo, or the host no longer holds the decision
+    /// (that step is dropped). A refused write keeps the step and the host's decision, so the next try takes back the same entry.
     /// </summary>
     internal async Task<TaggingUndoResult?> UndoAsync()
     {
@@ -273,16 +280,12 @@ internal sealed class TaggingWalk : IDisposable
             await _gate.WaitAsync().ConfigureAwait(true);
             try
             {
+                DropGoneSteps();
                 if (_steps.Count == 0) return null;
                 Step step = _steps[^1];
-                _steps.RemoveAt(_steps.Count - 1);
-                TagQueueDecision? decision;
-                try { decision = await _writer.UndoAsync(CancellationToken.None).ConfigureAwait(true); }
-                catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
-                {
-                    _steps.Add(step); // kept for another try
-                    throw;
-                }
+                // The step leaves only after the host answered: a refused write keeps it (and the host keeps its decision).
+                TagQueueDecision? decision = await _writer.UndoAsync(step.Decision, CancellationToken.None).ConfigureAwait(true);
+                _steps.Remove(step);
                 Refresh();
                 if (decision == null || decision.Key != step.Key) return null;
                 return new TaggingUndoResult(step.Index, _items[step.Index].Name, decision.Before);
@@ -291,6 +294,16 @@ internal sealed class TaggingWalk : IDisposable
         }
         catch (OperationCanceledException) { return null; }
         finally { _undoing = false; End(); }
+    }
+
+    /// <summary>
+    /// Drops the steps whose entries the last committed queue no longer holds (removed, cleared, dropped as old history): they cannot be
+    /// undone, and they must not count as the newest step of the shared undo key. Keeps every step while the queue is unknown.
+    /// </summary>
+    internal void DropGoneSteps()
+    {
+        Refresh();
+        if (_steps.RemoveAll(step => !_snapshot.Contains(step.Key)) > 0 && !_disposed) Changed?.Invoke();
     }
 
     private void Refresh()
@@ -347,6 +360,8 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
 
     public async Task<string?> UndoAsync()
     {
+        // A queue step whose entry left the queue on the tagging page is neither newest nor undoable: drop it before choosing the stack.
+        if (!_walk.Busy) _walk.DropGoneSteps();
         if (QueueIsNewest)
         {
             TaggingUndoResult? undone;

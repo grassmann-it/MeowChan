@@ -40,9 +40,9 @@ internal static class TaggingPageCatalog
         ("tagging.page.next", "The walk continues here.", "Hier geht es weiter."),
         ("tagging.page.listName", "Entries of the tagging queue", "Einträge der Tagging-Warteschlange"),
         ("tagging.page.filterEmpty", "No entry has this state.", "Kein Eintrag hat diesen Zustand."),
-        ("tagging.page.keys", "{0} continues at the selected entry · {1} removes it · {2} and {3} move it", "{0} setzt beim markierten Eintrag fort · {1} entfernt ihn · {2} und {3} verschieben ihn"),
+        ("tagging.page.keys", "{0} continues at the selected entry · {1} removes it · {2} and {3} move it", "{0} setzt beim ausgewählten Eintrag fort · {1} entfernt ihn · {2} und {3} verschieben ihn"),
         ("tagging.page.loading", "Reading the tagging queue…", "Tagging-Warteschlange wird gelesen…"),
-        ("tagging.page.stamp", "Stamp set", "Stempel-Set"),
+        ("tagging.page.stamp", "Stamp set", "Stempel-Tags"),
         ("tagging.page.stamp.hint", "The stamp tags come first in every tag panel; {0} gives all of them to the shown medium at once.", "Die Stempel-Tags stehen in jedem Tag-Panel vorn; {0} gibt sie alle auf einmal an das gezeigte Medium."),
         ("tagging.page.stamp.empty", "The stamp is empty. Add the tags you give most media of this queue.", "Der Stempel ist leer. Füge die Tags hinzu, die du den meisten Medien dieser Warteschlange gibst."),
         ("tagging.page.stamp.input", "Tag for the stamp", "Tag für den Stempel"),
@@ -59,6 +59,6 @@ internal static class TaggingPageCatalog
         ("tagging.page.marked.done", "Marked as finished: {0}.", "Als erledigt markiert: {0}."),
         ("tagging.page.marked.skipped", "Marked as skipped: {0}.", "Als übersprungen markiert: {0}."),
         ("tagging.page.moved", "Moved to position {0}.", "Auf Position {0} verschoben."),
-        ("tagging.page.add.how", "Select media here and choose “Add to tagging queue” in the selection bar or the context menu.", "Markiere hier Medien und wähle in der Auswahlleiste oder im Kontextmenü „Zur Tagging-Warteschlange“.")
+        ("tagging.page.add.how", "Select media here and choose “Add to tagging queue” in the selection bar or the context menu.", "Wähle hier Medien aus und nimm in der Auswahlleiste oder im Kontextmenü „Zur Tagging-Warteschlange“.")
     };
 }

@@ -7,7 +7,7 @@ internal static class GalleryMarkCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("tags.quick.marked", "{0} marked", "{0} markiert"),
+        ("tags.quick.marked", "Marked: {0}", "Markiert: {0}"),
         ("tags.quick.marked.clear", "Clear marks", "Markierungen löschen"),
         ("tags.quick.marked.clearName", "Clear all marks", "Alle Markierungen löschen"),
         ("tags.quick.marked.counter", "{0} · marked", "{0} · markiert"),

@@ -55,7 +55,7 @@ public sealed partial class MediaPage
         _selQueue.Content = Texts.T("media.selection.queue");
         _queueAskYes.Content = Texts.T("queue.ask.yes");
         _queueAskNo.Content = Texts.T("queue.ask.no");
-        if (_queuePending != null) _queueAskText.Text = Texts.T("queue.ask", _queuePending.Count.ToString("N0", Texts.Culture));
+        if (_queuePending != null) _queueAskText.Text = Texts.Count("queue.ask", _queuePending.Count, _queuePending.Count.ToString("N0", Texts.Culture));
     }
 
     private void UpdateQueueActions(bool ready, string? reason)
@@ -91,7 +91,7 @@ public sealed partial class MediaPage
         if (entries.Count > TagQueueConfirmAbove)
         {
             _queuePending = entries;
-            _queueAskText.Text = Texts.T("queue.ask", entries.Count.ToString("N0", Texts.Culture));
+            _queueAskText.Text = Texts.Count("queue.ask", entries.Count, entries.Count.ToString("N0", Texts.Culture));
             _queueAsk.IsVisible = true;
             _queueAskYes.Focus();
             return;

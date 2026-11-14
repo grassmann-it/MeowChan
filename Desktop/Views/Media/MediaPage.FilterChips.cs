@@ -24,7 +24,7 @@ public sealed partial class MediaPage
 {
     private readonly Button _filterResetAll = new()
     {
-        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 24, Padding = new Thickness(6, 2),
+        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 24, Padding = new Thickness(8, 2),
         BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Top, VerticalContentAlignment = VerticalAlignment.Center
     };
     // "+ Filter": the picker over every field (types, sounds, sources, boards, ratings, flags and the own tags), behind the last chip.

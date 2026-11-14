@@ -21,8 +21,10 @@ internal sealed record MediaManifestRead(MediaAssetSnapshot Snapshot, RegularPro
 /// earlier round is returned again only when its manifest file still has the identity it had while it was read; anything
 /// else is read again. Only views the page itself asked for are kept: the index build looks views up but does not add
 /// its own reads, so building over 200,000 files does not pin every manifest in memory.
-/// Identity checks are only used for the real manifest reader (<see cref="MediaAssetReader.OpenAsync"/>); a custom
-/// opener (tests, fakes) gets the earlier "until the next round" behavior and no identity at all.
+/// Identity checks are only used for the real manifest reader; a custom opener (tests, fakes) gets the earlier "until the
+/// next round" behavior and no identity at all. The real reader here is the preview reader
+/// (<see cref="MediaAssetReader.OpenForPreviewAsync"/>): the page's tiles and sound check never read a folder source file in
+/// full just to learn its identity (W3-02); the gallery and menu actions open manifests themselves.
 /// </summary>
 internal sealed class MediaManifestCache
 {
@@ -34,13 +36,13 @@ internal sealed class MediaManifestCache
 
     private sealed record Slot(Task<MediaManifestRead> Read, long Round);
 
-    /// <param name="open">Reads one manifest; null means the real reader with file identity checks.</param>
+    /// <param name="open">Reads one manifest; null means the real (preview) reader with file identity checks.</param>
     /// <param name="lifetime">Ends the reads the cache keeps; a caller's own token only ends its wait.</param>
     /// <param name="identity">Whether file identities validate views; by default only for the real reader.</param>
     internal MediaManifestCache(Func<string, CancellationToken, Task<MediaAssetSnapshot>>? open = null, CancellationToken lifetime = default,
         bool? identity = null)
     {
-        _open = open ?? MediaAssetReader.OpenAsync;
+        _open = open ?? MediaAssetReader.OpenForPreviewAsync;
         _identity = identity ?? open == null;
         _lifetime = lifetime;
     }

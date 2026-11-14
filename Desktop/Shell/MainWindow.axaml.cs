@@ -647,7 +647,7 @@ public partial class MainWindow : Window
         Button link = new()
         {
             Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-            Padding = new Thickness(10, 2), MaxWidth = 460,
+            Padding = new Thickness(8, 2), MaxWidth = 460,
             Content = new TextBlock { Text = DesktopLog.RedactText(label + " · " + duplicate.Url), TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
         };
         link.Classes.Add("subtle");

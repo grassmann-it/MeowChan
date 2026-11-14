@@ -37,9 +37,9 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     // Status and time belong to the themed transport below the black media viewport.
     private readonly TextBlock _status = new TextBlock { Name = "GalleryVideoStatus", Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") }.MetaText();
     private readonly TextBlock _time = new TextBlock { Name = "GalleryVideoTime", MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") }.MetaText();
-    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(10) };
-    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
-    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
+    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(8) };
+    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
+    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
     // Playback speed: one click steps through Rates, [ and ] step down/up, Backspace returns to 1×, a right-click offers
     // 0.25×–4× (VideoRates.Choices). Every medium starts at 1×.
     private readonly Button _speed = new() { Name = "GalleryVideoSpeed", Classes = { "media-control" }, MinWidth = 44, Height = 32,

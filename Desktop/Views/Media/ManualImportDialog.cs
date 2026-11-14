@@ -53,7 +53,7 @@ internal sealed class ManualImportDialog : Window
     private readonly TextBlock _nameLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _name = new() { Name = "ManualImportBatchName", MaxLength = ManualImportCatalogStore.MaximumBatchNameLength };
     private readonly TextBlock _tagsLabel = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _tagChips = new() { Name = "ManualImportTagChips", ItemSpacing = 6, LineSpacing = 6 };
+    private readonly WrapPanel _tagChips = new() { Name = "ManualImportTagChips", ItemSpacing = 8, LineSpacing = 8 };
     private readonly IdentitySuggestionBox _tagInput = new() { Name = "ManualImportTagInput" };
     private readonly Button _tagAdd = new() { Name = "ManualImportTagAdd" };
     private readonly TextBlock _status = new() { Name = "ManualImportStatus", TextWrapping = TextWrapping.Wrap };
@@ -107,11 +107,11 @@ internal sealed class ManualImportDialog : Window
         // A long selection is a virtualized list, never one control per file.
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
 
-        WrapPanel pick = new() { ItemSpacing = 6, LineSpacing = 6, Children = { _addFiles, _addFolder } };
+        WrapPanel pick = new() { ItemSpacing = 8, LineSpacing = 8, Children = { _addFiles, _addFolder } };
         WrapPanel switches = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _subfolders, _otherFiles } };
         Grid tagRow = _tagRow;
         tagRow.Children.Add(_tagInput); tagRow.Children.Add(_tagAdd); Grid.SetColumn(_tagAdd, 1);
-        StackPanel body = new() { Spacing = 10, Margin = new Thickness(16, 0, 16, 16) };
+        StackPanel body = new() { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         foreach (Control control in new Control[] { _intro, _target, _rootsLabel, _roots, pick, switches, _progress, _progressText,
             _counts, _duplicateHint, _list, _nameLabel, _name, _tagsLabel, _tagChips, tagRow, _status })
             body.Children.Add(control);

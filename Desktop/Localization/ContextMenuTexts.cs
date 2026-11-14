@@ -17,7 +17,7 @@ internal static class ContextMenuTexts
         ("command.statistics.reset", "Reset statistics…", "Statistik zurücksetzen…"),
         ("command.archive.copy-filter", "Copy filter text", "Filtertext kopieren"),
         ("command.tags.filter-toggle", "Switch include / exclude", "Zwischen Einschließen und Ausschließen wechseln"),
-        ("command.tags.copy-name", "Copy tag name", "Tag-Namen kopieren"),
+        ("command.tags.copy-name", "Copy tag name", "Tagnamen kopieren"),
         ("command.feedback.copy-text", "Copy message text", "Meldungstext kopieren"),
         ("command.feedback.dismiss-all", "Close all notifications", "Alle Benachrichtigungen schließen"),
         ("command.settings.reset-default", "Reset to default", "Auf Standard zurücksetzen"),

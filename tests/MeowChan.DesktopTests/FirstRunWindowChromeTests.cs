@@ -32,7 +32,7 @@ public sealed class FirstRunWindowChromeTests
         // The 20 px content inset moved from the frame grid onto header and body.
         Assert.Equal("Auto,Auto,*,Auto", (string?)content.Attribute("RowDefinitions"));
         Assert.Null(content.Attribute("Margin"));
-        Assert.Equal("20,16,20,8", (string?)content.Elements().Single(e => (string?)e.Attribute(x + "Name") == "DialogFrameHeader").Attribute("Padding"));
+        Assert.Equal("16,16,16,8", (string?)content.Elements().Single(e => (string?)e.Attribute(x + "Name") == "DialogFrameHeader").Attribute("Padding"));
     }
 
     [Fact]

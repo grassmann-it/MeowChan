@@ -209,7 +209,7 @@ public partial class MainWindow
         catch (Exception error)
         {
             items.Clear();
-            items.Add(ReadingHistoryNote(Texts.T("resume.readFailed", error.Message)));
+            items.Add(ReadingHistoryNote(Texts.T("resume.readFailed", UserFacingError.Report(error, "Reading the reading history"))));
         }
         if (_isClosing || revision != _readingHistoryRevision || !stillOpen()) return;
         show(items);
@@ -259,9 +259,10 @@ public partial class MainWindow
                 _readingResumeState = ReadingResumeState.Error;
                 RefreshReadingResumePresentation();
             }
+            string cause = UserFacingError.Report(error, "Saving the reading position");
             if (!_isClosing && ArchivePage.CurrentThread?.Summary.Id == position.ThreadId)
-                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", error.Message), true);
-            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", error.Message), NotificationType.Error, context: position.ThreadId.ToString(), operation: "preferences.reading-position");
+                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.saveFailed", cause), true);
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), Texts.T("resume.saveFailed", cause), NotificationType.Error, context: position.ThreadId.ToString(), operation: "preferences.reading-position");
         }
     }
 
@@ -314,7 +315,7 @@ public partial class MainWindow
             if (StillRequested())
             {
                 _readingResumeState = ReadingResumeState.Error;
-                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true);
+                ArchivePage.ShowReadingPositionMessage(Texts.T("resume.readFailed", UserFacingError.Report(error, "Resuming the reading position")), true);
             }
         }
         finally

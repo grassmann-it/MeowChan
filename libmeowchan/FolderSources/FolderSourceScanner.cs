@@ -62,7 +62,8 @@ internal sealed record FolderSourceScanResult(FolderSourceScanStatus Status, int
 /// <summary>
 /// Walks a folder source level by level and lists its media files (images and videos) with length and last write time.
 /// Read-only by construction: it only enumerates directory entries, it opens no file and creates, renames or changes
-/// nothing. Symbolic links and other reparse points (files and folders) are never followed. Folders in
+/// nothing. Symbolic links, junctions and unknown reparse points (files and folders) are never followed; cloud files placeholders
+/// are listed (see <see cref="FolderSourceEntries"/>). Folders in
 /// <c>excluded</c> (the profile, the download folder) are skipped with everything below them.
 /// </summary>
 internal static class FolderSourceScanner
@@ -82,7 +83,7 @@ internal static class FolderSourceScanner
         try
         {
             DirectoryInfo info = new(root);
-            if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0)
+            if (!info.Exists || FolderSourceEntries.IsLink(info, info.Attributes))
                 return new(Array.Empty<FolderSourceScannedFile>(), false, false, false, Array.Empty<string>(), 0);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
@@ -118,7 +119,8 @@ internal static class FolderSourceScanner
                 FileAttributes attributes;
                 try { attributes = child.Attributes; }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException) { continue; }
-                if ((attributes & FileAttributes.ReparsePoint) != 0) { links++; continue; }
+                // A link is never followed; a cloud placeholder (OneDrive) is listed like any file or folder (W3-08).
+                if (FolderSourceEntries.IsLink(child, attributes)) { links++; continue; }
                 string childRelative = relative.Length == 0 ? child.Name : relative + "/" + child.Name;
                 if ((attributes & FileAttributes.Directory) != 0)
                 {
@@ -183,7 +185,7 @@ internal static class FolderSourceValidation
         try
         {
             DirectoryInfo info = new(full);
-            if (!info.Exists || (info.Attributes & FileAttributes.ReparsePoint) != 0) return FolderSourceError.FolderUnavailable;
+            if (!info.Exists || FolderSourceEntries.IsLink(info, info.Attributes)) return FolderSourceError.FolderUnavailable;
             // Readable: listing the first entry fails for a folder the person may not read (nothing is created or opened).
             using IEnumerator<string> probe = Directory.EnumerateFileSystemEntries(full).GetEnumerator();
             probe.MoveNext();

@@ -25,7 +25,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private readonly TextBlock _selectionText = new() { Name = "MediaSelectionStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
-    private readonly WrapPanel _selectionRow = new() { Name = "MediaSelectionRow", ItemSpacing = 6, LineSpacing = 4 };
+    private readonly WrapPanel _selectionRow = new() { Name = "MediaSelectionRow", ItemSpacing = 8, LineSpacing = 4 };
     private readonly Button _selTag = new() { Name = "MediaSelectionTag" };
     private readonly Button _selGallery = new() { Name = "MediaSelectionGallery" };
     private readonly Button _selExport = new() { Name = "MediaSelectionExport" };

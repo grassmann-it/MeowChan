@@ -31,17 +31,24 @@ internal sealed record StartupMediaFolderResult(StartupMediaFolderStatus Status,
 /// </summary>
 internal static class StartupMediaFolderRegistration
 {
-    internal static async Task<StartupMediaFolderResult> RegisterAsync(DesktopSessionHost session, StartupMediaFolderArgument argument,
+    internal static Task<StartupMediaFolderResult> RegisterAsync(DesktopSessionHost session, StartupMediaFolderArgument argument,
         IReadOnlyList<string> otherProfileFolders, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(argument);
-        if (argument.Problem == StartupMediaFolderProblem.Malformed) return Refused("profile.startMedia.badArgument");
-        if (argument.Problem == StartupMediaFolderProblem.NeedsProfile) return Refused("profile.startMedia.needsProfile");
-        string folder = argument.Path ?? string.Empty;
+        if (argument.Problem == StartupMediaFolderProblem.Malformed) return Task.FromResult(Refused("profile.startMedia.badArgument"));
+        if (argument.Problem == StartupMediaFolderProblem.NeedsProfile) return Task.FromResult(Refused("profile.startMedia.needsProfile"));
+        // Every catalog and file system check runs on a worker: the folder may be on a slow or sleeping disk (W3-12).
+        return Task.Run(() => RegisterCoreAsync(session, argument.Path ?? string.Empty, otherProfileFolders, token), token);
+    }
+
+    private static async Task<StartupMediaFolderResult> RegisterCoreAsync(DesktopSessionHost session, string folder,
+        IReadOnlyList<string> otherProfileFolders, CancellationToken token)
+    {
         try
         {
-            IReadOnlyList<FolderSourceRoot> roots = session.ListFolderSources().Select(view => view.Root).ToArray();
+            // The roots alone: the per-source counts of ListFolderSources are not needed to see whether the folder is already added.
+            IReadOnlyList<FolderSourceRoot> roots = session.ReadFolderSourceRoots();
             // Already added (for example a restart that still carries the argument): nothing to do, nothing to say.
             if (roots.Any(root => string.Equals(root.Path, folder, Comparison))) return new(StartupMediaFolderStatus.AlreadyAdded, null);
             FolderSourceError error = session.CheckFolderSource(folder);
@@ -55,7 +62,10 @@ internal static class StartupMediaFolderRegistration
         catch (FolderSourceException error) { return Refused(ReasonKey(error.Error)); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ObjectDisposedException
             or Microsoft.Data.Sqlite.SqliteException)
-        { return Refused("folderSource.error.damaged"); }
+        {
+            FolderSourceErrorText.Log(error, "startup media folder");
+            return Refused(FolderSourceErrorText.Key(error));
+        }
     }
 
     private static StringComparison Comparison => OperatingSystem.IsWindows() || OperatingSystem.IsMacOS()

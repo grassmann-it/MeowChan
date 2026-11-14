@@ -25,7 +25,7 @@ internal sealed partial class GalleryViewer
         // The top right edge belongs to the way back; the passive persisted-state badge sits directly left of it
         // (UpdateFavoriteIndicators), so neither is painted over by the post panel, which starts below this row.
         VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(12),
-        Padding = new Thickness(7, 3),
+        Padding = new Thickness(8, 4),
         Background = new SolidColorBrush(Color.FromArgb(210, 24, 26, 31)),
         IsHitTestVisible = false, Focusable = false, IsVisible = false, ZIndex = 16,
         // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).

@@ -283,7 +283,7 @@ public partial class ArchivePage
         ExportChoiceField scope = new("OriginalExportScope");
         string scopeText = Texts.Count("viewer.export.scope", assets.Length + missingCount, scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
         scope.Set(Texts.T("export.scope"), new[] { new ExportChoiceField.Option("files", scopeText) }, "files", true);
-        WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 6 };
+        WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 8 };
         choices.Children.Add(format); choices.Children.Add(scope);
         TextBox destination = new() { Name = "OriginalExportDestination", IsReadOnly = true, PlaceholderText = Texts.T("viewer.export.destination") };
         TextBlock status = new() { TextWrapping = TextWrapping.Wrap };

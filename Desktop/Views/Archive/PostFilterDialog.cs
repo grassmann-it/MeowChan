@@ -57,10 +57,10 @@ internal sealed class PostFilterDialog : Window
     private readonly Button _add = new() { Name = "PostFilterAdd" };
     private readonly Button _save = new() { Name = "PostFilterSave" };
     private readonly Button _cancelEdit = new() { Name = "PostFilterCancelEdit" };
-    private readonly StackPanel _rules = new() { Name = "PostFilterRules", Spacing = 6 };
+    private readonly StackPanel _rules = new() { Name = "PostFilterRules", Spacing = 8 };
     private readonly TextBlock _hiddenActionLabel = Label("PostFilterHiddenActionLabel");
     private readonly ComboBox _hiddenAction = new() { Name = "PostFilterHiddenAction", MinWidth = 200 };
-    private readonly StackPanel _posts = new() { Name = "PostFilterPosts", Spacing = 6 };
+    private readonly StackPanel _posts = new() { Name = "PostFilterPosts", Spacing = 8 };
     private readonly Button _close = new() { Name = "PostFilterClose" };
     private bool _refreshing;
     private bool _closed;
@@ -93,7 +93,7 @@ internal sealed class PostFilterDialog : Window
         choices.Children.Add(Pair(_actionLabel, _action)); choices.Children.Add(Pair(_scopeLabel, _scope));
         WrapPanel draftButtons = new() { ItemSpacing = 8, LineSpacing = 8 };
         draftButtons.Children.Add(_add); draftButtons.Children.Add(_save); draftButtons.Children.Add(_cancelEdit);
-        StackPanel draft = new() { Spacing = 6 };
+        StackPanel draft = new() { Spacing = 8 };
         draft.Children.Add(_editing); draft.Children.Add(_patternLabel); draft.Children.Add(_pattern); draft.Children.Add(_patternHint); draft.Children.Add(_draftError);
         draft.Children.Add(choices); draft.Children.Add(_replies); draft.Children.Add(draftButtons);
         StackPanel rulesPage = new() { Spacing = 12, Margin = new Thickness(0, 8, 0, 0) };

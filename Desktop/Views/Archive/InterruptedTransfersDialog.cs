@@ -25,7 +25,7 @@ internal sealed class InterruptedTransfersDialog : Window
 {
     private readonly IReadOnlyList<InterruptedNativeMediaOperation> _operations;
     private readonly TextBlock _explanation = new() { Name = "InterruptedTransfersExplanation", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly StackPanel _rows = new() { Name = "InterruptedTransfersRows", Spacing = 6 };
+    private readonly StackPanel _rows = new() { Name = "InterruptedTransfersRows", Spacing = 8 };
     private readonly Button _discard = new() { Name = "InterruptedTransfersDiscard" };
     private readonly Button _keep = new() { Name = "InterruptedTransfersKeep" };
     private readonly TaskCompletionSource<bool> _decision = new(TaskCreationOptions.RunContinuationsAsynchronously);

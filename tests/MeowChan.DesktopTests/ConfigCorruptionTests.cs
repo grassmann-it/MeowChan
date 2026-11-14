@@ -56,6 +56,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.FolderSourceCatalogLimitMiB), Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum),
         (nameof(Config.FolderSourceGalleryHashWindow), Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum),
         (nameof(Config.TagQueueWalkWindow), Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum),
+        (nameof(Config.TagQueueUndoDepth), Config.TagQueueUndoDepthMinimum, Config.TagQueueUndoDepthMaximum),
         (nameof(Config.TagStampSize), Config.TagStampSizeMinimum, Config.TagStampSizeMaximum)
     };
 

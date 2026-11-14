@@ -170,6 +170,8 @@ internal sealed partial class GalleryViewer
     internal void RotateView(int steps = 1)
     {
         if (steps == 0 || CurrentGeometry is not { } before) return;
+        // Windows: a playing video that cannot reopen at its position cannot turn, so the view must not claim a turn either.
+        if (IsVideoView && _video is { TurnsNow: false }) return;
         int next = GalleryRotation.Normalize(_rotation + steps * GalleryRotation.Step);
         GalleryViewGeometry after = before with { Rotation = next };
         GalleryViewPlacement placement = GalleryViewMath.Rotated(Placement, after, steps);

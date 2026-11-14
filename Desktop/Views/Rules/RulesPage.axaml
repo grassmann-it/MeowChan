@@ -24,7 +24,7 @@
       <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*">
         <!-- Header like Sources: title and the one-line precedence subtitle; the overview's primary action sits on the right edge. -->
         <StackPanel x:Name="RulesHeader" Margin="0,0,0,8" MaxWidth="880" HorizontalAlignment="Center">
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                 <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
                     <TextBlock x:Name="RulesSubtitle" Text="{Binding Subtitle}" Classes="muted" TextWrapping="Wrap" />
@@ -36,29 +36,29 @@
             </Grid>
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="12">
+            <StackPanel x:Name="RulesContent" MaxWidth="880" HorizontalAlignment="Center" Spacing="{StaticResource Workspace.Space.12}">
                 <!-- Overview (default): saved rules by scope, unsaved drafts and the built-in baseline; rows are built in RulesPage.Overview.cs. -->
-                <StackPanel x:Name="RulesOverviewPanel" wv:WorkViewElement.Id="rules.overview" Spacing="16" IsVisible="{Binding IsOverviewVisible}">
+                <StackPanel x:Name="RulesOverviewPanel" wv:WorkViewElement.Id="rules.overview" Spacing="{StaticResource Workspace.Space.16}" IsVisible="{Binding IsOverviewVisible}">
                     <Border x:Name="RulesOverviewEmpty" Classes="workspace-section" IsVisible="False">
-                        <StackPanel Spacing="12" HorizontalAlignment="Center">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.12}" HorizontalAlignment="Center">
                             <TextBlock x:Name="RulesOverviewEmptyText" Classes="workspace-empty-text" />
-                            <WrapPanel x:Name="RulesOverviewEmptyActions" HorizontalAlignment="Center" ItemSpacing="8" LineSpacing="8">
+                            <WrapPanel x:Name="RulesOverviewEmptyActions" HorizontalAlignment="Center" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
                                 <Button x:Name="CreateFirstRuleButton" Classes="primary" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
                                 <Button x:Name="StartFromTemplateButton" IsEnabled="{Binding IsEditable}" Click="OnStartFromTemplate" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>
-                    <StackPanel x:Name="RulesOverviewDrafts" wv:WorkViewElement.Id="rules.overview.drafts" Spacing="8" IsVisible="False" />
-                    <StackPanel x:Name="RulesOverviewSaved" Spacing="8" IsVisible="False" />
-                    <StackPanel x:Name="RulesOverviewDefaults" wv:WorkViewElement.Id="rules.overview.defaults" Spacing="8" />
+                    <StackPanel x:Name="RulesOverviewDrafts" wv:WorkViewElement.Id="rules.overview.drafts" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
+                    <StackPanel x:Name="RulesOverviewSaved" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
+                    <StackPanel x:Name="RulesOverviewDefaults" wv:WorkViewElement.Id="rules.overview.defaults" Spacing="{StaticResource Workspace.Space.8}" />
                 </StackPanel>
                 <!-- Create/edit wizard (in-page detail like Sources and Plugins): 1 scope, 2 settings, 3 review. -->
-                <StackPanel x:Name="RuleWizardPanel" Spacing="12" IsVisible="{Binding IsWizardOpen}">
+                <StackPanel x:Name="RuleWizardPanel" Spacing="{StaticResource Workspace.Space.12}" IsVisible="{Binding IsWizardOpen}">
                     <!-- The editor's header row: title and steps on the left, More and then Close on the right edge (Close apart from actions). -->
-                    <Grid x:Name="RuleWizardHeader" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
-                        <StackPanel Spacing="8">
+                    <Grid x:Name="RuleWizardHeader" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                             <TextBlock x:Name="RulesEditingHeader" wv:WorkViewElement.Id="rules.scope.editing-header" Text="{Binding EditingLabel}" Classes="section-title" TextWrapping="Wrap" />
-                            <WrapPanel x:Name="RuleWizardSteps" wv:WorkViewElement.Id="rules.wizard.steps" ItemSpacing="8" LineSpacing="8">
+                            <WrapPanel x:Name="RuleWizardSteps" wv:WorkViewElement.Id="rules.wizard.steps" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
                                 <Button x:Name="RuleWizardStepScope" Classes="chip" Click="OnWizardStepClick" Tag="1" />
                                 <Button x:Name="RuleWizardStepSettings" Classes="chip" Click="OnWizardStepClick" Tag="2" />
                                 <Button x:Name="RuleWizardStepReview" Classes="chip" Click="OnWizardStepClick" Tag="3" />
@@ -69,9 +69,9 @@
                         <Button x:Name="RuleWizardCloseButton" wv:WorkViewElement.Id="rules.wizard.close" Grid.Column="2" Margin="8,0,0,0" VerticalAlignment="Top" Click="OnCloseWizard" />
                     </Grid>
                     <!-- Step 1: the scope. Its identity stays fixed while its values are edited; an existing rule or draft opens from the overview or below. -->
-                    <StackPanel x:Name="RuleWizardScopeStep" Spacing="12" IsEnabled="{Binding IsEditable}">
+                    <StackPanel x:Name="RuleWizardScopeStep" Spacing="{StaticResource Workspace.Space.12}" IsEnabled="{Binding IsEditable}">
                         <Border x:Name="NewRuleScopePanel" wv:WorkViewElement.Id="rules.scope.new" Classes="workspace-section">
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Form.Gap}">
                                 <TextBlock Classes="workspace-field-label" Text="{Binding ScopeKindLabel}" VerticalAlignment="Center" />
                                 <ComboBox x:Name="NewRuleScopeKindInput" Grid.Column="1" ItemsSource="{Binding ScopeKindChoices}" SelectedIndex="{Binding NewScopeKind, Mode=TwoWay}" HorizontalAlignment="Stretch" />
@@ -94,8 +94,8 @@
                         </StackPanel>
                         </Border>
                         <Expander x:Name="RuleSavedScopesExpander" wv:WorkViewElement.Id="rules.scope.saved" Header="{Binding SavedScopesLabel}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                            <StackPanel Spacing="4" Margin="0,8,0,0">
-                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                            <StackPanel Spacing="{StaticResource Workspace.Space.4}" Margin="0,8,0,0">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                     <ComboBox x:Name="RulesScopeList" HorizontalAlignment="Stretch" AutomationProperties.Name="{Binding SavedScopesLabel}"
                                               ItemsSource="{Binding ScopeChoices}" SelectedItem="{Binding SelectedScopeChoice, Mode=TwoWay}">
                                         <ComboBox.ItemTemplate><DataTemplate x:DataType="local:RuleScopeChoice"><TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
@@ -107,10 +107,10 @@
                         </Expander>
                     </StackPanel>
                     <!-- Step 2: the settings of the chosen scope. -->
-                    <StackPanel x:Name="RuleWizardSettingsStep" Spacing="12">
+                    <StackPanel x:Name="RuleWizardSettingsStep" Spacing="{StaticResource Workspace.Space.12}">
                 <Border Classes="workspace-section"><StackPanel Spacing="0" IsEnabled="{Binding IsEditable}">
                     <!-- The edited scope is named in the header row above; its breadcrumb and parent link start the card. -->
-                    <Grid x:Name="RuleBreadcrumbRow" wv:WorkViewElement.Id="rules.scope.breadcrumb" ColumnDefinitions="*,Auto" ColumnSpacing="8" Margin="0,0,0,8">
+                    <Grid x:Name="RuleBreadcrumbRow" wv:WorkViewElement.Id="rules.scope.breadcrumb" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="0,0,0,8">
                         <ursa:Breadcrumb x:Name="RuleScopeBreadcrumb" VerticalAlignment="Center"><ursa:Breadcrumb.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ursa:Breadcrumb.ItemsPanel></ursa:Breadcrumb>
                         <Button x:Name="OpenParentRuleButton" Grid.Column="1" VerticalAlignment="Center" IsVisible="False" Click="OnOpenParentScope" />
                     </Grid>
@@ -119,11 +119,11 @@
                     <StackPanel IsEnabled="{Binding RuleEnabled}">
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Form.Gap}">
-                                <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding TypesLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,8,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleTypesModeInput" ItemsSource="{Binding TypesModeChoices}" SelectedIndex="{Binding TypesMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <!-- The inherited or own value as a quiet chip, its origin as a muted line beside it. -->
-                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                                         <Border Classes="chip chip-badge chip-neutral" VerticalAlignment="Center"><TextBlock Text="{Binding EffectiveTypesLabel}" Classes="chip-label" TextWrapping="Wrap" /></Border>
                                         <TextBlock Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
                                     </WrapPanel>
@@ -138,11 +138,11 @@
                         </Border>
                         <Border Classes="settings-divider">
                             <Grid Classes="rule-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Form.Gap}">
-                                <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,6,0,0" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding SizeLabel}" Classes="workspace-field-label" VerticalAlignment="Top" Margin="0,8,0,0" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <ComboBox x:Name="RuleSizeModeInput" ItemsSource="{Binding SizeModeChoices}" SelectedIndex="{Binding SizeMode, Mode=TwoWay}" HorizontalAlignment="Stretch" />
                                     <!-- The inherited or own value as a quiet chip, its origin as a muted line beside it. -->
-                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                                         <Border Classes="chip chip-badge chip-neutral" VerticalAlignment="Center"><TextBlock Text="{Binding EffectiveSizeLabel}" Classes="chip-label" TextWrapping="Wrap" /></Border>
                                         <TextBlock Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
                                     </WrapPanel>
@@ -161,26 +161,26 @@
                     <!-- Folded in Barebones; an active filter opens it and names itself in the header. -->
                     <Expander x:Name="RulePluginExpander" wv:WorkViewElement.Id="rules.plugin-filter" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <Expander.Header><TextBlock x:Name="RulePluginHeader" Classes="section-title" TextWrapping="Wrap" /></Expander.Header>
-                        <StackPanel x:Name="RulePluginPanel" Spacing="8" Margin="0,8,0,0" />
+                        <StackPanel x:Name="RulePluginPanel" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
                     </Expander>
                 </Border>
                 <Border x:Name="RuleTemplatesCard" wv:WorkViewElement.Id="rules.templates" Classes="workspace-section">
                     <!-- Under More in Barebones (their shortcuts keep working), folded in Simple. -->
                     <Expander x:Name="RuleTemplatesExpander" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <Expander.Header><TextBlock x:Name="RuleTemplatesHeader" Classes="section-title" TextWrapping="Wrap" /></Expander.Header>
-                        <StackPanel x:Name="RuleTemplatesPanel" Spacing="8" Margin="0,8,0,0" />
+                        <StackPanel x:Name="RuleTemplatesPanel" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
                     </Expander>
                 </Border>
                     </StackPanel>
                     <!-- Step 3: what applies after saving, field by field with its origin; validation and the way to an invalid field stay here. -->
-                    <StackPanel x:Name="RuleWizardReviewStep" Spacing="12">
+                    <StackPanel x:Name="RuleWizardReviewStep" Spacing="{StaticResource Workspace.Space.12}">
                 <Border x:Name="RulePreviewSection" wv:WorkViewElement.Id="rules.preview" Classes="workspace-section">
-                    <StackPanel Spacing="8">
+                    <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                     <TextBlock x:Name="RulePreviewHeading" Text="{Binding PreviewTitle}" Classes="section-title" TextWrapping="Wrap" Focusable="True" />
                     <controls:WorkspaceBanner Type="Error" IsVisible="{Binding HasValidationBanner}">
                         <TextBlock x:Name="RuleValidationSummary" Focusable="True" Text="{Binding ValidationMessage}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                     </controls:WorkspaceBanner>
-                    <WrapPanel x:Name="RulePreviewBlocked" wv:WorkViewElement.Id="rules.preview.blocked" IsVisible="{Binding HasPreviewBlocked}" ItemSpacing="12" LineSpacing="6">
+                    <WrapPanel x:Name="RulePreviewBlocked" wv:WorkViewElement.Id="rules.preview.blocked" IsVisible="{Binding HasPreviewBlocked}" ItemSpacing="{StaticResource Workspace.Space.12}" LineSpacing="{StaticResource Workspace.Space.8}">
                         <TextBlock Text="{Binding PreviewBlockedLabel}" Classes="workspace-meta" VerticalAlignment="Center" TextWrapping="Wrap" />
                         <Button x:Name="RuleGoToInvalidFieldButton" Content="{Binding GoToFieldLabel}" Click="OnGoToInvalidField" />
                     </WrapPanel>
@@ -190,7 +190,7 @@
                                 <TextBlock Text="{Binding TypesLabel}" VerticalAlignment="Top" FontWeight="Medium" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveTypes" Text="{Binding EffectiveTypesLabel}" TextWrapping="Wrap" />
-                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                                         <TextBlock x:Name="RuleTypesOrigin" Text="{Binding TypesOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
                                         <Button x:Name="OpenTypesOriginButton" wv:WorkViewElement.Id="rules.preview.origin-types" Classes="link" Padding="4,0" MinHeight="24" VerticalAlignment="Center" IsEnabled="{Binding CanOpenTypesOrigin}" IsVisible="False"
                                                 Click="OnOpenTypesOrigin" />
@@ -203,7 +203,7 @@
                                 <TextBlock Text="{Binding SizeLabel}" VerticalAlignment="Top" FontWeight="Medium" TextWrapping="Wrap" />
                                 <StackPanel Grid.Column="1" Classes="workspace-field">
                                     <TextBlock x:Name="RuleEffectiveSize" Text="{Binding EffectiveSizeLabel}" TextWrapping="Wrap" />
-                                    <WrapPanel ItemSpacing="8" LineSpacing="4">
+                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
                                         <TextBlock x:Name="RuleSizeOrigin" Text="{Binding SizeOriginLabel}" Classes="workspace-help" TextWrapping="Wrap" VerticalAlignment="Center" />
                                         <Button x:Name="OpenSizeOriginButton" wv:WorkViewElement.Id="rules.preview.origin-size" Classes="link" Padding="4,0" MinHeight="24" VerticalAlignment="Center" IsEnabled="{Binding CanOpenSizeOrigin}" IsVisible="False"
                                                 Click="OnOpenSizeOrigin" />
@@ -222,11 +222,11 @@
         </ScrollViewer>
       </Grid>
         <Border Grid.Row="1" Classes="workspace-dialog-footer">
-            <Grid x:Name="RulesFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="8"
+            <Grid x:Name="RulesFooter" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" RowSpacing="{StaticResource Workspace.Space.8}"
                   HorizontalAlignment="Center">
                 <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                             <ursa:LoadingIcon Width="16" Height="16" VerticalAlignment="Center" IsVisible="{Binding IsBusy}" IsLoading="{Binding IsBusy}" Focusable="False" />
                             <TextBlock x:Name="RuleStatusText" Text="{Binding StatusMessage}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" IsVisible="{Binding HasStatus}" AutomationProperties.LiveSetting="{Binding StatusLiveSetting}" />
                         </StackPanel>

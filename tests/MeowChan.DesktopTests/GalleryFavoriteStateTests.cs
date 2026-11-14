@@ -299,7 +299,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
-        Assert.Equal(new Thickness(7, 3), badge.Padding);
+        Assert.Equal(new Thickness(8, 4), badge.Padding);
         Assert.Equal(16, badge.ZIndex);
         StackPanel glyph = Assert.IsType<StackPanel>(badge.Child);
         Assert.False(glyph.IsHitTestVisible);

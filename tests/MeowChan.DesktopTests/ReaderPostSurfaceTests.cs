@@ -51,7 +51,7 @@ public sealed class ReaderPostSurfaceTests
         XElement root = PostRoot();
         Assert.Equal(A + "StackPanel", root.Name);
         Assert.Equal("8,8,8,12", (string?)root.Attribute("Margin"));
-        Assert.Equal("8", (string?)root.Attribute("Spacing"));
+        Assert.Equal("{StaticResource Workspace.Space.8}", (string?)root.Attribute("Spacing"));
         Assert.Null(root.Attribute("Background"));
         Assert.Empty(root.Descendants(A + "Border")); // The card is the item itself; no card in the card.
         Assert.DoesNotContain(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(), element =>

@@ -17,7 +17,7 @@ internal static class WorkViewOverviewCatalog
         ("workview.overview.filter", "Find an element", "Element suchen"),
         ("workview.overview.element", "Element", "Element"),
         ("workview.overview.active", "{0} (active)", "{0} (aktiv)"),
-        ("workview.overview.count", "{0} of {1} elements", "{0} von {1} Elementen"),
+        ("workview.overview.count", "Elements: {0} of {1}", "Elemente: {0} von {1}"),
         ("workview.overview.empty", "No elements match these filters.", "Keine Elemente passen zu diesen Filtern."),
         ("workview.overview.required", "Always present; not hideable by a work view", "Immer vorhanden; nicht durch eine Arbeitsansicht ausblendbar"),
         ("workview.overview.safety", "Safety or essential state; always present", "Sicherheit oder wesentlicher Zustand; immer vorhanden"),

@@ -157,7 +157,7 @@ internal sealed class MediaLibraryTileView : UserControl
         // The cell stays uniform (the grid's cell height is fixed); the picture is letterboxed in it and the corner marks (provider
         // badge, type, selection check, "not saved", star) are arranged on the picture, not on the cell edge.
         LetterboxPanel preview = _preview; preview.Height = 120; preview.MaxWidth = 174;
-        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
+        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kindBadge, _selectedMark } };
         _stateMark.Margin = new Thickness(2, 0, 0, 2);
         _favoriteToggle.Margin = new Thickness(0, 0, 2, 2);
@@ -172,7 +172,7 @@ internal sealed class MediaLibraryTileView : UserControl
         };
         preview.Children.Add(_image); preview.Children.Add(_placeholder); preview.Children.Add(_providerBadge); preview.Children.Add(topRight);
         preview.Children.Add(_stateMark); preview.Children.Add(_favoriteToggle);
-        Grid grid = new() { Margin = new Thickness(6, 6, 6, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 3 };
+        Grid grid = new() { Margin = new Thickness(8, 8, 8, 4), RowDefinitions = new RowDefinitions("120,Auto,Auto,Auto,Auto"), RowSpacing = 2 };
         grid.Children.Add(preview);
         grid.Children.Add(_name); Grid.SetRow(_name, 1);
         _threadLink.Content = _thread;
@@ -187,7 +187,7 @@ internal sealed class MediaLibraryTileView : UserControl
         // A link, not a chip: no frame (the theme's button outline made it look like a boxed chip of its own).
         _threadLink.MinHeight = 0; _threadLink.BorderThickness = new Thickness(0);
         foreach (Control part in new Control[] { _duplicatesLink, _detail }) part.VerticalAlignment = VerticalAlignment.Center;
-        WrapPanel footer = new() { ItemSpacing = 6, LineSpacing = 0, Children = { _duplicatesLink, _detail } };
+        WrapPanel footer = new() { ItemSpacing = 8, LineSpacing = 0, Children = { _duplicatesLink, _detail } };
         grid.Children.Add(footer); Grid.SetRow(footer, 3);
         TagRow tags = new() { Name = "MediaTileTags", ClipToBounds = true, Children = { _favorite } };
         for (int index = 0; index < _tagChips.Length; index++)
@@ -331,7 +331,7 @@ internal sealed class MediaLibraryTileView : UserControl
     /// </summary>
     private sealed class TagRow : Panel
     {
-        private const double Spacing = 6;
+        private const double Spacing = 8;
 
         protected override Size MeasureOverride(Size availableSize)
         {

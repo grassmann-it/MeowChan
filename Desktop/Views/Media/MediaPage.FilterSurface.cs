@@ -34,7 +34,7 @@ public sealed partial class MediaPage
         _filterScroll.Content = new Border { Padding = new Thickness(0, 0, 12, 0), Child = fields };
         Border surface = new()
         {
-            Name = "MediaFilterSurface", Child = _filterScroll, Padding = new Thickness(10, 8), Margin = new Thickness(0, 4, 0, 4),
+            Name = "MediaFilterSurface", Child = _filterScroll, Padding = new Thickness(12, 8), Margin = new Thickness(0, 4, 0, 4),
             IsVisible = false, Classes = { "workspace-section" }
         };
         KeyboardNavigation.SetTabNavigation(surface, KeyboardNavigationMode.Cycle);

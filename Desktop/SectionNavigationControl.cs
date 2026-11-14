@@ -28,7 +28,7 @@ public sealed class SectionNavigationControl : Expander
         _compact.Children.Add(_selection);
         Grid.SetColumn(_go, 1);
         _compact.Children.Add(_go);
-        Content = new StackPanel { Spacing = 6, Children = { _links, _compact, _notice } };
+        Content = new StackPanel { Spacing = 8, Children = { _links, _compact, _notice } };
         Commands.CommandBindings.BindExisting(this, "sections.open-navigation");
         Commands.CommandBindings.BindExisting(_go, "sections.go-to");
         _go.IsEnabled = false;
@@ -58,7 +58,7 @@ public sealed class SectionNavigationControl : Expander
         foreach (SectionDescriptor section in _controller?.Sections ?? Array.Empty<SectionDescriptor>())
         {
             var button = new Button { Content = new TextBlock { Text = section.Title, TextWrapping = TextWrapping.Wrap },
-                Margin = new Thickness(0, 0, 8, 6), Tag = section.Id };
+                Margin = new Thickness(0, 0, 8, 8), Tag = section.Id };
             AutomationProperties.SetName(button, section.Title);
             Commands.CommandBindings.BindExisting(button, "sections.go-to");
             button.Click += (_, _) => Navigate(section.Id);

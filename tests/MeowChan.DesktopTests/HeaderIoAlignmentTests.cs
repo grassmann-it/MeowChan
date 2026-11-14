@@ -76,8 +76,8 @@ public sealed class HeaderIoAlignmentTests
         {
             XElement block = Named(name);
             Assert.Equal("Grid", block.Name.LocalName);
-            Assert.Equal("2", (string?)block.Attribute("RowSpacing"));
-            Assert.Equal("4", (string?)block.Attribute("ColumnSpacing"));
+            Assert.Equal("{StaticResource Workspace.Space.2}", (string?)block.Attribute("RowSpacing"));
+            Assert.Equal("{StaticResource Workspace.Space.4}", (string?)block.Attribute("ColumnSpacing"));
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel");
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel2");
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoRate"

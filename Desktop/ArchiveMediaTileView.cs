@@ -78,10 +78,10 @@ public sealed class ArchiveMediaTileView : UserControl
         // arranged on the picture, not on the cell edge.
         LetterboxPanel preview = _preview; preview.Height = 125; preview.MaxWidth = 170;
         _kind.VerticalAlignment = VerticalAlignment.Center;
-        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 3, HorizontalAlignment = HorizontalAlignment.Right,
+        StackPanel topRight = new() { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top, Margin = new Thickness(0, 2, 2, 0), Children = { _kind, _selectedMark } };
         preview.Children.Add(_image); preview.Children.Add(_message); preview.Children.Add(topRight); preview.Children.Add(_favorite);
-        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 5 };
+        Grid grid = new() { Margin = new Thickness(8), RowDefinitions = new RowDefinitions("125,Auto,Auto,*"), RowSpacing = 4 };
         grid.Children.Add(preview); grid.Children.Add(_title); Grid.SetRow(_title, 1);
         grid.Children.Add(_rating); Grid.SetRow(_rating, 2);
         grid.Children.Add(_status); Grid.SetRow(_status, 3); Content = grid;

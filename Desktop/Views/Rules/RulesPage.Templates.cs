@@ -175,7 +175,7 @@ public partial class RulesPage
                     async () => await ExecuteTemplateCommandAsync("rules.template-create")));
                 Grid.SetColumn(_templateActionButtons["create"], 1);
                 panel.Children.Add(pick);
-                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(_templateSelectionActions);
+                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 }; panel.Children.Add(_templateSelectionActions);
                 foreach (string id in new[] { "preview", "edit", "delete", "undo-apply" })
                 {
                     string command = "rules.template-" + id;

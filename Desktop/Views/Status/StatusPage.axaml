@@ -6,7 +6,7 @@
          The page owns only its head (title, hint, the shared status line) and the segment bar; both segments are the
          unchanged StatisticsPage and DiagnosticsPage, hosted below and shown one at a time like the Downloads tabs. -->
     <Grid RowDefinitions="Auto,Auto,*">
-        <Grid x:Name="StatusPageHeader" Margin="12,12,12,0" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+        <Grid x:Name="StatusPageHeader" Margin="12,12,12,0" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
             <StackPanel Classes="workspace-page-header">
                 <TextBlock x:Name="StatusTitle" Classes="page-title" Text="Status" />
                 <TextBlock x:Name="StatusHint" Classes="muted" TextWrapping="Wrap" />

@@ -61,7 +61,7 @@ public sealed class SearchScopeChip : Button
         // Inside the SearchBox (InnerLeftContent): no own frame or Tab stop; the field opens the menu with Alt+Down / F4.
         Background = Brushes.Transparent;
         BorderThickness = new Thickness(0);
-        Padding = new Thickness(2, 0, 6, 0);
+        Padding = new Thickness(2, 0, 4, 0);
         Margin = new Thickness(0, 0, 4, 0);
         MinHeight = 0; MinWidth = 0;
         Focusable = false;

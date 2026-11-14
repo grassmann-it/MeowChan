@@ -12,6 +12,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
+using Serilog;
 
 namespace MeowChan.Desktop;
 
@@ -55,8 +56,8 @@ internal sealed class FolderSourceDialog : Window
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _renaming = renaming;
         Name = "FolderSourceDialog";
-        Width = 580; Height = renaming == null ? 480 : 320; MinWidth = 380; MinHeight = 280;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD1/MD3: a modal form dialog on the factory; "Rename" is a short form whose height follows its content.
+        DialogWindow.Configure(this, DialogSize.M, modal: true, heightToContent: renaming != null);
         _intro.Classes.Add("workspace-help");
         _nameLabel.Classes.Add("workspace-field-label"); _folderLabel.Classes.Add("workspace-field-label");
         _folderHint.Classes.Add("workspace-help");
@@ -71,8 +72,8 @@ internal sealed class FolderSourceDialog : Window
             body.Children.Add(new StackPanel { Spacing = 4, Children = { _folderLabel, folderRow, _folderHint } });
         body.Children.Add(new StackPanel { Spacing = 4, Children = { _nameLabel, _name } });
         if (renaming == null) body.Children.Add(_subfolders);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right, Children = { _cancel, _confirm } };
-        Content = WindowChrome.Frame(this, DialogFrame.Build(_intro, body, actions, DialogFrame.ErrorStrip(_error, maxHeight: 96)), WindowChromeKind.Dialog);
+        Border footer = DialogFooter.Build(_confirm, new Control[] { _cancel });
+        DialogWindow.Frame(this, DialogFrame.Build(_intro, body, footer, DialogFrame.ErrorStrip(_error, maxHeight: 96)), modal: true, captionName: "FolderSourceChrome");
 
         if (renaming != null) _name.Text = renaming.Name;
         _name.TextChanged += (_, _) => { if (!_syncing) { _nameEdited = true; ClearError(); } };
@@ -80,7 +81,9 @@ internal sealed class FolderSourceDialog : Window
         _choose.Click += async (_, _) => await ChooseAsync();
         _cancel.Click += (_, _) => { if (!_busy) Close(); };
         _confirm.Click += async (_, _) => await ConfirmAsync();
+        // Enter in a text field confirms (tunnelled, before the field's own handling); Escape is the factory's policy.
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        DialogEscape.Attach(this, isBusy: () => _busy);
         Closing += (_, e) => e.Cancel = _busy;
         Closed += (_, _) => { _closed = true; Texts.Changed -= OnLanguageChanged; };
         Opened += (_, _) => (renaming == null ? _folder : _name).Focus();
@@ -156,8 +159,7 @@ internal sealed class FolderSourceDialog : Window
 
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape) { e.Handled = true; if (!_busy) Close(); }
-        else if (e.Key == Key.Enter && e.Source is TextBox) { e.Handled = true; _ = ConfirmAsync(); }
+        if (e.Key == Key.Enter && e.Source is TextBox) { e.Handled = true; _ = ConfirmAsync(); }
     }
 
     internal async Task ConfirmAsync()
@@ -168,7 +170,15 @@ internal sealed class FolderSourceDialog : Window
         if (_renaming == null)
         {
             if (folder.Length == 0 || !Path.IsPathFullyQualified(folder)) { ShowError("folderSource.error.unavailable"); _folder.Focus(); return; }
-            FolderSourceError check = await Task.Run(() => _services.Check(folder));
+            FolderSourceError check;
+            try { check = await Task.Run(() => _services.Check(folder)); }
+            catch (Exception error) when (error is not OutOfMemoryException)
+            {
+                // Folder source diagnostics never name paths: type and codes only (FolderSourceErrorText, W3-15).
+                FolderSourceErrorText.Log(error, "check");
+                if (!_closed) { ShowError(IsExpectedFailure(error) ? FolderSourceErrorText.Key(error) : "folderSource.error.unexpected"); _folder.Focus(); }
+                return;
+            }
             if (_closed) return;
             if (check != FolderSourceError.None) { ShowError(ErrorKey(check)); _folder.Focus(); return; }
         }
@@ -182,11 +192,28 @@ internal sealed class FolderSourceDialog : Window
             SetBusy(false);
             if (!_closed) Close(root);
         }
-        catch (FolderSourceException error) { SetBusy(false); if (!_closed) ShowError(ErrorKey(error.Error)); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ObjectDisposedException
-            or Microsoft.Data.Sqlite.SqliteException)
-        { SetBusy(false); if (!_closed) ShowError("folderSource.error.damaged"); }
+        catch (FolderSourceException error)
+        {
+            // An expected refusal: the person gets the localized sentence of its reason, the log only the reason.
+            Log.Information("A folder source was not {Action}: {Reason}.", _renaming == null ? "added" : "renamed", error.Error);
+            SetBusy(false); if (!_closed) ShowError(ErrorKey(error.Error));
+        }
+        catch (Exception error) when (IsExpectedFailure(error))
+        {
+            FolderSourceErrorText.Log(error, _renaming == null ? "add" : "rename");
+            SetBusy(false);
+            if (!_closed) ShowError(FolderSourceErrorText.Key(error));
+        }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            FolderSourceErrorText.Log(error, _renaming == null ? "add (unexpected)" : "rename (unexpected)");
+            SetBusy(false); if (!_closed) ShowError("folderSource.error.unexpected");
+        }
     }
+
+    /// <summary>A failure of the folder or its catalog with a fitting sentence; anything else is reported as unexpected.</summary>
+    private static bool IsExpectedFailure(Exception error) => error is FolderSourceException or IOException or UnauthorizedAccessException
+        or InvalidOperationException or ObjectDisposedException or InvalidDataException or Microsoft.Data.Sqlite.SqliteException;
 
     private void SetBusy(bool busy)
     {

@@ -12,11 +12,11 @@
         <!-- UX103 P7 dialog frame: fixed header, local error strip, scrolling body, fixed footer.
              No inner Tab cycle: the window cycle keeps the caption buttons reachable. -->
         <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*,Auto">
-            <Border x:Name="DialogFrameHeader" Padding="20,16,20,8">
+            <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
                 <!-- Modals plan MD3: the title stands in the title bar only; the header keeps the introduction. -->
                 <TextBlock x:Name="SetupIntroduction" Classes="workspace-help" />
             </Border>
-            <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="20,0,20,8">
+            <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8">
                 <Border.IsVisible>
                     <MultiBinding Converter="{x:Static BoolConverters.Or}">
                         <Binding ElementName="SetupError" Path="IsVisible" />
@@ -25,7 +25,7 @@
                 </Border.IsVisible>
                 <Border Classes="workspace-error">
                     <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
-                        <StackPanel Spacing="6">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                             <TextBlock x:Name="SetupError" Classes="workspace-error" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             <TextBlock x:Name="SetupCleanupWarning" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"
                                        IsVisible="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
@@ -34,10 +34,10 @@
                 </Border>
             </Border>
             <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <StackPanel Spacing="10" Margin="20,4,20,16">
-                    <StackPanel x:Name="SetupFields" Spacing="10">
+                <StackPanel Spacing="{StaticResource Workspace.Space.8}" Margin="16,4,16,16">
+                    <StackPanel x:Name="SetupFields" Spacing="{StaticResource Workspace.Space.8}">
                         <TextBlock x:Name="SetupFolderLabel" Classes="workspace-field-label" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                             <TextBox x:Name="SetupFolderInput" TextChanged="OnDraftChanged" AutomationProperties.LabeledBy="{Binding ElementName=SetupFolderLabel}" />
                             <Button x:Name="SetupBrowseButton" Grid.Column="1" Click="OnBrowseClick" />
                         </Grid>
@@ -58,10 +58,10 @@
                 </StackPanel>
             </ScrollViewer>
             <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
-                <StackPanel Spacing="8">
+                <StackPanel Spacing="{StaticResource Workspace.Space.8}">
                     <TextBlock x:Name="SetupStatus" AutomationProperties.LiveSetting="Polite"
                                IsVisible="{Binding $self.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-                    <WrapPanel ItemSpacing="8" LineSpacing="8" HorizontalAlignment="Right">
+                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" HorizontalAlignment="Right">
                         <Button x:Name="SetupCancelCheckButton" Click="OnCancelCheckClick" IsVisible="False" />
                         <Button x:Name="SetupLaterButton" Click="OnLaterClick" />
                         <Button x:Name="SetupAcceptButton" Classes="primary" Click="OnAcceptClick" />

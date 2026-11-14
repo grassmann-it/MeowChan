@@ -202,6 +202,7 @@ public static class SettingsTransfer
             TaggingCardCount = source.TaggingCardCount,
             TaggingCardsDefault = source.TaggingCardsDefault,
             TagQueueWalkWindow = source.TagQueueWalkWindow,
+            TagQueueUndoDepth = source.TagQueueUndoDepth,
             ReaderInlineVideo = source.ReaderInlineVideo,
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted,
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers,

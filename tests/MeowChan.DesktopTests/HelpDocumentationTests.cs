@@ -404,7 +404,7 @@ public sealed class HelpDocumentationTests
         string service = Read("Desktop/ProfileSwitchService.cs");
         Assert.Contains("case ProfileOpenCheck.InUse: return new(ProfileActionStatus.InUse", service, StringComparison.Ordinal);
         Assert.Contains("if (Validate(request.Name, request.Folder, request.DownloadFolder, request.MediaFolder) is { } problem) return new(ProfileActionStatus.Refused, problem);", service, StringComparison.Ordinal);
-        Assert.Contains("return _registry.Forget(folder);", service, StringComparison.Ordinal);
+        Assert.Contains("return _registry.Forget(folder) ? ProfileForgetOutcome.Removed : ProfileForgetOutcome.NotListed;", service, StringComparison.Ordinal);
         Assert.Contains("_launcher.Launch(target, mediaFolder);", service, StringComparison.Ordinal);
         Assert.Contains("Process.Start(info)", Read("Desktop/ProfileLauncher.cs"), StringComparison.Ordinal);
     }

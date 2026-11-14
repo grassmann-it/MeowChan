@@ -5,8 +5,8 @@ using System.Linq;
 namespace MeowChan.Desktop;
 
 // PT7 (PLAN-POWER-TAGGEN-2026-11-14): the tagging settings as the code that uses them needs them, without any UI. The stamp size, the walk
-// window and the card choices are Config fields with default, minimum and maximum (Config.TagStampSize, Config.TagQueueWalkWindow,
-// Config.TaggingCardCount / TaggingCards / TaggingCardsDefault); this is the one place that turns them into option objects and card lists,
+// window, the undo depth and the card choices are Config fields with default, minimum and maximum (Config.TagStampSize,
+// Config.TagQueueWalkWindow, Config.TagQueueUndoDepth, Config.TaggingCardCount / TaggingCards / TaggingCardsDefault); this is the one place that turns them into option objects and card lists,
 // so the window, the settings page and the tests read the same values. A value outside its range is clamped here once more, so a stale or
 // hand-built Config cannot produce one.
 
@@ -25,6 +25,13 @@ internal static class TaggingSettings
     {
         ArgumentNullException.ThrowIfNull(config);
         return Math.Clamp(config.TagQueueWalkWindow, Config.TagQueueWalkWindowMinimum, Config.TagQueueWalkWindowMaximum);
+    }
+
+    /// <summary>How many queue decisions of a walk can be taken back (the walk's undo stack and the host's decision history).</summary>
+    internal static int UndoDepth(Config config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        return Math.Clamp(config.TagQueueUndoDepth, Config.TagQueueUndoDepthMinimum, Config.TagQueueUndoDepthMaximum);
     }
 
     /// <summary>

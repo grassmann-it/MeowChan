@@ -33,7 +33,9 @@ public sealed class UrlTextExportLocalizationTests : IDisposable
                 Assert.NotNull(stream);
                 pack = JsonDocument.Parse(stream);
                 var strings = pack.RootElement.GetProperty("strings");
-                Assert.Equal(UrlTextExportCatalog.Entries.Select(e => e.Key).Order(),
+                // outputLimit/pathLimit are registered with the core-limit texts (CoreLimitUsageCatalog), not in this catalog.
+                string[] limitKeys = ["urltext.export.error.outputLimit", "urltext.export.error.pathLimit"];
+                Assert.Equal(UrlTextExportCatalog.Entries.Select(e => e.Key).Concat(limitKeys).Order(),
                     strings.EnumerateObject().Where(p => p.Name.StartsWith("urltext.export.", StringComparison.Ordinal))
                         .Select(p => p.Name).Order());
             }

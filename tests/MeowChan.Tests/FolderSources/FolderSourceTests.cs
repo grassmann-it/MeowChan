@@ -409,6 +409,7 @@ public sealed class FolderSourceTests
         await Task.WhenAll(first, background, view, user, shared);
         Assert.Equal(new[] { "0.png", "3.png", "2.png", "1.png" }, order);
         Assert.Equal(4, calls);
+        await hasher.FlushAsync(); // Background digests are committed in batches (W3-06).
         Assert.All(fixture.Catalog.Read().Items, item => Assert.Equal(FolderSourceItemState.Hashed, item.State));
     }
 

@@ -37,7 +37,7 @@ internal static class ReaderViewCatalog
         ("reader.sidebar.loading", "Loading…", "Wird geladen…"),
         // Inline video (R10): the activator over a poster, the announcements and the reasons a video does not play here.
         ("reader.video.play", "Play video here: {0}", "Video hier abspielen: {0}"),
-        ("reader.video.playHint", "Enter or a click plays the video here; Space pauses or continues it.", "Eingabe oder ein Klick spielt das Video hier ab; die Leertaste hält es an oder setzt es fort."),
+        ("reader.video.playHint", "Enter or a click plays the video here; Space pauses or continues it.", "Enter oder ein Klick spielt das Video hier ab; die Leertaste hält es an oder setzt es fort."),
         ("reader.video.playing", "Playing: {0}", "Wird abgespielt: {0}"),
         ("reader.video.paused", "Paused: {0}", "Angehalten: {0}"),
         ("reader.video.unnamed", "Video", "Video"),
