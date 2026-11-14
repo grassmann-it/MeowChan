@@ -24,25 +24,42 @@ public static class WorkViewPresenter
     /// overflow mode and, on a prioritized toolbar, which items move into "More" first (OverflowOrder), and "K" (<see cref="Presence.Hidden"/>) leaves it out of the bar and the popup. Items with neither
     /// keep their XAML overflow mode. Returns whether the item took part.
     /// </summary>
-    public static bool ApplyToolBarItem(Control item, WorkView view, string? fallbackId = null, bool nonDefaultState = false)
+    public static bool ApplyToolBarItem(Control item, WorkView view, string? fallbackId = null, bool nonDefaultState = false) =>
+        ApplyToolBarItem(item, view, fallbackId, nonDefaultState, out _);
+
+    /// <summary>As <see cref="ApplyToolBarItem(Control, WorkView, string?, bool)"/>; <paramref name="changed"/> tells whether any of the three values differed.</summary>
+    public static bool ApplyToolBarItem(Control item, WorkView view, string? fallbackId, bool nonDefaultState, out bool changed)
     {
+        changed = false;
         string? id = WorkViewElement.GetId(item) ?? fallbackId;
         if (id == null) return false;
         Presence presence = WorkViewPolicy.Resolve(id, view, nonDefaultState);
-        ToolBar.SetOverflowMode(item, ToolBarMode(presence));
-        ActionToolBar.SetOmitted(item, presence == Presence.Hidden);
+        OverflowMode mode = ToolBarMode(presence);
+        bool omitted = presence == Presence.Hidden;
         // Read only by toolbars with PrioritizedOverflow: the policy's OverflowOrder is then the one keep-visible order.
-        ActionToolBar.SetOverflowPriority(item, WorkViewPolicy.Get(id).OverflowOrder);
+        int priority = WorkViewPolicy.Get(id).OverflowOrder;
+        if (ToolBar.GetOverflowMode(item) != mode) { ToolBar.SetOverflowMode(item, mode); changed = true; }
+        if (ActionToolBar.GetOmitted(item) != omitted) { ActionToolBar.SetOmitted(item, omitted); changed = true; }
+        if (ActionToolBar.GetOverflowPriority(item) != priority) { ActionToolBar.SetOverflowPriority(item, priority); changed = true; }
         return true;
     }
 
-    /// <summary>Every item of <paramref name="toolbar"/>; <paramref name="nonDefaultState"/> receives the item's resolved id (R6).</summary>
-    public static void ApplyToolBar(ActionToolBar toolbar, WorkView view, string? fallbackId = null,
+    /// <summary>
+    /// Every item of <paramref name="toolbar"/>; <paramref name="nonDefaultState"/> receives the item's resolved id (R6).
+    /// The toolbar is invalidated only when an item's placement really changed; returns whether it did.
+    /// </summary>
+    public static bool ApplyToolBar(ActionToolBar toolbar, WorkView view, string? fallbackId = null,
         Func<Control, bool>? nonDefaultState = null)
     {
-        foreach (Control item in toolbar.Items.OfType<Control>())
-            ApplyToolBarItem(item, view, fallbackId, nonDefaultState?.Invoke(item) == true);
-        toolbar.InvalidateMeasure();
+        bool changed = false;
+        foreach (object? entry in toolbar.Items)
+        {
+            if (entry is not Control item) continue;
+            ApplyToolBarItem(item, view, fallbackId, nonDefaultState?.Invoke(item) == true, out bool itemChanged);
+            changed |= itemChanged;
+        }
+        if (changed) toolbar.InvalidateMeasure();
+        return changed;
     }
 
     /// <summary>

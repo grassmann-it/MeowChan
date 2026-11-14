@@ -63,18 +63,24 @@ public partial class ArchivePage
 
     // ---- Header tools: one toolbar, so a reduced tool sits under the same "More" ----
 
+    // Placement, labels and the compact/labelled form of Refresh follow (view, form, language) only; the enabled state is
+    // refreshed on every call because it follows the page state.
+    private ChangeGate<(WorkView View, bool UnderMore, string Language)> _headerActionsGate;
+
     private void ApplyArchiveHeaderActions()
     {
         WorkView view = ArchiveWorkView;
-        ActionToolBar toolbar = ArchiveHeaderActions;
-        WorkViewPresenter.ApplyToolBar(toolbar, view);
         // Under More an icon alone would not say what the entry is; on the bar it stays the compact icon.
         bool underMore = WorkViewPolicy.Resolve("archive.header.refresh", view) == Presence.Overflow;
-        CommandBindings.Apply(RefreshArchiveButton, "archive.refresh", iconOnly: !underMore, iconWithLabel: underMore);
+        if (_headerActionsGate.Changed((view, underMore, Texts.Language)))
+        {
+            ActionToolBar toolbar = ArchiveHeaderActions;
+            WorkViewPresenter.ApplyToolBar(toolbar, view);
+            CommandBindings.Apply(RefreshArchiveButton, "archive.refresh", iconOnly: !underMore, iconWithLabel: underMore);
+            AutomationProperties.SetName(toolbar, Texts.T("nav.archive"));
+            toolbar.RefreshOverflowLabel();
+        }
         foreach (Button button in new[] { ArchiveTransferPreview, ArchiveCleanupOpen, RefreshArchiveButton }) CommandBindings.Refresh(button);
-        AutomationProperties.SetName(toolbar, Texts.T("nav.archive"));
-        toolbar.RefreshOverflowLabel();
-        toolbar.InvalidateMeasure();
     }
 
     // ---- Search scope chip (R6: any scope other than Text is shown, whatever the view) ----

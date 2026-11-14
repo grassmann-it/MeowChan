@@ -63,6 +63,9 @@ public sealed class ActionToolBar : ToolBar
     public static int GetOverflowPriority(Control item) => item.GetValue(OverflowPriorityProperty);
     public static void SetOverflowPriority(Control item, int priority) => item.SetValue(OverflowPriorityProperty, priority);
 
+    /// <summary>The Control items in item order, kept in step with <see cref="ItemsControl.Items"/> (no per-pass LINQ in the panel).</summary>
+    internal Control[] GeneratedItems => _generatedItems;
+
     /// <summary>Items that are currently not in the bar itself: in the overflow popup (open or closed) or omitted.</summary>
     internal IEnumerable<Control> ReducedItems => Items.OfType<Control>()
         .Where(item => OverflowHost?.Children.Contains(item) == true || OmittedHost.Children.Contains(item));
@@ -176,12 +179,26 @@ public sealed class ActionToolBar : ToolBar
         RefreshOverflowLabel();
     }
 
-    /// <summary>R7: the overflow button is named "More" and announces how many actions it holds ("More, 5 actions").</summary>
+    private ToggleButton? _labelledMore;
+    private string? _moreTip;
+    private string? _moreName;
+
+    /// <summary>
+    /// R7: the overflow button is named "More" and announces how many actions it holds ("More, 5 actions"). A repeated call
+    /// with the same texts on the same button writes nothing.
+    /// </summary>
     public void RefreshOverflowLabel()
     {
         if (More == null) return;
-        ToolTip.SetTip(More, Localization.Texts.T("workview.more"));
-        AutomationProperties.SetName(More, OverflowAccessibleName(_overflowCount));
+        string tip = Localization.Texts.T("workview.more");
+        string name = OverflowAccessibleName(_overflowCount);
+        if (ReferenceEquals(_labelledMore, More) && string.Equals(_moreTip, tip, StringComparison.Ordinal)
+            && string.Equals(_moreName, name, StringComparison.Ordinal) && ReferenceEquals(ToolTip.GetTip(More), _moreTip)) return;
+        _labelledMore = More;
+        _moreTip = tip;
+        _moreName = name;
+        ToolTip.SetTip(More, tip);
+        AutomationProperties.SetName(More, name);
     }
 
     /// <summary>The accessible name of the overflow button for <paramref name="count"/> reduced actions.</summary>
@@ -203,10 +220,20 @@ public sealed class ActionToolBar : ToolBar
         return More.DesiredSize.Width;
     }
 
+    private bool _overflowShown;
+
+    /// <summary>
+    /// How many items the panel moved into "More". The pseudo-class acts only when "any" changes: it drives the visibility of
+    /// the More button, which the same measure pass already counted, so it is not deferred. The accessible name follows the count.
+    /// </summary>
     internal void SetOverflow(int count)
     {
         bool hasItems = count > 0;
-        PseudoClasses.Set(PC_Overflow, hasItems);
+        if (_overflowShown != hasItems || PseudoClasses.Contains(PC_Overflow) != hasItems)
+        {
+            _overflowShown = hasItems;
+            PseudoClasses.Set(PC_Overflow, hasItems);
+        }
         if (count != _overflowCount)
         {
             _overflowCount = count;
@@ -288,37 +315,69 @@ public sealed class ActionToolBarPanel : StackPanel
     private ActionToolBar? Owner => TemplatedParent as ActionToolBar;
     private readonly HashSet<Control> _overflow = new();
     private readonly HashSet<Control> _omitted = new();
+    // Scratch buffers of one measure pass, reused so a pass allocates nothing.
+    private double[] _widths = Array.Empty<double>();
+    private OverflowMode[] _modes = Array.Empty<OverflowMode>();
+    private bool[] _visible = Array.Empty<bool>();
+    private bool[] _overflowed = Array.Empty<bool>();
+    private int[] _priorities = Array.Empty<int>();
+    private int[] _order = Array.Empty<int>();
+
+    private void EnsureScratch(int count)
+    {
+        if (_widths.Length >= count) return;
+        int size = Math.Max(count, 8);
+        _widths = new double[size]; _modes = new OverflowMode[size]; _visible = new bool[size];
+        _overflowed = new bool[size]; _priorities = new int[size]; _order = new int[size];
+    }
 
     protected override Size MeasureOverride(Size availableSize)
     {
         ActionToolBar? owner = Owner;
         if (owner == null) return base.MeasureOverride(availableSize);
         owner.DirectHost = this;
-        Control[] items = owner.Items.OfType<Control>().ToArray();
-        foreach (Control item in items) item.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        // An omitted item takes part like an invisible one: no width, never in the overflow.
-        bool[] visible = items.Select(c => c.IsVisible && !ActionToolBar.GetOmitted(c)).ToArray();
-        double[] widths = items.Select((c, i) => visible[i] ? c.DesiredSize.Width : 0).ToArray();
-        OverflowMode[] modes = items.Select(ToolBar.GetOverflowMode).ToArray();
-        int[]? priorities = owner.PrioritizedOverflow ? items.Select(ActionToolBar.GetOverflowPriority).ToArray() : null;
-        bool[] overflow = ActionOverflowLayout.Resolve(widths, modes, visible, availableSize.Width + (owner.More?.IsVisible == true ? owner.MoreWidth() : 0), owner.MoreWidth(), priorities);
+        Control[] items = owner.GeneratedItems;
+        int count = items.Length;
+        EnsureScratch(count);
+        Size unbounded = new(double.PositiveInfinity, double.PositiveInfinity);
+        bool prioritized = owner.PrioritizedOverflow;
+        for (int i = 0; i < count; i++)
+        {
+            Control item = items[i];
+            item.Measure(unbounded);
+            // An omitted item takes part like an invisible one: no width, never in the overflow.
+            bool visible = item.IsVisible && !ActionToolBar.GetOmitted(item);
+            _visible[i] = visible;
+            _widths[i] = visible ? item.DesiredSize.Width : 0;
+            _modes[i] = ToolBar.GetOverflowMode(item);
+            if (prioritized) _priorities[i] = ActionToolBar.GetOverflowPriority(item);
+        }
+        // One measure of the More content per pass: it lives in another subtree and is measured mid-pass.
+        double moreWidth = owner.MoreWidth();
+        ActionOverflowLayout.Resolve(count, _widths, _modes, _visible,
+            availableSize.Width + (owner.More?.IsVisible == true ? moreWidth : 0), moreWidth,
+            prioritized ? _priorities : null, _overflowed, _order);
         _overflow.Clear();
         _omitted.Clear();
-        for (int i = 0; i < items.Length; i++)
+        double width = 0, height = 0;
+        for (int i = 0; i < count; i++)
         {
-            if (overflow[i]) _overflow.Add(items[i]);
-            if (ActionToolBar.GetOmitted(items[i])) _omitted.Add(items[i]);
+            Control item = items[i];
+            if (_overflowed[i]) _overflow.Add(item);
+            if (ActionToolBar.GetOmitted(item)) _omitted.Add(item);
+            if (!_visible[i]) continue;
+            if (!_overflowed[i]) width += item.DesiredSize.Width;
+            height = Math.Max(height, item.DesiredSize.Height);
         }
         owner.SetOverflow(_overflow.Count);
-        return new Size(items.Where((c, i) => visible[i] && !_overflow.Contains(c)).Sum(c => c.DesiredSize.Width),
-            items.Where((c, i) => visible[i]).Select(c => c.DesiredSize.Height).DefaultIfEmpty().Max());
+        return new Size(width, height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
         ActionToolBar? owner = Owner;
         if (owner?.OverflowHost is not Panel popup) return base.ArrangeOverride(finalSize);
-        Control[] items = owner.Items.OfType<Control>().ToArray();
+        Control[] items = owner.GeneratedItems;
         int directIndex = 0, popupIndex = 0, omittedIndex = 0;
         foreach (Control item in items)
         {
@@ -326,6 +385,7 @@ public sealed class ActionToolBarPanel : StackPanel
             bool overflow = !omitted && _overflow.Contains(item);
             Panel destination = omitted ? owner.OmittedHost : overflow ? popup : this;
             int index = omitted ? omittedIndex++ : overflow ? popupIndex++ : directIndex++;
+            // Only a real change of place re-parents; an unchanged arrangement touches no collection.
             if (!destination.Children.Contains(item))
             {
                 owner.Moving(item, overflow || omitted);
@@ -357,26 +417,55 @@ public static class ActionOverflowLayout
     public static bool[] Resolve(IReadOnlyList<double> widths, IReadOnlyList<OverflowMode> modes,
         IReadOnlyList<bool> visible, double available, double moreWidth, IReadOnlyList<int>? priorities = null)
     {
-        bool[] result = new bool[widths.Count];
-        double total = 0, required = 0; bool forced = false;
-        for (int i = 0; i < widths.Count; i++)
+        int count = widths.Count;
+        double[] w = new double[count]; OverflowMode[] m = new OverflowMode[count]; bool[] v = new bool[count];
+        int[]? p = priorities == null ? null : new int[count];
+        for (int i = 0; i < count; i++)
         {
+            w[i] = widths[i]; m[i] = modes[i]; v[i] = visible[i];
+            if (p != null) p[i] = priorities![i];
+        }
+        bool[] result = new bool[count];
+        Resolve(count, w, m, v, available, moreWidth, p, result, new int[count]);
+        return result;
+    }
+
+    /// <summary>
+    /// Allocation-free form for the toolbar panel: the first <paramref name="count"/> entries of the arrays are read and
+    /// <paramref name="result"/> is overwritten. <paramref name="order"/> is scratch of at least <paramref name="count"/>.
+    /// </summary>
+    public static void Resolve(int count, double[] widths, OverflowMode[] modes, bool[] visible, double available,
+        double moreWidth, int[]? priorities, bool[] result, int[] order)
+    {
+        double total = 0, required = 0; bool forced = false;
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = false;
+            order[i] = i;
             if (!visible[i]) continue;
             if (modes[i] == OverflowMode.Always) forced = true;
             else total += widths[i];
             if (modes[i] == OverflowMode.Never) required += widths[i];
         }
         double budget = Math.Max(0, available - (forced || total > available ? moreWidth : 0));
-        bool spilling = false;
-        IEnumerable<int> order = Enumerable.Range(0, widths.Count);
-        if (priorities != null) order = order.OrderBy(i => priorities[i]).ThenBy(i => i);
-        foreach (int i in order)
+        if (priorities != null)
         {
+            // Stable insertion sort by (priority, item index): ties keep item order, no LINQ, no allocation.
+            for (int i = 1; i < count; i++)
+            {
+                int current = order[i], j = i - 1;
+                while (j >= 0 && priorities[order[j]] > priorities[current]) { order[j + 1] = order[j]; j--; }
+                order[j + 1] = current;
+            }
+        }
+        bool spilling = false;
+        for (int k = 0; k < count; k++)
+        {
+            int i = order[k];
             if (!visible[i] || modes[i] == OverflowMode.Never) continue;
             if (modes[i] == OverflowMode.Always) { result[i] = true; continue; }
             if (spilling || required + widths[i] > budget) result[i] = spilling = true;
             else required += widths[i];
         }
-        return result;
     }
 }
