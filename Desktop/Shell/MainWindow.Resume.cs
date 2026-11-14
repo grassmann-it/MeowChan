@@ -186,6 +186,11 @@ public partial class MainWindow
         _readingHistoryHost = new ContextMenuHost(ContinueReadingButton, ComposeReadingHistoryMenu, fallbackFocus: FocusReadingResumeFallback);
     }
 
+    /// <summary>The context menu of the book button as plain data, and what it is opened by (smoke checks and tests).</summary>
+    internal ContextMenuModel? ReadingHistoryMenuModel => ComposeReadingHistoryMenu()?.ToModel();
+    internal ContextMenuHost? ReadingHistoryHost => _readingHistoryHost;
+    internal IReadOnlyList<LocalReadingHistoryEntry> ReadingHistorySnapshot => _readingHistorySnapshot;
+
     private ContextMenuBuilder? ComposeReadingHistoryMenu()
     {
         if (_isClosing || !_config.RememberReadingPosition || !CanResumeReading) return null;
@@ -216,7 +221,7 @@ public partial class MainWindow
     /// Reads the saved places for the menus. A failed read leaves the last snapshot (the explicit resume reports its own errors); a read
     /// that a newer one or a forget overtook is dropped.
     /// </summary>
-    private async Task RefreshReadingHistorySnapshotAsync()
+    internal async Task RefreshReadingHistorySnapshotAsync()
     {
         if (_isClosing || !_restoreCompleted || _session.State != DesktopSessionState.Ready) return;
         int revision = ++_readingHistorySnapshotRevision;

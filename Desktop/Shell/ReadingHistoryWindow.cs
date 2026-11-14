@@ -44,7 +44,7 @@ internal static class ReadingHistoryWindow
             Control icon = CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId);
             icon.VerticalAlignment = VerticalAlignment.Center;
             StackPanel lines = new() { Spacing = 2, Children = { titleText, detailText } };
-            StackPanel row = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(4, 6), Children = { icon, lines } };
+            StackPanel row = new() { Orientation = Orientation.Horizontal, Spacing = 12, Margin = new Thickness(4, 8), Children = { icon, lines } };
             AutomationProperties.SetName(row, title + ", " + detail);
             ToolTip.SetTip(row, ReadingHistoryMenu.EntryTip(entry.Position));
             return row;
