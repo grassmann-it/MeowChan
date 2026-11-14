@@ -78,9 +78,13 @@ internal static class TaggingModeChecks
                 "The end of the walk was not said: " + viewer.TaggingStatusText.Text);
 
             // Backspace takes the newest decision back first (the skip, in place), then the one before it and returns to its medium.
+            // The undo is offered once the walk's write is over (TaggingUndo.CanUndo; the step is recorded when the write ends, a moment
+            // after the queue file shows the state), so the smoke waits for that like a user who sees the strip settle.
+            await UntilAsync(() => !walk.Busy && walk.Steps == 3, "The walk's writes did not end.");
             viewer.Focus();
             Raise(viewer, Key.Back, KeyModifiers.None);
             await UntilAsync(() => State(host, 2) == TagQueueState.Open, "Backspace did not take the skip back.");
+            await UntilAsync(() => !walk.Busy && walk.Steps == 2, "The undo of the skip did not end.");
             viewer.Focus();
             Raise(viewer, Key.Back, KeyModifiers.None);
             await UntilAsync(() => State(host, 1) == TagQueueState.Open && Shown(viewer) == looseA.EntryKey, "Backspace did not return to the finished medium.");
