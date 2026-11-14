@@ -2,7 +2,9 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Automation;
 using MeowChan.Gallery;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -14,12 +16,40 @@ public sealed partial class MediaPage
 {
     private MediaToolbarLayout.Level _toolbarLevel = MediaToolbarLayout.Level.Wide;
     private Grid? _toolbar;
+    private Func<bool>? _canOpenBooru;
+    private Action? _openBooru;
+    private bool _booruMoreHooked;
 
     /// <summary>The width class the toolbar row is laid out for (tests and smokes).</summary>
     internal MediaToolbarLayout.Level ToolbarLevel => _toolbarLevel;
 
     /// <summary>The toolbar row (smokes).</summary>
     internal Grid ToolbarRow => _toolbar!;
+
+    /// <summary>Attaches the optional local Booru action after the normal work-view overflow handler.</summary>
+    internal void AttachBooruOverflow(Func<bool> canOpen, Action open)
+    {
+        ArgumentNullException.ThrowIfNull(canOpen);
+        ArgumentNullException.ThrowIfNull(open);
+        _canOpenBooru = canOpen;
+        _openBooru = open;
+        if (_booruMoreHooked || _more.Flyout is not MenuFlyout flyout) return;
+        _booruMoreHooked = true;
+        // RegisterWorkViewIds installs the regular FillMore handler first. This handler inserts one
+        // optional entry at the policy order and deliberately does not alter the toolbar.
+        flyout.Opening += (_, _) => AddBooruOverflow(flyout);
+    }
+
+    private void AddBooruOverflow(MenuFlyout flyout)
+    {
+        if (_canOpenBooru?.Invoke() != true) return;
+        MenuItem item = new() { Name = "MediaBooruOpen", Header = Texts.T("media.toolbar.booru") };
+        AutomationProperties.SetName(item, Texts.T("media.toolbar.booru"));
+        ToolTip.SetTip(item, Texts.T("media.toolbar.booruTip"));
+        item.Click += (_, _) => _openBooru?.Invoke();
+        int insert = HeaderOverflow().Count(control => WorkViewPolicy.Get(WorkViewElement.GetId(control)!).OverflowOrder < 30);
+        flyout.Items.Insert(Math.Min(insert, flyout.Items.Count), item);
+    }
 
     private Grid BuildToolbar()
     {

@@ -54,6 +54,32 @@ public sealed partial class MediaPage
     /// <summary>Ends a pending second restore, e.g. when a gallery opened from this page now owns selection and focus.</summary>
     internal void EndPendingReturn() => _returnRun = null;
 
+    /// <summary>Focuses exactly one already-present tile, without falling back to an ID substring or a neighbouring tile.</summary>
+    internal async Task<bool> FocusExactEntryAsync(Func<MediaLibraryEntry, bool> match, string missingText)
+    {
+        ArgumentNullException.ThrowIfNull(match);
+        if (_lifetime.IsCancellationRequested || !IsEffectivelyVisible) return false;
+        int[] matches = _shown.Select((entry, index) => (entry, index)).Where(item => match(item.entry)).Select(item => item.index).ToArray();
+        if (matches.Length != 1)
+        {
+            ShowSelectionNote(missingText);
+            return false;
+        }
+        int index = matches[0];
+        for (int attempt = 0; attempt < 2 && _grid.ContainerFromIndex(index) is not Control; attempt++)
+        {
+            _grid.ScrollIntoView(index);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        }
+        if (_grid.ContainerFromIndex(index) is not Control tile)
+        {
+            ShowSelectionNote(missingText);
+            return false;
+        }
+        tile.Focus();
+        return true;
+    }
+
     // Any own input on the page ends a pending second restore: the user has taken over.
     private void InstallReturnInterruption()
     {
