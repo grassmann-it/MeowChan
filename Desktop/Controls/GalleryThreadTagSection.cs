@@ -24,7 +24,7 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
     private readonly string _name;
     private readonly TextBlock _heading = new() { Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _hint = new() { Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly WrapPanel _chips = new() { ItemSpacing = 6, LineSpacing = 0 };
+    private readonly WrapPanel _chips = new() { ItemSpacing = 8, LineSpacing = 0 };
     private readonly IdentitySuggestionBox _input = new();
     private readonly TextBlock _error = new() { Classes = { "workspace-error" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
     private readonly List<(Button Chip, TagId Tag)> _built = new();
@@ -35,7 +35,7 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
     {
         _name = name;
         Name = name;
-        Spacing = 6;
+        Spacing = 8;
         _chips.Name = name + "Chips"; _input.Name = name + "Input"; _error.Name = name + "Error"; _hint.Name = name + "Hint"; _heading.Name = name + "Heading";
         Children.Add(_heading);
         Children.Add(_chips);
