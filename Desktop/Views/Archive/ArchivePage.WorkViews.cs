@@ -85,7 +85,7 @@ public partial class ArchivePage
         WorkViewGate.Apply(ArchiveSearchScope, ArchiveWorkView, stateVisible: true, nonDefaultState: ArchiveScope != SearchScope.Text);
         // Without the chip the field says how to reach the scopes.
         bool chipShown = ArchiveSearchScope.IsVisible;
-        ToolTip.SetTip(ArchiveSearchText, chipShown ? null : Texts.T("search.scope.tip") + " · Alt+↓");
+        ToolTip.SetTip(ArchiveSearchText, chipShown ? null : SearchScopeChip.TipWithShortcut());
     }
 
     // ---- Filter surface: fields the view reduces go under "More filters" (the same surface) ----

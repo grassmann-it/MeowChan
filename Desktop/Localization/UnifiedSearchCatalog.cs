@@ -8,6 +8,7 @@ internal static class UnifiedSearchCatalog
     {
         ("search.scope.name", "Search scope: {0}", "Suchbereich: {0}"),
         ("search.scope.tip", "Choose what the search field searches: text, captured file names or SHA-256 checksums.", "Wählen, was das Suchfeld durchsucht: Text, erfasste Dateinamen oder SHA-256-Prüfsummen."),
+        ("search.scope.fieldHelp", "Search scope: {0}. {1} Open the scope menu with {2}.", "Suchbereich: {0}. {1} Bereichsmenü öffnen mit {2}."),
         ("search.scope.text", "Text", "Text"),
         ("search.scope.filename", "File name", "Dateiname"),
         ("search.scope.hash", "SHA-256", "SHA-256"),

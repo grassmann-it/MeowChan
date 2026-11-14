@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
@@ -103,6 +104,22 @@ public sealed class SearchScopeChip : Button
 
     /// <summary>The field this chip currently sits in (set by <see cref="SearchBox.ScopeChip"/>).</summary>
     public SearchBox? Owner { get; internal set; }
+
+    /// <summary>
+    /// The keys that open the scope menu from inside the field, in the platform's own notation (Alt+Down and F4;
+    /// macOS: ⌥↓ and F4 (Fn)). They are fixed field keys, not catalog commands, so they are rendered with the same
+    /// gesture display the catalog uses instead of a hard-coded Windows spelling.
+    /// </summary>
+    public static string MenuShortcutDisplay() => MenuShortcutDisplay(OperatingSystem.IsMacOS());
+
+    internal static string MenuShortcutDisplay(bool macOS)
+    {
+        ShortcutPlatform platform = macOS ? ShortcutPlatform.MacOS : ShortcutPlatform.Windows;
+        return string.Join(" / ", new[] { "Alt+Down", "F4" }.Select(g => ShortcutGesture.Parse(g).Display(platform)));
+    }
+
+    /// <summary>The scope explanation with the keys that open the menu (the chip's tooltip, and the field's tooltip while the chip is hidden).</summary>
+    public static string TipWithShortcut() => Texts.T("search.scope.tip") + " · " + MenuShortcutDisplay();
 
     /// <summary>The menu while it is open (test seam and focus checks).</summary>
     internal ContextMenu? OpenMenu { get; private set; }
@@ -205,9 +222,20 @@ public sealed class SearchScopeChip : Button
         _label.Text = label;
         // One scope (Media): a plain label without the chevron; the menu then holds only the carry-over entries.
         _chevron.IsVisible = _scopes.Length > 1;
-        string tip = Texts.T("search.scope.tip") + " · Alt+↓";
+        string tip = TipWithShortcut();
         AutomationProperties.SetName(this, Texts.T("search.scope.name", label));
         AutomationProperties.SetHelpText(this, tip);
         ToolTip.SetTip(this, tip);
+        ApplyOwnerHelp();
+    }
+
+    /// <summary>
+    /// The chip itself has no Tab stop, so a screen reader in the field would hear only the placeholder. The field carries the active
+    /// scope, what it does and the keys to change it as its help text (updated here on every scope or language change).
+    /// </summary>
+    internal void ApplyOwnerHelp()
+    {
+        if (Owner is { } owner)
+            AutomationProperties.SetHelpText(owner, Texts.T("search.scope.fieldHelp", Label(_scope), Texts.T("search.scope.tip"), MenuShortcutDisplay()));
     }
 }
