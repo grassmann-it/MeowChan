@@ -32,7 +32,7 @@ public partial class RulesPage
         FilterDisplayName);
 
     private string OverviewStatusMessage => !_available || !_hasConfirmed ? Texts.T("rules.unavailable") : _busy ? Texts.T("rules.saving")
-        : _overviewStatus is { } status ? Texts.T(status.Key, status.Scope) : Texts.T("rules.changedScopes", _confirmed.Rules.Count);
+        : _overviewStatus is { } status ? Texts.T(status.Key, status.Scope) : Texts.Count("rules.changedScopes", _confirmed.Rules.Count);
 
     /// <summary>The rule a draft would save, without the side effects of BuildDraft (no filter validation, no error display).</summary>
     private static MediaRule? DescribeDraft(RuleDraft draft)

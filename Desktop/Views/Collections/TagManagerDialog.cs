@@ -231,7 +231,7 @@ internal sealed class TagManagerDialog : Window
             : string.Join(" ", new[]
             {
                 inspection.Orphans.Count > 0 ? Texts.T("tags.manage.orphans", inspection.Orphans.Count, inspection.OrphanedFiles) : null,
-                inspection.UncheckedFiles > 0 ? Texts.T("tags.manage.orphansUnchecked", inspection.UncheckedFiles) : null
+                inspection.UncheckedFiles > 0 ? Texts.Count("tags.manage.orphansUnchecked", inspection.UncheckedFiles) : null
             }.OfType<string>());
         if (_orphanText.Text.Length == 0) _orphanText.Text = Texts.T("tags.manage.orphansNone");
         _orphanCheck.IsEnabled = ready && !_session.Inspecting && _confirming == null;

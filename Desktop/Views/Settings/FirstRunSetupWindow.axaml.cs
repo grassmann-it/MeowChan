@@ -134,7 +134,7 @@ internal partial class FirstRunSetupWindow : Window
     {
         if (!FirstRunSetupCoordinator.TryParseLimits("1", parallel, inputCulture, out _, out int requested))
             return Texts.T("setup.parallelEffectiveInvalid", safetyLimit);
-        return Texts.T("setup.parallelEffective", Math.Min(requested, safetyLimit), requested, safetyLimit);
+        return Texts.Count("setup.parallelEffective", Math.Min(requested, safetyLimit), Math.Min(requested, safetyLimit), requested, safetyLimit);
     }
 
     private void RefreshLabels()

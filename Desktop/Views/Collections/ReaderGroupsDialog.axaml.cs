@@ -86,11 +86,14 @@ public partial class ReaderGroupsDialog : Window
         private readonly string? _key;
         private readonly string? _raw;
         private readonly object?[] _arguments;
-        private PresentationText(string? key, string? raw, object?[] arguments)
-        { _key = key; _raw = raw; _arguments = (object?[])arguments.Clone(); }
+        private readonly long? _count;
+        private PresentationText(string? key, string? raw, object?[] arguments, long? count = null)
+        { _key = key; _raw = raw; _arguments = (object?[])arguments.Clone(); _count = count; }
         internal static PresentationText Localized(string key, params object?[] arguments) => new(key, null, arguments);
+        /// <summary>A text whose plural form follows <paramref name="count"/>; {0} is the count unless arguments are given.</summary>
+        internal static PresentationText Counted(string key, long count, params object?[] arguments) => new(key, null, arguments, count);
         internal static PresentationText Raw(string raw) => new(null, raw, Array.Empty<object?>());
-        internal string Render() => _key == null ? _raw! : Texts.T(_key, _arguments);
+        internal string Render() => _key == null ? _raw! : _count is { } count ? Texts.Count(_key, count, _arguments) : Texts.T(_key, _arguments);
     }
     // Only explicit host provenance is localized; legacy/raw text is never inferred from its contents.
     internal static PresentationText OriginNoticePresentation(ReaderGroupsDialogOrigin? origin) =>
@@ -289,7 +292,7 @@ public partial class ReaderGroupsDialog : Window
                 ResourceId[] additions = _candidateSelectionOrder.ToArray();
                 int added = additions.Except(group!.Members).Count(); _draft!.Add(group.Id, additions);
                 ShowMessage(added == 0 ? PresentationText.Localized("readerGroups.alreadyMembers")
-                    : PresentationText.Localized("readerGroups.added", added));
+                    : PresentationText.Counted("readerGroups.added", added));
                 Render(additions.LastOrDefault()); C<ListBox>("GroupMembers").Focus(); break;
             case "reader-groups.remove-member":
                 int index = group!.Members.ToList().IndexOf(SelectedMember!); _draft!.Remove(group.Id, SelectedMember!);
@@ -400,7 +403,7 @@ public partial class ReaderGroupsDialog : Window
             ResourceId[] available = members.Where(item => item.HasLocalPosts).Select(item => item.Id).ToArray();
             string detail = string.Join("\n", missing.Select(item => Identity(item.Id)));
             if (available.Length == 0) { ShowMessage(PresentationText.Localized("readerGroups.noReadable", detail)); return; }
-            if (missing.Length > 0 && !await ConfirmAsync(PresentationText.Localized("readerGroups.missingMembers", missing.Length, detail),
+            if (missing.Length > 0 && !await ConfirmAsync(PresentationText.Counted("readerGroups.missingMembers", missing.Length, missing.Length, detail),
                 PresentationText.Localized("readerGroups.readAvailable"))) return;
             if (_closed) return;
             ReaderGroupsDialogOrigin origin = new(group.Id, SelectedMember, C<ScrollViewer>("GroupEditorScroll").Offset,
@@ -527,7 +530,7 @@ public partial class ReaderGroupsDialog : Window
             _candidateItems = page.Items;
             C<ListBox>("GroupCandidates").ItemsSource = _candidateItems.Select(Member).ToArray();
             C<ListBox>("GroupCandidates").IsVisible = true;
-            _searchStatus = PresentationText.Localized(page.HasMore || text.Length == 0
+            _searchStatus = PresentationText.Counted(page.HasMore || text.Length == 0
                 ? "readerGroups.matchesNarrow" : "readerGroups.matches", page.Items.Count);
             RenderPresentation();
             RefreshActions();

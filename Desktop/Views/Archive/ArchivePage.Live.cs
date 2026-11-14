@@ -95,7 +95,7 @@ public partial class ArchivePage
         WorkViewGate.Apply(notice, ArchiveWorkView, _pendingReaderUpdate != null);
         int added = (_pendingReaderUpdate?.PostCount ?? 0) - (_thread?.PostCount ?? 0);
         notice.Text = _pendingReaderUpdate == null ? string.Empty
-            : added > 0 ? Texts.T("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
+            : added > 0 ? Texts.Count("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
     }
 
     /// <summary>Whether the open thread's new saved posts are shown without a click (session-wide, reset on a thread switch).</summary>

@@ -46,7 +46,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public int MissingMedia => Snapshot.Work?.MissingMedia ?? Math.Max(0, SelectedMedia - CompletedMedia);
     public int MediaErrorCount => Snapshot.Work?.Media.Count(item => item.Status is MeowChan.Persistence.MediaWorkStatus.NeedsIntervention or MeowChan.Persistence.MediaWorkStatus.Expired)
         ?? Snapshot.MediaFailures.Count;
-    public string MissingMediaText => Texts.T("work.missingAndErrors", MissingMedia, MediaErrorCount);
+    public string MissingMediaText => Texts.Count("work.missingAndErrors", MediaErrorCount, MissingMedia, MediaErrorCount);
     public DateTimeOffset? EarliestRetry => Snapshot.Work?.NextDueAt;
     public string EarliestRetryText => EarliestRetry?.ToLocalTime().ToString("g", Texts.Culture) ?? "—";
     public string ExceptionHint { get; private set; } = string.Empty;

@@ -531,7 +531,7 @@ namespace MeowChan
             MaxParallelDownloads is { } requested && ParallelDownloadsSafetyLimit is { } cap
             && requested >= Config.MaxParallelDownloadsMinimum && requested == decimal.Truncate(requested) && requested <= Config.MaxParallelDownloadsMaximum
             && cap >= 1 && cap == decimal.Truncate(cap) && cap <= Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit
-                ? Texts.T("settings.parallelEffective", (int)Math.Min(requested, cap)) : string.Empty;
+                ? Texts.Count("settings.parallelEffective", (int)Math.Min(requested, cap)) : string.Empty;
         private void RaiseParallelEffectiveChanged()
         {
             if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParallelEffectiveText)));

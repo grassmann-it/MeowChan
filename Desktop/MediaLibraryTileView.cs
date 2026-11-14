@@ -66,7 +66,7 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
         : Tile.ProviderPostCount > 0 && Tile.ArchivedThreadCount == 0 && Tile.ProviderPostCount > 1 ? Texts.T("booru.media.tile.inPosts", Tile.ProviderPostCount)
         : Tile.ProviderPostCount > 0 && Tile.ArchivedThreadCount > 0 ? Texts.T("booru.media.tile.inMixed", Tile.ArchivedThreadCount, Tile.ProviderPostCount)
         : Tile.ThreadCount > 1 ? Texts.T("media.tile.inThreads", Tile.ThreadCount)
-        : Texts.T("media.tile.sameThread", Tile.Occurrences.Count);
+        : Texts.Count("media.tile.sameThread", Tile.Occurrences.Count);
 }
 
 /// <summary>

@@ -197,7 +197,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string Title => Texts.T("nav.rules");
     public string Subtitle => Texts.T("rules.subtitle");
     public string SavedScopesLabel => Texts.T("rules.savedScopes");
-    public string ScopeCountLabel => Texts.T("rules.changedScopes", _confirmed.Rules.Count);
+    public string ScopeCountLabel => Texts.Count("rules.changedScopes", _confirmed.Rules.Count);
     public string OpenLabel => Texts.T("rules.open");
     public string NewScopeLabel => Texts.T("rules.newScope");
     public string ScopeKindLabel => Texts.T("rules.scopeKind");

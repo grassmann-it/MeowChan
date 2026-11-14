@@ -273,15 +273,18 @@ internal sealed class ManualImportSession
         string page = Texts.T("settings.storageLimits");
         return key switch
         {
-            "import.limit.files" => Texts.T(key, arguments.Concat(new object[] { Texts.T("budgets.importFiles"), page }).ToArray()),
+            "import.limit.files" => Texts.Count(key, LimitOf(arguments), arguments.Concat(new object[] { Texts.T("budgets.importFiles"), page }).ToArray()),
             "import.limit.batch" => Texts.T(key, Texts.T("budgets.importBatchGiB"), page),
             "import.error.total" => Texts.T(key, Texts.T("budgets.importTotal"), page),
             "import.error.batches" => Texts.T(key, Texts.T("budgets.importBatches"), page),
-            "import.tags.tooMany" => Texts.T(key, arguments.Concat(new object[] { Texts.T("budgets.importTags"), page }).ToArray()),
+            "import.tags.tooMany" => Texts.Count(key, LimitOf(arguments), arguments.Concat(new object[] { Texts.T("budgets.importTags"), page }).ToArray()),
             "import.error.catalogSize" => Texts.T(key, Texts.T("budgets.importCatalogMiB"), page),
             _ => Texts.T(key, arguments)
         };
     }
+
+    /// <summary>The number the plural form of a limit refusal agrees with: the limit is its first argument.</summary>
+    private static long LimitOf(object[] arguments) => arguments.Length > 0 && arguments[0] is IConvertible number ? Convert.ToInt64(number, System.Globalization.CultureInfo.InvariantCulture) : 0;
 
     private void SetMessage(string? key, params object[] arguments)
     {

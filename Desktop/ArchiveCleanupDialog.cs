@@ -253,7 +253,7 @@ internal sealed class ArchiveCleanupDialog : Window
         identity.Classes.Add("workspace-meta"); text.Children.Add(identity);
         StackPanel state = new() { Spacing = 4 };
         state.Children.Add(new TextBlock { Text = row.Media.SavedAssetCount is int count
-            ? Texts.T("archive.cleanup.row.versions", count)
+            ? Texts.Count("archive.cleanup.row.versions", count)
             : Texts.T("archive.cleanup.row.versionsUnknown"), TextWrapping = TextWrapping.Wrap });
         TextBlock protection = new() { Text = ArchiveCleanupText.State(row.Eligibility)
             + (row.Reasons.Count > 0 ? " · " + ArchiveCleanupText.Reasons(row) : ""), TextWrapping = TextWrapping.Wrap };

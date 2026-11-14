@@ -302,7 +302,7 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<TextBlock>("SavedSearchConflictTitle")!.Text = Texts.T("savedSearch.conflictTitle");
         SavedArchiveSearch? current = _edit == EditKind.Create ? null : _snapshot!.Searches.FirstOrDefault(x => x.Id == _target);
         this.FindControl<TextBlock>("SavedSearchConflictCurrent")!.Text = _edit == EditKind.Create || _edit == EditKind.Recover
-            ? Texts.T("savedSearch.conflictList", _snapshot!.Searches.Count)
+            ? Texts.Count("savedSearch.conflictList", _snapshot!.Searches.Count)
             : current == null ? Texts.T("savedSearch.conflictDeleted")
             : Texts.T("savedSearch.conflictCurrent", current.Name,
                 current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported"));

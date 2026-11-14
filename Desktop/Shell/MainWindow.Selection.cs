@@ -290,7 +290,7 @@ public partial class MainWindow
                 catch (Exception error) { failures.Add(error.Message); }
             }
             if (failures.Count > 0) ShowNotification(Texts.T("notification.error"),
-                Texts.T("selection.failed", failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
+                Texts.Count("selection.failed", frozen.Count, failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
         }
         finally { _selectionCommandRunning = false; RefreshWorkspace(); }
     }

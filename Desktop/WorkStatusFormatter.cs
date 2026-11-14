@@ -58,7 +58,8 @@ public static class WorkStatusFormatter
                 MediaWorkStatus.Expired => "work.missingCount",
                 _ => "work.pendingCount"
             };
-            string summary = Texts.T(state, group.Count(), cause);
+            int groupSize = group.Count();
+            string summary = Texts.Count(state, groupSize, groupSize, cause);
             progress += " · " + summary;
             if (group.Key.Status is MediaWorkStatus.Waiting or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired)
             {

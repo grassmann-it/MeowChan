@@ -162,7 +162,7 @@ public partial class MainWindow
                     _postBookmarksDialog?.InvalidateAvailability();
                     status.Text = Texts.Count("archive.delete.deleted", result.DeletedThreads.Count);
                     if (result.Files != null)
-                        status.Text += " " + Texts.T("archive.delete.filesRemoved", result.Files.DeletedFileCount);
+                        status.Text += " " + Texts.Count("archive.delete.filesRemoved", result.Files.DeletedFileCount);
                     await ArchivePage.ActivateAsync();
                 }
                 catch (Exception error) when (error is not OutOfMemoryException)

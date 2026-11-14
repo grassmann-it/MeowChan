@@ -359,10 +359,10 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
                 Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 {
                     if (_ended || token.IsCancellationRequested || revision != _revision || _suppressed || Text != text) return;
-                    if (Publish(items)) AutomationProperties.SetHelpText(this, Texts.T(CountHelpKey, items.Length, VisibleLimit));
+                    if (Publish(items)) AutomationProperties.SetHelpText(this, Texts.Count(CountHelpKey, items.Length, items.Length, VisibleLimit));
                 }, Avalonia.Threading.DispatcherPriority.Input);
             }
-            AutomationProperties.SetHelpText(this, Texts.T(CountHelpKey, items.Length, VisibleLimit));
+            AutomationProperties.SetHelpText(this, Texts.Count(CountHelpKey, items.Length, items.Length, VisibleLimit));
             LoadCompleted?.Invoke(null);
         }
         catch (OperationCanceledException) { }

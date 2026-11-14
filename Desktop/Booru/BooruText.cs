@@ -64,7 +64,7 @@ internal static class BooruText
                 : Texts.T("booru.ui.status.searching", query),
             BooruSearchStatus.Results => view.IsPostResult
                 ? Texts.T("booru.ui.status.post", view.ExecutedPostId)
-                : Texts.T("booru.ui.status.results", view.Rows.Length, view.Page, query),
+                : Texts.Count("booru.ui.status.results", view.Rows.Length, view.Rows.Length, view.Page, query),
             BooruSearchStatus.Empty => Texts.T("booru.ui.status.empty", query, view.Page),
             BooruSearchStatus.Offline => Texts.T("booru.ui.status.offline"),
             BooruSearchStatus.RateLimited => paused && view.RetryAt is { } until

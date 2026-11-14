@@ -284,7 +284,7 @@ public partial class MainWindow
             if (_session.ReadBooruCatalog() is { } catalog && BooruMediaProjection.Find(catalog, postId) is { } details)
             {
                 lines.Add(Texts.T("booru.rating.label") + ": " + (details.RatingKnown ? BooruMessages.Rating(details.Rating) : Texts.T("booru.field.absent")));
-                if (details.Tags.Count > 0) lines.Add(Texts.T("booru.media.gallery.tags", details.Tags.Count));
+                if (details.Tags.Count > 0) lines.Add(Texts.Count("booru.media.gallery.tags", details.Tags.Count));
             }
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { }

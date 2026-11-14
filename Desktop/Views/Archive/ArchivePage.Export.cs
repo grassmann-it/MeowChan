@@ -366,7 +366,7 @@ public partial class ArchivePage
             if (!ExportRequestIsCurrent(request)) return;
             Control<ComboBox>("ArchiveExportLegacy").ItemsSource = candidates.Select(candidate => candidate.Directory).ToArray();
             Control<ComboBox>("ArchiveExportLegacy").SelectedIndex = candidates.Count > 0 ? 0 : -1;
-            ExportStatus(ArchiveExportStatusText.Localized(candidates.Count == 0 ? "export.legacyNone" : "export.legacyFound", candidates.Count));
+            ExportStatus(candidates.Count == 0 ? ArchiveExportStatusText.Localized("export.legacyNone") : ArchiveExportStatusText.Counted("export.legacyFound", candidates.Count));
         }
         catch (OperationCanceledException) when (_exportLookupCancellation?.IsCancellationRequested == true)
         { if (ExportRequestIsCurrent(request)) ExportStatus(ArchiveExportStatusText.Localized("archive.exportCancelled")); }

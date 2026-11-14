@@ -68,7 +68,7 @@ public sealed partial class MediaPage
             reason, ExportOriginals != null, "media.exportAll.hint");
     }
 
-    private static string AskText(MediaLibraryExportSize size) => Texts.T("media.exportAll.confirm", size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
+    private static string AskText(MediaLibraryExportSize size) => Texts.Count("media.exportAll.confirm", size.Files, size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
 
     private static string FormatBytes(long bytes) => MeowChan.Desktop.SizeText.Format(bytes);
 

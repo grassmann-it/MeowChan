@@ -123,11 +123,12 @@ public partial class ArchivePage
         List<MenuItem> commands = new();
         List<Func<string?>> disabledReasons = new();
         bool Ready() => _available && !_ended && !_busy && !IsReaderDialogOpen;
+        static string BatchLabel(string action, int targets) => Texts.Count("archive.command.batchCount", targets, action, targets);
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
             Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
         {
             MenuItem? item = null;
-            string Label() => count != null ? Texts.T("archive.command.batchCount", actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
+            string Label() => count != null ? BatchLabel(actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
                 : leadAction ? Texts.T("archive.command.leadTarget", actionLabel?.Invoke() ?? CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
                 : actionLabel?.Invoke() ?? CommandCatalog.Label(id);
             void UpdateLabel()
@@ -197,7 +198,7 @@ public partial class ArchivePage
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
         if (ids.Length > 1)
         {
-            string count = Texts.T("archive.command.selectionCount", ids.Length);
+            string count = Texts.Count("archive.command.selectionCount", ids.Length);
             menu.Items.Add(new Separator());
             // Keep the explanatory prose compact even when the menu theme adds
             // the shared shortcut column to this shortcut-free row.

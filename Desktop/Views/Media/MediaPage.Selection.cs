@@ -181,7 +181,7 @@ public sealed partial class MediaPage
         if (!_selGallery.IsEnabled || OpenGallery == null) return;
         (IReadOnlyList<MediaLibraryEntry> entries, int notSaved) = MediaLibrarySelection.GalleryEntries(SelectedTiles);
         ShowSelectionNote(notSaved == 0 ? null : entries.Count == 0 ? Texts.T("media.selection.note.noneSaved")
-            : Texts.T("media.selection.note.galleryPartial", entries.Count, notSaved));
+            : Texts.Count("media.selection.note.galleryPartial", entries.Count, entries.Count, notSaved));
         if (entries.Count == 0) return;
         await OpenGallery(entries, 0);
     }
@@ -200,12 +200,12 @@ public sealed partial class MediaPage
         DismissExportAllAsk();
         _selectionBusy = true;
         UpdateSelectionBar();
-        if (preparing is { } count) ShowSelectionNote(Texts.T("media.exportAll.preparing", count.ToString("N0", Texts.Culture)));
+        if (preparing is { } count) ShowSelectionNote(Texts.Count("media.exportAll.preparing", count, count.ToString("N0", Texts.Culture)));
         try
         {
             // Reading the manifests is IO and a large plan is a long loop: neither belongs on the UI thread. The plan holds no controls.
             MediaLibraryExportPlan plan = await Task.Run(() => MediaLibraryExport.BuildAsync(tiles, _openManifest, _lifetime.Token), _lifetime.Token);
-            ShowSelectionNote(plan.Unavailable == 0 ? null : Texts.T("viewer.favorites.unavailable", plan.Unavailable));
+            ShowSelectionNote(plan.Unavailable == 0 ? null : Texts.Count("viewer.favorites.unavailable", plan.Unavailable));
             await export(plan.Assets, plan.Unavailable, scope);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }

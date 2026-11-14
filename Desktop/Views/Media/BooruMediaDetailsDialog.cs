@@ -272,8 +272,8 @@ internal sealed class BooruMediaDetailsDialog : Window
         _copySelectedTags.IsEnabled = count > 0;
         _useAsSearchButton.IsEnabled = count > 0;
         _tagSelection.Text = count == 0 ? Texts.T("booru.media.tags.selection.none")
-            : count > BooruSourceTagSearch.MaximumTags ? Texts.T("booru.media.tags.selection.tooMany", count, BooruSourceTagSearch.MaximumTags)
-            : Texts.T("booru.media.tags.selection.count", count);
+            : count > BooruSourceTagSearch.MaximumTags ? Texts.Count("booru.media.tags.selection.tooMany", count, count, BooruSourceTagSearch.MaximumTags)
+            : Texts.Count("booru.media.tags.selection.count", count);
     }
 
     private async Task CopyTagsAsync(IReadOnlyList<string> names)
@@ -282,7 +282,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         try
         {
             await _copyText(BooruSourceTagSearch.Written(names));
-            _tagStatus.Text = Texts.T("booru.media.tags.copied", names.Count);
+            _tagStatus.Text = Texts.Count("booru.media.tags.copied", names.Count);
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

@@ -158,12 +158,12 @@ public partial class ArchivePage
             string exportLabel = Texts.T("viewer.favorites.exportShown", visible.Length);
             export.Content = exportLabel;
             AutomationProperties.SetName(export, exportLabel);
-            string exportHint = Texts.T("viewer.favorites.exportShownHint", visible.Length);
+            string exportHint = Texts.Count("viewer.favorites.exportShownHint", visible.Length);
             ToolTip.SetTip(export, exportHint);
             AutomationProperties.SetHelpText(export, exportHint);
             clearSearch.IsEnabled = !actionRunning;
             export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
-            if (selected?.Missing == true) Notice(Texts.T("viewer.favorites.unavailable", 1));
+            if (selected?.Missing == true) Notice(Texts.Count("viewer.favorites.unavailable", 1));
         }
         list.SelectionChanged += (_, _) => RefreshActions();
         async Task LoadScopeAsync()
@@ -188,7 +188,7 @@ public partial class ArchivePage
                 if (request != generation || loading.IsCancellationRequested) return;
                 scoped = next;
                 missing = resolved.Missing.Select(entry => entry.Key).ToHashSet();
-                Notice(missing.Count == 0 ? string.Empty : Texts.T("viewer.favorites.unavailable", missing.Count));
+                Notice(missing.Count == 0 ? string.Empty : Texts.Count("viewer.favorites.unavailable", missing.Count));
                 scopeLoading = false;
                 Render();
             }
@@ -248,7 +248,7 @@ public partial class ArchivePage
                 if (galleryStart == null)
                 {
                     missing.Add(selected.Entry.Key); Render();
-                    Notice(Texts.T("viewer.favorites.unavailable", 1));
+                    Notice(Texts.Count("viewer.favorites.unavailable", 1));
                     return;
                 }
                 dialog.Close();
@@ -294,7 +294,7 @@ public partial class ArchivePage
         ExportChoiceField format = new("OriginalExportFormat");
         format.Set(Texts.T("export.format"), new[] { new ExportChoiceField.Option("originals", Texts.T("export.format.originals")) }, "originals", true);
         ExportChoiceField scope = new("OriginalExportScope");
-        string scopeText = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
+        string scopeText = Texts.Count("viewer.export.scope", assets.Length + missingCount, scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
         scope.Set(Texts.T("export.scope"), new[] { new ExportChoiceField.Option("files", scopeText) }, "files", true);
         WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 6 };
         choices.Children.Add(format); choices.Children.Add(scope);
@@ -305,7 +305,7 @@ public partial class ArchivePage
         void Notice(string text) { status.Text = text; error.Text = string.Empty; }
         void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         if (assets.Length == 0)
-            status.Text = missingCount > 0 ? Texts.T("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
+            status.Text = missingCount > 0 ? Texts.Count("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
         Button browse = CommandBindings.CreateButton("export.browse-parent", () => { });
         browse.IsEnabled = assets.Length > 0;
         Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { });
@@ -329,7 +329,7 @@ public partial class ArchivePage
             TextWrapping = TextWrapping.Wrap };
         privateOmitted.Classes.Add("workspace-help");
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
-        TextBlock unavailable = new() { Text = Texts.T("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
+        TextBlock unavailable = new() { Text = Texts.Count("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
         StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
         content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);

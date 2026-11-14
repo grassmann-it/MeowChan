@@ -373,7 +373,7 @@ public partial class MainWindow
         // Downloaded provider posts are no chan thread: a window of them is named by its source, a mixed one is a result list.
         string scope = providerPosts > 0 && !_galleryResultsScope
             ? providerPosts == _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count()
-                ? Texts.T("booru.media.gallery.scope", providerPosts)
+                ? Texts.Count("booru.media.gallery.scope", providerPosts)
                 : Texts.T("gallery.results") + " · " + _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count() + " " + Texts.T("gallery.threads")
             : _galleryResultsScope
             ? Texts.T("gallery.results") + " · " + _galleryThreads.Count + " " + Texts.T("gallery.threads")

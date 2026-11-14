@@ -27,7 +27,7 @@ public partial class ArchivePage
     {
         // Keep the complete, count-bearing title in the measured toolbar item.
         // ActionToolBar moves this same button into overflow when it cannot fit.
-        string label = Texts.T("export.resultsAction", total);
+        string label = Texts.Count("export.resultsAction", total);
         button.Content = label;
         ToolTip.SetTip(button, label);
         AutomationProperties.SetName(button, label);
