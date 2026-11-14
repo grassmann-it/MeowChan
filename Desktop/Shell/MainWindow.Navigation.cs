@@ -487,6 +487,7 @@ public partial class MainWindow
             // The static More entry has no destination record when Booru is unavailable; clear it before
             // the normal destination loop so stale availability cannot leave a clickable target behind.
             BooruMoreMenuItem.IsVisible = false;
+            BooruNavigationButton.IsVisible = CanOpenBooru;
             BooruMenuItem.IsVisible = CanOpenBooru;
             tools.Classes.Set("selected", destinations.Where((_, index) => !direct[index])
                 .Any(destination => destination.Page == _selectedPage));

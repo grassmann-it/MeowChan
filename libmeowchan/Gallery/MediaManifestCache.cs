@@ -10,7 +10,7 @@ namespace MeowChan.Gallery;
 
 /// <summary>
 /// A manifest view and, when it could be pinned, the identity of the manifest file whose bytes it was read from
-/// (see <see cref="RegularProfileFile.TryGetIdentity"/>): equal identity later means equal bytes, so the view and its
+/// (see <see cref="RegularProfileFile.TryGetIdentity(string)"/>): equal identity later means equal bytes, so the view and its
 /// generation can be reused without reading and hashing the file again. Null identity: never reused by identity.
 /// </summary>
 internal sealed record MediaManifestRead(MediaAssetSnapshot Snapshot, RegularProfileFileIdentity? Identity);
