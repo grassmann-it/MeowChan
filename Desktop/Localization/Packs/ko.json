@@ -3618,6 +3618,21 @@
     "tags.quick.reason.sameFileIn": "{0}의 같은 파일",
     "tags.quick.reason.fileName": "파일 이름에서",
     "tags.quick.reason.title": "스레드 제목에서",
-    "tags.quick.reason.sourceTag": "소스 태그"
+    "tags.quick.reason.sourceTag": "소스 태그",
+    "budgets.group.quickTag": "빠른 태그 지정",
+    "budgets.quickTagSuggestions": "표시할 태그 제안 수",
+    "budgets.quickTagSuggestionsHint": "빠른 태그 필드가 비어 있을 때 표시하는 제안 칩의 개수입니다. 처음 9개에만 숫자 키가 지정됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagRecent": "기억할 최근 사용 태그 수",
+    "budgets.quickTagRecentHint": "앱을 닫을 때까지 기억하고 제안 목록의 상위에 표시할 최근 사용한 내 태그의 개수입니다. 0이면 이 기능을 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagUndo": "태그 실행 취소 단계 수",
+    "budgets.quickTagUndoHint": "한 태그 패널에서 연속으로 실행 취소할 수 있는 태그 변경 횟수입니다. 오래된 단계는 버립니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagNeighbours": "태그를 확인할 주변 미디어 수",
+    "budgets.quickTagNeighboursHint": "표시 중인 미디어 주변에서 적합한 태그를 찾기 위해 확인하는 미디어 항목의 개수입니다. 값을 높이면 더 많이 찾을 수 있지만 매우 큰 목록에서는 시간이 더 걸립니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagFilename": "태그에 사용할 파일 이름 단어 수",
+    "budgets.quickTagFilenameHint": "파일 이름과 제목에서 내 태그와 비교할 단어의 개수입니다. 0이면 단어 일치를 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagSourceTags": "미디어당 소스 태그 수",
+    "budgets.quickTagSourceTagsHint": "Danbooru 같은 소스가 미디어에 대해 나열한 태그 중 새 내 태그로 제안할 개수입니다. 0이면 이 제안을 끕니다. 기본값: {0}, 허용 범위: {1}~{2}.",
+    "budgets.quickTagMarked": "태그 지정용으로 표시해 둘 미디어 수",
+    "budgets.quickTagMarkedHint": "갤러리에서 표시해 두고 한 번에 태그를 지정할 수 있는 미디어의 개수입니다. 태그 파일의 할당 수에는 별도의 고정 한도가 그대로 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}."
   }
 }

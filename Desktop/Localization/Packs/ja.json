@@ -3618,6 +3618,21 @@
     "tags.quick.reason.sameFileIn": "{0}の同じファイル",
     "tags.quick.reason.fileName": "ファイル名から",
     "tags.quick.reason.title": "スレッドタイトルから",
-    "tags.quick.reason.sourceTag": "ソースタグ"
+    "tags.quick.reason.sourceTag": "ソースタグ",
+    "budgets.group.quickTag": "クイックタグ",
+    "budgets.quickTagSuggestions": "表示するタグ候補数",
+    "budgets.quickTagSuggestionsHint": "クイックタグの入力欄が空のときに表示する候補チップの数です。数字キーが割り当てられるのは最初の9件だけです。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagRecent": "記憶する最近使用したタグ数",
+    "budgets.quickTagRecentHint": "アプリを終了するまで記憶し、候補の上位に表示する最近使用した独自タグの数です。0にすると無効になります。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagUndo": "タグ変更を元に戻せる回数",
+    "budgets.quickTagUndoHint": "1つのタグパネルでタグの変更を続けて元に戻せる回数です。古い操作履歴は破棄されます。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagNeighbours": "タグを確認する周辺メディア数",
+    "budgets.quickTagNeighboursHint": "表示中のメディアの周辺で、適切なタグを探すために確認するメディア項目の数です。値を大きくすると多くの候補が見つかりますが、非常に大きいリストでは時間がかかります。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagFilename": "タグ照合に使うファイル名の単語数",
+    "budgets.quickTagFilenameHint": "ファイル名とタイトルから独自タグとの照合に使う単語の数です。0にすると単語の照合を無効にします。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagSourceTags": "メディア1件あたりのソースタグ数",
+    "budgets.quickTagSourceTagsHint": "Danbooruなどのソースがメディアに付けたタグのうち、新しい独自タグの候補として表示する数です。0にすると無効になります。既定値: {0}、許容範囲: {1}～{2}。",
+    "budgets.quickTagMarked": "タグ付け用にマークするメディア数",
+    "budgets.quickTagMarkedHint": "ギャラリーでマークし、1回の操作でタグ付けできるメディアの数です。タグファイルの割り当て数には、別途固定の上限があります。既定値: {0}、許容範囲: {1}～{2}。"
   }
 }
