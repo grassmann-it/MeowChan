@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Diagnostics;
 
@@ -62,8 +63,13 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
     private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
-    // The play mark scales with the shown picture and is centred on it (VideoPlayMark; the frame panel sizes and places it). Not hit-testable.
-    private readonly VideoPlayMarkView _play = new() { Name = "VideoPlayOverlay", IsVisible = false };
+    // MB1b: the shared media badges lie over exactly the shown picture (the frame panel gives the view its size on every layout): the play
+    // mark of a video (scaled to the picture, 20 to 44 dip, centred, dark in both themes: the archive-play fix, now drawn by the badge view),
+    // the star of a favourite, the GIF chip and a missing file. Not hit-testable, not in the accessibility tree: the picture button stays the
+    // click target at any size and carries the words (MediaBadgeText.Describe).
+    private readonly MediaBadgeView _badges = new() { Name = "ArchiveMediaBadges", Options = MediaBadgeOptions.Archive };
+    private ArchiveBadgeDescription _badgeText;
+    private bool _missing;
     // Imageboard file line above the preview: "name.ext (size)" when the capture knows the size.
     // It takes the block's width and wraps to two lines, then trims (one trimmed line in a compact list row): a long name never widens the block beyond the picture.
     private readonly TextBlock _label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.Wrap, MaxLines = 2,
@@ -237,7 +243,7 @@ public sealed class ArchiveAttachmentView : UserControl
             (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
         };
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
-        _slot.Children.Add(_button); _slot.Children.Add(_play); _slot.Children.Add(_edge);
+        _slot.Children.Add(_button); _slot.Children.Add(_badges); _slot.Children.Add(_edge);
         // The hover preview of the reader (off unless the option is on; the owner supplies it through HoverEnlargeProperty).
         _button.PointerEntered += (_, _) =>
         {
@@ -254,7 +260,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
         Content = _column;
-        DataContextChanged += (_, _) => { Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        DataContextChanged += (_, _) => { _missing = false; Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             Rect bounds = new(Bounds.Size);
@@ -337,6 +343,20 @@ public sealed class ArchiveAttachmentView : UserControl
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
         _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
+        UpdateBadges(row);
+        UpdateButtonName(row);
+    }
+
+    /// <summary>The shared badge view over the picture (smokes and tests read its state and plan).</summary>
+    internal MediaBadgeView Badges => _badges;
+
+    // The badges follow the row (favourite, kind) and a load that found the file gone. The view is told the shown picture's size; the frame
+    // panel repeats that on every layout, so a state change before the first layout is picked up there. Nothing is allocated when the state
+    // did not change (the view compares, the sentence is cached).
+    private void UpdateBadges(ArchiveAttachmentRow? row)
+    {
+        if (row == null) { _badges.Clear(); _badgeText.Reset(); return; }
+        _badges.Apply(ArchiveMediaBadges.ForAttachment(row, _missing), _slot.PictureSize);
     }
 
     internal Image Thumbnail => _image;
@@ -364,8 +384,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column.InvalidateArrange();
         _provenance.Text = MediaProvenanceText.Summary(row?.Binding);
         _provenance.IsVisible = !string.IsNullOrEmpty(_provenance.Text);
-        _play.IsVisible = row != null && MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
-            == MeowChan.Gallery.SavedMediaKind.Video;
+        UpdateBadges(row);
         _status.Text = Texts.T("archive.loadingThumbnail");
         ToolTip.SetTip(_button, row?.Label ?? string.Empty);
         UpdateButtonName(row);
@@ -375,10 +394,13 @@ public sealed class ArchiveAttachmentView : UserControl
     private void UpdateButtonName(ArchiveAttachmentRow? row)
     {
         bool inline = row != null && InlineVideoOffered;
-        Avalonia.Automation.AutomationProperties.SetName(_button, inline
+        // MB1b: what the badges show (favourite, video or GIF, file missing) is part of the button's name and help, as one short sentence.
+        string badges = row == null ? string.Empty : _badgeText.Get(_badges.State, _badges.Options);
+        Avalonia.Automation.AutomationProperties.SetName(_button, ArchiveMediaBadges.Append(inline
             ? Texts.T("reader.video.play", row!.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? Texts.T("reader.video.unnamed"))
-            : row?.Label ?? string.Empty);
-        Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? Texts.T("reader.video.playHint") : null);
+            : row?.Label ?? string.Empty, badges, "\n"));
+        Avalonia.Automation.AutomationProperties.SetHelpText(_button, inline ? ArchiveMediaBadges.Append(Texts.T("reader.video.playHint"), badges, "\n")
+            : badges.Length > 0 ? badges : null);
     }
 
     // The frame follows the drawn picture: the wide-screen reservation until one is known, then its aspect. The row remembers it, so a
@@ -442,6 +464,7 @@ public sealed class ArchiveAttachmentView : UserControl
             Bitmap? bitmap = await pending.WaitAsync(LoadTimeout, loading.Token);
             if (request != _request || loading.IsCancellationRequested || !_visible)
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
+            _missing = false;
             UpdateLabel();
             if (MediaSlotGeometry.AspectOf(bitmap) is { } aspect) { row.KnownAspect = aspect; SetFrame(row.LargePreview, aspect); }
             _bitmap = bitmap;
@@ -462,6 +485,8 @@ public sealed class ArchiveAttachmentView : UserControl
             loading.Cancel();
             if (request == _request && _visible)
             {
+                // A file that is gone is a safety fact the badges show (a failure to decode is not).
+                _missing = ArchiveMediaBadges.IsMissingFile(exception);
                 UpdateLabel();
                 // Report the timeout now; draining a noncancelable codec can take longer.
                 _status.Text = exception is OperationCanceledException or TimeoutException
