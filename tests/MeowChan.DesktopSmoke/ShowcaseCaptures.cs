@@ -252,6 +252,22 @@ internal static class ShowcaseCaptures
         await page.MediaLoadTask;
         await page.FocusPostAsync(ShowcaseData.Hero.Thread!);
         Rect? previousImage = null;
+        string ReaderState()
+        {
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            ArchiveAttachmentView? first = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .FirstOrDefault(view => view.IsEffectivelyVisible && view.DataContext is ArchiveAttachmentRow);
+            ScrollViewer viewport = posts.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
+            SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
+            return "pane in reader " + page.FindControl<Grid>("ArchiveReaderPane")!.GetVisualAncestors().Contains(reader)
+                + ", attachment " + (first == null ? "none" : "bitmap " + (first.Thumbnail.Source as Bitmap)?.PixelSize + " bounds " + first.Thumbnail.Bounds
+                    + " fits " + FitsInViewport(first.Thumbnail, viewport))
+                + ", body " + (body == null ? "none" : "fits " + FitsInViewport(body, viewport))
+                + ", next post " + page.FindControl<Button>("ReaderNextPost")!.IsEnabled + ", next thread " + page.FindControl<Button>("ReaderNextThread")!.IsEnabled
+                + ", status line " + page.FindControl<Control>("ReaderStatusLine")!.IsEffectivelyVisible;
+        }
         await Program.WaitUntilAsync(() =>
         {
             window.UpdateLayout();
@@ -276,7 +292,7 @@ internal static class ShowcaseCaptures
             bool stable = previousImage == image;
             previousImage = image;
             return stable;
-        });
+        }, ReaderState);
         await CaptureAsync(window, "v0.9.0-reader.png");
         ListBox postsList = page.FindControl<ListBox>("ArchivePosts")!;
         ArchivePostRow openingPost = postsList.ItemsSource!.Cast<ArchivePostRow>().First();

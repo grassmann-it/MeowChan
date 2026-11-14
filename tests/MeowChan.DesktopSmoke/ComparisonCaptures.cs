@@ -43,7 +43,7 @@ internal static class ComparisonCaptures
         try
         {
             if (visualReview) await ResizeAsync(window, 1440, 920);
-            // Empty lists expose disabled toolbar controls that populated scenes cannot review.
+            // Empty lists show the empty-state guide instead of the list tools, which populated scenes cannot review.
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
             await CaptureEmptyAsync(window, "smoke-comparison-empty-dark.png");
             await SetThemeAsync(window, "Light");
@@ -252,9 +252,9 @@ internal static class ComparisonCaptures
             await Program.WaitUntilAsync(() =>
             {
                 window.UpdateLayout();
-                Control action = EmptyAction(window, copy, window.FindControl<ActionToolBar>("WorkspaceListActions")!);
+                Control action = EmptyAction(window);
                 Point? origin = action.TranslatePoint(new Point(0, 0), window);
-                return !copy.IsEnabled && action.IsEffectivelyVisible && action.Bounds.Width > 0
+                return !copy.IsEnabled && ListToolsHidden(window) && action.IsEffectivelyVisible && action.Bounds.Width > 0
                     && Math.Abs(window.Bounds.Width - window.Width) <= 1 && Math.Abs(window.Bounds.Height - window.Height) <= 1
                     && origin.HasValue && origin.Value.X >= 0 && origin.Value.Y >= 0
                     && origin.Value.X + action.Bounds.Width <= window.Bounds.Width + 1
@@ -273,11 +273,14 @@ internal static class ComparisonCaptures
         Program.CaptureWindow(window, fileName);
     }
 
-    // Closed overflow items can report IsEffectivelyVisible while detached.
-    // Choose Copy only in its actual direct window presentation; otherwise test More.
-    private static Control EmptyAction(MainWindow window, Button copy, ActionToolBar toolbar) =>
-        copy.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(copy), window)
-            && copy.GetVisualAncestors().Contains(toolbar) ? copy : toolbar.More!;
+    // An empty list shrinks the list toolbar to the empty-state guide (4b79032e, RefreshDownloadsToolbarEmptiness): Search,
+    // Columns and Copy URLs have nothing to act on and are hidden, so the scene reviews the guide and its next-step button.
+    private static Control EmptyAction(MainWindow window) => window.FindControl<Button>("ThreadsEmptyImportButton")!;
+
+    // Hidden, not merely disabled: neither on the bar nor under its "More". The toolbar itself stays only for an open inspector.
+    private static bool ListToolsHidden(MainWindow window) =>
+        new[] { "DownloadSearchButton", "DownloadsColumnsButton", "CopyAllUrlsButton" }.All(name => !window.FindControl<Button>(name)!.IsVisible)
+        && window.FindControl<ActionToolBar>("WorkspaceListActions")!.IsVisible == window.FindControl<Border>("WorkspaceInspector")!.IsVisible;
 
     // Passive diagnostics only: do not focus, navigate, open popups or alter the scene.
     private static void WriteEmptyDiagnostics(MainWindow window, string fileName, string stage)
@@ -287,7 +290,7 @@ internal static class ComparisonCaptures
             Button copy = window.FindControl<Button>("CopyAllUrlsButton")!;
             ActionToolBar toolbar = window.FindControl<ActionToolBar>("WorkspaceListActions")!;
             TextBlock empty = window.FindControl<TextBlock>("ThreadsEmptyState")!;
-            Control? action = EmptyAction(window, copy, toolbar);
+            Control? action = EmptyAction(window);
             Point? origin = action?.TranslatePoint(default, window);
             Control[] named = window.GetVisualDescendants().OfType<Control>().Where(control => control.Name != null).ToArray();
             var state = new {
@@ -306,7 +309,7 @@ internal static class ComparisonCaptures
                     visible_threads = window.VisibleThreads.Count, visible_boards = window.VisibleBoards.Count },
                 focus = Describe(window.FocusManager?.GetFocusedElement() as Control),
                 predicate = new {
-                    copy_disabled = !copy.IsEnabled, chosen_action = action?.Name,
+                    copy_disabled = !copy.IsEnabled, list_tools_hidden = ListToolsHidden(window), chosen_action = action?.Name,
                     action_effectively_visible = action?.IsEffectivelyVisible == true,
                     action_positive_width = action?.Bounds.Width > 0,
                     width_matches = Math.Abs(window.Bounds.Width - window.Width) <= 1,
