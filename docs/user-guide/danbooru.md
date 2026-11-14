@@ -7,12 +7,45 @@ Downloadwarteschlange gegeben. Es gibt keine Provider-Anmeldung und keine
 Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist noch
 nicht als fertiges Release abgenommen.
 
-Das Danbooru-Plugin muss unter **Plugins** aktiviert und für das Profil verfügbar
-sein. Das Erkennen einer Danbooru-Adresse und das Öffnen des Danbooru-Fensters
-fragt noch nichts ab. Im Fenster senden erst **Suchen** oder **Post abrufen** eine
-begrenzte Anfrage; bereits aktive Suchbeobachtungen laufen unabhängig davon nach
+Das Danbooru-Plugin muss unter **Quellen & Plugins → Alle Plugins** aktiviert und
+für das Profil verfügbar sein. Öffne die Hauptseite **Booru** über Fußleiste oder
+**Mehr**; **Danbooru-Suche und Suchbeobachtungen…** im Appmenü führt auf dieselbe
+Seite, nicht in ein separates Fenster. Das Erkennen einer Danbooru-Adresse und
+das Öffnen der Booru-Seite fragt noch nichts ab. Auf der Seite senden erst
+**Suchen** oder **Post abrufen** eine begrenzte Anfrage; bereits aktive Suchbeobachtungen laufen unabhängig davon nach
 ihrem Zeitplan. Eine Post-Adresse über **Downloads → Hinzufügen** lädt Metadaten
 und reiht das Original in einem Schritt als One-Shot ein.
+
+## Booru-Seite, Anzeige und Tastenkürzel
+
+Die Fußleiste und das Appmenü ordnen die Hauptseiten als **Downloads, Archiv,
+Medien, Booru | Regeln, Quellen & Plugins | Status**. Die kontextbezogene F1-Hilfe
+folgt derselben Reihenfolge. Booru liegt unter Minimal in **Mehr**, ab Einfach
+bei ausreichender Breite direkt in der Fußleiste; bei Platzmangel wandern Ziele
+nach Mehr. Booru hat als Hauptseite keinen eigenen Zurück-/Schließen-Knopf.
+
+Strg+6 (⌘+6 auf macOS) öffnet standardmäßig Booru. Quellen & Plugins bleibt auf
+Strg+5, Status auf Strg+7; nur Strg/⌘+8 ist standardmäßig frei. Eine gespeicherte
+Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard und öffnet
+**Alle Plugins** auf Quellen & Plugins. Vorhandene Bereichskürzel für Statistik
+und Diagnose bleiben erhalten; Strg+7 öffnet den zuletzt benutzten Status-Bereich.
+F1 und die Fußleisten-Tooltips zeigen die wirksamen Belegungen, nicht einen zweiten
+Standard über deiner gespeicherten Wahl. Fußleiste und Menü folgen der aktuellen
+Verfügbarkeit. F1 kann auch ein ausgeblendetes oder nicht verfügbares Seitenkürzel
+weiter auflisten; das schaltet die Seite nicht frei.
+
+**Booru anzeigen** in Fußleiste und Appmenü ist ein gespeicherter, profilweiter
+Anzeigeschalter, standardmäßig an. Ohne eingebundene Booru-Dienste fehlen Schalter
+und Seitenziel. Ausschalten blendet die Booru-Ziele in Fußleiste, Mehr und Appmenü
+sowie Medien → Mehr → **Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete
+Seite. Von der gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen
+macht sie erneut erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe
+Quelleneinbindung besteht. Das ist nur Anzeige, keine Quellenautorisierung,
+Plugin-Aktivierung oder Suchbeobachtungspause. Quellen, Suchbeobachtungen und
+Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und Verfügbarkeitsregeln
+weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort, sendet
+keine Suche und umgeht diese Regeln nicht. Ausblenden ist nicht dasselbe wie das
+Deaktivieren des Plugins unter Quellen & Plugins.
 
 ## Suchen und einzelne Posts
 
@@ -23,12 +56,12 @@ und reiht das Original in einem Schritt als One-Shot ein.
 - Die Suche zeigt höchstens **fünf Seiten mit je 20 Treffern**. Die Seitennavigation
   bleibt innerhalb dieses technischen Suchbudgets. Eine kleinere Trefferanzeige
   bedeutet nicht, dass weitere Treffer vollständig verarbeitet wurden.
-- Eine Danbooru-Post-URL oder eine numerische Post-ID kann im Fenster über
+- Eine Danbooru-Post-URL oder eine numerische Post-ID kann auf der Booru-Seite über
   **Post abrufen** geladen werden. Das legt keine Suchbeobachtung an. Die Vorschau
   und die Provider-Metadaten werden zuerst angezeigt; das Original kommt erst nach
   **Original laden** in die Downloadwarteschlange.
 - Eine Danbooru-Suchadresse oder die Danbooru-Website-Adresse kann in **Downloads**
-  eingefügt werden. Sie öffnet das Danbooru-Fenster mit vorbefüllter Suche und
+  eingefügt werden. Sie öffnet die Booru-Seite mit vorbefüllter Suche und
   fragt noch nichts beim Provider an. Eine Post-Adresse über **Downloads →
   Hinzufügen** führt dagegen Metadatenabruf und Originalaufnahme als One-Shot in
   einem Schritt aus.
@@ -41,8 +74,8 @@ und reiht das Original in einem Schritt als One-Shot ein.
 ## Safebooru-Alias und Links
 
 `safebooru.donmai.us` ist in dieser Funktion ein Alias für Danbooru und kein
-separater ausgelieferter Provider. Bei einer Safebooru-Suchadresse zeigt das
-Fenster den zusätzlichen `rating:g`-Term sichtbar in der Eingabe an, sofern die
+separater ausgelieferter Provider. Bei einer Safebooru-Suchadresse zeigt die
+Booru-Seite den zusätzlichen `rating:g`-Term sichtbar in der Eingabe an, sofern die
 Adresse keinen Rating-Term enthält. Er kann vor **Suchen** entfernt werden; bei
 gewöhnlichen Danbooru-Suchen wird nichts versteckt ergänzt.
 
@@ -163,7 +196,7 @@ nicht überschrieben. Das ersetzt kein vollständiges Profilbackup. Siehe die
 Der lokale Danbooru-Katalog mit Posts, Fundstellen und Suchbeobachtungen hat
 standardmäßig eine Schreibgrenze von **32 MiB**. Unter **Einstellungen → Speicher und Grenzen**
 lässt sie sich auf **8 bis 128 MiB** setzen. Ab 75 % warnt der Beobachtungsbereich
-im Danbooru-Fenster und nennt die Einstellung. Eine kleinere Grenze löscht keinen
+auf der Booru-Seite und nennt die Einstellung. Eine kleinere Grenze löscht keinen
 vorhandenen Katalog; sie verhindert nur weiteres Wachstum, bis wieder Platz unter
 der Grenze vorhanden ist. Der feste technische Lesedeckel von **128 MiB** bleibt
 unabhängig von dieser Schreibgrenze bestehen.

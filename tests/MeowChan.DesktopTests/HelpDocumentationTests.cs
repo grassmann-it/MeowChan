@@ -167,6 +167,10 @@ public sealed class HelpDocumentationTests
             .Select(group => string.Join(", ", group.Select(id => CommandCatalog.Get(id).LabelEn)))
             .ToArray();
         foreach (string group in groups) Assert.Contains(group, defaults, StringComparison.Ordinal);
+        string germanOrder = string.Join(" | ", MainPageOrder.Groups
+            .Select(group => string.Join(", ", group.Select(id => CommandCatalog.Get(id).LabelDe))));
+        Assert.Contains(germanOrder, defaults, StringComparison.Ordinal);
+        Assert.Contains(germanOrder, Plain(Read(DanbooruGuide)), StringComparison.Ordinal);
         Assert.Contains("followed by More (German: Mehr) and Settings", defaults, StringComparison.Ordinal);
         Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
         Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
@@ -179,6 +183,7 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Reader, "WV3 Reader"),
             (WorkViewPage.Gallery, "WV4 Gallery"),
             (WorkViewPage.Media, "WV5 Media"),
+            (WorkViewPage.Booru, "Booru"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
             (WorkViewPage.Sources, "Sources & Plugins"),
             (WorkViewPage.Status, "Status (WV7 Diagnostics and Statistics)"),
@@ -934,9 +939,11 @@ public sealed class HelpDocumentationTests
             Assert.Equal((int?)digit, MainPageOrder.Digit(ids[i]));
             Assert.Equal("Primary+" + digit.ToString(CultureInfo.InvariantCulture), CommandCatalog.Get(ids[i]).Shortcut);
         }
-        // Slots are deliberately not contiguous after merging Sources/Plugins and Diagnostics/Statistics.
-        Assert.Equal(new[] { 1, 2, 3, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
-        Assert.Contains("Ctrl+6 and Ctrl+8 (Command+6 and Command+8) are unassigned by default", section, StringComparison.Ordinal);
+        // Display order is not numeric sorting: Booru follows Media, while Sources=5 and Status=7 stay stable.
+        Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
+        Assert.Contains("Ctrl+8 (Command+8) is unassigned by default", section, StringComparison.Ordinal);
+        Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
+        Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
         Assert.Contains("previously saved bindings still open their respective Status segment", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {
@@ -944,6 +951,116 @@ public sealed class HelpDocumentationTests
             Assert.Null(MainPageOrder.Digit(compatibility));
             Assert.Null(CommandCatalog.Get(compatibility).Shortcut);
         }
+    }
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void DocumentedSavedPluginsOverrideWinsWithoutChangingStatusOrOtherPageSlots(ShortcutPlatform platform)
+    {
+        string help = Plain(Section(Read(Help), "Selection and shortcuts"));
+        Assert.Contains("saved navigation.plugins binding to Primary+6 keeps priority over the new Booru default", help, StringComparison.Ordinal);
+        foreach (string file in new[] { Help, DanbooruGuide })
+            Assert.Contains("Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
+
+        ShortcutGesture six = ShortcutGesture.Parse("Primary+6");
+        EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(defaults.For("navigation.booru")), platform));
+        Assert.Empty(defaults.For("navigation.plugins"));
+        // Saved historical bindings remain byte-for-byte unchanged; the new default, not the user's override, yields.
+        ShortcutBindingsSection section = new ShortcutBindingsSection().Set("navigation.plugins", [six]);
+        foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            section = section.Set(id, [ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7")]);
+        string before = section.Raw.GetRawText();
+        EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
+        Assert.Equal(before, section.Raw.GetRawText());
+        Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(saved.For("navigation.plugins")), platform));
+        Assert.Empty(saved.For("navigation.booru"));
+        Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
+        Assert.Contains(saved.Issues, issue => issue.CommandId == "navigation.booru"
+            && issue.OtherCommandId == "navigation.plugins" && issue.Reason?.Code == "defaultYields");
+        foreach (string id in MainPageOrder.CommandIds.Where(id => id != "navigation.booru"))
+            Assert.True(EffectiveShortcutBindings.Equivalent(Assert.Single(defaults.For(id)), Assert.Single(saved.For(id)), platform));
+        foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            Assert.True(EffectiveShortcutBindings.Equivalent(
+                ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7"), Assert.Single(saved.For(id)), platform));
+        Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
+        string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
+        Assert.Contains("_sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins)", shell, StringComparison.Ordinal);
+        Assert.Contains("ShowStatus(segment)", shell, StringComparison.Ordinal);
+        Assert.Contains("CanExecuteShellPowerCommand(e.Source, e.Key)", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BooruDisplayHelpMatchesTheSavedPresentationSwitchAndItsHideScopes()
+    {
+        string text = Plain(Section(Read(Help), "Booru page and display switch"));
+        var label = Assert.Single(BooruPageCatalog.Entries, entry => entry.Key == "workview.booru.show");
+        Assert.Contains(label.English, text, StringComparison.Ordinal);
+        Assert.Contains(label.German, text, StringComparison.Ordinal);
+        Assert.Contains("saved, profile-wide display switch, on by default", text, StringComparison.Ordinal);
+        Assert.Contains("not source authorization, plugin activation or a watcher pause", text, StringComparison.Ordinal);
+        Assert.Contains("Sources, watchers and downloads keep running under their existing pause, cooldown and availability rules", text, StringComparison.Ordinal);
+        Assert.Contains("does not automatically resume a paused watcher, submit a search or bypass those rules", text, StringComparison.Ordinal);
+        Assert.Contains("F1 can still list a hidden or unavailable page binding", text, StringComparison.Ordinal);
+        foreach (string file in new[] { Help, DanbooruGuide })
+        {
+            string german = Plain(Read(file));
+            foreach (string phrase in new[] { label.German,
+                "gespeicherter, profilweiter Anzeigeschalter, standardmäßig an",
+                "Ohne eingebundene Booru-Dienste fehlen Schalter und Seitenziel",
+                "Booru-Ziele in Fußleiste, Mehr und Appmenü sowie Medien → Mehr → Booru öffnen aus",
+                "das Seitenkürzel öffnet keine ausgeblendete Seite",
+                "Von der gewählten Booru-Seite geht es zu Downloads zurück",
+                "bewahrt den ungesendeten Entwurf, solange dieselbe Quelleneinbindung besteht",
+                "nur Anzeige, keine Quellenautorisierung, Plugin-Aktivierung oder Suchbeobachtungspause",
+                "Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort" })
+                Assert.Contains(phrase, german, StringComparison.Ordinal);
+        }
+
+        // Pure policy/config and source contracts, not a Window or a profile-backed runtime test.
+        Config config = new();
+        Assert.True(config.ShowBooruTools);
+        bool paused = config.DownloadsPaused;
+        var permissions = config.SourceMediaIntegrityPermissions;
+        config.ShowBooruTools = false;
+        Assert.Equal(paused, config.DownloadsPaused);
+        Assert.Same(permissions, config.SourceMediaIntegrityPermissions);
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.footer.booru-toggle", view));
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.appmenu.booru-toggle", view));
+            Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct,
+                WorkViewPolicy.Resolve("shell.footer.booru", view));
+            foreach (string id in new[] { "booru.search.input", "booru.search.submit", "booru.results", "booru.watchers.list", "booru.notice" })
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
+        }
+        string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");
+        foreach (string wiring in new[] { "ShowBooruToolsToggle.IsVisible = available", "menu.IsVisible = available",
+            "menu.IsChecked = visible", "ShowBooruToolsToggle.IsChecked = visible",
+            "SaveViewPreferencesAsync(current => current.ShowBooruTools = visible)",
+            "if (!visible && _selectedPage == WorkspacePage.Booru)", "NavigateWorkspace(WorkspacePage.Downloads)",
+            "BooruMenuItem.IsVisible = CanOpenBooru", "BooruMoreMenuItem.IsVisible = false" })
+            Assert.Contains(wiring, host, StringComparison.Ordinal);
+        string save = host[host.IndexOf("private async System.Threading.Tasks.Task SetBooruToolsVisibilityAsync", StringComparison.Ordinal)..];
+        foreach (string forbidden in new[] { "DisposeBooruPage(", "DownloadsPaused =", "SourceMediaIntegrityPermissions =",
+            "PauseAsync(", "ResumeAsync(", "SearchAsync(", "CheckNowAsync(", "EnablePluginAsync(" })
+            Assert.DoesNotContain(forbidden, save, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
+        Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
+        string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
+        Assert.Contains("_config.ShowBooruTools", booru, StringComparison.Ordinal);
+        Assert.Contains("page.ShowQuery(query)", booru, StringComparison.Ordinal);
+        Assert.DoesNotContain("SearchAsync(", booru, StringComparison.Ordinal);
+        string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
+        Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);
+        Assert.Contains("if (page == WorkspacePage.Booru && !CanOpenBooru) return false", navigation, StringComparison.Ordinal);
+        string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
+        Assert.Contains("if (id == \"navigation.booru\" && !CanOpenBooru) continue", shell, StringComparison.Ordinal);
+        Assert.Contains("new List<string>(MainPageOrder.CommandIds)", shell, StringComparison.Ordinal);
+        Assert.Contains("CommandCatalog.ShortcutDisplay(id) != null", shell, StringComparison.Ordinal);
+        Assert.Contains("SetBooruToolsVisibilityAsync(_booruToolsMenu.IsChecked)", Read("Desktop/Shell/MainWindow.WorkViewMenu.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1171,7 +1288,7 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void LocalBooruMediaLinkHelpDescribesTheIntegratedWindowBridgeNotAFutureFooterPage()
+    public void LocalBooruMediaLinkHelpDescribesTheIntegratedPageBridgeWithoutFetching()
     {
         string text = Plain(Section(Read(Help), "Local links to Media"));
         foreach (string key in new[] { "booru.ui.result.showInMedia", "media.toolbar.booru" })
@@ -1181,13 +1298,18 @@ public sealed class HelpDocumentationTests
             Assert.Contains(entry.German, text, StringComparison.Ordinal);
         }
         foreach (string phrase in new[] { "does not fetch the post or download its original", "missing/filtered-out local tile",
-            "opens the existing window without starting a search", "not a new Booru footer page or a settings toggle",
-            "weder der Post abgerufen noch sein Original heruntergeladen", "keine neue Booru-Fußleistenseite und kein Einstellungsschalter" })
+            "opens the Booru page without starting a search", "Show Booru is on",
+            "weder der Post abgerufen noch sein Original heruntergeladen", "Booru anzeigen eingeschaltet ist",
+            "dieselbe Hauptseite wie über Fußleiste und Appmenü, kein zweites Fenster" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
-        Assert.Contains("window.ShowInMedia = ShowBooruPostInMediaAsync;", Read("Desktop/Booru/MainWindow.BooruMedia.cs"), StringComparison.Ordinal);
+        string media = Read("Desktop/Booru/MainWindow.BooruMedia.cs");
+        Assert.Contains("ConfigureBooruMediaLinks(BooruPage page) => ConfigureBooruMediaLinks(page.View)", media, StringComparison.Ordinal);
+        Assert.Contains("view.ShowInMedia = ShowBooruPostInMediaAsync;", media, StringComparison.Ordinal);
+        Assert.Contains("page.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench)", media, StringComparison.Ordinal);
         Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
-        Assert.Contains("_booruWindow = window;", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
-        Assert.DoesNotContain("navigation.booru", MainPageOrder.CommandIds);
+        Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
+        Assert.Contains("ConfigureBooruMediaLinks(page);", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
+        Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
     }
 
     [Fact]
@@ -1221,10 +1343,14 @@ public sealed class HelpDocumentationTests
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
         Assert.Equal((int?)7, MainPageOrder.Digit("navigation.status"));
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
-            "source selected", "Statistics becomes available after session recovery", "no Booru footer page",
-            "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru-Fußleistenseite gibt es noch nicht" })
+            "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
+            "Sources & Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
+            "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
+            "Nur Strg/⌘+8 ist standardmäßig frei" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
-        Assert.DoesNotContain("navigation.booru", MainPageOrder.CommandIds);
+        Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
+        Assert.Equal((int?)6, MainPageOrder.Digit("navigation.booru"));
+        Assert.Equal((int?)5, MainPageOrder.Digit("navigation.sources"));
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 
