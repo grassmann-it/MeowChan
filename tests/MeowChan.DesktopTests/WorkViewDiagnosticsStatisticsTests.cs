@@ -22,9 +22,8 @@ public sealed class WorkViewDiagnosticsStatisticsTests
         }
     }
 
-    // R4/R5: rows, details, summary, errors and warnings are the same in every view.
+    // R4/R5: rows, details, errors and warnings are the same in every view.
     [Theory]
-    [InlineData("diagnostics.summary")]
     [InlineData("diagnostics.table")]
     [InlineData("diagnostics.details")]
     [InlineData("diagnostics.filter-summary")]
@@ -54,6 +53,7 @@ public sealed class WorkViewDiagnosticsStatisticsTests
         Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], PresenceOf("statistics.reset"));
         Assert.Equal([Presence.Collapsed, Presence.Direct, Presence.Direct], PresenceOf("diagnostics.filters"));
         Assert.Equal([Presence.Collapsed, Presence.Collapsed, Presence.Collapsed], PresenceOf("diagnostics.session-messages"));
+        Assert.Equal([Presence.Collapsed, Presence.Collapsed, Presence.Collapsed], PresenceOf("diagnostics.platform"));
     }
 
     [Fact]

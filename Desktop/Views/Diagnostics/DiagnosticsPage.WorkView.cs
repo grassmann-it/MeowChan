@@ -44,6 +44,7 @@ public partial class DiagnosticsPage
     private void ApplyWorkViewPresence(bool viewChanged)
     {
         WorkViewPresenter.ApplyExpander(FiltersSection, _workView, viewChanged, ActiveDiagnosticFilterCount > 0);
+        WorkViewPresenter.ApplyExpander(this.FindControl<Expander>("DiagnosticPlatformSection")!, _workView, viewChanged);
         WorkViewPresenter.ApplyExpander(this.FindControl<Expander>("SessionFeedbackSection")!, _workView, viewChanged);
         // Free buttons: the gate hides what the view moved, the More menu lists it.
         foreach (Button button in ReducibleActions) WorkViewGate.Apply(button, _workView);
@@ -70,6 +71,8 @@ public partial class DiagnosticsPage
     {
         int active = ActiveDiagnosticFilterCount;
         FiltersSection.Header = Texts.T("media.filters") + (active > 0 ? " · " + Texts.T("workview.activeCount", active) : string.Empty);
+        // "Clear filters" is for a set filter; without one there is nothing to clear.
+        this.FindControl<Button>("DiagnosticClearFilters")!.IsEnabled = active > 0;
         RefreshMoreButton();
     }
 

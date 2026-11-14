@@ -18,7 +18,12 @@ public partial class DiagnosticsPage
 {
     private void InitializeContextMenu()
     {
-        DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
+        InitializeContextMenu(this.FindControl<DataGrid>("DiagnosticsGrid")!);
+        InitializeContextMenu(this.FindControl<DataGrid>("PlatformGrid")!);
+    }
+
+    private void InitializeContextMenu(DataGrid grid)
+    {
         grid.ContextMenu = new ContextMenu();
         grid.ContextMenu.Opening += (_, args) =>
         {
@@ -90,8 +95,12 @@ public partial class DiagnosticsPage
             item.Tag = id;
             menu.Items.Add(item);
         }
-        AddBatch("diagnostics.retry-selection", selection);
-        AddBatch("diagnostics.retry-filtered", filtered);
+        // A platform fact is information: it can be copied, never retried.
+        if (frozen.Kind != DiagnosticKind.Information)
+        {
+            AddBatch("diagnostics.retry-selection", selection);
+            AddBatch("diagnostics.retry-filtered", filtered);
+        }
         Add("diagnostics.copy", () => _ = CopyFrozenDiagnosticAsync(frozen), _copy != null);
         if (frozen.Target is DiagnosticTarget target && frozen.Kind != DiagnosticKind.Storage)
         {
