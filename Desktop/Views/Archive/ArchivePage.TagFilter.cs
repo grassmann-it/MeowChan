@@ -207,8 +207,14 @@ public partial class ArchivePage
         RenderDraftTags("ArchiveDraftTags", "ArchiveTagChoice",
             drafted.Select(entry => (Texts.T(entry.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", TagFilterLabel(entry.Id)), (Action)(() =>
             { (entry.Exclude ? _draftExcludeTags : _draftIncludeTags).Remove(entry.Id); DraftEdited("tags"); RenderDraftSets(); }))),
-            (position, label, remove) => CreateTagFilterChip(label, TagFilterLabel(drafted[position].Id), drafted[position].Id, drafted[position].Exclude,
-                remove, () => ToggleDraftChip(drafted[position].Id)));
+            (position, label, remove) =>
+            {
+                (Guid id, bool exclude) = drafted[position];
+                // The M2 chip menu (include, exclude, remove) with KM2's Copy tag name; no second menu host on the same chip.
+                ClosableTag chip = CreateTagFilterChip(label, TagFilterLabel(id), id, exclude, remove, () => ToggleDraftChip(id),
+                    copyName: () => _ = CopyChipTextAsync(this, TagFilterLabel(id)));
+                return chip;
+            });
         ArchiveTagChoice.Refresh();
     }
 

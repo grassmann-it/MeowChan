@@ -242,11 +242,12 @@ internal static class WorkspaceChips
     /// <para>Every other chip only removes: Enter, Space, Delete or Backspace remove it, as before.</para>
     /// <para><paramref name="menu"/> adds the chip's context menu: Include · Exclude (negatable chips), Remove and, when the page offers
     /// one, Edit… (<paramref name="edit"/>: opens the filter picker on the chip's field) and Copy filters as text
-    /// (<paramref name="copyText"/>, M3: the page writes its whole filter as a query).</para>
+    /// (<paramref name="copyText"/>, M3: the page writes its whole filter as a query) and, for an own tag, Copy tag name
+    /// (<paramref name="copyName"/>, KM2).</para>
     /// The content is a TextBlock (plain chip) or a StackPanel of the switch and the TextBlock; <see cref="TermChipLabel"/> reads both.
     /// </summary>
     internal static ClosableTag CreateTermChip(string label, bool negatable, bool exclude, Action remove, Action? toggle = null,
-        string? valueName = null, bool menu = false, Action? edit = null, Action? copyText = null)
+        string? valueName = null, bool menu = false, Action? edit = null, Action? copyText = null, Action? copyName = null)
     {
         ArgumentNullException.ThrowIfNull(remove);
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
@@ -254,7 +255,7 @@ internal static class WorkspaceChips
         ClosableTag tag = new() { Content = text, Command = new ChipCommand(remove), Focusable = true };
         MarkFilter(tag, exclude);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit, copyText);
+        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit, copyText, copyName);
         if (!negatable)
         {
             string accessible = Texts.T("archive.removeFilter", label);
@@ -313,7 +314,7 @@ internal static class WorkspaceChips
     internal static Button? TermChipToggle(ClosableTag tag) => (tag.Content as StackPanel)?.Children.OfType<Button>().FirstOrDefault();
 
     // The entries are a fixed array (ItemsSource), not the menu's own Items list: a list would observe its changes on the UI thread only.
-    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit, Action? copyText)
+    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit, Action? copyText, Action? copyName = null)
     {
         List<Control> items = new();
         MenuItem Item(string name, string header, Action action) => new() { Name = name, Header = header, Command = new ChipCommand(action) };
@@ -335,6 +336,8 @@ internal static class WorkspaceChips
         items.Add(Item("FilterChipRemove", Texts.T("media.filter.chip.remove"), remove));
         if (edit != null) items.Add(Item("FilterChipEdit", Texts.T("media.filter.chip.edit"), edit));
         if (copyText != null) items.Add(Item(CopyTextItemName, Texts.T("media.filter.chip.copyText"), copyText));
+        // KM2 (wave3 glue): an own-tag chip also copies the tag's name.
+        if (copyName != null) items.Add(Item("FilterChipCopyName", MeowChan.Desktop.Commands.CommandCatalog.Label("tags.copy-name"), copyName));
         return new ContextMenu { ItemsSource = items.ToArray() };
     }
 

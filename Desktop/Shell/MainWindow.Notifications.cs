@@ -130,6 +130,7 @@ public partial class MainWindow
     {
         if (_feedbackDismissWired) return;
         _feedbackDismissWired = true;
+        InitializeNotificationMenu();
         // Remember where the user was working so closing feedback by keyboard can hand focus back.
         RememberFeedbackReturnTarget(FocusManager?.GetFocusedElement());
         AddHandler(GotFocusEvent, (_, e) => RememberFeedbackReturnTarget(e.Source), RoutingStrategies.Bubble, handledEventsToo: true);
@@ -234,7 +235,7 @@ public partial class MainWindow
             if (feedback.Entry != null) DismissShellFeedback(feedback.Entry);
             if (toast.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
             _notificationManager.Close(toast);
-        }, feedback.Actions);
+        }, feedback.Actions, CopyNotificationTextAsync, CloseAllNotifications);
         // Semi 12.1.0.1 has no template close button. Only the explicit content action acknowledges
         // a fault. Do not use onClose: expiry, max-item eviction and CloseAll also call it.
         _notificationManager.Show(content, feedback.Type,
@@ -259,9 +260,13 @@ internal sealed class FeedbackToastContent : Grid
     private Task? _actionRun;
     private readonly IReadOnlyList<FeedbackToastAction> _actions;
     private readonly Action<FeedbackToastContent> _dismiss;
+    private readonly MeowChan.Desktop.Controls.ContextMenuHost? _menu;
+
+    /// <summary>The card's menu host (null for a toast built without the window's copy and close-all actions); read by tests.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuHost? MenuHost => _menu;
 
     internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss,
-        IReadOnlyList<FeedbackToastAction>? actions = null)
+        IReadOnlyList<FeedbackToastAction>? actions = null, Func<string, Task>? copyText = null, Action? dismissAll = null)
     {
         _actions = actions ?? Array.Empty<FeedbackToastAction>();
         _dismiss = dismiss;
@@ -274,7 +279,9 @@ internal sealed class FeedbackToastContent : Grid
         StackPanel text = new() { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = title, FontWeight = Avalonia.Media.FontWeight.SemiBold,
             TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        SelectableTextBlock body = new() { Name = "FeedbackToastMessage", Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap };
+        SelectableTextBlock body = new() { Name = "FeedbackToastMessage", Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            // The toast has one menu (below) for the whole card; the text's own copy/select-all menu would hide it. Ctrl+C still copies a selection.
+            ContextFlyout = null };
         // The toast is the only announcement while the popup is allowed (the shell banner is then Off): errors interrupt,
         // everything else (information such as the Danbooru watcher result, success, warnings) waits its turn.
         AutomationProperties.SetLiveSetting(body, LiveSettingFor(entry));
@@ -316,6 +323,10 @@ internal sealed class FeedbackToastContent : Grid
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);
         Children.Add(DismissButton);
+        // Right-click, Menu key and Shift+F10 anywhere on the card: copy the text (the selection when there is one), dismiss, close all.
+        if (copyText != null && dismissAll != null)
+            _menu = new MeowChan.Desktop.Controls.ContextMenuHost(this, () => MeowChan.Desktop.NotificationMenu.Compose(title,
+                () => _ = copyText(string.IsNullOrEmpty(body.SelectedText) ? message : body.SelectedText), () => dismiss(this), dismissAll));
         AttachedToVisualTree += (_, _) =>
         {
             _attached = true;

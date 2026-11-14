@@ -229,6 +229,7 @@ public partial class ArchivePage
                 if (focused) FocusAfterDraftTagRemoval(name, editorName, position, tag);
             };
             tag = createChip?.Invoke(position, entry.Label, remove) ?? CreateFilterTag(entry.Label, remove);
+            if (createChip == null) AttachFilterChipMenu(tag, remove);
             panel.Children.Add(tag);
         }
         // The chips of a category are a polite live region named by their labels, so a new chip is announced.
