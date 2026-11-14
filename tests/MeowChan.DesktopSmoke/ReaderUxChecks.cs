@@ -148,6 +148,11 @@ internal static class ReaderUxChecks
             await ReaderQuickSettingsChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_THREAD_MENU_ONLY") == "1")
+        {
+            await ReaderThreadMenuChecks.RunAsync(window);
+            return;
+        }
         window.Width = 1520; window.Height = 920;
         // Exercise the hidden ArchivePage before it has ever been navigated to.
         await CheckDownloadOriginAsync(window);

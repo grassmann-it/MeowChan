@@ -268,7 +268,7 @@ internal static class ShowcaseCaptures
                 || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)
                 || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
                 || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled
-                || !page.FindControl<CheckBox>("ReaderFollowLive")!.IsEffectivelyVisible)
+                || !page.FindControl<Control>("ReaderStatusLine")!.IsEffectivelyVisible)
             { previousImage = null; return false; }
             Point? origin = first.Thumbnail.TranslatePoint(default, reader);
             if (origin == null) return false;

@@ -265,10 +265,9 @@ internal static class ReaderPassiveFocusChecks
             await Program.WaitUntilAsync(() => host.IsActive);
             await page.LoadThreadAsync(id);
             await page.MediaLoadTask;
-            CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
-            follow.IsChecked = true;
+            await page.SetFollowLiveAsync(true);
             await Program.WaitUntilAsync(() => !(bool)typeof(ArchivePage).GetField("_checkingReaderUpdate", Private)!.GetValue(page)!);
-            Require(follow.IsChecked == true, "Live focus fixture did not enable real following.");
+            Require(page.FollowLive, "Live focus fixture did not enable real following.");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             int count = 2;
             foreach (string scenario in new[] { "external-during-load", "coverage-during-anchor", "no-new-intent" })

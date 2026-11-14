@@ -118,7 +118,7 @@ internal static class ReaderViewChecks
         Require(page.Projection is { IsIdentity: true, Count: 120 } && fixture.Rows.Length == 50 && fixture.Rows[0].Id == "500",
             "The default view is not the chronological identity.");
         Require(PageText(fixture) == Texts.T("archive.page", 1, 50, 120), "Default page label changed: " + PageText(fixture));
-        Require(page.ReaderViewOptionIds.SequenceEqual(new[] { "reader.view.hide-media", "reader.view.media-only" }),
+        Require(page.ReaderViewOptionIds.SequenceEqual(new[] { "reader.view.hide-media", "reader.view.media-only", "watch.follow-live" }),
             "The View menu lists other options: " + string.Join(", ", page.ReaderViewOptionIds));
         Button open = page.FindControl<Button>("ReaderViewOpen")!;
         Require(open.Content as string == Texts.T("reader.view.menu"), "The View button has no label.");
@@ -127,9 +127,13 @@ internal static class ReaderViewChecks
         Require(viewItems.Where(item => item.ToggleType == MenuItemToggleType.CheckBox).All(item => item.IsChecked != true)
             && viewItems.Count(item => item.ToggleType == MenuItemToggleType.CheckBox) == page.ReaderViewOptionIds.Count,
             "View options are not unchecked check items by default.");
-        // AP11: the last entry is the plain (non-toggle) way to this thread's rules, after a separator.
-        Require(viewItems.Last().ToggleType == MenuItemToggleType.None && viewItems.Last().Header as string == Texts.T("rules.thisThread")
-            && menu.Items.OfType<Separator>().Any(), "The View menu has no rules entry after its options.");
+        // R2: the media rules moved to the Thread menu; View holds only the reader's own look (options as check items, no separator yet).
+        Require(viewItems.All(item => !Equals(item.Tag, "rules.edit-scope")) && !menu.Items.OfType<Separator>().Any(),
+            "The View menu still carries the media rules or a stray separator.");
+        MenuItem[] threadItems = page.BuildReaderThreadMenu().Items.OfType<MenuItem>().ToArray();
+        Require(threadItems.Select(item => item.Tag).SequenceEqual(ArchivePage.ReaderThreadMenuIds.Cast<object>())
+            && threadItems.Single(item => Equals(item.Tag, "rules.edit-scope")).Header as string == Texts.T("rules.thisThread"),
+            "The Thread menu does not list the thread actions with the media rules.");
 
         // Hide media: the slot gives way to one line and no attachment view is shown.
         await ToggleAsync(fixture, "reader.view.hide-media");

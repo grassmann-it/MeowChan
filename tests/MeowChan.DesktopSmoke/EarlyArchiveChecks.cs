@@ -68,7 +68,8 @@ internal static class EarlyArchiveChecks
         Require(P<TextBlock>(page, "ArchiveSearchError").Text == Texts.T("archive.workStatusLoading"), "The unknown work status was not explained.");
         Require(Rows(page) == 1 && page.AppliedSearchSpec?.WorkFilter == ArchiveWorkFilter.All && work.SelectedIndex == 1,
             "The refused work filter changed the result or dropped the draft.");
-        Require(!P<Button>(page, "CapturePostsButton").IsEnabled && !P<Button>(page, "ExportArchiveButton").IsEnabled
+        Require(!page.BuildReaderThreadMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "archive.capture-toggle")).IsEnabled
+            && !P<Button>(page, "ExportArchiveButton").IsEnabled
             && !P<Button>(page, "ArchiveOpenGallery").IsEnabled, "Early reading opened a mutation, export or gallery gate.");
 
         work.SelectedIndex = 0;

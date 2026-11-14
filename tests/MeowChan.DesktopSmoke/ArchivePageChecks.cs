@@ -201,8 +201,8 @@ internal static class ArchivePageChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, width, height)
-                        // WV3: post capture is a reader tool; Barebones and narrow windows keep it under the toolbar's More.
-                        && (Fits(window, page.FindControl<Button>("CapturePostsButton")!) || ReaderWorkViewChecks.OnBarOrUnderMore(page, "CapturePostsButton"))
+                        // WV3/R2: the Thread menu is a reader tool; Barebones and narrow windows keep it under the toolbar's More.
+                        && (Fits(window, page.FindControl<Button>("ReaderThreadOpen")!) || ReaderWorkViewChecks.OnBarOrUnderMore(page, "ReaderThreadOpen"))
                         && Fits(window, page.FindControl<Button>("ArchiveBackButton")!)
                         && page.FindControl<ListBox>("ArchivePosts")!.Bounds.Height >= 100
                         && Fits(window, window.FindControl<Button>("SettingsNavigationButton")!)
