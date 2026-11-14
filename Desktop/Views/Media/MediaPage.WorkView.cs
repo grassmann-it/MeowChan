@@ -116,7 +116,7 @@ public sealed partial class MediaPage
         "media.filter.tags" => HasField(MediaFilterField.Tag),
         "media.filter.sound" => HasField(MediaFilterField.Sound),
         "media.filter.without-media-tags" => HasField(MediaFilterField.Untagged),
-        "media.filter.tag-mode" => _tagMode.SelectedIndex > 0,
+        "media.filter.tag-mode" => TagModeNeeded,
         "media.filter.missing" => HasField(MediaFilterField.Missing),
         _ => false
     };
@@ -126,6 +126,9 @@ public sealed partial class MediaPage
         _kindFilter, _favoritesOnly, _sourceFilter, _boardFilter, _minRating, _tagAdd,
         _soundFilter, _withoutMediaTags, _tagMode, _missing
     };
+
+    // M5: the "all | any" switch matters from two included tags on (and while it is set to "any", so it can be set back).
+    private bool TagModeNeeded => TagTerms(false).Count() > 1 || _tagMode.SelectedIndex > 0;
 
     private void RefreshWorkView()
     {
@@ -147,7 +150,7 @@ public sealed partial class MediaPage
         bool opened = _moreFilters.IsChecked == true, held = false;
         foreach (Control field in FilterFields())
         {
-            WorkViewGate.Apply(field, view, nonDefaultState: opened || FieldActive(field));
+            WorkViewGate.Apply(field, view, stateVisible: field != _tagMode || TagModeNeeded, nonDefaultState: opened || FieldActive(field));
             held |= WorkViewGate.HiddenByView(field);
         }
         _moreFilters.IsVisible = held || opened;

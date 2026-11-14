@@ -53,7 +53,7 @@ internal static partial class MediaPageChecks
             page.IsAvailable = true;
             await page.ActivateAsync().WaitAsync(Deadline);
             ComboBox source = C<ComboBox>(page, "MediaSourceFilter"), board = C<ComboBox>(page, "MediaBoardFilter");
-            Button reset = C<Button>(page, "MediaFilterReset"), exportAll = C<Button>(page, "MediaExportAll"),
+            Button exportAll = C<Button>(page, "MediaExportAll"),
                 exportSelected = C<Button>(page, "MediaSelectionExport");
             async Task Rebuild(DesktopSessionHost host)
             {
@@ -77,7 +77,7 @@ internal static partial class MediaPageChecks
             }
             async Task RequireClosed(string sourceId, string? boardId)
             {
-                Require(page.CurrentFilter().Source == sourceId && page.CurrentFilter().Board == boardId && reset.IsEnabled,
+                Require(page.CurrentFilter().Source == sourceId && page.CurrentFilter().Board == boardId && page.ActiveFilterCount > 0,
                     "A disappearing identity must remain an active filter.");
                 Require(page.ShownEntries.Count == 0 && page.Tiles.Count == 0 && page.SelectedTiles.Count == 0
                     && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 0, 1)
@@ -97,9 +97,9 @@ internal static partial class MediaPageChecks
             await RequireClosed("filter-a", null);
             Require(source.SelectedItem!.ToString() == "filter-a (" + Texts.T("mediahash.unavailable") + ")"
                 && board.SelectedIndex == 0, "The missing source alone must remain selected.");
-            ClickRaise(reset);
+            page.ResetFilters();
             Require(page.CurrentFilter().IsEmpty && page.ShownEntries.Count == 1 && page.ShownEntries[0].Thread == by
-                && page.SelectedTiles.Count == 0 && !reset.IsEnabled, "Reset must explicitly release the missing source.");
+                && page.SelectedTiles.Count == 0 && page.ActiveFilterCount == 0, "Reset must explicitly release the missing source.");
 
             await Rebuild(first);
             Select(source, "filter-a");
@@ -121,9 +121,9 @@ internal static partial class MediaPageChecks
                 && page.SelectedTiles.Count == 0, "A returning identity must become available without resurrecting the pruned selection.");
             await Rebuild(second);
             await RequireClosed("filter-a", "x");
-            ClickRaise(reset);
+            page.ResetFilters();
             Require(page.CurrentFilter().IsEmpty && page.ShownEntries.Count == 1 && page.ShownEntries[0].Thread == by
-                && page.SelectedTiles.Count == 0 && exportAll.IsEnabled && !reset.IsEnabled
+                && page.SelectedTiles.Count == 0 && exportAll.IsEnabled && page.ActiveFilterCount == 0
                 && source.Items.Count == 2 && board.Items.Count == 2, "Explicit reset must restore only the new snapshot, without restoring selection or stale choices.");
 
             await Rebuild(first);
@@ -146,9 +146,9 @@ internal static partial class MediaPageChecks
             Select(board, "/x/");
             await Rebuild(third);
             await RequireClosed("filter-a", "x");
-            ClickRaise(reset);
+            page.ResetFilters();
             Require(page.CurrentFilter().IsEmpty && page.ShownEntries.Count == 1 && page.SelectedTiles.Count == 0
-                && exportAll.IsEnabled && !reset.IsEnabled && board.Items.Count == 3, "Reset must clear the missing board without selecting new results.");
+                && exportAll.IsEnabled && page.ActiveFilterCount == 0 && board.Items.Count == 3, "Reset must clear the missing board without selecting new results.");
 
             await Rebuild(first);
             Select(source, "filter-a");

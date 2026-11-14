@@ -517,7 +517,6 @@ public sealed partial class MediaPage : UserControl
         _audioUnknown = result.AudioUnknown;
         _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
         _filterError.IsVisible = result.ErrorKey != null;
-        _filterReset.IsEnabled = _filterActive || HasField(MediaFilterField.Missing);
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
         // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.

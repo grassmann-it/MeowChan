@@ -275,7 +275,7 @@ internal static partial class MediaPageChecks
         Require(page.GetVisualDescendants().OfType<Control>().All(control => control.Name != "MediaFilterClose") && surface.ZIndex == 0
             && !surface.Classes.Contains("workspace-overlay"), state + ": the media filter section must have no Close button and no overlay level.");
         // Long content scrolls inside the surface; the last field stays reachable.
-        Button reset = C<Button>(page, "MediaFilterReset");
+        Button reset = C<Button>(page, "MediaTagAdd"); // the last field of the section since M5 (the tag button; the reset button is gone)
         scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
         await UntilAsync(() => { window.UpdateLayout(); return Contains(Bounds(scroll), Bounds(reset)); });
         scroll.Offset = default;

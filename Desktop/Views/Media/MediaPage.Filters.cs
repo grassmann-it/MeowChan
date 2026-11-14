@@ -39,16 +39,16 @@ public sealed partial class MediaPage
     private readonly SearchBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
     private readonly SearchScopeChip _searchScope = new() { Name = "MediaSearchScope", Scopes = new[] { SearchScope.FileName } };
     private readonly SearchCarryOffer _searchCarryOffer = new() { Name = "MediaSearchCarryOffer" };
-    private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter", MinWidth = 130 };
-    private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter", MinWidth = 130 };
-    private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter", MinWidth = 130 };
+    private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter" };
+    private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter" };
+    private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter" };
     private readonly CheckBox _favoritesOnly = new() { Name = "MediaFavoritesOnly" };
     private readonly CheckBox _withoutMediaTags = new() { Name = "MediaWithoutMediaTags" };
-    private readonly ComboBox _minRating = new() { Name = "MediaMinRating", MinWidth = 130 };
+    private readonly ComboBox _minRating = new() { Name = "MediaMinRating" };
     // The tag part of the surface: one "Add tag…" popover with search; the tags in the filter are the chips of the header row.
     private readonly TagFilterPicker _tagAdd = new() { Name = "MediaTagAdd" };
-    private readonly ComboBox _tagMode = new() { Name = "MediaTagMode", MinWidth = 160 };
-    private readonly Button _filterReset = new() { Name = "MediaFilterReset" };
+    // The tag mode is a switch "all | any" beside the tag button (M5); index 0 = every included tag, 1 = at least one.
+    private readonly TwoWayToggle _tagMode = new() { Name = "MediaTagMode" };
     private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 6, LineSpacing = 6 };
     private readonly TextBlock _filterError = new() { Name = "MediaFilterError", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
     // M2: the term set is the one truth of the filter. The section's combos and check boxes show it (SyncFilterControls) and write
@@ -114,12 +114,8 @@ public sealed partial class MediaPage
 
     private Control BuildFilterRow()
     {
-        WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _missing, _minRating,
-            _tagAdd, _tagMode, _filterReset, _moreFilters, _audioNote })
-        { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
+        Control row = BuildFilterFields(); // the grid of the fields (MediaPage.FilterGrid.cs)
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
-        _filterReset.IsEnabled = false;
         _tagAdd.Snapshot = () => _userData.TagSnapshot;
         _tagAdd.Used = UsedTags;
         _tagAdd.Picked = (id, exclude) => TryIncludeOrExclude(id, !exclude);
@@ -160,7 +156,6 @@ public sealed partial class MediaPage
         WireFlag(_favoritesOnly, MediaFilterField.Favorite);
         WireFlag(_withoutMediaTags, MediaFilterField.Untagged);
         WireFlag(_missing, MediaFilterField.Missing);
-        _filterReset.Click += (_, _) => ResetFilters();
         AttachedToVisualTree += (_, _) =>
         {
             _owner = TopLevel.GetTopLevel(this) as Window;
@@ -581,7 +576,6 @@ public sealed partial class MediaPage
             RenderKindOptions();
             SetTexts(_minRating, new[] { Texts.T("media.filter.anyRating") }.Concat(Enumerable.Range(1, 5).Select(value => Texts.T("media.filter.minRating", value))).ToArray());
             SetKeys(_soundFilter, "media.filter.anySound", "media.filter.sound.with", "media.filter.sound.without");
-            SetKeys(_tagMode, "tags.filter.matchAll", "tags.filter.matchAny");
         }
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
@@ -593,7 +587,6 @@ public sealed partial class MediaPage
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
         _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
         ToolTip.SetTip(_withoutMediaTags, Texts.T("media.filter.withoutTagsHint"));
-        _filterReset.Content = Texts.T("media.filter.reset");
         ToolTip.SetTip(_soundFilter, Texts.T("media.filter.sound.hint"));
         _tagAdd.IncludeHint = Texts.T("media.filter.includeHint");
         _tagAdd.ExcludeHint = Texts.T("media.filter.excludeHint");
@@ -606,6 +599,7 @@ public sealed partial class MediaPage
             (_tagMode, "tags.filter.matchLabel"),
             (_filterChips, "media.filter.active")
         }) AutomationProperties.SetName(control, Texts.T(key));
+        LocalizeFilterGrid();
         SyncFilterControls();
         RenderTagOptions();
         RenderFilterChips();

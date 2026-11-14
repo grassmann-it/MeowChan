@@ -16,7 +16,8 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     /// <summary>The most the open section may take; its fields scroll inside it, so the tiles always keep room. A layout measure,
-    /// not a user limit (so no setting): it is a fixed ceiling by design (260 dip), and the section scrolls beyond it.</summary>
+    /// not a user limit (so no setting): it is a fixed ceiling by design (260 dip), and the section scrolls beyond it. On a page shorter
+    /// than <see cref="MediaFilterGridLayout.CompactHeight"/> it takes only 40 % of the page height instead (M5, ApplyFilterSurfaceHeight).</summary>
     internal const double FilterSectionMaxHeight = 260;
 
     private readonly FilterToggleButton _filters = new() { Name = "MediaFilters", VerticalAlignment = VerticalAlignment.Center };
@@ -40,6 +41,12 @@ public sealed partial class MediaPage
         _filterSurfaceController = new FilterSurfaceController(this, _filters, surface, () => _lifetime.IsCancellationRequested, drivesVisibility: true, overlay: false);
         return _filterSurface = surface;
     }
+
+    /// <summary>The most the section may take now (tests and smokes).</summary>
+    internal double FilterSurfaceMaxHeight => _filterScroll.MaxHeight;
+
+    // M5: on a short page the section takes at most 40 % of it, so the tiles keep their room; its fields scroll inside.
+    private void ApplyFilterSurfaceHeight(double pageHeight) => _filterScroll.MaxHeight = MediaFilterGridLayout.MaxHeight(pageHeight, FilterSectionMaxHeight);
 
     private ToggleButton FilterSurfaceToggle => _filters;
 

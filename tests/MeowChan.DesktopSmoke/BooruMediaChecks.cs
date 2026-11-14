@@ -243,7 +243,7 @@ internal static class BooruMediaChecks
         Require(page.CurrentFilter().Source == "danbooru" && page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.BooruPostId != null),
             phase + ": the Danbooru source filter must show exactly the two provider tiles: " + page.ShownEntries.Count);
         Require(source.Items.Cast<object>().Any(item => item.ToString() == "booru-media-fixture"), phase + ": chan sources keep their identifier.");
-        C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page.ResetFilters();
         Require(page.ShownEntries.Count == 3, phase + ": reset did not widen the page.");
         await Task.CompletedTask;
     }
@@ -263,7 +263,7 @@ internal static class BooruMediaChecks
         GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
         await UntilAsync(() => !galleryHost.IsVisible);
         await shell.GalleryCleanupTask.WaitAsync(Deadline);
-        C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page.ResetFilters();
         Require(page.ShownEntries.Count == 3, phase + ": reset after the provider-only gallery.");
     }
 

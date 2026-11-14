@@ -133,14 +133,13 @@ internal static class MediaScaleBenchmark
         // 4. Filter changes: each one runs Present() synchronously.
         CheckBox missing = Find<CheckBox>(page, "MediaShowMissing");
         ComboBox kind = Find<ComboBox>(page, "MediaKindFilter");
-        Button reset = Find<Button>(page, "MediaFilterReset");
         string[] addable = page.AddableTagNames;
         await recorder.UiStepAsync("4 filter", "show missing on", () => missing.IsChecked = true, Shown);
         await recorder.UiStepAsync("4 filter", "show missing off", () => missing.IsChecked = false, Shown);
         await recorder.UiStepAsync("4 filter", "type = images", () => kind.SelectedIndex = 1, Shown);
         await recorder.UiStepAsync("4 filter", "type = any", () => kind.SelectedIndex = 0, Shown);
         await recorder.UiStepAsync("4 filter", "tag include (first of " + addable.Length + ")", () => page.AddTagFilterByName(addable[0], include: true), Shown);
-        await recorder.UiStepAsync("4 filter", "reset", () => reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), Shown);
+        await recorder.UiStepAsync("4 filter", "reset", () => page.ResetFilters(), Shown);
 
         // 5. Search typing, one keystroke at a time, then clearing the field.
         TextBox name = Find<TextBox>(page, "MediaNameFilter");

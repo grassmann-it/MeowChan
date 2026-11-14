@@ -50,7 +50,6 @@ internal static partial class MediaPageChecks
             ComboBox sort = C<ComboBox>(page, "MediaSort");
             TextBox name = C<TextBox>(page, "MediaNameFilter");
             CheckBox favoritesOnly = C<CheckBox>(page, "MediaFavoritesOnly");
-            Button reset = C<Button>(page, "MediaFilterReset");
             TextBlock note = C<TextBlock>(page, "MediaSelectionNote");
             shell.Activate();
             await UntilAsync(() => shell.IsActive);
@@ -154,7 +153,7 @@ internal static partial class MediaPageChecks
             }
 
             // 2. A duplicate: the occurrences list opens the second thread; the button brings back the one tile of those bytes.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             sort.SelectedIndex = 0;
             await UntilAsync(() => page.Tiles.Count == ReturnThreads + 2);
             int group = IndexOf("dup-701.png");
@@ -206,7 +205,7 @@ internal static partial class MediaPageChecks
                 "The filter must stay and no other tile may stand in for the gone one.");
 
             // 4. A file without a post: T and the menu do nothing.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == ReturnThreads + 2);
             int loose = IndexOf("loose-r.png");
             await ShowTileAsync(page, loose);
