@@ -41,11 +41,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/GalleryViewer.Overlay.cs` (2)
 
-- `control-height-literal`: L104 `Button Height=44`, L104 `Button MinHeight=44`
+- `control-height-literal`: L131 `Button Height=44`, L131 `Button MinHeight=44`
 
 ### `Desktop/GalleryViewer.cs` (1)
 
-- `glyph-icon`: L358 `"−(U+2212)"`
+- `glyph-icon`: L410 `"−(U+2212)"`
 
 ### `Desktop/Shell/MainWindow.axaml` (1)
 
@@ -74,7 +74,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/Views/Rules/RulesPage.axaml` (3)
 
-- `control-height-literal`: L18 `TagInput style MinHeight="32"`, L195 `Button MinHeight="24"`, L208 `Button MinHeight="24"`
+- `control-height-literal`: L18 `TagInput style MinHeight="32"`, L218 `Button MinHeight="24"`, L231 `Button MinHeight="24"`
 
 ### `Desktop/Views/Settings/SettingsEditor.axaml` (2)
 
@@ -91,10 +91,8 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ## Permanent exceptions (documented, not debt)
 
-- `color-code` in `Desktop/VideoPlayMark.cs` (Color.FromArgb): Dark disc and ring shared by the play mark and the media badges (palette item 4).
-- `color-code` in `Desktop/VideoPlayMark.cs` (Brushes.White): Glyph and text on the dark disc of the play mark and the media badges (palette item 4).
-- `color-code` in `Desktop/ArchiveAttachmentView.cs` (Color.FromArgb): Video play badge on arbitrary media (palette item 4).
-- `color-code` in `Desktop/ArchiveAttachmentView.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
+- `color-code` in `Desktop/VideoPlayMark.cs` (Color.FromArgb): Video play badge on arbitrary media (palette item 4).
+- `color-code` in `Desktop/VideoPlayMark.cs` (Brushes.White): Play triangle of the video badge (palette item 4).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Color.FromArgb): Favourite badge on media (palette item 5).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.White): Favourite badge star (palette item 5; GalleryFavoriteStateTests pins it).
 - `color-code` in `Desktop/GalleryViewer.Favorites.cs` (Brushes.Gold): Favourite badge star when marked (palette item 5).
@@ -102,6 +100,10 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `color-code` in `Desktop/GalleryViewer.Overlay.cs` (Color.FromRgb): Edge hint and fallback tone when the Workspace.Overlay resource is missing.
 - `color-code` in `Desktop/GalleryViewer.cs` (Brushes.Black): Letterbox behind media (palette item 8).
 - `color-code` in `Desktop/ReaderBodyTextBlock.cs` (Colors.Black): Opacity-mask gradient, not a visible colour.
+- `color-code` in `Desktop/Theming/ThemePalette.cs` (Color.FromArgb): Variation rules derived from theme seeds (scale, mix, alpha).
+- `color-code` in `Desktop/Theming/ThemeCustomization.cs` (Color.FromArgb): Seeds derived from user colours, on-colour black/white, stored hex.
+- `color-hex` in `Desktop/Theming/ThemeAccentPresets.cs` (): Accent preset values of Light and Dark, one place, gate-tested.
+- `color-code` in `Desktop/Controls/GalleryFilmstrip.cs` (Colors.Black): Opacity-mask gradient of the faded strip ends (GL5e), not a visible colour.
 - `glyph-icon` in `Desktop/Commands/EffectiveShortcutBindings.cs` (): Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text.
 
 ## Layout contracts (documented, not debt)
