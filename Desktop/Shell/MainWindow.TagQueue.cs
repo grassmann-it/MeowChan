@@ -14,7 +14,8 @@ using MeowChan.Tags;
 namespace MeowChan;
 
 // The tagging queue in the shell: "Add to tagging queue" from the gallery, and the walk-through that opens the gallery over the
-// open entries of the queue, starting where the last walk stopped. Nothing here assigns a tag, favorite or rating.
+// open entries of the queue, starting where the last walk stopped, in the tagging mode (PT3: decision strip, tag panel, one undo).
+// Nothing here assigns a tag, favorite or rating by itself.
 public partial class MainWindow
 {
     /// <summary>How many open entries one walk opens at once; the next walk continues behind them.</summary>
@@ -88,7 +89,7 @@ public partial class MainWindow
                 ShowNotification(Texts.T("queue.title"), Texts.T("queue.unavailable"), NotificationType.Warning, operation: "media.queue.open");
                 return;
             }
-            await OpenMediaGalleryAsync(entries, first.EntryKey, stillRequested: () => !_isClosing && _gallery == null);
+            await OpenTaggingWalkAsync(queue, walk, entries, first.EntryKey);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
@@ -96,4 +97,73 @@ public partial class MainWindow
         }
         finally { _tagQueueOpening = false; }
     }
+
+    // ---- the tagging mode (PT3) --------------------------------------------------------------------------------------
+
+    // The walk of the open gallery, or null when the gallery shows anything else.
+    private TaggingWalk? _galleryTagging;
+
+    /// <summary>The walk of the open gallery (tests and smokes); null outside the tagging mode.</summary>
+    internal TaggingWalk? GalleryTagging => _galleryTagging;
+
+    /// <summary>
+    /// Opens the gallery in the tagging mode over <paramref name="entries"/>, the resolved media of the queue entries <paramref name="walk"/>
+    /// in the same order (the menu's walk-through, and the smoke over its own fixture). The walk pairs every shown medium with its queue
+    /// entry; the open ones the resolver could not find stay open in the queue and are counted in the first status line.
+    /// </summary>
+    internal async Task OpenTaggingWalkAsync(TagQueueSnapshot queue, IReadOnlyList<TagQueueItem> walk, IReadOnlyList<GalleryEntry> entries,
+        GalleryEntryKey start)
+    {
+        (IReadOnlyList<TaggingWalkItem> items, int unavailable) = TaggingWalk.Pair(walk, entries);
+        TaggingWalk tagging = new(items, unavailable, queue, new HostTaggingQueueWriter(_session));
+        await OpenMediaGalleryAsync(entries, start, stillRequested: () => !_isClosing && _gallery == null);
+        StartGalleryTagging(tagging, entries);
+    }
+
+    // Starts the mode on the gallery that now shows exactly the walk's list; otherwise (closed meanwhile, another list) the walk ends unused.
+    private void StartGalleryTagging(TaggingWalk walk, IReadOnlyList<GalleryEntry> entries)
+    {
+        if (_isClosing || _gallery == null || _galleryEntries.Count != entries.Count
+            || !_galleryEntries.Select(entry => entry.EntryKey).SequenceEqual(entries.Select(entry => entry.EntryKey)))
+        {
+            walk.Dispose();
+            return;
+        }
+        EndGalleryTagging(persist: false);
+        _galleryTagging = walk;
+        _gallery.StartTaggingMode(walk, _galleryTagPanelOwner ??= new GalleryTagPanelOwner(this));
+        UpdateGalleryPosition();
+    }
+
+    /// <summary>
+    /// Ends the mode with its gallery. The resume point moves to the shown medium when it is still open, so "Walk through tagging queue"
+    /// continues there after a restart; a decided medium needs no move (the next walk starts at the next open entry anyway).
+    /// </summary>
+    private void EndGalleryTagging(bool persist)
+    {
+        if (_galleryTagging is not { } walk) return;
+        _galleryTagging = null;
+        GalleryEntry? shown = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
+        int index = shown == null ? -1 : walk.IndexOf(shown.EntryKey);
+        _gallery?.EndTaggingMode();
+        walk.Dispose();
+        if (!persist || _isClosing || index < 0 || walk.StateOf(index) != TagQueueState.Open) return;
+        int position = walk.Snapshot.IndexOf(walk.Items[index].Key);
+        if (position < 0 || position == walk.Snapshot.Cursor) return;
+        _ = PersistTagQueueCursorAsync(position);
+    }
+
+    private async Task PersistTagQueueCursorAsync(int position)
+    {
+        try { await _session.SetTagQueueCursorAsync(position); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // The resume point is a convenience: the next walk then starts at the first open entry after the old one.
+            if (!_isClosing) ShowNotification(Texts.T("queue.title"), TagQueueActions.DescribeFailure(error), NotificationType.Warning, operation: "media.queue.cursor");
+        }
+    }
+
+    /// <summary>"Queue 12 of 200" for the gallery header while the tagging mode shows a medium of its walk; null otherwise.</summary>
+    private string? TaggingPositionText(GalleryEntry entry) =>
+        _galleryTagging is { } walk && walk.IndexOf(entry.EntryKey) is var index and >= 0 ? TaggingModeText.Position(walk, index) : null;
 }

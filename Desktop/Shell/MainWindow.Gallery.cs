@@ -435,7 +435,8 @@ public partial class MainWindow
         // MoveGalleryAsync cannot accept navigation while resolving. Do not
         // expose enabled arrows before that guard is released after decoding.
         bool ready = _galleryResolvingRequest != _galleryRequest;
-        _gallery.SetPosition((_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
+        // The tagging mode names the place in the whole queue ("Queue 12 of 200") instead of the place in the walk's list (PT3).
+        _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? (_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
             ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
             ready && _galleryIndex > 0,
             ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
@@ -503,6 +504,7 @@ public partial class MainWindow
 
     private void CloseGalleryCore(bool restoreOrigin, bool cancelPendingOpen)
     {
+        EndGalleryTagging(persist: true); // the tagging mode ends with its gallery and keeps the resume point (PT3)
         if (cancelPendingOpen) _archivePage?.CancelPendingGalleryOpen();
         TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
