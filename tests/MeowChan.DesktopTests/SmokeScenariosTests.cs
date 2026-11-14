@@ -49,6 +49,25 @@ public sealed class SmokeScenariosTests
         Assert.Matches("(?i)no (live provider|network|socket)", claim);
     }
 
+    [Theory]
+    [InlineData("gallery-exif-orientation", "GalleryExifOrientationChecks.RunAsync(mainWindow)")]
+    [InlineData("media-page-booru-captures", "MediaPageChecks.RunBooruCapturesAsync(mainWindow)")]
+    public void C5RunsBindTheirOwnChecksAndStrictSyntheticFixture(string id, string run)
+    {
+        string binding = Binding(id);
+        Assert.Contains("new(SmokeStage.Ready, mainWindow => " + run + ")", binding, StringComparison.Ordinal);
+        Assert.Contains("Seed = ExifOrientationFixture.SeedAsync", binding, StringComparison.Ordinal);
+        SmokeScenario entry = Assert.Single(SmokeScenarios.All, entry => entry.Id == id);
+        Assert.Equal(SmokeScenarioKind.Root, entry.Kind);
+        Assert.Null(entry.NightlySkip);
+        Assert.Empty(entry.Requires);
+        Assert.Empty(entry.NightlyEnvironment);
+        string claim = entry.Pass!(_ => null);
+        Assert.Contains("synthetic", claim, StringComparison.Ordinal);
+        Assert.Contains("no live provider", claim, StringComparison.Ordinal);
+        Assert.Contains("no Windows/macOS acceptance", claim, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void BooruBusyFallbackBindsTheNativeOwnerScenarioWithoutClaimingOsInput()
     {

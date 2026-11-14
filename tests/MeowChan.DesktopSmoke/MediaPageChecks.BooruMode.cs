@@ -45,6 +45,8 @@ internal static partial class MediaPageChecks
             && held.AccessibleName.Contains(tagged.ToString("N0", Texts.Culture), StringComparison.Ordinal),
             state + ": the included tag must head its group with the count of the shown tiles: " + Surface());
 
+        if (code == "en") await CaptureBooruModesAsync(window, page, theme);
+
         // A click on the included tag takes it out; Alt+click excludes it; the counts follow every change.
         int runs = page.TagCountRuns;
         Require(sidebar.Activate(Surface(), MediaTagListGesture.Include), state + ": a click on a tag must act.");

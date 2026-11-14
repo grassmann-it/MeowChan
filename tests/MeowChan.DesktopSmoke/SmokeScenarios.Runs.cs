@@ -72,6 +72,16 @@ internal static partial class SmokeScenarios
             await MediaMenuCompositionChecks.RunAsync(mainWindow);
             await MediaPageChecks.RunAsync(mainWindow);
         }),
+        ["gallery-exif-orientation"] = new(SmokeStage.Ready, mainWindow => GalleryExifOrientationChecks.RunAsync(mainWindow))
+        {
+            Seed = ExifOrientationFixture.SeedAsync,
+            Configure = config => { config.WorkspaceMode = "Advanced"; config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
+        },
+        ["media-page-booru-captures"] = new(SmokeStage.Ready, mainWindow => MediaPageChecks.RunBooruCapturesAsync(mainWindow))
+        {
+            Seed = ExifOrientationFixture.SeedAsync,
+            Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
+        },
         ["media-slot"] = new(SmokeStage.Ready, mainWindow => MediaSlotChecks.RunAsync(mainWindow)),
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
