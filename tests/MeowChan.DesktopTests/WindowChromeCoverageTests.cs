@@ -194,10 +194,11 @@ public sealed class WindowChromeCoverageTests
                 Assert.DoesNotMatch(@"\bWindowDecorations\s*=\s*WindowDecorations\.", source);
             // MainWindow keeps its own XAML caption; MainWindow.Chrome.cs applies the policy (test above).
             bool subclass = Regex.IsMatch(source, @"class \w+ : Window\b") && relative != "Desktop/Shell/MainWindow.axaml.cs";
-            int inline = Regex.Matches(source, @"\bWindow \w+ = new\(\)").Count;
+            int inline = Regex.Matches(source, @"\bWindow \w+ = (new\(\)|(MeowChan\.Desktop\.Controls\.)?DialogWindow\.Create\()").Count;
             if (!subclass && inline == 0) continue;
             windows += (subclass ? 1 : 0) + inline;
-            int framed = Regex.Matches(source, @"WindowChrome\.(Frame|WrapContent|Apply)\(").Count;
+            // The dialog factory frames through WindowChrome.Frame as well (DialogWindow.Frame).
+            int framed = Regex.Matches(source, @"\b(WindowChrome\.(Frame|WrapContent|Apply)|DialogWindow\.Frame)\(").Count;
             if (framed < (subclass ? 1 : 0) + inline) missing.Add(relative);
         }
         Assert.Empty(missing);
@@ -205,13 +206,27 @@ public sealed class WindowChromeCoverageTests
     }
 
     [Theory]
-    [InlineData("Desktop/MediaRatingDialog.cs")]
     [InlineData("Desktop/Views/Admission/ExperimentalActivationDialog.axaml.cs")]
     [InlineData("Desktop/Shell/MainWindow.ArchiveDeletion.cs")]
     [InlineData("Desktop/Shell/MainWindow.GalleryActions.cs")]
     [InlineData("Desktop/Views/Archive/ArchivePage.Commands.cs")]
     public void SmallModalPromptsUseTheDialogVariant(string path) =>
         Assert.Contains("WindowChromeKind.Dialog", File.ReadAllText(Source(path)));
+
+    // Windows on the dialog factory (modals plan MD1) state modal or modeless; a modal one gets the Dialog caption there.
+    [Theory]
+    [InlineData("Desktop/MediaRatingDialog.cs", true)]
+    [InlineData("Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs", true)]
+    [InlineData("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs", true)]
+    [InlineData("Desktop/Views/Media/MediaOccurrencesWindow.cs", false)]
+    public void FactoryWindowsDeclareWhetherTheyAreModal(string path, bool modal)
+    {
+        string source = File.ReadAllText(Source(path));
+        Assert.Matches(@"DialogWindow\.(Configure|Create)\(", source);
+        Assert.Matches(@"DialogWindow\.Frame\([^;]*modal: " + (modal ? "true" : "false") + @"\)", source);
+        Assert.Equal(WindowChromeKind.Dialog, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true));
+        Assert.Equal(WindowChromeKind.Window, MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: false));
+    }
 
     // Modeless or ownerless windows must keep minimize (taskbar return path).
     [Theory]
@@ -226,8 +241,8 @@ public sealed class WindowChromeCoverageTests
     {
         string source = File.ReadAllText(Source("Desktop/Views/Collections/PostBookmarksDialog.axaml.cs"));
         Assert.Contains("        WindowChrome.WrapContent(this);", source);
-        Assert.Contains("WindowChrome.Frame(confirm, ", source);
-        Assert.Contains("WindowChromeKind.Dialog);", source);
+        Assert.Contains("DialogWindow.Frame(confirm, ", source);
+        Assert.Contains("DialogWindow.Create(Title ?? string.Empty, DialogSize.S, modal: true", source);
     }
 
     [Theory]

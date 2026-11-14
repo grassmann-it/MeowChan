@@ -235,7 +235,6 @@ internal static class RatingLanguageRefreshChecks
         int confirmed, string currentValue)
     {
         Require(dialog.Title == MediaRatingText.LocalizedLabel
-            && Private<TextBlock>(dialog, "_heading").Text == MediaRatingText.LocalizedLabel
             && Private<TextBlock>(dialog, "_help").Text == Texts.T("media.rating.help")
             && Need<TextBlock>(dialog, "MediaRatingConfirmed").Text == MediaRatingText.LocalizedSaved(confirmed)
             && Need<TextBlock>(dialog, "MediaRatingValue").Text == currentValue

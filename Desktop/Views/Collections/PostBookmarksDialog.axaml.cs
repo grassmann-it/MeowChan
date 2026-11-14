@@ -431,20 +431,17 @@ internal partial class PostBookmarksDialog : Window
         _confirming = true;
         try
         {
-            Window confirm = new() { Title = Title, Width = 460, SizeToContent = SizeToContent.Height,
-                MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            // Modals plan MD1: a small modal confirmation whose height follows the text; the title stands in the title bar only.
+            Window confirm = MeowChan.Desktop.Controls.DialogWindow.Create(Title ?? string.Empty, DialogSize.S, modal: true, heightToContent: true);
             Button cancel = new() { Content = Texts.T("bookmarks.keepEditing") };
             Button accept = new() { Content = action };
             accept.Classes.Add("danger");
-            WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
-                Children = { cancel, accept } };
-            TextBlock heading = new() { Text = Title, TextWrapping = TextWrapping.Wrap };
-            heading.Classes.Add("section-title");
             TextBlock body = new() { Text = explanation, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 12) };
-            confirm.Content = WindowChrome.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(heading, body, buttons), WindowChromeKind.Dialog);
+            MeowChan.Desktop.Controls.DialogWindow.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(header: null, body,
+                MeowChan.Desktop.Controls.DialogFooter.Build(accept, new Control[] { cancel })), modal: true);
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
-            confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };
+            MeowChan.Desktop.Controls.DialogEscape.Attach(confirm, close: () => confirm.Close(false));
             return await confirm.ShowDialog<bool>(this);
         }
         finally { _confirming = false; }

@@ -3,8 +3,8 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Input;
 using Avalonia.Layout;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
@@ -21,8 +21,8 @@ internal sealed class MediaOccurrencesWindow : Window
     {
         Name = "MediaOccurrences";
         Title = Texts.T("media.occurrences.title", tile.Entry.Name ?? tile.Entry.MediaId ?? string.Empty);
-        Width = 680; Height = 480; MinWidth = 340; MinHeight = 280;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD1: modeless (minimize and taskbar stay), the list step, fitted to the screen.
+        DialogWindow.Configure(this, DialogSize.M, modal: false);
         TextBlock summary = new() { Name = "MediaOccurrencesSummary", TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Text = tile.ProviderPostCount == 0 ? Texts.T("media.occurrences.summary", tile.Occurrences.Count, tile.ThreadCount)
                 : tile.ArchivedThreadCount == 0 ? Texts.T("booru.media.occurrences.summaryPosts", tile.Occurrences.Count, tile.ProviderPostCount)
@@ -30,7 +30,7 @@ internal sealed class MediaOccurrencesWindow : Window
         summary.Classes.Add("workspace-meta");
         TextBlock favorite = new() { Name = "MediaOccurrencesFavorite", Text = MediaLibraryStateText.Favorite(tile.Favorite), IsVisible = tile.IsGroup };
         favorite.Classes.Add("workspace-meta");
-        StackPanel rows = new() { Spacing = 8 };
+        StackPanel rows = new() { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
         foreach (MediaLibraryEntry entry in tile.Occurrences)
         {
             string board = Texts.T("media.filter.boardOfSource", entry.Thread.Board, entry.Thread.Source);
@@ -55,14 +55,10 @@ internal sealed class MediaOccurrencesWindow : Window
             AutomationProperties.SetName(row, description);
             rows.Children.Add(new Border { Child = row, Classes = { "workspace-card" } });
         }
-        Button close = new() { Content = Texts.T("action.close"), HorizontalAlignment = HorizontalAlignment.Right };
-        close.Click += (_, _) => Close();
-        ScrollViewer list = new() { Content = rows, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        layout.Children.Add(new StackPanel { Spacing = 2, Children = { summary, favorite } });
-        layout.Children.Add(list); Grid.SetRow(list, 1);
-        layout.Children.Add(close); Grid.SetRow(close, 2);
-        Content = WindowChrome.Frame(this, layout);
-        KeyDown += (_, e) => { if (e.Key != Key.Escape) return; e.Handled = true; Close(); };
+        // The title (the file) stands in the title bar; the summary is the header. Read-only with Close as its only way
+        // out, so there is no footer: × at the top right and Escape close it.
+        StackPanel header = new() { Spacing = 2, Children = { summary, favorite } };
+        DialogWindow.Frame(this, DialogFrame.Build(header, rows, footer: null), modal: false);
+        DialogEscape.Attach(this);
     }
 }

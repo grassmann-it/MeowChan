@@ -19,6 +19,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -558,8 +559,8 @@ internal static class ReaderGroupsPrompt
     internal static async Task<bool> ShowAsync(Window owner, ReaderGroupsDialog.PresentationText message,
         ReaderGroupsDialog.PresentationText accept, ReaderGroupsDialog.PresentationText cancel)
     {
-        Window prompt = new() { Title = Texts.T("readerGroups.title"), Width = 500, MaxWidth = Math.Max(400, owner.Bounds.Width), Height = 300,
-            MinHeight = 260, WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false };
+        // Modals plan MD1: a small modal confirmation whose height follows the message.
+        Window prompt = DialogWindow.Create(Texts.T("readerGroups.title"), DialogSize.S, modal: true, heightToContent: true);
         bool closed = false;
         // Invalidate before dispatch: a queued click cannot approve old-language prose.
         using LanguageLifetime language = new(() =>
@@ -569,17 +570,12 @@ internal static class ReaderGroupsPrompt
         yes.Click += (_, _) => prompt.Close(language.IsCurrent);
         no.Click += (_, _) => prompt.Close(false);
         prompt.Closed += (_, _) => closed = true;
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(no); actions.Children.Add(yes);
-        Grid content = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
-        content.Children.Add(new ScrollViewer { Content = new TextBlock { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap } });
-        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid.SetRow(footer, 1); content.Children.Add(footer);
-        prompt.Content = WindowChrome.Frame(prompt, content, WindowChromeKind.Dialog);
+        TextBlock text = new() { Text = message.Render(), TextWrapping = Avalonia.Media.TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 16) };
+        // The title stands in the title bar only; accept is the primary action right-most, cancel stays the default focus.
+        DialogWindow.Frame(prompt, DialogFrame.Build(header: null, text, DialogFooter.Build(yes, new Control[] { no })), modal: true);
         prompt.Opened += (_, _) => no.Focus();
         // Fixed dialog dismissal, independent of all freely assigned application gestures.
-        prompt.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; prompt.Close(false); } };
+        DialogEscape.Attach(prompt, close: () => prompt.Close(false));
         try
         {
             if (!language.IsCurrent) return false;

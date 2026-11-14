@@ -126,11 +126,13 @@ public sealed class MediaRatingDialogLanguageRefreshTests : IDisposable
     {
         string source = ReadSource("MediaRatingDialog");
         string apply = Between(source, "private void ApplyTexts()", "private void RefreshValueText()");
-        foreach (string required in new[] { "Title = MediaRatingText.LocalizedLabel", "_heading.Text = Title", "_identity.Text = MediaRatingText.LocalizedIdentity(_key)", "_help.Text = MediaRatingText.Catalog",
+        foreach (string required in new[] { "Title = MediaRatingText.LocalizedLabel", "_identity.Text = MediaRatingText.LocalizedIdentity(_key)", "_help.Text = MediaRatingText.Catalog",
             "_confirmedValue.Text = ConfirmedText()", "RefreshValueText();", "CommandBindings.Apply(_clear,",
             "_close.Content = MediaRatingText.Catalog", "_retry.Content = MediaRatingText.Catalog",
             "CommandBindings.BindShortcutHelp(_rating,", "RefreshErrorText();" })
             Assert.Contains(required, apply);
+        // Owner decision E1: the title stands in the title bar only, the body does not repeat it.
+        Assert.DoesNotContain("_heading", source);
         Assert.Contains("MediaRatingText.FormatError(_errorLabel(), _errorDetails)", source);
         Assert.Contains("_errorDetails = error.Message;", source);
         Assert.DoesNotContain("Texts.T(_errorDetails", source);
