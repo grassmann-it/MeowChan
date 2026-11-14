@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Styling;
@@ -72,7 +73,7 @@ internal static class BooruCompositionChecks
             await SubmitAddLineAsync(shell, "https://danbooru.donmai.us/posts/8003?q=secret");
             Require(Find<SelectableTextBlock>(shell, "AdmissionRepairText").Text?.Contains("enable the Danbooru plugin under Plugins") == true,
                 "The disabled Danbooru address lacks the enable hint: " + Find<SelectableTextBlock>(shell, "AdmissionRepairText").Text);
-            Require(stub.Requests.IsEmpty && host.BooruServices is null && page is null, "A disabled Danbooru address caused a request or a window.");
+            Require(stub.Requests.IsEmpty && host.BooruServices is null && page is null, "A disabled Danbooru address caused a request or a page.");
             Require(shell.FindControl<TextBox>("UrlInput")!.Text == "https://danbooru.donmai.us/posts/8003?q=secret", "A refused address was cleared from the Add line.");
             shell.FindControl<TextBox>("UrlInput")!.Text = string.Empty;
             // Enabling the plugin in the running session composes the services and shows the entry.
@@ -92,6 +93,16 @@ internal static class BooruCompositionChecks
             // The presentation switch only hides the hosted page. A page with the same service
             // identity must survive navigation and retain its unsent draft.
             page.ShowQuery("draft_kept_across_hide");
+            BooruPage retainedPage = page;
+            Click(shell.FindControl<Button>("DownloadsNavigationButton")!);
+            await Program.WaitUntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Downloads
+                && !shell.FindControl<ContentControl>("BooruPageHost")!.IsVisible,
+                () => "ordinary navigation did not leave Booru");
+            Require(ReferenceEquals(shell.BooruPageForTests, retainedPage)
+                && retainedPage.Model.Search.View.Input == "draft_kept_across_hide",
+                "Ordinary navigation replaced the page or discarded its draft.");
+            page = await OpenAsync(shell, menu);
+            Require(ReferenceEquals(page, retainedPage), "Returning to Booru replaced the same-service page.");
             CheckBox booruVisibility = shell.FindControl<CheckBox>("ShowBooruToolsToggle")!;
             Require(booruVisibility.IsVisible && booruVisibility.IsChecked == true,
                 "The Booru presentation switch is not visible and checked while the page is open.");
@@ -106,10 +117,10 @@ internal static class BooruCompositionChecks
             await Program.WaitUntilAsync(() => booruVisibility.IsChecked == true
                 && shell.FindControl<MenuItem>("BooruMenuItem")!.IsVisible, () => "showing Booru did not restore its presentation entry");
             page = await OpenAsync(shell, menu);
-            Require(ReferenceEquals(page, shell.BooruPageForTests), "Showing Booru replaced the same-service page.");
+            Require(ReferenceEquals(page, retainedPage), "Showing Booru replaced the same-service page.");
             Require(page.Model.Search.View.Input == "draft_kept_across_hide",
                 "Showing Booru did not retain the same-service draft.");
-            page.TryClearQuery();
+            Require(page.TryClearQuery(), "The retained page no longer accepts draft changes.");
 
             // A composition identity change must replace, rather than revive, the old page. The
             // binding event supplies the real shell callback; the replacement ports are inert and
@@ -128,17 +139,36 @@ internal static class BooruCompositionChecks
             Require(oldPage.Model.Search.View.Input == "draft_discarded_on_service_replacement"
                 && !oldPage.TryClearQuery(), "The old page composition remained live after service replacement.");
             Require(page.Model.Search.View.Input == string.Empty, "A replacement page inherited the old service draft.");
-            host.BooruServices = originalServices;
-            binding.SetEnabled(true);
-            await Program.WaitUntilAsync(() => shell.BooruPageForTests is { } candidate
-                && !ReferenceEquals(candidate, page)
-                && ReferenceEquals(candidate.Services, originalServices),
-                () => "recomposition did not restore a fresh page for the production services");
-            page = shell.BooruPageForTests!;
-            await Program.WaitUntilAsync(() => host.BooruComposition?.IsAvailable == true,
-                () => "the production Booru composition did not become available after re-enable");
+            BooruPage replacementPage = page;
+            replacementPage.ShowQuery("draft_discarded_on_service_loss");
+            // Removing a test override does not publish BooruChanged. Redeliver the disabled
+            // binding notification so the real shell reconciliation sees the actual service loss.
             host.BooruServices = null;
+            binding.SetEnabled(false);
+            await Program.WaitUntilAsync(() => host.BooruServices is null && shell.BooruPageForTests is null
+                && shell.FindControl<ContentControl>("BooruPageHost")!.Content is null
+                && !shell.FindControl<ContentControl>("BooruPageHost")!.IsVisible
+                && shell.SelectedPage == MainWindow.WorkspacePage.Downloads,
+                () => "service loss did not dispose the page and navigate to Downloads");
+            Require(replacementPage.Model.Search.View.Input == "draft_discarded_on_service_loss"
+                && !replacementPage.TryClearQuery() && !replacementPage.Model.Search.CanSubmit,
+                "The unavailable page composition remained live after service loss.");
+            await RequireEntryVisibleAsync(menu, visible: false);
+
+            binding.SetEnabled(true);
+            await Program.WaitUntilAsync(() => host.BooruComposition?.IsAvailable == true && host.BooruServices != null
+                && host.BooruComposition.WatcherHost.Scheduler.GetSnapshot().Running,
+                () => "the production Booru composition did not become available after re-enable");
+            // A new page is not yet a rendered view. Re-enter through the real menu and wait for
+            // its shell host, top level and selected search tab before looking up BooruInput.
+            page = await OpenAsync(shell, menu);
+            Require(!ReferenceEquals(page, oldPage) && !ReferenceEquals(page, replacementPage)
+                && ReferenceEquals(page.Services, originalServices),
+                "Recomposition revived an old page or did not restore the production services.");
             Require(page.Model.Search.View.Input == string.Empty, "Recomposition retained a stale page draft.");
+            Require(stub.Requests.IsEmpty && replacementHarness.ProviderRequests == 0
+                && replacementHarness.Previews.Requests == 0 && replacementHarness.Queue.Loads.Count == 0,
+                "Navigation, hide/show, replacement or service loss submitted work.");
 
             // ---- search through the real adapter, worker and bounded transport ----------------------------------------------
             Find<TextBox>(page, BooruWorkbenchView.InputName).Text = "cat_ears";
@@ -162,7 +192,7 @@ internal static class BooruCompositionChecks
             {
                 Click(copyLink);
                 return Task.CompletedTask;
-            }, new[] { copiedPostUrl }, new[] { "cat_ears", "draft_kept_across_hide", "draft_discarded_on_service_replacement" }, exactText: copiedPostUrl);
+            }, new[] { copiedPostUrl }, new[] { "cat_ears", "draft_kept_across_hide", "draft_discarded_on_service_replacement", "draft_discarded_on_service_loss" }, exactText: copiedPostUrl);
             if (copiedLink)
                 await Program.WaitUntilAsync(() => Text(page).Contains("Link copied: " + copiedPostUrl), () => "copy note missing: " + Text(page));
             Require(Find<Button>(page, BooruWorkbenchView.OpenPostPrefix + "8004").IsEffectivelyEnabled, "Open post in browser is missing on the result card.");
@@ -207,6 +237,8 @@ internal static class BooruCompositionChecks
             Capture(shell, shots, "composition-results-dark");
 
             // ---- Danbooru addresses in the Add line (the shared path of typing, pasting, the clipboard monitor and dropping) --------
+            Application.Current.RequestedThemeVariant = ThemeVariant.Light;
+            await Program.WaitUntilAsync(() => shell.ActualThemeVariant == ThemeVariant.Light, () => "light theme not restored for Add-line capture");
             int before = stub.Requests.Count;
             TextBox urlInput = shell.FindControl<TextBox>("UrlInput")!;
             // A Safebooru search address: the existing hosted page gets the query with the visible rating:g term; nothing is requested.
@@ -248,15 +280,20 @@ internal static class BooruCompositionChecks
             Require(stub.Violations.IsEmpty, "Stub violations: " + string.Join(", ", stub.Violations));
             Require(!Text(page).Contains("booru.ui.") && !Text(page).Contains("booru.watcher."), "A raw key is visible.");
 
-            page = null;
+            BooruPage closingPage = page;
             int requests = stub.Requests.Count;
             await CloseAsync(shell);
+            Require(shell.BooruPageForTests is null
+                && shell.FindControl<ContentControl>("BooruPageHost")!.Content is null
+                && !closingPage.TryClearQuery() && !closingPage.Model.Search.CanSubmit,
+                "Shell shutdown did not end the hosted page/view lifetime.");
+            page = null;
             shell = null;
             await host.DisposeAsync().AsTask().WaitAsync(Wait);
             Require(host.BooruServices is null, "The Danbooru ports outlived the session.");
             host = null;
             Require(stub.Requests.Count == requests, "A request happened during shutdown.");
-            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden, a Danbooru address in the Add line only shows the enable hint (no request); Add line with the plugin enabled: Safebooru search address prefills the open window with a visible rating:g, a Danbooru comma list stays one entry, a bare site address empties the field, none requests anything; a Safebooru post address with a search context sends exactly one Danbooru post read without the context and queues one one-shot original, no watcher; enabled at runtime -> composed, entry shown; page from the Workspace menu hosted in the shell; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; copy link through the shell clipboard path; one Load original -> exactly one queue job, Requested intent with search finding that keeps the query; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; hide/show retained the same page draft; service replacement discarded the old page; orderly shutdown without requests.");
+            Console.WriteLine("SMOKE booru composition: plugin disabled -> nothing composed, entry hidden, a Danbooru address in the Add line only shows the enable hint (no request); Add line with the plugin enabled: Safebooru search address prefills the hosted page with a visible rating:g, a Danbooru comma list stays one entry, a bare site address empties the field, none requests anything; a Safebooru post address with a search context sends exactly one Danbooru post read without the context and queues one one-shot original, no watcher; enabled at runtime -> composed, entry shown; page from the Workspace menu hosted in the shell; one exact search request through the real adapter and in-process plugin; 4 result cards with 4 previews via the bounded preview path (no sample/original); restricted post not loadable; copy link through the shell clipboard path; one Load original -> exactly one queue job, Requested intent with search finding that keeps the query; watcher created, scheduler baseline, Check now -> no new posts; light and dark screenshots in " + shots + "; held original completed with one transfer; navigation and hide/show retained the same page draft; service replacement discarded the old page; service loss disposed it and returned to Downloads; re-enable created a fresh rendered page; orderly shell/page shutdown without requests.");
         }
         finally
         {
@@ -300,17 +337,31 @@ internal static class BooruCompositionChecks
 
     private static async Task<BooruPage> OpenAsync(MainWindow shell, MenuItem menu)
     {
+        IClassicDesktopStyleApplicationLifetime lifetime = (IClassicDesktopStyleApplicationLifetime)Application.Current!.ApplicationLifetime!;
+        Window[] windowsBefore = lifetime.Windows.ToArray();
         MenuItem entry = Entry(menu);
         menu.IsSubMenuOpen = true;
         await SettleAsync(shell);
-        Require(entry.IsVisible && entry.IsEnabled, "The Danbooru entry is not available.");
+        Require(entry.IsVisible && entry.IsEnabled && entry.Command?.CanExecute(null) == true, "The Danbooru entry is not available.");
         menu.IsSubMenuOpen = false;
         entry.Command!.Execute(null);
         await Program.WaitUntilAsync(() => shell.SelectedPage == MainWindow.WorkspacePage.Booru
-            && shell.BooruPageForTests is { } page
-            && ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")!.Content, page), () => "page not shown");
+            && shell.BooruPageForTests is { IsEffectivelyVisible: true } candidate
+            && ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")!.Content, candidate), () => "page not shown");
         BooruPage page = shell.BooruPageForTests!;
         await SettleAsync(shell);
+        await Program.WaitUntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(page.View), shell)
+            && page.View.GetVisualDescendants().OfType<TextBox>().Any(input => input.Name == BooruWorkbenchView.InputName
+                && input.IsEffectivelyVisible), () => "the hosted Booru view/search tab did not materialize");
+        Require(ReferenceEquals(page.Content, page.View) && ReferenceEquals(page.Services, shell.SessionHost.BooruServices),
+            "The shell hosted another view or service bundle.");
+        entry.Command.Execute(null);
+        await SettleAsync(shell);
+        Require(ReferenceEquals(shell.BooruPageForTests, page)
+            && ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")!.Content, page),
+            "Repeated navigation replaced the same-service page.");
+        Require(lifetime.Windows.Count == windowsBefore.Length && windowsBefore.All(window => lifetime.Windows.Contains(window)),
+            "The page command opened or closed a top-level window.");
         return page;
     }
 
@@ -321,19 +372,25 @@ internal static class BooruCompositionChecks
         await Program.WaitUntilAsync(() => !shell.IsVisible);
     }
 
+    // Shell XAML names and the programmatic workbench live in different namescopes.
+    // Search only the current hosted view, after layout; never read a detached/old page or
+    // the inactive TabItem.Content as evidence of a visible control.
+    private static IEnumerable<Control> Controls(Control root) =>
+        (root is BooruPage page ? page.View : root).GetVisualDescendants().OfType<Control>();
+
     private static T Find<T>(Control root, string name) where T : Control =>
-        root.GetVisualDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
+        Controls(root).OfType<T>().SingleOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Control not found: " + name);
 
     private static List<Border> Cards(Control root) => Named(root, "BooruResult:");
     private static List<Border> WatcherCards(Control root) => Named(root, "BooruWatcher:");
 
-    private static List<Border> Named(Control root, string prefix) => root.GetVisualDescendants().OfType<Border>()
+    private static List<Border> Named(Control root, string prefix) => Controls(root).OfType<Border>()
         .Where(border => border.Name is { } name && name.StartsWith(prefix, StringComparison.Ordinal)).ToList();
 
-    private static int Previews(Control root) => root.GetVisualDescendants().OfType<Image>().Count(image => image.Source is Bitmap);
+    private static int Previews(Control root) => Controls(root).OfType<Image>().Count(image => image.Source is Bitmap);
 
-    private static string Text(Control root) => string.Join('\n', root.GetVisualDescendants().OfType<Control>().Where(control => control.IsVisible)
+    private static string Text(Control root) => string.Join('\n', Controls(root).Where(control => control.IsEffectivelyVisible)
         .Select(control => control switch
         {
             TextBlock block => block.Text,
@@ -343,7 +400,7 @@ internal static class BooruCompositionChecks
 
     private static void Click(Button button)
     {
-        Require(button.IsVisible && button.IsEffectivelyEnabled, "Button is not clickable: " + button.Name);
+        Require(button.IsEffectivelyVisible && button.IsEffectivelyEnabled, "Button is not clickable: " + button.Name);
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
 
