@@ -4338,6 +4338,14 @@
     "cards.desc.rate": "このメディアを 5 段階中 {0} で評価して完了にし、次へ進みます。",
     "cards.status.on": "カードモード オン: キー {0} でカードを選び、{1} でカードモードを終了します。",
     "cards.status.off": "カードモード オフ。",
-    "cards.help.note": "{0} でカードモードをオン・オフします。カードモードでは、キー {1} から {2} で画像の下のカードを選びます。カードは判断を適用し、メディアを完了して次へ進みます。"
+    "cards.help.note": "{0} でカードモードをオン・オフします。カードモードでは、キー {1} から {2} で画像の下のカードを選びます。カードは判断を適用し、メディアを完了して次へ進みます。",
+    "command.gallery.rotate": "90°回転",
+    "viewer.view.zoomAnnounce": "ズーム {0}%",
+    "viewer.view.fitAnnounce": "ウィンドウに合わせました",
+    "viewer.view.rotationAnnounce": "{0}度回転しました",
+    "viewer.view.rotationOff": "回転なし",
+    "viewer.view.rotationState": "{0}°回転",
+    "settings.gallery.maxZoom": "最大ズーム (%)",
+    "settings.gallery.maxZoom.hint": "画像や動画を元のサイズの何%まで拡大できるかを指定します。「ウィンドウに合わせる」には影響しません。"
   }
 }

@@ -4469,6 +4469,14 @@
     "cards.desc.rate": "Ocenia medium na {0} z 5, oznacza je jako gotowe i idzie dalej.",
     "cards.status.on": "Tryb kart włączony: klawisze {0} wybierają kartę, {1} kończy tryb kart.",
     "cards.status.off": "Tryb kart wyłączony.",
-    "cards.help.note": "{0} włącza i wyłącza tryb kart. W trybie kart klawisze od {1} do {2} wybierają karty pod obrazem; karta stosuje swoją decyzję, kończy medium i idzie dalej."
+    "cards.help.note": "{0} włącza i wyłącza tryb kart. W trybie kart klawisze od {1} do {2} wybierają karty pod obrazem; karta stosuje swoją decyzję, kończy medium i idzie dalej.",
+    "command.gallery.rotate": "Obróć o 90°",
+    "viewer.view.zoomAnnounce": "Powiększenie {0}%",
+    "viewer.view.fitAnnounce": "Dopasowano do okna",
+    "viewer.view.rotationAnnounce": "Obrócono o {0} stopni",
+    "viewer.view.rotationOff": "Bez obrotu",
+    "viewer.view.rotationState": "Obrócono o {0}°",
+    "settings.gallery.maxZoom": "Maksymalne powiększenie (%)",
+    "settings.gallery.maxZoom.hint": "Do jakiej wielkości można powiększyć obraz lub wideo, w procentach jego rozmiaru. Dopasowanie do okna nie ulega zmianie."
   }
 }

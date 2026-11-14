@@ -29,6 +29,12 @@ internal static class R08dViewerCatalog
         ("viewer.video.audioTrack.item", "Track {0}", "Spur {0}"),
         ("viewer.video.volumeHelp", "Point at it for the volume; mouse wheel ±5", "Zeigen öffnet die Lautstärke; Mausrad ±5"),
         ("viewer.closeLayer", "{0} · Esc", "{0} · Esc"),
+        // Zoom and rotation of the shown picture or video (spoken after the keys, the wheel and the menu entries).
+        ("viewer.view.zoomAnnounce", "Zoom {0}%", "Zoom {0} %"),
+        ("viewer.view.fitAnnounce", "Fit to window", "An Fenster angepasst"),
+        ("viewer.view.rotationAnnounce", "Rotated {0} degrees", "Um {0} Grad gedreht"),
+        ("viewer.view.rotationOff", "Not rotated", "Nicht gedreht"),
+        ("viewer.view.rotationState", "Rotated {0}°", "{0}° gedreht"),
         ("viewer.help.close", "Close shortcut help", "Tastaturhilfe schließen"),
         ("gallery.frame.saved", "Frame saved", "Einzelbild gespeichert"),
         ("gallery.frame.failed", "The frame could not be saved.", "Das Einzelbild konnte nicht gespeichert werden."),

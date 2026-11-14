@@ -473,6 +473,10 @@ namespace MeowChan
         internal const int GalleryFitMaxUpscalePercentDefault = GalleryFitPreferences.MaxUpscalePercentDefault;
         internal const int GalleryFitMaxUpscalePercentMinimum = GalleryFitPreferences.MaxUpscalePercentMinimum;
         internal const int GalleryFitMaxUpscalePercentMaximum = GalleryFitPreferences.MaxUpscalePercentMaximum;
+        public int GalleryMaxZoomPercent { get; set; } = GalleryMaxZoomPercentDefault;
+        internal const int GalleryMaxZoomPercentDefault = GalleryZoomLimits.MaxPercentDefault;
+        internal const int GalleryMaxZoomPercentMinimum = GalleryZoomLimits.MaxPercentMinimum;
+        internal const int GalleryMaxZoomPercentMaximum = GalleryZoomLimits.MaxPercentMaximum;
         public int PostFilterRuleLimit { get; set; } = PostFilterRuleLimitDefault;
         internal const int PostFilterRuleLimitDefault = ProfileStoreLimits.DefaultPostFilterRules;
         internal const int PostFilterRuleLimitMinimum = ProfileStoreLimits.MinimumPostFilterRules;
@@ -725,6 +729,7 @@ namespace MeowChan
             ReaderMediaSidebarWidth = Math.Clamp(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthMinimum, ReaderMediaSidebarWidthMaximum);
             ReaderMediaSidebarMinimumWidth = Math.Clamp(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthMinimum, ReaderMediaSidebarMinimumWidthMaximum);
             GalleryFitMaxUpscalePercent = Math.Clamp(GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentMinimum, GalleryFitMaxUpscalePercentMaximum);
+            GalleryMaxZoomPercent = Math.Clamp(GalleryMaxZoomPercent, GalleryMaxZoomPercentMinimum, GalleryMaxZoomPercentMaximum);
             PostFilterRuleLimit = Math.Clamp(PostFilterRuleLimit, PostFilterRuleLimitMinimum, PostFilterRuleLimitMaximum);
             HiddenPostLimit = Math.Clamp(HiddenPostLimit, HiddenPostLimitMinimum, HiddenPostLimitMaximum);
             QuickTagSuggestionCount = Math.Clamp(QuickTagSuggestionCount, QuickTagSuggestionCountMinimum, QuickTagSuggestionCountMaximum);
@@ -1303,6 +1308,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderMediaSidebarMinimumWidth), "ReaderMediaSidebarMinimumWidth is outside its supported range.");
             if (GalleryFitMaxUpscalePercent is < GalleryFitMaxUpscalePercentMinimum or > GalleryFitMaxUpscalePercentMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFitMaxUpscalePercent), "GalleryFitMaxUpscalePercent is outside its supported range.");
+            if (GalleryMaxZoomPercent is < GalleryMaxZoomPercentMinimum or > GalleryMaxZoomPercentMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryMaxZoomPercent), "GalleryMaxZoomPercent is outside its supported range.");
             if (PostFilterRuleLimit is < PostFilterRuleLimitMinimum or > PostFilterRuleLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(PostFilterRuleLimit), "PostFilterRuleLimit is outside its supported range.");
             if (HiddenPostLimit is < HiddenPostLimitMinimum or > HiddenPostLimitMaximum)
@@ -1506,6 +1513,7 @@ namespace MeowChan
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 GalleryFitMaxUpscalePercent = GalleryFitMaxUpscalePercent,
+                GalleryMaxZoomPercent = GalleryMaxZoomPercent,
                 PostFilterRuleLimit = PostFilterRuleLimit,
                 HiddenPostLimit = HiddenPostLimit,
                 QuickTagSuggestionCount = QuickTagSuggestionCount,
@@ -1719,6 +1727,7 @@ namespace MeowChan
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;
@@ -1891,6 +1900,7 @@ namespace MeowChan
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent;
+            GalleryMaxZoomPercent = source.GalleryMaxZoomPercent;
             PostFilterRuleLimit = source.PostFilterRuleLimit;
             HiddenPostLimit = source.HiddenPostLimit;
             QuickTagSuggestionCount = source.QuickTagSuggestionCount;

@@ -4423,6 +4423,14 @@
     "cards.desc.rate": "Note le média {0} sur 5, le marque comme terminé et continue.",
     "cards.status.on": "Mode cartes activé : les touches {0} choisissent une carte, {1} quitte le mode cartes.",
     "cards.status.off": "Mode cartes désactivé.",
-    "cards.help.note": "{0} active ou désactive le mode cartes. En mode cartes, les touches {1} à {2} choisissent les cartes sous l’image ; une carte applique sa décision, marque le média comme terminé et passe au suivant."
+    "cards.help.note": "{0} active ou désactive le mode cartes. En mode cartes, les touches {1} à {2} choisissent les cartes sous l’image ; une carte applique sa décision, marque le média comme terminé et passe au suivant.",
+    "command.gallery.rotate": "Pivoter de 90°",
+    "viewer.view.zoomAnnounce": "Zoom {0} %",
+    "viewer.view.fitAnnounce": "Adapté à la fenêtre",
+    "viewer.view.rotationAnnounce": "Pivoté de {0} degrés",
+    "viewer.view.rotationOff": "Sans rotation",
+    "viewer.view.rotationState": "Pivoté de {0}°",
+    "settings.gallery.maxZoom": "Zoom maximal (%)",
+    "settings.gallery.maxZoom.hint": "Jusqu’où une image ou une vidéo peut être agrandie, en pourcentage de sa taille. L’ajustement n’est pas concerné."
   }
 }

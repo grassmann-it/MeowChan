@@ -4429,6 +4429,14 @@
     "cards.desc.rate": "Valuta il media {0} su 5, lo segna come fatto e prosegue.",
     "cards.status.on": "Modalità schede attiva: i tasti {0} scelgono una scheda, {1} esce dalla modalità schede.",
     "cards.status.off": "Modalità schede disattivata.",
-    "cards.help.note": "{0} attiva o disattiva la modalità schede. Nella modalità schede i tasti da {1} a {2} scelgono le schede sotto l’immagine; una scheda applica la sua decisione, conclude il media e prosegue."
+    "cards.help.note": "{0} attiva o disattiva la modalità schede. Nella modalità schede i tasti da {1} a {2} scelgono le schede sotto l’immagine; una scheda applica la sua decisione, conclude il media e prosegue.",
+    "command.gallery.rotate": "Ruota di 90°",
+    "viewer.view.zoomAnnounce": "Zoom {0}%",
+    "viewer.view.fitAnnounce": "Adattato alla finestra",
+    "viewer.view.rotationAnnounce": "Ruotato di {0} gradi",
+    "viewer.view.rotationOff": "Non ruotato",
+    "viewer.view.rotationState": "Ruotato di {0}°",
+    "settings.gallery.maxZoom": "Zoom massimo (%)",
+    "settings.gallery.maxZoom.hint": "Fino a che punto si può ingrandire un’immagine o un video, in percentuale della sua dimensione. «Adatta» non cambia."
   }
 }

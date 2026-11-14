@@ -106,6 +106,7 @@ internal static class CommandLabelCatalog
         ("command.gallery.fit", "Fit", "Einpassen"),
         ("command.gallery.actual-size", "1:1", "1:1"),
         ("command.gallery.zoom-in", "Zoom in", "Vergrößern"),
+        ("command.gallery.rotate", "Rotate 90°", "90° drehen"),
         ("command.gallery.zoom-out", "Zoom out", "Verkleinern"),
         ("command.gallery.tools-toggle", "Show / hide gallery tools", "Galeriewerkzeuge anzeigen / ausblenden"),
         ("command.gallery.slideshow-toggle", "Start / pause slideshow", "Diashow starten / pausieren"),

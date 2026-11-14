@@ -421,6 +421,17 @@
                         </Grid>
                         <TextBlock Text="{Binding GalleryFitMaxUpscalePercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
+                    <!-- The largest zoom of pictures and videos (percent of the source size); Fit is never affected. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                        <StackPanel VerticalAlignment="Center" Spacing="4">
+                            <TextBlock x:Name="GalleryMaxZoomPercentFieldLabel" Text="{Binding GalleryMaxZoomPercentLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding GalleryMaxZoomPercentHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryMaxZoomPercentInput" Value="{Binding GalleryMaxZoomPercent, Mode=TwoWay}" Minimum="{Binding GalleryMaxZoomPercentMinimum}" Maximum="{Binding GalleryMaxZoomPercentMaximum}" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=GalleryMaxZoomPercentFieldLabel}" AutomationProperties.Name="{Binding GalleryMaxZoomPercentLabel}" AutomationProperties.HelpText="{Binding GalleryMaxZoomPercentHelp}" />
+                            <TextBlock x:Name="GalleryMaxZoomPercentInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
                     <!-- What a running slideshow does with a video; the number row belongs to the chosen rule. -->
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24" IsVisible="{Binding IsGallerySlideshow}">
                         <TextBlock x:Name="GallerySlideshowVideoRuleFieldLabel" Text="{Binding GallerySlideshowVideoRuleLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

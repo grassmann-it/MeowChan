@@ -4338,6 +4338,14 @@
     "cards.desc.rate": "이 미디어에 5점 만점에 {0}점을 주고 완료로 표시한 뒤 계속합니다.",
     "cards.status.on": "카드 모드를 켰습니다. {0} 키로 카드를 고르고, {1} 키로 카드 모드를 끝냅니다.",
     "cards.status.off": "카드 모드를 껐습니다.",
-    "cards.help.note": "{0} 키로 카드 모드를 켜고 끕니다. 카드 모드에서는 {1}부터 {2}까지의 키로 그림 아래의 카드를 고르며, 카드는 결정을 적용하고 미디어를 완료한 뒤 다음으로 이동합니다."
+    "cards.help.note": "{0} 키로 카드 모드를 켜고 끕니다. 카드 모드에서는 {1}부터 {2}까지의 키로 그림 아래의 카드를 고르며, 카드는 결정을 적용하고 미디어를 완료한 뒤 다음으로 이동합니다.",
+    "command.gallery.rotate": "90° 회전",
+    "viewer.view.zoomAnnounce": "확대/축소 {0}%",
+    "viewer.view.fitAnnounce": "창에 맞춤",
+    "viewer.view.rotationAnnounce": "{0}도 회전됨",
+    "viewer.view.rotationOff": "회전 없음",
+    "viewer.view.rotationState": "{0}° 회전됨",
+    "settings.gallery.maxZoom": "최대 확대 (%)",
+    "settings.gallery.maxZoom.hint": "이미지나 동영상을 원래 크기의 몇 %까지 확대할 수 있는지 정합니다. ‘창에 맞춤’에는 영향을 주지 않습니다."
   }
 }

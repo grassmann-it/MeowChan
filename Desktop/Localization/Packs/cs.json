@@ -4466,6 +4466,14 @@
     "cards.desc.rate": "Ohodnotí médium {0} z 5, označí ho jako hotové a pokračuje.",
     "cards.status.on": "Režim karet zapnut: klávesy {0} vyberou kartu, {1} režim karet ukončí.",
     "cards.status.off": "Režim karet vypnut.",
-    "cards.help.note": "{0} zapíná a vypíná režim karet. V režimu karet klávesy {1} až {2} vybírají karty pod obrázkem; karta použije své rozhodnutí, dokončí médium a pokračuje dál."
+    "cards.help.note": "{0} zapíná a vypíná režim karet. V režimu karet klávesy {1} až {2} vybírají karty pod obrázkem; karta použije své rozhodnutí, dokončí médium a pokračuje dál.",
+    "command.gallery.rotate": "Otočit o 90°",
+    "viewer.view.zoomAnnounce": "Zoom {0} %",
+    "viewer.view.fitAnnounce": "Přizpůsobeno oknu",
+    "viewer.view.rotationAnnounce": "Otočeno o {0} stupňů",
+    "viewer.view.rotationOff": "Bez otočení",
+    "viewer.view.rotationState": "Otočeno o {0}°",
+    "settings.gallery.maxZoom": "Maximální zvětšení (%)",
+    "settings.gallery.maxZoom.hint": "Jak moc lze obrázek nebo video zvětšit, v procentech jeho velikosti. Přizpůsobení oknu to neovlivní."
   }
 }

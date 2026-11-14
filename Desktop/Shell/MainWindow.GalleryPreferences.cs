@@ -38,6 +38,7 @@ public partial class MainWindow
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
         _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
+        _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
         if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
         if (_gallery != null) _gallery.PanelWidth = GalleryPanelWidthPreference();
         ConfigureGalleryFilmstrip();

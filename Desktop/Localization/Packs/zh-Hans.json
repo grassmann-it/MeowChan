@@ -4338,6 +4338,14 @@
     "cards.desc.rate": "给当前媒体评 {0} 分（满分 5 分），标记为已完成，然后继续。",
     "cards.status.on": "卡片模式已开启：按键 {0} 选择卡片，{1} 退出卡片模式。",
     "cards.status.off": "卡片模式已关闭。",
-    "cards.help.note": "{0} 开启或关闭卡片模式。在卡片模式下，按键 {1} 至 {2} 选择图片下方的卡片；卡片会执行其决定、完成当前媒体并转到下一个。"
+    "cards.help.note": "{0} 开启或关闭卡片模式。在卡片模式下，按键 {1} 至 {2} 选择图片下方的卡片；卡片会执行其决定、完成当前媒体并转到下一个。",
+    "command.gallery.rotate": "旋转 90°",
+    "viewer.view.zoomAnnounce": "缩放 {0}%",
+    "viewer.view.fitAnnounce": "适应窗口",
+    "viewer.view.rotationAnnounce": "已旋转 {0} 度",
+    "viewer.view.rotationOff": "未旋转",
+    "viewer.view.rotationState": "已旋转 {0}°",
+    "settings.gallery.maxZoom": "最大缩放 (%)",
+    "settings.gallery.maxZoom.hint": "图片或视频最多可放大到原始尺寸的百分之几。“适应窗口”不受影响。"
   }
 }

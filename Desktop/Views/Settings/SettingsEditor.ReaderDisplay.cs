@@ -44,6 +44,8 @@ public partial class SettingsEditor
     public int ReaderHoverEnlargeDelayMsMaximum => Config.ReaderHoverEnlargeDelayMsMaximum;
     public int GalleryFitMaxUpscalePercentMinimum => Config.GalleryFitMaxUpscalePercentMinimum;
     public int GalleryFitMaxUpscalePercentMaximum => Config.GalleryFitMaxUpscalePercentMaximum;
+    public int GalleryMaxZoomPercentMinimum => Config.GalleryMaxZoomPercentMinimum;
+    public int GalleryMaxZoomPercentMaximum => Config.GalleryMaxZoomPercentMaximum;
     public int PostFilterRuleLimitMinimum => Config.PostFilterRuleLimitMinimum;
     public int PostFilterRuleLimitMaximum => Config.PostFilterRuleLimitMaximum;
     public int HiddenPostLimitMinimum => Config.HiddenPostLimitMinimum;
@@ -95,6 +97,11 @@ public partial class SettingsEditor
     public string GalleryFitMaxUpscalePercentLabel => Texts.T("settings.gallery.fitUpscalePercent");
     public string GalleryFitMaxUpscalePercentHint => Texts.T("settings.gallery.fitUpscalePercent.hint") + " " + Texts.T("settings.reader.range", Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum);
     public string GalleryFitMaxUpscalePercentHelp => FieldHelp(nameof(GalleryFitMaxUpscalePercentInput), GalleryFitMaxUpscalePercentHint);
+    private decimal? _galleryMaxZoomPercent;
+    public decimal? GalleryMaxZoomPercent { get => _galleryMaxZoomPercent; set => SetField(ref _galleryMaxZoomPercent, value, nameof(GalleryMaxZoomPercent)); }
+    public string GalleryMaxZoomPercentLabel => Texts.T("settings.gallery.maxZoom");
+    public string GalleryMaxZoomPercentHint => Texts.T("settings.gallery.maxZoom.hint") + " " + Texts.T("settings.reader.range", Config.GalleryMaxZoomPercentMinimum, Config.GalleryMaxZoomPercentMaximum);
+    public string GalleryMaxZoomPercentHelp => FieldHelp(nameof(GalleryMaxZoomPercentInput), GalleryMaxZoomPercentHint);
     private decimal? _postFilterRuleLimit;
     public decimal? PostFilterRuleLimit { get => _postFilterRuleLimit; set => SetField(ref _postFilterRuleLimit, value, nameof(PostFilterRuleLimit)); }
     public string PostFilterRuleLimitLabel => Texts.T("settings.limits.postFilterRules");
@@ -261,6 +268,8 @@ public partial class SettingsEditor
         ResetNumber(ReaderThreadingDepthInput, ReaderThreadingDepth.Value);
         GalleryFitMaxUpscalePercent = config.GalleryFitMaxUpscalePercent;
         ResetNumber(GalleryFitMaxUpscalePercentInput, GalleryFitMaxUpscalePercent.Value);
+        GalleryMaxZoomPercent = config.GalleryMaxZoomPercent;
+        ResetNumber(GalleryMaxZoomPercentInput, GalleryMaxZoomPercent.Value);
         PostFilterRuleLimit = config.PostFilterRuleLimit;
         ResetNumber(PostFilterRuleLimitInput, PostFilterRuleLimit.Value);
         HiddenPostLimit = config.HiddenPostLimit;
@@ -317,6 +326,7 @@ public partial class SettingsEditor
         candidate.ReaderPageSize = GetInteger(ReaderPageSize, ReaderPageSizeLabel, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
         candidate.ReaderThreadingDepth = GetInteger(ReaderThreadingDepth, ReaderThreadingDepthLabel, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum);
         candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
+        candidate.GalleryMaxZoomPercent = GetInteger(GalleryMaxZoomPercent, GalleryMaxZoomPercentLabel, Config.GalleryMaxZoomPercentMinimum, Config.GalleryMaxZoomPercentMaximum);
         candidate.PostFilterRuleLimit = GetInteger(PostFilterRuleLimit, PostFilterRuleLimitLabel, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
         candidate.HiddenPostLimit = GetInteger(HiddenPostLimit, HiddenPostLimitLabel, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum);
         candidate.ReadingHistoryLimit = GetInteger(ReadingHistoryLimit, ReadingHistoryLimitLabel, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum);
@@ -361,6 +371,7 @@ public partial class SettingsEditor
         yield return (ReaderPageSizeInput, ReaderPageSize, ReaderPageSizeLabel, string.Empty, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum, true);
         yield return (ReaderThreadingDepthInput, ReaderThreadingDepth, ReaderThreadingDepthLabel, string.Empty, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum, true);
         yield return (GalleryFitMaxUpscalePercentInput, GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentLabel, string.Empty, Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum, true);
+        yield return (GalleryMaxZoomPercentInput, GalleryMaxZoomPercent, GalleryMaxZoomPercentLabel, string.Empty, Config.GalleryMaxZoomPercentMinimum, Config.GalleryMaxZoomPercentMaximum, true);
         yield return (PostFilterRuleLimitInput, PostFilterRuleLimit, PostFilterRuleLimitLabel, string.Empty, Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum, true);
         yield return (HiddenPostLimitInput, HiddenPostLimit, HiddenPostLimitLabel, string.Empty, Config.HiddenPostLimitMinimum, Config.HiddenPostLimitMaximum, true);
         yield return (ReadingHistoryLimitInput, ReadingHistoryLimit, ReadingHistoryLimitLabel, string.Empty, Config.ReadingHistoryLimitMinimum, Config.ReadingHistoryLimitMaximum, true);
@@ -426,6 +437,7 @@ public partial class SettingsEditor
         nameof(ReaderPageSizeLabel), nameof(ReaderPageSizeHint), nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthLabel), nameof(ReaderThreadingDepthHint), nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentLabel), nameof(GalleryFitMaxUpscalePercentHint), nameof(GalleryFitMaxUpscalePercentHelp),
+        nameof(GalleryMaxZoomPercentLabel), nameof(GalleryMaxZoomPercentHint), nameof(GalleryMaxZoomPercentHelp),
         nameof(PostFilterRuleLimitLabel), nameof(PostFilterRuleLimitHint), nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitLabel), nameof(HiddenPostLimitHint), nameof(HiddenPostLimitHelp),
         nameof(ReadingHistoryLimitLabel), nameof(ReadingHistoryLimitHint), nameof(ReadingHistoryLimitHelp),
@@ -455,6 +467,7 @@ public partial class SettingsEditor
         nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentHelp),
+        nameof(GalleryMaxZoomPercentHelp),
         nameof(PostFilterRuleLimitHelp),
         nameof(HiddenPostLimitHelp),
         nameof(ReadingHistoryLimitHelp),

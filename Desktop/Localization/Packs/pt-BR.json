@@ -4429,6 +4429,14 @@
     "cards.desc.rate": "Avalia a mídia com {0} de 5, marca como concluída e continua.",
     "cards.status.on": "Modo de cartões ligado: as teclas {0} escolhem um cartão e {1} sai do modo de cartões.",
     "cards.status.off": "Modo de cartões desligado.",
-    "cards.help.note": "{0} liga ou desliga o modo de cartões. No modo de cartões, as teclas {1} a {2} escolhem os cartões abaixo da imagem; um cartão aplica sua decisão, conclui a mídia e segue em frente."
+    "cards.help.note": "{0} liga ou desliga o modo de cartões. No modo de cartões, as teclas {1} a {2} escolhem os cartões abaixo da imagem; um cartão aplica sua decisão, conclui a mídia e segue em frente.",
+    "command.gallery.rotate": "Girar 90°",
+    "viewer.view.zoomAnnounce": "Zoom {0}%",
+    "viewer.view.fitAnnounce": "Ajustado à janela",
+    "viewer.view.rotationAnnounce": "Girado {0} graus",
+    "viewer.view.rotationOff": "Sem rotação",
+    "viewer.view.rotationState": "Girado {0}°",
+    "settings.gallery.maxZoom": "Zoom máximo (%)",
+    "settings.gallery.maxZoom.hint": "Até quanto uma imagem ou um vídeo pode ser ampliado, em porcentagem do seu tamanho. “Ajustar” não é afetado."
   }
 }

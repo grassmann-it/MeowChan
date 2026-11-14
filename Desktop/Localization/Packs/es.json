@@ -4423,6 +4423,14 @@
     "cards.desc.rate": "Valora el medio con {0} de 5, lo da por listo y continúa.",
     "cards.status.on": "Modo de tarjetas activado: las teclas {0} eligen una tarjeta y {1} sale del modo de tarjetas.",
     "cards.status.off": "Modo de tarjetas desactivado.",
-    "cards.help.note": "{0} activa o desactiva el modo de tarjetas. En el modo de tarjetas, las teclas {1} a {2} eligen las tarjetas bajo la imagen; una tarjeta aplica su decisión, da el medio por listo y pasa al siguiente."
+    "cards.help.note": "{0} activa o desactiva el modo de tarjetas. En el modo de tarjetas, las teclas {1} a {2} eligen las tarjetas bajo la imagen; una tarjeta aplica su decisión, da el medio por listo y pasa al siguiente.",
+    "command.gallery.rotate": "Girar 90°",
+    "viewer.view.zoomAnnounce": "Zoom {0} %",
+    "viewer.view.fitAnnounce": "Ajustado a la ventana",
+    "viewer.view.rotationAnnounce": "Girado {0} grados",
+    "viewer.view.rotationOff": "Sin girar",
+    "viewer.view.rotationState": "Girado {0}°",
+    "settings.gallery.maxZoom": "Zoom máximo (%)",
+    "settings.gallery.maxZoom.hint": "Hasta dónde se puede ampliar una imagen o un vídeo, en porcentaje de su tamaño. «Ajustar» no se ve afectado."
   }
 }
