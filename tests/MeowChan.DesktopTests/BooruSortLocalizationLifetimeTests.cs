@@ -1,13 +1,9 @@
 using System;
 using System.Reflection;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Platform;
-using Avalonia.Skia;
 using Avalonia.Threading;
 using MeowChan.Archive;
-using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -25,6 +21,7 @@ public sealed class BooruSortLocalizationLifetimeTests
     {
         MediaPage page = new(static _ => Task.FromException<ArchiveReader>(
             new InvalidOperationException("The sort-lifetime fixture must not open an archive.")));
+        CancellationTokenSource lifetime = Get<CancellationTokenSource>(page, "_lifetime");
         try
         {
             ComboBox sort = Get<ComboBox>(page, "_sort");
@@ -66,7 +63,8 @@ public sealed class BooruSortLocalizationLifetimeTests
         }
         finally
         {
-            page.EndLifetime();
+            try { page.EndLifetime(); }
+            finally { lifetime.Dispose(); }
         }
     });
 
@@ -76,29 +74,5 @@ public sealed class BooruSortLocalizationLifetimeTests
     private static void Set(MediaPage page, string field, object value) =>
         typeof(MediaPage).GetField(field, Private)!.SetValue(page, value);
 
-    private static void OnDispatcher(Action test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
-        SkiaPlatform.Initialize(); // Bitmap-backed command icons need a renderer, not a native window.
-        try
-        {
-            primary.SetValue(null, owner);
-            owner.Invoke(() =>
-            {
-                Texts.Initialize();
-                Texts.SetLanguage("en");
-                test();
-            }, DispatcherPriority.Send);
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
+    private static void OnDispatcher(Action test) => BooruComponentDispatcher.Run(test);
 }

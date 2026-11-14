@@ -1,11 +1,8 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Platform;
-using Avalonia.Skia;
 using Avalonia.Threading;
 using MeowChan.Desktop;
-using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.DesktopTests;
@@ -135,18 +132,26 @@ public sealed class BooruExactFocusOutcomeTests
         internal FocusFixture(MediaLibrarySnapshot snapshot, IReadOnlyList<MediaLibraryEntry> shown)
         {
             Page = new MediaPage(_ => throw new InvalidOperationException("The focus fixture must not open archive data."));
-            Page.IsVisible = true;
-            SetEffectiveVisibility(Page);
-            Set(Page, "_snapshot", snapshot);
-            Set(Page, "_shown", shown);
-            Set(Page, "_returnRun", Run);
             Lifetime = (CancellationTokenSource)Get(Page, "_lifetime")!;
+            try
+            {
+                Page.IsVisible = true;
+                SetEffectiveVisibility(Page);
+                Set(Page, "_snapshot", snapshot);
+                Set(Page, "_shown", shown);
+                Set(Page, "_returnRun", Run);
+            }
+            catch
+            {
+                Dispose();
+                throw;
+            }
         }
 
         public void Dispose()
         {
-            Page.EndLifetime();
-            Lifetime.Dispose();
+            try { Page.EndLifetime(); }
+            finally { Lifetime.Dispose(); }
         }
     }
 
@@ -162,29 +167,12 @@ public sealed class BooruExactFocusOutcomeTests
 
     private static void SetEffectiveVisibility(MediaPage page)
     {
-        MethodInfo method = typeof(MediaPage).GetMethod("UpdateIsEffectivelyVisible", InstanceAny)!;
+        // Private base members are not returned by reflection on the derived MediaPage type.
+        MethodInfo method = typeof(Visual).GetMethod("UpdateIsEffectivelyVisible", InstanceAny)
+            ?? throw new MissingMethodException(typeof(Visual).FullName, "UpdateIsEffectivelyVisible");
         method.Invoke(page, [true]);
         Assert.True(page.IsEffectivelyVisible);
     }
 
-    private static void OnDispatcher(Action test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", InstanceAny | BindingFlags.Static)!;
-        object? previous = primary.GetValue(null);
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
-        SkiaPlatform.Initialize(); // Bitmap-backed command icons need a renderer, not a native window.
-        try
-        {
-            primary.SetValue(null, owner);
-            owner.Invoke(() => { Texts.Initialize(); Texts.SetLanguage("en"); test(); }, DispatcherPriority.Send);
-        }
-        finally
-        {
-            Texts.SetLanguage(language);
-            primary.SetValue(null, previous);
-        }
-    }
+    private static void OnDispatcher(Action test) => BooruComponentDispatcher.Run(test);
 }
