@@ -198,13 +198,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly Button _close = new();
     private readonly IdentitySuggestionBox _input = new();
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _strip = new() { ItemSpacing = 6, LineSpacing = 0 };
+    private readonly WrapPanel _strip = new() { ItemSpacing = 8, LineSpacing = 0 };
     private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _allChips = new() { ItemSpacing = 6, LineSpacing = 0 };
+    private readonly WrapPanel _allChips = new() { ItemSpacing = 8, LineSpacing = 0 };
     private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
-    private readonly WrapPanel _someChips = new() { ItemSpacing = 6, LineSpacing = 0 };
+    private readonly WrapPanel _someChips = new() { ItemSpacing = 8, LineSpacing = 0 };
     private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _assigned;
     private readonly ContentControl _extra = new() { IsVisible = false };
@@ -249,13 +249,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
         _close.VerticalAlignment = VerticalAlignment.Center;
 
-        _assigned = new StackPanel { Spacing = 6, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
+        _assigned = new StackPanel { Spacing = 8, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
         StackPanel body = new()
         {
             Spacing = 12,
             Children =
             {
-                new StackPanel { Spacing = 6, Children = { _suggestionsHeading, _strip, _stripEmpty, _more } },
+                new StackPanel { Spacing = 8, Children = { _suggestionsHeading, _strip, _stripEmpty, _more } },
                 _assigned,
                 _extra
             }
