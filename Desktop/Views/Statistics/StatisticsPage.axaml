@@ -51,7 +51,10 @@
                             <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" />
                             <TextBlock x:Name="HistoryNote" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
-                        <TextBlock x:Name="PeakText" Grid.Column="1" Classes="muted stats-num" />
+                        <!-- Keep the localized peak column measured while the zero-traffic peak stays hidden. Otherwise its Auto column collapses and the note reflows after Reset. -->
+                        <Grid x:Name="PeakSlot" Grid.Column="1" MinWidth="104" IsHitTestVisible="False">
+                            <TextBlock x:Name="PeakText" Classes="muted stats-num" />
+                        </Grid>
                     </Grid>
                     <TextBlock x:Name="ActivityText" Classes="muted" TextWrapping="Wrap" />
                     <StackPanel Spacing="8">

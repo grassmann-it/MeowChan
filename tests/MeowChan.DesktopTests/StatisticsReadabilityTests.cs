@@ -148,6 +148,19 @@ public sealed class StatisticsReadabilityTests : IDisposable
     }
 
     [Fact]
+    public void ZeroTrafficHidesThePeakWithoutCollapsingItsHistoryHeaderColumn()
+    {
+        XDocument page = Markup("Desktop/Views/Statistics/StatisticsPage.axaml");
+        XElement slot = Named(page, "PeakSlot");
+        XElement peak = Named(page, "PeakText");
+
+        Assert.Equal("1", (string?)slot.Attribute("Grid.Column"));
+        Assert.Equal("104", (string?)slot.Attribute("MinWidth"));
+        Assert.Contains(slot.Descendants(), element => ReferenceEquals(element, peak));
+        Assert.DoesNotContain(peak.Ancestors(), element => element.Name.LocalName == "ScrollViewer");
+    }
+
+    [Fact]
     public void ConfirmationAndResultAreOutsideThePageFlowAndTheHeaderUsesInterTabularFigures()
     {
         XDocument page = Markup("Desktop/Views/Statistics/StatisticsPage.axaml");

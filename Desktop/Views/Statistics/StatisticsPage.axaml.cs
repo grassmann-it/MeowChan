@@ -155,8 +155,10 @@ public partial class StatisticsPage : UserControl
         ApplyGraph(DiskWriteGraph, DiskWriteScale, "stats.metric.diskWrite", snapshot.Series, seconds, ref _writeGraphName);
         ApplyGraph(DiskReadGraph, DiskReadScale, "stats.metric.diskRead", snapshot.Series, seconds, ref _readGraphName);
         bool hasTraffic = NetGraph.HasTraffic;
-        string peak = ByteUnits.Rate(NetGraph.TrafficPeak);
-        PeakText.Text = Texts.T("stats.peak", peak);
+        PeakText.Text = hasTraffic ? Texts.T("stats.peak", ByteUnits.Rate(NetGraph.TrafficPeak)) : string.Empty;
+        // PeakSlot deliberately remains measured in the zero-traffic state. It reserves the
+        // localized peak column without showing a made-up value, so HistoryNote keeps its wrap
+        // width and the graph does not move when Reset completes.
         PeakText.IsVisible = hasTraffic;
         ScaleTop.IsVisible = hasTraffic;
         ScaleHalf.IsVisible = hasTraffic;

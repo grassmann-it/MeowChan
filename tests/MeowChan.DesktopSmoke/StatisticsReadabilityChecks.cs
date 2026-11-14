@@ -44,14 +44,19 @@ internal static class StatisticsReadabilityChecks
                 foreach (TextBlock number in header.Children.OfType<TextBlock>().Skip(1))
                     Require(number.Bounds.Width >= number.DesiredSize.Width - 1, "A compact counter is clipped: " + number.Text);
                 Require(page.FindControl<TextBlock>("ScaleTop")!.Text == "128 KiB/s" && page.FindControl<TextBlock>("ScaleHalf")!.Text == "64 KiB/s", "Grid guides do not match the graph scale.");
+                Control peakSlot = page.FindControl<Control>("PeakSlot")!;
+                Require(peakSlot.Bounds.Width >= 103, $"Peak column was not measured in the traffic state: {peakSlot.Bounds}.");
                 Program.CaptureWindow(host, $"smoke-statistics-readability-640-{code}-{theme}.png");
 
-                Point before = page.Graph.TranslatePoint(default, host)!.Value;
+                Point? before = page.Graph.TranslatePoint(default, host);
+                Rect beforeGraph = page.Graph.Bounds;
+                Vector beforeScroll = page.FindControl<ScrollViewer>("StatisticsScroll")!.Offset;
+                string beforeLayout = LayoutDetails(page, host);
                 page.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => page.IsResetConfirmationOpen && page.CancelButton.IsFocused,
                     () => $"open {page.IsResetConfirmationOpen}, cancel focused {page.CancelButton.IsFocused}");
                 Require(page.CancelButton.IsFocused, "Flyout did not open on the safe answer.");
-                Require(before == page.Graph.TranslatePoint(default, host), "Opening the reset question pushed the graph.");
+                RequireStableGraphLayout("reset question", page, host, before, beforeGraph, beforeScroll, beforeLayout);
                 Program.CaptureWindow(host, $"smoke-statistics-readability-confirm-{code}-{theme}.png");
                 page.FindControl<Border>("ResetConfirmPanel")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
                 Require(!page.IsResetConfirmationOpen && page.ResetButton.IsFocused, "Escape did not dismiss and restore focus.");
@@ -61,10 +66,13 @@ internal static class StatisticsReadabilityChecks
                 await Program.WaitUntilAsync(() => !page.IsResetConfirmationOpen && page.ResetButton.IsEnabled);
                 await SettleAsync();
                 Require(!page.Graph.HasTraffic && page.FindControl<TextBlock>("HistoryEmpty")!.IsVisible, "Reset did not show the zero-traffic state.");
-                Require(!page.FindControl<TextBlock>("PeakText")!.IsVisible && !page.FindControl<TextBlock>("ScaleTop")!.IsVisible
+                TextBlock peak = page.FindControl<TextBlock>("PeakText")!;
+                Require(!peak.IsVisible && string.IsNullOrEmpty(peak.Text) && !page.FindControl<TextBlock>("ScaleTop")!.IsVisible
                     && !page.FindControl<TextBlock>("ScaleHalf")!.IsVisible, "Reset still advertises a fictitious peak or scale.");
                 Require(page.FindControl<Control>("ResetStatusPanel")!.IsVisible, "Reset result was not announced.");
-                Require(before == page.Graph.TranslatePoint(default, host), "Reset result pushed the graph.");
+                Require(page.FindControl<Control>("PeakSlot")!.Bounds.Width >= 103,
+                    $"Zero-traffic peak column collapsed: {page.FindControl<Control>("PeakSlot")!.Bounds}.");
+                RequireStableGraphLayout("reset result", page, host, before, beforeGraph, beforeScroll, beforeLayout);
                 Program.CaptureWindow(host, $"smoke-statistics-readability-reset-{code}-{theme}.png");
             }
             host.Width = 1100;
@@ -96,6 +104,34 @@ internal static class StatisticsReadabilityChecks
             RetentionDays = 7, Rate = source.Rate, Sources = [source], Total = source,
             Series = new IoSeries(capacity: 300, count: 4, netDown: [0, 65536, 98304, 131072], netUp: [0, 0, 0, 0], diskWrite: [0, 0, 32768, 65536], diskRead: [0, 0, 0, 32768], requests: [0, 1, 1, 1])
         };
+    }
+
+    private static void RequireStableGraphLayout(string stage, StatisticsPage page, Window host, Point? beforeOrigin,
+        Rect beforeGraph, Vector beforeScroll, string beforeLayout)
+    {
+        Point? afterOrigin = page.Graph.TranslatePoint(default, host);
+        Rect afterGraph = page.Graph.Bounds;
+        Vector afterScroll = page.FindControl<ScrollViewer>("StatisticsScroll")!.Offset;
+        string afterLayout = LayoutDetails(page, host);
+        Console.WriteLine($"SMOKE statistics readability bounds: {stage}; before={beforeLayout}; after={afterLayout}");
+        Require(beforeOrigin == afterOrigin,
+            $"{stage} pushed the graph: beforeOrigin={beforeOrigin}; afterOrigin={afterOrigin}; before={beforeLayout}; after={afterLayout}");
+        Require(beforeGraph.Size == afterGraph.Size,
+            $"{stage} resized the graph: before={beforeGraph}; after={afterGraph}; before={beforeLayout}; after={afterLayout}");
+        Require(beforeScroll == afterScroll,
+            $"{stage} changed the statistics scroll offset: before={beforeScroll}; after={afterScroll}; before={beforeLayout}; after={afterLayout}");
+    }
+
+    private static string LayoutDetails(StatisticsPage page, Window host)
+    {
+        TextBlock title = page.FindControl<TextBlock>("HistoryTitle")!;
+        TextBlock note = page.FindControl<TextBlock>("HistoryNote")!;
+        Control peakSlot = page.FindControl<Control>("PeakSlot")!;
+        TextBlock peak = page.FindControl<TextBlock>("PeakText")!;
+        ScrollViewer scroll = page.FindControl<ScrollViewer>("StatisticsScroll")!;
+        return $"origin={page.Graph.TranslatePoint(default, host)}; graph={page.Graph.Bounds}; scroll={scroll.Offset}; "
+            + $"title={title.Bounds}; note={note.Bounds}; peakSlot={peakSlot.Bounds}; peakVisible={peak.IsVisible}; "
+            + $"peakText=<{peak.Text}>; traffic={page.Graph.HasTraffic}; trafficPeak={page.Graph.TrafficPeak}; rows={page.Rows.Count}";
     }
 
     private static async Task SettleAsync()
