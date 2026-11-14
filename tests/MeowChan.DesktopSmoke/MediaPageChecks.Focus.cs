@@ -21,14 +21,21 @@ internal static partial class MediaPageChecks
         Texts.SetLanguage(code);
         window.Width = 1400; window.Height = 900;
         window.UpdateLayout();
-        await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide && page.FocusButton.IsEffectivelyVisible && page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1);
+        // The page localizes after the language change on the UI thread (Texts.Changed is posted), so wait for the new name too.
+        await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide && page.FocusButton.IsEffectivelyVisible && page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1
+            && Avalonia.Automation.AutomationProperties.GetName(page.FocusButton) == Texts.T("command.media.focus-mode"));
         Button focus = page.FocusButton, exit = page.FocusExitButton, filtersButton = page.FocusFiltersButton;
         Control toolbar = C<Control>(page, "MediaToolbar"), chipRow = C<Control>(page, "MediaFilterChipRow"), status = C<Control>(page, "MediaStatus"),
             hint = C<Control>(page, "MediaQueryHint"), surface = C<Control>(page, "MediaFilterSurface"), selectionRow = C<Control>(page, "MediaSelectionRow");
         Require(!page.IsFocusMode && !page.FocusRow.IsVisible && toolbar.IsEffectivelyVisible && chipRow.IsEffectivelyVisible && status.IsEffectivelyVisible
             && Avalonia.Automation.AutomationProperties.GetName(focus) == Texts.T("command.media.focus-mode") && focus.Classes.Contains("icon-square")
-            && ToolTip.GetTip(focus)?.ToString() == CommandBindings.Tooltip("media.focus-mode") && page.FocusAnnouncement == null,
-            state + ": the page must start with its header and the ⤢ tool named like the command.");
+            // Nothing is announced yet, or only the end of the previous round (the live region keeps its last text).
+            && ToolTip.GetTip(focus)?.ToString() == CommandBindings.Tooltip("media.focus-mode") && page.FocusAnnouncement != Texts.T("media.focus.on"),
+            state + ": the page must start with its header and the ⤢ tool named like the command: focus mode " + page.IsFocusMode
+                + ", focus row " + page.FocusRow.IsVisible + ", toolbar " + toolbar.IsEffectivelyVisible + ", chips " + chipRow.IsEffectivelyVisible
+                + ", status " + status.IsEffectivelyVisible + ", name '" + Avalonia.Automation.AutomationProperties.GetName(focus) + "' vs '"
+                + Texts.T("command.media.focus-mode") + "', icon-square " + focus.Classes.Contains("icon-square") + ", tip '" + ToolTip.GetTip(focus)
+                + "' vs '" + CommandBindings.Tooltip("media.focus-mode") + "', announcement '" + page.FocusAnnouncement + "'");
         Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(C<TextBlock>(page, "MediaFocusAnnouncement")) == Avalonia.Automation.AutomationLiveSetting.Polite,
             state + ": the announcement must be a polite live region.");
 
@@ -44,7 +51,9 @@ internal static partial class MediaPageChecks
             state + ": the toolbar, chips, hint, status and filter section must be hidden.");
         Require(page.Grid.IsEffectivelyVisible && page.Grid.Bounds.Height > 100 && selectionRow.IsEffectivelyVisible && page.SelectedTiles.Count == 2
             && C<Button>(page, "MediaSelectionClear").IsEffectivelyVisible && C<Button>(page, "MediaSelectionGallery").IsEnabled,
-            state + ": the grid and the selection bar must stay.");
+            state + ": the grid and the selection bar must stay: grid " + page.Grid.IsEffectivelyVisible + " " + page.Grid.Bounds + ", selection row "
+                + selectionRow.IsEffectivelyVisible + ", selected " + page.SelectedTiles.Count + ", clear " + C<Button>(page, "MediaSelectionClear").IsEffectivelyVisible
+                + ", gallery enabled " + C<Button>(page, "MediaSelectionGallery").IsEnabled);
         Require(page.FocusAnnouncement == Texts.T("media.focus.on"), state + ": the start must be announced: " + page.FocusAnnouncement);
         // The row: 32 dip, the counter on the left (the page's status behind the label), the exit alone at the right end.
         TextBlock text = C<TextBlock>(page, "MediaFocusText");

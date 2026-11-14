@@ -31,7 +31,9 @@ internal static partial class MediaPageChecks
         await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         await host.StartAsync().WaitAsync(Deadline);
         string language = Texts.Language;
-        MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host) };
+        // The selection bar's Gallery action is offered only with a gallery to open (MediaPage.Selection: OpenGallery != null);
+        // the focus-mode round checks that it stays usable, so the page gets a passive one, as the other media fixtures do.
+        MediaPage page = new(host.OpenArchiveReaderAsync) { ReadUserData = () => UserData(host), OpenGallery = (_, _) => Task.CompletedTask };
         Window window = new() { Width = 1400, Height = 900, Content = page, Title = "Media filter surface — diagnostic", ShowInTaskbar = false };
         try
         {

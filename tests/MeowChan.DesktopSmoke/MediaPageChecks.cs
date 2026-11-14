@@ -351,8 +351,10 @@ internal static partial class MediaPageChecks
             page.RefreshUserData();
             Require(page.FilterError == Texts.T("media.filter.error.unknownTag") && page.ShownEntries.Count == 0
                 && !C<TextBlock>(page, "MediaEmpty").IsVisible, "A deleted tag must refuse the filter with an explanation.");
-            Require(((chips.Children[0] as ContentControl)?.Content as TextBlock)?.Text == Texts.T("tags.filter.includeChip", Texts.T("tags.filter.deleted")),
-                "The chip of a deleted tag must say so.");
+            // A tag chip is negatable (M2): its content is the switch and the label, read through the one chip model.
+            string deletedLabel = chips.Children[0] is Ursa.Controls.ClosableTag deletedChip ? MeowChan.Desktop.Controls.WorkspaceChips.TermChipLabel(deletedChip) : "";
+            Require(deletedLabel == Texts.T("tags.filter.includeChip", Texts.T("tags.filter.deleted")),
+                "The chip of a deleted tag must say so: " + deletedLabel);
             RemoveChip(chips, 0);
             Require(page.FilterError == null && page.ShownEntries.Count == 3, "Removing the deleted tag did not clear the refusal.");
         }

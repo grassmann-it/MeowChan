@@ -108,25 +108,27 @@ internal static partial class MediaPageChecks
             page.ResetFilters();
             Require(missing.IsChecked != true && page.ShownEntries.Count == 3 && page.ActiveFilterCount == 0, "Reset must switch the missing files off.");
 
-            // A narrow page moves Refresh (and the shuffle) under More first; the order, direction, search and filters stay.
+            // A narrow page moves the focus-mode tool (M4, first entry) and Refresh (and the shuffle) under More; the order, direction,
+            // search and filters stay.
             page.BackgroundPresentEntries = 0;
             window.Width = 640;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Compact);
             Require(sort.IsEffectivelyVisible && direction.IsEffectivelyVisible && search.IsEffectivelyVisible && filters.IsEffectivelyVisible && more.IsEffectivelyVisible
-                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 "At 640 the order must stay and Refresh must be under More: " + string.Join(",", page.HeaderMoreIds));
             Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.NarrowSearchMinWidth }
                 && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and shrink search and order to their narrow minimum.");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
-            Require(page.HeaderMoreIds.SequenceEqual(["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
-                "While the order is random the narrow row must also hold Shuffle again under More.");
+            // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
+            await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+                () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
             sort.SelectedIndex = 0;
             window.Width = 760;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Reduced);
             Require(!refresh.IsVisible && sort.MinWidth == MediaToolbarLayout.SortMinWidth, "At 760 Refresh must stay under More and the order keeps its width.");
             window.Width = 1100;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
-            Require(refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]), "A wide page must show Refresh again.");
+            Require(refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]), "A wide page must show Refresh again: " + string.Join(",", page.HeaderMoreIds));
 
             // The tag count and rating keys are made with the presentation: from this many entries on, off the UI thread (here: always).
             MediaLibraryEntry two = page.Snapshot!.Entries.Single(entry => entry.Thread.Thread == "200"), one = page.Snapshot.Entries.Single(entry => entry.PostId == "100");
