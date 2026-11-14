@@ -91,7 +91,8 @@ public sealed class ReaderConversationOrderingTests
 
         Assert.False(projection.OrderFellBack);
         Assert.Equal(visibility == ReaderPostVisibility.Hidden ? 1 : 0, projection.HiddenCount);
-        Assert.Equal(visibility == ReaderPostVisibility.Stub ? 1 : 2, projection.StubCount);
+        // A stub parent adds its own stub to the always-stubbed child 703; a hidden parent leaves only 703.
+        Assert.Equal(visibility == ReaderPostVisibility.Stub ? 2 : 1, projection.StubCount);
         // 703 stays a stub parent; 704 is not a child of the previous displayed row by accident.
         ReaderPostEntry descendant = projection[projection.PositionOf("704")];
         Assert.Equal((expectedDepth, 3), (descendant.Depth, descendant.ParentIndex));

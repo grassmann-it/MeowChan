@@ -95,7 +95,8 @@ public sealed class ReaderPostSurfaceTests
         string[] order = Posts().Element(A + "ListBox.Styles")!.Elements(A + "Style")
             .Select(style => (string?)style.Attribute("Selector") ?? "").ToArray();
         // Later styles win: the active surface must follow the suppressed hover/pressed tints.
-        Assert.True(Array.IndexOf(order, selector) > Array.IndexOf(order, "ListBoxItem:pressed /template/ ContentPresenter"));
+        // The last style of a selector is the surface one; an earlier behavior-only style of the same selector does not count.
+        Assert.True(Array.LastIndexOf(order, selector) > Array.IndexOf(order, "ListBoxItem:pressed /template/ ContentPresenter"));
     }
 
     [Fact]
@@ -369,8 +370,11 @@ public sealed class ReaderPostSurfaceTests
     private static XElement Posts() => Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml")
         .Descendants(A + "ListBox").Where(element => (string?)element.Attribute(X + "Name") == "ArchivePosts"));
 
+    // A selector may also carry a behavior-only style (an attached property such as ReaderPostLayout.Focused, no surface setter);
+    // the surface style is the one that sets a plain control property.
     private static XElement PostStyle(string selector) => Assert.Single(Posts().Element(A + "ListBox.Styles")!
-        .Elements(A + "Style").Where(element => (string?)element.Attribute("Selector") == selector));
+        .Elements(A + "Style").Where(element => (string?)element.Attribute("Selector") == selector &&
+            element.Elements(A + "Setter").Any(setter => !((string?)setter.Attribute("Property") ?? "").Contains('.'))));
 
     private static string? Setting(XElement style, string property) => (string?)Assert.Single(style.Elements(A + "Setter")
         .Where(element => (string?)element.Attribute("Property") == property)).Attribute("Value");
