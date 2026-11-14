@@ -182,12 +182,14 @@ public sealed class ReaderPostProjectionTests
         {
             ReaderPostProjection projection = Build(view, ordering: new FixedOrder(broken));
             Assert.True(projection.OrderFellBack);
+            Assert.False(projection.IsOrdered); // Chronological fallback must keep the inline reply toggles usable.
             Assert.Equal(new[] { 0, 1, 2, 3 }, Enumerable.Range(0, 4).Select(position => projection[position].ThreadIndex));
             Assert.All(Enumerable.Range(0, 4), position => Assert.Equal(0, projection[position].Depth));
         }
         ReaderPostProjection reversed = Build(view, ordering: new FixedOrder(count =>
             Enumerable.Range(0, count).Reverse().Select(index => new ReaderOrderEntry(index, 0, -1)).ToArray()));
         Assert.False(reversed.OrderFellBack);
+        Assert.True(reversed.IsOrdered);
         Assert.Equal(new[] { 3, 2, 1, 0 }, Enumerable.Range(0, 4).Select(position => reversed[position].ThreadIndex));
     }
 

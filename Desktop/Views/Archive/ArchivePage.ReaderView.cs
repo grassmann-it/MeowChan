@@ -497,12 +497,12 @@ public partial class ArchivePage
         ReaderUnreadLineHost.ExtraTopMargin(ReaderPostCardMargin.Top + ReaderPostCardMargin.Bottom);
 
     // Placeholder, highlight and indentation of a (possibly recycled) post container, before it is measured.
-    private void DecorateReaderPost(Control container, ArchivePostRow? row)
+    private static void DecorateReaderPost(Control container, ArchivePostRow? row, double listWidth)
     {
         container.Classes.Set("reader-stub", row?.IsStub == true);
         container.Classes.Set("reader-highlight", row?.IsHighlighted == true);
         double lineRoom = row is { HasUnreadLine: true } ? ReaderUnreadLineRoom : 0;
-        if (row is { Depth: > 0 } || lineRoom > 0) container.Margin = ReaderPostIndentMargin(row?.Depth ?? 0, ArchivePosts.Bounds.Width, lineRoom);
+        if (row is { Depth: > 0 } || lineRoom > 0) container.Margin = ReaderPostIndentMargin(row?.Depth ?? 0, listWidth, lineRoom);
         else if (container.IsSet(Layoutable.MarginProperty)) container.ClearValue(Layoutable.MarginProperty);
     }
 }

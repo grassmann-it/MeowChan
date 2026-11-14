@@ -156,7 +156,7 @@ internal sealed class ReaderPostProjection
     internal ArchivedThreadView Thread { get; }
     internal bool IsIdentity => _entries == null;
     /// <summary>A custom order (P4) is applied; the reply counter is then suppressed (SuppressReplyToggle).</summary>
-    internal bool IsOrdered => Inputs.Ordering != null;
+    internal bool IsOrdered => Inputs.Ordering != null && !OrderFellBack;
     /// <summary>Thread revision, classifier and ordering revisions and the revealed posts.</summary>
     internal long Key { get; }
     internal ProjectionInputs Inputs { get; }
