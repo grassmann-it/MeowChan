@@ -180,7 +180,7 @@ public sealed class TaggingPageMenuTests : IDisposable
         Assert.Equal("check", rows[1].StateIcon);
         Assert.Equal("circle", rows[0].StateIcon);
         Texts.SetLanguage("de");
-        Assert.Equal("Eintrag 2: file-2.png, Erledigt, Video · Tagging erledigt · 3 Tags", rows[1].TileName(3));
+        Assert.Equal("Eintrag 2: file-2.png, Erledigt, Video · Taggen erledigt · 3 Tags", rows[1].TileName(3));
     }
 
     [Fact]

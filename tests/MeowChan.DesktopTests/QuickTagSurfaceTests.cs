@@ -749,7 +749,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     // (a full-width CJK character counts twice) of at most 14 for undo and stamp (the row), 24 for the editor (a 280 dip panel).
     [Theory]
     [InlineData("en", "Undo", "Stamp", "Open tag editor")]
-    [InlineData("de", "Rückgängig", "Stempel", "Tag-Editor öffnen")]
+    [InlineData("de", "Rückgängig", "Stempel", "Tagdialog öffnen")]
     [InlineData("es", "Deshacer", "Sello", "Editor de etiquetas")]
     [InlineData("fr", "Annuler", "Tampon", "Éditeur d’étiquettes")]
     [InlineData("ru", "Отменить", "Штамп", "Редактор тегов")]
@@ -791,12 +791,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Assert.Equal(("corner-up-left", "Rückgängig"), surface.FooterLabelOf(surface.UndoButton));
             Assert.Equal(("check-square", "Stempel"), surface.FooterLabelOf(surface.StampButton));
-            Assert.Equal(("external-link", "Tag-Editor öffnen"), surface.FooterLabelOf(surface.AdvancedButton));
+            Assert.Equal(("external-link", "Tagdialog öffnen"), surface.FooterLabelOf(surface.AdvancedButton));
             Assert.Equal("Letzte Tagänderung rückgängig machen · Strg+Z", ToolTip.GetTip(surface.UndoButton));
             Assert.Equal("Den vollständigen Tagdialog öffnen, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen", ToolTip.GetTip(surface.AdvancedButton));
             Assert.StartsWith("Öffnet den vollständigen Tagdialog", AutomationProperties.GetHelpText(surface.AdvancedButton));
             Assert.Equal("Nimmt die letzte hier gemachte Änderung zurück, Schritt für Schritt. Tastenkürzel: Strg+Z.", AutomationProperties.GetHelpText(surface.UndoButton));
-            Assert.InRange(WeightedLength("Tag-Editor öffnen"), 1, 24);
+            Assert.InRange(WeightedLength("Tagdialog öffnen"), 1, 24);
         }
     }
 

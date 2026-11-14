@@ -50,7 +50,7 @@ internal static class QuickTagCatalog
         ("tags.quick.undo", "Undo", "Rückgängig"),
         ("tags.quick.undoName", "Undo the last tag change, steps left: {0}", "Letzte Tagänderung rückgängig machen, verbleibende Schritte: {0}"),
         ("tags.quick.undoTip", "Undo the last tag change · {0}", "Letzte Tagänderung rückgängig machen · {0}"),
-        ("tags.quick.advanced", "Open tag editor", "Tag-Editor öffnen"),
+        ("tags.quick.advanced", "Open tag editor", "Tagdialog öffnen"),
         ("tags.quick.advancedName", "Open the full tag dialog to choose occurrences, sort and browse long lists",
             "Den vollständigen Tagdialog öffnen, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen"),
         ("tags.quick.undoHelp", "Takes back the last change made here, one step at a time. Shortcut: {0}.",

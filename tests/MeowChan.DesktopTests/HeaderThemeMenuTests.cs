@@ -63,7 +63,7 @@ public sealed class HeaderThemeMenuTests : IDisposable
     {
         Texts.SetLanguage("de");
         ContextMenuEntry entry = Assert.Single(HeaderThemeMenu.Compose("System", true, _ => { }).ToModel().Entries);
-        Assert.Equal("Wie System", entry.Label);
+        Assert.Equal("System folgen", entry.Label);
         Assert.Equal("Farbschema", Texts.T("settings.theme"));
     }
 

@@ -102,7 +102,7 @@ public sealed class TaggingTileBadgesTests : IDisposable
         badges.Show(Row(1, TagQueueState.Done, SavedMediaKind.Video, "991"), 3, new Size(100, 80));
         Assert.Same(english, badges.Description);
         Texts.SetLanguage("de");
-        Assert.Equal("Video · Tagging erledigt · 3 Tags · Booru-Quelle", badges.Description);
+        Assert.Equal("Video · Taggen erledigt · 3 Tags · Booru-Quelle", badges.Description);
         Texts.SetLanguage("en");
         badges.Show(Row(1, TagQueueState.Open), 0, Picture);
         Assert.Equal("No tags yet", badges.Description);

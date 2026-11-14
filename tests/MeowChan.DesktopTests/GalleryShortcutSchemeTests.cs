@@ -348,7 +348,7 @@ public sealed class GalleryShortcutSchemeTests : IDisposable
             Assert.NotEqual(english("settings.tagging.cardsStart.hint"), Translate(language, "settings.tagging.cardsStart.hint"));
         }
         Assert.Equal("Shortcuts in the gallery: Shift shows or hides panels, letters control playback.", Translate("en", "viewer.help.scheme"));
-        Assert.Equal("Tastenkürzel in der Galerie: Umschalt = Panels, Buchstaben = Wiedergabe.", Translate("de", "viewer.help.scheme"));
+        Assert.Equal("Tastenkürzel in der Galerie: Umschalt blendet Panels ein oder aus, Buchstaben steuern die Wiedergabe.", Translate("de", "viewer.help.scheme"));
         Assert.Equal("viewer.help.favorite", Translate("en", "viewer.help.favorite")); // the static line with fixed keys is gone
     }
 

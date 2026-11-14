@@ -538,7 +538,7 @@ public sealed class MediaBadgeTests : IDisposable
         Texts.SetLanguage("de");
         Assert.Equal("Datei fehlt · Favorit · Video 0:42 · In der Tagging-Warteschlange · 3 Tags · Bewertung 4 von 5 · Booru-Quelle", MediaBadgeText.Describe(Full));
         Assert.Equal("Animiertes Bild · 1 Tag", MediaBadgeText.Describe(new MediaBadgeState(Kind: MediaBadgeKind.Gif, TagCount: 1)));
-        Assert.Equal("Tagging übersprungen · Noch keine Tags", MediaBadgeText.Describe(new MediaBadgeState(Tagging: MediaTaggingState.Skipped, TagCount: 0)));
+        Assert.Equal("Taggen übersprungen · Noch keine Tags", MediaBadgeText.Describe(new MediaBadgeState(Tagging: MediaTaggingState.Skipped, TagCount: 0)));
         Assert.Equal("Video", MediaBadgeText.Describe(new MediaBadgeState(Kind: MediaBadgeKind.Video)));
     }
 
