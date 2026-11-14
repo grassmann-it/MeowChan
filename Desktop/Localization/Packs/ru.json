@@ -4053,6 +4053,7 @@
     "gallery.decision.status.unavailable": "Избранное и оценки недоступны для этого медиафайла.",
     "gallery.decision.status.allMarked": "Относится ко всем отмеченным медиафайлам: {0}.",
     "gallery.decision.status.skipped": "Не изменено: {0}.",
+    "gallery.rating.saved": "Оценка сохранена",
     "tags.quick.status.undoneAddOn": "Отменено для «{1}»: тег «{0}» снова снят.",
     "tags.quick.status.undoneRemoveOn": "Отменено для «{1}»: тег «{0}» снова назначен.",
     "tags.quick.thread.heading": "Теги треда ({0})",

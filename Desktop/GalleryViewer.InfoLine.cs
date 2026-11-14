@@ -1,7 +1,10 @@
 using System;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Media;
+using MeowChan.Desktop.Localization;
 using Avalonia.Threading;
 
 namespace MeowChan.Desktop;
@@ -51,6 +54,9 @@ internal sealed partial class GalleryViewer
     private TextBlock[] _infoSegmentTexts = Array.Empty<TextBlock>();
     private readonly TextBlock[] _infoSeparators = new TextBlock[4];
     private readonly DispatcherTimer _statusDwellTimer = new();
+    // GL6: "Rating saved", the confirmation after a rating was written; transient like "ready" (GalleryStatusDwellMs) and a polite live region.
+    private readonly TextBlock _ratingSaved = new() { Name = "GalleryRatingSaved", IsVisible = false, TextWrapping = TextWrapping.Wrap };
+    private readonly DispatcherTimer _ratingSavedTimer = new();
     private string _statusKey = string.Empty;
     private bool _statusExpired;
     private int _statusDwellMs = Config.GalleryStatusDwellMsDefault;
@@ -60,6 +66,33 @@ internal sealed partial class GalleryViewer
     {
         get => _statusDwellMs;
         set => _statusDwellMs = GalleryInfoLine.ClampDwell(value);
+    }
+
+    /// <summary>
+    /// GL6: confirms that the shown medium's rating was saved: a transient "Rating saved" in the status segment for <c>GalleryStatusDwellMs</c>,
+    /// announced politely. The hidden "Hints" choice silences it like the other confirmations; a shown medium that changed meanwhile
+    /// clears it (<see cref="ClearRatingSaved"/>).
+    /// </summary>
+    internal void ConfirmRatingSaved()
+    {
+        if (_terminalRetirement || _viewerInteractionStopped || _entry == null) return;
+        _ratingSavedTimer.Stop();
+        if (_modeTools != null && !BuildChromePlan().Hints) { ClearRatingSaved(); return; }
+        _ratingSaved.Text = Texts.T("gallery.rating.saved");
+        _ratingSaved.IsVisible = true;
+        _ratingSavedTimer.Interval = TimeSpan.FromMilliseconds(_statusDwellMs);
+        _ratingSavedTimer.Start();
+        UpdateInfoLine();
+    }
+
+    // The confirmation belongs to the medium it was said for: a new medium, the end of the dwell and the viewer's retirement clear it.
+    private void ClearRatingSaved()
+    {
+        _ratingSavedTimer.Stop();
+        if (!_ratingSaved.IsVisible && string.IsNullOrEmpty(_ratingSaved.Text)) return;
+        _ratingSaved.IsVisible = false;
+        _ratingSaved.Text = string.Empty;
+        UpdateInfoLine();
     }
 
     /// <summary>Whether the status segment shows a transient text now (tests and smokes).</summary>
@@ -90,7 +123,9 @@ internal sealed partial class GalleryViewer
             };
         }
         _infoSegments.Children.Add(_position); // never shown: the position stands between the arrows
-        foreach (TextBlock text in new[] { _slideshowStatus, _overlayFallbackNotice })
+        AutomationProperties.SetLiveSetting(_ratingSaved, AutomationLiveSetting.Polite);
+        _ratingSavedTimer.Tick += (_, _) => ClearRatingSaved();
+        foreach (TextBlock text in new[] { _ratingSaved, _slideshowStatus, _overlayFallbackNotice })
         {
             text.Classes.Add("workspace-meta");
             text.Margin = default;
@@ -149,14 +184,15 @@ internal sealed partial class GalleryViewer
             shown[index] = _infoSegmentTexts[index].IsVisible && !string.IsNullOrEmpty(_infoSegmentTexts[index].Text);
         bool[] separators = GalleryInfoLine.Separators(shown);
         for (int index = 1; index < separators.Length; index++) _infoSeparators[index].IsVisible = separators[index];
-        bool status = _slideshowStatus.IsVisible && !string.IsNullOrEmpty(_slideshowStatus.Text)
+        bool status = _ratingSaved.IsVisible && !string.IsNullOrEmpty(_ratingSaved.Text)
+            || _slideshowStatus.IsVisible && !string.IsNullOrEmpty(_slideshowStatus.Text)
             || _overlayFallbackNotice.IsVisible && !string.IsNullOrEmpty(_overlayFallbackNotice.Text);
         _statusSegment.IsVisible = status;
         bool line = status;
         foreach (bool one in shown) line |= one;
         _infoLine.IsVisible = line;
         // Hidden tools keep only a slideshow reason on the screen (as before); otherwise the block shows while anything in it does.
-        bool block = (line || _warnings.IsVisible || _favoriteError.IsVisible) && (!_mediaFocus || _slideshowStatus.IsVisible);
+        bool block = (line || _warnings.IsVisible || _favoriteError.IsVisible) && (!_mediaFocus || _slideshowStatus.IsVisible || _ratingSaved.IsVisible);
         if (_infoOverlay.IsVisible != block)
         {
             _infoOverlay.IsVisible = block;

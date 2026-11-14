@@ -153,6 +153,7 @@ public static partial class WorkViewPolicy
         Same("gallery.status.file-only", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         Same("gallery.status.favorite-error", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         Same("gallery.status.rating", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
+        Same("gallery.status.rating-saved", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         Same("gallery.status.slideshow", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         Same("gallery.status.overlay-fallback", WorkViewPage.Gallery, WorkViewKind.Element, Required, safety: true),
         // "Remove from favourites?" (keep is the default): the consent before a favourite is dropped.

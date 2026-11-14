@@ -4073,6 +4073,7 @@
     "gallery.decision.status.unavailable": "Oblíbené a hodnocení nejsou pro toto médium dostupné.",
     "gallery.decision.status.allMarked": "Platí pro všechna označená média: {0}.",
     "gallery.decision.status.skipped": "Beze změny: {0}.",
+    "gallery.rating.saved": "Hodnocení uloženo",
     "tags.quick.status.undoneAddOn": "Vráceno u {1}: „{0}“ znovu odebrán.",
     "tags.quick.status.undoneRemoveOn": "Vráceno u {1}: „{0}“ znovu přiřazen.",
     "tags.quick.thread.heading": "Štítky vlákna ({0})",

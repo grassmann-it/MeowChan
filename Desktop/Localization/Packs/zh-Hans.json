@@ -3996,6 +3996,7 @@
     "gallery.decision.status.unavailable": "此媒体无法使用收藏和评分。",
     "gallery.decision.status.allMarked": "适用于所有已标记的媒体：{0}。",
     "gallery.decision.status.skipped": "未更改：{0}。",
+    "gallery.rating.saved": "评分已保存",
     "tags.quick.status.undoneAddOn": "已在 {1} 上撤销：“{0}”已再次移除。",
     "tags.quick.status.undoneRemoveOn": "已在 {1} 上撤销：“{0}”已重新添加。",
     "tags.quick.thread.heading": "串标签（{0}）",

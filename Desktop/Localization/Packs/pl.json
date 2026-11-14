@@ -4079,6 +4079,7 @@
     "gallery.decision.status.unavailable": "Ulubione i oceny są niedostępne dla tego medium.",
     "gallery.decision.status.allMarked": "Dotyczy wszystkich oznaczonych mediów: {0}.",
     "gallery.decision.status.skipped": "Bez zmian: {0}.",
+    "gallery.rating.saved": "Ocena zapisana",
     "tags.quick.status.undoneAddOn": "Cofnięto dla {1}: „{0}” ponownie usunięto.",
     "tags.quick.status.undoneRemoveOn": "Cofnięto dla {1}: „{0}” ponownie przypisano.",
     "tags.quick.thread.heading": "Tagi wątku ({0})",

@@ -4034,6 +4034,7 @@
     "gallery.decision.status.unavailable": "Les favoris et les évaluations ne sont pas disponibles pour ce média.",
     "gallery.decision.status.allMarked": "S’applique à tous les médias marqués : {0}.",
     "gallery.decision.status.skipped": "Non modifié : {0}.",
+    "gallery.rating.saved": "Note enregistrée",
     "tags.quick.status.undoneAddOn": "Annulé sur {1} : « {0} » de nouveau retirée.",
     "tags.quick.status.undoneRemoveOn": "Annulé sur {1} : « {0} » de nouveau attribuée.",
     "tags.quick.thread.heading": "Étiquettes du fil ({0})",

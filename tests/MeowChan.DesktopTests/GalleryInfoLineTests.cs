@@ -184,6 +184,37 @@ public sealed class GalleryInfoLineTests
     }
 
     [Fact]
+    public void ASavedRatingIsConfirmedTransientlyInAPoliteLiveRegionOfTheStatusSegment()
+    {
+        // GL6: "Rating saved" is a segment of the status block next to the slideshow status, shown for the dwell time, polite, cleared by a new medium.
+        string line = Source("Desktop/GalleryViewer.InfoLine.cs");
+        Assert.Contains("AutomationProperties.SetLiveSetting(_ratingSaved, AutomationLiveSetting.Polite);", line);
+        Assert.Contains("new[] { _ratingSaved, _slideshowStatus, _overlayFallbackNotice }", line);
+        Assert.Contains("_ratingSavedTimer.Interval = TimeSpan.FromMilliseconds(_statusDwellMs);", line);
+        Assert.Contains("_ratingSavedTimer.Tick += (_, _) => ClearRatingSaved();", line);
+        Assert.Contains("_modeTools != null && !BuildChromePlan().Hints", line); // the "Hints" choice silences it like the other confirmations
+        Assert.Contains("ClearRatingSaved();", Source("Desktop/GalleryViewer.cs")); // a new medium has not been rated
+        // Only a write that succeeded confirms, and only while the rated medium is still the shown one.
+        string ratings = Source("Desktop/Shell/MainWindow.Ratings.cs");
+        Assert.Contains("ConfirmGalleryRatingSaved(key);", ratings);
+        Assert.True(ratings.IndexOf("await _session.SetMediaRatingAsync(key, value);", StringComparison.Ordinal)
+            < ratings.IndexOf("ConfirmGalleryRatingSaved(key);", StringComparison.Ordinal));
+        Assert.Contains("== key) _gallery.ConfirmRatingSaved();", ratings);
+        Assert.Contains("gallery.status.rating-saved", Source("Desktop/GalleryViewer.WorkView.cs"));
+    }
+
+    [Fact]
+    public void TheRatingSavedSentenceExistsInEnglishAndGerman()
+    {
+        Texts.Initialize();
+        Texts.SetLanguage("en");
+        Assert.Equal("Rating saved", Texts.T("gallery.rating.saved"));
+        Texts.SetLanguage("de");
+        Assert.Equal("Bewertung gespeichert", Texts.T("gallery.rating.saved"));
+        Texts.SetLanguage("en");
+    }
+
+    [Fact]
     public void TheLayoutMenusInfoAndHintsRowsSayTheNewMeaning()
     {
         Texts.Initialize();

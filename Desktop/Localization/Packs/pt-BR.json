@@ -4037,6 +4037,7 @@
     "gallery.decision.status.unavailable": "Favoritos e avaliações não estão disponíveis para esta mídia.",
     "gallery.decision.status.allMarked": "Vale para todas as mídias marcadas: {0}.",
     "gallery.decision.status.skipped": "Sem alteração: {0}.",
+    "gallery.rating.saved": "Avaliação salva",
     "tags.quick.status.undoneAddOn": "Desfeito em {1}: “{0}” removida de novo.",
     "tags.quick.status.undoneRemoveOn": "Desfeito em {1}: “{0}” atribuída de novo.",
     "tags.quick.thread.heading": "Tags do tópico ({0})",

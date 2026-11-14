@@ -49,6 +49,7 @@ public partial class MainWindow
             if (_isClosing) return;
             _archivePage?.RefreshMediaRatings();
             RefreshGalleryRating();
+            ConfirmGalleryRatingSaved(key); // GL6: "Rating saved" in the gallery's info line, only while the rated medium is still shown
         }
         catch (Exception error) { _ratingErrors[key] = error.Message; throw; }
         finally { _ratingChanges.Remove(key); if (!_isClosing) RefreshGalleryRating(); }
@@ -63,6 +64,12 @@ public partial class MainWindow
                 && FavoriteAssetKey.From(_galleryEntries[_galleryIndex].Key.Thread, _galleryEntries[_galleryIndex].Asset) == key)
                 RefreshGalleryRating();
         }
+    }
+    private void ConfirmGalleryRatingSaved(FavoriteAssetKey key)
+    {
+        if (_gallery == null || _galleryIndex < 0 || _galleryIndex >= _galleryEntries.Count) return;
+        GalleryEntry entry = _galleryEntries[_galleryIndex];
+        if (FavoriteAssetKey.From(entry.Key.Thread, entry.Asset) == key) _gallery.ConfirmRatingSaved();
     }
     private void RefreshGalleryRating()
     {

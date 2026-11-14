@@ -3993,6 +3993,7 @@
     "gallery.decision.status.unavailable": "このメディアではお気に入りと評価を利用できません。",
     "gallery.decision.status.allMarked": "マークした全メディアに適用: {0}。",
     "gallery.decision.status.skipped": "変更なし: {0}。",
+    "gallery.rating.saved": "評価を保存しました",
     "tags.quick.status.undoneAddOn": "{1} で元に戻しました: 「{0}」を再び外しました。",
     "tags.quick.status.undoneRemoveOn": "{1} で元に戻しました: 「{0}」を再び付与しました。",
     "tags.quick.thread.heading": "スレッドのタグ（{0}）",

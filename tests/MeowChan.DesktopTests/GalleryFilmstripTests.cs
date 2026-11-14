@@ -381,8 +381,8 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Contains("CornerRadius = new CornerRadius(4)", strip);
         // 32 dip arrows over the strip's ends, shown only where there is somewhere to scroll and the pointer or keyboard is in the band.
         Assert.Contains("button.Width = 32; button.Height = 32;", strip);
-        Assert.Contains("_back.IsVisible = active && _back.IsEnabled;", strip);
-        Assert.Contains("_forward.IsVisible = active && _forward.IsEnabled;", strip);
+        Assert.Contains("_backShown = active && _back.IsEnabled;", strip);
+        Assert.Contains("_forwardShown = active && _forward.IsEnabled;", strip);
         Assert.Contains("bool active = _pointerOver || _keyboardFocus;", strip);
         Assert.Equal(24, GalleryFilmstrip.EdgeFadeWidth);
         Assert.Contains("_strip.OpacityMask = mask;", strip);

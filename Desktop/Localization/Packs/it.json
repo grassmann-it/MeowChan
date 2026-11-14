@@ -4037,6 +4037,7 @@
     "gallery.decision.status.unavailable": "Preferiti e valutazioni non sono disponibili per questo file multimediale.",
     "gallery.decision.status.allMarked": "Vale per tutti i file contrassegnati: {0}.",
     "gallery.decision.status.skipped": "Non modificato: {0}.",
+    "gallery.rating.saved": "Valutazione salvata",
     "tags.quick.status.undoneAddOn": "Annullato su {1}: «{0}» rimosso di nuovo.",
     "tags.quick.status.undoneRemoveOn": "Annullato su {1}: «{0}» assegnato di nuovo.",
     "tags.quick.thread.heading": "Tag del thread ({0})",

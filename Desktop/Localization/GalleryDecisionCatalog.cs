@@ -22,5 +22,7 @@ internal static class GalleryDecisionCatalog
         ("gallery.decision.status.unavailable", "Favorites and ratings are not available for this medium.", "Favoriten und Bewertungen sind für dieses Medium nicht verfügbar."),
         ("gallery.decision.status.allMarked", "Applies to all marked media: {0}.", "Gilt für alle markierten Medien: {0}."),
         ("gallery.decision.status.skipped", "Not changed: {0}.", "Nicht geändert: {0}."),
+        // GL6: the info line's transient confirmation after the gallery's rating button or keys saved a rating (a polite live region).
+        ("gallery.rating.saved", "Rating saved", "Bewertung gespeichert"),
     };
 }

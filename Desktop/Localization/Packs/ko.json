@@ -3993,6 +3993,7 @@
     "gallery.decision.status.unavailable": "이 미디어에는 즐겨찾기와 평가를 사용할 수 없습니다.",
     "gallery.decision.status.allMarked": "마크한 모든 미디어에 적용됨: {0}.",
     "gallery.decision.status.skipped": "변경되지 않음: {0}.",
+    "gallery.rating.saved": "평가를 저장했습니다",
     "tags.quick.status.undoneAddOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 제거했습니다.",
     "tags.quick.status.undoneRemoveOn": "{1}에서 실행 취소됨: “{0}”을(를) 다시 지정했습니다.",
     "tags.quick.thread.heading": "스레드 태그({0})",

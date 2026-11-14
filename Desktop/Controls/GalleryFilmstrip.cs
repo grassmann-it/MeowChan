@@ -64,7 +64,7 @@ internal sealed class GalleryFilmstrip : Border
     private int _pressedTile = -1;
     // MB1b: the length of a video when the viewer learned it (the strip never reads a file); drawn as the badge's duration chip.
     private readonly Dictionary<int, TimeSpan> _durations = new();
-    private bool _keyboardFocus;
+    private bool _keyboardFocus, _backShown, _forwardShown;
     private bool _atBottom = true; // GL1: the band's place; only its accessible description depends on it (the viewer sets margins and parent)
 
     internal GalleryFilmstrip()
@@ -87,8 +87,9 @@ internal sealed class GalleryFilmstrip : Border
         foreach (Button button in new[] { _back, _forward })
         {
             button.Classes.Add("icon-only");
+            button.Classes.Add("filmstrip-chevron"); // GL6: the 80 ms Opacity fade of WorkspaceStyles.axaml (none under reduced motion)
             button.Width = 32; button.Height = 32; button.VerticalAlignment = VerticalAlignment.Center; button.Focusable = false;
-            button.IsVisible = false;
+            button.IsVisible = false; button.Opacity = 0; button.IsHitTestVisible = false;
         }
         _back.HorizontalAlignment = HorizontalAlignment.Left;
         _forward.HorizontalAlignment = HorizontalAlignment.Right;
@@ -157,8 +158,8 @@ internal sealed class GalleryFilmstrip : Border
     internal bool ForwardEnabled => _forward.IsEnabled;
     internal double TileGapSize => _gap;
     /// <summary>Whether the arrow shows now: there is somewhere to scroll and the pointer or the keyboard is in the band (tests and smokes).</summary>
-    internal bool BackShown => _back.IsVisible;
-    internal bool ForwardShown => _forward.IsVisible;
+    internal bool BackShown => _backShown;
+    internal bool ForwardShown => _forwardShown;
     /// <summary>The control of one realized tile (tests and smokes).</summary>
     internal Control? TileControl(int index) => _live.GetValueOrDefault(index);
     internal Control BackButton => _back;
@@ -372,8 +373,20 @@ internal sealed class GalleryFilmstrip : Border
     private void UpdateChevrons()
     {
         bool active = _pointerOver || _keyboardFocus;
-        _back.IsVisible = active && _back.IsEnabled;
-        _forward.IsVisible = active && _forward.IsEnabled;
+        _backShown = active && _back.IsEnabled;
+        _forwardShown = active && _forward.IsEnabled;
+        ShowChevron(_back, _backShown);
+        ShowChevron(_forward, _forwardShown);
+    }
+
+    // GL6: an arrow stays in the tree while that way can scroll and only its Opacity moves (the filmstrip-chevron style fades it in 80 ms, or at
+    // once under reduced motion); a hidden arrow takes no clicks and is left out of the accessibility tree like the removed one was.
+    private static void ShowChevron(Button button, bool shown)
+    {
+        button.IsVisible = button.IsEnabled;
+        button.Opacity = shown ? 1 : 0;
+        button.IsHitTestVisible = shown;
+        AutomationProperties.SetAccessibilityView(button, shown ? AccessibilityView.Content : AccessibilityView.Raw);
     }
 
     /// <summary>The width of the fade at a scrollable end of the strip (dip).</summary>

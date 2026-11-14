@@ -4034,6 +4034,7 @@
     "gallery.decision.status.unavailable": "Los favoritos y las valoraciones no están disponibles para este medio.",
     "gallery.decision.status.allMarked": "Se aplica a todos los medios marcados: {0}.",
     "gallery.decision.status.skipped": "Sin cambios: {0}.",
+    "gallery.rating.saved": "Valoración guardada",
     "tags.quick.status.undoneAddOn": "Deshecho en {1}: «{0}» se quitó de nuevo.",
     "tags.quick.status.undoneRemoveOn": "Deshecho en {1}: «{0}» se asignó de nuevo.",
     "tags.quick.thread.heading": "Etiquetas del hilo ({0})",
