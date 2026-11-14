@@ -70,7 +70,7 @@ internal static partial class MediaPageChecks
             Require(!direction.IsEnabled, "The random order has no direction.");
             sort.SelectedIndex = (int)MediaLibrarySort.Name;
 
-            // What the user chose is handed over for saving (the shell writes it as a direct preference); the random order is saved as the default.
+            // What the user chose is handed over for saving (the shell writes it as a direct preference, except the random order: the last other choice stays).
             Require(saved.SequenceEqual([(MediaLibrarySort.Name, MediaLibrarySortDirection.Default), (MediaLibrarySort.Name, MediaLibrarySortDirection.Reversed),
                 (MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed), (MediaLibrarySort.Name, MediaLibrarySortDirection.Reversed)]),
                 "The page must report every choice: " + string.Join(";", saved.Select(item => item.Sort + "/" + item.Direction)));

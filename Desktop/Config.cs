@@ -485,7 +485,7 @@ namespace MeowChan
             set => _readerSpoilers = Enum.TryParse(value?.Trim(), true, out ReaderSpoilerMode mode) && Enum.IsDefined(mode)
                 ? mode.ToString() : "Hide";
         }
-        // The order of the media page (MediaSortPreference): a criterion name and "Default"/"Reversed". The random order is not kept.
+        // The order of the media page (MediaSortPreference): a criterion name and "Default"/"Reversed". The random order is never written; the last other choice stays.
         private string _mediaSort = MediaSortPreference.Format(MediaSortPreference.DefaultSort), _mediaSortDirection = "Default";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string MediaSort

@@ -123,14 +123,11 @@ public sealed class DesktopSessionHostTests
             Assert.Equal(120, saved.RecheckTimer);
             Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
 
-            // The random order is not kept: choosing it saves the default order.
+            // The random order is not kept: choosing it leaves the last other choice (Size, reversed) in the settings for the next start.
             await host.SaveViewPreferencesAsync(config =>
-            {
-                config.MediaSort = MediaSortPreference.Format(MediaLibrarySort.Random);
-                config.MediaSortDirection = MediaSortPreference.Format(MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed);
-            }).WaitAsync(Timeout);
+                Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed))).WaitAsync(Timeout);
             saved = Config.LoadConfig(directory.Path);
-            Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default), MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
+            Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
     }

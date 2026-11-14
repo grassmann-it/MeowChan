@@ -59,6 +59,27 @@ public sealed class MediaSortToolbarContractTests
     }
 
     [Fact]
+    public void ChoosingRandomKeepsTheLastOtherChoiceForTheNextStart()
+    {
+        Config config = new();
+        Assert.True(MediaSortPreference.Remember(config, MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed));
+        Assert.Equal(("Size", "Reversed"), (config.MediaSort, config.MediaSortDirection));
+        // Random (with whatever direction the page held) writes nothing: the settings still say Size, reversed.
+        Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed));
+        Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Default));
+        Assert.Equal(("Size", "Reversed"), (config.MediaSort, config.MediaSortDirection));
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(config.MediaSort, config.MediaSortDirection));
+        // The next real choice replaces it, also back to the default order.
+        Assert.True(MediaSortPreference.Remember(config, MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default));
+        Assert.Equal(("ByThread", "Default"), (config.MediaSort, config.MediaSortDirection));
+        // A fresh profile that only ever shuffled starts with the default order.
+        Config fresh = new();
+        Assert.False(MediaSortPreference.Remember(fresh, MediaLibrarySort.Random, MediaLibrarySortDirection.Default));
+        Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default), MediaSortPreference.Restore(fresh.MediaSort, fresh.MediaSortDirection));
+        Assert.Throws<ArgumentNullException>(() => MediaSortPreference.Remember(null!, MediaLibrarySort.Name, MediaLibrarySortDirection.Default));
+    }
+
+    [Fact]
     public void TheSettingsFileKeepsTheOrderAndNormalisesWhatIsHandEdited()
     {
         using TempDirectory directory = new();

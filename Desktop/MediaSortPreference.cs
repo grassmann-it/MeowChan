@@ -6,8 +6,9 @@ namespace MeowChan.Desktop;
 /// <summary>
 /// The saved order of the media page: the criterion and its direction, kept as the names of <see cref="MediaLibrarySort"/> and
 /// <see cref="MediaLibrarySortDirection"/> in the settings file (<c>MediaSort</c>, <c>MediaSortDirection</c>). Pure: no controls, no IO.
-/// The random order is never saved (its seed belongs to one visit), so it reads back as the default order; an unknown or hand-edited
-/// value does the same, and a direction only counts for a criterion that has one.
+/// The random order is never saved (its seed belongs to one visit): choosing it leaves the last other choice in the settings, so after a
+/// restart that choice is back (<see cref="Remember"/>). A saved value that is random, unknown or hand-edited reads back as the default
+/// order, and a direction only counts for a criterion that has one.
 /// </summary>
 internal static class MediaSortPreference
 {
@@ -34,6 +35,19 @@ internal static class MediaSortPreference
     internal static string Format(MediaLibrarySort sort, MediaLibrarySortDirection direction) =>
         (MediaLibraryView.HasDirection(sort) && direction == MediaLibrarySortDirection.Reversed
             ? MediaLibrarySortDirection.Reversed : DefaultDirection).ToString();
+
+    /// <summary>
+    /// Writes the user's choice into the settings, except the random order: it keeps the last other choice (criterion and direction),
+    /// which is what the page starts with after a restart. Returns whether anything was written.
+    /// </summary>
+    internal static bool Remember(Config config, MediaLibrarySort sort, MediaLibrarySortDirection direction)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        if (sort == MediaLibrarySort.Random) return false;
+        config.MediaSort = Format(sort);
+        config.MediaSortDirection = Format(sort, direction);
+        return true;
+    }
 
     /// <summary>What the page starts with: the criterion and the direction (Default for a criterion that has none).</summary>
     internal static (MediaLibrarySort Sort, MediaLibrarySortDirection Direction) Restore(string? sort, string? direction)

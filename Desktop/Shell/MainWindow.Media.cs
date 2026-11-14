@@ -61,14 +61,13 @@ public partial class MainWindow
             },
             ManageMediaRatingsAsync = ManageMediaRatingsAsync
         };
-        // The order the user chose last visit (the random order is not kept); every later choice is saved as a direct preference.
+        // The order the user chose last visit; the random order is not kept, the last other choice stays (MediaSortPreference.Remember).
+        // Every later choice is saved as a direct preference.
         (MediaLibrarySort savedSort, MediaLibrarySortDirection savedDirection) = MediaSortPreference.Restore(_session.Config.MediaSort, _session.Config.MediaSortDirection);
         _mediaPage.RestoreSort(savedSort, savedDirection);
-        _mediaPage.SaveSortAsync = (sort, direction) => _session.SaveViewPreferencesAsync(config =>
-        {
-            config.MediaSort = MediaSortPreference.Format(sort);
-            config.MediaSortDirection = MediaSortPreference.Format(sort, direction);
-        });
+        _mediaPage.SaveSortAsync = (sort, direction) => sort == MediaLibrarySort.Random
+            ? Task.CompletedTask // nothing to save: the settings keep the last non-random choice
+            : _session.SaveViewPreferencesAsync(config => MediaSortPreference.Remember(config, sort, direction));
         _mediaPage.InitializeSharedMediaMenus();
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
         _mediaPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
