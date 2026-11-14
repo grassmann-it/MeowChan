@@ -71,6 +71,8 @@ internal static class SettingsSearchAliases
         ["CloseToTray"] = "tray system tray taskbar background infobereich schließen hintergrund",
         ["MinimizeToTray"] = "tray system tray taskbar background infobereich minimieren hintergrund",
         ["StatsHeaderIcons"] = "statistics header icons symbols words network disk graph statistik kopfleiste symbole wörter netz platte",
+        ["FooterLayoutSection"] = "footer navigation bar buttons pages order reorder show hide visible taskbar fußleiste fusszeile navigationsleiste knöpfe seiten reihenfolge ausblenden einblenden sichtbar",
+        ["ShowBooruActions"] = "booru danbooru actions tools page show hide footer master aktionen anzeigen ausblenden fußleiste",
         ["HeaderTagline"] = "tagline slogan quip fortune motto header title bar spruch kopfleiste titelleiste kopfzeile",
         ["HeaderTaglineFixedId"] = "tagline slogan quip fortune motto fixed spruch fest",
         ["StatsHeaderGraph"] = "statistics graph network disk traffic statistik diagramm netz platte",

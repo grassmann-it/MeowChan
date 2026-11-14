@@ -104,8 +104,8 @@ public sealed class YieldingDefaultsTests
         foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => id.StartsWith("navigation.", StringComparison.Ordinal)
             && EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Count == 1))
         {
-            var other = CommandCatalog.All.First(c => c.Id.StartsWith("navigation.", StringComparison.Ordinal) && c.Id != id
-                && c.Id != "navigation.settings" && EffectiveShortcutBindings.Defaults(c).Count == 1 && !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(c.Id));
+            // Every main page yields since the footer digits (revision 11), so the saved binding sits on an application command outside the pages.
+            var other = CommandCatalog.Get("session.pause");
             var yieldingGesture = EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Single();
             var section = new ShortcutBindingsSection().Set(other.Id, [ShortcutGesture.Parse("Primary+9"), yieldingGesture]);
             var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);

@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 10;
+    public const int DefaultsRevision = 11;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -194,6 +194,10 @@ public sealed class EffectiveShortcutBindings
         // (T shows the post in the thread, Primary+Shift+T opens the tag panel); it yields to a saved binding like every new default. The
         // wave-5 integration gives it revision 10, the first one after the defaults already in goal.
         ["gallery.mode-toggle"] = 10,
+        // New in revision 11 (F1, footer setting): Ctrl/Cmd+1, 2, 3 ... follow the footer buttons the person chose, from left to right, then the hidden
+        // pages (MainPageOrder.Numbering). Every main page can therefore get another digit than before, so each default yields to a saved binding
+        // of another command (media, booru, rules, sources and status are listed above from earlier revisions).
+        ["navigation.downloads"] = 11, ["navigation.archive"] = 11, ["navigation.tagging"] = 11,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one
@@ -232,7 +236,9 @@ public sealed class EffectiveShortcutBindings
     {
         if (platform == ShortcutPlatform.MacOS && MacDefaults(command.Id) is { } mac) return mac;
         var list = new List<ShortcutGesture>();
-        if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
+        // A main page's digit follows the footer (MainPageOrder.Numbering), not a fixed slot of the catalog.
+        if (MainPageOrder.Contains(command.Id)) { if (MainPageOrder.Digit(command.Id) is int digit) list.Add(ShortcutGesture.Parse("Primary+" + digit)); }
+        else if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
         switch (command.Id)
         {
             case "gallery.fit": list.Add(ShortcutGesture.Parse("NumPad0")); break;

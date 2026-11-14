@@ -106,18 +106,18 @@ public sealed class TaggingPageTests : IDisposable
     }
 
     [Fact]
-    public void ThePageIsAFooterPageBehindMediaWithoutADigitAndKeepsItsAppMenuEntry()
+    public void ThePageIsAFooterPageBehindMediaWithTheDigitOfTheFooterNumberingAndKeepsItsAppMenuEntry()
     {
         Assert.True(MainPageOrder.Contains("navigation.tagging"));
         Assert.Equal("navigation.media", MainPageOrder.CommandIds[MainPageOrder.CommandIds.ToList().IndexOf("navigation.tagging") - 1]);
-        Assert.Null(MainPageOrder.Digit("navigation.tagging"));
+        Assert.Equal(4, MainPageOrder.Digit("navigation.tagging")); // F1: numbered like every footer page, behind Media in the default layout
         Assert.Equal(MainWindow.WorkspacePage.Tagging, MainWindow.PageFor("navigation.tagging"));
         CommandDefinition navigation = CommandCatalog.Get("navigation.tagging");
-        Assert.Equal(new[] { "footer", "app-menu", "tools-menu" }, navigation.Contexts);
+        Assert.Equal(new[] { "footer", "tools-menu" }, navigation.Contexts); // F1: no ⋯ menu entry any more
         Assert.Equal("tag", navigation.Icon);
         Assert.Equal(CommandScope.Application, navigation.Scope);
         Assert.Null(navigation.Shortcut);
-        Assert.Empty(EffectiveShortcutBindings.Defaults(navigation));
+        Assert.Equal("Ctrl+4", EffectiveShortcutBindings.Defaults(navigation).Single().Display(ShortcutPlatform.Linux));
         Assert.Equal("Tagging", navigation.Label);
         foreach (string id in new[] { "tagging.start", "tagging.mark-done", "tagging.mark-open", "tagging.mark-skipped", "tagging.add", "tagging.clear-done", "tagging.clear" })
         {
@@ -131,9 +131,9 @@ public sealed class TaggingPageTests : IDisposable
     {
         string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(Source())!, "../.."));
         string markup = File.ReadAllText(Path.Combine(root, "Desktop/Shell/MainWindow.axaml"));
-        // Footer button, More entry and the ⋯ entry all call the one handler, which builds the page lazily through ShowTaggingPage.
+        // Footer button and More entry (the ⋯ menu has no page entries since F1) call the one handler, which builds the page lazily through ShowTaggingPage.
         Assert.Contains("x:Name=\"TaggingNavigationButton\" Classes=\"nav localized\" Tag=\"nav.tagging\"", markup, StringComparison.Ordinal);
-        Assert.Equal(3, System.Text.RegularExpressions.Regex.Matches(markup, "Tag=\"nav.tagging\"[^>]*Click=\"OnTaggingNavigationClick\"").Count);
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(markup, "Tag=\"nav.tagging\"[^>]*Click=\"OnTaggingNavigationClick\"").Count);
         string navigation = File.ReadAllText(Path.Combine(root, "Desktop/Shell/MainWindow.Navigation.cs"));
         Assert.Contains("ShowTaggingPage();", navigation[navigation.IndexOf("private void OnTaggingNavigationClick", StringComparison.Ordinal)..], StringComparison.Ordinal);
         Assert.Contains("TaggingNavigationButton.Classes.Set(\"selected\", page == WorkspacePage.Tagging)", navigation, StringComparison.Ordinal);

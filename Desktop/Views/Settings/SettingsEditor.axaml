@@ -125,6 +125,17 @@
                             <Button x:Name="ThemeColorsButton" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" Content="{Binding ThemeColorsOpenLabel}" AutomationProperties.Name="{Binding ThemeColorsOpenLabel}" AutomationProperties.HelpText="{Binding ThemeColorsHint}" Click="OnThemeColorsClick" IsEnabled="{Binding IsEditable}" />
                         </Grid>
                     </Border>
+                    <!-- Footer (F1): heading and explanation are the search entry "FooterLayoutSection"; the list below is built in code (FooterLayoutEditor). -->
+                    <StackPanel x:Name="FooterLayoutSection" Spacing="{StaticResource Workspace.Space.4}" Margin="0,16,0,0">
+                        <TextBlock x:Name="FooterLayoutHeading" Text="{Binding FooterLayoutLabel}" Classes="workspace-field-label" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding FooterLayoutHelp}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding FooterLayoutBooruHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ContentControl x:Name="FooterLayoutHost" HorizontalContentAlignment="Stretch" Margin="0,8,0,8" />
+                    <CheckBox x:Name="ShowBooruActionsInput" IsChecked="{Binding ShowBooruActions, Mode=TwoWay}" AutomationProperties.Name="{Binding ShowBooruActionsLabel}" AutomationProperties.HelpText="{Binding ShowBooruActionsHint}" ToolTip.Tip="{Binding ShowBooruActionsHint}">
+                        <TextBlock Text="{Binding ShowBooruActionsLabel}" TextWrapping="Wrap" />
+                    </CheckBox>
+                    <TextBlock Text="{Binding ShowBooruActionsHint}" Classes="workspace-help" TextWrapping="Wrap" Margin="0,0,0,8" />
                     <Expander x:Name="SettingsInterfaceMoreGroup" wv:WorkViewElement.Id="settings.group.interface-more" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,4,0,0">
                         <StackPanel x:Name="SettingsInterfaceMoreBody" Spacing="0" Margin="0,8,0,0">
                     <CheckBox x:Name="ShrinkWindowForBarebonesInput" IsChecked="{Binding ShrinkWindowForBarebones, Mode=TwoWay}" AutomationProperties.Name="{Binding ShrinkWindowForBarebonesLabel}" AutomationProperties.HelpText="{Binding ShrinkWindowForBarebonesHint}">

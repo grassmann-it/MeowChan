@@ -130,7 +130,8 @@ public sealed class SourcesPluginsMergeTests
         Assert.DoesNotContain("footer", CommandCatalog.Get("navigation.plugins").Contexts);
         Assert.Null(MainPageOrder.Digit("navigation.plugins"));
         Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
-        Assert.Equal("Primary+7", CommandCatalog.Get("navigation.status").Shortcut);
+        Assert.Equal("Primary+7", MainPageOrder.DefaultShortcut("navigation.status"));
+        Assert.Null(CommandCatalog.Get("navigation.status").Shortcut); // the digit follows the footer (F1), the catalog holds none
         string shell = Read("Desktop/Shell/MainWindow.axaml");
         Assert.DoesNotContain("PluginsNavigationButton", shell);
         Assert.DoesNotContain("PluginsPageHost", shell);

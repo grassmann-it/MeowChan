@@ -192,6 +192,7 @@ public partial class SettingsEditor
         SelectedWorkspaceMode = Choice(WorkspaceChoices, defaults.WorkspaceMode);
         CompactDensity = defaults.CompactDensity;
         ShrinkWindowForBarebones = defaults.ShrinkWindowForBarebones;
+        ResetFooterDraft();
     }
 
     private void ResetReadingMediaDraft()

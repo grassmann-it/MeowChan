@@ -33,8 +33,8 @@ public sealed class PluginsRenameMediaFoldersTests : IDisposable
             Assert.DoesNotContain("&", Texts.T("nav.sources"));
             Assert.DoesNotContain("Quellen", Texts.T("nav.sources"));
         }
-        // The command ids and the Ctrl digits stay, so saved bindings remain valid.
-        Assert.Equal((int?)5, MainPageOrder.Digit("navigation.sources"));
+        // The command ids stay, so saved bindings remain valid; the digit follows the footer (F1): Sources is the sixth button of the default footer.
+        Assert.Equal((int?)6, MainPageOrder.Digit("navigation.sources"));
         Assert.Null(MainPageOrder.Digit("navigation.plugins"));
         Assert.Equal("Show all plugins", CommandCatalog.Get("navigation.plugins").LabelEn);
     }

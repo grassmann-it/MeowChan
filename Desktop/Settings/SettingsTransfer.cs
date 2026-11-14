@@ -229,6 +229,7 @@ public static class SettingsTransfer
             WorkspaceMode = source.WorkspaceMode,
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds,
             ShowBooruTools = source.ShowBooruTools,
+            FooterPages = (string[])source.FooterPages.Clone(), // F1: the footer layout of the profile
             ReaderPostWidth = source.ReaderPostWidth,
             VideoAutoplay = source.VideoAutoplay,
             VideoStartMuted = source.VideoStartMuted,

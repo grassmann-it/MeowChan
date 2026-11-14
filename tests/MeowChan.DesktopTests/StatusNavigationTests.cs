@@ -26,22 +26,21 @@ public sealed class StatusNavigationTests : IDisposable
     public void StatusIsTheLastMainPageAndTheEarlierPagesFollowTheFooterGroups()
     {
         Assert.Equal([.. Earlier, "navigation.status"], MainPageOrder.CommandIds);
-        // Visual grouping gained Booru before Rules, but existing digit defaults deliberately
-        // stay stable: Booru uses the freed Plugins slot 6; Rules/Sources keep 4/5.
-        // Tagging joined the footer behind Media without taking a digit.
-        Assert.Equal(new int?[] { 1, 2, 3, null, 6, 4, 5, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
-        foreach (string id in Earlier.Where(id => id != "navigation.tagging"))
+        // F1: the digits follow the visible footer buttons from the left, the hidden pages come last. Default layout: Booru is hidden, so it takes 8
+        // behind Status; Tagging owns 4 behind Media; Rules/Sources take 5/6; Status keeps its confirmed 7.
+        Assert.Equal(new int?[] { 1, 2, 3, 4, 8, 5, 6, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
+        foreach (string id in Earlier)
             Assert.Equal("Primary+" + MainPageOrder.Digit(id), MainPageOrder.DefaultShortcut(id));
         Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
         Assert.Equal("Primary+7", MainPageOrder.DefaultShortcut("navigation.status"));
-        Assert.Equal("Primary+7", CommandCatalog.Get("navigation.status").Shortcut);
+        Assert.Null(CommandCatalog.Get("navigation.status").Shortcut); // the default gesture is derived from the footer numbering
         Assert.Equal("nav.status", MainPageOrder.Tag("navigation.status"));
         Assert.Equal("Status", MainPageOrder.ControlStem("navigation.status"));
         Assert.Equal("activity", CommandCatalog.Get("navigation.status").Icon);
     }
 
     [Fact]
-    public void TheSegmentCommandsStayWithoutADigitAndPrimaryPlusEightIsFree()
+    public void TheSegmentCommandsStayWithoutADigitAndPrimaryPlusNineIsFree()
     {
         Assert.Equal(["navigation.statistics", "navigation.diagnostics"], MainPageOrder.StatusSegmentCommandIds);
         foreach (string id in MainPageOrder.StatusSegmentCommandIds)
@@ -56,8 +55,8 @@ public sealed class StatusNavigationTests : IDisposable
         {
             var bindings = EffectiveShortcutBindings.Build(platform: platform);
             Assert.All(MainPageOrder.StatusSegmentCommandIds, id => Assert.Empty(bindings.For(id)));
-            ShortcutGesture eight = ShortcutGesture.Parse("Primary+8");
-            Assert.DoesNotContain(CommandCatalog.All, command => bindings.For(command.Id).Any(g => EffectiveShortcutBindings.Equivalent(eight, g, platform)));
+            ShortcutGesture nine = ShortcutGesture.Parse("Primary+9"); // Primary+1 to 8 belong to the eight main pages
+            Assert.DoesNotContain(CommandCatalog.All, command => bindings.For(command.Id).Any(g => EffectiveShortcutBindings.Equivalent(nine, g, platform)));
         }
         Assert.Throws<ArgumentOutOfRangeException>(() => MainWindow.PageFor("navigation.statistics"));
         Assert.Throws<ArgumentOutOfRangeException>(() => MainWindow.PageFor("navigation.diagnostics"));
@@ -167,7 +166,7 @@ public sealed class StatusNavigationTests : IDisposable
         Assert.Equal("StatusNavigationButton", buttons[^3]);
         Assert.Equal(["ToolsNavigationButton", "SettingsNavigationButton"], buttons[^2..]);
         Assert.Contains(markup.Descendants(), e => Name(e) == "StatusPageHost");
-        Assert.Contains(markup.Descendants(), e => Name(e) == "StatusMenuItem");
+        Assert.DoesNotContain(markup.Descendants(), e => Name(e) == "StatusMenuItem"); // F1: no page entries in the ⋯ menu
         foreach (string gone in new[] { "DiagnosticsNavigationButton", "StatisticsNavigationButton", "DiagnosticsMenuItem", "StatisticsMenuItem",
             "DiagnosticsPageHost", "StatisticsPageHost" })
             Assert.DoesNotContain(markup.Descendants(), e => Name(e) == gone);

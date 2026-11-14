@@ -527,7 +527,7 @@ public partial class SettingsEditor
         foreach (Control child in panel.Children.ToArray())
         {
             // The media folder list is a live view of the host (names, paths, counts), not a setting: its heading is the entry.
-            if (child.Name == "MediaFoldersHost") continue;
+            if (child.Name is "MediaFoldersHost" or "FooterLayoutHost") continue;
             if (child is TextBlock heading && IsSearchHeading(heading))
             {
                 string text = heading.Text ?? string.Empty;

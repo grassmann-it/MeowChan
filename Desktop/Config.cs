@@ -116,6 +116,22 @@ namespace MeowChan
         /// </summary>
         [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool ShowBooruTools { get; set; } = true;
+        /// <summary>
+        /// The footer of this profile (Settings › Appearance › Footer): the main pages in footer order, a leading "-" marking a page whose button is
+        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer (today's order, Booru off).
+        /// Read and written through <see cref="Desktop.Commands.FooterLayout"/>: unknown ids and repeats are dropped, a page the list does not know
+        /// takes its default place, Downloads is always shown. <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
+        /// page is unavailable whatever this list says.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] FooterPages
+        {
+            get => _footerPages;
+            set => _footerPages = Desktop.Commands.FooterLayout.FromStored(value).ToStored();
+        }
+        private string[] _footerPages = [];
+        /// <summary>The footer layout of <see cref="FooterPages"/>.</summary>
+        [JsonIgnore] internal Desktop.Commands.FooterLayout FooterLayout => Desktop.Commands.FooterLayout.FromStored(_footerPages);
         internal const int WorkViewSwitchNoticeSecondsMinimum = 0;
         internal const int WorkViewSwitchNoticeSecondsMaximum = 60;
         /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
@@ -1529,6 +1545,7 @@ namespace MeowChan
                 WorkViewNoticePending = WorkViewNoticePending,
                 WorkViewSwitchNoticeSeconds = WorkViewSwitchNoticeSeconds,
                 ShowBooruTools = ShowBooruTools,
+                FooterPages = (string[])FooterPages.Clone(),
                 RememberReadingPosition = RememberReadingPosition,
                 MonitorClipboardUrls = MonitorClipboardUrls,
                 DownloadsPaused = DownloadsPaused,
@@ -1760,6 +1777,7 @@ namespace MeowChan
             WorkViewNoticePending = source.WorkViewNoticePending;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
+            FooterPages = (string[])source.FooterPages.Clone();
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             DownloadsPaused = source.DownloadsPaused;
@@ -1949,6 +1967,7 @@ namespace MeowChan
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
             WorkViewSwitchNoticeSeconds = source.WorkViewSwitchNoticeSeconds;
             ShowBooruTools = source.ShowBooruTools;
+            FooterPages = (string[])source.FooterPages.Clone();
             RememberReadingPosition = source.RememberReadingPosition;
             MonitorClipboardUrls = source.MonitorClipboardUrls;
             MinimizeToTray = source.MinimizeToTray;

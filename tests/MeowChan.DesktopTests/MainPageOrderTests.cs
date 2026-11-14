@@ -30,22 +30,19 @@ public sealed class MainPageOrderTests
         string[] pages = names.TakeWhile(name => name != "ToolsNavigationButton").ToArray();
         Assert.Equal(OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "NavigationButton"), pages);
         Assert.Equal(new[] { "ToolsNavigationButton", "SettingsNavigationButton" }, names.Skip(pages.Length));
-        // The digits are the shipped ones (the help and many tests pin them), not the footer position: Booru takes 6 behind
-        // Media, Tagging (also behind Media) owns none and stays bindable.
-        int?[] digits = [1, 2, 3, null, 6, 4, 5, 7];
+        // The digits follow the visible footer buttons from the left (F1): with the default layout Booru is hidden, so it takes the digit
+        // behind the last visible button and Tagging owns 4. Status keeps its confirmed Primary+7.
+        int?[] digits = [1, 2, 3, 4, 8, 5, 6, 7];
         Assert.Equal(digits.Length, pages.Length);
         for (int index = 0; index < pages.Length; index++)
         {
             Assert.Equal(digits[index], MainPageOrder.Digit(OrderedIds[index]));
-            if (digits[index] is int digit)
-                Assert.Equal(MainPageOrder.DefaultShortcut(OrderedIds[index]), CommandCatalog.Get(OrderedIds[index]).Shortcut);
-            else
-            {
-                Assert.Null(CommandCatalog.Get(OrderedIds[index]).Shortcut);
-                Assert.Throws<ArgumentException>(() => MainPageOrder.DefaultShortcut(OrderedIds[index]));
-            }
+            Assert.Equal("Primary+" + digits[index], MainPageOrder.DefaultShortcut(OrderedIds[index]));
+            // The catalog holds no fixed digit any more: the default gesture is derived from the numbering.
+            Assert.Null(CommandCatalog.Get(OrderedIds[index]).Shortcut);
         }
-        Assert.Equal(OrderedIds.Where(id => id != "navigation.tagging"), MainPageOrder.NumberedCommandIds);
+        Assert.Equal(MainPageOrder.DefaultNumbering, MainPageOrder.NumberedCommandIds);
+        Assert.Equal(OrderedIds.Order(), MainPageOrder.NumberedCommandIds.Order());
     }
 
     [Fact]
@@ -72,7 +69,7 @@ public sealed class MainPageOrderTests
     }
 
     [Fact]
-    public void TheMoreFlyoutListsTheOverflowPagesInGroupsAndTheWorkspaceMenuAllPagesIncludingDownloads()
+    public void TheMoreFlyoutListsTheOverflowPagesInGroupsAndTheWorkspaceMenuHoldsNoPages()
     {
         XDocument markup = Markup();
         string[] flyoutPages = OrderedIds.Where(id => id != "navigation.downloads").Select(MainPageOrder.Tag).ToArray();
@@ -85,16 +82,14 @@ public sealed class MainPageOrderTests
         Assert.Equal(new[] { "nav.group-separator.0", "nav.group-separator.1" },
             tools.Descendants().Where(e => e.Name.LocalName == "Separator").Select(e => (string?)e.Attribute("Tag")).OfType<string>());
 
+        // F1 (Tom, 14.11.2026): the ⋯ menu holds tools and the application only. The pages are reached through the footer, its More menu
+        // (every page the person or a work view left out of the footer) and the Ctrl/Cmd+digit shortcuts - not through a page group here.
         XElement menu = Assert.Single(markup.Descendants(), e => Name(e) == "WorkspaceMenuItem");
         string[] allPages = OrderedIds.Select(MainPageOrder.Tag).ToArray();
-        Assert.Equal(allPages, menu.Elements().Select(e => (string?)e.Attribute("Tag")).Where(tag => tag != null && allPages.Contains(tag)).OfType<string>());
-        Assert.Equal(allPages.Select(tag => Stem(tag) + "MenuItem"),
-            menu.Elements().Select(Name).OfType<string>().Where(name => allPages.Any(tag => name == Stem(tag) + "MenuItem")));
-        // The pages come first, set apart from the tools by a separator and in the same three groups.
-        string[] menuShape = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?")
-            .TakeWhile(item => item != "ManualImportMenuItem").ToArray();
-        string[] pageShape = OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "MenuItem").ToArray();
-        Assert.Equal(pageShape.Take(5).Append("|").Concat(pageShape.Skip(5).Take(2)).Append("|").Append(pageShape[7]).Append("|"), menuShape);
+        Assert.DoesNotContain(menu.Elements(), e => allPages.Contains((string?)e.Attribute("Tag") ?? ""));
+        Assert.DoesNotContain(menu.Elements(), e => allPages.Any(tag => Name(e) == Stem(tag) + "MenuItem") || Name(e) is "PagesGroupSeparatorWork" or "PagesGroupSeparatorSetUp" or "MenuPagesToolsSeparator");
+        Assert.Empty(menu.Elements().Where(e => Name(e)?.StartsWith("Pages", StringComparison.Ordinal) == true));
+        Assert.Equal("ManualImportMenuItem", Name(menu.Elements().First())); // the tool entries insert themselves in front of it (MainWindow.MenuToolsAnchor)
         // Tools, then the application's own entries, then Exit.
         string[] rest = menu.Elements().Select(e => e.Name.LocalName == "Separator" ? "|" : Name(e) ?? "?").SkipWhile(item => item != "ManualImportMenuItem").ToArray();
         Assert.Equal(new[] { "ManualImportMenuItem", "ReaderGroupsMenuItem", "|", "PauseMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "|", "ExitMenuItem" }, rest);
@@ -115,7 +110,8 @@ public sealed class MainPageOrderTests
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         foreach (string id in MainPageOrder.NumberedCommandIds)
             Assert.Equal("Ctrl+" + MainPageOrder.Digit(id), bindings.Display(id));
-        Assert.Null(bindings.Display("navigation.tagging"));
+        Assert.Equal(OrderedIds.Length, MainPageOrder.NumberedCommandIds.Count);
+        Assert.Equal("Ctrl+4", bindings.Display("navigation.tagging"));
         Assert.Empty(bindings.Issues);
     }
 }

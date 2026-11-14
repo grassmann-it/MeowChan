@@ -28,8 +28,9 @@ public static class CommandCatalog
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "app-menu" }),
         // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
-        // Media, a More entry and a ⋯ entry like every main page, but no default digit (MainPageOrder.Digit).
-        new("navigation.tagging", "command.navigation.tagging", "Tagging", "Taggen", "tag", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        // Media, a More entry and a ⋯ entry like every main page. The main pages carry no fixed digit here: Ctrl/Cmd+1, 2, 3 ... follow the
+        // footer buttons the person chose (MainPageOrder.Numbering, EffectiveShortcutBindings.Defaults).
+        new("navigation.tagging", "command.navigation.tagging", "Tagging", "Taggen", "tag", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         new("tagging.start", "command.tagging.start", "Start tagging", "Taggen starten", "play", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.continue-here", "command.tagging.continue-here", "Continue here", "Hier fortsetzen", "play", "Enter", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.mark-done", "command.tagging.mark-done", "Mark as finished", "Als erledigt markieren", "check", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
@@ -56,18 +57,18 @@ public static class CommandCatalog
         new("post-bookmarks.open-target", "bookmarks.open", "Open exact local post", "Exakten lokalen Post öffnen", "corner-up-right", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.remove", "bookmarks.remove", "Remove bookmark…", "Lesezeichen entfernen…", "x", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
-        new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", MainPageOrder.DefaultShortcut("navigation.downloads"), CommandScope.Application, new[] { "footer", "app-menu" }),
+        new("navigation.downloads", "command.navigation.downloads", "Downloads", "Downloads", "download", null, CommandScope.Application, new[] { "footer" }),
         new("navigation.continue-reading", "resume.action", "Continue reading", "Weiterlesen", "book-open", "Primary+Shift+R", CommandScope.Application, new[] { "header", "app-menu", "workspace-keyboard" }),
         new("import.open", "import.menu", "Import files…", "Dateien importieren…", "download-cloud", "Primary+Shift+I", CommandScope.Application, new[] { "app-menu", "workspace-keyboard" }),
         // PR1 (profiles): the "⋯ › Profile" submenu. No default gestures; each opens or starts a window of its own.
         new("profile.new", "command.profile.new", "New profile…", "Neues Profil…", "plus-circle", null, CommandScope.Application, new[] { "app-menu" }),
         new("profile.switch", "command.profile.switch", "Switch profile…", "Profil wechseln…", "external-link", null, CommandScope.Application, new[] { "app-menu" }),
         new("profile.open-folder", "command.profile.open-folder", "Open profile folder", "Profilordner öffnen", "folder", null, CommandScope.Application, new[] { "app-menu" }),
-        new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", MainPageOrder.DefaultShortcut("navigation.archive"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", MainPageOrder.DefaultShortcut("navigation.media"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.booru", "command.navigation.booru", "Booru", "Booru", "search", MainPageOrder.DefaultShortcut("navigation.booru"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", MainPageOrder.DefaultShortcut("navigation.rules"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.sources", "command.navigation.sources", "Plugins", "Plugins", "globe", MainPageOrder.DefaultShortcut("navigation.sources"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
+        new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
+        new("navigation.booru", "command.navigation.booru", "Booru", "Booru", "search", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
+        new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
+        new("navigation.sources", "command.navigation.sources", "Plugins", "Plugins", "globe", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.
         new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "sources", "status-segment" }),
         new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", null, CommandScope.Settings, new[] { "plugins" }),
@@ -91,7 +92,7 @@ public static class CommandCatalog
         new("plugins.actions", "plugins.actions", "Actions", "Aktionen", "more-horizontal", null, CommandScope.Settings, new[] { "plugins" }),
         new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
         new("navigation.plugins", "command.navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "tool", null, CommandScope.Application, new[] { "sources" }),
-        new("navigation.status", "command.navigation.status", "Status", "Status", "activity", MainPageOrder.DefaultShortcut("navigation.status"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.status", "command.navigation.status", "Status", "Status", "activity", null, CommandScope.Application, new[] { "footer", "tools-menu" }),
         // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
         new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),

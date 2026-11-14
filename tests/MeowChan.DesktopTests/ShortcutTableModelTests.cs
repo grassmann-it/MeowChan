@@ -43,7 +43,8 @@ public sealed class ShortcutTableModelTests : IDisposable
         Assert.All(groups.Skip(1), group => Assert.False(group.IsCurrent));
         string[] expected = ShortcutGroups.OrderFor(ShortcutGroups.Reader).Where(key => groups.Any(g => g.Key == key)).ToArray();
         Assert.Equal(expected, groups.Select(g => g.Key));
-        Assert.Equal(ShortcutGroups.Pages, MainPageOrder.NumberedCommandIds.Select(ShortcutGroups.PageKey));
+        // The window's page groups are a fixed list in base order: the digits move with the footer, the groups of the window do not.
+        Assert.Equal(ShortcutGroups.Pages, MainPageOrder.CommandIds.Where(id => id != "navigation.tagging").Select(ShortcutGroups.PageKey));
         Assert.DoesNotContain("tagging", ShortcutGroups.Pages); // its commands file under the application group (context "tagging")
         Assert.Equal(ShortcutGroups.Application, ShortcutGroups.Order[^1]);
     }
