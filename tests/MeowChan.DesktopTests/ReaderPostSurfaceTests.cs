@@ -331,7 +331,11 @@ public sealed class ReaderPostSurfaceTests
             attribute.Value.StartsWith('#') && attribute.Name.LocalName != "Name");
         Assert.Equal("{DynamicResource Workspace.Scrim}", (string?)Assert.Single(page.Descendants(A + "Border"), element =>
             (string?)element.Attribute(X + "Name") == "ReaderLinkDialog").Attribute("Background"));
-        Assert.Equal("{StaticResource Workspace.Size.Input}", Setting(Assert.Single(page.Descendants(Desktop + "ActionToolBar.Styles").Elements(A + "Style")), "Height"));
+        // Archive has several toolbars now; bind this contract to the reader toolbar instead of assuming it is the only one.
+        XElement readerToolbar = Assert.Single(page.Descendants(Desktop + "ActionToolBar").Where(element =>
+            (string?)element.Attribute(X + "Name") == "ReaderToolbar"));
+        XElement readerToolbarStyle = Assert.Single(readerToolbar.Descendants(Desktop + "ActionToolBar.Styles").Elements(A + "Style"));
+        Assert.Equal("{StaticResource Workspace.Size.Input}", Setting(readerToolbarStyle, "Height"));
     }
 
     private static XElement PostRoot()
