@@ -220,6 +220,9 @@ internal static class WorkspaceChips
 
     // ---- M2 filter term chips ----------------------------------------------------------------------------------------
 
+    /// <summary>The name of the menu entry that copies the page's filters as query text (tests and smokes).</summary>
+    internal const string CopyTextItemName = "FilterChipCopyText";
+
     /// <summary>The name of the include/exclude switch inside a negatable term chip (tests and smokes find it by this name).</summary>
     internal const string TermToggleName = "MediaFilterTagToggle";
 
@@ -238,11 +241,12 @@ internal static class WorkspaceChips
     /// Backspace removes. <paramref name="valueName"/> is what the switch names ("Switch to exclude: surface").</para>
     /// <para>Every other chip only removes: Enter, Space, Delete or Backspace remove it, as before.</para>
     /// <para><paramref name="menu"/> adds the chip's context menu: Include · Exclude (negatable chips), Remove and, when the page offers
-    /// one, Edit… (<paramref name="edit"/>: opens the filter picker on the chip's field).</para>
+    /// one, Edit… (<paramref name="edit"/>: opens the filter picker on the chip's field) and Copy filters as text
+    /// (<paramref name="copyText"/>, M3: the page writes its whole filter as a query).</para>
     /// The content is a TextBlock (plain chip) or a StackPanel of the switch and the TextBlock; <see cref="TermChipLabel"/> reads both.
     /// </summary>
     internal static ClosableTag CreateTermChip(string label, bool negatable, bool exclude, Action remove, Action? toggle = null,
-        string? valueName = null, bool menu = false, Action? edit = null)
+        string? valueName = null, bool menu = false, Action? edit = null, Action? copyText = null)
     {
         ArgumentNullException.ThrowIfNull(remove);
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
@@ -250,7 +254,7 @@ internal static class WorkspaceChips
         ClosableTag tag = new() { Content = text, Command = new ChipCommand(remove), Focusable = true };
         MarkFilter(tag, exclude);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit);
+        if (menu) tag.ContextMenu = CreateTermMenu(negatable, exclude, remove, toggle, edit, copyText);
         if (!negatable)
         {
             string accessible = Texts.T("archive.removeFilter", label);
@@ -309,7 +313,7 @@ internal static class WorkspaceChips
     internal static Button? TermChipToggle(ClosableTag tag) => (tag.Content as StackPanel)?.Children.OfType<Button>().FirstOrDefault();
 
     // The entries are a fixed array (ItemsSource), not the menu's own Items list: a list would observe its changes on the UI thread only.
-    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit)
+    private static ContextMenu CreateTermMenu(bool negatable, bool exclude, Action remove, Action? toggle, Action? edit, Action? copyText)
     {
         List<Control> items = new();
         MenuItem Item(string name, string header, Action action) => new() { Name = name, Header = header, Command = new ChipCommand(action) };
@@ -330,6 +334,7 @@ internal static class WorkspaceChips
         }
         items.Add(Item("FilterChipRemove", Texts.T("media.filter.chip.remove"), remove));
         if (edit != null) items.Add(Item("FilterChipEdit", Texts.T("media.filter.chip.edit"), edit));
+        if (copyText != null) items.Add(Item(CopyTextItemName, Texts.T("media.filter.chip.copyText"), copyText));
         return new ContextMenu { ItemsSource = items.ToArray() };
     }
 

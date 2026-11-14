@@ -77,7 +77,10 @@ public sealed partial class MediaPage
         _filterAdd.IsVisible = false;
         // "+ Filter" and "Reset all" follow the last chip directly (M1): the columns are Auto, so the chips are held to the row width
         // minus both by hand; they wrap there, and the two stay on the first line at the chip height.
-        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8 };
+        Grid row = new() { Name = "MediaFilterChipRow", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8, Background = Avalonia.Media.Brushes.Transparent };
+        // M3: a right click on the row writes the whole filter as a query (every chip's menu does the same).
+        _copyFiltersItem.Click += (_, _) => _ = CopyFiltersAsTextAsync();
+        row.ContextMenu = new ContextMenu { ItemsSource = new Control[] { _copyFiltersItem } };
         row.Children.Add(_filterChips);
         row.Children.Add(_filterAdd); Avalonia.Controls.Grid.SetColumn(_filterAdd, 1);
         row.Children.Add(_filterResetAll); Avalonia.Controls.Grid.SetColumn(_filterResetAll, 2);
@@ -116,49 +119,49 @@ public sealed partial class MediaPage
             if (term.Field != MediaFilterField.Tag) AddMode();
             string key = (term.Exclude ? "-" : "+") + MediaFilterTermSet.IdentityKey(term);
             void Add(string label, string? valueName = null) => chips.Add(new FilterChip(key, label, () => RemoveFilterTerm(term), term, valueName));
-            switch (term.Field)
-            {
-                case MediaFilterField.Tag:
-                    string tag = TagLabel(Guid.Parse(term.Value));
-                    Add(Texts.T(term.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", tag), tag);
-                    break;
-                case MediaFilterField.Thread:
-                    Add(Texts.T("media.filter.threadChip", _threadTitle ?? "#" + term.Value));
-                    break;
-                case MediaFilterField.Untagged:
-                    // Reached from the status line while the filter fields are closed, so it is removable without opening them.
-                    Add(Texts.T("media.filter.withoutTags"));
-                    break;
-                case MediaFilterField.Name:
-                    Add(Texts.T("media.filter.nameChip", term.Value.Trim()));
-                    break;
-                case MediaFilterField.Type when MediaFilterTerm.TypeOf(term.Value) is { } kind:
-                    Add(Texts.T(term.Exclude ? "media.filter.kindExcludeChip" : "media.filter.kindChip", KindLabel(kind)), KindLabel(kind));
-                    break;
-                case MediaFilterField.Sound:
-                    Add(Texts.T(term.Value == "with" ? "media.filter.sound.with" : "media.filter.sound.without"));
-                    break;
-                case MediaFilterField.Source:
-                    Add(Texts.T(term.Exclude ? "media.filter.sourceExcludeChip" : "archive.sourceChip", SourceLabel(term.Value)), SourceLabel(term.Value));
-                    break;
-                case MediaFilterField.Board:
-                    string board = BoardLabel(term.Scope!, term.Value);
-                    Add(Texts.T(term.Exclude ? "media.filter.boardExcludeChip" : "archive.boardChip", board), board);
-                    break;
-                case MediaFilterField.Rating:
-                    Add(Texts.T("media.filter.ratingChip", int.Parse(term.Value, System.Globalization.CultureInfo.InvariantCulture)));
-                    break;
-                case MediaFilterField.Favorite:
-                    Add(Texts.T("media.filter.favorites"));
-                    break;
-                case MediaFilterField.Missing:
-                    // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
-                    Add(Texts.T("media.filter.missingChip"));
-                    break;
-            }
+            if (TermLabel(term) is { } text) Add(text.Label, text.ValueName);
         }
         AddMode();
         return chips;
+    }
+
+    /// <summary>
+    /// The chip text of a term and what its switch names ("Switch to exclude: Videos"); null for a term without a chip. The chips and the
+    /// "added from the search field" note (M3) read the same wording.
+    /// </summary>
+    private (string Label, string? ValueName)? TermLabel(MediaFilterTerm term)
+    {
+        switch (term.Field)
+        {
+            case MediaFilterField.Tag:
+                string tag = TagLabel(Guid.Parse(term.Value));
+                return (Texts.T(term.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", tag), tag);
+            case MediaFilterField.Thread:
+                return (Texts.T("media.filter.threadChip", _threadTitle ?? "#" + term.Value), null);
+            case MediaFilterField.Untagged:
+                // Reached from the status line while the filter fields are closed, so it is removable without opening them.
+                return (Texts.T("media.filter.withoutTags"), null);
+            case MediaFilterField.Name:
+                return (Texts.T("media.filter.nameChip", term.Value.Trim()), null);
+            case MediaFilterField.Type when MediaFilterTerm.TypeOf(term.Value) is { } kind:
+                return (Texts.T(term.Exclude ? "media.filter.kindExcludeChip" : "media.filter.kindChip", KindLabel(kind)), KindLabel(kind));
+            case MediaFilterField.Sound:
+                return (Texts.T(term.Value == "with" ? "media.filter.sound.with" : "media.filter.sound.without"), null);
+            case MediaFilterField.Source:
+                return (Texts.T(term.Exclude ? "media.filter.sourceExcludeChip" : "archive.sourceChip", SourceLabel(term.Value)), SourceLabel(term.Value));
+            case MediaFilterField.Board:
+                string board = BoardLabel(term.Scope!, term.Value);
+                return (Texts.T(term.Exclude ? "media.filter.boardExcludeChip" : "archive.boardChip", board), board);
+            case MediaFilterField.Rating:
+                return (Texts.T("media.filter.ratingChip", int.Parse(term.Value, System.Globalization.CultureInfo.InvariantCulture)), null);
+            case MediaFilterField.Favorite:
+                return (Texts.T("media.filter.favorites"), null);
+            case MediaFilterField.Missing:
+                // Showing captured but missing files is a filter like the others (S3): the chip says why the grid holds files that are gone.
+                return (Texts.T("media.filter.missingChip"), null);
+            default:
+                return null;
+        }
     }
 
     private void RenderFilterChips()
@@ -167,6 +170,7 @@ public sealed partial class MediaPage
         ToolTip.SetTip(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         AutomationProperties.SetName(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         _emptyReset.Content = Texts.T("media.filter.reset");
+        _copyFiltersItem.Header = Texts.T("media.filter.chip.copyText");
         List<FilterChip> chips = ActiveFilterChips();
         ActiveFilterCount = chips.Count;
         _filterAdd.IsVisible = chips.Count > 0; // the work view re-applies it below (media.filter.add)
@@ -185,7 +189,7 @@ public sealed partial class MediaPage
             ClosableTag tag = WorkspaceChips.CreateTermChip(chip.Label, chip.Negatable, term?.Exclude == true,
                 () => RemoveFilterChip(position, chip.Remove), chip.Negatable ? () => ToggleFilterChip(term!) : null, chip.ValueName,
                 menu: true, edit: term != null && FilterTermPicker.GroupOrder(term.Field) <= FilterTermPicker.GroupOrder(MediaFilterField.Untagged)
-                    ? () => EditFilterChip(term.Field) : null);
+                    ? () => EditFilterChip(term.Field) : null, copyText: () => _ = CopyFiltersAsTextAsync());
             if (term != null) tag.Tag = MediaFilterTermSet.IdentityKey(term);
             _filterChips.Children.Add(tag);
         }

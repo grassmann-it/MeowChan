@@ -123,7 +123,7 @@ public sealed partial class MediaPage
         _tagAdd.Snapshot = () => _userData.TagSnapshot;
         _tagAdd.Used = UsedTags;
         _tagAdd.Picked = (id, exclude) => TryIncludeOrExclude(id, !exclude);
-        _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) FilterEdited(); };
+        _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) { ClearQueryHint(); FilterEdited(); } };
         _searchScope.CarryActions = SearchCarryActions;
         _tagMode.SelectionChanged += (_, _) => FilterEdited();
         // The fields write the term set; a sound choice implies videos (MediaFilterTermSet), and another type drops the sound.
@@ -333,6 +333,7 @@ public sealed partial class MediaPage
             SyncFilterControls();
         }
         finally { _localizing = false; }
+        ClearQueryHint();
         RenderTagOptions();
         FilterEdited();
     }
@@ -584,6 +585,9 @@ public sealed partial class MediaPage
         }
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
+        _queryAliases = null; // the aliases follow the language
+        _searchScope.FieldHelpNote = Texts.T("media.query.tip");
+        ClearQueryHint();
         _searchCarryOffer.Localize();
         UpdateSearchTip();
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
@@ -653,7 +657,7 @@ public sealed partial class MediaPage
     }
 
     // The shortcut in the tooltip follows the user's current binding.
-    private void UpdateSearchTip() => ToolTip.SetTip(_nameFilter, CommandBindings.Tooltip("input.focus-media-search"));
+    private void UpdateSearchTip() => ToolTip.SetTip(_nameFilter, CommandBindings.Tooltip("input.focus-media-search") + "\n" + Texts.T("media.query.tip"));
 
     // The count belongs to the text that produced it: none for an empty name or a refused filter.
     private void UpdateSearchResult()

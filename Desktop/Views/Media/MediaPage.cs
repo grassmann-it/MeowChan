@@ -178,7 +178,7 @@ public sealed partial class MediaPage : UserControl
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
         // what is applied stays in the header above it.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildStatusRow(_status));
+        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = MediaLibraryTileView.TileHeight });

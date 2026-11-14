@@ -236,6 +236,11 @@ public sealed class SearchScopeChip : Button
     internal void ApplyOwnerHelp()
     {
         if (Owner is { } owner)
-            AutomationProperties.SetHelpText(owner, Texts.T("search.scope.fieldHelp", Label(_scope), Texts.T("search.scope.tip"), MenuShortcutDisplay()));
+            AutomationProperties.SetHelpText(owner, Texts.T("search.scope.fieldHelp", Label(_scope), Texts.T("search.scope.tip"), MenuShortcutDisplay())
+                + (string.IsNullOrEmpty(FieldHelpNote) ? string.Empty : " " + FieldHelpNote));
     }
+
+    private string? _fieldHelpNote;
+    /// <summary>A sentence the owner adds to the field's help text (the media page: the query syntax, M3); null for none.</summary>
+    internal string? FieldHelpNote { get => _fieldHelpNote; set { if (_fieldHelpNote == value) return; _fieldHelpNote = value; ApplyOwnerHelp(); } }
 }
