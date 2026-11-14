@@ -57,7 +57,7 @@ internal static partial class MediaPageChecks
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             foreach (string code in new[] { "de", "en" })
                 await FilterChipRowAsync(window, page, theme, code);
-            Console.WriteLine("SMOKE media filter chips: every active filter is a removable chip in one row with the surface closed, Filters (n), Reset all, empty-state reset, error line style; DE/EN, Light/Dark passed.");
+            Console.WriteLine("SMOKE media filter chips: every active filter is a removable chip in one row with the surface closed, Filters (n), Reset all, empty-state reset, error line style, + Filter excludes a type and a source (chips, combo summaries, grid) and a switched type chip shows the other part; DE/EN, Light/Dark passed.");
             Console.WriteLine("SMOKE media filter surface: the toggle (ToggleButton with count badge, input height like the sort combo) opens the fields inline under the status line and pushes the grid down (no overlay, no Close button; header, chips and status unmoved), live filtering from the section, focus in/out, Tab cycle, Escape order (dropdown first), programmatic open keeps focus, tiles fit their cells; DE/EN, Light/Dark, 1400/660 passed.");
         }
         finally { Texts.SetLanguage(language); page.EndLifetime(); window.Close(); }
@@ -123,6 +123,38 @@ internal static partial class MediaPageChecks
         Require(page.ActiveFilterCount == 0 && C<CheckBox>(page, "MediaFavoritesOnly").IsChecked == false && page.Tiles.Count == ReturnThreads + 2, state + ": Reset all.");
         Require(page.AddTagFilterByName("surface", include: true) == null, state + ": tag add again.");
         Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1, state + ": tag filter restored.");
+
+        // M2: "+ Filter" behind the chips adds any field by keyboard. Shift+Enter excludes: "Without type: Images" is a chip of its own
+        // (chip-exclude), the type combo shows "3 types", and the grid holds the tagged media that are no images. Switching the chip
+        // (as its body click does) shows exactly the other part; an excluded source summarizes in its combo; removing restores.
+        FilterTermPicker add = page.FilterAdd;
+        Require(add.IsEffectivelyVisible && Avalonia.Automation.AutomationProperties.GetName(add) == Texts.T("media.filter.add") && add.Classes.Contains("chip-available"),
+            state + ": + Filter must follow the chips.");
+        void Pick(string text, KeyModifiers modifiers = KeyModifiers.None)
+        {
+            add.Search.Text = text; add.Search.FlushQuery();
+            add.Search.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = modifiers });
+        }
+        string images = Texts.T("media.filter.kind.image");
+        Pick(images, KeyModifiers.Shift);
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.kindExcludeChip", images)));
+        int notImages = page.Tiles.Count;
+        Ursa.Controls.ClosableTag typeChip() => page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single(tag => tag.Tag as string == "type:image");
+        Require(typeChip().Classes.Contains("chip-exclude") && kind.SelectedItem as string == Texts.Count("media.filter.kind.count", 3)
+            && page.CurrentFilter().Kinds.Count == 3 && !page.CurrentFilter().Kinds.Contains(MediaLibraryKindFilter.Image) && notImages < SurfaceTagged + 1,
+            state + ": an excluded type must be a chip, summarize in its combo and narrow the grid: " + string.Join(" | ", Labels()) + " / " + notImages);
+        Require(page.ToggleFilterChipFor(MediaFilterTerm.Type(MediaLibraryKindFilter.Image)) == null, state + ": switching the type chip failed.");
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.kindChip", images)));
+        Require(!typeChip().Classes.Contains("chip-exclude") && kind.SelectedIndex == (int)MediaLibraryKindFilter.Image
+            && page.Tiles.Count + notImages == SurfaceTagged + 1, state + ": the switched type chip must show exactly the other part: " + page.Tiles.Count);
+        Pick("-media-fixture");
+        await UntilAsync(() => Labels().Contains(Texts.T("media.filter.sourceExcludeChip", "media-fixture")));
+        Require(page.CurrentFilter().ExcludeSources.Contains("media-fixture")
+            && C<ComboBox>(page, "MediaSourceFilter").SelectedItem?.ToString() == Texts.T("media.filter.combo.excluded", 1),
+            state + ": an excluded source must reach the filter and summarize in its combo.");
+        while (page.FilterChips.Children.Count > 1) Remove(page.FilterChips.Children.Count - 1).Execute(null);
+        Require(page.ActiveFilterCount == 1 && page.Tiles.Count == SurfaceTagged + 1 && kind.SelectedIndex == 0
+            && C<ComboBox>(page, "MediaSourceFilter").SelectedIndex == 0, state + ": removing the added chips must restore the tag filter alone.");
     }
 
     private static async Task FilterSurfaceStateAsync(Window window, MediaPage page, ThemeVariant theme, string code, double width, double height)
