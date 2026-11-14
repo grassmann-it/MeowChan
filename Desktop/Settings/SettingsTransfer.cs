@@ -166,7 +166,7 @@ public static class SettingsTransfer
             QuickTagFilenameTokens = source.QuickTagFilenameTokens,
             QuickTagSourceTagsPerMedium = source.QuickTagSourceTagsPerMedium,
             QuickTagMarkedMediaLimit = source.QuickTagMarkedMediaLimit,
-            // wave3: the settings of R5/R6/R8, V3, the taglines, PT1, PR1 and PR2/PR3, and the PT5 stamp.
+            // wave3: the settings of R5/R6/R8, V3, V4, the taglines, PT1, PT4, PR1 and PR2/PR3, and the PT5 stamp.
             FolderSourceBackgroundHashing = source.FolderSourceBackgroundHashing,
             FolderSourceCatalogLimitMiB = source.FolderSourceCatalogLimitMiB,
             FolderSourceGalleryHashWindow = source.FolderSourceGalleryHashWindow,
@@ -198,6 +198,9 @@ public static class SettingsTransfer
             TagQueueHistory = source.TagQueueHistory,
             TagQueueLimit = source.TagQueueLimit,
             TagStamp = (string[])source.TagStamp.Clone(),
+            GalleryMaxZoomPercent = source.GalleryMaxZoomPercent,
+            TaggingCardCount = source.TaggingCardCount,
+            TaggingCardsDefault = source.TaggingCardsDefault,
             QuickTagStampSize = source.QuickTagStampSize,
             ReaderDateStyle = source.ReaderDateStyle,
             ReaderSpoilers = source.ReaderSpoilers,

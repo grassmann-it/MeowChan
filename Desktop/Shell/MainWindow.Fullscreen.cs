@@ -758,7 +758,8 @@ public partial class MainWindow
         if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true) notes.Add("help.reader.mediaActivation");
         return new MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext(
             MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext.AreaFor(_selectedPage.ToString(), _largeReaderOpen),
-            ids.Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _)).ToArray(),
+            // The F1 area lists what has a gesture here (as the former overlay did); the window still offers every command.
+            ids.Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _) && CommandCatalog.ShortcutDisplay(id) != null).ToArray(),
             id => WorkViewHelp.UnderMore(id, helpView, helpPages),
             _largeReaderOpen ? CommandScope.Reader : CommandScope.None,
             notes);
