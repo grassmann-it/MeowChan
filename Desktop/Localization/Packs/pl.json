@@ -4405,6 +4405,7 @@
     "tagging.status.failed": "Decyzja nie została zapisana: {0}",
     "tagging.help.heading": "Tryb tagowania",
     "tagging.help.note": "{0} i {1} przewijają bez decyzji. Esc najpierw zamyka panel tagów, potem tryb tagowania; następne przejście zaczyna od ostatnio pokazanego medium. {2} cofa tagi, ulubione, ocenę i decyzje, od najnowszych.",
+    "nav.tagging": "Tagowanie",
     "command.navigation.tagging": "Tagowanie",
     "command.tagging.start": "Zacznij tagowanie",
     "command.tagging.continue-here": "Kontynuuj tutaj",

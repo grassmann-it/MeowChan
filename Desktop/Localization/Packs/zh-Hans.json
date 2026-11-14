@@ -4273,6 +4273,7 @@
     "tagging.status.failed": "决定未保存：{0}",
     "tagging.help.heading": "标签模式",
     "tagging.help.note": "{0} 和 {1} 只翻页，不做决定。Esc 先关闭标签面板，再退出标签模式；下一轮会从最后显示的媒体继续。{2} 按从新到旧的顺序撤销标签、收藏、评分和决定。",
+    "nav.tagging": "打标签",
     "command.navigation.tagging": "打标签",
     "command.tagging.start": "开始打标签",
     "command.tagging.continue-here": "从这里继续",

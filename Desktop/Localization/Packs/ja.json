@@ -4273,6 +4273,7 @@
     "tagging.status.failed": "判断を保存できませんでした: {0}",
     "tagging.help.heading": "タグ付けモード",
     "tagging.help.note": "{0} と {1} は判断せずに移動します。Esc はまずタグパネルを閉じ、次にタグ付けモードを終了します。次の巡回は最後に表示したメディアから続きます。{2} はタグ、お気に入り、評価、判断を新しい順に取り消します。",
+    "nav.tagging": "タグ付け",
     "command.navigation.tagging": "タグ付け",
     "command.tagging.start": "タグ付けを開始",
     "command.tagging.continue-here": "ここから続ける",

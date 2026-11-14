@@ -4402,6 +4402,7 @@
     "tagging.status.failed": "Rozhodnutí nebylo uloženo: {0}",
     "tagging.help.heading": "Režim štítkování",
     "tagging.help.note": "{0} a {1} listují bez rozhodnutí. Esc nejprve zavře panel štítků, potom režim štítkování; další průchod pokračuje u naposledy zobrazeného média. {2} vrací štítky, oblíbené, hodnocení a rozhodnutí od nejnovějšího.",
+    "nav.tagging": "Štítkování",
     "command.navigation.tagging": "Štítkování",
     "command.tagging.start": "Začít štítkovat",
     "command.tagging.continue-here": "Pokračovat zde",

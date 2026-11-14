@@ -4365,6 +4365,7 @@
     "tagging.status.failed": "A decisão não foi salva: {0}",
     "tagging.help.heading": "Modo de tags",
     "tagging.help.note": "{0} e {1} navegam sem decidir. Esc fecha primeiro o painel de tags e depois o modo de tags; o próximo percurso continua na última mídia exibida. {2} desfaz tags, favorito, avaliação e decisões, da mais recente para a mais antiga.",
+    "nav.tagging": "Marcação com tags",
     "command.navigation.tagging": "Marcação com tags",
     "command.tagging.start": "Começar a marcar",
     "command.tagging.continue-here": "Continuar aqui",

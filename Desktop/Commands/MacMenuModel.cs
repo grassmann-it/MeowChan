@@ -53,7 +53,7 @@ public static class MacMenuModel
                 MacMenuNode.Command("reader.find-next"), MacMenuNode.Command("reader.find-previous")
             })
         }),
-        new MacTopMenu("macmenu.view", "view", MainPageOrder.CommandIds.Select(MacMenuNode.Command)
+        new MacTopMenu("macmenu.view", "view", MainPageOrder.NumberedCommandIds.Select(MacMenuNode.Command)
             .Append(MacMenuNode.Separator).Append(MacMenuNode.Command("workspace.view-cycle"))
             .Append(MacMenuNode.Command("window.fullscreen")).ToArray()),
         new MacTopMenu("macmenu.go", "go", new[]

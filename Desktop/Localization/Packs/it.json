@@ -4365,6 +4365,7 @@
     "tagging.status.failed": "La decisione non è stata salvata: {0}",
     "tagging.help.heading": "Modalità tagging",
     "tagging.help.note": "{0} e {1} scorrono senza decidere. Esc chiude prima il pannello dei tag, poi la modalità tagging; il giro successivo riprende dall’ultimo media mostrato. {2} annulla tag, preferito, valutazione e decisioni, dal più recente.",
+    "nav.tagging": "Tagging",
     "command.navigation.tagging": "Tagging",
     "command.tagging.start": "Inizia il tagging",
     "command.tagging.continue-here": "Continua da qui",

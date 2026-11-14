@@ -12,10 +12,11 @@ namespace MeowChan.Desktop.Commands;
 public static class MainPageOrder
 {
     private const string Prefix = "navigation.";
-    /// <summary>Downloads, Archive, Media, Booru | Rules, Sources & Plugins | Status.</summary>
+    /// <summary>Downloads, Archive, Media, Tagging, Booru | Rules, Sources & Plugins | Status. Tagging sits behind Media and has no
+    /// default digit (see <see cref="Digit"/>): it is a footer, flyout and ⋯ page, not one of the numbered ones.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> Groups { get; } = Array.AsReadOnly(new IReadOnlyList<string>[]
     {
-        Array.AsReadOnly(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.booru" }),
+        Array.AsReadOnly(new[] { "navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.booru" }),
         Array.AsReadOnly(new[] { "navigation.rules", "navigation.sources" }),
         Array.AsReadOnly(new[] { "navigation.status" }),
     });
@@ -26,10 +27,15 @@ public static class MainPageOrder
     public static bool Contains(string commandId) => CommandIds.Contains(commandId, StringComparer.Ordinal);
     // Keep the confirmed SM1/SM2 Status shortcut at Primary+7. Booru takes the previously free Primary+6;
     // saved navigation.plugins=Primary+6 overrides still yield this new default through EffectiveShortcutBindings.
+    // Tagging (footer, behind Media) deliberately owns no slot: the digits stay as shipped and navigation.tagging stays bindable.
     private static readonly string?[] DigitSlots = ["navigation.downloads", "navigation.archive", "navigation.media",
         "navigation.rules", "navigation.sources", "navigation.booru", "navigation.status"];
     /// <summary>The default digit slot; null for compatibility routes, segments and unnumbered commands.</summary>
-    public static int? Digit(string commandId) => Contains(commandId) ? Array.IndexOf(DigitSlots, commandId) + 1 : null;
+    public static int? Digit(string commandId) => Array.IndexOf(DigitSlots, commandId) is var slot and >= 0 ? slot + 1 : null;
+    /// <summary>The main pages that own a default digit (Ctrl/Cmd+1…7), in footer order. Tagging is not among them: the digits are pinned by
+    /// the help, the keyboard layouts users have learnt and many tests, so a page added later joins the footer without taking one;
+    /// its command stays bindable in the shortcuts window.</summary>
+    public static IReadOnlyList<string> NumberedCommandIds { get; } = Array.AsReadOnly(CommandIds.Where(id => Digit(id) != null).ToArray());
     /// <summary>The default shortcut text written into the command catalog.</summary>
     public static string DefaultShortcut(string commandId) =>
         Digit(commandId) is int digit ? "Primary+" + digit : throw new ArgumentException("Not a main page: " + commandId, nameof(commandId));
@@ -42,7 +48,7 @@ public static class MainPageOrder
     public static IReadOnlyList<string> OverflowOrder { get; } = Array.AsReadOnly(new[]
     {
         "navigation.status", "navigation.sources", "navigation.rules",
-        "navigation.booru", "navigation.media", "navigation.archive",
+        "navigation.booru", "navigation.tagging", "navigation.media", "navigation.archive",
     });
     /// <summary>The commands that open one segment of the Status page. They are no main pages of their own and carry no
     /// default gesture (Primary+8 is free); a binding the user saved for them keeps working.</summary>

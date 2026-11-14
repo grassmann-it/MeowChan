@@ -27,8 +27,9 @@ public static class CommandCatalog
         new("media.tags.edit", "media.tags.edit", "Tag…", "Tag…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "gallery" }),
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "gallery" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "app-menu" }),
-        // PT2: the tagging page under the app menu (not a footer page), and the commands of its queue list (execution context "tagging").
-        new("navigation.tagging", "command.navigation.tagging", "Tagging", "Taggen", "edit-2", null, CommandScope.Application, new[] { "app-menu" }),
+        // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
+        // Media, a More entry and a ⋯ entry like every main page, but no default digit (MainPageOrder.Digit).
+        new("navigation.tagging", "command.navigation.tagging", "Tagging", "Taggen", "tag", null, CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("tagging.start", "command.tagging.start", "Start tagging", "Taggen starten", "play", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.continue-here", "command.tagging.continue-here", "Continue here", "Hier fortsetzen", "play", "Enter", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.mark-done", "command.tagging.mark-done", "Mark as finished", "Als erledigt markieren", "check", null, CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),

@@ -4273,6 +4273,7 @@
     "tagging.status.failed": "결정을 저장하지 못했습니다: {0}",
     "tagging.help.heading": "태그 지정 모드",
     "tagging.help.note": "{0}와(과) {1}은(는) 결정 없이 이동합니다. Esc는 먼저 태그 패널을 닫고, 그다음 태그 지정 모드를 끝냅니다. 다음 둘러보기는 마지막으로 표시한 미디어부터 이어집니다. {2}은(는) 태그, 즐겨찾기, 평가, 결정을 최신 순으로 취소합니다.",
+    "nav.tagging": "태그 지정",
     "command.navigation.tagging": "태그 지정",
     "command.tagging.start": "태그 지정 시작",
     "command.tagging.continue-here": "여기서 계속",

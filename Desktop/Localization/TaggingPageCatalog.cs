@@ -9,6 +9,7 @@ internal static class TaggingPageCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("command.navigation.tagging", "Tagging", "Taggen"),
+        ("nav.tagging", "Tagging", "Taggen"),
         ("command.tagging.start", "Start tagging", "Taggen starten"),
         ("command.tagging.continue-here", "Continue here", "Hier fortsetzen"),
         ("command.tagging.mark-done", "Mark as finished", "Als erledigt markieren"),

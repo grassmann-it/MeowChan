@@ -4359,6 +4359,7 @@
     "tagging.status.failed": "La decisión no se guardó: {0}",
     "tagging.help.heading": "Modo de etiquetado",
     "tagging.help.note": "{0} y {1} avanzan sin decidir. Esc cierra primero el panel de etiquetas y después el modo de etiquetado; el siguiente recorrido continúa en el último medio mostrado. {2} deshace etiquetas, favorito, valoración y decisiones, empezando por la más reciente.",
+    "nav.tagging": "Etiquetado",
     "command.navigation.tagging": "Etiquetado",
     "command.tagging.start": "Empezar a etiquetar",
     "command.tagging.continue-here": "Continuar aquí",
