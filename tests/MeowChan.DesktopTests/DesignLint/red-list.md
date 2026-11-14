@@ -13,12 +13,12 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `font-size-off-scale` | 0 | 0 | P5: onto the scale |
 | `color-hex` | 0 | 0 | Workspace brushes |
 | `color-code` | 0 | 0 | Workspace brushes |
-| `spacing-off-grid` | 148 | 46 | P7: 0/2/4/8/12/16/24/32 or Inset token |
+| `spacing-off-grid` | 144 | 45 | P7: 0/2/4/8/12/16/24/32 or Inset token |
 | `glyph-icon` | 9 | 4 | P6: catalog path icon |
 | `row-height-literal` | 2 | 2 | P7: WorkspaceMetrics |
 | `control-height-literal` | 11 | 7 | P1: Workspace.Size token |
 | `page-inset` | 2 | 2 | P2: Workspace.Inset.Page |
-| **total** | **172** | 54 | |
+| **total** | **168** | 53 | |
 
 ## Counts per file
 
@@ -28,9 +28,9 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/Views/Archive/ArchivePage.axaml` |  |  |  |  | 19 |  |  | 2 |  | 21 |
 | `Desktop/Views/Settings/SettingsEditor.axaml` |  |  |  |  | 10 |  |  | 1 | 1 | 12 |
 | `Desktop/Views/Media/BooruMediaDetailsDialog.cs` |  |  |  |  | 7 | 1 |  |  |  | 8 |
-| `Desktop/Views/Settings/FirstRunSetupWindow.axaml` |  |  |  |  | 7 |  |  |  |  | 7 |
 | `Desktop/Localization/ArchiveCatalog.cs` |  |  |  |  |  | 6 |  |  |  | 6 |
 | `Desktop/Views/Rules/RulesPage.axaml` |  |  |  |  | 3 |  |  | 3 |  | 6 |
+| `Desktop/Views/Settings/FirstRunSetupWindow.axaml` |  |  |  |  | 6 |  |  |  |  | 6 |
 | `Desktop/MediaLibraryTileView.cs` |  |  |  |  | 5 |  |  |  |  | 5 |
 | `Desktop/Views/Media/ManualImportDialog.cs` |  |  |  |  | 5 |  |  |  |  | 5 |
 | `Desktop/GalleryViewer.Overflow.cs` |  |  |  |  | 4 |  |  |  |  | 4 |
@@ -40,7 +40,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/GalleryVideoPlayer.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Plugins/PluginSettingsEditor.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Shell/MainWindow.Presentation.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
-| `Desktop/Views/Archive/ArchivePage.Favorites.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Archive/PostFilterDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Media/MediaSelectionTagDialog.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
 | `Desktop/Views/Plugins/PluginsPage.Migration.cs` |  |  |  |  | 3 |  |  |  |  | 3 |
@@ -64,10 +63,10 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 | `Desktop/Views/About/AboutWindow.axaml` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Admission/BoardAdmissionWindow.cs` |  |  |  |  |  |  |  | 1 |  | 1 |
 | `Desktop/Views/Archive/ArchivePage.Export.Choice.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
+| `Desktop/Views/Archive/ArchivePage.Favorites.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Archive/InterruptedTransfersDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Archive/MediaHashSearchDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Collections/MediaTagDialog.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
-| `Desktop/Views/Collections/ReaderGroupsDialog.axaml` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Media/MediaPage.ExportAll.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Media/MediaPage.FilterChips.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
 | `Desktop/Views/Media/MediaPage.FilterSurface.cs` |  |  |  |  | 1 |  |  |  |  | 1 |
@@ -83,7 +82,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/ArchiveAttachmentView.cs` (1)
 
-- `spacing-off-grid`: L65 `Margin=new Thickness(3, 0, 0, 0)`
+- `spacing-off-grid`: L72 `Margin=new Thickness(3, 0, 0, 0)`
 
 ### `Desktop/ArchiveMediaTileView.cs` (2)
 
@@ -172,11 +171,11 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/Views/About/AboutWindow.axaml` (1)
 
-- `spacing-off-grid`: L79 `Spacing="6"`
+- `spacing-off-grid`: L77 `Spacing="6"`
 
 ### `Desktop/Views/Admission/BoardAdmissionWindow.cs` (1)
 
-- `control-height-literal`: L313 `Button MinHeight=32`
+- `control-height-literal`: L314 `Button MinHeight=32`
 
 ### `Desktop/Views/Archive/ArchivePage.Export.Choice.cs` (1)
 
@@ -186,9 +185,9 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 - `spacing-off-grid`: L108 `LineSpacing=6`, L116 `Spacing=6`, L120 `Spacing=6`, L150 `LineSpacing=6`
 
-### `Desktop/Views/Archive/ArchivePage.Favorites.cs` (3)
+### `Desktop/Views/Archive/ArchivePage.Favorites.cs` (1)
 
-- `spacing-off-grid`: L93 `LineSpacing=6`, L299 `LineSpacing=6`, L319 `LineSpacing=6`
+- `spacing-off-grid`: L286 `LineSpacing=6`
 
 ### `Desktop/Views/Archive/ArchivePage.axaml` (21)
 
@@ -214,10 +213,6 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 ### `Desktop/Views/Collections/MediaTagDialog.cs` (1)
 
 - `spacing-off-grid`: L66 `Spacing=6`
-
-### `Desktop/Views/Collections/ReaderGroupsDialog.axaml` (1)
-
-- `spacing-off-grid`: L27 `Margin="-16,0,-16,-16"`
 
 ### `Desktop/Views/Diagnostics/DiagnosticsPage.axaml` (2)
 
@@ -267,7 +262,7 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 
 ### `Desktop/Views/Plugins/PluginsPage.Migration.cs` (3)
 
-- `spacing-off-grid`: L73 `Spacing=6`, L202 `Spacing=6`, L294 `Spacing=6`
+- `spacing-off-grid`: L69 `Spacing=6`, L198 `Spacing=6`, L290 `Spacing=6`
 
 ### `Desktop/Views/Plugins/PluginsPage.axaml` (1)
 
@@ -286,13 +281,13 @@ which shortens this list and `design-lint-baseline.txt`. Line numbers are for or
 - `spacing-off-grid`: L122 `Margin="0,6,0,0"`, L141 `Margin="0,6,0,0"`, L183 `LineSpacing="6"`
 - `control-height-literal`: L18 `TagInput style MinHeight="32"`, L195 `Button MinHeight="24"`, L208 `Button MinHeight="24"`
 
-### `Desktop/Views/Settings/FirstRunSetupWindow.axaml` (7)
+### `Desktop/Views/Settings/FirstRunSetupWindow.axaml` (6)
 
-- `spacing-off-grid`: L17 `Padding="20,16,20,8"`, L18 `Spacing="6"`, L24 `Padding="20,0,20,8"`, L33 `Spacing="6"`, L42 `Spacing="10"`, L42 `Margin="20,4,20,16"`, L43 `Spacing="10"`
+- `spacing-off-grid`: L15 `Padding="20,16,20,8"`, L19 `Padding="20,0,20,8"`, L28 `Spacing="6"`, L37 `Spacing="10"`, L37 `Margin="20,4,20,16"`, L38 `Spacing="10"`
 
 ### `Desktop/Views/Settings/SettingsEditor.axaml` (12)
 
-- `spacing-off-grid`: L19 `Padding="10,7"`, L63 `Margin="20,12,20,12"`, L75 `Margin="20,0,20,16"`, L209 `Spacing="3"`, L218 `Spacing="3"`, L406 `Spacing="3"`, L557 `Padding="0,10"`, L580 `Padding="0,10"`, L1279 `Spacing="6"`, L1295 `Margin="0,0,10,0"`
+- `spacing-off-grid`: L19 `Padding="10,7"`, L63 `Margin="20,12,20,12"`, L75 `Margin="20,0,20,16"`, L209 `Spacing="3"`, L218 `Spacing="3"`, L434 `Spacing="3"`, L664 `Padding="0,10"`, L687 `Padding="0,10"`, L1378 `Spacing="6"`, L1394 `Margin="0,0,10,0"`
 - `control-height-literal`: L18 `ToggleButton style MinHeight="34"`
 - `page-inset`: L62 `Grid no inset`
 
