@@ -1,9 +1,10 @@
 """Filesystem-level contract tests for the plugin delivery stage boundary.
 
-These tests intentionally do not invoke dotnet or MSBuild.  The dynamic cases
-exercise the fail-closed boundary with private synthetic fixtures; the source
-contract checks bind that behavior to the inline task's independent trusted
-inputs and to the preflight calls that run before helper MSBuild operations.
+These lightweight specification checks intentionally do not invoke dotnet or
+MSBuild. Their Python model cannot prove the production C# task behaves the same:
+test_plugin_delivery_stage_msbuild.py executes that task against real private
+fixtures in the central heavy lane. The source checks here additionally verify
+that task preflights are wired before the helper MSBuild operations.
 """
 import os
 from pathlib import Path
@@ -25,9 +26,9 @@ class StageRejected(ValueError):
 class StageBoundaryContract:
     """Small filesystem probe matching the task's deliberately narrow contract.
 
-    This is not production code.  Keeping it independent makes the tests able
-    to prove the mutation ordering without starting an MSBuild process, which is
-    required by the central test-runner policy for this repository.
+    This is not production code, only an executable specification for cheap
+    checks. Mutation ordering in the production task is covered separately by
+    the real MSBuild fixture suite, not inferred from this independent model.
     """
 
     def __init__(self, project: Path, intermediate: str, stage: str):

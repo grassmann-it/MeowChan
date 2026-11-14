@@ -136,6 +136,22 @@
                     throw new InvalidDataException("Plugin delivery destination is not a directory: " + root);
                 requireNoReparseTree(root, "Plugin delivery destination");
             }
+            // Publish writes the helper outputs before the payload task runs. Check
+            // those independently derived siblings during preflight too, otherwise
+            // a link in worker/compiler could redirect MSBuild's writes outside the
+            // staging tree before the final input validation gets a chance to run.
+            if (StageKind == "publish")
+            {
+                foreach (string helperName in new[] { "worker", "compiler" })
+                {
+                    string helperOutput = canonical(Path.Combine(intermediateRoot, "plugin-delivery", "publish", helperName));
+                    requireNoReparsePath(helperOutput, "Plugin helper publish output");
+                    FileAttributes? helperAttributes = attributesOrMissing(helperOutput);
+                    if (helperAttributes.HasValue && (helperAttributes.Value & FileAttributes.Directory) == 0)
+                        throw new InvalidDataException("Plugin helper publish output is not a directory: " + helperOutput);
+                    requireNoReparseTree(helperOutput, "Plugin helper publish output");
+                }
+            }
             if (ValidateOnly) return true;
 
             if (String.IsNullOrEmpty(WorkerAssembly) || String.IsNullOrEmpty(CompilerAssembly) || Plugins == null || Sources == null)
@@ -184,8 +200,11 @@
             string compiler = Path.GetDirectoryName(canonical(CompilerAssembly));
             if (String.IsNullOrEmpty(worker) || String.IsNullOrEmpty(compiler))
                 throw new InvalidDataException("Plugin helper assembly paths have no parent directory.");
-            rejectInputOverlap(worker, "worker");
-            rejectInputOverlap(compiler, "compiler");
+            // rejectInputOverlap accepts a file and obtains its containing directory.
+            // Passing worker/compiler here would climb twice and reject the normal
+            // publish layout where both helper directories are siblings of payload.
+            rejectInputOverlap(WorkerAssembly, "worker");
+            rejectInputOverlap(CompilerAssembly, "compiler");
             validateHelperTree(worker);
             validateHelperTree(compiler);
             if (Plugins.Length != expectedAssemblies.Count) throw new InvalidDataException("Delivered plugin project count differs from the public inventory.");
