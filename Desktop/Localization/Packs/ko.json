@@ -1503,7 +1503,7 @@
     "plugins.filesCount": "파일: {0}",
     "plugins.fileShown": "표시 중",
     "plugins.empty": "이 프로필에 플러그인이 없습니다.",
-    "plugins.back": "플러그인 목록으로 돌아가기",
+    "plugins.back": "플러그인으로 돌아가기",
     "plugins.all": "모든 플러그인",
     "plugins.sources": "소스",
     "plugins.filters": "이미지 필터",
