@@ -155,8 +155,9 @@ public sealed class BooruHostHttp : IDisposable
             try
             {
                 response = await SendAttemptAsync(request, window.Token).ConfigureAwait(false);
-                // A job closed while the headers were in flight never reads a body byte.
-                abort.ThrowIfCancellationRequested();
+                // A late transport completion must observe the response deadline as well as
+                // job/caller cancellation before any status handling, retry or body read.
+                window.Token.ThrowIfCancellationRequested();
                 if (response.RequestMessage?.RequestUri is Uri actual && actual != request.Url)
                     return Failure("http-redirect", "Metadata redirects are not followed.");
 

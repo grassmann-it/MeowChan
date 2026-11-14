@@ -690,6 +690,45 @@ public sealed class BooruHostHttpContractTests
         finally { rig.Services.CloseJob(job); }
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.OK)]
+    [InlineData(HttpStatusCode.NotModified)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    [InlineData(HttpStatusCode.BadGateway)]
+    [InlineData(HttpStatusCode.ServiceUnavailable)]
+    public async Task HeadersCompletingAfterResponseDeadlineCannotReadBodyRetryOrStartCooldown(HttpStatusCode status)
+    {
+        ManualClock clock = new();
+        TrackingContent content = new();
+        int sends = 0;
+        using HttpClient transport = new(new Handler((_, token) =>
+        {
+            ++sends;
+            // Model a transport completing successfully despite its cancellation token.
+            clock.Advance(BooruHostHttp.ResponseTimeout);
+            Assert.True(token.IsCancellationRequested);
+            return Task.FromResult(new HttpResponseMessage(status) { Content = content });
+        }));
+        using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
+        BooruHostServices services = new(new Inner(), http);
+        BooruJob job = services.OpenJob();
+        try
+        {
+            // A conditional 304 must not bypass the expired window either.
+            HostHttpRequest request = Get() with { Validators = new SourceValidators("\"v1\"", null) };
+            Task<HostHttpResult> pending = services.SendHttpAsync(request, job.Operation, default);
+            Assert.True(pending.IsCompleted, "Expired headers must fail without a retry wait.");
+            Assert.Equal("http-timeout", Assert.IsType<HostHttpFailure>(await pending.WaitAsync(Bound)).Failure.Code);
+            Assert.Equal(1, sends);
+            Assert.Equal(1, job.Sends);
+            Assert.True(job.IsOpen);
+            Assert.False(content.StreamOpened);
+            Assert.False(clock.HasTimer(BooruHostHttp.RetryDelay));
+            Assert.False(services.TryGetCooldown("danbooru", out _));
+        }
+        finally { services.CloseJob(job); }
+    }
+
     [Fact]
     public async Task PreCancelledCallerNeverReachesTransportOrReservesASend()
     {
