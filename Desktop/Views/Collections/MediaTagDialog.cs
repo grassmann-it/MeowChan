@@ -28,7 +28,7 @@ internal sealed class MediaTagDialog : Window
     // The medium this dialog tags ("Tags for {0}"): the subtitle under the title bar, not a repeat of the title.
     private readonly TextBlock _subject = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly IdentitySuggestionBox _input = new() { Name = "MediaTagInput" };
+    private readonly IdentitySuggestionBox _input = new() { Name = "MediaTagInput", ReleaseEscape = true };
     private readonly Button _add = new() { Name = "MediaTagAdd" };
     private readonly TextBlock _status = new() { Name = "MediaTagStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "MediaTagClose" };

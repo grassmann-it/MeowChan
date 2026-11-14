@@ -120,6 +120,13 @@ internal static class LocalMediaTagChecks
 
     private static async Task CloseTagsAsync(MainWindow shell, MediaTagDialog dialog)
     {
+        // An open suggestion list takes the first Escape and only the next one closes the dialog (MediaTagDialog.OnKey, DialogEscape).
+        if (dialog.Input.IsDropDownOpen)
+        {
+            dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            await UntilAsync(() => !dialog.Input.IsDropDownOpen);
+            Require(shell.GalleryMediaTagWindow != null, "The first Escape closed the dialog instead of the suggestion list.");
+        }
         dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         await UntilAsync(() => shell.GalleryMediaTagWindow == null);
     }
@@ -178,11 +185,12 @@ internal static class LocalMediaTagChecks
             ContentControl galleryHost = shell.FindControl<ContentControl>("GalleryHost")!;
             await UntilAsync(() => galleryHost.Content is GalleryViewer);
             GalleryViewer viewer = (GalleryViewer)galleryHost.Content!;
-            try { await UntilAsync(() => viewer.TagsButton.IsEffectivelyEnabled && Equals(viewer.TagsButton.Content, Texts.T("tags.media.buttonCount", 1))); }
+            // On the toolbar the live count is the button's accessible name and tooltip; its visible text stays "Tags" (GalleryViewer.UpdateTagsButton).
+            try { await UntilAsync(() => viewer.TagsButton.IsEffectivelyEnabled && Equals(Avalonia.Automation.AutomationProperties.GetName(viewer.TagsButton), Texts.T("tags.media.buttonCount", 1))); }
             catch (TimeoutException)
             {
                 throw new InvalidOperationException("Gallery tags button: enabled=" + viewer.TagsButton.IsEffectivelyEnabled + " content="
-                    + viewer.TagsButton.Content + " tip=" + ToolTip.GetTip(viewer.TagsButton));
+                    + Avalonia.Automation.AutomationProperties.GetName(viewer.TagsButton) + " tip=" + ToolTip.GetTip(viewer.TagsButton));
             }
             // The shell's own shutdown below closes the gallery and drains its cleanup.
         }

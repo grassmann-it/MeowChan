@@ -54,7 +54,7 @@ internal sealed class ManualImportDialog : Window
     private readonly TextBox _name = new() { Name = "ManualImportBatchName", MaxLength = ManualImportCatalogStore.MaximumBatchNameLength };
     private readonly TextBlock _tagsLabel = new() { TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _tagChips = new() { Name = "ManualImportTagChips", ItemSpacing = 8, LineSpacing = 8 };
-    private readonly IdentitySuggestionBox _tagInput = new() { Name = "ManualImportTagInput" };
+    private readonly IdentitySuggestionBox _tagInput = new() { Name = "ManualImportTagInput", ReleaseEscape = true };
     private readonly Button _tagAdd = new() { Name = "ManualImportTagAdd" };
     private readonly TextBlock _status = new() { Name = "ManualImportStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _import = new() { Name = "ManualImportStart", Classes = { "primary" } };

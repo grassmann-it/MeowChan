@@ -47,7 +47,8 @@ internal static class GalleryMediaTagChecks
             GalleryViewer viewer = (GalleryViewer)host.Content!;
             Button tags = viewer.TagsButton;
             await UntilAsync(() => tags.IsEffectivelyEnabled);
-            Require(Equals(GalleryViewer.LabelOf(tags), Texts.T("tags.media.button")), "Initial tags button label is wrong: " + GalleryViewer.LabelOf(tags));
+            // On the toolbar the live count is the button's accessible name and tooltip; its visible text stays "Tags" (GalleryViewer.UpdateTagsButton).
+            Require(Equals(Avalonia.Automation.AutomationProperties.GetName(tags), Texts.T("tags.media.button")), "Initial tags button label is wrong: " + Avalonia.Automation.AutomationProperties.GetName(tags));
 
             // AP6: Ctrl+T belongs to the thread's tags (Archive, large reader); the gallery's media tags are Ctrl+Shift+T.
             Require(CommandCatalog.ShortcutDisplay("media.tags.edit") == (OperatingSystem.IsMacOS() ? "⇧⌘T" : "Ctrl+Shift+T"),
@@ -180,7 +181,7 @@ internal static class GalleryMediaTagChecks
             var escape = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape };
             dialog.Input.RaiseEvent(escape);
             await UntilAsync(() => window.GalleryMediaTagWindow == null);
-            Require(escape.Handled && Equals(GalleryViewer.LabelOf(tags), Texts.T("tags.media.buttonCount", 1)), "Closing did not update the gallery button: " + GalleryViewer.LabelOf(tags));
+            Require(escape.Handled && Equals(Avalonia.Automation.AutomationProperties.GetName(tags), Texts.T("tags.media.buttonCount", 1)), "Closing did not update the gallery button: " + Avalonia.Automation.AutomationProperties.GetName(tags));
 
             PrivateTagStoreSnapshot stored = window.SessionHost.GetPrivateTagSnapshot().Snapshot!;
             Require(stored.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "my_media" }) && stored.TagsOf(Resource).Count == 0,
@@ -190,9 +191,9 @@ internal static class GalleryMediaTagChecks
             // (a synthetic entry): no tagging, with an explanation. Real loose files are covered by local-media-tags.
             GalleryViewerChecksAccess.Click(viewer, "GalleryNext");
             await UntilAsync(() => !tags.IsEffectivelyEnabled && ToolTip.GetTip(tags) as string == Texts.T("tags.media.boundElsewhere"));
-            Require(Equals(GalleryViewer.LabelOf(tags), Texts.T("tags.media.button")), "Unbound entry shows another medium's tags.");
+            Require(Equals(Avalonia.Automation.AutomationProperties.GetName(tags), Texts.T("tags.media.button")), "Unbound entry shows another medium's tags.");
             GalleryViewerChecksAccess.Click(viewer, "GalleryPrevious");
-            await UntilAsync(() => tags.IsEffectivelyEnabled && Equals(GalleryViewer.LabelOf(tags), Texts.T("tags.media.buttonCount", 1)));
+            await UntilAsync(() => tags.IsEffectivelyEnabled && Equals(Avalonia.Automation.AutomationProperties.GetName(tags), Texts.T("tags.media.buttonCount", 1)));
 
             GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
             await window.GalleryCleanupTask.WaitAsync(Deadline);

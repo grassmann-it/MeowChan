@@ -36,7 +36,7 @@ internal sealed class MediaSelectionTagDialog : Window
     private readonly Button _none = new() { Name = "MediaSelectionTagNone" };
     private readonly StackPanel _occurrences = new() { Name = "MediaSelectionOccurrences", Spacing = 4 };
     private readonly List<(CheckBox Box, TextBlock Text)> _rows = new();
-    private readonly IdentitySuggestionBox _input = new() { Name = "MediaSelectionTagInput" };
+    private readonly IdentitySuggestionBox _input = new() { Name = "MediaSelectionTagInput", ReleaseEscape = true };
     private readonly Button _add = new() { Name = "MediaSelectionTagAdd" };
     private readonly TextBlock _status = new() { Name = "MediaSelectionTagStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _close = new() { Name = "MediaSelectionTagClose" };

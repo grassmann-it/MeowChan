@@ -64,6 +64,15 @@ public sealed class DialogWindowTests
     }
 
     [Fact]
+    public void SuggestionBoxLeavesEscapeToTheOwnerOnlyWhenAskedAndOnlyWithoutAnOpenList()
+    {
+        string source = File.ReadAllText(Source("Desktop/IdentitySuggestionBox.cs"));
+        Assert.Contains("internal bool ReleaseEscape { get; set; }", source);
+        Assert.Contains("bool listWasOpen = IsDropDownOpen;", source);
+        Assert.Contains("if (listWasOpen || !ReleaseEscape) e.Handled = true;", source);
+    }
+
+    [Fact]
     public void EscapeCancelsLocalWorkFirstThenClosesButNeverWhileBusy()
     {
         int local = 0;
@@ -192,6 +201,9 @@ public sealed class DialogWindowTests
         bool listEscape = path.Contains("MediaTagDialog", StringComparison.Ordinal) || path.Contains("MediaSelectionTagDialog", StringComparison.Ordinal)
             || path.Contains("ManualImportDialog", StringComparison.Ordinal);
         if (!listEscape) Assert.DoesNotContain("Key.Escape", source);
+        // The suggestion box consumes every Escape unless its owner opts out; without ReleaseEscape the dialog's Escape policy
+        // (DialogEscape, a bubbling handler that ignores handled keys) would never see an Escape typed in the tag field.
+        if (listEscape) Assert.Contains("ReleaseEscape = true", source);
         Assert.DoesNotContain("_heading", source);
         Assert.DoesNotContain("WindowChrome.Apply", source);
         Assert.DoesNotContain("WindowChromeBar _chrome", source);

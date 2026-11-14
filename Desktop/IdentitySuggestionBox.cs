@@ -30,6 +30,9 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     /// <summary>Opt-in: Tab on an open list writes the highlighted (else the first) suggestion into the editor without
     /// accepting it, see <see cref="IdentitySuggestions.TabCompletion"/>. Off: Tab only closes the list.</summary>
     internal bool TabCompletes { get; set; }
+    /// <summary>Opt-in: Escape with no open list is left unhandled for the owner (a dialog's Escape policy, <c>DialogEscape</c>); an open
+    /// list is still closed by it. Off: Escape is always consumed here.</summary>
+    internal bool ReleaseEscape { get; set; }
     /// <summary>Rows shown at most; the screen reader hint still counts every match.</summary>
     internal int VisibleLimit { get; set; } = IdentitySuggestions.VisibleLimit;
     /// <summary>Catalog key of the hint announced after each list update; formatted with the match count and the limit.</summary>
@@ -246,7 +249,13 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     {
         if (e.Key == Key.Enter && this.GetVisualDescendants().OfType<TextPresenter>().Any(x => !string.IsNullOrEmpty(x.PreeditText)))
         { e.Handled = true; return; }
-        if (e.Key == Key.Escape) { Dismiss(); e.Handled = true; return; }
+        if (e.Key == Key.Escape)
+        {
+            bool listWasOpen = IsDropDownOpen;
+            Dismiss();
+            if (listWasOpen || !ReleaseEscape) e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Tab)
         {
             if (TabCompletes && e.KeyModifiers == KeyModifiers.None && IsDropDownOpen
