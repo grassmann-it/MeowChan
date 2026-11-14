@@ -169,6 +169,8 @@ internal sealed class GalleryTagPanelController : IDisposable
     private GalleryTagNeighbourSubjects? _neighbours;
     private CancellationTokenSource? _fill;
     private bool _disposed;
+    // When each tag step was made, on the order shared with the decision steps (one undo key serves both stacks, newest first).
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TagDialogChange, System.Runtime.CompilerServices.StrongBox<long>> _tagStamps = new();
 
     private GalleryTagPanelController(IGalleryTagPanelOwner owner, GalleryEntry entry, GalleryMarks marks)
     {
@@ -182,6 +184,12 @@ internal sealed class GalleryTagPanelController : IDisposable
         { Label = marks.Count > 0 ? GalleryTagPanelCommands.SelectionLabel(marks.Count) : GalleryTagPanelCommands.LabelOf(entry) };
         Session.Applied += OnApplied;
         Suggestions.Context = Context(entry);
+        // Favorite and rating (PT6): only when the owner can read and write them; the panel then shows its row.
+        if (owner is IGalleryDecisionOwner decisions)
+        {
+            Decisions = new GalleryDecisionSession(decisions, owner.Options.UndoDepth);
+            ExtraUndo = new DecisionUndo(this);
+        }
     }
 
     /// <summary>
@@ -199,6 +207,10 @@ internal sealed class GalleryTagPanelController : IDisposable
     }
 
     internal QuickTagSession Session { get; }
+    /// <summary>Favorite and rating of the panel's targets with their own undo stack; null when the owner offers neither.</summary>
+    internal GalleryDecisionSession? Decisions { get; }
+    /// <summary>The decision stack as the second undo stack of the surface (shares its undo key and button); null without decisions.</summary>
+    internal IQuickTagExtraUndo? ExtraUndo { get; }
     internal GalleryTagPanelSuggestions Suggestions { get; }
     internal GalleryEntry Entry { get; private set; }
     internal string? UnavailableReason { get; private set; }
@@ -252,7 +264,7 @@ internal sealed class GalleryTagPanelController : IDisposable
         string label = GalleryTagPanelCommands.LabelOf(entry);
         if (_owner.SubjectOf(entry, out string? reason) is not { } subject)
             return new GalleryMarkResult(GalleryMarkOutcome.Unavailable, label, Marks.Count, Marks.Limit, reason);
-        return new GalleryMarkResult(Marks.Mark(subject), label, Marks.Count, Marks.Limit);
+        return new GalleryMarkResult(Marks.Mark(subject, entry), label, Marks.Count, Marks.Limit);
     }
 
     /// <summary>Takes the mark off the medium (Shift+Page Up on the one it goes back to).</summary>
@@ -317,8 +329,22 @@ internal sealed class GalleryTagPanelController : IDisposable
         return neighbours;
     }
 
+    /// <summary>
+    /// The media a favorite or rating change writes to: every marked medium while there are marks (as the tags do), otherwise the one the
+    /// panel is on. Read when the request is made, so a later move or mark never redirects it.
+    /// </summary>
+    internal IReadOnlyList<GalleryEntry> DecisionTargets()
+    {
+        IReadOnlyList<GalleryEntry> marked = Marks.Entries();
+        return Marks.Count > 0 && marked.Count > 0 ? marked : new[] { Entry };
+    }
+
+    /// <summary>What the row shows now for <see cref="DecisionTargets"/>; null without decisions.</summary>
+    internal GalleryDecisionView? DecisionView() => Decisions?.View(DecisionTargets());
+
     private void OnApplied(TagDialogChange change)
     {
+        _tagStamps.AddOrUpdate(change, new System.Runtime.CompilerServices.StrongBox<long>(GalleryDecisionSession.NextStamp()));
         // Giving a tag is a use; taking one off is not.
         if (change.Assigned) _owner.Recent.Touch(change.Tag);
     }
@@ -335,6 +361,31 @@ internal sealed class GalleryTagPanelController : IDisposable
         Suggestions.Dispose();
         Session.Applied -= OnApplied;
         Session.Dispose();
+        Decisions?.Dispose();
+    }
+
+    private sealed class DecisionUndo(GalleryTagPanelController owner) : IQuickTagExtraUndo
+    {
+        public int Steps => owner.Decisions!.UndoSteps.Count;
+        public bool CanUndo => owner.Decisions!.CanUndo;
+        public bool IsNewest
+        {
+            get
+            {
+                GalleryDecisionSession decisions = owner.Decisions!;
+                if (decisions.UndoSteps.Count == 0) return false;
+                IReadOnlyList<TagDialogChange> tags = owner.Session.UndoSteps;
+                if (tags.Count == 0) return true;
+                long tag = owner._tagStamps.TryGetValue(tags[^1], out System.Runtime.CompilerServices.StrongBox<long>? box) ? box.Value : 0;
+                return decisions.NewestStamp > tag;
+            }
+        }
+        public async Task<string?> UndoAsync()
+        {
+            GalleryDecisionStatus status = await owner.Decisions!.UndoAsync();
+            return status.Kind == GalleryDecisionStatusKind.None ? null : status.Text();
+        }
+        public event Action? Changed { add => owner.Decisions!.Updated += value; remove => owner.Decisions!.Updated -= value; }
     }
 }
 

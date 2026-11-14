@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Gallery;
 using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
@@ -33,6 +34,8 @@ internal sealed class GalleryMarks
 {
     private readonly List<MediaTagSubject> _order = new();
     private readonly HashSet<MediaTagSubject> _set = new();
+    // The entry each mark was made on (favorite and rating are keyed by thread and asset, not by tag subject; PT6).
+    private readonly Dictionary<MediaTagSubject, GalleryEntry> _entries = new();
     private int _limit;
 
     internal GalleryMarks(int limit = QuickTagOptions.DefaultMarkedMediaLimit) => _limit = QuickTagOptions.ClampMarkedMediaLimit(limit);
@@ -50,13 +53,15 @@ internal sealed class GalleryMarks
 
     internal bool IsMarked(MediaTagSubject subject) => subject != null && _set.Contains(subject);
 
-    internal GalleryMarkOutcome Mark(MediaTagSubject subject)
+    /// <param name="entry">The gallery entry the mark was made on, when known: favorite and rating changes of the marked media write to it.</param>
+    internal GalleryMarkOutcome Mark(MediaTagSubject subject, GalleryEntry? entry = null)
     {
         ArgumentNullException.ThrowIfNull(subject);
         if (_set.Contains(subject)) return GalleryMarkOutcome.AlreadyMarked;
         if (_order.Count >= _limit) return GalleryMarkOutcome.LimitReached;
         _set.Add(subject);
         _order.Add(subject);
+        if (entry != null) _entries[subject] = entry;
         Revision++;
         return GalleryMarkOutcome.Marked;
     }
@@ -66,6 +71,7 @@ internal sealed class GalleryMarks
         ArgumentNullException.ThrowIfNull(subject);
         if (!_set.Remove(subject)) return GalleryMarkOutcome.NotMarked;
         _order.Remove(subject);
+        _entries.Remove(subject);
         Revision++;
         return GalleryMarkOutcome.Unmarked;
     }
@@ -77,10 +83,15 @@ internal sealed class GalleryMarks
         if (count == 0) return 0;
         _order.Clear();
         _set.Clear();
+        _entries.Clear();
         Revision++;
         return count;
     }
 
     /// <summary>A copy of the marked subjects in marking order: what a selection session is made over.</summary>
     internal IReadOnlyList<MediaTagSubject> Snapshot() => _order.ToArray();
+
+    /// <summary>The entries the marks were made on, in marking order (a mark without a known entry is left out): what a favorite or rating change writes to.</summary>
+    internal IReadOnlyList<GalleryEntry> Entries() =>
+        _order.Select(subject => _entries.TryGetValue(subject, out GalleryEntry? entry) ? entry : null).OfType<GalleryEntry>().ToArray();
 }
