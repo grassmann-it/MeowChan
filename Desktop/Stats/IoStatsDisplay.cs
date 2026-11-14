@@ -63,7 +63,7 @@ internal static class IoStatsDisplay
     /// <summary>The heading of the disk block: "Disk".</summary>
     internal static string DiskTitle() => Texts.T("stats.header.diskTitle");
 
-    /// <summary>The network values: download and upload, for example "↓ 2.0 MiB/s ↑ 12 KiB/s".</summary>
+    /// <summary>The network values: download and upload, for example "↓ 2 MiB/s ↑ 12 KiB/s".</summary>
     internal static string NetworkValues(IoRates rate, CultureInfo? culture = null) =>
         Texts.T("stats.header.netValues", ByteUnits.Rate(rate.NetDown, culture), ByteUnits.Rate(rate.NetUp, culture));
 
@@ -71,7 +71,7 @@ internal static class IoStatsDisplay
     internal static string DiskValues(IoRates rate, CultureInfo? culture = null) =>
         Texts.T("stats.header.diskValues", ByteUnits.Rate(rate.DiskRead, culture), ByteUnits.Rate(rate.DiskWrite, culture));
 
-    /// <summary>Heading and values on one line ("Network ↓ 2.0 MiB/s ↑ 12 KiB/s"), as the tray and the one-line rows show them.</summary>
+    /// <summary>Heading and values on one line ("Network ↓ 2 MiB/s ↑ 12 KiB/s"), as the tray and the one-line rows show them.</summary>
     internal static string NetworkLine(IoRates rate, CultureInfo? culture = null) => NetworkTitle() + " " + NetworkValues(rate, culture);
 
     /// <summary>Heading and values on one line ("Disk R 1.1 MiB/s W 37.8 MiB/s").</summary>

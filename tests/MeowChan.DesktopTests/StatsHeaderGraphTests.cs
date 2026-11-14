@@ -129,6 +129,21 @@ public sealed class StatsHeaderGraphTests : IDisposable
         Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, false, En));
     }
 
+    [Theory]
+    [InlineData("en", "10 KiB/s", "100 KiB/s", "0.98 MiB/s", "0.98 KiB/s")]
+    [InlineData("de", "10 KiB/s", "100 KiB/s", "0,98 MiB/s", "0,98 KiB/s")]
+    public void HeaderLabelsAndAccessibleSentenceShareRoundedCarries(string language, string down, string up, string write, string read)
+    {
+        Texts.SetLanguage(language);
+        IoRates rates = new(NetDown: 9.995 * 1024, NetUp: 99.95 * 1024, DiskWrite: 999.5 * 1024, DiskRead: 1000, Requests: 0);
+        Assert.Contains(down, IoStatsDisplay.NetworkLine(rates));
+        Assert.Contains(up, IoStatsDisplay.NetworkLine(rates));
+        Assert.Contains(write, IoStatsDisplay.DiskLine(rates));
+        Assert.Contains(read, IoStatsDisplay.DiskLine(rates));
+        string sentence = IoStatsDisplay.GraphDescription(rates, default, true, true);
+        foreach (string rate in new[] { down, up, write, read }) Assert.Contains(rate, sentence);
+    }
+
     [Fact]
     public void TheLabelledHeaderTextsExistInAllTwelveLanguages()
     {

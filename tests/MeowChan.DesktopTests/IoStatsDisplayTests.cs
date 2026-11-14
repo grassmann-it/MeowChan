@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
@@ -63,9 +64,38 @@ public sealed class IoStatsDisplayTests : IDisposable
         Assert.Equal(0, IoStatsDisplay.HeaderDiskRate(quiet));
         Assert.Equal(80 * MiB, IoStatsDisplay.HeaderDiskRate(busyReading));
         Assert.Equal(IoStatsDisplay.HeaderDiskRate(busyReading), IoStatsDisplay.HeaderDiskRate(busyReading with { DiskWrite = 90 * MiB }));
-        Assert.Contains("80.0 MiB/s", IoStatsDisplay.DiskValues(busyReading, En));
-        Assert.Contains("80.0 MiB/s", IoStatsDisplay.GraphDescription(busyReading, default, En));
+        Assert.Contains("80 MiB/s", IoStatsDisplay.DiskValues(busyReading, En));
+        Assert.Contains("80 MiB/s", IoStatsDisplay.GraphDescription(busyReading, default, En));
         Assert.Contains("200 KiB/s", IoStatsDisplay.DiskValues(busyReading, En));
+    }
+
+    [Theory]
+    [InlineData("en", "1.27 MiB/s", "12.7 MiB/s", "0.98 KiB/s")]
+    [InlineData("de", "1,27 MiB/s", "12,7 MiB/s", "0,98 KiB/s")]
+    public void CompactRatesAreSharedByHeaderTooltipTrayAndStatistics(string language, string down, string write, string up)
+    {
+        Texts.SetLanguage(language);
+        IoRates rates = new(NetDown: 1.27 * MiB, NetUp: 1000, DiskWrite: 12.7 * MiB, DiskRead: 127 * 1024, Requests: 0);
+        Assert.Equal(down, ByteUnits.Rate(rates.NetDown));
+        Assert.Equal("1.27 MiB/s", ByteUnits.Rate(rates.NetDown, En)); // explicit culture wins over the selected language
+        Assert.Contains(down, IoStatsDisplay.NetworkValues(rates));
+        Assert.Contains(up, IoStatsDisplay.NetworkLine(rates));
+        Assert.Contains(write, IoStatsDisplay.DiskValues(rates));
+        Assert.Contains("127 KiB/s", IoStatsDisplay.DiskLine(rates));
+        string description = IoStatsDisplay.GraphDescription(rates, new IoActivity(1, 0, 0));
+        foreach (string rate in new[] { down, write, up, "127 KiB/s" }) Assert.Contains(rate, description);
+
+        TrayStatsInput tray = new(false, 1, 0, rates, default, RatesKnown: true);
+        string tooltip = TrayStatsModel.Tooltip(tray);
+        foreach (string rate in new[] { down, write, up, "127 KiB/s" }) Assert.Contains(rate, tooltip);
+        var menu = TrayStatsModel.MenuLines(tray);
+        Assert.Equal(IoStatsDisplay.NetworkLine(rates), menu.Net);
+        Assert.Equal(IoStatsDisplay.DiskLine(rates), menu.Disk);
+
+        IoSourceStats source = new("4chan", default, default, default, rates);
+        IoStatsSnapshot snapshot = new() { Sources = [source], Total = source };
+        Assert.All(IoStatsRows.Build(snapshot), row => Assert.Equal(down, row.Now));
+        Assert.All(IoStatsRows.Build(snapshot, culture: En), row => Assert.Equal("1.27 MiB/s", row.Now));
     }
 
     [Theory]
@@ -152,7 +182,7 @@ public sealed class IoStatsDisplayTests : IDisposable
         Assert.Equal("5.0 MiB", chan.Session);
         Assert.Equal("5.0 MiB", chan.Today);
         Assert.Equal("5.0 MiB", chan.Retained);
-        Assert.Equal("5.0 MiB/s", chan.Now);
+        Assert.Equal("5 MiB/s", chan.Now);
         Assert.Equal("4.0 MiB", chan.DiskWritten);
         Assert.Equal("1.0 MiB", chan.DiskRead);
         Assert.Equal("1,204", chan.Requests);

@@ -22,8 +22,8 @@ public sealed class TrayStatsModelTests : IDisposable
         new(paused, 0, 0, IoRates.Zero, new IoCounts(NetDown: today, NetUp: 0, DiskWritten: 450 * MiB, DiskRead: 0, Requests: 0, Errors: 0), RatesKnown: false);
 
     [Theory]
-    [InlineData("en", "MeowChan · Network ↓ 2.4 MiB/s ↑ 12 KiB/s · Disk R 0 B/s W 12.0 MiB/s · 3 downloads active")]
-    [InlineData("de", "MeowChan · Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s · Datenträger L 0 B/s S 12,0 MiB/s · 3 Downloads aktiv")]
+    [InlineData("en", "MeowChan · Network ↓ 2.4 MiB/s ↑ 12 KiB/s · Disk R 0 B/s W 12 MiB/s · 3 downloads active")]
+    [InlineData("de", "MeowChan · Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s · Datenträger L 0 B/s S 12 MiB/s · 3 Downloads aktiv")]
     public void TheActiveTooltipShowsBinaryRatesAndTheDownloadCount(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -31,8 +31,8 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "MeowChan · Network ↓ 512 KiB/s ↑ 12 KiB/s · Disk R 512 KiB/s W 1.0 MiB/s · 1 download active")]
-    [InlineData("de", "MeowChan · Netzwerk ↓ 512 KiB/s ↑ 12 KiB/s · Datenträger L 512 KiB/s S 1,0 MiB/s · 1 Download aktiv")]
+    [InlineData("en", "MeowChan · Network ↓ 512 KiB/s ↑ 12 KiB/s · Disk R 512 KiB/s W 1 MiB/s · 1 download active")]
+    [InlineData("de", "MeowChan · Netzwerk ↓ 512 KiB/s ↑ 12 KiB/s · Datenträger L 512 KiB/s S 1 MiB/s · 1 Download aktiv")]
     public void TheTooltipNamesAllFourValuesAndTheSingularIsUsed(string language, string expected)
     {
         Texts.SetLanguage(language);
@@ -94,8 +94,8 @@ public sealed class TrayStatsModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Network ↓ 2.4 MiB/s ↑ 12 KiB/s", "Disk R 0 B/s W 12.0 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
-    [InlineData("de", "Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s", "Datenträger L 0 B/s S 12,0 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
+    [InlineData("en", "Network ↓ 2.4 MiB/s ↑ 12 KiB/s", "Disk R 0 B/s W 12 MiB/s", "3 downloads active · 41 waiting · Today ↓ 1.2 GiB")]
+    [InlineData("de", "Netzwerk ↓ 2,4 MiB/s ↑ 12 KiB/s", "Datenträger L 0 B/s S 12 MiB/s", "3 Downloads aktiv · 41 wartend · Heute ↓ 1,2 GiB")]
     public void TheMenuShowsNetAndDiskAsSeparateLabelledLinesWhileDownloadsRunAndAreMeasured(string language, string net, string disk, string detail)
     {
         Texts.SetLanguage(language);
