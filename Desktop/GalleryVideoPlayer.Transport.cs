@@ -50,6 +50,7 @@ internal sealed partial class GalleryVideoPlayer
     private readonly MenuItem _playerMenuAudio = new() { Name = "GalleryVideoMenuAudio" };
     private MenuItem _playerMenuSaveFrame = null!;
     private MenuItem _playerMenuRepeat = null!;
+    private MenuItem _playerMenuRotate = null!;
 
     // The speaker and, above it, the volume as a vertical slider. The slider is drawn on a zero-size canvas so opening it
     // never changes the layout of the row, and it stays in this visual tree (pointer and focus remain the gallery's).
@@ -428,12 +429,14 @@ internal sealed partial class GalleryVideoPlayer
     {
         _playerMenuButton.Content = WorkspaceIcons.Create(WorkspaceIcons.More);
         _playerMenuSaveFrame = CommandBindings.CreateMenuItem("video.snapshot", () => SaveFrameRequested?.Invoke(), () => CanSaveFrame);
+        _playerMenuRotate = CommandBindings.CreateMenuItem("gallery.rotate", () => RotateRequested?.Invoke(), () => CanRotate);
         _playerMenuRepeat = CommandBindings.CreateMenuItem("video.loop", ToggleLoop, () => _loop.IsEnabled,
             () => _repeatOwnedBySlideshow ? _repeatOwnedReason : null);
         _playerMenuRepeat.ToggleType = MenuItemToggleType.CheckBox;
         _playerMenu.Items.Add(_playerMenuSpeed);
         _playerMenu.Items.Add(_playerMenuAudio);
         _playerMenu.Items.Add(_playerMenuSaveFrame);
+        _playerMenu.Items.Add(_playerMenuRotate);
         _playerMenu.Items.Add(_playerMenuRepeat);
         _playerMenu.Opening += (_, _) => RefreshPlayerMenu();
         _playerMenuButton.Flyout = _playerMenu;
@@ -461,6 +464,7 @@ internal sealed partial class GalleryVideoPlayer
         _playerMenuAudio.IsVisible = _audioTrackChoices.Count > 1;
         _playerMenuAudio.IsEnabled = _playPause.IsEnabled;
         CommandBindings.Refresh(_playerMenuSaveFrame);
+        CommandBindings.Refresh(_playerMenuRotate);
         CommandBindings.Refresh(_playerMenuRepeat);
         _playerMenuRepeat.IsChecked = _intent.LoopEnabled;
     }

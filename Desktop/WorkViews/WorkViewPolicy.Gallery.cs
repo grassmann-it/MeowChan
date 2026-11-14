@@ -103,6 +103,8 @@ public static partial class WorkViewPolicy
         // ---- Rows of the flyout that no view moves (Overflow everywhere; their shortcuts and the media context menu twin stay). ----
         GalleryMenuRow("gallery.menu.zoom-in", "gallery.zoom-in", 110),
         GalleryMenuRow("gallery.menu.zoom-out", "gallery.zoom-out", 120),
+        // Turns the shown picture or video by 90° (a view transform, upright again with every new medium).
+        GalleryMenuRow("gallery.menu.rotate", "gallery.rotate", 125),
         GalleryMenuRow("gallery.menu.manage-ratings", "media.rating.manage", 130),
         GalleryMenuRow("gallery.menu.export-original", "media.export-original", 140),
         GalleryMenuRow("gallery.menu.save-frame", "video.snapshot", 150),

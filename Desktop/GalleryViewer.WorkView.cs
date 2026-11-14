@@ -106,6 +106,7 @@ internal sealed partial class GalleryViewer
         WorkViewElement.SetId(_helpButton, "gallery.toolbar.help"); Mark(_helpButton);
         WorkViewElement.SetId(_zoomIn, "gallery.menu.zoom-in"); Mark(_zoomIn);
         WorkViewElement.SetId(_zoomOut, "gallery.menu.zoom-out"); Mark(_zoomOut);
+        WorkViewElement.SetId(_rotate, "gallery.menu.rotate"); Mark(_rotate);
         WorkViewElement.SetId(_manageRatingsButton, "gallery.menu.manage-ratings"); Mark(_manageRatingsButton);
         WorkViewElement.SetId(_exportOriginal, "gallery.menu.export-original"); Mark(_exportOriginal);
         WorkViewElement.SetId(_saveFrame, "gallery.menu.save-frame"); Mark(_saveFrame);

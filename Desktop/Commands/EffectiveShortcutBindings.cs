@@ -185,6 +185,8 @@ public sealed class EffectiveShortcutBindings
         // PT4 (card mode) joins the same revision 9 of the tagging mode (neither is released yet): K and the card keys 1 to 5.
         ["tags.queue.cards"] = 9, ["tags.queue.card-1"] = 9, ["tags.queue.card-2"] = 9, ["tags.queue.card-3"] = 9,
         ["tags.queue.card-4"] = 9, ["tags.queue.card-5"] = 9,
+        // New in revision 9 (V4): turning the shown picture or video (Shift+R).
+        ["gallery.rotate"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

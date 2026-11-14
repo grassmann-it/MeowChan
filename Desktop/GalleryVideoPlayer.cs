@@ -127,7 +127,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (!ReferenceEquals(host, _externalTransportHost)) CancelSeekGesture();
         _externalTransportHost = host;
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
-        Grid.SetRowSpan(UsesSoftwareVideo ? _softwareVideo : _video, host == null ? 1 : 2);
+        Grid.SetRowSpan(SurfaceControl, host == null ? 1 : 2);
         ApplyVolumePlacement();
         // Always submit the latest desired host, even if it is the actual parent:
         // an earlier cross-root request may still be pending. The transfer owns removal.
@@ -163,7 +163,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         get
         {
             if (_externalTransportHost != null) return 0;
-            Control surface = UsesSoftwareVideo ? _softwareVideo : _video;
+            Control surface = SurfaceControl;
             Point? bottom = surface.TranslatePoint(new Point(0, surface.Bounds.Height), this);
             return bottom.HasValue ? Math.Max(0, Bounds.Height - bottom.Value.Y) : 0;
         }
@@ -518,8 +518,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _transportPanel.Child = transport;
         // Seek, time, volume and playback form one reserved surface. Its dynamic
         // resources follow open-window theme changes without touching playback.
-        Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
-        _root.Children.Add(videoSurface);
+        InitializeViewTransform();
+        _root.Children.Add(SurfaceControl);
         _root.Children.Add(_transportPanel); Grid.SetRow(_transportPanel, 1); Content = _root;
         _status.IsVisible = false;
         _status.PropertyChanged += (_, args) =>
@@ -696,6 +696,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         CancellationToken token = request.Token;
         PerformanceDiagnostics.Record("video.show", "begin", request.Id, asset: entry.Asset.AssetId, revision: generation);
         _loopRestarts = 0;
+        ResetViewTransform();
         _rate = VideoRates.Normal; // A new medium starts at normal speed; its new native player does too.
         ResetTransportExtras(); // Its A–B loop and audio tracks are its own.
         CancelSeekGesture();
@@ -737,6 +738,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
                     input = new StreamMediaInput(stream);
                     media = new Media(_engine, input);
+                    AddInitialRotation(media);
                     // VLC 3's MP4 demux can consume a callback-backed, single-chunk
                     // video-only track to EOF while its reported clock stays at 250ms.
                     // Keep the verified handle (never reopen by path); avformat demuxes
@@ -789,6 +791,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                             RenderTime();
                             CheckAbLoop(args.Time);
                         }
+                        if (_sourceSize == null) RequestNativeSize(generation, ownedPlayer);
                         if (_audioProbe.Tick()) _ = RefreshAudioStateAsync(generation, ownedPlayer);
                     });
                 };
