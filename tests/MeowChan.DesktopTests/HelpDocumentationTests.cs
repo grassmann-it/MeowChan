@@ -1211,7 +1211,7 @@ public sealed class HelpDocumentationTests
         WorkViewEntry[] pluginRows = WorkViewPolicy.Entries.Where(entry => entry.Id.StartsWith("plugins.", StringComparison.Ordinal)).ToArray();
         Assert.NotEmpty(pluginRows);
         Assert.All(pluginRows, entry => Assert.Equal(WorkViewPage.Sources, entry.Page));
-        Assert.DoesNotContain(WorkViewPolicy.Entries, entry => entry.Page == WorkViewPage.Plugins);
+        Assert.DoesNotContain("Plugins", Enum.GetNames<WorkViewPage>());
         Assert.Equal("Show all plugins", CommandCatalog.Get("navigation.plugins").LabelEn);
         Assert.Contains("There is no separate Plugins footer page", sources, StringComparison.Ordinal);
         Assert.Contains("opens the second level", sources, StringComparison.Ordinal);
