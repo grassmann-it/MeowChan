@@ -4775,6 +4775,8 @@
     "settings.mediaBadgeMaxPerCorner": "Pastilles par coin de miniature",
     "settings.mediaBadgeMaxPerCornerHint": "Nombre de petites pastilles qu’un coin d’une miniature peut contenir ; les suivantes, de moindre priorité, sont omises. Par défaut {0}, de {1} à {2}.",
     "settings.galleryStatusDwell": "Afficher les messages d’état pendant",
-    "settings.galleryStatusDwellHint": "Durée d’affichage d’un état bref de la ligne d’informations de la galerie, par exemple « Prêt » pour le diaporama. Un diaporama en cours, les raisons d’une pause et les erreurs restent affichés. Par défaut {0} ms, de {1} à {2} ms."
+    "settings.galleryStatusDwellHint": "Durée d’affichage d’un état bref de la ligne d’informations de la galerie, par exemple « Prêt » pour le diaporama. Un diaporama en cours, les raisons d’une pause et les erreurs restent affichés. Par défaut {0} ms, de {1} à {2} ms.",
+    "settings.galleryFilmstripTileGap": "Espace entre les miniatures de la bande",
+    "settings.galleryFilmstripTileGapHint": "L’espace entre deux miniatures de la bande de la galerie. Par défaut {0}, de {1} à {2}."
   }
 }

@@ -620,6 +620,16 @@
                         </StackPanel>
                     </Grid>
                     <TextBlock Text="{Binding GalleryStatusDwellMsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    <!-- GL5e: the gap between two filmstrip tiles. -->
+                    <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                        <TextBlock x:Name="GalleryFilmstripTileGapFieldLabel" Text="{Binding GalleryFilmstripTileGapLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="GalleryFilmstripTileGapInput" Value="{Binding GalleryFilmstripTileGap, Mode=TwoWay}" Minimum="4" Maximum="16" Increment="4"
+                                AutomationProperties.LabeledBy="{Binding ElementName=GalleryFilmstripTileGapFieldLabel}" AutomationProperties.Name="{Binding GalleryFilmstripTileGapLabel}" AutomationProperties.HelpText="{Binding GalleryFilmstripTileGapHelp}" />
+                            <TextBlock x:Name="GalleryFilmstripTileGapInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                    </Grid>
+                    <TextBlock Text="{Binding GalleryFilmstripTileGapHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Button x:Name="GalleryLayoutResetButton" Content="{Binding GalleryLayoutResetLabel}" AutomationProperties.Name="{Binding GalleryLayoutResetLabel}" AutomationProperties.HelpText="{Binding GalleryLayoutResetHint}" Click="OnGalleryLayoutResetClick" IsEnabled="{Binding IsEditable}" HorizontalAlignment="Left" />
                     <TextBlock Text="{Binding GalleryLayoutResetHint}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                     <CheckBox Content="{Binding VideoAutoplayLabel}" IsChecked="{Binding VideoAutoplay, Mode=TwoWay}" />

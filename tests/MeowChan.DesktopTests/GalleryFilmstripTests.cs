@@ -255,7 +255,7 @@ public sealed class GalleryFilmstripTests : IDisposable
     {
         Config defaults = new();
         Assert.True(defaults.GalleryFilmstrip);
-        Assert.Equal(72, defaults.GalleryFilmstripHeight);
+        Assert.Equal(64, defaults.GalleryFilmstripHeight); // GL5e: 72 before; 72 stays choosable
         Assert.Equal(12, defaults.GalleryFilmstripPreload);
         Assert.Equal((48, 160), (Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum));
         Assert.Equal((4, 60), (Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum));
@@ -313,6 +313,79 @@ public sealed class GalleryFilmstripTests : IDisposable
         settings.CopySettingsFieldsFrom(loaded);
         Assert.False(settings.GalleryFilmstrip);
         Assert.Equal((100, 20), (settings.GalleryFilmstripHeight, settings.GalleryFilmstripPreload));
+    }
+
+    // ---- GL5e: the look of the strip ----
+
+    [Fact]
+    public void TheTileGapIsASettingFromFourToSixteenDipWithEightAsTheDefault()
+    {
+        Assert.Equal((8, 4, 16), (Config.GalleryFilmstripTileGapDefault, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum));
+        Assert.Equal(8, GalleryFilmstripPlan.TileGap);
+        Assert.Equal(64, Config.GalleryFilmstripHeightDefault);
+        Assert.Equal((4, 16, 8), (GalleryFilmstripPlan.ClampGap(0), GalleryFilmstripPlan.ClampGap(99), GalleryFilmstripPlan.ClampGap(8)));
+        Config defaults = new();
+        Assert.Equal(8, defaults.GalleryFilmstripTileGap);
+        defaults.Validate();
+        foreach (int valid in new[] { 4, 16 })
+        {
+            Config candidate = defaults.Clone();
+            candidate.GalleryFilmstripTileGap = valid;
+            candidate.Validate();
+            Config target = new();
+            target.CopySettingsFieldsFrom(candidate);
+            Assert.Equal(valid, target.GalleryFilmstripTileGap);
+        }
+        foreach (int invalid in new[] { 3, 17, int.MinValue, int.MaxValue })
+        {
+            Config candidate = defaults.Clone();
+            candidate.GalleryFilmstripTileGap = invalid;
+            Assert.Throws<ArgumentOutOfRangeException>(() => candidate.Validate());
+        }
+        using Profile profile = new();
+        Config config = Config.LoadConfig(profile.Path);
+        config.GalleryFilmstripTileGap = 12;
+        config.SaveConfig(profile.Path);
+        Config loaded = Config.LoadConfig(profile.Path);
+        Assert.Equal(12, loaded.GalleryFilmstripTileGap);
+        Assert.Equal(12, loaded.Clone().GalleryFilmstripTileGap);
+        Config copy = new(); copy.CopyFrom(loaded);
+        Assert.Equal(12, copy.GalleryFilmstripTileGap);
+        Assert.Contains("GalleryFilmstripTileGap = source.GalleryFilmstripTileGap", Source("Desktop/Settings/SettingsTransfer.cs"));
+    }
+
+    [Fact]
+    public void EveryPlacementOfTilesTakesTheChosenGap()
+    {
+        const double Tile = 64;
+        foreach (double gap in new double[] { 4, 8, 16 })
+        {
+            double pitch = Tile + gap;
+            Assert.Equal(pitch, GalleryFilmstripPlan.Pitch(Tile, gap));
+            Assert.Equal(10 * pitch - gap, GalleryFilmstripPlan.Extent(10, Tile, gap));
+            Assert.Equal(2, GalleryFilmstripPlan.TileAt(2 * pitch + 1, 0, Tile, 10, gap));
+            Assert.Equal(-1, GalleryFilmstripPlan.TileAt(2 * pitch - 1, 0, Tile, 10, gap)); // inside the gap before tile 2
+            Assert.Equal(3, GalleryFilmstripPlan.Visible(2 * pitch + Tile, 300, Tile, 100, gap).First);
+            Assert.Equal(100 * pitch + Tile / 2 - 500, GalleryFilmstripPlan.CentreOffset(100, 5000, Tile, 1000, gap), 6);
+            Assert.Equal(1000 - pitch, GalleryFilmstripPlan.PageOffset(0, 1, 5000, Tile, 1000, gap), 6);
+        }
+    }
+
+    [Fact]
+    public void TheStripHasNoRestingFrameArrowsOnlyWhenNeededAndFadedEnds()
+    {
+        string strip = Source("Desktop/Controls/GalleryFilmstrip.cs");
+        // A tile has no border of its own: the frame is an overlay, 2 dip accent when shown, 1 dip when hovered, nothing at rest.
+        Assert.DoesNotContain("BorderThickness = new Thickness(2);", strip);
+        Assert.Contains("_frame.BorderThickness = new Thickness(_current ? 2 : _hover ? 1 : 0);", strip);
+        Assert.Contains("CornerRadius = new CornerRadius(4)", strip);
+        // 32 dip arrows over the strip's ends, shown only where there is somewhere to scroll and the pointer or keyboard is in the band.
+        Assert.Contains("button.Width = 32; button.Height = 32;", strip);
+        Assert.Contains("_back.IsVisible = active && _back.IsEnabled;", strip);
+        Assert.Contains("_forward.IsVisible = active && _forward.IsEnabled;", strip);
+        Assert.Contains("bool active = _pointerOver || _keyboardFocus;", strip);
+        Assert.Equal(24, GalleryFilmstrip.EdgeFadeWidth);
+        Assert.Contains("_strip.OpacityMask = mask;", strip);
     }
 
     // ---- policy, command, texts ----

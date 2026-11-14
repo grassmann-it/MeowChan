@@ -4775,6 +4775,8 @@
     "settings.mediaBadgeMaxPerCorner": "Marcas por esquina de la miniatura",
     "settings.mediaBadgeMaxPerCornerHint": "Cuántas marcas pequeñas cabe en una esquina de una miniatura; las demás, de menor prioridad, se omiten. Predeterminado {0}, de {1} a {2}.",
     "settings.galleryStatusDwell": "Mostrar los mensajes de estado durante",
-    "settings.galleryStatusDwellHint": "Cuánto tiempo permanece en pantalla un estado breve de la línea de información de la galería, por ejemplo «Listo» de la presentación. Una presentación en marcha, los motivos de una pausa y los errores permanecen. Predeterminado {0} ms, de {1} a {2} ms."
+    "settings.galleryStatusDwellHint": "Cuánto tiempo permanece en pantalla un estado breve de la línea de información de la galería, por ejemplo «Listo» de la presentación. Una presentación en marcha, los motivos de una pausa y los errores permanecen. Predeterminado {0} ms, de {1} a {2} ms.",
+    "settings.galleryFilmstripTileGap": "Espacio entre las miniaturas de la tira",
+    "settings.galleryFilmstripTileGapHint": "El espacio entre dos miniaturas de la tira de la galería. Valor predeterminado {0}, de {1} a {2}."
   }
 }

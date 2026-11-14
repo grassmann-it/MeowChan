@@ -4686,6 +4686,8 @@
     "settings.mediaBadgeMaxPerCorner": "サムネイルの隅ごとのバッジ数",
     "settings.mediaBadgeMaxPerCornerHint": "サムネイルの 1 つの隅に入る小さなバッジの数です。優先度の低いものは表示されません。既定 {0}、{1}～{2}。",
     "settings.galleryStatusDwell": "ステータスメッセージの表示時間",
-    "settings.galleryStatusDwellHint": "ギャラリーの情報行に出る短い状態表示（スライドショーの「準備完了」など）が画面に残る時間です。実行中のスライドショー、一時停止の理由、エラーは残り続けます。既定 {0} ミリ秒、{1}～{2} ミリ秒。"
+    "settings.galleryStatusDwellHint": "ギャラリーの情報行に出る短い状態表示（スライドショーの「準備完了」など）が画面に残る時間です。実行中のスライドショー、一時停止の理由、エラーは残り続けます。既定 {0} ミリ秒、{1}～{2} ミリ秒。",
+    "settings.galleryFilmstripTileGap": "フィルムストリップのサムネイルの間隔",
+    "settings.galleryFilmstripTileGapHint": "ギャラリーのフィルムストリップで、2 つのサムネイルの間隔です。既定値は {0}、範囲は {1} から {2} です。"
   }
 }

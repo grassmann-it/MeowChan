@@ -41,7 +41,7 @@ internal sealed partial class GalleryViewer
     private readonly ToggleButton _filmstripToggle = new() { Name = "GalleryFilmstripToggle" };
     // The old profile setting (GalleryFilmstrip): the View set's filmstrip choice where that has none. The layout choice is the owner (GL4).
     private bool _filmstripSetting = true;
-    private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault;
+    private int _filmstripHeight = Config.GalleryFilmstripHeightDefault, _filmstripPreload = Config.GalleryFilmstripPreloadDefault, _filmstripGap = Config.GalleryFilmstripTileGapDefault;
     private bool _filmstripPeek, _filmstripTopHot, _pointerInFilmstrip, _filmstripOverlayStyled, _filmstripStyleKnown;
     // The band is shown as the first row of the docked dock (GL1 bottom, docked): the dock's top margin is the band's (GL2, ApplyDockMargin).
     private bool _filmstripHeadsDock;
@@ -83,11 +83,12 @@ internal sealed partial class GalleryViewer
     }
 
     /// <summary>Applies the profile settings (called with the other gallery preferences): shown, thumbnail height, thumbnails kept ahead.</summary>
-    internal void ConfigureFilmstrip(bool enabled, int height, int preload)
+    internal void ConfigureFilmstrip(bool enabled, int height, int preload, int gap = Config.GalleryFilmstripTileGapDefault)
     {
         _filmstripSetting = enabled;
         _filmstripHeight = GalleryFilmstripPlan.ClampHeight(height);
         _filmstripPreload = GalleryFilmstripPlan.ClampPreload(preload);
+        _filmstripGap = GalleryFilmstripPlan.ClampGap(gap);
         UpdateFilmstripPlacement();
     }
 
@@ -175,7 +176,7 @@ internal sealed partial class GalleryViewer
         bool headsDock = show && place.Host == GalleryFilmstripPlan.Host.Dock;
         if (headsDock != _filmstripHeadsDock) { _filmstripHeadsDock = headsDock; ApplyDockMargin(); }
         _filmstrip.SetDock(plan.FilmstripDock == GalleryFilmstripDock.Bottom);
-        _filmstrip.Configure(tile, _filmstripPreload);
+        _filmstrip.Configure(tile, _filmstripPreload, _filmstripGap);
         ApplyFilmstripBackground(overlay);
         WorkViewGate.Apply(_filmstrip, _workView, stateVisible: show, nonDefaultState: FilmstripForced);
         // The top band, docked, pushes the picture down; the overlay floats over it. The bottom band never touches the picture.

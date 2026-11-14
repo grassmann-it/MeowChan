@@ -21,7 +21,7 @@ public partial class MainWindow
     {
         if (_gallery == null) return;
         GalleryLayoutPreferences layout = GalleryLayoutNow();
-        _gallery.ConfigureFilmstrip(layout.View.Filmstrip != false, _config.GalleryFilmstripHeight, _config.GalleryFilmstripPreload);
+        _gallery.ConfigureFilmstrip(layout.View.Filmstrip != false, _config.GalleryFilmstripHeight, _config.GalleryFilmstripPreload, _config.GalleryFilmstripTileGap);
         // Both modes are loaded here: the viewer shows the choice of the mode it is in and switches without another load.
         _gallery.SetLayoutChoice(GalleryChromeMode.View, layout.View);
         _gallery.SetLayoutChoice(GalleryChromeMode.Tag, layout.Tag);

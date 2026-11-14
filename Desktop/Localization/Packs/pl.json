@@ -4824,6 +4824,8 @@
     "settings.mediaBadgeMaxPerCorner": "Znaczników na róg miniatury",
     "settings.mediaBadgeMaxPerCornerHint": "Ile małych znaczników mieści jeden róg miniatury; pozostałe, o niższym priorytecie, są pomijane. Domyślnie {0}, od {1} do {2}.",
     "settings.galleryStatusDwell": "Pokazuj komunikaty o stanie przez",
-    "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms."
+    "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms.",
+    "settings.galleryFilmstripTileGap": "Odstęp między miniaturami paska",
+    "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami paska galerii. Domyślnie {0}, od {1} do {2}."
   }
 }

@@ -1013,7 +1013,11 @@ namespace MeowChan
         public bool GalleryFilmstrip { get; set; } = true;
         /// <summary>Height of the filmstrip thumbnails in dip (the tiles are square).</summary>
         public int GalleryFilmstripHeight { get; set; } = GalleryFilmstripHeightDefault;
-        internal const int GalleryFilmstripHeightDefault = 72, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        internal const int GalleryFilmstripHeightDefault = 64, GalleryFilmstripHeightMinimum = 48, GalleryFilmstripHeightMaximum = 160;
+        /// <summary>GL5e: the gap between two filmstrip tiles in dip.</summary>
+        [JsonConverter(typeof(DesktopPreferenceGalleryFilmstripTileGapConverter))]
+        public int GalleryFilmstripTileGap { get; set; } = GalleryFilmstripTileGapDefault;
+        internal const int GalleryFilmstripTileGapDefault = 8, GalleryFilmstripTileGapMinimum = 4, GalleryFilmstripTileGapMaximum = 16;
         /// <summary>How many thumbnails on each side of the visible ones the filmstrip decodes in advance.</summary>
         public int GalleryFilmstripPreload { get; set; } = GalleryFilmstripPreloadDefault;
         internal const int GalleryFilmstripPreloadDefault = 12, GalleryFilmstripPreloadMinimum = 4, GalleryFilmstripPreloadMaximum = 60;
@@ -1438,6 +1442,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripHeight), "GalleryFilmstripHeight is outside its supported range (" + GalleryFilmstripHeightMinimum + " to " + GalleryFilmstripHeightMaximum + ").");
+            if (GalleryFilmstripTileGap is < GalleryFilmstripTileGapMinimum or > GalleryFilmstripTileGapMaximum)
+                throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripTileGap), "GalleryFilmstripTileGap is outside its supported range (" + GalleryFilmstripTileGapMinimum + " to " + GalleryFilmstripTileGapMaximum + ").");
             if (GalleryFilmstripPreload is < GalleryFilmstripPreloadMinimum or > GalleryFilmstripPreloadMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryFilmstripPreload), "GalleryFilmstripPreload is outside its supported range (" + GalleryFilmstripPreloadMinimum + " to " + GalleryFilmstripPreloadMaximum + ").");
             if (GalleryVideoSeekStepSeconds is < GalleryVideoSeekStepSecondsMinimum or > GalleryVideoSeekStepSecondsMaximum)
@@ -1661,6 +1667,7 @@ namespace MeowChan
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
                 GalleryFilmstripHeight = GalleryFilmstripHeight,
+                GalleryFilmstripTileGap = GalleryFilmstripTileGap,
                 GalleryFilmstripPreload = GalleryFilmstripPreload,
                 GalleryVideoSeekStepSeconds = GalleryVideoSeekStepSeconds,
                 MediaBadgeCollapseBelow = MediaBadgeCollapseBelow,
@@ -1901,6 +1908,7 @@ namespace MeowChan
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;
@@ -2109,6 +2117,7 @@ namespace MeowChan
                 GalleryLayoutPreferences.FromConfig(this).WithFilmstripSetting(source.GalleryFilmstrip).ApplyTo(this);
             // (GalleryFilmstrip itself follows the View set's filmstrip through ApplyTo; an unchanged box leaves both as they are.)
             GalleryFilmstripHeight = source.GalleryFilmstripHeight;
+            GalleryFilmstripTileGap = source.GalleryFilmstripTileGap;
             GalleryFilmstripPreload = source.GalleryFilmstripPreload;
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds;
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow;

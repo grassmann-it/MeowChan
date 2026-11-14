@@ -52,6 +52,8 @@ internal sealed class GalleryFilmstrip : Border
     private bool _hasMore;
     private int _current = -1;
     private double _tile = Config.GalleryFilmstripHeightDefault;
+    private double _gap = Config.GalleryFilmstripTileGapDefault;
+    private bool _pointerOver;
     private int _preload = Config.GalleryFilmstripPreloadDefault;
     private double _offset;
     private double _viewport;
@@ -78,20 +80,26 @@ internal sealed class GalleryFilmstrip : Border
         WorkspaceIcons.MakeSquare(_forward, WorkspaceIcons.ChevronLeft, string.Empty);
         // The forward arrow is the back arrow mirrored: one drawn shape, not a second icon in the shared table.
         if (_forward.Content is Control chevron) { chevron.RenderTransformOrigin = RelativePoint.Center; chevron.RenderTransform = new ScaleTransform(-1, 1); }
+        // GL5e: 32 dip squares centred on the band, drawn over the ends of the strip: they show only while there is somewhere to scroll
+        // and the pointer is over the band or the keyboard is in it, so the strip keeps its width whether they show or not.
         foreach (Button button in new[] { _back, _forward })
         {
-            button.Width = 24; button.Height = double.NaN; button.VerticalAlignment = VerticalAlignment.Stretch; button.Focusable = false;
+            button.Classes.Add("icon-only");
+            button.Width = 32; button.Height = 32; button.VerticalAlignment = VerticalAlignment.Center; button.Focusable = false;
+            button.IsVisible = false;
         }
-        _back.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport));
-        _forward.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport));
+        _back.HorizontalAlignment = HorizontalAlignment.Left;
+        _forward.HorizontalAlignment = HorizontalAlignment.Right;
+        _back.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport, _gap));
+        _forward.Click += (_, _) => ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport, _gap));
         _position.Classes.Add("workspace-meta");
         _position.IsVisible = false; // the viewer fills it only while the arrows are away (QW1)
         AutomationProperties.SetAccessibilityView(_position, AccessibilityView.Raw);
-        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto") };
+        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        root.Children.Add(_strip);
         root.Children.Add(_back);
-        root.Children.Add(_strip); Grid.SetColumn(_strip, 1);
-        root.Children.Add(_forward); Grid.SetColumn(_forward, 2);
-        root.Children.Add(_position); Grid.SetColumn(_position, 3);
+        root.Children.Add(_forward);
+        root.Children.Add(_position); Grid.SetColumn(_position, 1);
         Child = root;
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.List);
         _strip.Cursor = new Cursor(StandardCursorType.Hand);
@@ -99,7 +107,7 @@ internal sealed class GalleryFilmstrip : Border
         {
             _viewport = e.NewSize.Width;
             // A strip the user has not scrolled keeps the shown medium in its middle when the window is resized.
-            ScrollTo(_followCurrent && _current >= 0 ? GalleryFilmstripPlan.CentreOffset(_current, Slots, _tile, _viewport) : _offset);
+            ScrollTo(_followCurrent && _current >= 0 ? GalleryFilmstripPlan.CentreOffset(_current, Slots, _tile, _viewport, _gap) : _offset);
         };
         _strip.PointerPressed += OnPointerPressed;
         _strip.PointerMoved += OnPointerMoved;
@@ -107,8 +115,10 @@ internal sealed class GalleryFilmstrip : Border
         _strip.PointerCaptureLost += (_, _) => { _pressed = _dragging = false; };
         _strip.PointerExited += (_, _) => SetHovered(-1);
         PointerWheelChanged += OnWheel;
-        GotFocus += (_, e) => { _keyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional; UpdateFocusVisual(); };
-        LostFocus += (_, _) => { _keyboardFocus = false; UpdateFocusVisual(); };
+        PointerEntered += (_, _) => { _pointerOver = true; UpdateChevrons(); };
+        PointerExited += (_, _) => { _pointerOver = false; UpdateChevrons(); };
+        GotFocus += (_, e) => { _keyboardFocus = e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional; UpdateFocusVisual(); UpdateChevrons(); };
+        LostFocus += (_, _) => { _keyboardFocus = false; UpdateFocusVisual(); UpdateChevrons(); };
         AttachedToVisualTree += (_, _) => { _retired = false; Texts.Changed += OnTextsChanged; Refresh(); };
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnTextsChanged;
         UpdateFocusVisual();
@@ -140,9 +150,13 @@ internal sealed class GalleryFilmstrip : Border
     internal int HeldThumbnails => _thumbnails.HeldCount;
     internal int PendingThumbnails => _thumbnails.PendingCount;
     internal bool IsTileLoaded(int index) => _live.TryGetValue(index, out FilmstripTile? tile) && tile.HasPicture;
-    internal GalleryFilmstripPlan.TileRange VisibleRange => GalleryFilmstripPlan.Visible(_offset, _viewport, _tile, Slots);
+    internal GalleryFilmstripPlan.TileRange VisibleRange => GalleryFilmstripPlan.Visible(_offset, _viewport, _tile, Slots, _gap);
     internal bool BackEnabled => _back.IsEnabled;
     internal bool ForwardEnabled => _forward.IsEnabled;
+    internal double TileGapSize => _gap;
+    /// <summary>Whether the arrow shows now: there is somewhere to scroll and the pointer or the keyboard is in the band (tests and smokes).</summary>
+    internal bool BackShown => _back.IsVisible;
+    internal bool ForwardShown => _forward.IsVisible;
     /// <summary>The control of one realized tile (tests and smokes).</summary>
     internal Control? TileControl(int index) => _live.GetValueOrDefault(index);
     internal Control BackButton => _back;
@@ -172,8 +186,8 @@ internal sealed class GalleryFilmstrip : Border
         foreach (FilmstripTile tile in _live.Values) tile.SetCurrent(tile.Index == _current);
         if (index >= 0 && !_dragging)
         {
-            ScrollTo(_fromStrip ? GalleryFilmstripPlan.RevealOffset(_offset, index, Slots, _tile, _viewport)
-                : GalleryFilmstripPlan.CentreOffset(index, Slots, _tile, _viewport));
+            ScrollTo(_fromStrip ? GalleryFilmstripPlan.RevealOffset(_offset, index, Slots, _tile, _viewport, _gap)
+                : GalleryFilmstripPlan.CentreOffset(index, Slots, _tile, _viewport, _gap));
             _followCurrent = !_fromStrip;
         }
         else Refresh();
@@ -182,20 +196,22 @@ internal sealed class GalleryFilmstrip : Border
     }
 
     /// <summary>Tile size (the height setting) and preload (tiles decoded in advance on each side), both clamped to their ranges.</summary>
-    internal void Configure(int height, int preload)
+    internal void Configure(int height, int preload, int gap = Config.GalleryFilmstripTileGapDefault)
     {
         height = GalleryFilmstripPlan.ClampHeight(height);
         preload = GalleryFilmstripPlan.ClampPreload(preload);
-        bool resized = height != (int)_tile;
+        gap = GalleryFilmstripPlan.ClampGap(gap);
+        bool resized = height != (int)_tile || gap != (int)_gap;
         if (!resized && preload == _preload) return;
         _preload = preload;
+        _gap = gap;
         if (resized)
         {
             _tile = height;
             Height = GalleryFilmstripPlan.BandHeight(_tile);
             ClearTiles();
         }
-        ScrollTo(_current >= 0 && resized ? GalleryFilmstripPlan.CentreOffset(_current, Slots, _tile, _viewport) : _offset);
+        ScrollTo(_current >= 0 && resized ? GalleryFilmstripPlan.CentreOffset(_current, Slots, _tile, _viewport, _gap) : _offset);
     }
 
     /// <summary>The position text at the right end ("3 / 27"); the viewer owns the text. Null or empty hides the block, so no gap stays.</summary>
@@ -218,7 +234,7 @@ internal sealed class GalleryFilmstrip : Border
     /// <summary>Scrolls the strip, clamped; realizes the tiles in view and moves the decode window.</summary>
     internal void ScrollTo(double offset)
     {
-        _offset = GalleryFilmstripPlan.ClampOffset(offset, Slots, _tile, _viewport);
+        _offset = GalleryFilmstripPlan.ClampOffset(offset, Slots, _tile, _viewport, _gap);
         Refresh();
     }
 
@@ -246,8 +262,8 @@ internal sealed class GalleryFilmstrip : Border
         {
             case Key.Home when _count > 0: _fromStrip = true; TileActivated?.Invoke(0); return true;
             case Key.End when _count > 0: _fromStrip = true; TileActivated?.Invoke(_count - 1); return true;
-            case Key.PageUp: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport)); return true;
-            case Key.PageDown: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport)); return true;
+            case Key.PageUp: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport, _gap)); return true;
+            case Key.PageDown: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport, _gap)); return true;
             case Key.Enter or Key.Escape: ExitRequested?.Invoke(); return true;
             default: return false;
         }
@@ -261,7 +277,7 @@ internal sealed class GalleryFilmstrip : Border
         if (!point.Properties.IsLeftButtonPressed) return;
         _pressed = true; _dragging = false;
         _pressPoint = point.Position; _pressOffset = _offset;
-        _pressedTile = GalleryFilmstripPlan.TileAt(point.Position.X, _offset, _tile, Slots);
+        _pressedTile = GalleryFilmstripPlan.TileAt(point.Position.X, _offset, _tile, Slots, _gap);
         e.Pointer.Capture(_strip);
         e.Handled = true;
     }
@@ -269,7 +285,7 @@ internal sealed class GalleryFilmstrip : Border
     private void OnPointerMoved(object? sender, PointerEventArgs e)
     {
         Point position = e.GetPosition(_strip);
-        if (!_pressed) { SetHovered(GalleryFilmstripPlan.TileAt(position.X, _offset, _tile, Slots)); return; }
+        if (!_pressed) { SetHovered(GalleryFilmstripPlan.TileAt(position.X, _offset, _tile, Slots, _gap)); return; }
         double moved = position.X - _pressPoint.X;
         if (!_dragging && Math.Abs(moved) >= DragThreshold) { _dragging = true; SetHovered(-1); }
         if (_dragging) ScrollByUser(_pressOffset - moved);
@@ -279,7 +295,7 @@ internal sealed class GalleryFilmstrip : Border
     private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         bool click = _pressed && !_dragging;
-        int tile = click ? GalleryFilmstripPlan.TileAt(e.GetPosition(_strip).X, _offset, _tile, Slots) : -1;
+        int tile = click ? GalleryFilmstripPlan.TileAt(e.GetPosition(_strip).X, _offset, _tile, Slots, _gap) : -1;
         _pressed = _dragging = false;
         if (ReferenceEquals(e.Pointer.Captured, _strip)) e.Pointer.Capture(null);
         e.Handled = true;
@@ -292,7 +308,7 @@ internal sealed class GalleryFilmstrip : Border
         double notches = e.Delta.Y != 0 ? e.Delta.Y : e.Delta.X;
         if (notches == 0) return;
         // Wheel up (and a pad swipe to the right) look back along the strip, wheel down forward.
-        ScrollByUser(_offset - notches * ScrollNotchTiles * GalleryFilmstripPlan.Pitch(_tile));
+        ScrollByUser(_offset - notches * ScrollNotchTiles * GalleryFilmstripPlan.Pitch(_tile, _gap));
         e.Handled = true;
     }
 
@@ -328,12 +344,49 @@ internal sealed class GalleryFilmstrip : Border
                 if (!_live.ContainsKey(index)) Realize(index);
         _strip.Offset = _offset;
         _strip.TileSize = _tile;
+        _strip.Gap = _gap;
         _strip.InvalidateArrange();
         GalleryFilmstripPlan.TileRange decode = GalleryFilmstripPlan.Decode(visible, _preload, _count);
         _thumbnails.SetWindow(decode, _current >= 0 ? _current : visible.IsEmpty ? 0 : (visible.First + visible.Last) / 2);
         _back.IsEnabled = _offset > 0.5;
-        _forward.IsEnabled = _offset < GalleryFilmstripPlan.MaximumOffset(Slots, _tile, _viewport) - 0.5;
+        _forward.IsEnabled = _offset < GalleryFilmstripPlan.MaximumOffset(Slots, _tile, _viewport, _gap) - 0.5;
+        UpdateChevrons();
+        UpdateEdgeFade();
     }
+
+    // GL5e: an arrow shows while that way can scroll and the pointer is over the band or the keyboard is in it.
+    private void UpdateChevrons()
+    {
+        bool active = _pointerOver || _keyboardFocus;
+        _back.IsVisible = active && _back.IsEnabled;
+        _forward.IsVisible = active && _forward.IsEnabled;
+    }
+
+    /// <summary>The width of the fade at a scrollable end of the strip (dip).</summary>
+    internal const double EdgeFadeWidth = 24;
+
+    // GL5e: a scrollable end fades out over 24 dip instead of ending hard. An opacity mask does it for any band background (the overlay
+    // tone, or the dock's panel colour), with no colour to read; an end with nothing further stays solid.
+    private (bool, bool, double) _fadeKey;
+
+    private void UpdateEdgeFade()
+    {
+        bool left = _back.IsEnabled && _viewport > 0, right = _forward.IsEnabled && _viewport > 0;
+        if (!left && !right) { _strip.OpacityMask = null; _fadeKey = default; return; }
+        double fade = Math.Min(0.5, EdgeFadeWidth / _viewport);
+        if (_fadeKey == (left, right, fade) && _strip.OpacityMask != null) return; // a drag moves the offset every frame; the mask changes rarely
+        _fadeKey = (left, right, fade);
+        Color solid = Colors.Black; // an opacity mask reads only the alpha: no colour on screen
+        LinearGradientBrush mask = new() { StartPoint = new RelativePoint(0, 0.5, RelativeUnit.Relative), EndPoint = new RelativePoint(1, 0.5, RelativeUnit.Relative) };
+        mask.GradientStops.Add(new GradientStop(left ? Colors.Transparent : solid, 0));
+        mask.GradientStops.Add(new GradientStop(solid, left ? fade : 0));
+        mask.GradientStops.Add(new GradientStop(solid, right ? 1 - fade : 1));
+        mask.GradientStops.Add(new GradientStop(right ? Colors.Transparent : solid, 1));
+        _strip.OpacityMask = mask;
+    }
+
+    /// <summary>Whether a scrollable end of the strip fades (tests and smokes): left, right.</summary>
+    internal (bool Left, bool Right) EdgeFades => (_back.IsEnabled && _viewport > 0, _forward.IsEnabled && _viewport > 0);
 
     private void Realize(int index)
     {
@@ -454,6 +507,7 @@ internal sealed class GalleryFilmstrip : Border
     {
         internal double Offset { get; set; }
         internal double TileSize { get; set; } = Config.GalleryFilmstripHeightDefault;
+        internal double Gap { get; set; } = Config.GalleryFilmstripTileGapDefault;
 
         protected override Size MeasureOverride(Size availableSize)
         {
@@ -463,7 +517,7 @@ internal sealed class GalleryFilmstrip : Border
 
         protected override Size ArrangeOverride(Size finalSize)
         {
-            double pitch = GalleryFilmstripPlan.Pitch(TileSize);
+            double pitch = GalleryFilmstripPlan.Pitch(TileSize, Gap);
             double top = Math.Max(0, (finalSize.Height - TileSize) / 2);
             foreach (Control child in Children)
                 if (child is FilmstripTile tile) child.Arrange(new Rect(tile.Index * pitch - Offset, top, TileSize, TileSize));
@@ -475,7 +529,11 @@ internal sealed class GalleryFilmstrip : Border
 
     private sealed class FilmstripTile : Border
     {
-        private readonly Border _inner = new() { CornerRadius = new CornerRadius(3), ClipToBounds = true, BorderThickness = new Thickness(1) };
+        // GL5e: no frame at rest (the picture fills the whole tile); the frame lives in an overlay of the content, so the tile never loses
+        // size to a border: shown = 2 dip accent with a 1 dip control outline inside it, hovered = 1 dip control outline.
+        private readonly Border _inner = new() { CornerRadius = new CornerRadius(4), ClipToBounds = true };
+        private readonly Border _frame = new() { CornerRadius = new CornerRadius(4), IsHitTestVisible = false, BorderBrush = Brushes.Transparent };
+        private readonly Border _frameInner = new() { CornerRadius = new CornerRadius(2), IsHitTestVisible = false, BorderBrush = Brushes.Transparent, BorderThickness = new Thickness(1) };
         private readonly Image _image = new() { Stretch = Stretch.UniformToFill, IsHitTestVisible = false };
         private readonly TextBlock _extension = new TextBlock { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText();
@@ -494,8 +552,8 @@ internal sealed class GalleryFilmstrip : Border
 
         internal FilmstripTile()
         {
-            BorderThickness = new Thickness(2);
-            CornerRadius = new CornerRadius(5);
+            CornerRadius = new CornerRadius(4);
+            _frame.Child = _frameInner;
             _inner[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Raised");
             _extension[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
             _play[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
@@ -510,6 +568,7 @@ internal sealed class GalleryFilmstrip : Border
             content.Children.Add(_moreGlyph);
             content.Children.Add(_play);
             content.Children.Add(_gif);
+            content.Children.Add(_frame);
             _inner.Child = content;
             Child = _inner;
             AutomationProperties.SetControlTypeOverride(this, AutomationControlType.ListItem);
@@ -568,11 +627,12 @@ internal sealed class GalleryFilmstrip : Border
         // alone; a hovered tile gets the control outline as its frame (fill, border and label change together, as elsewhere).
         private void ApplyBorders()
         {
-            if (_current) this[!BorderBrushProperty] = new DynamicResourceExtension("Workspace.Accent");
-            else if (_hover) this[!BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
-            else BorderBrush = Brushes.Transparent;
-            if (_current) _inner[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
-            else _inner.BorderBrush = Brushes.Transparent;
+            _frame.BorderThickness = new Thickness(_current ? 2 : _hover ? 1 : 0);
+            if (_current) _frame[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.Accent");
+            else if (_hover) _frame[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
+            else _frame.BorderBrush = Brushes.Transparent;
+            if (_current) _frameInner[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
+            else _frameInner.BorderBrush = Brushes.Transparent;
         }
     }
 }

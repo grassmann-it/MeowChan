@@ -81,6 +81,7 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/Theming/ThemeCustomization.cs", "Color.FromArgb", "Seeds derived from user colours, on-colour black/white, stored hex."),
         // TH4 accent presets: the hex values of the six presets, tuned per variant (ThemeAccentPresetTests runs each through the gate).
         new(DesignRules.ColorHex, "Desktop/Theming/ThemeAccentPresets.cs", "", "Accent preset values of Light and Dark, one place, gate-tested."),
+        new(DesignRules.ColorCode, "Desktop/Controls/GalleryFilmstrip.cs", "Colors.Black", "Opacity-mask gradient of the faded strip ends (GL5e), not a visible colour."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
     };

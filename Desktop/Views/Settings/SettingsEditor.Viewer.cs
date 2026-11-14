@@ -30,6 +30,7 @@ public partial class SettingsEditor
     private decimal? _mediaBadgeHideBelow = Config.MediaBadgeHideBelowDefault;
     private decimal? _mediaBadgeMaxPerCorner = Config.MediaBadgeMaxPerCornerDefault;
     private decimal? _galleryStatusDwellMs = Config.GalleryStatusDwellMsDefault;
+    private decimal? _galleryFilmstripTileGap = Config.GalleryFilmstripTileGapDefault;
     private bool _galleryLayoutResetPending;
     // H1: the filmstrip box as this draft loaded it (start, discard, after a save). A save sets the layout of both modes only when the box
     // differs from it; the gallery may have changed the live value since (L), and an untouched box must not roll that back.
@@ -61,6 +62,7 @@ public partial class SettingsEditor
     public decimal? MediaBadgeCollapseBelow { get => _mediaBadgeCollapseBelow; set => SetField(ref _mediaBadgeCollapseBelow, value, nameof(MediaBadgeCollapseBelow)); }
     public decimal? MediaBadgeHideBelow { get => _mediaBadgeHideBelow; set => SetField(ref _mediaBadgeHideBelow, value, nameof(MediaBadgeHideBelow)); }
     public decimal? MediaBadgeMaxPerCorner { get => _mediaBadgeMaxPerCorner; set => SetField(ref _mediaBadgeMaxPerCorner, value, nameof(MediaBadgeMaxPerCorner)); }
+    public decimal? GalleryFilmstripTileGap { get => _galleryFilmstripTileGap; set => SetField(ref _galleryFilmstripTileGap, value, nameof(GalleryFilmstripTileGap)); }
     public decimal? GalleryStatusDwellMs { get => _galleryStatusDwellMs; set => SetField(ref _galleryStatusDwellMs, value, nameof(GalleryStatusDwellMs)); }
 
     /// <summary>
@@ -127,6 +129,11 @@ public partial class SettingsEditor
         Config.MediaBadgeMaxPerCornerDefault, Config.MediaBadgeMaxPerCornerMinimum, Config.MediaBadgeMaxPerCornerMaximum);
 
     // GL5c: how long a transient status of the info line stays.
+    // GL5e: the gap between two filmstrip tiles.
+    public string GalleryFilmstripTileGapLabel => Texts.T("settings.galleryFilmstripTileGap");
+    public string GalleryFilmstripTileGapHint => Texts.T("settings.galleryFilmstripTileGapHint",
+        Config.GalleryFilmstripTileGapDefault, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum);
+
     public string GalleryStatusDwellMsLabel => Texts.T("settings.galleryStatusDwell");
     public string GalleryStatusDwellMsHint => Texts.T("settings.galleryStatusDwellHint",
         Config.GalleryStatusDwellMsDefault, Config.GalleryStatusDwellMsMinimum, Config.GalleryStatusDwellMsMaximum);
@@ -141,13 +148,15 @@ public partial class SettingsEditor
     public string MediaBadgeHideBelowHelp => FieldHelp(nameof(MediaBadgeHideBelowInput), Texts.T("settings.unitDip") + ". " + MediaBadgeHideBelowHint);
     public string MediaBadgeMaxPerCornerHelp => FieldHelp(nameof(MediaBadgeMaxPerCornerInput), Texts.T("settings.unitCount") + ". " + MediaBadgeMaxPerCornerHint);
 
+    public string GalleryFilmstripTileGapHelp => FieldHelp(nameof(GalleryFilmstripTileGapInput), Texts.T("settings.unitDip") + ". " + GalleryFilmstripTileGapHint);
     public string GalleryStatusDwellMsHelp => FieldHelp(nameof(GalleryStatusDwellMsInput), Texts.T("stats.settings.unitMs") + ". " + GalleryStatusDwellMsHint);
 
     private static readonly string[] ViewerHelpProperties =
     {
         nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp),
         nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp), nameof(GalleryVideoSeekStepSecondsHelp),
-        nameof(MediaBadgeCollapseBelowHelp), nameof(MediaBadgeHideBelowHelp), nameof(MediaBadgeMaxPerCornerHelp), nameof(GalleryStatusDwellMsHelp)
+        nameof(MediaBadgeCollapseBelowHelp), nameof(MediaBadgeHideBelowHelp), nameof(MediaBadgeMaxPerCornerHelp), nameof(GalleryStatusDwellMsHelp),
+        nameof(GalleryFilmstripTileGapHelp)
     };
 
     private static readonly string[] ViewerTextProperties =
@@ -159,7 +168,8 @@ public partial class SettingsEditor
         nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint),
         nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint),
         nameof(MediaBadgeCollapseBelowLabel), nameof(MediaBadgeCollapseBelowHint), nameof(MediaBadgeHideBelowLabel), nameof(MediaBadgeHideBelowHint),
-        nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint), nameof(GalleryStatusDwellMsLabel), nameof(GalleryStatusDwellMsHint)
+        nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint), nameof(GalleryStatusDwellMsLabel), nameof(GalleryStatusDwellMsHint),
+        nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -220,6 +230,8 @@ public partial class SettingsEditor
         ResetNumber(MediaBadgeMaxPerCornerInput, config.MediaBadgeMaxPerCorner);
         GalleryStatusDwellMs = config.GalleryStatusDwellMs;
         ResetNumber(GalleryStatusDwellMsInput, config.GalleryStatusDwellMs);
+        GalleryFilmstripTileGap = config.GalleryFilmstripTileGap;
+        ResetNumber(GalleryFilmstripTileGapInput, config.GalleryFilmstripTileGap);
     }
 
     private void ApplyViewerDraft(Config candidate)
@@ -230,6 +242,7 @@ public partial class SettingsEditor
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
         candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
+        candidate.GalleryFilmstripTileGap = GetInteger(GalleryFilmstripTileGap, GalleryFilmstripTileGapLabel, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum);
         candidate.GalleryStatusDwellMs = GetInteger(GalleryStatusDwellMs, GalleryStatusDwellMsLabel, Config.GalleryStatusDwellMsMinimum, Config.GalleryStatusDwellMsMaximum);
         candidate.GalleryFilmstripPreload = GetInteger(GalleryFilmstripPreload, GalleryFilmstripPreloadLabel, Config.GalleryFilmstripPreloadMinimum, Config.GalleryFilmstripPreloadMaximum);
         candidate.GalleryVideoSeekStepSeconds = GetInteger(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsLabel, Config.GalleryVideoSeekStepSecondsMinimum, Config.GalleryVideoSeekStepSecondsMaximum);
@@ -268,5 +281,7 @@ public partial class SettingsEditor
             Config.MediaBadgeMaxPerCornerMinimum, Config.MediaBadgeMaxPerCornerMaximum, true);
         yield return (GalleryStatusDwellMsInput, GalleryStatusDwellMs, GalleryStatusDwellMsLabel, Texts.T("stats.settings.unitMs"),
             Config.GalleryStatusDwellMsMinimum, Config.GalleryStatusDwellMsMaximum, true);
+        yield return (GalleryFilmstripTileGapInput, GalleryFilmstripTileGap, GalleryFilmstripTileGapLabel, Texts.T("settings.unitDip"),
+            Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum, true);
     }
 }

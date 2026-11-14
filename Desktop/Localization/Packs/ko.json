@@ -4686,6 +4686,8 @@
     "settings.mediaBadgeMaxPerCorner": "미리보기 모서리당 배지 수",
     "settings.mediaBadgeMaxPerCornerHint": "미리보기의 한 모서리에 들어가는 작은 배지의 수입니다. 우선순위가 낮은 배지는 생략됩니다. 기본값 {0}, {1}~{2}.",
     "settings.galleryStatusDwell": "상태 메시지 표시 시간",
-    "settings.galleryStatusDwellHint": "갤러리 정보 줄의 짧은 상태 표시(예: 슬라이드쇼 “준비됨”)가 화면에 남는 시간입니다. 실행 중인 슬라이드쇼, 일시 중지 이유, 오류는 계속 남습니다. 기본값 {0}ms, {1}~{2}ms."
+    "settings.galleryStatusDwellHint": "갤러리 정보 줄의 짧은 상태 표시(예: 슬라이드쇼 “준비됨”)가 화면에 남는 시간입니다. 실행 중인 슬라이드쇼, 일시 중지 이유, 오류는 계속 남습니다. 기본값 {0}ms, {1}~{2}ms.",
+    "settings.galleryFilmstripTileGap": "필름스트립 미리보기 간격",
+    "settings.galleryFilmstripTileGapHint": "갤러리 필름스트립에서 두 미리보기 사이의 간격입니다. 기본값 {0}, 범위 {1}~{2}."
   }
 }

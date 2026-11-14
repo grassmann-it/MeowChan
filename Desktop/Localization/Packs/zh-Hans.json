@@ -4686,6 +4686,8 @@
     "settings.mediaBadgeMaxPerCorner": "缩略图每个角的徽标数",
     "settings.mediaBadgeMaxPerCornerHint": "缩略图的一个角最多容纳多少个小徽标；优先级较低的其余徽标不再显示。默认 {0}，范围 {1} 到 {2}。",
     "settings.galleryStatusDwell": "状态消息的显示时间",
-    "settings.galleryStatusDwellHint": "图库信息行中的简短状态（例如幻灯片的“就绪”）在屏幕上停留多久。正在放映的幻灯片、暂停原因和错误会一直保留。默认 {0} 毫秒，{1} 到 {2} 毫秒。"
+    "settings.galleryStatusDwellHint": "图库信息行中的简短状态（例如幻灯片的“就绪”）在屏幕上停留多久。正在放映的幻灯片、暂停原因和错误会一直保留。默认 {0} 毫秒，{1} 到 {2} 毫秒。",
+    "settings.galleryFilmstripTileGap": "缩略图条中缩略图的间距",
+    "settings.galleryFilmstripTileGapHint": "图库缩略图条中相邻两张缩略图之间的间距。默认 {0}，范围 {1} 到 {2}。"
   }
 }

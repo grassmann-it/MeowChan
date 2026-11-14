@@ -179,6 +179,7 @@ public static class SettingsTransfer
             GalleryFilmstrip = source.GalleryFilmstrip,
             GalleryLayout = source.GalleryLayout, // GL4: the layout choice of both modes travels with the profile settings
             GalleryFilmstripHeight = source.GalleryFilmstripHeight,
+            GalleryFilmstripTileGap = source.GalleryFilmstripTileGap,
             GalleryFilmstripPreload = source.GalleryFilmstripPreload,
             GalleryVideoSeekStepSeconds = source.GalleryVideoSeekStepSeconds,
             MediaBadgeCollapseBelow = source.MediaBadgeCollapseBelow,

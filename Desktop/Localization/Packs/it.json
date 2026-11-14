@@ -4781,6 +4781,8 @@
     "settings.mediaBadgeMaxPerCorner": "Contrassegni per angolo della miniatura",
     "settings.mediaBadgeMaxPerCornerHint": "Quanti piccoli contrassegni può contenere un angolo di una miniatura; gli altri, di priorità minore, vengono omessi. Predefinito {0}, da {1} a {2}.",
     "settings.galleryStatusDwell": "Mostra i messaggi di stato per",
-    "settings.galleryStatusDwellHint": "Per quanto tempo resta sullo schermo uno stato breve della riga informativa della galleria, ad esempio «Pronto» della presentazione. Una presentazione in corso, i motivi di una pausa e gli errori restano. Predefinito {0} ms, da {1} a {2} ms."
+    "settings.galleryStatusDwellHint": "Per quanto tempo resta sullo schermo uno stato breve della riga informativa della galleria, ad esempio «Pronto» della presentazione. Una presentazione in corso, i motivi di una pausa e gli errori restano. Predefinito {0} ms, da {1} a {2} ms.",
+    "settings.galleryFilmstripTileGap": "Spazio tra le miniature della striscia",
+    "settings.galleryFilmstripTileGapHint": "Lo spazio tra due miniature della striscia della galleria. Predefinito {0}, da {1} a {2}."
   }
 }
