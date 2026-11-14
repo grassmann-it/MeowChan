@@ -1069,7 +1069,6 @@ public sealed partial class MediaPage : UserControl
         finally { _localizing = false; }
         _title.Text = Texts.T("media.title");
         _subtitle.Text = Texts.T("media.subtitle");
-        AutomationProperties.SetName(_sort, Texts.T("media.sort"));
         // The tools of the row beside the order are icons (M1); the name is the tooltip and the accessible name.
         WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T("media.shuffle"));
         _missing.Content = Texts.T("media.showMissing");

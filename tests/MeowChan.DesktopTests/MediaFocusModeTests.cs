@@ -204,7 +204,7 @@ public sealed class MediaFocusModeTests : IDisposable
     public void TheToolbarButtonSitsBetweenRefreshAndMoreAndWorkViewsKnowIt()
     {
         string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs"), view = Source("Desktop/Views/Media/MediaPage.WorkView.cs");
-        Assert.Contains("{ _shuffle, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more }", toolbar);
+        Assert.Contains("{ _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more }", toolbar);
         Assert.Contains("WorkViewElement.SetId(_focus, \"media.toolbar.focus\");", view);
         Assert.Contains("WorkViewGate.Apply(_focus, view);", view);
         Assert.Contains("Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen)", view);

@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -18,6 +19,9 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     private readonly Button _sortDirection = new() { Name = "MediaSortDirection" };
+    // The visible label of the order box ("Sort"), muted like the scope label inside the search field. The combo's accessible name is the same
+    // text (the label is hidden from the accessibility tree so it is not read twice) and it follows the combo's visibility.
+    private readonly TextBlock _sortLabel = new() { Name = "MediaSortLabel", Classes = { "muted" }, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, -2, 0) };
     private string? _sortIcon;
     private MediaLibrarySortDirection _sortDirectionValue = MediaLibrarySortDirection.Default;
 
@@ -150,6 +154,8 @@ public sealed partial class MediaPage
         _sort.ItemsSource = choices;
         _sort.SelectedIndex = Array.FindIndex(choices, choice => choice.Value == selected);
         AutomationProperties.SetName(_sortDirection, Texts.T("media.sort.direction"));
+        _sortLabel.Text = Texts.T("media.sort");
+        AutomationProperties.SetName(_sort, _sortLabel.Text);
         UpdateSortDirection();
     }
 }

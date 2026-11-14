@@ -11,7 +11,7 @@ internal static class MediaLibraryCatalog
         ("media.filters.count", "Filters ({0})", "Filter ({0})"),
         ("media.filters.countName", "Filters, {0} active", "Filter, {0} aktiv"),
         ("media.subtitle", "All saved media of all archived threads in one place.", "Alle gespeicherten Medien aller archivierten Threads an einem Ort."),
-        ("media.sort", "Order", "Sortierung"),
+        ("media.sort", "Sort", "Sortierung"),
         ("media.sort.thread", "By thread", "Nach Thread"),
         ("media.sort.newest", "Newest first", "Neueste zuerst"),
         ("media.sort.random", "Random", "Zufällig"),

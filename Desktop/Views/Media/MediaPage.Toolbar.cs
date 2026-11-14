@@ -65,7 +65,7 @@ public sealed partial class MediaPage
         tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (Control control in new Control[] { _shuffle, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more })
+        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
@@ -74,6 +74,8 @@ public sealed partial class MediaPage
         }
         _nameFilter.VerticalAlignment = _filters.VerticalAlignment = VerticalAlignment.Center;
         tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 3);
+        _sortLabel.Bind(Visual.IsVisibleProperty, _sort.GetObservable(Visual.IsVisibleProperty));
+        AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);
         ApplyToolbarMinWidths();
         tools.SizeChanged += (_, e) => ApplyToolbarWidth(e.NewSize.Width);
         return _toolbar = tools;
