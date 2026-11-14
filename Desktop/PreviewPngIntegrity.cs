@@ -449,7 +449,9 @@ internal static class PreviewPngIntegrity
             for (int length = 1; length <= _maximumLength; length++)
             {
                 if (!reader.TryReadBits(1, out int bit)) break;
-                code |= bit << (length - 1);
+                // Unlike integer fields, DEFLATE Huffman codes are emitted most-significant bit first.
+                // TryReadBits(1) advances in wire order; assemble that prefix in canonical code order.
+                code = (code << 1) | bit;
                 if (_symbolsByLength[length] is { } symbols && symbols.TryGetValue(code, out symbol)) return true;
             }
             symbol = 0;
