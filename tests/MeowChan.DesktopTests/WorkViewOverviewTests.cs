@@ -58,7 +58,7 @@ public sealed class WorkViewOverviewTests : IDisposable
         // Zero raw ids is the shrinking baseline; no pinned count of humanized fallback labels.
         Assert.All(WorkViewOverview.Build(), row => Assert.NotEqual(row.Id, row.Label));
         Assert.Equal("Columns / Archive Thread Table / Last Capture", WorkViewOverview.Humanize("columns.ArchiveThreadTable.lastCapture"));
-        Assert.Equal("More Filters / HTTP Budget / Other columns", WorkViewOverview.Humanize("more-filters.HTTPBudget.*"));
+        Assert.Equal("More filters / HTTP Budget / Other columns", WorkViewOverview.Humanize("more-filters.HTTPBudget.*"));
     }
 
     [Fact]

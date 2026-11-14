@@ -332,6 +332,9 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
                 Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(active.SelectedSourceOwners));
                 Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
 
+                // Configure deliberately pauses all acquisition during admission. Only now,
+                // after exact consent and the independent host start, admit this offline call.
+                await restored.SetPausedAsync(false).WaitAsync(Deadline);
                 BoardAdmissionPreview preview = await restored.PreviewBoardAdmissionAsync(DesktopPluginFixtures.Origin("kohlchan") + "/demo/").WaitAsync(Deadline);
                 Assert.Equal("123", Assert.Single(preview.Threads).Id);
                 Assert.Contains(restored.Plugins.Runtime.GetSnapshots(), worker => worker.ProcessId is > 0
@@ -430,6 +433,9 @@ public sealed class DesktopPluginSessionIntegrationTests(ITestOutputHelper outpu
                 Assert.Equal(SdkJson.Serialize(baseline.SelectedSourceOwners), SdkJson.Serialize(active.SelectedSourceOwners));
                 Assert.Equal(permission, Config.LoadConfig(profile.Path).SourceMediaIntegrityPermissions[SourceMediaIntegrityPermission.CreateKey(permission.PluginOwnerId, permission.SourceId)]);
 
+                // Configure deliberately pauses all acquisition during admission. Only now,
+                // after exact consent and the independent host start, admit this offline call.
+                await restored.SetPausedAsync(false).WaitAsync(Deadline);
                 BoardAdmissionPreview preview = await restored.PreviewBoardAdmissionAsync(DesktopPluginFixtures.Origin("kohlchan") + "/demo/").WaitAsync(Deadline);
                 Assert.Equal("123", Assert.Single(preview.Threads).Id);
                 Assert.Contains(restored.Plugins.Runtime.GetSnapshots(), worker => worker.ProcessId is > 0

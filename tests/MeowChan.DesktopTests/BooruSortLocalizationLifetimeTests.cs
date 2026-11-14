@@ -43,6 +43,8 @@ public sealed class BooruSortLocalizationLifetimeTests
             Assert.True(localizationGuard(), "Programmatic ItemsSource/SelectedIndex changes during localization are not takeover.");
 
             Set(page, "_localizing", false);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(localizationGuard(), "No deferred localization event may become a later user interaction.");
             Func<bool> restoreGuard = page.CaptureBooruHandoffInteraction();
             int beforeRestore = selectionEvents;
             // Use the production RestoreSort scope rather than duplicating its suppression flag in the test.

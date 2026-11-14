@@ -26,7 +26,11 @@ public sealed class StatusNavigationTests : IDisposable
     public void StatusIsTheLastMainPageAndTheEarlierPagesFollowTheFooterGroups()
     {
         Assert.Equal([.. Earlier, "navigation.status"], MainPageOrder.CommandIds);
-        for (int index = 0; index < Earlier.Length; index++) Assert.Equal(index + 1, MainPageOrder.Digit(Earlier[index]));
+        // Visual grouping gained Booru before Rules, but existing digit defaults deliberately
+        // stay stable: Booru uses the freed Plugins slot 6; Rules/Sources keep 4/5.
+        Assert.Equal(new int?[] { 1, 2, 3, 6, 4, 5, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
+        foreach (string id in Earlier)
+            Assert.Equal("Primary+" + MainPageOrder.Digit(id), MainPageOrder.DefaultShortcut(id));
         Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
         Assert.Equal("Primary+7", MainPageOrder.DefaultShortcut("navigation.status"));
         Assert.Equal("Primary+7", CommandCatalog.Get("navigation.status").Shortcut);
