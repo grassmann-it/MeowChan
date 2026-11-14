@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def load(name, relative):

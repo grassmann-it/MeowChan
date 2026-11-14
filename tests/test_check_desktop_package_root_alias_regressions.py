@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('desktop_alias_fixtures', ROOT / 'tests/test_desktop_package.py')
 FIXTURES = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FIXTURES)
