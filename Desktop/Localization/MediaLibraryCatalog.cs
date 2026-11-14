@@ -181,7 +181,7 @@ internal static class MediaLibraryCatalog
         ("media.toolbar.taggingPage", "Open the Tagging page", "Seite Taggen öffnen"),
         ("media.status.queue", "{0} open in the tagging queue", "{0} offen in der Tagging-Warteschlange"),
         ("media.tagList", "Tag list", "Tag-Liste"),
-        ("media.tagList.tip", "Tag list: shows every tag of the results beside the grid, with how many media carry it. Click a tag to show only media with it, Alt+click to hide them.", "Tag-Liste: zeigt neben dem Raster alle Tags der Treffer mit ihrer Anzahl. Klick auf ein Tag zeigt nur Medien damit, Alt+Klick blendet sie aus."),
+        ("media.tagList.tip", "Tag list: shows every tag of the results beside the grid, with how many media carry it. Click a tag to show only media with it, {0}+click to hide them.", "Tag-Liste: zeigt neben dem Raster alle Tags der Treffer mit ihrer Anzahl. Klick auf ein Tag zeigt nur Medien damit, {0}+Klick blendet sie aus."),
         // MP5: the Layout menu of the media page (tag list side and width, the rows above the grid, tile caption and size, ready-made layouts).
         ("media.layout.name", "Layout", "Layout"),
         ("media.layout.tip", "Choose what the Media page shows: the tag list, filter chips, status line, subtitle, tile captions and tile size, or pick a ready-made layout.", "Wählen, was die Medienseite zeigt: Tag-Liste, Filter-Chips, Statuszeile, Untertitel, Kachel-Beschriftung und Kachelgröße – oder eine fertige Vorlage."),
@@ -223,7 +223,7 @@ internal static class MediaLibraryCatalog
         ("media.tags.itemName", "{0}, {1} media", "{0}, {1} Medien"),
         ("media.tags.state.included", "included", "eingeschlossen"),
         ("media.tags.state.excluded", "excluded", "ausgeschlossen"),
-        ("media.tags.hint", "Enter or click: only media with the tag · Shift+Enter or Alt+click: hide them · Delete: take the tag out of the filter · Menu key: more", "Enter oder Klick: nur Medien mit dem Tag · Umschalt+Enter oder Alt+Klick: ausblenden · Entf: Tag aus dem Filter nehmen · Menütaste: mehr"),
+        ("media.tags.hint", "Enter or click: only media with the tag · Shift+Enter or {0}+click: hide them · Delete: take the tag out of the filter · Menu key: more", "Enter oder Klick: nur Medien mit dem Tag · Umschalt+Enter oder {0}+Klick: ausblenden · Entf: Tag aus dem Filter nehmen · Menütaste: mehr"),
         ("settings.limits.mediaTagListTop", "Tag list: tags shown per group", "Tag-Liste: angezeigte Tags je Gruppe"),
         ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest."),
         ("settings.limits.mediaTagListWidth", "Tag list: width (dip)", "Tag-Liste: Breite (dip)"),

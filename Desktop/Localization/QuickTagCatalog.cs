@@ -59,6 +59,13 @@ internal static class QuickTagCatalog
             "Setzt alle Tags des Stempels in einem Schritt für das gezeigte Medium oder die Auswahl. Einen Tag per Rechtsklick zum Stempel hinzufügen. Tastenkürzel: {0}."),
         ("tags.quick.advancedHelp", "Opens the full tag dialog for the same target to choose occurrences, sort and browse long lists. When it closes, this panel shows what changed.",
             "Öffnet den vollständigen Tagdialog für dasselbe Ziel, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen. Nach dem Schließen zeigt dieser Bereich, was sich geändert hat."),
+        // The same texts for a command without a key (unbound by the person): they say nothing about a shortcut.
+        ("tags.quick.undoTipNoKey", "Undo the last tag change", "Letzte Tagänderung rückgängig machen"),
+        ("tags.quick.undoHelpNoKey", "Takes back the last change made here, one step at a time.", "Nimmt die letzte hier gemachte Änderung zurück, Schritt für Schritt."),
+        ("tags.quick.stamp.helpNoKey", "Gives the shown media file or selection every tag of your stamp in one step. Right-click a tag to add it to the stamp.", "Setzt alle Tags des Stempels in einem Schritt für das gezeigte Medium oder die Auswahl. Einen Tag per Rechtsklick zum Stempel hinzufügen."),
+        ("tags.quick.stamp.nameNoKey", "Set all stamp tags ({0})", "Alle Stempel-Tags ({0}) setzen"),
+        ("tags.quick.stamp.nameEmptyNoKey", "The stamp is empty: right-click a tag to add it", "Der Stempel ist leer: Tag per Rechtsklick hinzufügen"),
+        ("tags.quick.fieldHintNavigationNoKey", "Page Down and Page Up show the next or previous media file.", "Bild ab und Bild auf zeigen das nächste oder vorige Medium."),
         ("tags.quick.reason.frequent", "often used", "häufig verwendet"),
         ("tags.quick.reason.recent", "recently used", "zuletzt verwendet"),
         ("tags.quick.reason.thread", "from this thread", "aus diesem Thread"),

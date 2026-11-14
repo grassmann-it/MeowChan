@@ -132,9 +132,23 @@ internal static class QuickTagKeys
         index is < 0 or >= QuickTagOptions.NumberedSuggestions ? null
         : new ShortcutGesture("D" + (index + 1), new[] { platform == ShortcutPlatform.MacOS ? "Meta" : "Alt" }).Display(platform);
 
-    internal static string UndoGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Z").Display(platform);
-    internal static string CommitNextGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Enter").Display(platform);
-    internal static string StampGesture(ShortcutPlatform platform) => ShortcutGesture.Parse("Primary+Shift+Enter").Display(platform);
+    /// <summary>
+    /// The shortcut text of a command as it is bound now (the person may have changed or removed it, or a default may have yielded to another
+    /// command), several gestures joined by " / "; null when the command has no key. The help texts name this, never the catalog default.
+    /// </summary>
+    internal static string? BoundGesture(string commandId, ShortcutPlatform platform)
+    {
+        IReadOnlyList<ShortcutGesture> gestures = ShortcutService.Current.For(commandId);
+        return gestures.Count == 0 ? null : string.Join(" / ", gestures.Select(gesture => gesture.Display(platform)));
+    }
+
+    internal static string? UndoGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.Undo, platform);
+    internal static string? CommitNextGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.CommitNext, platform);
+    internal static string? StampGesture(ShortcutPlatform platform) => BoundGesture(QuickTagCommands.StampApply, platform);
+
+    /// <summary>The text <paramref name="key"/> with the gesture, or <c>key + "NoKey"</c> (the same text without a shortcut) when the command has none.</summary>
+    internal static string TextWithKey(string key, string? gesture, params object[] leading) =>
+        gesture is null ? Texts.T(key + "NoKey", leading) : Texts.T(key, leading.Append(gesture).ToArray());
 }
 
 /// <summary>Number and letter keys of the suggestion chips.</summary>
@@ -662,7 +676,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         TagSuggestionInput.Localize(_input);
         string first = QuickTagKeys.SuggestionGesture(0, _platform)!, last = QuickTagKeys.SuggestionGesture(QuickTagOptions.NumberedSuggestions - 1, _platform)!;
         string hint = Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldHint", first, last);
-        if (NavigationEnabled) hint += " " + Texts.T("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
+        if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
         AutomationProperties.SetName(_close, Texts.T("tags.quick.close"));
@@ -680,12 +694,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetHelpText(_allChips, Texts.T("tags.quick.assigned.help"));
         AutomationProperties.SetHelpText(_someChips, Texts.T("tags.quick.assigned.help"));
         _assignedEmpty.Text = Texts.T("tags.quick.assigned.empty");
-        ToolTip.SetTip(_undo, Texts.T("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform)));
-        AutomationProperties.SetAcceleratorKey(_stamp, QuickTagKeys.StampGesture(_platform));
+        ToolTip.SetTip(_undo, QuickTagKeys.TextWithKey("tags.quick.undoTip", QuickTagKeys.UndoGesture(_platform)));
+        if (QuickTagKeys.StampGesture(_platform) is { } stampKey) AutomationProperties.SetAcceleratorKey(_stamp, stampKey);
+        else _stamp.ClearValue(AutomationProperties.AcceleratorKeyProperty);
         AutomationProperties.SetName(_advanced, Texts.T("tags.quick.advancedName"));
         ToolTip.SetTip(_advanced, Texts.T("tags.quick.advancedName"));
-        AutomationProperties.SetHelpText(_undo, Texts.T("tags.quick.undoHelp", QuickTagKeys.UndoGesture(_platform)));
-        AutomationProperties.SetHelpText(_stamp, Texts.T("tags.quick.stamp.help", QuickTagKeys.StampGesture(_platform)));
+        AutomationProperties.SetHelpText(_undo, QuickTagKeys.TextWithKey("tags.quick.undoHelp", QuickTagKeys.UndoGesture(_platform)));
+        AutomationProperties.SetHelpText(_stamp, QuickTagKeys.TextWithKey("tags.quick.stamp.help", QuickTagKeys.StampGesture(_platform)));
         AutomationProperties.SetHelpText(_advanced, Texts.T("tags.quick.advancedHelp"));
         // A disabled button still explains itself (the stamp says why it is empty).
         foreach (Button button in new[] { _undo, _stamp, _advanced }) ToolTip.SetShowOnDisabled(button, true);
@@ -695,6 +710,14 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
     {
         if (_disposed) return;
+        Localize();
+        Refresh();
+    });
+
+    // The help texts name the keys as bound now: a rebinding in the shortcut window rewrites them (the surface is attached while it can show).
+    private void OnShortcutsChanged() => Dispatcher.UIThread.Post(() =>
+    {
+        if (_disposed || !_attached) return;
         Localize();
         Refresh();
     });
@@ -882,10 +905,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     // The tooltip and name of the footer button: what it gives (or why it cannot), with its key.
     private string StampName()
     {
-        string gesture = QuickTagKeys.StampGesture(_platform);
-        if (_session.Stamp.Count == 0) return Texts.T("tags.quick.stamp.nameEmpty", gesture);
+        string? gesture = QuickTagKeys.StampGesture(_platform);
+        if (_session.Stamp.Count == 0) return QuickTagKeys.TextWithKey("tags.quick.stamp.nameEmpty", gesture);
         string names = string.Join(", ", _session.Stamp.Resolve(_session.Snapshot).Select(tag => tag.Name.Display));
-        return names.Length == 0 ? Texts.T("tags.quick.stamp.nameEmpty", gesture) : Texts.T("tags.quick.stamp.name", names, gesture);
+        return names.Length == 0 ? QuickTagKeys.TextWithKey("tags.quick.stamp.nameEmpty", gesture) : QuickTagKeys.TextWithKey("tags.quick.stamp.name", gesture, names);
     }
 
     // Right click, Menu key or Shift+F10 on a chip of an own tag: put it into the stamp or take it out. The menu is filled when it
@@ -1089,6 +1112,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _attached = true;
         _session.Updated += OnSessionUpdated;
         Texts.Changed += OnLanguageChanged;
+        ShortcutService.Changed += OnShortcutsChanged;
+        Localize();
         ApplyFooterMode();
         Refresh();
         if (FocusOnAttach) Dispatcher.UIThread.Post(() => { if (_attached && !_disposed) _input.Focus(); }, DispatcherPriority.Input);
@@ -1100,6 +1125,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _attached = false;
         _session.Updated -= OnSessionUpdated;
         Texts.Changed -= OnLanguageChanged;
+        ShortcutService.Changed -= OnShortcutsChanged;
         _input.Dismiss();
     }
 
