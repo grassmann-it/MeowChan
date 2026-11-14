@@ -31,6 +31,11 @@ internal static class ReaderQuickSettings
         Toggle(SettingsFieldId.ReaderHoverEnlarge, "settings.reader.hoverEnlarge", "settings.reader.hoverEnlarge.hint", c => c.ReaderHoverEnlarge, (c, v) => c.ReaderHoverEnlarge = v),
         Integer(SettingsFieldId.ReaderHoverEnlargeSize, "settings.reader.hoverSize", "settings.reader.hoverSize.hint", Config.ReaderHoverEnlargeSizeMinimum, Config.ReaderHoverEnlargeSizeMaximum, 40, c => c.ReaderHoverEnlargeSize, (c, v) => c.ReaderHoverEnlargeSize = v),
         Integer(SettingsFieldId.ReaderHoverEnlargeDelayMs, "settings.reader.hoverDelay", "settings.reader.hoverDelay.hint", Config.ReaderHoverEnlargeDelayMsMinimum, Config.ReaderHoverEnlargeDelayMsMaximum, 50, c => c.ReaderHoverEnlargeDelayMs, (c, v) => c.ReaderHoverEnlargeDelayMs = v),
+        // R8: the media sidebar of the large reader.
+        Toggle(SettingsFieldId.ReaderMediaSidebar, "settings.reader.mediaSidebar", "settings.reader.mediaSidebar.hint", c => c.ReaderMediaSidebar, (c, v) => c.ReaderMediaSidebar = v),
+        Choice(SettingsFieldId.ReaderMediaSidebarSide, "settings.reader.mediaSidebarSide", "settings.reader.mediaSidebarSide.hint", Options((Config.ReaderMediaSidebarSideLeft, "settings.reader.mediaSidebarSide.left"), (Config.ReaderMediaSidebarSideRight, "settings.reader.mediaSidebarSide.right")), c => c.ReaderMediaSidebarSide, (c, v) => c.ReaderMediaSidebarSide = v),
+        Integer(SettingsFieldId.ReaderMediaSidebarWidth, "settings.reader.mediaSidebarWidth", "settings.reader.mediaSidebarWidth.hint", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, 40, c => c.ReaderMediaSidebarWidth, (c, v) => c.ReaderMediaSidebarWidth = v),
+        Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
     };
 
     internal static readonly QuickSettingsSpec Spec = new(QuickSettingsSurfaces.Reader, "quicksettings.reader.title", "quicksettings.reader.all", Fields);

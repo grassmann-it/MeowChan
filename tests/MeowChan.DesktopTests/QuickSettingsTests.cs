@@ -35,7 +35,8 @@ public sealed class QuickSettingsTests : IDisposable
             SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers, SettingsFieldId.ReaderPageSize,
             SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
-            SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs
+            SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebar,
+            SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth
         }, Reader.Fields.Select(field => field.Id));
         Assert.Equal(Reader.Fields.Count, Reader.Fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.True(QuickSettingsSurfaces.Contains(SettingsFieldId.ReaderPostWidth));
