@@ -1,6 +1,11 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
+using MeowChan.Booru;
 using Serilog;
+using Serilog.Events;
+using Serilog.Formatting;
+using Serilog.Formatting.Display;
 
 namespace MeowChan.Desktop;
 
@@ -16,6 +21,32 @@ internal static class DesktopLog
     internal const int RetainedFileCount = 10;
     internal static readonly TimeSpan RetainedFileAge = TimeSpan.FromDays(14);
 
+    // Render first: exceptions, nested properties and literal message text can all echo an input URL.
+    // This is output redaction only; never use it to change a request, watch identity or provider query.
+    // Queries pasted into Add may contain unencoded spaces. Conservatively include the rest of
+    // that line, not just a whitespace-delimited URL token (which could leave the secret behind).
+    private static readonly Regex HttpUrl = new(@"https?://[^\r\n]+",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    internal static string RedactText(string text) =>
+        HttpUrl.Replace(text, match => DanbooruAddress.RedactForLog(match.Value));
+
+    internal static ITextFormatter ConsoleFormatter { get; } =
+        new AddressRedactingFormatter("[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}");
+    private static ITextFormatter FileFormatter { get; } =
+        new AddressRedactingFormatter("{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}");
+
+    private sealed class AddressRedactingFormatter(string template) : ITextFormatter
+    {
+        private readonly MessageTemplateTextFormatter _inner = new(template, null);
+
+        public void Format(LogEvent logEvent, TextWriter output)
+        {
+            using StringWriter rendered = new(output.FormatProvider);
+            _inner.Format(logEvent, rendered);
+            output.Write(RedactText(rendered.ToString()));
+        }
+    }
+
     /// <summary>The directory that holds the log files, or null when none is writable (console only).</summary>
     internal static string? Directory { get; private set; }
 
@@ -25,7 +56,7 @@ internal static class DesktopLog
         Directory = directory;
         if (directory == null) return configuration;
         // Shared: a second instance during single-instance handover must not fail on the same file.
-        return configuration.WriteTo.File(Path.Combine(directory, FileName), rollingInterval: RollingInterval.Day,
+        return configuration.WriteTo.File(FileFormatter, Path.Combine(directory, FileName), rollingInterval: RollingInterval.Day,
             fileSizeLimitBytes: fileSizeLimitBytes, rollOnFileSizeLimit: true, retainedFileCountLimit: RetainedFileCount,
             retainedFileTimeLimit: RetainedFileAge, shared: true);
     }

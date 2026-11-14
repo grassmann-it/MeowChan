@@ -616,7 +616,7 @@ public partial class MainWindow : Window
                     AdmissionStatus.Unsupported => "admission.unsupported",
                     _ => "admission.failed"
                 };
-                return Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error);
+                return DesktopLog.RedactText(Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error));
             }))
         };
         // The read-only report is a bare TextBox: without a name a screen reader announces only "edit, read only".
@@ -645,11 +645,11 @@ public partial class MainWindow : Window
         {
             Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             Padding = new Thickness(10, 2), MaxWidth = 460,
-            Content = new TextBlock { Text = label + " · " + duplicate.Url, TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
+            Content = new TextBlock { Text = DesktopLog.RedactText(label + " · " + duplicate.Url), TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
         };
         link.Classes.Add("subtle");
-        Avalonia.Automation.AutomationProperties.SetName(link, label + ": " + duplicate.Url);
-        ToolTip.SetTip(link, duplicate.Url);
+        Avalonia.Automation.AutomationProperties.SetName(link, DesktopLog.RedactText(label + ": " + duplicate.Url));
+        ToolTip.SetTip(link, DesktopLog.RedactText(duplicate.Url));
         long watchId = duplicate.WatchId!.Value;
         link.Click += (_, _) => ShowAdmissionDuplicate(watchId);
         return link;

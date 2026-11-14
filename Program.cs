@@ -29,7 +29,7 @@ internal static class Program
             Environment.Exit(124);
         }, null, TimeSpan.FromSeconds(StartupSmoke.Seconds + 30), Timeout.InfiniteTimeSpan);
         // The desktop host owns logging; constructing a library session never changes it.
-        Log.Logger = DesktopLog.Configure(new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console(),
+        Log.Logger = DesktopLog.Configure(new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console(DesktopLog.ConsoleFormatter),
             DesktopLog.ResolveDirectory()).CreateLogger();
         // Smokes must fail hard: nothing they raise may be swallowed into a green result.
         UnhandledErrors.Install(failHard: StartupSmoke != null);
