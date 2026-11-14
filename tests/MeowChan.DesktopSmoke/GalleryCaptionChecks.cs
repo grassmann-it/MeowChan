@@ -128,9 +128,15 @@ internal static class GalleryCaptionChecks
             Control surface = viewer.GetGalleryVisualDescendants().OfType<Control>()
                 .Single(control => control.Name is "GalleryNativeVideo" or "GallerySoftwareVideo");
             Rect surfaceBounds = Bounds(surface, viewer);
+            // GL2: docked, the video bar is the dock's first row (inside the tools surface, directly under the picture, no gap);
+            // in the Windows transparency fallback it stays under the picture inside the media viewport.
+            bool inDock = transport.GetVisualAncestors().OfType<Control>().Any(ancestor => ancestor.Name == "GalleryDockTransportHost");
             if (surfaceBounds.Height < 100 || transportBounds.Top < surfaceBounds.Bottom - 1
-                || transportBounds.Bottom > viewportBounds.Bottom + 1)
-                throw new InvalidOperationException("Video transport covers its picture or leaves the media viewport.");
+                || (inDock ? transportBounds.Top < viewportBounds.Bottom - 1 || transportBounds.Top < toolsBounds.Top - 1
+                    || transportBounds.Bottom > toolsBounds.Bottom + 1 || transportBounds.Left < toolsBounds.Left - 1
+                    || transportBounds.Right > toolsBounds.Right + 1 || toolsBounds.Top - viewportBounds.Bottom > 1
+                    : transportBounds.Bottom > viewportBounds.Bottom + 1))
+                throw new InvalidOperationException("Video transport covers its picture, leaves the dock, or leaves a gap above it.");
             Control[] actions = transport.GetVisualDescendants().OfType<Control>()
                 .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoVolume"
                     or "GalleryVideoPlayPause" or "GalleryVideoMute" or "GalleryVideoLoop" or "GalleryVideoTime").ToArray();

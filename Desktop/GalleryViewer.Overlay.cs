@@ -305,10 +305,12 @@ internal sealed partial class GalleryViewer
             {
                 // Restore transport before detaching/hiding its overlay host, including a
                 // Windows transparency failure. Never leave the usable controls on a hidden window.
-                _video?.SetExternalTransportHost(null);
+                // GL2: docked, the dock hosts the video bar (above the tools); only the transparency fallback keeps it under the picture.
+                if (!DockHostsTransport) _video?.SetExternalTransportHost(null);
                 MoveOverlayControl(_chrome, _dockStack);
                 MoveOverlayControl(_infoOverlay, _dockStack);
                 Grid.SetRow(_dockStack, _nativeOverlayFallback ? 2 : 1); Grid.SetRowSpan(_dockStack, 1);
+                if (DockHostsTransport) _video?.SetExternalTransportHost(_dockTransportHost);
                 // Keep the hidden footer parented. Removing it here would detach the
                 // source ancestor while its chrome/transport transfers are still queued.
             }
@@ -407,7 +409,12 @@ internal sealed partial class GalleryViewer
         SetOverlayBackground(_chrome, OverlayControlsEffective, background);
         SetOverlayBackground(_infoOverlay, OverlayControlsEffective, background);
         SetOverlayBackground(_contextPanel, ContextOverPicture, background);
-        if (_video?.TransportControl is Border transport) SetOverlayBackground(transport, OverlayControlsEffective, background);
+        if (_video?.TransportControl is Border transport)
+        {
+            SetOverlayBackground(transport, OverlayControlsEffective, background);
+            // GL2: in the dock the bar shares the tools' surface and inset (the dock's padding is its only inset).
+            if (DockHostsTransport) transport.Padding = new Thickness(0); else transport.ClearValue(Border.PaddingProperty);
+        }
         // Deliberately never set parent Opacity: text and controls remain fully opaque.
     }
 

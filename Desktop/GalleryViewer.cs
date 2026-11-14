@@ -100,7 +100,7 @@ internal sealed partial class GalleryViewer : UserControl
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
-        Margin = new Thickness(8, 8, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+        Margin = new Thickness(8, 0, 8, 0), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome)
     // GL1: the docked dock, one surface below the picture. First the filmstrip (when it is at the bottom), then the tools and the info
     // line; the floating footer (_overlayFooter) has the same order. GL2 hosts the video bar in it as well.
     private readonly StackPanel _dockStack = new() { Name = "GalleryDock", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -389,7 +389,7 @@ internal sealed partial class GalleryViewer : UserControl
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
-        _chrome.Child = WithTaggingStrip(toolbar); // the tagging mode's decision strip sits below the toolbar (PT3)
+        _chrome.Child = WithDockTransport(WithTaggingStrip(toolbar)); // the tagging mode's decision strip sits below the toolbar (PT3); GL2: the video bar above it
         foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");
         StackPanel infoContent = new() { Spacing = 2 };

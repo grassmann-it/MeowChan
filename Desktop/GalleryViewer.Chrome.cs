@@ -12,6 +12,30 @@ using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
+/// <summary>Where the video bar (the transport) lives: under the picture in the player, in the docked dock, or in the overlay footer.</summary>
+internal enum GalleryTransportHostKind { Player, Dock, Overlay }
+
+/// <summary>
+/// GL2 (PLAN-GALERIE-LAYOUT-BLOECKE §6): the video bar moves into the dock, so the video bar, the tools and the info are one surface
+/// without a gap. Pure rules, so they are tested without a window.
+/// </summary>
+internal static class GalleryTransportPlacement
+{
+    /// <summary>Overlay controls: the footer hosts it. Docked: the dock does, except in the Windows transparency fallback, which keeps the bar under the picture.</summary>
+    internal static GalleryTransportHostKind Resolve(bool overlayControls, bool transparencyFallback) =>
+        overlayControls ? GalleryTransportHostKind.Overlay : transparencyFallback ? GalleryTransportHostKind.Player : GalleryTransportHostKind.Dock;
+
+    /// <summary>The dock's host row shows while the plan has a video bar, the dock hosts it and the video is on the screen.</summary>
+    internal static bool DockRowVisible(bool planTransport, GalleryTransportHostKind host, bool videoShown) =>
+        planTransport && host == GalleryTransportHostKind.Dock && videoShown;
+
+    /// <summary>
+    /// The dock's margin: directly under the picture (the video bar is the dock's first row, nothing separates them); the fallback keeps
+    /// the 8 dip its full-width strip always had above the tools. The bottom is 8 only while no info line follows.
+    /// </summary>
+    internal static Thickness DockMargin(bool transparencyFallback, bool infoFollows) => new(8, transparencyFallback ? 8 : 0, 8, infoFollows ? 0 : 8);
+}
+
 // G1 (PLAN-TAGGING-GALERIE-UX-1.1 §3, §6): the viewer applies GalleryChromePlan in one place, ApplyChrome. Every change that can move a
 // block (the work view, the mode, the width, the side panel, the slideshow, the tools toggle, a medium) ends here; no other code sets the
 // visibility of a block the plan decides. Errors, warnings, the consent to remove a favourite and the way back are not blocks of the plan
@@ -34,6 +58,9 @@ internal sealed partial class GalleryViewer
         Name = "GalleryModeAnnouncement", Width = 0, Height = 0, ClipToBounds = true, IsHitTestVisible = false, Focusable = false,
         HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top
     };
+    // GL2: the dock hosts the video bar above the tools (one surface, 4 dip between the rows) in the docked placement; the overlay footer
+    // has its own host (GalleryViewer.Overlay.cs). Empty and collapsed while no video bar lives here.
+    private readonly StackPanel _dockTransportHost = new() { Name = "GalleryDockTransportHost", IsVisible = false };
     private GalleryChromePlan? _chromePlan;
     // GL0 hook: the person's layout choice per mode (GL4 loads and saves them per profile, GL3's menu changes them).
     private GalleryLayoutChoice _viewChoice = GalleryLayoutChoice.Default, _tagChoice = GalleryLayoutChoice.Default;
@@ -48,8 +75,19 @@ internal sealed partial class GalleryViewer
     /// <summary>The plan the chrome was last laid out for (tests and smokes).</summary>
     internal GalleryChromePlan ChromePlan => _chromePlan ?? BuildChromePlan();
     internal GalleryChromeMode ChromeMode => ChromePlan.Mode;
-    /// <summary>The input the current plan was resolved from (tests, smokes and GL3's menu rows).</summary>
-    internal GalleryChromeInput ChromeInput => BuildChromeInput();
+    /// <summary>
+    /// The input of what is on the screen now (tests, smokes and GL3's menu rows): the layout wish plus the real <c>ControlsHidden</c> state
+    /// (the overlay footer is auto-hidden). The plan the chrome is applied from, <see cref="ChromePlan"/>, resolves the wish without it.
+    /// </summary>
+    internal GalleryChromeInput ChromeInput => BuildChromeInput() with { ControlsHidden = ControlsHiddenNow };
+    /// <summary>The plan for what is on the screen now: <see cref="ChromePlan"/> seen through <see cref="ControlsHiddenNow"/>.</summary>
+    internal GalleryChromePlan ShownChromePlan => GalleryChromePlan.Resolve(ChromeInput);
+    /// <summary>The overlay footer is auto-hidden (only the overlay placement can hide the controls; the docked dock never does).</summary>
+    internal bool ControlsHiddenNow => OverlayControlsEffective && _overlayHidden;
+    /// <summary>The docked dock hosts the video bar (the Windows transparency fallback keeps it under the picture, as before).</summary>
+    private GalleryTransportHostKind TransportHostKind => GalleryTransportPlacement.Resolve(OverlayControlsEffective, _nativeOverlayFallback);
+    private bool DockHostsTransport => TransportHostKind == GalleryTransportHostKind.Dock;
+    internal Panel DockTransportHost => _dockTransportHost;
     internal ToggleButton ModeViewButton => _modeView;
     internal ToggleButton ModeTagButton => _modeTag;
     internal Panel ModeSwitch => _modeTools;
@@ -204,7 +242,9 @@ internal sealed partial class GalleryViewer
     {
         GalleryChromeMode mode = GalleryChromePlan.ResolveMode(IsTagMode);
         GalleryLayoutChoice choice = EffectiveLayoutChoice(mode);
-        // ControlsHidden stays false here: the overlay footer hides as a whole (GalleryOverlayActivity); GL1/GL2 read it for their hosts.
+        // ControlsHidden stays false in the plan the chrome is applied from: the overlay footer hides as a whole (GalleryOverlayActivity) and
+        // gives every block back unchanged, while the filmstrip's peek, the hints and the slideshow toggle ask this plan for the person's
+        // layout wish. ChromeInput / ShownChromePlan carry the real state (GL2).
         return new GalleryChromeInput(mode, _workView, choice, _mediaFocus, OverlayControlsEffective, ControlsHidden: false,
             _entry?.Kind == SavedMediaKind.Video, _contextOpen, _taggingSurface != null, Bounds.Width, Bounds.Height)
         {
@@ -259,8 +299,22 @@ internal sealed partial class GalleryViewer
         // Diagnostic notices have no visibility or auto-hide authority. The capability
         // fallback is neutral layout information, not a dismissible technical banner.
         _infoOverlay.IsVisible = !_mediaFocus || _slideshowStatus.IsVisible;
-        _chrome.Margin = new Thickness(8, 8, 8, _infoOverlay.IsVisible ? 0 : 8);
+        // GL2: the dock sits directly under the picture (the video bar is its first row now); only the Windows fallback, whose bar stays
+        // under the picture as a full-width strip, keeps the 8 dip it always had.
+        _chrome.Margin = GalleryTransportPlacement.DockMargin(_nativeOverlayFallback, _infoOverlay.IsVisible);
+        // The video bar is a plan block (Transport); its docked host is visible only while the dock hosts it and the video is shown (the
+        // transport left the player, so the player's own visibility no longer hides it).
+        _dockTransportHost.IsVisible = GalleryTransportPlacement.DockRowVisible(plan.Transport, TransportHostKind, _video?.IsVisible == true);
         if (focusLost) RescueChromeFocus();
+    }
+
+    // GL2: the video bar's row above the tools; it shares the dock's surface, so the rows are 4 dip apart and there is no second frame.
+    private Control WithDockTransport(Control tools)
+    {
+        StackPanel dock = new() { Spacing = 4 };
+        dock.Children.Add(_dockTransportHost);
+        dock.Children.Add(tools);
+        return dock;
     }
 
     // Movable tools follow the plan (the view, the mode and the width); the slideshow toggle has its own home (R6).
