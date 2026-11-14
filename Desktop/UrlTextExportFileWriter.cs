@@ -29,14 +29,33 @@ internal sealed record UrlTextExportFileWriteResult(UrlTextExportFileWriteStatus
 /// </summary>
 internal sealed class UrlTextExportFileWriter
 {
-    internal const int MaximumBytes = 1_048_576;
+    internal const int DefaultLimitMiB = 1;
+    internal const int MinimumLimitMiB = 1;
+    internal const int MaximumLimitMiB = 64;
+    // Compatibility name for the old default, NOT the configured writer's byte ceiling.
+    internal const int MaximumBytes = DefaultLimitMiB * 1024 * 1024;
+    // Path length/components remain fixed technical bounds, independent of output size.
+    // ArchiveUrlTextExportPlan/PlainUrlText retain their own narrower single-page/format bounds.
     internal const int MaximumPathCharacters = 4096;
     // Non-root segments, including the filename; at most this many parent checks.
     internal const int MaximumPathComponents = 128;
     private readonly UrlTextExportAfterOpenTestGate? _afterOpenForTests;
 
     internal UrlTextExportFileWriter(UrlTextExportAfterOpenTestGate? afterOpenForTests = null)
-        => _afterOpenForTests = afterOpenForTests;
+        : this(DefaultLimitMiB, afterOpenForTests) { }
+
+    internal UrlTextExportFileWriter(int limitMiB, UrlTextExportAfterOpenTestGate? afterOpenForTests = null)
+    {
+        // Reject before converting: even int.MaxValue must not overflow or wrap into an accepted byte budget.
+        if (limitMiB is < MinimumLimitMiB or > MaximumLimitMiB)
+            throw new ArgumentOutOfRangeException(nameof(limitMiB));
+        LimitBytes = checked(limitMiB * 1024 * 1024);
+        _afterOpenForTests = afterOpenForTests;
+    }
+
+    internal int LimitBytes { get; }
+    // Pure size policy used before copying the plan or doing any filesystem work.
+    internal bool IsWithinByteLimit(int byteCount) => byteCount > 0 && byteCount <= LimitBytes;
 
     internal Task<UrlTextExportFileWriteResult> WriteAsync(ArchiveUrlTextExportPlan? plan,
         string? destination, CancellationToken cancellationToken = default)
@@ -44,8 +63,10 @@ internal sealed class UrlTextExportFileWriter
         if (cancellationToken.IsCancellationRequested)
             return Task.FromResult(new UrlTextExportFileWriteResult(UrlTextExportFileWriteStatus.Canceled,
                 UrlTextExportFileWriteError.Canceled));
-        if (plan is null || plan.ByteCount is <= 0 or > MaximumBytes)
+        if (plan is null || plan.ByteCount <= 0)
             return Task.FromResult(Failed(UrlTextExportFileWriteError.InvalidPlan));
+        if (!IsWithinByteLimit(plan.ByteCount))
+            return Task.FromResult(Failed(UrlTextExportFileWriteError.LimitExceeded));
         UrlTextExportFileWriteError error = ValidatePath(destination, out string? full, out string[]? parts);
         if (error != UrlTextExportFileWriteError.None) return Task.FromResult(Failed(error));
         byte[] bytes = plan.CopyUtf8();

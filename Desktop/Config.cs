@@ -104,6 +104,9 @@ namespace MeowChan
         /// profile and every in-memory configuration start false, and dismissing or acting on the notice saves false.
         /// </summary>
         public bool WorkViewNoticePending { get; set; }
+        /// <summary>Whether entering Barebones may shrink the window; layout data itself is retained.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ShrinkWindowForBarebones { get; set; } = true;
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool RememberReadingPosition { get; set; }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
@@ -151,6 +154,21 @@ namespace MeowChan
         internal const int BooruRetryAfterCooldownDefaultHours = 24;
         internal const int BooruRetryAfterCooldownMinimumHours = 1;
         internal const int BooruRetryAfterCooldownMaximumHours = 168;
+        /// <summary>Admission limit per include/exclude list. Never apply this preference when reading saved filters.</summary>
+        public int ArchiveTagFilterTagsPerList { get; set; } = ArchiveTagFilterTagsPerListDefault;
+        internal const int ArchiveTagFilterTagsPerListDefault = Archive.ArchiveTagFilter.DefaultTagsPerList;
+        internal const int ArchiveTagFilterTagsPerListMinimum = Archive.ArchiveTagFilter.MinimumTagsPerList;
+        internal const int ArchiveTagFilterTagsPerListMaximum = Archive.ArchiveTagFilter.MaximumConfigurableTagsPerList;
+        /// <summary>Writer output budget in MiB; URL syntax/identity and path safety ceilings are independent.</summary>
+        public int UrlTextExportLimitMiB { get; set; } = UrlTextExportLimitMiBDefault;
+        internal const int UrlTextExportLimitMiBDefault = Desktop.UrlTextExportFileWriter.DefaultLimitMiB;
+        internal const int UrlTextExportLimitMiBMinimum = Desktop.UrlTextExportFileWriter.MinimumLimitMiB;
+        internal const int UrlTextExportLimitMiBMaximum = Desktop.UrlTextExportFileWriter.MaximumLimitMiB;
+        /// <summary>Most slash-marker suggestions offered, without changing the text/token scan ceilings.</summary>
+        public int SlashTagSuggestionCount { get; set; } = SlashTagSuggestionCountDefault;
+        internal const int SlashTagSuggestionCountDefault = Tags.SlashTagSuggestions.DefaultSuggestionCount;
+        internal const int SlashTagSuggestionCountMinimum = Tags.SlashTagSuggestions.MinimumSuggestionCount;
+        internal const int SlashTagSuggestionCountMaximum = Tags.SlashTagSuggestions.MaximumSuggestionCount;
         /// <summary>
         /// Most own tags the profile may define. Lowering it below the current number keeps every tag readable and
         /// usable; only new tags are refused until the count is below the limit again.
@@ -537,6 +555,9 @@ namespace MeowChan
             QuickTagSourceTagsPerMedium = Math.Clamp(QuickTagSourceTagsPerMedium, QuickTagSourceTagsPerMediumMinimum, QuickTagSourceTagsPerMediumMaximum);
             QuickTagMarkedMediaLimit = Math.Clamp(QuickTagMarkedMediaLimit, QuickTagMarkedMediaLimitMinimum, QuickTagMarkedMediaLimitMaximum);
             VideoScrubCacheLimitMiB = Math.Clamp(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBMinimum, VideoScrubCacheLimitMiBMaximum);
+            ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
+            UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
+            SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
 
             // The new profiles win even if a hand-edited file places legacy active
             // preference fields after LayoutProfiles.
@@ -939,6 +960,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruCatalogLimitMiB), "The Danbooru catalog limit must be between 8 and 128 MiB.");
             if (BooruRetryAfterCooldownHours is < BooruRetryAfterCooldownMinimumHours or > BooruRetryAfterCooldownMaximumHours)
                 throw new ArgumentOutOfRangeException(nameof(BooruRetryAfterCooldownHours), "The Danbooru Retry-After cooldown must be between 1 and 168 hours.");
+            if (ArchiveTagFilterTagsPerList is < ArchiveTagFilterTagsPerListMinimum or > ArchiveTagFilterTagsPerListMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ArchiveTagFilterTagsPerList), "ArchiveTagFilterTagsPerList is outside its supported range (" + ArchiveTagFilterTagsPerListMinimum + " to " + ArchiveTagFilterTagsPerListMaximum + ").");
+            if (UrlTextExportLimitMiB is < UrlTextExportLimitMiBMinimum or > UrlTextExportLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(UrlTextExportLimitMiB), "UrlTextExportLimitMiB is outside its supported range (" + UrlTextExportLimitMiBMinimum + " to " + UrlTextExportLimitMiBMaximum + ").");
+            if (SlashTagSuggestionCount is < SlashTagSuggestionCountMinimum or > SlashTagSuggestionCountMaximum)
+                throw new ArgumentOutOfRangeException(nameof(SlashTagSuggestionCount), "SlashTagSuggestionCount is outside its supported range (" + SlashTagSuggestionCountMinimum + " to " + SlashTagSuggestionCountMaximum + ").");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
                 throw new ArgumentOutOfRangeException(nameof(PrivateTagLimit), "The own tag limit must be between " + PrivateTagMinimumLimit + " and " + PrivateTagMaximumLimit + ".");
             if (PrivateTagFileLimitMiB is < PrivateTagFileMinimumLimitMiB or > PrivateTagFileMaximumLimitMiB)
@@ -1113,6 +1140,10 @@ namespace MeowChan
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
                 BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
+                ArchiveTagFilterTagsPerList = ArchiveTagFilterTagsPerList,
+                UrlTextExportLimitMiB = UrlTextExportLimitMiB,
+                SlashTagSuggestionCount = SlashTagSuggestionCount,
+                ShrinkWindowForBarebones = ShrinkWindowForBarebones,
                 PrivateTagLimit = PrivateTagLimit,
                 PrivateTagFileLimitMiB = PrivateTagFileLimitMiB,
                 MediaIndexCacheLimitMiB = MediaIndexCacheLimitMiB,
@@ -1283,6 +1314,10 @@ namespace MeowChan
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
+            ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
+            UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            SlashTagSuggestionCount = source.SlashTagSuggestionCount;
+            ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;
@@ -1412,6 +1447,10 @@ namespace MeowChan
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
+            ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
+            UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            SlashTagSuggestionCount = source.SlashTagSuggestionCount;
+            ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
             PrivateTagFileLimitMiB = source.PrivateTagFileLimitMiB;
             MediaIndexCacheLimitMiB = source.MediaIndexCacheLimitMiB;

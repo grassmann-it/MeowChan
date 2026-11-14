@@ -15,13 +15,26 @@ internal enum ArchiveTagMatch { All, Any }
 /// </summary>
 internal sealed class ArchiveTagFilter : IEquatable<ArchiveTagFilter>
 {
-    internal const int MaximumTagsPerList = 32;
+    internal const int DefaultTagsPerList = 32;
+    internal const int MinimumTagsPerList = 8;
+    /// <summary>Absolute per-list allocation/iteration ceiling, also for restoring saved filters.</summary>
+    internal const int MaximumConfigurableTagsPerList = 128;
+    // Compatibility name for callers that have not yet adopted a configurable admission limit.
+    internal const int MaximumTagsPerList = DefaultTagsPerList;
 
     internal ArchiveTagFilter(IEnumerable<Guid>? include, IEnumerable<Guid>? exclude, ArchiveTagMatch match = ArchiveTagMatch.All)
+        : this(include, exclude, match, DefaultTagsPerList) { }
+
+    /// <summary>
+    /// Admission limit for a new/expanded filter, not part of its identity. When restoring or reducing a saved
+    /// filter, callers must use MaximumConfigurableTagsPerList, not a possibly lowered user preference.
+    /// </summary>
+    internal ArchiveTagFilter(IEnumerable<Guid>? include, IEnumerable<Guid>? exclude, ArchiveTagMatch match, int tagsPerList)
     {
+        ValidateLimit(tagsPerList);
         if (!Enum.IsDefined(match)) throw new ArgumentOutOfRangeException(nameof(match));
-        Guid[] included = Canonical(include, nameof(include));
-        Guid[] excluded = Canonical(exclude, nameof(exclude));
+        Guid[] included = Canonical(include, nameof(include), tagsPerList);
+        Guid[] excluded = Canonical(exclude, nameof(exclude), tagsPerList);
         if (included.Length == 0 && excluded.Length == 0)
             throw new ArgumentException("A tag filter needs at least one tag.");
         if (included.Intersect(excluded).Any())
@@ -34,21 +47,33 @@ internal sealed class ArchiveTagFilter : IEquatable<ArchiveTagFilter>
 
     /// <summary>Null when both lists are empty, so "no tag filter" has exactly one representation.</summary>
     internal static ArchiveTagFilter? OrNull(IEnumerable<Guid>? include, IEnumerable<Guid>? exclude,
-        ArchiveTagMatch match = ArchiveTagMatch.All)
+        ArchiveTagMatch match = ArchiveTagMatch.All) => OrNull(include, exclude, match, DefaultTagsPerList);
+
+    internal static ArchiveTagFilter? OrNull(IEnumerable<Guid>? include, IEnumerable<Guid>? exclude,
+        ArchiveTagMatch match, int tagsPerList)
     {
-        Guid[] included = (include ?? []).ToArray(), excluded = (exclude ?? []).ToArray();
-        return included.Length == 0 && excluded.Length == 0 ? null : new ArchiveTagFilter(included, excluded, match);
+        ValidateLimit(tagsPerList);
+        Guid[] included = Canonical(include, nameof(include), tagsPerList);
+        Guid[] excluded = Canonical(exclude, nameof(exclude), tagsPerList);
+        return included.Length == 0 && excluded.Length == 0 ? null : new ArchiveTagFilter(included, excluded, match, tagsPerList);
     }
 
     internal IReadOnlyList<Guid> Include { get; }
     internal IReadOnlyList<Guid> Exclude { get; }
     internal ArchiveTagMatch Match { get; }
 
-    private static Guid[] Canonical(IEnumerable<Guid>? values, string parameter)
+    private static void ValidateLimit(int tagsPerList)
     {
-        Guid[] items = (values ?? []).Take(MaximumTagsPerList + 1).ToArray();
-        if (items.Length > MaximumTagsPerList)
-            throw new ArgumentException("At most " + MaximumTagsPerList + " tags are supported per list.", parameter);
+        // Validate before +1 or enumeration, including for an empty OrNull call.
+        if (tagsPerList is < MinimumTagsPerList or > MaximumConfigurableTagsPerList)
+            throw new ArgumentOutOfRangeException(nameof(tagsPerList));
+    }
+
+    private static Guid[] Canonical(IEnumerable<Guid>? values, string parameter, int tagsPerList)
+    {
+        Guid[] items = (values ?? []).Take(tagsPerList + 1).ToArray();
+        if (items.Length > tagsPerList)
+            throw new ArgumentException("At most " + tagsPerList + " tags are supported per list.", parameter);
         if (items.Any(item => item == Guid.Empty)) throw new ArgumentException("A tag reference cannot be empty.", parameter);
         return items.Distinct().OrderBy(item => item.ToString("D"), StringComparer.Ordinal).ToArray();
     }
