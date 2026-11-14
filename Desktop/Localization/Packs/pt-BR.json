@@ -4476,6 +4476,18 @@
     "profile.startMedia.added": "A pasta de mídia “{0}” foi adicionada como pasta somente leitura. O MeowChan está examinando-a agora.",
     "profile.startMedia.refused": "A pasta de mídia deste perfil não foi adicionada. {0}",
     "profile.startMedia.badArgument": "O argumento de inicialização da pasta de mídia estava incompleto.",
-    "profile.startMedia.needsProfile": "Uma pasta de mídia só pode ser passada ao abrir um perfil."
+    "profile.startMedia.needsProfile": "Uma pasta de mídia só pode ser passada ao abrir um perfil.",
+    "folderSource.version.note": "Este arquivo mudou no disco depois de receber tags. As tags pertencem à versão exata do arquivo, por isso ficaram na versão anterior e não aparecem nesta.",
+    "folderSource.version.short": "Este arquivo mudou depois de receber tags; as tags dele ficaram na versão anterior. “Todas as ocorrências…” pode copiá-las.",
+    "folderSource.version.copy": "Copiar as tags da versão anterior",
+    "folderSource.version.confirm": "Copiar as tags da versão anterior para este arquivo? A versão anterior mantém as tags dela. O MeowChan lê o arquivo uma vez para confirmar o conteúdo.",
+    "folderSource.version.confirmYes": "Copiar tags",
+    "folderSource.version.confirmNo": "Cancelar",
+    "folderSource.version.done": "As tags foram copiadas para esta versão.",
+    "folderSource.version.none": "Esta versão já tem todas essas tags.",
+    "folderSource.version.undo": "Desfazer",
+    "folderSource.version.undone": "As tags copiadas foram removidas desta versão novamente.",
+    "folderSource.version.failed": "Não foi possível copiar as tags. O arquivo pode ter mudado de novo ou não pode ser lido. Nada foi alterado.",
+    "folderSource.version.undoFailed": "Não foi possível remover as tags copiadas. Remova-as manualmente."
   }
 }

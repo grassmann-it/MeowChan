@@ -114,6 +114,22 @@ internal sealed partial class DesktopSessionHost
     internal Task<PrivateTagCommit> SetMediaSubjectTagAsync(TagId tag, MediaTagSubject subject, bool assigned,
         CancellationToken token = default) => SetMediaSubjectTagsAsync(tag, new[] { subject }, assigned, null, token);
 
+    /// <summary>
+    /// Several tags on one media subject as a single admitted write: all or none. Before an add, a local subject is revalidated
+    /// against the catalog and its manifest and its bytes are hashed, exactly like <see cref="SetMediaSubjectTagsAsync"/>.
+    /// </summary>
+    internal Task<PrivateTagCommit> SetMediaSubjectTagSetAsync(IReadOnlyList<TagId> tags, MediaTagSubject subject, bool assigned,
+        long? expectedRevision = null, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(tags);
+        ArgumentNullException.ThrowIfNull(subject);
+        TagId[] ids = tags.ToArray();
+        MediaTagSubject[] frozen = { subject };
+        return RunInteractiveWithAdmissionAsync(nameof(SetMediaSubjectTagSetAsync), ids.Length + " tags " + SubjectKey(frozen),
+            admission => MutatePrivateTagsAsync(store => store.SetSubjectTagsAdmitted(ids, subject, assigned, admission, expectedRevision, token),
+                token, assigned ? ct => RevalidateLocalSubjectsAsync(frozen, ct) : null));
+    }
+
     /// <summary>Create-or-get by name and assign to the subjects in ONE admitted write (no stray new tag on failure).</summary>
     internal Task<PrivateTagCommit> DefineAndSetMediaSubjectTagsAsync(string name, IReadOnlyList<MediaTagSubject> subjects,
         long? expectedRevision = null, CancellationToken token = default)

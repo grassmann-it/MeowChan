@@ -4513,6 +4513,18 @@
     "profile.startMedia.added": "Složka s médii „{0}“ byla přidána jako složka jen pro čtení. MeowChan ji právě prochází.",
     "profile.startMedia.refused": "Složka s médii pro tento profil nebyla přidána. {0}",
     "profile.startMedia.badArgument": "Spouštěcí argument pro složku s médii byl neúplný.",
-    "profile.startMedia.needsProfile": "Složku s médii lze předat jen při otevření profilu."
+    "profile.startMedia.needsProfile": "Složku s médii lze předat jen při otevření profilu.",
+    "folderSource.version.note": "Tento soubor se po označení štítky na disku změnil. Štítky patří k přesné verzi souboru, proto zůstaly u předchozí verze a u této se nezobrazují.",
+    "folderSource.version.short": "Tento soubor se po označení štítky změnil; jeho štítky zůstaly u předchozí verze. Zkopírovat je může volba „Všechny výskyty…“.",
+    "folderSource.version.copy": "Zkopírovat štítky z předchozí verze",
+    "folderSource.version.confirm": "Zkopírovat štítky předchozí verze do tohoto souboru? Předchozí verze si své štítky ponechá. MeowChan soubor jednou přečte, aby potvrdil jeho obsah.",
+    "folderSource.version.confirmYes": "Zkopírovat štítky",
+    "folderSource.version.confirmNo": "Zrušit",
+    "folderSource.version.done": "Štítky byly zkopírovány do této verze.",
+    "folderSource.version.none": "Tato verze už všechny tyto štítky má.",
+    "folderSource.version.undo": "Zpět",
+    "folderSource.version.undone": "Zkopírované štítky byly z této verze znovu odebrány.",
+    "folderSource.version.failed": "Štítky se nepodařilo zkopírovat. Soubor se mohl znovu změnit nebo ho nelze přečíst. Nic nebylo změněno.",
+    "folderSource.version.undoFailed": "Zkopírované štítky se nepodařilo odebrat. Odeberte je ručně."
   }
 }

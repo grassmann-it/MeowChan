@@ -4476,6 +4476,18 @@
     "profile.startMedia.added": "La cartella multimediale “{0}” è stata aggiunta come cartella di sola lettura. MeowChan la sta esaminando.",
     "profile.startMedia.refused": "La cartella multimediale di questo profilo non è stata aggiunta. {0}",
     "profile.startMedia.badArgument": "L’argomento di avvio per la cartella multimediale era incompleto.",
-    "profile.startMedia.needsProfile": "Una cartella multimediale può essere passata solo quando si apre un profilo."
+    "profile.startMedia.needsProfile": "Una cartella multimediale può essere passata solo quando si apre un profilo.",
+    "folderSource.version.note": "Questo file è cambiato sul disco dopo l’assegnazione dei tag. I tag appartengono alla versione esatta del file, quindi sono rimasti con la versione precedente e non compaiono su questa.",
+    "folderSource.version.short": "Questo file è cambiato dopo l’assegnazione dei tag; i suoi tag sono rimasti con la versione precedente. “Tutte le occorrenze…” può copiarli.",
+    "folderSource.version.copy": "Copia i tag della versione precedente",
+    "folderSource.version.confirm": "Copiare i tag della versione precedente su questo file? La versione precedente mantiene i suoi tag. MeowChan legge il file una volta per confermarne il contenuto.",
+    "folderSource.version.confirmYes": "Copia i tag",
+    "folderSource.version.confirmNo": "Annulla",
+    "folderSource.version.done": "I tag sono stati copiati su questa versione.",
+    "folderSource.version.none": "Questa versione ha già tutti questi tag.",
+    "folderSource.version.undo": "Annulla",
+    "folderSource.version.undone": "I tag copiati sono stati rimossi di nuovo da questa versione.",
+    "folderSource.version.failed": "Impossibile copiare i tag. Il file potrebbe essere cambiato di nuovo o non essere leggibile. Non è stato modificato nulla.",
+    "folderSource.version.undoFailed": "Impossibile rimuovere i tag copiati. Rimuovili a mano."
   }
 }

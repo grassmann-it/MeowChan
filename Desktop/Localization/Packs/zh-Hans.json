@@ -4385,6 +4385,18 @@
     "profile.startMedia.added": "已将媒体文件夹“{0}”添加为只读文件夹。MeowChan 正在浏览其中的内容。",
     "profile.startMedia.refused": "未添加此配置文件的媒体文件夹。{0}",
     "profile.startMedia.badArgument": "媒体文件夹的启动参数不完整。",
-    "profile.startMedia.needsProfile": "只有在打开配置文件时才能传入媒体文件夹。"
+    "profile.startMedia.needsProfile": "只有在打开配置文件时才能传入媒体文件夹。",
+    "folderSource.version.note": "此文件在添加标签后在磁盘上发生了变化。标签属于文件的确切版本，因此留在了上一版本上，不会显示在这一版本上。",
+    "folderSource.version.short": "此文件在添加标签后发生了变化；其标签留在了上一版本上。可通过“所有出现位置…”复制它们。",
+    "folderSource.version.copy": "复制上一版本的标签",
+    "folderSource.version.confirm": "要将上一版本的标签复制到此文件吗？上一版本会保留其标签。MeowChan 会读取该文件一次以确认其内容。",
+    "folderSource.version.confirmYes": "复制标签",
+    "folderSource.version.confirmNo": "取消",
+    "folderSource.version.done": "标签已复制到此版本。",
+    "folderSource.version.none": "此版本已包含所有这些标签。",
+    "folderSource.version.undo": "撤销",
+    "folderSource.version.undone": "已再次从此版本中移除复制的标签。",
+    "folderSource.version.failed": "无法复制标签。文件可能再次发生了变化，或无法读取。未做任何更改。",
+    "folderSource.version.undoFailed": "无法移除复制的标签。请手动移除。"
   }
 }

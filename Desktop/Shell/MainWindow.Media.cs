@@ -52,6 +52,8 @@ public partial class MainWindow
             ReadImportCatalog = _session.ReadManualImportCatalog,
             ReadFolderSources = _session.ReadFolderSources,
             HashFolderFilesAsync = HashFolderFilesForActionAsync,
+            FolderVersions = new(entry => FolderSources.FolderSourceIdentity.TryParseId(entry.FolderItemId, out Guid item) ? _session.FindFolderFileSuccession(item) : null,
+                (item, token) => _session.CopyFolderFileTagsAsync(item, token), (copy, token) => _session.UndoFolderFileTagCopyAsync(copy, token)),
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
                 (tag, subjects, assigned, expectedRevision, token) => _session.SetMediaSubjectTagsAsync(tag, subjects, assigned, expectedRevision, token)),

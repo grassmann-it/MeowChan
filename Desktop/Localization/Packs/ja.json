@@ -4385,6 +4385,18 @@
     "profile.startMedia.added": "メディアフォルダー「{0}」を読み取り専用フォルダーとして追加しました。MeowChan がいま内容を確認しています。",
     "profile.startMedia.refused": "このプロファイルのメディアフォルダーは追加されませんでした。{0}",
     "profile.startMedia.badArgument": "メディアフォルダーの起動引数が不完全でした。",
-    "profile.startMedia.needsProfile": "メディアフォルダーを渡せるのは、プロファイルを開くときだけです。"
+    "profile.startMedia.needsProfile": "メディアフォルダーを渡せるのは、プロファイルを開くときだけです。",
+    "folderSource.version.note": "このファイルは、タグを付けた後にディスク上で変更されました。タグはファイルの正確なバージョンに結び付いているため、前のバージョンに残り、このバージョンには表示されません。",
+    "folderSource.version.short": "このファイルはタグを付けた後に変わりました。タグは前のバージョンに残っています。「すべての出現箇所…」からコピーできます。",
+    "folderSource.version.copy": "前のバージョンのタグをコピー",
+    "folderSource.version.confirm": "前のバージョンのタグをこのファイルにコピーしますか？前のバージョンのタグはそのまま残ります。内容を確認するため、MeowChan はファイルを一度読み取ります。",
+    "folderSource.version.confirmYes": "タグをコピー",
+    "folderSource.version.confirmNo": "キャンセル",
+    "folderSource.version.done": "タグをこのバージョンにコピーしました。",
+    "folderSource.version.none": "このバージョンには、これらのタグがすべて付いています。",
+    "folderSource.version.undo": "元に戻す",
+    "folderSource.version.undone": "コピーしたタグをこのバージョンから再び削除しました。",
+    "folderSource.version.failed": "タグをコピーできませんでした。ファイルが再び変更されたか、読み取れない可能性があります。何も変更していません。",
+    "folderSource.version.undoFailed": "コピーしたタグを削除できませんでした。手動で削除してください。"
   }
 }

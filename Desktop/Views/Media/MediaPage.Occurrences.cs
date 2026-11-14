@@ -27,7 +27,7 @@ public sealed partial class MediaPage
         // One catalog read per window; each provider occurrence lists the findings that brought it here.
         BooruCatalogSnapshot? catalog = tile.Occurrences.Any(entry => entry.BooruPostId != null) ? SafeReadBooruCatalog() : null;
         MediaOccurrencesWindow window = new(tile, OccurrenceTags, entry => entry.PostId != null && ShowInThread != null,
-            entry => _ = ShowOccurrenceInThreadAsync(entry), entry => ProviderFindings(catalog, entry));
+            entry => _ = ShowOccurrenceInThreadAsync(entry), entry => ProviderFindings(catalog, entry), FolderVersionNoticeOf);
         _occurrences = window;
         window.Closed += (_, _) => { if (ReferenceEquals(_occurrences, window)) _occurrences = null; };
         if (_owner != null) window.Show(_owner); else window.Show();

@@ -139,7 +139,8 @@ public sealed partial class MediaPage
         _selClear.IsEnabled = count > 0;
         UpdateExportAll();
         RefreshWorkView();
-        if (count == 0 && !_selectionBusy) ShowSelectionNote(null);
+        if (count == 0 && !_selectionBusy) { _folderNoteShown = false; ShowSelectionNote(null); }
+        UpdateFolderVersionNote(count);
     }
 
     private int NotSavedSelected()

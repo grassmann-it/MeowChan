@@ -4516,6 +4516,18 @@
     "profile.startMedia.added": "Folder multimediów „{0}” został dodany jako folder tylko do odczytu. MeowChan właśnie go przegląda.",
     "profile.startMedia.refused": "Folder multimediów dla tego profilu nie został dodany. {0}",
     "profile.startMedia.badArgument": "Argument startowy folderu multimediów był niekompletny.",
-    "profile.startMedia.needsProfile": "Folder multimediów można przekazać tylko przy otwieraniu profilu."
+    "profile.startMedia.needsProfile": "Folder multimediów można przekazać tylko przy otwieraniu profilu.",
+    "folderSource.version.note": "Ten plik zmienił się na dysku po otagowaniu. Tagi należą do dokładnej wersji pliku, więc zostały przy poprzedniej wersji i nie są widoczne przy tej.",
+    "folderSource.version.short": "Ten plik zmienił się po otagowaniu; jego tagi zostały przy poprzedniej wersji. Opcja „Wszystkie wystąpienia…” może je skopiować.",
+    "folderSource.version.copy": "Skopiuj tagi z poprzedniej wersji",
+    "folderSource.version.confirm": "Skopiować tagi poprzedniej wersji do tego pliku? Poprzednia wersja zachowuje swoje tagi. MeowChan odczytuje plik jeden raz, aby potwierdzić jego zawartość.",
+    "folderSource.version.confirmYes": "Skopiuj tagi",
+    "folderSource.version.confirmNo": "Anuluj",
+    "folderSource.version.done": "Tagi zostały skopiowane do tej wersji.",
+    "folderSource.version.none": "Ta wersja ma już wszystkie te tagi.",
+    "folderSource.version.undo": "Cofnij",
+    "folderSource.version.undone": "Skopiowane tagi zostały ponownie usunięte z tej wersji.",
+    "folderSource.version.failed": "Nie udało się skopiować tagów. Plik mógł się znowu zmienić albo nie można go odczytać. Nic nie zostało zmienione.",
+    "folderSource.version.undoFailed": "Nie udało się usunąć skopiowanych tagów. Usuń je ręcznie."
   }
 }

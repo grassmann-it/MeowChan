@@ -106,6 +106,28 @@ internal sealed class FolderSourceCatalogSnapshot
         return items.GetValueOrDefault(id);
     }
 
+    private Dictionary<(Guid, string), FolderSourceItem[]>? _versions;
+
+    /// <summary>
+    /// The earlier hashed versions of the file at <paramref name="relativePath"/> of a root: its missing rows (bytes changed, file gone)
+    /// that were once hashed, newest first. Empty when there are none. The lookup is built on first use over the missing rows only.
+    /// </summary>
+    internal IReadOnlyList<FolderSourceItem> PreviousVersions(Guid root, string relativePath)
+    {
+        Dictionary<(Guid, string), FolderSourceItem[]> versions = Volatile.Read(ref _versions) ?? BuildVersions();
+        return versions.TryGetValue((root, relativePath), out FolderSourceItem[]? found) ? found : Array.Empty<FolderSourceItem>();
+    }
+
+    private Dictionary<(Guid, string), FolderSourceItem[]> BuildVersions()
+    {
+        Dictionary<(Guid, string), FolderSourceItem[]> versions = Items
+            .Where(item => item.State == FolderSourceItemState.Missing && item.Sha256 != null)
+            .GroupBy(item => (item.RootId, item.RelativePath))
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.FirstSeenUtc).ToArray());
+        Volatile.Write(ref _versions, versions);
+        return versions;
+    }
+
     private Dictionary<Guid, FolderSourceItem> BuildItems()
     {
         Dictionary<Guid, FolderSourceItem> items = new(Items.Count);

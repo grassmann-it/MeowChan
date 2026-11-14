@@ -4470,6 +4470,18 @@
     "profile.startMedia.added": "La carpeta de medios “{0}” se añadió como carpeta de solo lectura. MeowChan la está revisando ahora.",
     "profile.startMedia.refused": "La carpeta de medios de este perfil no se añadió. {0}",
     "profile.startMedia.badArgument": "El argumento de inicio de la carpeta de medios estaba incompleto.",
-    "profile.startMedia.needsProfile": "Una carpeta de medios solo se puede entregar al abrir un perfil."
+    "profile.startMedia.needsProfile": "Una carpeta de medios solo se puede entregar al abrir un perfil.",
+    "folderSource.version.note": "Este archivo cambió en el disco después de etiquetarlo. Las etiquetas pertenecen a la versión exacta del archivo, así que se quedaron en la versión anterior y no aparecen en esta.",
+    "folderSource.version.short": "Este archivo cambió después de etiquetarlo; sus etiquetas se quedaron en la versión anterior. “Todas las apariciones…” puede copiarlas.",
+    "folderSource.version.copy": "Copiar las etiquetas de la versión anterior",
+    "folderSource.version.confirm": "¿Copiar las etiquetas de la versión anterior a este archivo? La versión anterior conserva sus etiquetas. MeowChan lee el archivo una vez para confirmar su contenido.",
+    "folderSource.version.confirmYes": "Copiar etiquetas",
+    "folderSource.version.confirmNo": "Cancelar",
+    "folderSource.version.done": "Las etiquetas se copiaron a esta versión.",
+    "folderSource.version.none": "Esta versión ya tiene todas esas etiquetas.",
+    "folderSource.version.undo": "Deshacer",
+    "folderSource.version.undone": "Las etiquetas copiadas se quitaron de nuevo de esta versión.",
+    "folderSource.version.failed": "No se pudieron copiar las etiquetas. Puede que el archivo haya vuelto a cambiar o que no se pueda leer. No se cambió nada.",
+    "folderSource.version.undoFailed": "No se pudieron quitar las etiquetas copiadas. Quítelas a mano."
   }
 }

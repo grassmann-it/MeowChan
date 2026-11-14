@@ -4385,6 +4385,18 @@
     "profile.startMedia.added": "미디어 폴더 “{0}”을(를) 읽기 전용 폴더로 추가했습니다. MeowChan이 지금 폴더를 살펴보고 있습니다.",
     "profile.startMedia.refused": "이 프로필의 미디어 폴더를 추가하지 못했습니다. {0}",
     "profile.startMedia.badArgument": "미디어 폴더의 시작 인수가 완전하지 않았습니다.",
-    "profile.startMedia.needsProfile": "미디어 폴더는 프로필을 열 때만 전달할 수 있습니다."
+    "profile.startMedia.needsProfile": "미디어 폴더는 프로필을 열 때만 전달할 수 있습니다.",
+    "folderSource.version.note": "이 파일은 태그를 지정한 뒤 디스크에서 바뀌었습니다. 태그는 파일의 정확한 버전에 속하므로 이전 버전에 남아 있고 이 버전에는 표시되지 않습니다.",
+    "folderSource.version.short": "이 파일은 태그를 지정한 뒤에 바뀌었으며, 태그는 이전 버전에 남아 있습니다. “모든 위치…”에서 복사할 수 있습니다.",
+    "folderSource.version.copy": "이전 버전의 태그 복사",
+    "folderSource.version.confirm": "이전 버전의 태그를 이 파일에 복사할까요? 이전 버전은 태그를 그대로 유지합니다. MeowChan은 내용을 확인하기 위해 파일을 한 번 읽습니다.",
+    "folderSource.version.confirmYes": "태그 복사",
+    "folderSource.version.confirmNo": "취소",
+    "folderSource.version.done": "태그를 이 버전에 복사했습니다.",
+    "folderSource.version.none": "이 버전에는 이미 해당 태그가 모두 있습니다.",
+    "folderSource.version.undo": "실행 취소",
+    "folderSource.version.undone": "복사한 태그를 이 버전에서 다시 제거했습니다.",
+    "folderSource.version.failed": "태그를 복사하지 못했습니다. 파일이 다시 바뀌었거나 읽을 수 없을 수 있습니다. 아무것도 변경하지 않았습니다.",
+    "folderSource.version.undoFailed": "복사한 태그를 제거하지 못했습니다. 직접 제거하세요."
   }
 }

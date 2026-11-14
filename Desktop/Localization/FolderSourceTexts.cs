@@ -90,5 +90,18 @@ internal static class FolderSourceTexts
         ("budgets.folderSourceBackground", "Folders: read files in the background", "Ordner: Dateien im Hintergrund lesen"),
         ("budgets.folderSourceBackgroundHint", "While you are idle, MeowChan reads the files of added folders one by one so that they can be grouped and found by their content. It pauses as soon as you do something.",
             "Während du nichts tust, liest MeowChan die Dateien hinzugefügter Ordner nacheinander, damit sie nach Inhalt gruppiert und gefunden werden können. Es pausiert, sobald du etwas tust."),
+
+        ("folderSource.version.note", "This file changed on disk after it was tagged. Tags belong to the exact version of the file, so they stayed with the previous version and do not show on this one.", "Diese Datei hat sich nach dem Taggen auf dem Datenträger geändert. Tags gehören zur genauen Dateiversion; sie sind bei der vorherigen Version geblieben und erscheinen bei dieser nicht."),
+        ("folderSource.version.short", "This file changed after it was tagged; its tags stayed with the previous version. “All occurrences…” can copy them.", "Diese Datei hat sich nach dem Taggen geändert; ihre Tags sind bei der vorherigen Version geblieben. „Alle Fundstellen…“ kann sie übernehmen."),
+        ("folderSource.version.copy", "Copy tags from the previous version", "Tags der vorherigen Version übernehmen"),
+        ("folderSource.version.confirm", "Copy the tags of the previous version to this file? The previous version keeps its tags. MeowChan reads the file once to confirm its content.", "Die Tags der vorherigen Version auf diese Datei übernehmen? Die vorherige Version behält ihre Tags. MeowChan liest die Datei einmal, um ihren Inhalt zu bestätigen."),
+        ("folderSource.version.confirmYes", "Copy tags", "Tags übernehmen"),
+        ("folderSource.version.confirmNo", "Cancel", "Abbrechen"),
+        ("folderSource.version.done", "The tags were copied to this version.", "Die Tags wurden auf diese Version übernommen."),
+        ("folderSource.version.none", "This version already has all of those tags.", "Diese Version hat alle diese Tags schon."),
+        ("folderSource.version.undo", "Undo", "Rückgängig"),
+        ("folderSource.version.undone", "The copied tags were removed from this version again.", "Die übernommenen Tags wurden von dieser Version wieder entfernt."),
+        ("folderSource.version.failed", "The tags could not be copied. The file may have changed again or cannot be read. Nothing was changed.", "Die Tags konnten nicht übernommen werden. Die Datei hat sich vielleicht erneut geändert oder ist nicht lesbar. Es wurde nichts geändert."),
+        ("folderSource.version.undoFailed", "The copied tags could not be removed. Remove them by hand.", "Die übernommenen Tags konnten nicht entfernt werden. Entferne sie von Hand."),
     };
 }
