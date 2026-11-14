@@ -42,7 +42,11 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.ImportMaxTagsPerBatch), Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum),
         (nameof(Config.ImportMaxBatches), Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum),
         (nameof(Config.MediaIndexMaxEntries), Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum),
-        (nameof(Config.MediaIndexMaxThreads), Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum)
+        (nameof(Config.MediaIndexMaxThreads), Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum),
+        (nameof(Config.TagQueueLimit), Config.TagQueueLimitMinimum, Config.TagQueueLimitMaximum),
+        (nameof(Config.TagQueueFileLimitMiB), Config.TagQueueFileLimitMiBMinimum, Config.TagQueueFileLimitMiBMaximum),
+        (nameof(Config.TagQueueHistory), Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum),
+        (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum)
     };
 
     public static IEnumerable<object[]> LimitCases() =>

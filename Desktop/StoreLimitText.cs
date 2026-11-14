@@ -24,6 +24,8 @@ internal static class StoreLimitText
             PrivateStoreLimitKind.SavedSearches => Texts.Count("limit.savedSearches", limit, limit, Texts.T("budgets.savedSearches"), page),
             PrivateStoreLimitKind.ReaderGroups => Texts.Count("limit.readerGroups", limit, limit, Texts.T("budgets.readerGroups"), page),
             PrivateStoreLimitKind.PostFilterRules => Texts.Count("limit.postFilterRules", limit, limit, Texts.T("budgets.postFilterRules"), page),
+            PrivateStoreLimitKind.TagQueueFile => Texts.T("limit.tagQueueFile", SizeText.Format(limit, Texts.Culture), Texts.T("settings.limits.tagQueueFile"), page),
+            PrivateStoreLimitKind.TagQueueEntries => Texts.T("limit.tagQueueEntries", limit, Texts.T("settings.limits.tagQueue"), page),
             PrivateStoreLimitKind.HiddenPosts => Texts.Count("limit.hiddenPosts", limit, limit, Texts.T("budgets.hiddenPosts"), page),
             _ => error.Message
         };

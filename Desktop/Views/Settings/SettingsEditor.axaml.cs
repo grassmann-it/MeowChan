@@ -288,6 +288,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(config);
             LoadReaderDraft(config);
+            LoadTagQueueDraft(config);
             LoadViewerDraft(config);
             LoadQuickTagDraft(config);
             LoadLimitsDraft(config);
@@ -887,6 +888,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadTagQueueDraft(_config);
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
@@ -1037,6 +1039,7 @@ namespace MeowChan
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
+                RaiseTagQueueTextsChanged();
                 RaiseViewerTextsChanged();
                 RaiseQuickTagTextsChanged();
                 RaiseLimitsTextsChanged();
@@ -1316,6 +1319,7 @@ namespace MeowChan
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
+                ApplyTagQueueDraft(candidate);
                 ApplyViewerDraft(candidate);
                 ApplyQuickTagDraft(candidate);
                 ApplyLimitsDraft(candidate);
@@ -1438,6 +1442,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadTagQueueDraft(_config);
             LoadViewerDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);

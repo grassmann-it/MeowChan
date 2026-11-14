@@ -677,6 +677,46 @@
                         </Grid>
                         <TextBlock Text="{Binding HiddenPostLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueLimitFieldLabel" Text="{Binding TagQueueLimitLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueLimitInput" Value="{Binding TagQueueLimit, Mode=TwoWay}" Minimum="{Binding TagQueueLimitMinimum}" Maximum="{Binding TagQueueLimitMaximum}" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueLimitFieldLabel}" AutomationProperties.Name="{Binding TagQueueLimitLabel}" AutomationProperties.HelpText="{Binding TagQueueLimitHelp}" />
+                                <TextBlock x:Name="TagQueueLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueFileLimitMiBFieldLabel" Text="{Binding TagQueueFileLimitMiBLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueFileLimitMiBInput" Value="{Binding TagQueueFileLimitMiB, Mode=TwoWay}" Minimum="{Binding TagQueueFileLimitMiBMinimum}" Maximum="{Binding TagQueueFileLimitMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueFileLimitMiBFieldLabel}" AutomationProperties.Name="{Binding TagQueueFileLimitMiBLabel}" AutomationProperties.HelpText="{Binding TagQueueFileLimitMiBHelp}" />
+                                <TextBlock x:Name="TagQueueFileLimitMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueFileLimitMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueHistoryFieldLabel" Text="{Binding TagQueueHistoryLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueHistoryInput" Value="{Binding TagQueueHistory, Mode=TwoWay}" Minimum="{Binding TagQueueHistoryMinimum}" Maximum="{Binding TagQueueHistoryMaximum}" Increment="50" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueHistoryFieldLabel}" AutomationProperties.Name="{Binding TagQueueHistoryLabel}" AutomationProperties.HelpText="{Binding TagQueueHistoryHelp}" />
+                                <TextBlock x:Name="TagQueueHistoryInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueHistoryHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <StackPanel Spacing="4">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="24">
+                            <TextBlock x:Name="TagQueueConfirmAboveFieldLabel" Text="{Binding TagQueueConfirmAboveLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="TagQueueConfirmAboveInput" Value="{Binding TagQueueConfirmAbove, Mode=TwoWay}" Minimum="{Binding TagQueueConfirmAboveMinimum}" Maximum="{Binding TagQueueConfirmAboveMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=TagQueueConfirmAboveFieldLabel}" AutomationProperties.Name="{Binding TagQueueConfirmAboveLabel}" AutomationProperties.HelpText="{Binding TagQueueConfirmAboveHelp}" />
+                                <TextBlock x:Name="TagQueueConfirmAboveInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="{Binding TagQueueConfirmAboveHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                    </StackPanel>
                     <TextBlock x:Name="LimitsPreviewsHeading" Text="{Binding PreviewsGroupLabel}" Classes="workspace-field-label" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
                     <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="24">
                         <TextBlock x:Name="ExportConfirmFilesFieldLabel" Text="{Binding ExportConfirmFilesLabel}" VerticalAlignment="Center" Classes="workspace-field-label" TextWrapping="Wrap" />

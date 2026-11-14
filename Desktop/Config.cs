@@ -229,6 +229,26 @@ namespace MeowChan
         internal const int ReaderGroupLimitDefault = Persistence.ProfileStoreLimits.DefaultReaderGroups;
         internal const int ReaderGroupLimitMinimum = Persistence.ProfileStoreLimits.MinimumReaderGroups;
         internal const int ReaderGroupLimitMaximum = Persistence.ProfileStoreLimits.ReaderGroupCeiling;
+        /// <summary>Most entries of the tagging queue. Lowering it below the current number keeps every entry; only adding is refused until the count is below the limit again.</summary>
+        public int TagQueueLimit { get; set; } = TagQueueLimitDefault;
+        internal const int TagQueueLimitDefault = Persistence.ProfileStoreLimits.DefaultTagQueueEntries;
+        internal const int TagQueueLimitMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueEntries;
+        internal const int TagQueueLimitMaximum = Persistence.ProfileStoreLimits.TagQueueEntryCeiling;
+        /// <summary>Write limit of tag-queue.json in MiB. Lowering it below the current size keeps the file readable; only writes that would make it larger are refused.</summary>
+        public int TagQueueFileLimitMiB { get; set; } = TagQueueFileLimitMiBDefault;
+        internal const int TagQueueFileLimitMiBDefault = Persistence.ProfileStoreLimits.DefaultTagQueueFileBytes / (1024 * 1024);
+        internal const int TagQueueFileLimitMiBMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueFileBytes / (1024 * 1024);
+        internal const int TagQueueFileLimitMiBMaximum = Persistence.ProfileStoreLimits.TagQueueFileCeilingBytes / (1024 * 1024);
+        /// <summary>How many finished entries the tagging queue keeps; older finished entries drop out. 0 keeps none. Open and skipped entries are never dropped.</summary>
+        public int TagQueueHistory { get; set; } = TagQueueHistoryDefault;
+        internal const int TagQueueHistoryDefault = Persistence.ProfileStoreLimits.DefaultTagQueueHistory;
+        internal const int TagQueueHistoryMinimum = Persistence.ProfileStoreLimits.MinimumTagQueueHistory;
+        internal const int TagQueueHistoryMaximum = Persistence.ProfileStoreLimits.TagQueueHistoryCeiling;
+        /// <summary>Adding more media than this to the tagging queue at once asks for confirmation first. Nothing is cut short: after the confirmation every medium is added.</summary>
+        public int TagQueueConfirmAbove { get; set; } = TagQueueConfirmAboveDefault;
+        internal const int TagQueueConfirmAboveDefault = 200;
+        internal const int TagQueueConfirmAboveMinimum = 10;
+        internal const int TagQueueConfirmAboveMaximum = 10_000;
         /// <summary>Rows in a source's watch list on the Sources page before "Show all in Downloads" takes over. Every watch stays reachable under Downloads.</summary>
         public int SourcesWatchPreviewRows { get; set; } = SourcesWatchPreviewRowsDefault;
         internal const int SourcesWatchPreviewRowsDefault = 8;
@@ -1072,6 +1092,14 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(SavedSearchLimit), "SavedSearchLimit is outside its supported range (" + SavedSearchLimitMinimum + " to " + SavedSearchLimitMaximum + ").");
             if (ReaderGroupLimit is < ReaderGroupLimitMinimum or > ReaderGroupLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderGroupLimit), "ReaderGroupLimit is outside its supported range (" + ReaderGroupLimitMinimum + " to " + ReaderGroupLimitMaximum + ").");
+            if (TagQueueLimit is < TagQueueLimitMinimum or > TagQueueLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueLimit), "TagQueueLimit is outside its supported range (" + TagQueueLimitMinimum + " to " + TagQueueLimitMaximum + ").");
+            if (TagQueueFileLimitMiB is < TagQueueFileLimitMiBMinimum or > TagQueueFileLimitMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueFileLimitMiB), "TagQueueFileLimitMiB is outside its supported range (" + TagQueueFileLimitMiBMinimum + " to " + TagQueueFileLimitMiBMaximum + ").");
+            if (TagQueueHistory is < TagQueueHistoryMinimum or > TagQueueHistoryMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueHistory), "TagQueueHistory is outside its supported range (" + TagQueueHistoryMinimum + " to " + TagQueueHistoryMaximum + ").");
+            if (TagQueueConfirmAbove is < TagQueueConfirmAboveMinimum or > TagQueueConfirmAboveMaximum)
+                throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
             if (SourcesWatchPreviewRows is < SourcesWatchPreviewRowsMinimum or > SourcesWatchPreviewRowsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SourcesWatchPreviewRows), "SourcesWatchPreviewRows is outside its supported range (" + SourcesWatchPreviewRowsMinimum + " to " + SourcesWatchPreviewRowsMaximum + ").");
             if (ExportConfirmFiles is < ExportConfirmFilesMinimum or > ExportConfirmFilesMaximum)
@@ -1258,6 +1286,10 @@ namespace MeowChan
                 PostBookmarkLimit = PostBookmarkLimit,
                 SavedSearchLimit = SavedSearchLimit,
                 ReaderGroupLimit = ReaderGroupLimit,
+                TagQueueLimit = TagQueueLimit,
+                TagQueueFileLimitMiB = TagQueueFileLimitMiB,
+                TagQueueHistory = TagQueueHistory,
+                TagQueueConfirmAbove = TagQueueConfirmAbove,
                 SourcesWatchPreviewRows = SourcesWatchPreviewRows,
                 ExportConfirmFiles = ExportConfirmFiles,
                 ExportConfirmGiB = ExportConfirmGiB,
@@ -1449,6 +1481,10 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            TagQueueLimit = source.TagQueueLimit;
+            TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
+            TagQueueHistory = source.TagQueueHistory;
+            TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
@@ -1599,6 +1635,10 @@ namespace MeowChan
             PostBookmarkLimit = source.PostBookmarkLimit;
             SavedSearchLimit = source.SavedSearchLimit;
             ReaderGroupLimit = source.ReaderGroupLimit;
+            TagQueueLimit = source.TagQueueLimit;
+            TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
+            TagQueueHistory = source.TagQueueHistory;
+            TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             SourcesWatchPreviewRows = source.SourcesWatchPreviewRows;
             ExportConfirmFiles = source.ExportConfirmFiles;
             ExportConfirmGiB = source.ExportConfirmGiB;
