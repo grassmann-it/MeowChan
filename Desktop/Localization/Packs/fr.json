@@ -4290,6 +4290,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Ouvrir les statistiques",
     "header.io.menu.settings": "Paramètres : statistiques…",
-    "header.io.menu.name": "Affichage réseau et disque"
+    "header.io.menu.name": "Affichage réseau et disque",
+    "command.rules.toggle-enabled": "Activer ou désactiver la règle",
+    "command.rules.delete": "Supprimer la règle…",
+    "command.rules.copy-summary": "Copier le résumé de la règle",
+    "command.statistics.copy-row": "Copier la ligne",
+    "command.statistics.copy-source": "Copier le nom de la source",
+    "command.statistics.reset": "Réinitialiser les statistiques…",
+    "command.archive.copy-filter": "Copier le texte du filtre",
+    "command.tags.filter-toggle": "Basculer entre inclure et exclure",
+    "command.tags.copy-name": "Copier le nom de l’étiquette",
+    "command.feedback.copy-text": "Copier le texte du message",
+    "command.feedback.dismiss-all": "Fermer toutes les notifications",
+    "command.settings.reset-default": "Rétablir la valeur par défaut",
+    "command.settings.copy-id": "Copier l’identifiant du paramètre",
+    "ctxmenu.copyFailed": "Le texte n’a pas pu être copié.",
+    "ctxmenu.setting.noDefault": "Aucune valeur par défaut n’est connue pour ce paramètre.",
+    "ctxmenu.setting.atDefault": "Le paramètre a déjà sa valeur par défaut.",
+    "ctxmenu.name.setting": "Paramètre",
+    "ctxmenu.name.notification": "Notification"
   }
 }

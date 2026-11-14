@@ -4336,6 +4336,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Otwórz statystyki",
     "header.io.menu.settings": "Ustawienia: statystyki…",
-    "header.io.menu.name": "Wskaźnik sieci i dysku"
+    "header.io.menu.name": "Wskaźnik sieci i dysku",
+    "command.rules.toggle-enabled": "Włącz lub wyłącz regułę",
+    "command.rules.delete": "Usuń regułę…",
+    "command.rules.copy-summary": "Kopiuj podsumowanie reguły",
+    "command.statistics.copy-row": "Kopiuj wiersz",
+    "command.statistics.copy-source": "Kopiuj nazwę źródła",
+    "command.statistics.reset": "Resetuj statystyki…",
+    "command.archive.copy-filter": "Kopiuj tekst filtra",
+    "command.tags.filter-toggle": "Przełącz uwzględnianie / wykluczanie",
+    "command.tags.copy-name": "Kopiuj nazwę tagu",
+    "command.feedback.copy-text": "Kopiuj tekst komunikatu",
+    "command.feedback.dismiss-all": "Zamknij wszystkie powiadomienia",
+    "command.settings.reset-default": "Przywróć wartość domyślną",
+    "command.settings.copy-id": "Kopiuj identyfikator ustawienia",
+    "ctxmenu.copyFailed": "Nie udało się skopiować tekstu.",
+    "ctxmenu.setting.noDefault": "Dla tego ustawienia nie znamy wartości domyślnej.",
+    "ctxmenu.setting.atDefault": "Ustawienie ma już wartość domyślną.",
+    "ctxmenu.name.setting": "Ustawienie",
+    "ctxmenu.name.notification": "Powiadomienie"
   }
 }

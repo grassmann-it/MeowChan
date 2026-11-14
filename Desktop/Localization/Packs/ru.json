@@ -4310,6 +4310,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Открыть статистику",
     "header.io.menu.settings": "Настройки: статистика…",
-    "header.io.menu.name": "Индикатор сети и диска"
+    "header.io.menu.name": "Индикатор сети и диска",
+    "command.rules.toggle-enabled": "Включить или отключить правило",
+    "command.rules.delete": "Удалить правило…",
+    "command.rules.copy-summary": "Копировать описание правила",
+    "command.statistics.copy-row": "Копировать строку",
+    "command.statistics.copy-source": "Копировать название источника",
+    "command.statistics.reset": "Сбросить статистику…",
+    "command.archive.copy-filter": "Копировать текст фильтра",
+    "command.tags.filter-toggle": "Переключить «включить / исключить»",
+    "command.tags.copy-name": "Копировать название тега",
+    "command.feedback.copy-text": "Копировать текст сообщения",
+    "command.feedback.dismiss-all": "Закрыть все уведомления",
+    "command.settings.reset-default": "Сбросить на значение по умолчанию",
+    "command.settings.copy-id": "Копировать идентификатор настройки",
+    "ctxmenu.copyFailed": "Не удалось скопировать текст.",
+    "ctxmenu.setting.noDefault": "Для этой настройки значение по умолчанию не задано.",
+    "ctxmenu.setting.atDefault": "У настройки уже значение по умолчанию.",
+    "ctxmenu.name.setting": "Настройка",
+    "ctxmenu.name.notification": "Уведомление"
   }
 }

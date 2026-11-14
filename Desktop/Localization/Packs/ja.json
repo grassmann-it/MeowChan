@@ -4205,6 +4205,24 @@
     "help.workviews.item": "{0}：{1}",
     "header.io.menu.openStatistics": "統計を開く",
     "header.io.menu.settings": "設定：統計…",
-    "header.io.menu.name": "ネットワークとディスクの表示"
+    "header.io.menu.name": "ネットワークとディスクの表示",
+    "command.rules.toggle-enabled": "ルールを有効化または無効化",
+    "command.rules.delete": "ルールを削除…",
+    "command.rules.copy-summary": "ルールの概要をコピー",
+    "command.statistics.copy-row": "行をコピー",
+    "command.statistics.copy-source": "ソース名をコピー",
+    "command.statistics.reset": "統計をリセット…",
+    "command.archive.copy-filter": "フィルターのテキストをコピー",
+    "command.tags.filter-toggle": "含める / 除外を切り替え",
+    "command.tags.copy-name": "タグ名をコピー",
+    "command.feedback.copy-text": "メッセージのテキストをコピー",
+    "command.feedback.dismiss-all": "すべての通知を閉じる",
+    "command.settings.reset-default": "既定値に戻す",
+    "command.settings.copy-id": "設定 ID をコピー",
+    "ctxmenu.copyFailed": "テキストをコピーできませんでした。",
+    "ctxmenu.setting.noDefault": "この設定には既定値が登録されていません。",
+    "ctxmenu.setting.atDefault": "この設定はすでに既定値です。",
+    "ctxmenu.name.setting": "設定",
+    "ctxmenu.name.notification": "通知"
   }
 }

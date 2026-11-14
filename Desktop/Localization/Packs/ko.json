@@ -4205,6 +4205,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "통계 열기",
     "header.io.menu.settings": "설정: 통계…",
-    "header.io.menu.name": "네트워크 및 디스크 표시"
+    "header.io.menu.name": "네트워크 및 디스크 표시",
+    "command.rules.toggle-enabled": "규칙 사용 또는 사용 안 함",
+    "command.rules.delete": "규칙 삭제…",
+    "command.rules.copy-summary": "규칙 요약 복사",
+    "command.statistics.copy-row": "행 복사",
+    "command.statistics.copy-source": "소스 이름 복사",
+    "command.statistics.reset": "통계 초기화…",
+    "command.archive.copy-filter": "필터 텍스트 복사",
+    "command.tags.filter-toggle": "포함 / 제외 전환",
+    "command.tags.copy-name": "태그 이름 복사",
+    "command.feedback.copy-text": "메시지 텍스트 복사",
+    "command.feedback.dismiss-all": "모든 알림 닫기",
+    "command.settings.reset-default": "기본값으로 되돌리기",
+    "command.settings.copy-id": "설정 ID 복사",
+    "ctxmenu.copyFailed": "텍스트를 복사하지 못했습니다.",
+    "ctxmenu.setting.noDefault": "이 설정에는 알려진 기본값이 없습니다.",
+    "ctxmenu.setting.atDefault": "이 설정은 이미 기본값입니다.",
+    "ctxmenu.name.setting": "설정",
+    "ctxmenu.name.notification": "알림"
   }
 }

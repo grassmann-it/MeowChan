@@ -4296,6 +4296,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Abrir estatísticas",
     "header.io.menu.settings": "Configurações: estatísticas…",
-    "header.io.menu.name": "Indicador de rede e disco"
+    "header.io.menu.name": "Indicador de rede e disco",
+    "command.rules.toggle-enabled": "Ativar ou desativar a regra",
+    "command.rules.delete": "Excluir regra…",
+    "command.rules.copy-summary": "Copiar resumo da regra",
+    "command.statistics.copy-row": "Copiar linha",
+    "command.statistics.copy-source": "Copiar nome da fonte",
+    "command.statistics.reset": "Redefinir estatísticas…",
+    "command.archive.copy-filter": "Copiar texto do filtro",
+    "command.tags.filter-toggle": "Alternar entre incluir e excluir",
+    "command.tags.copy-name": "Copiar nome da tag",
+    "command.feedback.copy-text": "Copiar texto da mensagem",
+    "command.feedback.dismiss-all": "Fechar todas as notificações",
+    "command.settings.reset-default": "Restaurar o padrão",
+    "command.settings.copy-id": "Copiar ID da configuração",
+    "ctxmenu.copyFailed": "Não foi possível copiar o texto.",
+    "ctxmenu.setting.noDefault": "Não há padrão conhecido para esta configuração.",
+    "ctxmenu.setting.atDefault": "A configuração já está no padrão.",
+    "ctxmenu.name.setting": "Configuração",
+    "ctxmenu.name.notification": "Notificação"
   }
 }

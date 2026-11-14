@@ -4333,6 +4333,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Otevřít statistiky",
     "header.io.menu.settings": "Nastavení: statistiky…",
-    "header.io.menu.name": "Zobrazení sítě a disku"
+    "header.io.menu.name": "Zobrazení sítě a disku",
+    "command.rules.toggle-enabled": "Zapnout nebo vypnout pravidlo",
+    "command.rules.delete": "Smazat pravidlo…",
+    "command.rules.copy-summary": "Kopírovat souhrn pravidla",
+    "command.statistics.copy-row": "Kopírovat řádek",
+    "command.statistics.copy-source": "Kopírovat název zdroje",
+    "command.statistics.reset": "Vynulovat statistiky…",
+    "command.archive.copy-filter": "Kopírovat text filtru",
+    "command.tags.filter-toggle": "Přepnout zahrnout / vyloučit",
+    "command.tags.copy-name": "Kopírovat název štítku",
+    "command.feedback.copy-text": "Kopírovat text zprávy",
+    "command.feedback.dismiss-all": "Zavřít všechna oznámení",
+    "command.settings.reset-default": "Obnovit výchozí hodnotu",
+    "command.settings.copy-id": "Kopírovat ID nastavení",
+    "ctxmenu.copyFailed": "Text se nepodařilo zkopírovat.",
+    "ctxmenu.setting.noDefault": "Pro toto nastavení není známá výchozí hodnota.",
+    "ctxmenu.setting.atDefault": "Nastavení už má výchozí hodnotu.",
+    "ctxmenu.name.setting": "Nastavení",
+    "ctxmenu.name.notification": "Oznámení"
   }
 }

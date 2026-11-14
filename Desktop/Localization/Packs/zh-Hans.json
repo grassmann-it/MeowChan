@@ -4205,6 +4205,24 @@
     "help.workviews.item": "{0}：{1}",
     "header.io.menu.openStatistics": "打开统计",
     "header.io.menu.settings": "设置：统计…",
-    "header.io.menu.name": "网络和磁盘显示"
+    "header.io.menu.name": "网络和磁盘显示",
+    "command.rules.toggle-enabled": "启用或停用规则",
+    "command.rules.delete": "删除规则…",
+    "command.rules.copy-summary": "复制规则摘要",
+    "command.statistics.copy-row": "复制行",
+    "command.statistics.copy-source": "复制来源名称",
+    "command.statistics.reset": "重置统计…",
+    "command.archive.copy-filter": "复制筛选文本",
+    "command.tags.filter-toggle": "切换包含 / 排除",
+    "command.tags.copy-name": "复制标签名称",
+    "command.feedback.copy-text": "复制消息文本",
+    "command.feedback.dismiss-all": "关闭所有通知",
+    "command.settings.reset-default": "恢复默认值",
+    "command.settings.copy-id": "复制设置 ID",
+    "ctxmenu.copyFailed": "无法复制文本。",
+    "ctxmenu.setting.noDefault": "此设置没有已知的默认值。",
+    "ctxmenu.setting.atDefault": "此设置已是默认值。",
+    "ctxmenu.name.setting": "设置",
+    "ctxmenu.name.notification": "通知"
   }
 }

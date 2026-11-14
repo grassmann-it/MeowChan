@@ -4290,6 +4290,24 @@
     "help.workviews.item": "{0}: {1}",
     "header.io.menu.openStatistics": "Abrir estadísticas",
     "header.io.menu.settings": "Configuración: estadísticas…",
-    "header.io.menu.name": "Indicador de red y disco"
+    "header.io.menu.name": "Indicador de red y disco",
+    "command.rules.toggle-enabled": "Activar o desactivar la regla",
+    "command.rules.delete": "Eliminar la regla…",
+    "command.rules.copy-summary": "Copiar el resumen de la regla",
+    "command.statistics.copy-row": "Copiar fila",
+    "command.statistics.copy-source": "Copiar nombre de la fuente",
+    "command.statistics.reset": "Restablecer estadísticas…",
+    "command.archive.copy-filter": "Copiar texto del filtro",
+    "command.tags.filter-toggle": "Cambiar entre incluir y excluir",
+    "command.tags.copy-name": "Copiar nombre de la etiqueta",
+    "command.feedback.copy-text": "Copiar el texto del mensaje",
+    "command.feedback.dismiss-all": "Cerrar todas las notificaciones",
+    "command.settings.reset-default": "Restablecer el valor predeterminado",
+    "command.settings.copy-id": "Copiar el identificador del ajuste",
+    "ctxmenu.copyFailed": "No se pudo copiar el texto.",
+    "ctxmenu.setting.noDefault": "Para este ajuste no hay un valor predeterminado conocido.",
+    "ctxmenu.setting.atDefault": "El ajuste ya tiene su valor predeterminado.",
+    "ctxmenu.name.setting": "Ajuste",
+    "ctxmenu.name.notification": "Notificación"
   }
 }
