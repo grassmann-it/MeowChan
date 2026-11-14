@@ -83,14 +83,19 @@ back to **Barebones**. A valid saved **Barebones**, **Simple** or **Advanced**
 choice, including one recovered from a valid settings backup, remains unchanged.
 Use the footer view selector to switch.
 
-The footer groups destinations as **Work** (Downloads, Archive, Media), **Set up**
+The footer groups destinations as **Work** (Downloads, Archive, Media, Booru), **Set up**
 (Rules, Sources & Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
 only destinations moved out of the footer; it does not duplicate Downloads or
 Settings. Advanced shows all main destinations directly when there is enough room;
 a narrow window moves the extra destinations into More. The app menu uses the same
-page order and groups.
+page order and groups. Booru is offered only while the source is composed and
+**Show Booru** is on; it is under More in Barebones and directly available from
+Simple when there is room. In German the destination order is **Downloads, Archiv,
+Medien, Booru | Regeln, Quellen & Plugins | Status**, followed by **Mehr** and
+**Einstellungen**. The display switch is described under
+[Booru page and display switch](#booru-page-and-display-switch).
 
 **Continue reading** (German: **Weiterlesen**) is a book icon immediately left
 of Pause in the header, with a labelled entry in the app menu. The icon appears
@@ -101,7 +106,7 @@ the archive list, use the app-menu entry to check the reading-position state.
 ### Integrated work-view behavior
 
 The integrated work-view behavior covers **WV1 Downloads**, **WV2 Archive**,
-**WV3 Reader**, **WV4 Gallery**, **WV5 Media**, and the **WV6** setup pages **Rules**,
+**WV3 Reader**, **WV4 Gallery**, **WV5 Media**, the **Booru** page, and the **WV6** setup pages **Rules**,
 **Sources & Plugins**, plus **WV7 Diagnostics and Statistics** within **Status**, **WV8 Settings** and
 **WV9 dialogs and menus**. Barebones (German: **Minimal**), Simple (**Einfach**) and
 Advanced (**Erweitert**) change how much is shown directly, not whether the data
@@ -130,6 +135,12 @@ on the page.
 - **Media:** search, filter state and the **Order** bar stay available. Refresh,
   shuffling, export and less common filters move to **More** or **More filters**;
   active filters and selections remain visible.
+- **Booru:** search input, search mode, Search/Cancel, results, the watcher list
+  and safety notices stay available in every work view. **Load original** and
+  watcher check/pause/remove stay direct; result browser/copy actions move to
+  More in Barebones. **Restart from now** and catalog usage are under More in
+  Barebones and Simple and directly available in Advanced. Hiding Booru with its
+  separate display switch is not a work-view reduction or a watcher pause.
 - **Rules, Sources & Plugins:** the edited scope, fields and Save/Discard
   remain available in Rules. The shared Sources & Plugins page keeps source
   identity, integrity consent, observed watches and errors available in its source
@@ -285,9 +296,58 @@ persist independently of Save URLs on exit.
 ### Danbooru search and watchers
 
 Danbooru is a public, read-only post-search source, not a board source. Open
-**Danbooru search and watchers…** from the app menu. Its plugin must be enabled
-and available under **Sources & Plugins → All plugins**. Merely opening the window sends no new search;
+the **Booru** main page from the footer (or **More**), or use **Danbooru search
+and watchers…** in the app menu to reach the same page. Its plugin must be enabled
+and available under **Sources & Plugins → All plugins**. Merely opening the page sends no new search;
 previously saved active watchers still follow their schedule.
+
+#### Booru page and display switch
+
+**English:** Booru is a main page after Media in the Work group, not a separate
+window or a Status segment, and has no page-specific Back/Close button. The
+footer, app menu and context-sensitive F1 help follow that main-page order;
+width overflow and the current work view determine the visible footer buttons.
+The default is Ctrl+6 (Command+6 on macOS); Sources & Plugins keeps Ctrl+5 and
+Status keeps Ctrl+7. Only Ctrl+8 is unassigned by default. A saved Plugins binding
+to Primary+6 takes precedence over the new Booru default and opens **All plugins**
+on the shared Sources & Plugins page instead; F1 and tooltips show effective
+bindings, not an extra default that overrides your saved choice. F1 can still list
+a hidden or unavailable page binding; it does not make that destination available.
+
+**Show Booru** in the footer and app menu is a saved, profile-wide display switch,
+on by default. The switch is offered when Booru services are composed; without
+that composition the switch and Booru destination are absent. Turning it off
+hides the Booru destinations in the footer, More and app menu, as well as
+Media → More → **Open Booru**; its page shortcut does not open the hidden page.
+If Booru is selected, the shell returns to Downloads. Turning it back on makes the page
+reachable again and keeps the unsent draft while the same source composition
+remains. This is display only, not source authorization, plugin activation or a
+watcher pause. Sources, watchers and downloads keep running under their existing
+pause, cooldown and availability rules. Showing Booru does not automatically
+resume a paused watcher, submit a search or bypass those rules.
+
+**Deutsch:** **Booru** ist eine Hauptseite hinter Medien in der Gruppe Arbeit,
+kein separates Fenster und kein Status-Bereich; sie hat keinen eigenen
+Zurück-/Schließen-Knopf. Fußleiste, Appmenü und kontextbezogene F1-Hilfe folgen
+dieser Seitenreihenfolge. Unter Minimal liegt Booru in **Mehr**, ab Einfach bei
+hinreichender Breite direkt in der Fußleiste. Standard ist Strg+6 (⌘+6 auf macOS);
+Quellen & Plugins bleibt auf Strg+5 und Status auf Strg+7. Nur Strg/⌘+8 ist
+standardmäßig frei. Eine gespeicherte Plugins-Belegung auf Primary+6 hat Vorrang
+vor dem neuen Booru-Standard und öffnet **Alle Plugins** auf Quellen & Plugins.
+F1 und Tooltips zeigen die wirksamen Belegungen. F1 kann auch ein ausgeblendetes
+oder nicht verfügbares Seitenkürzel weiter auflisten; das schaltet die Seite nicht frei.
+
+**Booru anzeigen** in Fußleiste und Appmenü ist ein gespeicherter, profilweiter
+Anzeigeschalter, standardmäßig an. Ohne eingebundene Booru-Dienste fehlen Schalter
+und Seitenziel. Ausschalten blendet die Booru-Ziele in Fußleiste, Mehr und Appmenü
+sowie Medien → Mehr → **Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete
+Seite. Von der gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen
+macht sie erneut erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe
+Quelleneinbindung besteht. Das ist nur Anzeige, keine Quellenautorisierung,
+Plugin-Aktivierung oder Suchbeobachtungspause. Quellen, Suchbeobachtungen und
+Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und Verfügbarkeitsregeln
+weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort, sendet
+keine Suche und umgeht diese Regeln nicht.
 
 #### Search and one-shot originals
 
@@ -303,8 +363,8 @@ Looking it up shows provider metadata and previews; it does not create a watcher
 or load the original. **Load original** explicitly hands an available original
 to the normal download queue. Post addresses submitted through Downloads → Add
 perform that lookup and original admission as a one-shot in one action. A search
-address or site address only opens and prefills the window. In a batch with
-several search addresses, only the last one prefills the window; the others are
+address or site address only opens and prefills the Booru page. In a batch with
+several search addresses, only the last one prefills the page; the others are
 reported as unused.
 
 `safebooru.donmai.us` links refer to Danbooru, not another shipped provider. A
@@ -366,21 +426,59 @@ MeowChan shows one information notification titled **Danbooru watcher**. It name
 the watcher and the number of originals added. This follows the information-popup
 setting; it is not a notification for every provider hit.
 
+#### Local links to Media
+
+**English:** A saved result can offer **Show in Media**; a watcher's latest post
+can offer the same action when its original is saved locally. It applies the
+Danbooru source and post-ID filters and focuses the matching local media tile.
+This does not fetch the post or download its original. A stale saved link or a
+missing/filtered-out local tile is reported rather than replaced with another
+post. In Media → **More**, **Open Booru** is available when Danbooru is ready and
+composed and **Show Booru** is on; it opens the Booru page without starting a search.
+It uses the same main-page route as the footer and app menu, not a second window.
+
+**Deutsch:** Ein gespeichertes Ergebnis kann **In Medien zeigen** anbieten; beim
+letzten Post einer Suchbeobachtung erscheint die Aktion ebenfalls, wenn sein
+Original lokal gespeichert ist. Sie setzt den Danbooru-Quellenfilter und den
+Post-ID-Filter und fokussiert die passende lokale Medienkachel. Dabei wird weder
+der Post abgerufen noch sein Original heruntergeladen. Ein veralteter Speicherlink
+oder eine fehlende/ausgefilterte lokale Kachel wird gemeldet, nicht durch einen
+anderen Post ersetzt. Unter Medien → **Mehr** öffnet **Booru öffnen** die Booru-Seite,
+wenn Danbooru bereit und eingebunden sowie **Booru anzeigen** eingeschaltet ist,
+ohne eine Suche zu starten. Das ist dieselbe Hauptseite wie über Fußleiste und
+Appmenü, kein zweites Fenster.
+
 #### Waiting, local data and offline use
 
 Metadata sends start at least one second apart. HTTP 429 causes a provider-wide
-pause of at least 60 seconds; a longer valid `Retry-After` is not shortened to
-24 hours. Only the technical maximum representable date bounds that deadline.
-HTTP 502/503 permits at most one retry, no earlier than two seconds
-after the failed response. A longer `Retry-After` is honored only within the
-operation budget. A metadata operation has at most 20 sends
-including retries, a 120-second lifetime and a 15-second deadline per response.
-Metadata response limits are 2 MiB on the wire and 4 MiB decoded. These are fixed
-transport safeguards, not a promise that a search always returns 100 posts.
+pause of at least 60 seconds. The Retry-After maximum defaults to **24 hours** and
+is configurable from **1 to 168 hours** in Settings as **Danbooru Retry-After
+cooldown maximum (hours)**. A valid longer provider wait is capped at that setting;
+missing, invalid, expired or shorter values keep the minimum. Date arithmetic
+also saturates at the technical maximum representable date; this does not remove
+the configured cap.
+
+Lowering the setting can shorten an existing in-memory provider pause when the
+host next checks it; it does not promise an immediate watcher check. It neither
+resumes a paused watcher nor automatically replays a failed search or post lookup.
+A 429 ends the current metadata job without retry. Later eligible work uses a new
+job and still obeys pacing and pause state; it does not change the submitted query
+or add a rating filter.
+
+HTTP 502/503 permits at most one retry, no earlier than two seconds after the
+failed response. A longer valid Retry-After is bounded by the live configured cap,
+and the retry must fall strictly before the job deadline. Otherwise the job fails
+with a budget notice rather than waiting beyond its lifetime. For a second 502/503
+response returned to the plugin, a valid Retry-After beyond the live cap is bounded
+too; it does not authorize another host retry. A metadata operation has at most 20 sends
+including retries, a 120-second lifetime including waits and a 15-second deadline
+per response. Metadata response limits are 2 MiB on the wire and 4 MiB decoded.
+These are fixed transport safeguards, not a promise that a search always returns
+100 posts.
 
 The local Danbooru catalog of posts, findings and watchers has a configurable
 write limit under Settings → **Storage and limits**. It defaults to 32 MiB and
-can be set from 8 to 128 MiB. From 75 %, the watcher area of the Danbooru window
+can be set from 8 to 128 MiB. From 75 %, the watcher area of the Booru page
 warns and names the setting. Lowering it does not delete data or prevent reading
 an otherwise valid existing catalog; growth can be refused until you raise the
 setting. Storage failures are distinct from provider cooldowns and must not be
@@ -504,16 +602,23 @@ page's local search field. The default page shortcuts are:
 | Ctrl+1 | Downloads |
 | Ctrl+2 | Archive |
 | Ctrl+3 | Media |
+| Ctrl+6 | Booru |
 | Ctrl+4 | Rules |
 | Ctrl+5 | Sources & Plugins |
 | Ctrl+7 | Status |
 
-Use Command instead of Ctrl on macOS. Ctrl+6 and Ctrl+8 (Command+6 and Command+8)
-are unassigned by default. Status keeps slot 7; the removed Plugins page does not
-shift the digits. Diagnostics and Statistics have no default digit shortcuts;
-previously saved bindings still open their respective Status segment. The footer, the menus
-and the F1 help use the same order, and every footer button names its shortcut in
-its tooltip. Ctrl+Shift+P pauses and resumes like the header button; it remains
+Use Command instead of Ctrl on macOS. Ctrl+8 (Command+8) is unassigned by default.
+Sources & Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. The
+removed Plugins page does not shift the digits: a saved `navigation.plugins`
+binding to Primary+6 keeps priority over the new Booru default and opens All plugins
+on Sources & Plugins. Diagnostics and Statistics have no default digit shortcuts;
+previously saved bindings still open their respective Status segment. The table
+follows the main-page order, not numeric sorting. The footer, the menus and the
+F1 help use the same order. Footer and menu destinations follow availability; F1
+can still list an effective binding for a hidden page, which remains unavailable.
+Every footer button names its effective shortcut in its tooltip. Hiding Booru
+does not give its default key back to Plugins or reassign the other pages.
+Ctrl+Shift+P pauses and resumes like the header button; it remains
 unavailable while a pause transition is in progress. These direct page and pause
 shortcuts leave native inputs, dialogs and open overlays in control and retain
 unsaved drafts. F1 shows the commands for the current context, including selection
@@ -734,7 +839,12 @@ names the setting that can be raised.
 **English (additional limits):** **Archive tag filters per list** bounds each
 include/exclude list independently; lowering it does not truncate stored filters.
 **URL text export size (MiB)** limits new URL text output, not HTML or original-file
-exports, and does not remove the separate per-record/format safety bounds.
+exports: it is the writer budget, not a larger file format. The URL text format
+still has a fixed **1 MiB** ceiling, **4096 lines** and **8192 UTF-16 code units per
+line**; the current archive plan exports exactly one thread page URL. Raising the
+writer budget to 64 MiB does not enable a 64-MiB URL export. Separate identity and
+target-path checks still apply. See the [settings and export limits reference
+(German)](user-guide/settings-export-and-limits.md).
 **Slash-tag suggestions** bounds detected slash-tag suggestions, not the number of
 tags you can store or the separate quick-tag chip count. **Video scrub preview
 cache size (MiB)** budgets derived timeline previews on disk, not original videos.
@@ -745,6 +855,12 @@ Einschluss-/Ausschlussliste einzeln (Standard 32, 8 bis 128); ein niedrigerer We
 kürzt gespeicherte Filter nicht. **Größe des URL-Textexports (MiB)** begrenzt neue
 URL-Textausgaben (Standard 1 MiB, 1 bis 64 MiB), nicht HTML- oder Originaldatei-
 Exporte; zusätzliche Schutzgrenzen je Eintrag und Format bleiben bestehen.
+Der Wert ist das Writerbudget, keine Erweiterung des Dateiformats: Das URL-Textformat
+bleibt auf **1 MiB**, **4096 Zeilen** und **8192 UTF-16-Codeeinheiten je Zeile**
+begrenzt. Der heutige Archivplan exportiert genau eine Thread-Seiten-URL.
+64 MiB Writerbudget ermöglichen keinen 64-MiB-URL-Export; Identitäts- und
+Zielpfadprüfungen gelten weiterhin. Details findest du in der [Referenz zu
+Einstellungen und Exportgrenzen](user-guide/settings-export-and-limits.md).
 **Slash-Tagvorschläge** begrenzt erkannte Slash-Tagvorschläge (Standard 8, 3 bis 20),
 nicht deine gespeicherten Tags oder die separate Zahl der Schnell-Taggen-Chips.
 **Größe des Video-Scrub-Vorschau-Caches (MiB)** begrenzt abgeleitete Zeitleisten-
@@ -872,12 +988,21 @@ The overview does not edit your view or draft and is not a custom-view editor.
 After an applied view switch, a **Work view changed** toast summarizes changed
 defaults and column defaults. **Undo** restores the previous view, not unrelated
 settings or data; a newer switch invalidates the older notice's actions. The
-notice requires information popups and an available session. Its Config setting
-`WorkViewSwitchNoticeSeconds` defaults to 8 seconds, allows 0 to 60, and 0 disables
-the toast including Undo/Details. This checkout has no settings input for that
-duration yet. **Details** is present but its navigation host is not connected in
-this checkout: it reports that the overview is not connected instead of opening
-the changed rows. Open Work views manually for the full comparison. The one-time
+notice requires information popups and an available session. Under **Settings →
+Notifications**, **Work-view switch notice (seconds)** (`WorkViewSwitchNoticeSeconds`)
+defaults to 8 seconds, allows 0 to 60, and 0 disables the toast including Undo/Details.
+The duration stays in the draft until **Save**; **Discard draft** restores the saved
+value, and resetting Notifications loads the default into the draft.
+
+**Details** opens **Settings → Work views** through the normal protected Settings
+route, without saving or discarding your existing settings draft. While the session
+is restoring, closing or busy, the route cannot open. The overview shows only the
+policy rows changed by that switch, across all pages; its active column follows the
+currently applied view, not an unsaved view choice or a forced return to the old
+view. Keyboard focus moves to **Find an element** (or the table if the field is
+unavailable). Page/text filters narrow the changed rows further. **Clear filters**
+removes the difference restriction too; entering Work views normally also clears
+the previous difference, page and text filters for the full comparison. The one-time
 notice for older profiles is separate from this switch toast.
 
 | Setting | Default | Allowed |
@@ -902,13 +1027,25 @@ Nach einem angewandten Ansichtswechsel fasst **Arbeitsansicht gewechselt** geän
 Vorgaben und Spaltenvorgaben zusammen. **Rückgängig** stellt die vorige Ansicht
 wieder her, nicht andere Einstellungen oder Daten. Ein neuer Wechsel macht die
 Aktionen des alten Hinweises ungültig. Der Hinweis braucht Informations-Popups und
-eine verfügbare Sitzung. Der Config-Wert `WorkViewSwitchNoticeSeconds` hat den
+eine verfügbare Sitzung. Unter **Einstellungen → Benachrichtigungen** findest du
+**Hinweis beim Ansichtswechsel (Sekunden)** (`WorkViewSwitchNoticeSeconds`):
 Standard 8 Sekunden und den Bereich 0 bis 60; 0 schaltet den Toast einschließlich
-Rückgängig/Details aus. Ein Eingabefeld für die Dauer fehlt in diesem Stand noch.
-**Details** ist vorhanden, aber der Navigationsanschluss an die Übersicht fehlt in
-diesem Stand: Du erhältst einen Hinweis statt der geänderten Zeilen. Öffne
-Arbeitsansichten für den vollständigen Vergleich selbst. Der Einmalhinweis für
-ältere Profile ist vom Wechsel-Toast unabhängig.
+Rückgängig/Details aus. Die Dauer bleibt bis **Speichern** im Entwurf. Mit **Entwurf
+verwerfen** holst du den gespeicherten Wert zurück; Zurücksetzen der
+Benachrichtigungen lädt den Standard in den Entwurf.
+
+**Details** öffnet **Einstellungen → Arbeitsansichten** über den normalen geschützten
+Einstellungsweg, ohne deinen vorhandenen Einstellungsentwurf zu speichern oder zu
+verwerfen. Während Wiederherstellung, Schließen oder einer laufenden geschützten
+Aktion öffnet sich dieser Weg nicht. Die Übersicht zeigt nur die durch diesen
+Wechsel geänderten Policy-Zeilen über alle Seiten. Die aktive Spalte folgt der
+aktuell angewandten Ansicht, nicht einer ungespeicherten Ansichtswahl; sie schaltet
+nicht zur alten Ansicht zurück. Der Tastaturfokus geht zu **Element suchen** (oder
+zur Tabelle, falls das Feld nicht verfügbar ist). Seiten-/Textfilter schränken die
+geänderten Zeilen weiter ein. **Filter zurücksetzen** entfernt auch die
+Differenzeinschränkung. Öffnest du Arbeitsansichten normal, werden die vorherigen
+Differenz-, Seiten- und Textfilter für den vollständigen Vergleich gelöscht. Der
+Einmalhinweis für ältere Profile ist vom Wechsel-Toast unabhängig.
 
 **Fenster beim Wechsel zu Minimal verkleinern** ist unter Oberfläche standardmäßig
 an. Schalte es aus und speichere, wenn du beim Wechsel die Fenstergröße behalten
@@ -925,8 +1062,10 @@ Ctrl+7 (Command+7 on macOS) open the last-used segment; the header graph and tra
 open Statistics. A source's Diagnostics action opens Status → Diagnostics with
 that source selected. Recovery failure opens Diagnostics; Statistics becomes
 available after session recovery. You can assign each segment a shortcut, and
-previously saved segment shortcuts keep working. There is no Booru footer page;
-[Danbooru search and watchers](#danbooru-search-and-watchers) still use a window.
+previously saved segment shortcuts keep working. Booru is a separate main page,
+not a Status segment: it uses slot 6, Sources & Plugins keeps slot 5 and Status
+keeps slot 7. Slot 8 is unassigned by default. For Booru visibility and the saved
+Plugins shortcut override, see [Booru page and display switch](#booru-page-and-display-switch).
 
 **Deutsch:** **Status** vereint **Statistik** und **Diagnose** auf einer Seite.
 Die gemeinsame Statuszeile zählt aktive und wartende Übertragungen und aktuelle
@@ -937,9 +1076,11 @@ benutzten Bereich; Kopfleisten-Graph und Tray öffnen Statistik. Die Diagnose-Ak
 einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach einer
 fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
 Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
-früher gespeicherte Bereichskürzel funktionieren weiter. Strg/⌘+6 und Strg/⌘+8 sind
-standardmäßig frei. Eine Booru-Fußleistenseite gibt es noch nicht; Danbooru-Suche
-und Suchbeobachtungen öffnest du weiterhin in einem Fenster.
+früher gespeicherte Bereichskürzel funktionieren weiter. Booru ist eine eigene
+Hauptseite, kein Status-Bereich: Booru belegt Strg/⌘+6, Quellen & Plugins bleibt
+auf Strg/⌘+5 und Status auf Strg/⌘+7. Nur Strg/⌘+8 ist standardmäßig frei. Der
+[Booru-Anzeigeschalter und der gespeicherte Plugins-Kürzelvorrang](#booru-page-and-display-switch)
+sind davon getrennt; der Schalter pausiert keine Suchbeobachtungen.
 
 ### Statistics and disk traffic
 

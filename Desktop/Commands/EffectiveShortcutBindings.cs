@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 8;
+    public const int DefaultsRevision = 9;
     /// <summary>Commands whose default gesture set was introduced or changed after profiles with saved
     /// bindings may already exist, with the revision that did it. A new default on such a command yields to
     /// a saved binding of another command instead of silencing both; entries are never removed because a
@@ -160,22 +160,25 @@ public sealed class EffectiveShortcutBindings
         // yields to a saved binding of another command; Diagnostics and Statistics lose their digits (Primary+8 is free) and
         // keep any binding the user saved for them.
         ["navigation.status"] = 7,
-        // New in revision 8 (wave3: V1, V3 and PT6 each raised the table after Status took revision 7): the video transport row
+        // New in revision 8: the own Booru page takes the previously free Primary+6. A persisted
+        // navigation.plugins=Primary+6 override therefore keeps winning over the new default.
+        ["navigation.booru"] = 8,
+        // New in revision 9 (wave3: V1, V3, PT6, R8, M4 and PT3 each raised the table in their own branch; Status took 7, the Booru page 8): the video transport row
         // (A–B loop, next frame).
-        ["video.ab-loop"] = 8, ["video.frame-step"] = 8,
-        // New in revision 8: L shows or hides the gallery filmstrip.
-        ["gallery.filmstrip-toggle"] = 8,
-        // New in revision 8 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
+        ["video.ab-loop"] = 9, ["video.frame-step"] = 9,
+        // New in revision 9: L shows or hides the gallery filmstrip.
+        ["gallery.filmstrip-toggle"] = 9,
+        // New in revision 9 (PT6, decision E2): Shift+1 to Shift+5 rate and Shift+0 removes the rating, in the gallery, the large reader's
         // media rows and the rating dialog; R stays the dialog. They yield to a saved binding of another command like every new default.
-        ["media.rating.set-1"] = 8, ["media.rating.set-2"] = 8, ["media.rating.set-3"] = 8, ["media.rating.set-4"] = 8,
-        ["media.rating.set-5"] = 8, ["media.rating.clear"] = 8,
-        // New in revision 8: the reader's media sidebar (R8).
-        ["reader.sidebar.toggle"] = 8, ["reader.sidebar.previous-media"] = 8, ["reader.sidebar.next-media"] = 8,
-        // New in revision 8: the media page's focus mode (M4), Shift+F next to the favourite's F.
-        ["media.focus-mode"] = 8,
-        // New in revision 8 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
+        ["media.rating.set-1"] = 9, ["media.rating.set-2"] = 9, ["media.rating.set-3"] = 9, ["media.rating.set-4"] = 9,
+        ["media.rating.set-5"] = 9, ["media.rating.clear"] = 9,
+        // New in revision 9: the reader's media sidebar (R8).
+        ["reader.sidebar.toggle"] = 9, ["reader.sidebar.previous-media"] = 9, ["reader.sidebar.next-media"] = 9,
+        // New in revision 9: the media page's focus mode (M4), Shift+F next to the favourite's F.
+        ["media.focus-mode"] = 9,
+        // New in revision 9 (PT3): the keys of the tagging mode in the gallery. They live in their own context ("gallery-tagging"), so they
         // never compete with Space, Enter and Backspace of the plain gallery, and yield to a saved binding like every new default.
-        ["tags.queue.done-next"] = 8, ["tags.queue.skip"] = 8, ["tags.queue.back"] = 8, ["tags.queue.play-pause"] = 8,
+        ["tags.queue.done-next"] = 9, ["tags.queue.skip"] = 9, ["tags.queue.back"] = 9, ["tags.queue.play-pause"] = 9,
     };
     public static IReadOnlyCollection<string> YieldingDefaultCommandIds => DefaultChangedInRevision.Keys.ToArray();
     // Commands whose default changed only in the macOS table: on Windows and Linux their gesture is the old stable one

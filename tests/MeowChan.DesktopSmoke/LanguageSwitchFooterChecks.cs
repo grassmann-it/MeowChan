@@ -15,17 +15,13 @@ internal static class LanguageSwitchFooterChecks
 {
     private sealed record NavigationTarget(string Button, string? MenuItem, string CommandId, string LabelKey);
 
-    private static readonly NavigationTarget[] NavigationTargets =
-    [
-        new("ArchiveNavigationButton", "ArchiveMenuItem", "navigation.archive", "command.navigation.archive"),
-        new("RulesNavigationButton", "RulesMenuItem", "navigation.rules", "command.navigation.rules"),
-        new("SourcesNavigationButton", "SourcesMenuItem", "navigation.sources", "command.navigation.sources"),
-        new("PluginsNavigationButton", "PluginsMenuItem", "navigation.plugins", "command.navigation.plugins"),
-        new("StatusNavigationButton", "StatusMenuItem", "navigation.status", "command.navigation.status"),
-        new("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
-        new("DownloadsNavigationButton", null, "navigation.downloads", "command.navigation.downloads"),
-        new("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
-    ];
+    private static readonly NavigationTarget[] NavigationTargets = MainPageOrder.CommandIds.Select(id =>
+        new NavigationTarget(MainPageOrder.ControlStem(id) + "NavigationButton",
+            id == "navigation.downloads" ? null : MainPageOrder.ControlStem(id) + "MenuItem", id, "command." + id))
+        .Concat(new[] {
+            new NavigationTarget("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
+            new NavigationTarget("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
+        }).ToArray();
 
     internal static async Task RunAsync(MainWindow window)
     {
@@ -136,6 +132,15 @@ internal static class LanguageSwitchFooterChecks
                     $"{menuName} kept a stale app-menu command label for {Texts.Language}.");
             }
         }
+
+        CommandDefinition compatibility = CommandCatalog.Get("navigation.plugins");
+        Require(CommandLabel("navigation.plugins", "command.navigation.plugins").Length > 0
+            && !compatibility.Contexts.Any(context => context is "footer" or "app-menu" or "tools-menu") && compatibility.DefaultGestures.Count == 0
+            && MainPageOrder.Digit("navigation.plugins") == null && MainPageOrder.Digit("navigation.status") == 7
+            && window.FindControl<Button>("PluginsNavigationButton") == null
+            && window.FindControl<MenuItem>("PluginsMenuItem") == null
+            && window.FindControl<ContentControl>("PluginsPageHost") == null,
+            "The compatibility route reappeared as a workspace or displaced the Status shortcut.");
 
         string about = CommandLabel("navigation.about", "command.navigation.about");
         Button brand = window.FindControl<Button>("BrandAboutButton")!;

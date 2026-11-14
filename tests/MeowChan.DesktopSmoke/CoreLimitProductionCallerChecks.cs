@@ -7,6 +7,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Tags;
+using MeowChan.Interfaces;
 using Ursa.Controls;
 
 namespace MeowChan.DesktopSmoke;

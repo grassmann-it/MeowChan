@@ -79,7 +79,7 @@ public sealed class DefaultShortcutInvariantTests
     public void EveryChangedDefaultOfTheCurrentRevisionYieldsToSavedBindings()
     {
         // A command whose default differs between platforms or was added after profiles exist must be in the yielding table.
-        foreach (string id in new[] { "navigation.media", "navigation.plugins", "thread.favorite-toggle", "thread.tags", "media.tags.edit",
+        foreach (string id in new[] { "navigation.media", "navigation.booru", "navigation.plugins", "thread.favorite-toggle", "thread.tags", "media.tags.edit",
             "media.select-all", "reader.find-next", "reader.find-previous", "gallery.slideshow-toggle", "media.details", "media.rating.edit",
             "media.export-original", "media.show-in-folder", "reader.history-back", "gallery.return", "pagination.previous", "pagination.next",
             "window.minimize", "menu.context-open", "video.mute", "video.seek-back", "video.seek-forward", "video.seek-back-far",

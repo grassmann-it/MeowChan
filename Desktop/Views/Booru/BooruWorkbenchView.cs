@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -17,6 +18,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.PluginSdk;
 using Serilog;
 using SkiaSharp;
@@ -28,7 +30,7 @@ namespace MeowChan.Desktop.Booru;
 /// The host supplies layout/chrome and calls ActivateAsync when first shown; detaching only suspends
 /// the clock, not the model or its in-flight work. The host must Dispose when permanently done.
 /// </summary>
-internal sealed class BooruWorkbenchView : UserControl, IDisposable
+internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 {
     internal const string TabsName = "BooruTabs";
     internal const string ModeName = "BooruMode";
@@ -65,6 +67,8 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     internal const string ResultTagPrefix = "BooruResultTag:";
     internal const string DetailsPrefix = "BooruResultDetails:";
     internal const string MoreTagsPrefix = "BooruResultMoreTags:";
+    internal const string ShowInMediaPrefix = "BooruShowInMedia:";
+    internal const string WatcherShowInMediaPrefix = "BooruWatcherShowInMedia:";
 
     private const int PreviewSize = 112;
     private const int MaximumTagsShown = 24;
@@ -127,11 +131,14 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     // A focused control that a running command disabled; focus returns to it once it is enabled again.
     private (Panel Panel, string Name, int Card)? _pendingFocus;
     private string? _watchersKey;
+    private Func<string, Task<bool>>? _showInMedia;
+    private Func<string, bool>? _isPostSavedInMedia;
     private bool _paused;
     private string _cooling = string.Empty;
     private bool _applying;
     private bool _renderQueued;
     private bool _closed;
+    private long _linkActionRevision;
 
     private bool _attached;
     private bool _activated;
@@ -159,6 +166,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         _model.Watchers.Changed += OnModelChanged;
         Texts.Changed += OnTextsChanged;
         _clock.Tick += OnClockTick;
+        RegisterWorkViewIds();
         Render(force: true);
     }
 
@@ -189,8 +197,13 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         if (_closed) return Task.CompletedTask;
         _activated = true;
         if (_attached) _clock.Start();
-        _input.Focus();
+        FocusSearchInput();
         return _initialization ??= _model.InitializeAsync();
+    }
+
+    internal void FocusSearchInput()
+    {
+        if (!_closed) _input.Focus();
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -213,6 +226,27 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
 
     internal BooruWorkbenchModel Model => _model;
 
+    /// <summary>Host navigation to the local media entry of an already saved post. The callback never performs provider I/O.</summary>
+    internal Func<string, Task<bool>>? ShowInMedia
+    {
+        get => _showInMedia;
+        set
+        {
+            _showInMedia = value;
+            // Replacing the host callback retires a pending navigation even when the host has not
+            // disposed the view yet (for example during a profile/service handover).
+            Interlocked.Increment(ref _linkActionRevision);
+            Render(force: true);
+        }
+    }
+
+    /// <summary>Passive local predicate used for watcher cards; it must require the exact Danbooru post identity.</summary>
+    internal Func<string, bool>? IsPostSavedInMedia
+    {
+        get => _isPostSavedInMedia;
+        set { _isPostSavedInMedia = value; Render(force: true); }
+    }
+
     /// <summary>
     /// Puts a query into the search field of the Search tab and brings that tab forward. The field itself is set (not only the
     /// model), because a field that has not been laid out yet would otherwise report its initial empty text back and erase the
@@ -232,10 +266,14 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildHeader()
     {
-        StackPanel header = new() { Spacing = 4 };
-        header.Children.Add(_title);
-        header.Children.Add(_provider);
-        header.Children.Add(_intro);
+        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        StackPanel details = new() { Spacing = 4 };
+        details.Children.Add(_title);
+        details.Children.Add(_provider);
+        details.Children.Add(_intro);
+        header.Children.Add(details);
+        Grid.SetColumn(_more, 1);
+        header.Children.Add(_more);
         return header;
     }
 
@@ -417,6 +455,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
             RenderChrome(watchers);
             RenderSearch(search, force);
             RenderWatchers(watchers, force);
+            RefreshWorkViewPresentation();
         }
         finally { _applying = false; }
     }
@@ -508,6 +547,8 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
             }
             _noticeHost.IsVisible = view.Notice is not null;
         }
+        // The work-view gate owns presentation, while this state remains the model's notice state.
+        WorkViewElement.SetStateVisible(_noticeHost, _noticeHost.IsVisible);
 
         // Errors interrupt (as the dialog error strips do); progress and limits wait their turn.
         BooruNoticeKind tone = ToneOf(view.Status);
@@ -534,6 +575,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
+            _resultWorkViewActions.Clear();
             RebuildPanel(_results, () => view.Rows.Select(CreateResultCard).ToList(), fallback: () => null);
             PruneBitmaps(view.Rows);
         }
@@ -570,7 +612,8 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
                 storage.Percent, storage.PostCount, Texts.T("settings.storageLimits"), Texts.T("budgets.booruCatalog"));
             ApplyTone(_storageHost, BooruNoticeKind.Warning);
         }
-        _storageHost.IsVisible = view.Storage is { NearLimit: true };
+        bool storageVisible = view.Storage is { NearLimit: true };
+        WorkViewGate.Apply(_storageHost, _workView, storageVisible, _catalogUsageRevealed);
         _watchersState.IsVisible = view.Status != BooruWatcherListStatus.Ready;
         _watchersState.Text = view.Status switch
         {
@@ -603,6 +646,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         if (force || key != _watchersKey)
         {
             _watchersKey = key;
+            _watcherWorkViewActions.Clear();
             RebuildPanel(_watchers, () => view.Rows.Select(CreateWatcherCard).ToList(), moveTo, () => _watchersTab, waitWhileDisabled: true);
         }
     }
@@ -712,10 +756,14 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         original.Classes.Add(post.OriginalAccess == BooruOriginalAccess.Available ? "workspace-status-success" : "workspace-warning");
         info.Children.Add(original);
         info.Children.Add(CreateTags(post));
+        if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
+            && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
+            info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
+                Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
         // Secondary links after the content; the primary action (load original) keeps its place on the right.
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             info.Children.Add(CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId)));
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions));
 
         if (BooruText.Load(row) is { } loadText)
         {
@@ -735,6 +783,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
 
         Button load = new() { Name = LoadPrefix + post.PostId, Content = Texts.T("booru.ui.load"), VerticalAlignment = VerticalAlignment.Top };
         load.Classes.Add("primary");
+        RegisterWorkViewAction(load, "booru.result.load", _resultWorkViewActions);
         load.IsEnabled = row.CanLoad;
         string loadName = Texts.T("booru.ui.loadFor", post.PostId);
         AutomationProperties.SetName(load, loadName);
@@ -750,17 +799,45 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         return card;
     }
 
+    private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
+    {
+        Button show = new() { Name = name, Content = Texts.T("booru.ui.result.showInMedia") };
+        show.Classes.Add("ghost");
+        AutomationProperties.SetName(show, accessibleName);
+        ToolTip.SetTip(show, accessibleName);
+        show.Click += async (_, _) =>
+        {
+            if (_showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
+            try
+            {
+                bool shown = await navigate(postId);
+                if (shown || !IsCurrentLinkAction(revision)) return;
+                SetLinkNote(("booru.crossLinks.missingLocal", postId, true), revision);
+            }
+            catch (Exception exception) when (exception is not OutOfMemoryException)
+            {
+                // A host/profile transition may retire the navigation callback while it is awaited.
+                // This is an action failure, not evidence that the local original is missing.
+                Log.Warning(exception, "Could not show a Danbooru post in local media");
+            }
+        };
+        return show;
+    }
+
     /// <summary>"Open in browser" and "Copy link" for one canonical post URL; nothing else is ever opened or copied.</summary>
-    private Control CreateLinkActions(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName)
+    private Control CreateLinkActions(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName,
+        ICollection<Button> workViewActions)
     {
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
         open.Classes.Add("ghost");
+        RegisterWorkViewAction(open, "booru.result.open", workViewActions);
         AutomationProperties.SetName(open, openAccessibleName);
         ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
         open.Click += async (_, _) => await OpenLinkAsync(url);
         Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
         copy.Classes.Add("ghost");
+        RegisterWorkViewAction(copy, "booru.result.copy-link", workViewActions);
         AutomationProperties.SetName(copy, copyAccessibleName);
         ToolTip.SetTip(copy, url);
         copy.Click += async (_, _) => await CopyLinkAsync(url);
@@ -772,37 +849,59 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     private async Task OpenLinkAsync(string url)
     {
         // Only canonical post pages reach this method (built by BooruPostLinks); a launcher failure is shown, never retried.
+        if (!TryBeginLinkAction(out long revision)) return;
         try
         {
             await _model.Services.Links.Open(url);
-            SetLinkNote(null);
+            SetLinkNote(null, revision);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not open a Danbooru post in the browser");
-            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true));
+            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true), revision);
         }
     }
 
     private async Task CopyLinkAsync(string url)
     {
+        if (!TryBeginLinkAction(out long revision)) return;
         try
         {
             if (_model.Services.Links.Copy is { } copy) await copy(url);
             else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(url);
             else throw new InvalidOperationException("The clipboard is unavailable.");
-            SetLinkNote(("booru.ui.link.copied", url, false));
+            SetLinkNote(("booru.ui.link.copied", url, false), revision);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not copy a Danbooru post link");
-            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true));
+            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision);
         }
     }
 
+    private bool TryBeginLinkAction(out long revision)
+    {
+        if (_closed)
+        {
+            revision = 0;
+            return false;
+        }
+        revision = Interlocked.Increment(ref _linkActionRevision);
+        return true;
+    }
+
+    private bool IsCurrentLinkAction(long revision) =>
+        !_closed && Volatile.Read(ref _linkActionRevision) == revision;
+
     private void SetLinkNote((string Key, string Argument, bool Problem)? state)
     {
-        if (_closed) return;
+        if (!TryBeginLinkAction(out long revision)) return;
+        SetLinkNote(state, revision);
+    }
+
+    private void SetLinkNote((string Key, string Argument, bool Problem)? state, long revision)
+    {
+        if (!IsCurrentLinkAction(revision)) return;
         _linkNoteState = state;
         _applying = true;
         try { RenderChrome(_model.Watchers.View); }
@@ -851,6 +950,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     private static Control CreateDetails(BooruPostView post)
     {
         Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, RowSpacing = 1 };
+        WorkViewElement.SetId(list, "booru.result.details");
         void Add(string termKey, string value)
         {
             int row = list.RowDefinitions.Count;
@@ -1069,11 +1169,15 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
         {
             Text = Texts.T("booru.ui.watcher.hits", watcher.HitCount, watcher.QueuedCount), Classes = { "workspace-meta" }
         });
-        if (watcher.LatestPostId is { } latest && BooruPostLinks.TryCanonical(latest, out string latestUrl))
+        if (watcher.LatestPostId is { } latest)
         {
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.latest", latest), Classes = { "workspace-meta" } });
-            panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
-                Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query)));
+            if (_showInMedia != null && _isPostSavedInMedia?.Invoke(latest) == true)
+                panel.Children.Add(CreateShowInMediaAction(WatcherShowInMediaPrefix + watcher.WatcherId,
+                    Texts.T("booru.ui.watcher.showInMediaFor", latest, watcher.Query), latest));
+            if (BooruPostLinks.TryCanonical(latest, out string latestUrl))
+                panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
+                    Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query), _watcherWorkViewActions));
         }
         if (!watcher.BaselineEstablished)
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.baseline"), Classes = { "workspace-help" } });
@@ -1099,21 +1203,36 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
 
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         BooruWatcherBlock checkBlock = model.CheckBlock(row);
-        actions.Children.Add(WatcherButton(CheckPrefix + watcher.WatcherId, "booru.ui.watcher.checkNow", "booru.ui.watcher.checkNowFor",
-            watcher.Query, checkBlock, cooling, async () => await model.CheckNowAsync(watcher.WatcherId)));
+        Button check = WatcherButton(CheckPrefix + watcher.WatcherId, "booru.ui.watcher.checkNow", "booru.ui.watcher.checkNowFor",
+            watcher.Query, checkBlock, cooling, async () => await model.CheckNowAsync(watcher.WatcherId));
+        RegisterWorkViewAction(check, "booru.watcher.check-now", _watcherWorkViewActions);
+        actions.Children.Add(check);
         if (watcher.Status == BooruWatcherStatus.Paused)
-            actions.Children.Add(WatcherButton(ResumePrefix + watcher.WatcherId, "booru.ui.watcher.resume", "booru.ui.watcher.resumeFor",
-                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId), ghost: true));
+        {
+            Button resume = WatcherButton(ResumePrefix + watcher.WatcherId, "booru.ui.watcher.resume", "booru.ui.watcher.resumeFor",
+                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId), ghost: true);
+            RegisterWorkViewAction(resume, "booru.watcher.pause", _watcherWorkViewActions);
+            actions.Children.Add(resume);
+        }
         else
-            actions.Children.Add(WatcherButton(PausePrefix + watcher.WatcherId, "booru.ui.watcher.pause", "booru.ui.watcher.pauseFor",
-                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId), ghost: true));
+        {
+            Button pause = WatcherButton(PausePrefix + watcher.WatcherId, "booru.ui.watcher.pause", "booru.ui.watcher.pauseFor",
+                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId), ghost: true);
+            RegisterWorkViewAction(pause, "booru.watcher.pause", _watcherWorkViewActions);
+            actions.Children.Add(pause);
+        }
         Button remove = WatcherButton(RemovePrefix + watcher.WatcherId, "booru.ui.watcher.remove", "booru.ui.watcher.removeFor",
             watcher.Query, model.RemoveBlock(row), cooling, () => { model.RequestRemoval(watcher.WatcherId); return Task.CompletedTask; });
         remove.Classes.Add("danger");
+        RegisterWorkViewAction(remove, "booru.watcher.remove", _watcherWorkViewActions);
         actions.Children.Add(remove);
         if (BooruWatcherListModel.CanRestartFromNow(watcher))
-            actions.Children.Add(WatcherButton(RestartPrefix + watcher.WatcherId, "booru.ui.watcher.restart", "booru.ui.watcher.restartFor",
-                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId), ghost: true));
+        {
+            Button restart = WatcherButton(RestartPrefix + watcher.WatcherId, "booru.ui.watcher.restart", "booru.ui.watcher.restartFor",
+                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId), ghost: true);
+            RegisterWorkViewAction(restart, "booru.watcher.restart", _watcherWorkViewActions);
+            actions.Children.Add(restart);
+        }
         panel.Children.Add(actions);
 
         if (row.ConfirmingRemoval)
@@ -1163,6 +1282,7 @@ internal sealed class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
+        Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
         ChromeChanged = null;

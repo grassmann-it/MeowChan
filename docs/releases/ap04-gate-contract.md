@@ -1,7 +1,9 @@
 # AP04 gate contract (source upgrade versus packaged release)
 
 This document describes what `tests/fixtures/upgrade-v1.0.2/ap04_run.py` may claim. It is a
-run contract, not a release approval. The runner must be used from a fresh, detached worktree
+run contract, not a release approval. Reconciled against source base
+`63fd4190407973026d2a9ac96c479aa191325868` on 14.11.2026; this documentation pass did not
+execute AP04 or verify real release packages. The runner must be used from a fresh, detached worktree
 whose full commit ID is supplied as `--candidate-sha`; failed attempts are retained and a new
 `--out` directory is required for the next attempt.
 
@@ -21,12 +23,35 @@ fixture.
 
 ### Packaged-release verification
 
-`--linux-package-dir` and `--sha256sums` bind a Linux package artifact root to the candidate:
-the manifest source commit/version, all three listed assets, the full package-root inventory,
-and the matching checksum file are re-hashed at identity and final verification. A mutation,
-replacement, missing file, symlink, newly added unlisted file, or special file (including a FIFO
-or Unix socket) makes final verification fail. Existing ordinary unlisted files are inventoried,
-not silently ignored; the separate package-inventory gate enforces the public allowlist.
+`ap04_run.py` requires `--linux-package-dir` and `--sha256sums` together for a
+package-bound run. They bind a Linux package artifact root to the candidate.
+`ap04_candidate.py` checks the manifest schema, runtime, exact candidate source
+commit/version and a well-formed apphost hash field. The manifest must list exactly
+three artifacts, one per flavor, with these exact version/RID-derived filenames
+(the default RID is `linux-x64`):
+
+- `MeowChan-<version>-<rid>-system-vlc.tar.gz`
+- `MeowChan-<version>-<rid>-bundled-vlc.tar.gz`
+- `MeowChan-<version>-<rid>.AppImage`
+
+Each asset's actual byte length and SHA-256 must match the manifest, and its hash
+must match the supplied checksum file. The root allowlist is **strict already at
+initial identity**, not just at final verification: exactly those three assets
+and `<rid>-package-manifest.json` are allowed. If the explicitly supplied checksum
+file itself is directly inside that root, its actual filename is also allowed;
+if it is outside, no extra checksum file in the root is implicitly exempted.
+The runner requires checksum binding even though the lower-level `package_set`
+helper can be called without a checksum file for isolated checks.
+
+Unlisted ordinary files are rejected, including files already present before the
+run. Unexpected directories (even empty ones) and nested paths are rejected too;
+symlink components, hardlinks and special files such as FIFOs or Unix sockets
+are not valid artifact inputs. The full accepted inventory, asset hashes, manifest
+hash and supplied checksum-file hash are recorded and rechecked at final
+verification. A byte/inventory change, missing file or addition fails that gate;
+there is no repair, ignored-file extension exemption or deferred allowlist check.
+This checks the outer package files, not their internal payload inventory or an
+executed apphost hash; payload/package/platform acceptance remains separate.
 
 Those package files are **not executed** by AP04. A matching package root is dependency/artifact
 provenance, not a packaged-apphost smoke test. The report therefore records

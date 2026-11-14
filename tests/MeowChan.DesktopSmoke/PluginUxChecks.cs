@@ -34,20 +34,19 @@ internal static class PluginUxChecks
             throw new InvalidOperationException("Select either the single-cell UX review or the presentation pass, not both.");
         string root = Path.Combine(Config.GetConfigDirectory(), "plugin-ux");
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(root);
-        PluginsPage page = new(); page.Attach(fixture.Services);
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
+        SourcesPage sources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage page);
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
         object? retained = host.Content;
         string language = Texts.Language, mode = window.SessionHost.Config.WorkspaceMode;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         double width = window.Width, height = window.Height;
-        host.Content = page;
+        host.Content = sources;
         try
         {
-            window.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MergedSourcesSmoke.OpenPlugins(window);
             await page.ActivateAsync();
-            Require(page.Selected == null && C<SelectionList>(page, "PluginCards").SelectedItem == null,
-                "Catalog opening selected a candidate without user intent.");
+            Require(page.Selected != null && C<SelectionList>(page, "PluginCards").SelectedItem != null,
+                "The merged catalog did not select its first plugin for passive presentation.");
             if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_PRESENTATION") == "1")
             {
                 foreach (string presentationMode in new[] { "Barebones", "Simple", "Advanced" })
@@ -83,7 +82,7 @@ internal static class PluginUxChecks
         }
         finally
         {
-            page.EndLifetime(); host.Content = retained;
+            sources.EndLifetime(); host.Content = retained;
             Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
             await PresentationChecks.SwitchModeAsync(window, mode);
             window.Width = width; window.Height = height;

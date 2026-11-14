@@ -94,7 +94,10 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
             || window.Index < 0 || window.Index >= window.Entries.Count) return Task.CompletedTask;
         CancellationTokenSource source = new();
         _active = source;
-        return RunAsync(window, fit, source);
+        // RunAsync may reach identity/stat/hash work before its first await when the delay is zero or an await completes inline.
+        // Queue the whole runner explicitly: Task.Yield would resume on the caller's context, while this keeps every filesystem
+        // operation below on the pool even for a completed delay/verification task.
+        return Task.Run(() => RunAsync(window, fit, source), CancellationToken.None);
     }
 
     /// <summary>
@@ -112,11 +115,11 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
     {
         string? key = GalleryImageCache.KeyOf(entry);
         if (key == null || !_cache.HasCandidate(key, fit)) return -1;
-        GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry);
+        GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry, _cache.IdentityOf);
         if (validity == null || !await GalleryImageCache.VerifyForCacheAsync(_cache, entry, validity, token).ConfigureAwait(false))
             return -1;
         token.ThrowIfCancellationRequested();
-        return _cache.Touch(key, fit, validity.IsCurrent);
+        return _cache.Touch(key, fit, validity);
     }
 
     private async Task RunAsync(GalleryPreloadWindow preloadWindow, GalleryDecodeRequest.Fit fit, CancellationTokenSource source)
@@ -140,7 +143,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
                 if (kept >= 0) { window += kept; continue; }
                 // Farther images would not fit either: stop instead of pushing out the nearer ones.
                 if (window + viewportBytes > budget) break;
-                GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry); // before the decode reads the file
+                GalleryImageCache.FileValidity? validity = GalleryImageCache.Capture(entry, _cache.IdentityOf); // before the decode reads the file
                 if (validity == null) continue;
                 (T bitmap, GalleryImageInfo info) decoded;
                 try { decoded = await _decode(entry, fit, token).ConfigureAwait(false); }
@@ -155,7 +158,7 @@ internal sealed class GalleryPreloader<T> where T : class, IDisposable
                 if (!validity.IsCurrent()) { decoded.bitmap.Dispose(); continue; }
                 GalleryImageCache.RememberVerified(_cache, validity);
                 // Keep it (the lease of Add is not needed: nobody shows it yet) and let go of it.
-                T stored = _cache.Add(key, decoded.bitmap, decoded.info, validity.IsCurrent);
+                T stored = _cache.Add(key, decoded.bitmap, decoded.info, validity);
                 window += _cache.BytesOf(stored);
                 Interlocked.Increment(ref _decoded);
                 _cache.Release(stored);

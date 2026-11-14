@@ -8,19 +8,19 @@ using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 
-// The Danbooru window entry of the Workspace menu (command "booru.open"). InitializeBooru() runs from
+// The Danbooru workbench entry of the Workspace menu (command "booru.open"). InitializeBooru() runs from
 // MainWindow.Navigation.cs; the entry is visible only while DesktopSessionHost.BooruServices is set, i.e. while
 // the Danbooru plugin is delivered, enabled and composed for this profile.
 public partial class MainWindow
 {
-    private BooruWorkbenchWindow? _booruWindow;
     private MenuItem? _booruMenu;
 
-    private bool CanOpenBooru => !_isClosing && _session.State == DesktopSessionState.Ready && _session.BooruServices != null;
+    private bool CanOpenBooru => !_isClosing && _config.ShowBooruTools
+        && _session.State == DesktopSessionState.Ready && _session.BooruServices != null;
 
     private void InitializeBooru()
     {
-        // Machine codes inside the window's sentences use the shared booru message catalog.
+        // Machine codes inside the page's sentences use the shared Booru message catalog.
         BooruText.CodeText = BooruCodeTexts.Localized;
         _booruMenu = CommandBindings.CreateMenuItem("booru.open", ShowBooruWorkbench, () => CanOpenBooru);
         _booruMenu.IsVisible = CanOpenBooru;
@@ -34,32 +34,39 @@ public partial class MainWindow
         };
         // One quiet information notification per finished automatic check that queued new originals.
         _session.BooruWatcherQueued += OnBooruWatcherQueued;
+        _session.BooruChanged += OnBooruChanged;
+        InitializeBooruMedia();
         Closed += (_, _) =>
         {
             _session.BooruWatcherQueued -= OnBooruWatcherQueued;
+            _session.BooruChanged -= OnBooruChanged;
             _booruAddLifetime.Cancel();
-            _booruWindow?.Close();
         };
     }
 
     /// <summary>
-    /// Puts a checked tag query into the Danbooru window's search field (opening the window like the menu entry does) and
-    /// returns true, or returns false when the window cannot be reached. It only fills the field: nothing is requested until
+    /// Puts a checked tag query into the hosted Danbooru page's search field (opening the page like the menu entry does) and
+    /// returns true, or returns false when the page cannot be reached. It only fills the field: nothing is requested until
     /// the user presses Search there.
     /// </summary>
     internal bool UseAsBooruSearch(string query)
     {
         if (!CanOpenBooru) return false;
-        ShowBooruWorkbench();
-        if (_booruWindow is not { } window) return false;
-        window.ShowQuery(query);
-        // The details dialog that asked is closing; bring the search window forward once it is gone.
-        Dispatcher.UIThread.Post(() => { window.Activate(); window.ShowQuery(query); });
+        if (!NavigateWorkspace(WorkspacePage.Booru)) return false;
+        if (_booruPage is not { } page) return false;
+        page.ShowQuery(query);
+        // Handoffs only prefill the real page draft. The workbench owns the Search action;
+        // no provider request is scheduled by this route.
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (!_isClosing && _selectedPage == WorkspacePage.Booru && ReferenceEquals(_booruPage, page))
+                page.View.FocusSearchInput();
+        });
         return true;
     }
 
     // Uses the shell's ordinary notification path, so the user's "information notifications" setting applies.
-    // Failures, cooldowns and checks that found nothing never come here, and a check started in the window reports there.
+    // Failures, cooldowns and checks that found nothing never come here, and a check started on the page reports there.
     private void OnBooruWatcherQueued(BooruWatcherCheckNotice notice)
     {
         if (notice.Queued <= 0) return;
@@ -72,12 +79,6 @@ public partial class MainWindow
 
     private void ShowBooruWorkbench()
     {
-        if (!CanOpenBooru) return;
-        if (_booruWindow is { } open) { open.Activate(); return; }
-        BooruWorkbenchServices services = _session.BooruServices!;
-        BooruWorkbenchWindow window = new(services);
-        _booruWindow = window;
-        window.Closed += (_, _) => { if (ReferenceEquals(_booruWindow, window)) _booruWindow = null; };
-        window.Show(this);
+        if (CanOpenBooru) NavigateWorkspace(WorkspacePage.Booru);
     }
 }

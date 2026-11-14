@@ -12,6 +12,7 @@ using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Import;
+using MeowChan.Interop.Links;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
 using MeowChan.Tags;
@@ -20,13 +21,14 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// Documentation contracts, not evidence of live provider behavior or native UI acceptance.
-/// Reads repository Markdown and embedded resources only: no profile, language-state mutation,
+/// Reads repository Markdown/source and embedded resources only: no profile, language-state mutation,
 /// store construction, HTTP client or application startup is needed.
 /// </summary>
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
     private const string DanbooruGuide = "docs/user-guide/danbooru.md";
+    private const string SettingsLimitsGuide = "docs/user-guide/settings-export-and-limits.md";
 
     public static TheoryData<string, int, int, int> Limits()
     {
@@ -165,6 +167,10 @@ public sealed class HelpDocumentationTests
             .Select(group => string.Join(", ", group.Select(id => CommandCatalog.Get(id).LabelEn)))
             .ToArray();
         foreach (string group in groups) Assert.Contains(group, defaults, StringComparison.Ordinal);
+        string germanOrder = string.Join(" | ", MainPageOrder.Groups
+            .Select(group => string.Join(", ", group.Select(id => CommandCatalog.Get(id).LabelDe))));
+        Assert.Contains(germanOrder, defaults, StringComparison.Ordinal);
+        Assert.Contains(germanOrder, Plain(Read(DanbooruGuide)), StringComparison.Ordinal);
         Assert.Contains("followed by More (German: Mehr) and Settings", defaults, StringComparison.Ordinal);
         Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
         Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
@@ -177,6 +183,7 @@ public sealed class HelpDocumentationTests
             (WorkViewPage.Reader, "WV3 Reader"),
             (WorkViewPage.Gallery, "WV4 Gallery"),
             (WorkViewPage.Media, "WV5 Media"),
+            (WorkViewPage.Booru, "Booru"),
             (WorkViewPage.Rules, "WV6 setup pages Rules"),
             (WorkViewPage.Sources, "Sources & Plugins"),
             (WorkViewPage.Status, "Status (WV7 Diagnostics and Statistics)"),
@@ -939,9 +946,11 @@ public sealed class HelpDocumentationTests
             Assert.Equal((int?)digit, MainPageOrder.Digit(ids[i]));
             Assert.Equal("Primary+" + digit.ToString(CultureInfo.InvariantCulture), CommandCatalog.Get(ids[i]).Shortcut);
         }
-        // Slots are deliberately not contiguous after merging Sources/Plugins and Diagnostics/Statistics.
-        Assert.Equal(new[] { 1, 2, 3, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
-        Assert.Contains("Ctrl+6 and Ctrl+8 (Command+6 and Command+8) are unassigned by default", section, StringComparison.Ordinal);
+        // Display order is not numeric sorting: Booru follows Media, while Sources=5 and Status=7 stay stable.
+        Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => MainPageOrder.Digit(id)!.Value));
+        Assert.Contains("Ctrl+8 (Command+8) is unassigned by default", section, StringComparison.Ordinal);
+        Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
+        Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
         Assert.Contains("previously saved bindings still open their respective Status segment", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {
@@ -949,6 +958,116 @@ public sealed class HelpDocumentationTests
             Assert.Null(MainPageOrder.Digit(compatibility));
             Assert.Null(CommandCatalog.Get(compatibility).Shortcut);
         }
+    }
+
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.Linux)]
+    [InlineData(ShortcutPlatform.MacOS)]
+    public void DocumentedSavedPluginsOverrideWinsWithoutChangingStatusOrOtherPageSlots(ShortcutPlatform platform)
+    {
+        string help = Plain(Section(Read(Help), "Selection and shortcuts"));
+        Assert.Contains("saved navigation.plugins binding to Primary+6 keeps priority over the new Booru default", help, StringComparison.Ordinal);
+        foreach (string file in new[] { Help, DanbooruGuide })
+            Assert.Contains("Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
+
+        ShortcutGesture six = ShortcutGesture.Parse("Primary+6");
+        EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(defaults.For("navigation.booru")), platform));
+        Assert.Empty(defaults.For("navigation.plugins"));
+        // Saved historical bindings remain byte-for-byte unchanged; the new default, not the user's override, yields.
+        ShortcutBindingsSection section = new ShortcutBindingsSection().Set("navigation.plugins", [six]);
+        foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            section = section.Set(id, [ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7")]);
+        string before = section.Raw.GetRawText();
+        EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
+        Assert.Equal(before, section.Raw.GetRawText());
+        Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(saved.For("navigation.plugins")), platform));
+        Assert.Empty(saved.For("navigation.booru"));
+        Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
+        Assert.Contains(saved.Issues, issue => issue.CommandId == "navigation.booru"
+            && issue.OtherCommandId == "navigation.plugins" && issue.Reason?.Code == "defaultYields");
+        foreach (string id in MainPageOrder.CommandIds.Where(id => id != "navigation.booru"))
+            Assert.True(EffectiveShortcutBindings.Equivalent(Assert.Single(defaults.For(id)), Assert.Single(saved.For(id)), platform));
+        foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            Assert.True(EffectiveShortcutBindings.Equivalent(
+                ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+8" : "Primary+Shift+7"), Assert.Single(saved.For(id)), platform));
+        Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
+        string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
+        Assert.Contains("_sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins)", shell, StringComparison.Ordinal);
+        Assert.Contains("ShowStatus(segment)", shell, StringComparison.Ordinal);
+        Assert.Contains("CanExecuteShellPowerCommand(e.Source, e.Key)", shell, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BooruDisplayHelpMatchesTheSavedPresentationSwitchAndItsHideScopes()
+    {
+        string text = Plain(Section(Read(Help), "Booru page and display switch"));
+        var label = Assert.Single(BooruPageCatalog.Entries, entry => entry.Key == "workview.booru.show");
+        Assert.Contains(label.English, text, StringComparison.Ordinal);
+        Assert.Contains(label.German, text, StringComparison.Ordinal);
+        Assert.Contains("saved, profile-wide display switch, on by default", text, StringComparison.Ordinal);
+        Assert.Contains("not source authorization, plugin activation or a watcher pause", text, StringComparison.Ordinal);
+        Assert.Contains("Sources, watchers and downloads keep running under their existing pause, cooldown and availability rules", text, StringComparison.Ordinal);
+        Assert.Contains("does not automatically resume a paused watcher, submit a search or bypass those rules", text, StringComparison.Ordinal);
+        Assert.Contains("F1 can still list a hidden or unavailable page binding", text, StringComparison.Ordinal);
+        foreach (string file in new[] { Help, DanbooruGuide })
+        {
+            string german = Plain(Read(file));
+            foreach (string phrase in new[] { label.German,
+                "gespeicherter, profilweiter Anzeigeschalter, standardmäßig an",
+                "Ohne eingebundene Booru-Dienste fehlen Schalter und Seitenziel",
+                "Booru-Ziele in Fußleiste, Mehr und Appmenü sowie Medien → Mehr → Booru öffnen aus",
+                "das Seitenkürzel öffnet keine ausgeblendete Seite",
+                "Von der gewählten Booru-Seite geht es zu Downloads zurück",
+                "bewahrt den ungesendeten Entwurf, solange dieselbe Quelleneinbindung besteht",
+                "nur Anzeige, keine Quellenautorisierung, Plugin-Aktivierung oder Suchbeobachtungspause",
+                "Anzeigen setzt keine pausierte Suchbeobachtung automatisch fort" })
+                Assert.Contains(phrase, german, StringComparison.Ordinal);
+        }
+
+        // Pure policy/config and source contracts, not a Window or a profile-backed runtime test.
+        Config config = new();
+        Assert.True(config.ShowBooruTools);
+        bool paused = config.DownloadsPaused;
+        var permissions = config.SourceMediaIntegrityPermissions;
+        config.ShowBooruTools = false;
+        Assert.Equal(paused, config.DownloadsPaused);
+        Assert.Same(permissions, config.SourceMediaIntegrityPermissions);
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.footer.booru-toggle", view));
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("shell.appmenu.booru-toggle", view));
+            Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct,
+                WorkViewPolicy.Resolve("shell.footer.booru", view));
+            foreach (string id in new[] { "booru.search.input", "booru.search.submit", "booru.results", "booru.watchers.list", "booru.notice" })
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(id, view));
+        }
+        string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");
+        foreach (string wiring in new[] { "ShowBooruToolsToggle.IsVisible = available", "menu.IsVisible = available",
+            "menu.IsChecked = visible", "ShowBooruToolsToggle.IsChecked = visible",
+            "SaveViewPreferencesAsync(current => current.ShowBooruTools = visible)",
+            "if (!visible && _selectedPage == WorkspacePage.Booru)", "NavigateWorkspace(WorkspacePage.Downloads)",
+            "BooruMenuItem.IsVisible = CanOpenBooru", "BooruMoreMenuItem.IsVisible = false" })
+            Assert.Contains(wiring, host, StringComparison.Ordinal);
+        string save = host[host.IndexOf("private async System.Threading.Tasks.Task SetBooruToolsVisibilityAsync", StringComparison.Ordinal)..];
+        foreach (string forbidden in new[] { "DisposeBooruPage(", "DownloadsPaused =", "SourceMediaIntegrityPermissions =",
+            "PauseAsync(", "ResumeAsync(", "SearchAsync(", "CheckNowAsync(", "EnablePluginAsync(" })
+            Assert.DoesNotContain(forbidden, save, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
+        Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
+        string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
+        Assert.Contains("_config.ShowBooruTools", booru, StringComparison.Ordinal);
+        Assert.Contains("page.ShowQuery(query)", booru, StringComparison.Ordinal);
+        Assert.DoesNotContain("SearchAsync(", booru, StringComparison.Ordinal);
+        string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
+        Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);
+        Assert.Contains("if (page == WorkspacePage.Booru && !CanOpenBooru) return false", navigation, StringComparison.Ordinal);
+        string shell = Read("Desktop/Shell/MainWindow.Fullscreen.cs");
+        Assert.Contains("if (id == \"navigation.booru\" && !CanOpenBooru) continue", shell, StringComparison.Ordinal);
+        Assert.Contains("new List<string>(MainPageOrder.CommandIds)", shell, StringComparison.Ordinal);
+        Assert.Contains("CommandCatalog.ShortcutDisplay(id) != null", shell, StringComparison.Ordinal);
+        Assert.Contains("SetBooruToolsVisibilityAsync(_booruToolsMenu.IsChecked)", Read("Desktop/Shell/MainWindow.WorkViewMenu.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1047,7 +1166,7 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void WorkViewOverviewAndNoticeHelpDistinguishesDefaultsUndoAndThePendingDetailsHost()
+    public void WorkViewOverviewAndNoticeHelpDescribesTheConnectedDetailsHostAndVisibleDuration()
     {
         string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
         foreach (string key in new[] { "settings.section.workViews", "workview.overview.page", "workview.overview.filter",
@@ -1057,7 +1176,7 @@ public sealed class HelpDocumentationTests
             Assert.Contains(entry.English, text, StringComparison.Ordinal);
             Assert.Contains(entry.German, text, StringComparison.Ordinal);
         }
-        foreach (string key in new[] { "workview.switch.title", "workview.switch.undo", "workview.switch.details" })
+        foreach (string key in new[] { "workview.switch.title", "workview.switch.undo", "workview.switch.details", "settings.workViewSwitchNoticeSeconds" })
         {
             var entry = Assert.Single(WorkViewSwitchCatalog.Entries, candidate => candidate.Key == key);
             Assert.Contains(entry.English, text, StringComparison.Ordinal);
@@ -1082,12 +1201,122 @@ public sealed class HelpDocumentationTests
         Assert.Equal(Config.WorkViewSwitchNoticeSecondsMaximum, Number(range.Groups["maximum"].Value));
         foreach (string phrase in new[] { "read-only comparison", "policy defaults, not a live visibility inventory",
             "Undo restores the previous view, not unrelated settings or data", "0 disables the toast including Undo/Details",
-            "navigation host is not connected", "no settings input for that duration yet", "not a custom-view editor",
+            "not a custom-view editor", "Settings → Notifications", "duration stays in the draft until Save",
             "schreibgeschützten Vergleich", "Vorgaben, keine Liste der gerade sichtbaren Controls",
-            "Navigationsanschluss an die Übersicht fehlt", "Ein Eingabefeld für die Dauer fehlt" })
+            "Einstellungen → Benachrichtigungen", "Dauer bleibt bis Speichern im Entwurf" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
-        Assert.Contains("WorkViewOverviewRequested", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
-        Assert.Contains("workview.switch.overviewUnavailable", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+        foreach (string obsolete in new[] { "navigation host is not connected", "no settings input for that duration yet",
+            "Navigationsanschluss an die Übersicht fehlt", "Ein Eingabefeld für die Dauer fehlt" })
+            Assert.DoesNotContain(obsolete, text, StringComparison.Ordinal);
+        Assert.Contains("WorkViewOverviewRequested += OpenWorkViewOverviewAsync;", Read("Desktop/Shell/MainWindow.WorkViewNotice.cs"), StringComparison.Ordinal);
+        WorkViewSwitchNoticeState notices = new();
+        notices.BeginSwitch();
+        Assert.Null(notices.Applied(WorkView.Barebones, WorkView.Simple, 0, informationAllowed: true));
+    }
+
+    [Fact]
+    public void DetailsNavigationHelpKeepsTheDraftCurrentViewChangedRowsAndNormalEntryResetDistinct()
+    {
+        string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
+        foreach (string phrase in new[]
+        {
+            "normal protected Settings route", "without saving or discarding your existing settings draft",
+            "session is restoring, closing or busy", "only the policy rows changed by that switch, across all pages",
+            "active column follows the currently applied view", "Keyboard focus moves to Find an element",
+            "Page/text filters narrow the changed rows further", "Clear filters removes the difference restriction too",
+            "entering Work views normally also clears the previous difference, page and text filters",
+            "normalen geschützten Einstellungsweg", "ohne deinen vorhandenen Einstellungsentwurf zu speichern oder zu verwerfen",
+            "aktive Spalte folgt der aktuell angewandten Ansicht", "Tastaturfokus geht zu Element suchen",
+            "Differenz-, Seiten- und Textfilter für den vollständigen Vergleich gelöscht"
+        }) Assert.Contains(phrase, text, StringComparison.Ordinal);
+        Assert.Contains(BuiltInCatalog.English["diagnostics.clearFilters"], text, StringComparison.Ordinal);
+        Assert.Contains(BuiltInCatalog.German["diagnostics.clearFilters"], text, StringComparison.Ordinal);
+
+        // Source contracts only: no editor, Window, dispatcher, profile or navigation is started here.
+        string host = Read("Desktop/Shell/MainWindow.WorkViewDetails.cs");
+        foreach (string seam in new[] { "if (_isClosing || !_restoreCompleted || WorkspaceCommandBusy)",
+            "if (!NavigateWorkspace(WorkspacePage.Settings))", "SettingsEditor editor = SettingsEditor;",
+            "editor.ApplyWorkView(_workViews.Current, viewChanged: false);", "editor.ShowWorkViewOverview(diff);",
+            "editor.FocusWorkViewOverview();" }) Assert.Contains(seam, host, StringComparison.Ordinal);
+        Assert.DoesNotContain("new SettingsEditor", host, StringComparison.Ordinal);
+        Assert.DoesNotContain("CancelChanges", host, StringComparison.Ordinal);
+        string overview = Read("Desktop/Views/Settings/SettingsEditor.WorkViewOverview.cs");
+        foreach (string seam in new[] { "overview.EnsureLoaded();", "overview.SetActiveView(CurrentWorkView);",
+            "overview.SetDifferenceFilter(diff);", "overview.SetDifferenceFilter(null);", "overview.SetPageFilter(page);",
+            "overview.SetTextFilter(text);", "WorkViewOverviewTextFilter", "WorkViewOverviewTable", "target.Focus(NavigationMethod.Tab);" })
+            Assert.Contains(seam, overview, StringComparison.Ordinal);
+        Assert.Contains("_workViewOverview?.SetDifferenceFilter(null);", Read("Desktop/Views/Settings/SettingsEditor.Sections.cs"), StringComparison.Ordinal);
+        string control = Read("Desktop/Views/Settings/WorkViewOverviewControl.cs");
+        Assert.Contains("diff.Changes.Select(change => change.Entry.Id)", control, StringComparison.Ordinal);
+        Assert.Contains("(_differenceIds == null || _differenceIds.Contains(row.Id)) && WorkViewOverview.Matches", control, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void NoticeDurationHelpNamesTheActualNotificationsInputAndItsSaveResetValidationSeams()
+    {
+        var markup = System.Xml.Linq.XDocument.Parse(Read("Desktop/Views/Settings/SettingsEditor.axaml"));
+        System.Xml.Linq.XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var input = Assert.Single(markup.Descendants(), element => (string?)element.Attribute(x + "Name") == "WorkViewSwitchNoticeSecondsInput");
+        Assert.Contains(input.Ancestors(), element => (string?)element.Attribute(x + "Name") == "SettingsNotificationsSection");
+        Assert.Equal("{Binding WorkViewSwitchNoticeSeconds, Mode=TwoWay}", (string?)input.Attribute("Value"));
+        Assert.Equal("{Binding WorkViewSwitchNoticeSecondsMinimum}", (string?)input.Attribute("Minimum"));
+        Assert.Equal("{Binding WorkViewSwitchNoticeSecondsMaximum}", (string?)input.Attribute("Maximum"));
+        string notice = Read("Desktop/Views/Settings/SettingsEditor.WorkViewNotice.cs");
+        Assert.Contains("candidate.WorkViewSwitchNoticeSeconds = GetInteger", notice, StringComparison.Ordinal);
+        Assert.Contains("ApplyWorkViewSwitchNoticeDraft(candidate);", Read("Desktop/Views/Settings/SettingsEditor.axaml.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewSwitchNoticeSeconds = defaults.WorkViewSwitchNoticeSeconds;", Read("Desktop/Views/Settings/SettingsEditor.Reset.cs"), StringComparison.Ordinal);
+        Assert.Contains("WorkViewNoticeNumericFields", Read("Desktop/Views/Settings/SettingsEditor.Validation.cs"), StringComparison.Ordinal);
+        string text = Plain(Section(Read(Help), "Work-view overview and switch notice"));
+        Assert.Contains("Discard draft restores the saved value", text, StringComparison.Ordinal);
+        Assert.Contains("resetting Notifications loads the default into the draft", text, StringComparison.Ordinal);
+        Assert.Contains("Zurücksetzen der Benachrichtigungen lädt den Standard in den Entwurf", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UrlExportHelpLinksTheReferenceAndDoesNotTurnTheWriterBudgetIntoAFormatExpansion()
+    {
+        string section = Section(Read(Help), "Storage and limits");
+        Assert.Equal(2, Regex.Matches(section, @"\]\(user-guide/settings-export-and-limits\.md\)").Count);
+        string text = Plain(section);
+        AssertNumber(text, @"fixed (?<value>\d+) MiB ceiling", PlainUrlText.MaxBytes / (1024 * 1024));
+        AssertNumber(text, @"ceiling, (?<value>\d+) lines", PlainUrlText.MaxLines);
+        AssertNumber(text, @"and (?<value>\d+) UTF-16 code units per line", PlainUrlText.MaxLineCharacters);
+        AssertNumber(text, @"URL-Textformat bleibt auf (?<value>\d+) MiB", PlainUrlText.MaxBytes / (1024 * 1024));
+        Assert.Equal(1, UrlTextExportFileWriter.MinimumLimitMiB);
+        Assert.Equal(64, UrlTextExportFileWriter.MaximumLimitMiB);
+        foreach (string phrase in new[] { "current archive plan exports exactly one thread page URL",
+            "64 MiB does not enable a 64-MiB URL export", "heutige Archivplan exportiert genau eine Thread-Seiten-URL",
+            "64 MiB Writerbudget ermöglichen keinen 64-MiB-URL-Export" }) Assert.Contains(phrase, text, StringComparison.Ordinal);
+        string reference = Read(SettingsLimitsGuide);
+        Assert.Contains("Technischer Formatvertrag: höchstens 1 MiB", reference, StringComparison.Ordinal);
+        Assert.Contains("64 MiB einzustellen ermöglicht deshalb heute keinen 64-MiB-URL-Export", reference, StringComparison.Ordinal);
+        Assert.Contains("parsed.Links.Count != 1", Read("Desktop/ArchiveUrlTextExportPlan.cs"), StringComparison.Ordinal);
+        Assert.Contains("count >= PlainUrlText.MaxBytes", Read("Desktop/ArchiveUrlTextExportPlan.cs"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LocalBooruMediaLinkHelpDescribesTheIntegratedPageBridgeWithoutFetching()
+    {
+        string text = Plain(Section(Read(Help), "Local links to Media"));
+        foreach (string key in new[] { "booru.ui.result.showInMedia", "media.toolbar.booru" })
+        {
+            var entry = Assert.Single(BooruCrossLinksCatalog.Entries, candidate => candidate.Key == key);
+            Assert.Contains(entry.English, text, StringComparison.Ordinal);
+            Assert.Contains(entry.German, text, StringComparison.Ordinal);
+        }
+        foreach (string phrase in new[] { "does not fetch the post or download its original", "missing/filtered-out local tile",
+            "opens the Booru page without starting a search", "Show Booru is on",
+            "weder der Post abgerufen noch sein Original heruntergeladen", "Booru anzeigen eingeschaltet ist",
+            "dieselbe Hauptseite wie über Fußleiste und Appmenü, kein zweites Fenster" })
+            Assert.Contains(phrase, text, StringComparison.Ordinal);
+        string media = Read("Desktop/Booru/MainWindow.BooruMedia.cs");
+        Assert.Contains("ConfigureBooruMediaLinks(BooruPage page) => ConfigureBooruMediaLinks(page.View)", media, StringComparison.Ordinal);
+        Assert.Contains("view.ShowInMedia = ShowBooruPostInMediaAsync;", media, StringComparison.Ordinal);
+        Assert.Contains("page.AttachBooruOverflow(() => CanOpenBooru, ShowBooruWorkbench)", media, StringComparison.Ordinal);
+        Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
+        Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
+        Assert.Contains("ConfigureBooruMediaLinks(page);", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
+        Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
     }
 
     [Fact]
@@ -1111,7 +1340,7 @@ public sealed class HelpDocumentationTests
         WorkViewEntry[] pluginRows = WorkViewPolicy.Entries.Where(entry => entry.Id.StartsWith("plugins.", StringComparison.Ordinal)).ToArray();
         Assert.NotEmpty(pluginRows);
         Assert.All(pluginRows, entry => Assert.Equal(WorkViewPage.Sources, entry.Page));
-        Assert.DoesNotContain("Plugins", Enum.GetNames<WorkViewPage>()); // the page itself is gone, so no row can name it
+        Assert.DoesNotContain("Plugins", Enum.GetNames<WorkViewPage>());
         Assert.Equal("Show all plugins", CommandCatalog.Get("navigation.plugins").LabelEn);
         Assert.Contains("There is no separate Plugins footer page", sources, StringComparison.Ordinal);
         Assert.Contains("opens the second level", sources, StringComparison.Ordinal);
@@ -1121,10 +1350,14 @@ public sealed class HelpDocumentationTests
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
         Assert.Equal((int?)7, MainPageOrder.Digit("navigation.status"));
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
-            "source selected", "Statistics becomes available after session recovery", "no Booru footer page",
-            "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru-Fußleistenseite gibt es noch nicht" })
+            "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
+            "Sources & Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
+            "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
+            "Nur Strg/⌘+8 ist standardmäßig frei" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
-        Assert.DoesNotContain("navigation.booru", MainPageOrder.CommandIds);
+        Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
+        Assert.Equal((int?)6, MainPageOrder.Digit("navigation.booru"));
+        Assert.Equal((int?)5, MainPageOrder.Digit("navigation.sources"));
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 
@@ -1196,9 +1429,24 @@ public sealed class HelpDocumentationTests
         string text = Plain(Section(Read(Help), "Waiting, local data and offline use"));
         AssertNumber(text, @"starts? at least (?<value>\w+) second", BooruHostHttp.MinimumStartSpacing.TotalSeconds);
         AssertNumber(text, @"pause of at least (?<value>\d+) seconds", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        Assert.Contains("a longer valid Retry-After is not shortened", text, StringComparison.Ordinal);
-        Assert.Contains("Only the technical maximum representable date bounds that deadline", text, StringComparison.Ordinal);
-        Assert.DoesNotMatch(@"\b\d+-hour cap\b", text);
+        AssertNumber(text, @"maximum defaults to (?<value>\d+) hours", new Config().BooruRetryAfterCooldownHours);
+        AssertNumber(text, @"configurable from (?<value>\d+) to \d+ hours", Config.BooruRetryAfterCooldownMinimumHours);
+        AssertNumber(text, @"configurable from \d+ to (?<value>\d+) hours", Config.BooruRetryAfterCooldownMaximumHours);
+        Assert.Contains("A valid longer provider wait is capped at that setting", text, StringComparison.Ordinal);
+        Assert.Contains("missing, invalid, expired or shorter values keep the minimum", text, StringComparison.Ordinal);
+        Assert.Contains("also saturates at the technical maximum representable date; this does not remove the configured cap", text, StringComparison.Ordinal);
+        Assert.Contains("Lowering the setting can shorten an existing in-memory provider pause when the host next checks it", text, StringComparison.Ordinal);
+        Assert.Contains("it does not promise an immediate watcher check", text, StringComparison.Ordinal);
+        Assert.Contains("neither resumes a paused watcher nor automatically replays a failed search or post lookup", text, StringComparison.Ordinal);
+        Assert.Contains("A 429 ends the current metadata job without retry", text, StringComparison.Ordinal);
+        Assert.Contains("Later eligible work uses a new job and still obeys pacing and pause state", text, StringComparison.Ordinal);
+        Assert.Contains("does not change the submitted query or add a rating filter", text, StringComparison.Ordinal);
+        Assert.Contains("HTTP 502/503 permits at most one retry", text, StringComparison.Ordinal);
+        Assert.Contains("bounded by the live configured cap, and the retry must fall strictly before the job deadline", text, StringComparison.Ordinal);
+        Assert.Contains("the job fails with a budget notice rather than waiting beyond its lifetime", text, StringComparison.Ordinal);
+        Assert.Contains("it does not authorize another host retry", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("is not shortened to 24 hours", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("Only the technical maximum representable date bounds that deadline", text, StringComparison.Ordinal);
         AssertNumber(text, @"no earlier than (?<value>\w+) seconds", BooruHostHttp.RetryDelay.TotalSeconds);
         AssertNumber(text, @"operation has at most (?<value>\d+) sends", BooruHostHttp.MaximumSendsPerJob);
         AssertNumber(text, @"(?<value>\d+)-second lifetime", BooruHostHttp.MaximumJobLifetime.TotalSeconds);
@@ -1216,9 +1464,51 @@ public sealed class HelpDocumentationTests
         AssertNumber(text, @"auf \d+ bis (?<value>\d+) MiB", Config.BooruCatalogMaximumLimitMiB);
         AssertNumber(text, @"Lesedeckel von (?<value>\d+) MiB", BooruCatalogStore.MaximumDocumentBytes / (1024 * 1024));
         AssertNumber(text, @"mindestens (?<value>\d+) Sekunden", BooruHostHttp.MinimumCooldown.TotalSeconds);
-        Assert.Contains("Ein längeres gültiges Retry-After wird nicht auf 24 Stunden verkürzt", text, StringComparison.Ordinal);
-        Assert.Contains("nur das technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt", text, StringComparison.Ordinal);
-        Assert.DoesNotMatch(@"höchstens \d+ Stunden", text);
+        AssertNumber(text, @"Deckel liegt standardmäßig bei (?<value>\d+) Stunden", new Config().BooruRetryAfterCooldownHours);
+        AssertNumber(text, @"ist von (?<value>\d+) bis \d+ Stunden einstellbar", Config.BooruRetryAfterCooldownMinimumHours);
+        AssertNumber(text, @"ist von \d+ bis (?<value>\d+) Stunden einstellbar", Config.BooruRetryAfterCooldownMaximumHours);
+        Assert.Contains("Ein gültiger längerer Providerwunsch wird an diesem Deckel begrenzt", text, StringComparison.Ordinal);
+        Assert.Contains("fehlende, ungültige, abgelaufene oder kürzere Angaben behalten die Mindestwartezeit", text, StringComparison.Ordinal);
+        Assert.Contains("Zusätzlich sättigt die Kalenderrechnung am technisch maximal darstellbaren Datum; das hebt den eingestellten Deckel nicht auf", text, StringComparison.Ordinal);
+        Assert.Contains("Ein Absenken der Einstellung kann eine bestehende Providerpause im Arbeitsspeicher beim nächsten Prüfen durch den Host verkürzen", text, StringComparison.Ordinal);
+        Assert.Contains("es verspricht keine sofortige Beobachtungsprüfung", text, StringComparison.Ordinal);
+        Assert.Contains("weder eine pausierte Suchbeobachtung fort noch wiederholt es automatisch eine fehlgeschlagene Suche oder einen Postabruf", text, StringComparison.Ordinal);
+        Assert.Contains("Ein 429 beendet den aktuellen Metadatenjob ohne Wiederholung", text, StringComparison.Ordinal);
+        Assert.Contains("Später zulässige Arbeit verwendet einen neuen Job und beachtet weiterhin Pacing und Pausenzustand", text, StringComparison.Ordinal);
+        Assert.Contains("die gesendete Query wird dabei nicht geändert und kein Ratingfilter ergänzt", text, StringComparison.Ordinal);
+        Assert.Contains("Vor dem einzigen 502/503-Wiederholungsversuch", text, StringComparison.Ordinal);
+        Assert.Contains("durch den aktuellen Deckel begrenzt; der Versuch muss strikt vor der Jobfrist liegen", text, StringComparison.Ordinal);
+        Assert.Contains("Andernfalls endet der Job mit einem Budgethinweis, statt über seine Laufzeit hinaus zu warten", text, StringComparison.Ordinal);
+        Assert.Contains("das erlaubt keine weitere Host-Wiederholung", text, StringComparison.Ordinal);
+        AssertNumber(text, @"Host mindestens (?<value>\w+) Sekunden", BooruHostHttp.RetryDelay.TotalSeconds);
+        AssertNumber(text, @"starten mindestens (?<value>\w+) Sekunde", BooruHostHttp.MinimumStartSpacing.TotalSeconds);
+        AssertNumber(text, @"Job erlaubt höchstens (?<value>\d+) Sends", BooruHostHttp.MaximumSendsPerJob);
+        AssertNumber(text, @"dauert höchstens (?<value>\d+) Sekunden", BooruHostHttp.MaximumJobLifetime.TotalSeconds);
+        AssertNumber(text, @"jeder Antwort höchstens (?<value>\d+) Sekunden", BooruHostHttp.ResponseTimeout.TotalSeconds);
+        AssertNumber(text, @"auf (?<value>\d+) MiB übertragen", BooruHostHttp.MaximumWireBytes / (1024 * 1024));
+        AssertNumber(text, @"und (?<value>\d+) MiB dekodiert", BooruHostHttp.MaximumDecodedBytes / (1024 * 1024));
+        Assert.DoesNotContain("wird nicht auf 24 Stunden verkürzt", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("nur das technisch maximal darstellbare Datum begrenzt diesen Zeitpunkt", text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DocumentedCooldownSettingBoundsAlsoMatchTheTransportBounds()
+    {
+        // The transport cap fields are internal to PluginHost, not a public SDK contract.
+        // Read only these static constants; do not widen InternalsVisibleTo, create a host,
+        // load a profile or make HTTP requests just to verify documentation/config agreement.
+        static TimeSpan TransportBound(string name)
+        {
+            var field = typeof(BooruHostHttp).GetField(name,
+                System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
+            Assert.NotNull(field);
+            return Assert.IsType<TimeSpan>(field!.GetValue(null));
+        }
+
+        Assert.Equal(Config.BooruRetryAfterCooldownDefaultHours, new Config().BooruRetryAfterCooldownHours);
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownDefaultHours), TransportBound("DefaultMaximumCooldown"));
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownMinimumHours), TransportBound("MinimumConfiguredCooldown"));
+        Assert.Equal(TimeSpan.FromHours(Config.BooruRetryAfterCooldownMaximumHours), TransportBound("MaximumConfiguredCooldown"));
     }
 
     [Theory]
@@ -1235,6 +1525,7 @@ public sealed class HelpDocumentationTests
     [Theory]
     [InlineData(Help)]
     [InlineData(DanbooruGuide)]
+    [InlineData(SettingsLimitsGuide)]
     public void LocalMarkdownLinksResolveInsideTheCheckout(string document)
     {
         // Inline links and reference definitions used by these guides; deliberately not a web

@@ -16,8 +16,8 @@ internal static partial class PluginManagementChecks
         DelayedReadProfileStore profile = new(original.ProfileStore);
         PluginManagementServices delayed = new(profile, original.Compiler, original.Inventory, original.PluginDirectory,
             original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync);
-        PluginsPage page = new(); page.Attach(delayed);
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!; object? retained = host.Content; host.Content = page;
+        SourcesPage sources = MergedSourcesSmoke.Create(delayed, out PluginsPage page);
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!; object? retained = host.Content; host.Content = sources;
         try
         {
             OpenPlugins(window); await page.ActivateAsync(); page.Select(candidateId);
@@ -54,7 +54,7 @@ internal static partial class PluginManagementChecks
             Require(page.CurrentDraft.Plugin.Text("label") == "cancel keeps raw" && !page.IsBusy,
                 "Cancelling discard lost raw text or started a profile reload.");
         }
-        finally { profile.ReleaseReads(); page.EndLifetime(); host.Content = retained; }
+        finally { profile.ReleaseReads(); sources.EndLifetime(); host.Content = retained; }
     }
     private static async Task<PopConfirm> WaitForOwnedDiscardPopupAsync(MainWindow window, PluginsPage page, Button trigger)
     {

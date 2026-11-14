@@ -51,6 +51,7 @@ public static class CommandCatalog
         new("profile.open-folder", "command.profile.open-folder", "Open profile folder", "Profilordner öffnen", "folder", null, CommandScope.Application, new[] { "app-menu" }),
         new("navigation.archive", "command.navigation.archive", "Archive", "Archiv", "archive", MainPageOrder.DefaultShortcut("navigation.archive"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", MainPageOrder.DefaultShortcut("navigation.media"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.booru", "command.navigation.booru", "Booru", "Booru", "search", MainPageOrder.DefaultShortcut("navigation.booru"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", MainPageOrder.DefaultShortcut("navigation.rules"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources & Plugins", "Quellen & Plugins", "globe", MainPageOrder.DefaultShortcut("navigation.sources"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.

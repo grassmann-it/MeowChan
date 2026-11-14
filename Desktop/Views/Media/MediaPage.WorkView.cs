@@ -61,6 +61,8 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_missing, "media.filter.missing"); // a filter since S3: a field of the section and a chip of the active filters
         WorkViewElement.SetId(_exportAll, "media.toolbar.export-all");
         WorkViewElement.SetId(_manageRatings, "media.toolbar.manage-ratings");
+        WorkViewElement.SetId(_booruOpen, "media.toolbar.booru");
+        _booruOpen.Click += (_, _) => InvokeBooruOverflow();
         WorkViewElement.SetId(_kindFilter, "media.filter.kind");
         WorkViewElement.SetId(_favoritesOnly, "media.filter.favorites");
         WorkViewElement.SetId(_sourceFilter, "media.filter.source");
@@ -81,7 +83,12 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_selTag, "media.selection.tag");
         WorkViewElement.SetId(_selExport, "media.selection.export");
         WorkViewElement.SetId(_selQueue, "media.selection.queue");
-        ((MenuFlyout)_more.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
+        ((MenuFlyout)_more.Flyout!).Opening += (_, _) =>
+        {
+            // Availability may change without a view switch. Keep the count and menu in the same projection.
+            RefreshWorkView();
+            FillMore((MenuFlyout)_more.Flyout!, HeaderOverflow());
+        };
         ((MenuFlyout)_selMore.Flyout!).Opening += (_, _) => FillMore((MenuFlyout)_selMore.Flyout!, SelectionOverflow());
         _moreFilters.IsCheckedChanged += (_, _) => { if (!_localizing) RefreshWorkView(); };
         // The drawn "more" icon in the one icon-only square button (P6); the count in the name is set by UpdateMore.
@@ -93,6 +100,7 @@ public sealed partial class MediaPage
     private void LocalizeWorkView()
     {
         _moreFilters.Content = Texts.T("workview.moreFilters");
+        LocalizeBooruOverflow();
         RefreshWorkView(); // UpdateMore sets name and tooltip of both "More" buttons in the current language.
     }
 
@@ -132,6 +140,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_shuffle, view, stateVisible: Sort == MediaLibrarySort.Random);
         WorkViewGate.Apply(_exportAll, view);
         WorkViewGate.Apply(_manageRatings, view);
+        WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
         ApplyToolbarLevel(); // what the page width moves under More as well (MediaPage.Toolbar.cs)
         UpdateMore(_more, HeaderOverflow());
         // Filter fields.
@@ -154,7 +163,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings);
+    private List<Control> HeaderOverflow() => Overflowed(_focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 
@@ -201,6 +210,7 @@ public sealed partial class MediaPage
                 ToolTip.SetShowOnDisabled(item, true);
                 AutomationProperties.SetHelpText(item, tip);
             }
+            if (ReferenceEquals(control, _booruOpen)) item.Name = "MediaBooruOpen";
             flyout.Items.Add(item);
         }
     }

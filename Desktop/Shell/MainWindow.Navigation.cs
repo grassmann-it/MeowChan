@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
@@ -17,12 +18,13 @@ namespace MeowChan;
 public partial class MainWindow
 {
     /// <summary>The workspace pages. Status holds the Statistics and Diagnostics segments (<see cref="StatusSegment"/>).</summary>
-    internal enum WorkspacePage { Downloads, Archive, Rules, Sources, Status, Settings, Media }
+    internal enum WorkspacePage { Downloads, Archive, Media, Booru, Rules, Sources, Status, Settings }
     /// <summary>The workspace page behind a main-page command of <see cref="MainPageOrder"/>.</summary>
     internal static WorkspacePage PageFor(string commandId) => commandId switch
     {
         "navigation.downloads" => WorkspacePage.Downloads, "navigation.archive" => WorkspacePage.Archive,
-        "navigation.media" => WorkspacePage.Media, "navigation.rules" => WorkspacePage.Rules,
+        "navigation.media" => WorkspacePage.Media, "navigation.booru" => WorkspacePage.Booru,
+        "navigation.rules" => WorkspacePage.Rules,
         "navigation.sources" => WorkspacePage.Sources, "navigation.status" => WorkspacePage.Status,
         "navigation.plugins" => WorkspacePage.Sources,
         _ => throw new ArgumentOutOfRangeException(nameof(commandId), commandId, "Not a main page.")
@@ -324,10 +326,14 @@ public partial class MainWindow
         if ((!_restoreCompleted && !(page == WorkspacePage.Status && _session.Projection.View.State == DesktopSessionState.RecoveryFailed)
                 && !(EarlyPageChoice && IsEarlyPage(page)))
             || WorkspaceCommandBusy) return false;
+        if (page == WorkspacePage.Booru && !CanOpenBooru) return false;
         // Settings is an early page and the recovery-failure route reaches Status (its Diagnostics segment) without a
-        // completed restore: both can arrive before the background pass has built their page.
-        if (page != WorkspacePage.Downloads && page != WorkspacePage.Archive && page != WorkspacePage.Media)
+        // completed restore: both can arrive before the background pass has built their page. Booru is deliberately
+        // independent of the deferred legacy page batch and is created only by its own lazy host hook.
+        if (page != WorkspacePage.Downloads && page != WorkspacePage.Archive && page != WorkspacePage.Media
+            && page != WorkspacePage.Booru)
             EnsureDeferredWorkspacePages();
+        if (page == WorkspacePage.Booru && !EnsureBooruPage()) return false;
         if (page != WorkspacePage.Archive) _archivePage?.CancelPendingGalleryOpen();
         if (page != WorkspacePage.Archive) ForgetMediaReturn(); // the way back belongs to the archive the Medien page opened
         if (page != _selectedPage)
@@ -349,6 +355,7 @@ public partial class MainWindow
         RulesPageHost.IsVisible = page == WorkspacePage.Rules;
         ArchivePageHost.IsVisible = page == WorkspacePage.Archive;
         MediaPageHost.IsVisible = page == WorkspacePage.Media;
+        BooruPageHost.IsVisible = page == WorkspacePage.Booru;
         SourcesPageHost.IsVisible = page == WorkspacePage.Sources;
         DownloadsNavigationButton.Classes.Set("selected", page == WorkspacePage.Downloads);
         SettingsNavigationButton.Classes.Set("selected", page == WorkspacePage.Settings);
@@ -356,6 +363,7 @@ public partial class MainWindow
         RulesNavigationButton.Classes.Set("selected", page == WorkspacePage.Rules);
         ArchiveNavigationButton.Classes.Set("selected", page == WorkspacePage.Archive);
         MediaNavigationButton.Classes.Set("selected", page == WorkspacePage.Media);
+        BooruNavigationButton.Classes.Set("selected", page == WorkspacePage.Booru);
         SourcesNavigationButton.Classes.Set("selected", page == WorkspacePage.Sources);
         RefreshStartupPreview(); // The historical preview belongs to the Downloads page only.
         if (page == WorkspacePage.Archive) MarkArchiveBridgeHintSeen(); // reading has been found by another route
@@ -374,6 +382,7 @@ public partial class MainWindow
         if (page == WorkspacePage.Rules) { _rulesPage?.RefreshConfirmedRules(); _ = _rulesPage?.RefreshPluginFiltersAsync(); }
         if (page == WorkspacePage.Archive && activateArchive) _ = _archivePage?.ActivateAsync();
         if (page == WorkspacePage.Media) _ = _mediaPage?.ActivateAsync();
+        if (page == WorkspacePage.Booru) _ = _booruPage?.ActivateAsync();
         return true;
     }
 
@@ -385,6 +394,11 @@ public partial class MainWindow
         _measuringPageNavigation = true;
         try
         {
+            // Availability and the presentation switch remove the destination completely. If a
+            // transition races the refresh while the page is active, leave for Downloads without
+            // disposing the still-composed page (the toggle must preserve its draft).
+            if (!_isClosing && _selectedPage == WorkspacePage.Booru && !CanOpenBooru)
+                NavigateWorkspace(WorkspacePage.Downloads);
             WorkView view = ConfiguredWorkView;
             Button downloads = DownloadsNavigationButton;
             Button settings = SettingsNavigationButton;
@@ -393,7 +407,8 @@ public partial class MainWindow
             Border footer = WorkspaceNavigation;
             ComboBox modes = WorkspaceModeComboBox;
             // Footer order, from the single source MainPageOrder (Downloads is always shown).
-            var destinations = MainPageOrder.CommandIds.Where(id => id != "navigation.downloads")
+            var destinations = MainPageOrder.CommandIds.Where(id => id != "navigation.downloads"
+                    && (id != "navigation.booru" || CanOpenBooru))
                 .Select(id => (Id: id, Page: PageFor(id), Button: WorkspaceControl<Button>(MainPageOrder.ControlStem(id) + "NavigationButton"),
                     Tag: MainPageOrder.Tag(id))).ToArray();
             // Capture the actual focused menu destination before changing visibility:
@@ -445,7 +460,9 @@ public partial class MainWindow
             double separatorWidth = separators[0].Width + separators[0].Margin.Left + separators[0].Margin.Right;
             double width = ClientSize.Width > 0 ? ClientSize.Width : Width;
             Grid layout = (Grid)panel.Parent!;
-            double available = width - footer.Padding.Left - footer.Padding.Right - modes.Width - layout.ColumnSpacing;
+            double booruToggleWidth = ShowBooruToolsToggle.IsVisible ? Measure(ShowBooruToolsToggle) : 0;
+            double fixedFooterWidth = modes.Width + booruToggleWidth + 2 * layout.ColumnSpacing;
+            double available = width - footer.Padding.Left - footer.Padding.Right - fixedFooterWidth;
             double RequiredWidth()
             {
                 bool overflow = direct.Any(visible => !visible);
@@ -459,7 +476,8 @@ public partial class MainWindow
             foreach (string id in MainPageOrder.OverflowOrder)
             {
                 if (RequiredWidth() <= available) break;
-                direct[Array.FindIndex(destinations, destination => destination.Id == id)] = false;
+                int index = Array.FindIndex(destinations, destination => destination.Id == id);
+                if (index >= 0) direct[index] = false;
             }
             // A small screen can shrink even below the usual workspace minimum.
             // Compact familiar icons only when the actual localized destinations do not fit.
@@ -478,6 +496,11 @@ public partial class MainWindow
 
             bool hasOverflow = direct.Any(visible => !visible);
             tools.IsVisible = hasOverflow;
+            // The static More entry has no destination record when Booru is unavailable; clear it before
+            // the normal destination loop so stale availability cannot leave a clickable target behind.
+            BooruMoreMenuItem.IsVisible = false;
+            BooruNavigationButton.IsVisible = CanOpenBooru;
+            BooruMenuItem.IsVisible = CanOpenBooru;
             tools.Classes.Set("selected", destinations.Where((_, index) => !direct[index])
                 .Any(destination => destination.Page == _selectedPage));
             for (int index = 0; index < destinations.Length; index++)
@@ -611,6 +634,7 @@ public partial class MainWindow
         _archivePage?.EndLifetime();
         _mediaPage?.EndLifetime();
         if (_rulesPage != null) { _rulesPage.BusyChanged -= OnSettingsBusyChanged; _rulesPage.EndLifetime(); }
+        DisposeBooruPage();
         if (_settingsEditor == null) return;
         _settingsEditor.BusyChanged -= OnSettingsBusyChanged;
         _settingsEditor.EndLifetime();

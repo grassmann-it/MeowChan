@@ -62,7 +62,9 @@ internal static class BooruMediaChecks
             await RestartedSessionAsync(owner, profile);
             Console.WriteLine("SMOKE booru media [en]: three downloaded Danbooru originals (two posts with the same bytes) on the media page with source badge and "
                 + "Danbooru source filter, one tile for equal bytes listing both claims and their findings, details with provider rating, versions, findings and read-only "
-                + "source tags apart from an unavailable own-tag section, open and copy of the canonical post link, copy of source tags (all, per category, marked, as a Danbooru search query, refused over two tags, failing clipboard), gallery provider context, a favorite shared by gallery and "
+                + "source tags apart from an unavailable own-tag section, open and copy of the canonical post link, copy of source tags (all, per category, marked, "
+                + "explicitly as a two-tag query, refused over two tags, failing clipboard), unsent draft on the hosted Booru page, no search action when unavailable or hidden, "
+                + "no stale handoff after availability, presentation or composition changes, gallery provider context, a favorite shared by gallery and "
                 + "media page, nothing written to private tags; identical after watcher removal and a restart without a provider. Light and Dark screenshots.");
         }
         finally
@@ -304,8 +306,7 @@ internal static class BooruMediaChecks
         await UntilAsync(() => page.OccurrencesWindow == null);
     }
 
-    private static async Task DetailsAsync(MainWindow shell, MediaPage page, MediaLibraryTileRow row, DesktopSessionHost host, string phase,
-        bool removedWatchers, bool screenshots)
+    private static async Task<BooruMediaDetailsDialog> OpenDetailsAsync(MainWindow shell, MediaPage page, MediaLibraryTileRow row, string phase)
     {
         MenuItem details = null!;
         // The page drops an open menu whenever it presents its rows again (by design); a user simply opens it again.
@@ -325,7 +326,14 @@ internal static class BooruMediaChecks
                     + "', owned windows: " + string.Join(",", shell.OwnedWindows.Select(window => window.GetType().Name)));
             }
         }
-        BooruMediaDetailsDialog dialog = shell.BooruDetailsWindow!;
+        return shell.BooruDetailsWindow!;
+    }
+
+    private static async Task DetailsAsync(MainWindow shell, MediaPage page, MediaLibraryTileRow row, DesktopSessionHost host, string phase,
+        bool removedWatchers, bool screenshots)
+    {
+        Require(host.BooruServices is null && host.Config.ShowBooruTools, phase + ": local details start without a provider composition.");
+        BooruMediaDetailsDialog dialog = await OpenDetailsAsync(shell, page, row, phase);
         string post = row.Entry.BooruPostId!;
         Require(dialog.Title == Texts.T("booru.media.detail.title", post) && shell.OwnedWindows.Contains(dialog), phase + ": details dialog title or owner.");
         // The dialog starts on its first action, not nowhere (1.1.0 audit M6); it has no Close button (modals plan MD2: × and Escape close it).
@@ -378,7 +386,7 @@ internal static class BooruMediaChecks
         // The smoke host's clipboard is a write-only fixture, so only the honest outcome is checked; the copied address is the
         // same canonical URL the open action received (see Core tests for its derivation).
 
-        await SourceTagActionsAsync(shell, dialog, host, post, phase);
+        List<string> copied = await SourceTagActionsAsync(shell, dialog, host, post, phase, searchAvailable: false);
 
         if (screenshots)
         {
@@ -389,52 +397,208 @@ internal static class BooruMediaChecks
                 Program.CaptureWindow(dialog, "smoke-booru-media-details-" + name + ".png");
             }
         }
-        await UseAsSearchInDanbooruWindowAsync(shell, dialog, host, phase, screenshots);
-        shell.OpenProviderPageForTests = null;
-        shell.CopyTextForTests = null;
+        // The old fixture installed services only now. A dialog opened without them must stay local,
+        // even when services appear later; it must not grow a handoff or silently copy a search.
+        BooruUiHarness late = new();
+        try
+        {
+            host.BooruServices = late.Services;
+            TagList(dialog, BooruPostClaimTagCategory.Character).SelectedItems!.Clear();
+            Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
+            RequireSearchAbsent(dialog, phase + " / late composition");
+            Require(copied.Count == 7 && dialog.SelectedTagNames().Count == 2 && shell.BooruPageForTests is null,
+                phase + ": late services must not copy, drop tags or open a Booru page for the old dialog.");
+            RequireNoDraftActions(late, phase + " / late composition");
+        }
+        finally
+        {
+            dialog.Close();
+            host.BooruServices = null;
+            shell.OpenProviderPageForTests = null;
+            shell.CopyTextForTests = null;
+        }
+        await UntilAsync(() => shell.BooruDetailsWindow == null);
+        await UseAsSearchInDanbooruPageAsync(shell, page, row, host, phase, screenshots);
+        await SearchToolsOffAsync(shell, page, row, host, phase);
+        foreach (SearchRevocation revocation in Enum.GetValues<SearchRevocation>())
+            await SearchRevokedAsync(shell, page, row, host, phase, revocation);
     }
 
-    // With the Danbooru window reachable, "use as Danbooru search" fills its search field (nothing is requested, the user still
-    // searches there) and the details dialog gives way to it. Without it the query was copied instead (checked above).
-    private static async Task UseAsSearchInDanbooruWindowAsync(MainWindow shell, BooruMediaDetailsDialog dialog, DesktopSessionHost host, string phase, bool screenshots)
+    private static void RequireSearchAbsent(BooruMediaDetailsDialog dialog, string phase) =>
+        Require(!dialog.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BooruUseAsSearch")
+            && !dialog.GetLogicalDescendants().OfType<Button>().Any(button => button.Name == "BooruUseAsSearch"),
+            phase + ": unavailable/off details must not contain a search action, not even a disabled copy fallback.");
+
+    private static void RequireNoDraftActions(BooruUiHarness harness, string phase)
+    {
+        Require(harness.Search.Requests == 0 && harness.Previews.Requests == 0
+            && harness.Queue.Loads.Count == 0 && harness.Queue.StateReads == 0 && harness.Watchers.Checks == 0,
+            phase + ": a draft must not request provider data, previews, queue state or originals, or check watchers.");
+        // First activation may read the local watcher list; no watcher command may run.
+        Require(harness.Watchers.Calls.All(call => call == "list") && harness.Watchers.Snapshot.Count == 0,
+            phase + ": a draft must not create, pause, resume, remove or restart a watcher.");
+    }
+
+    // Services are captured when details open. The real shell page receives an unsent draft; no
+    // standalone workbench window, provider request, queue action or watcher mutation is involved.
+    private static async Task UseAsSearchInDanbooruPageAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
+        DesktopSessionHost host, string phase, bool screenshots)
     {
         BooruUiHarness harness = new();
         host.BooruServices = harness.Services;
-        BooruWorkbenchWindow? workbench = null;
+        BooruMediaDetailsDialog? dialog = null;
         try
         {
+            dialog = await OpenDetailsAsync(shell, media, row, phase + " / available");
+            List<string> copied = await SourceTagActionsAsync(shell, dialog, host, row.Entry.BooruPostId!, phase + " / available", searchAvailable: true);
             string query = string.Join(' ', dialog.SelectedTagNames());
-            Require(dialog.SelectedTagNames().Count == 2 && !shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any(), phase + ": two marked tags and no Danbooru window yet.");
-            dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            try { await UntilAsync(() => shell.BooruDetailsWindow == null && shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any()); }
-            catch (TimeoutException)
-            {
-                throw new InvalidOperationException(phase + ": use as search: details open " + (shell.BooruDetailsWindow != null) + ", tag status '" + dialog.TagStatus.Text
-                    + "', services " + (host.BooruServices != null) + ", state " + host.State + ", owned " + string.Join(",", shell.OwnedWindows.Select(window => window.GetType().Name)));
-            }
-            workbench = shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Single();
-            try { await UntilAsync(() => workbench.GetVisualDescendants().OfType<TextBox>().Any(box => box.Name == BooruWorkbenchWindow.InputName && box.Text == query)); }
-            catch (TimeoutException)
-            {
-                throw new InvalidOperationException(phase + ": the Danbooru input field did not show the query '" + query + "'; model input '" + workbench.Model.Search.View.Input
-                    + "', fields: " + string.Join("|", workbench.GetVisualDescendants().OfType<TextBox>().Select(box => box.Name + "=" + box.Text)) + ", visible " + workbench.IsVisible);
-            }
-            Require(workbench.Model.Search.View.Input == query && workbench.Model.Search.View.Mode == BooruInputMode.Tags && workbench.Model.Search.View.Parsed.Kind == BooruInputKind.Tags,
-                phase + ": the Danbooru search field must hold exactly the marked tags: '" + workbench.Model.Search.View.Input + "'");
-            Require(harness.Search.Requests == 0 && harness.Queue.Loads.Count == 0 && harness.Watchers.Checks == 0,
-                phase + ": using tags as a search must not request anything.");
+            Require(dialog.SelectedTagNames().Count == 2 && shell.BooruPageForTests is null,
+                phase + ": two marked tags and no Booru page before the first handoff.");
+            C<Button>(dialog, "BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ContentControl pageHost = shell.FindControl<ContentControl>("BooruPageHost")!;
+            await UntilAsync(() => shell.BooruDetailsWindow == null && shell.SelectedPage == MainWindow.WorkspacePage.Booru
+                && pageHost.IsVisible && shell.BooruPageForTests is { IsEffectivelyVisible: true });
+            BooruPage page = shell.BooruPageForTests!;
+            Require(ReferenceEquals(pageHost.Content, page) && ReferenceEquals(page.Services, harness.Services)
+                && ReferenceEquals(page.View.Model, page.Model) && ReferenceEquals(TopLevel.GetTopLevel(page.View), shell),
+                phase + ": the exact originating services must own the actual shell-hosted Booru view.");
+            TextBox input = C<TextBox>(page.View, BooruWorkbenchView.InputName);
+            await UntilAsync(() => input.IsEffectivelyVisible && input.Text == query);
+            Require(page.Model.Search.View.Input == query && page.Model.Search.View.Mode == BooruInputMode.Tags
+                && page.Model.Search.View.Parsed.Kind == BooruInputKind.Tags,
+                phase + ": the Booru page input and model must hold exactly the marked tags: '" + page.Model.Search.View.Input + "'");
+            Require(page.Model.Search.View.Status == BooruSearchStatus.Idle && page.Model.Search.View.ExecutedQuery is null
+                && page.Model.Search.View.ExecutedPostId is null && page.Model.Search.View.Rows.IsEmpty && copied.Count == 7,
+                phase + ": the handoff is only a draft, not an executed search or implicit copy.");
+            await page.ActivateAsync().WaitAsync(Deadline);
+            RequireNoDraftActions(harness, phase + " / page prefill");
+            Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": prefilling a provider query must not create private tags.");
             if (screenshots)
             {
-                await SetThemeAsync(ThemeVariant.Light, shell, workbench);
-                Program.CaptureWindow(workbench, "smoke-booru-media-use-as-search.png");
+                await SetThemeAsync(ThemeVariant.Light, shell);
+                Program.CaptureWindow(shell, "smoke-booru-media-use-as-search.png");
             }
         }
         finally
         {
-            workbench?.Close();
+            dialog?.Close();
+            shell.CopyTextForTests = null;
             host.BooruServices = null;
         }
-        await UntilAsync(() => !shell.OwnedWindows.OfType<BooruWorkbenchWindow>().Any());
+        await ShowMediaAsync(shell);
+    }
+
+    // Hiding the tools is independent of source availability. Local tags and explicit Copy still
+    // work, and enabling the tools later cannot retrofit a handoff into this already-open dialog.
+    private static async Task SearchToolsOffAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
+        DesktopSessionHost host, string phase)
+    {
+        BooruUiHarness harness = new();
+        host.BooruServices = harness.Services;
+        BooruMediaDetailsDialog? dialog = null;
+        bool visible = host.Config.ShowBooruTools;
+        try
+        {
+            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = false).WaitAsync(Deadline);
+            Require(!host.Config.ShowBooruTools, phase + ": the tools-off fixture must actually hide Booru tools.");
+            dialog = await OpenDetailsAsync(shell, media, row, phase + " / tools off");
+            List<string> copied = await SourceTagActionsAsync(shell, dialog, host, row.Entry.BooruPostId!, phase + " / tools off", searchAvailable: false);
+            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = true).WaitAsync(Deadline);
+            TagList(dialog, BooruPostClaimTagCategory.Character).SelectedItems!.Clear();
+            Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
+            RequireSearchAbsent(dialog, phase + " / tools re-enabled");
+            Require(copied.Count == 7 && dialog.IsVisible && shell.SelectedPage == MainWindow.WorkspacePage.Media,
+                phase + ": re-enabling tools must not hand off or implicitly copy the old dialog's query.");
+            RequireNoDraftActions(harness, phase + " / tools off");
+        }
+        finally
+        {
+            dialog?.Close();
+            shell.CopyTextForTests = null;
+            host.BooruServices = null;
+            await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = visible).WaitAsync(Deadline);
+        }
+        await UntilAsync(() => shell.BooruDetailsWindow == null);
+    }
+
+    private enum SearchRevocation { Unavailable, ToolsOff, Replaced }
+
+    // Exercise the retained button's click-time gate before a selection update could hide it.
+    // Even another composition of the same provider is a different owner: its draft must survive.
+    private static async Task SearchRevokedAsync(MainWindow shell, MediaPage media, MediaLibraryTileRow row,
+        DesktopSessionHost host, string phase, SearchRevocation revocation)
+    {
+        phase += " / revoked " + revocation;
+        BooruUiHarness opened = new(), replacement = new();
+        host.BooruServices = opened.Services;
+        BooruMediaDetailsDialog? dialog = null;
+        bool visible = host.Config.ShowBooruTools;
+        try
+        {
+            const string originalDraft = "origin_draft", replacementDraft = "replacement_draft";
+            Require(shell.UseAsBooruSearch(originalDraft), phase + ": the originating composition must have a reachable page.");
+            BooruPage originalPage = shell.BooruPageForTests!;
+            await originalPage.ActivateAsync().WaitAsync(Deadline);
+            await ShowMediaAsync(shell);
+            dialog = await OpenDetailsAsync(shell, media, row, phase);
+            Mark(dialog, BooruPostClaimTagCategory.Artist, "artist_name");
+            Mark(dialog, BooruPostClaimTagCategory.Character, "main_character");
+            Button search = C<Button>(dialog, "BooruUseAsSearch");
+            Require(search.IsVisible && search.IsEnabled, phase + ": the originating composition must initially offer the search action.");
+            List<string> copied = new();
+            shell.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
+            BooruPage page = originalPage;
+            string draft = originalDraft;
+            switch (revocation)
+            {
+                case SearchRevocation.Unavailable:
+                    host.BooruServices = null;
+                    Require(host.BooruServices is null, phase + ": the provider services must really be unavailable.");
+                    break;
+                case SearchRevocation.ToolsOff:
+                    await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = false).WaitAsync(Deadline);
+                    Require(!host.Config.ShowBooruTools, phase + ": the tools must really be off.");
+                    break;
+                case SearchRevocation.Replaced:
+                    host.BooruServices = replacement.Services;
+                    Require(shell.UseAsBooruSearch(replacementDraft), phase + ": the replacement composition must have a reachable page.");
+                    page = shell.BooruPageForTests!;
+                    draft = replacementDraft;
+                    await page.ActivateAsync().WaitAsync(Deadline);
+                    Require(!ReferenceEquals(page, originalPage) && ReferenceEquals(page.Services, replacement.Services)
+                        && page.Model.Search.View.Input == draft,
+                        phase + ": a distinct page must belong to the replacement services and start with its own draft.");
+                    break;
+            }
+            BooruPage? currentPage = shell.BooruPageForTests;
+            MainWindow.WorkspacePage selectedPage = shell.SelectedPage;
+            search.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(ReferenceEquals(shell.BooruDetailsWindow, dialog) && dialog.IsVisible && !search.IsVisible && !search.IsEnabled,
+                phase + ": the stale search action must disappear and leave details open.");
+            Require(ReferenceEquals(shell.BooruPageForTests, currentPage) && shell.SelectedPage == selectedPage
+                && page.Model.Search.View.Input == draft && C<TextBox>(page.View, BooruWorkbenchView.InputName).Text == draft && copied.Count == 0
+                && dialog.SelectedTagNames().Count == 2,
+                phase + ": a stale dialog must not overwrite a page draft, silently copy, or drop selected tags.");
+            C<Button>(dialog, "BooruCopySelectedTags").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => copied.Count == 1);
+            Require(copied[0] == string.Join(' ', dialog.SelectedTagNames())
+                && dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2) && page.Model.Search.View.Input == draft,
+                phase + ": explicit Copy must remain available after revocation, without touching a page draft.");
+            RequireNoDraftActions(opened, phase + " / old composition");
+            RequireNoDraftActions(replacement, phase + " / replacement composition");
+            Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": stale handoff and explicit Copy must not create private tags.");
+        }
+        finally
+        {
+            dialog?.Close();
+            shell.CopyTextForTests = null;
+            host.BooruServices = null;
+            if (host.Config.ShowBooruTools != visible)
+                await host.SaveViewPreferencesAsync(config => config.ShowBooruTools = visible).WaitAsync(Deadline);
+        }
+        await UntilAsync(() => shell.BooruDetailsWindow == null);
+        await ShowMediaAsync(shell);
     }
 
     private static ListBox TagList(Window dialog, BooruPostClaimTagCategory category) =>
@@ -443,9 +607,10 @@ internal static class BooruMediaChecks
     private static void Mark(Window dialog, BooruPostClaimTagCategory category, string tag) =>
         TagList(dialog, category).SelectedItems!.Add(TagList(dialog, category).Items.OfType<ListBoxItem>().Single(item => (string)item.Tag! == tag));
 
-    // Copy of source tags per category, marked tags and all, and the marked tags as a Danbooru search query. The clipboard is
-    // replaced by a recording seam; nothing is requested and no private tag is created.
-    private static async Task SourceTagActionsAsync(MainWindow shell, BooruMediaDetailsDialog dialog, DesktopSessionHost host, string post, string phase)
+    // Explicit Copy works independently of search availability. When a handoff exists, the
+    // two-tag search limit is still enforced; the final valid draft is submitted by the caller.
+    private static async Task<List<string>> SourceTagActionsAsync(MainWindow shell, BooruMediaDetailsDialog dialog, DesktopSessionHost host,
+        string post, string phase, bool searchAvailable)
     {
         List<string> copied = new();
         shell.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
@@ -459,7 +624,10 @@ internal static class BooruMediaChecks
         TextBlock hint = dialog.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "BooruSourceTagSelection");
 
         // Reachable from the keyboard and named for assistive technology; nothing is marked yet.
-        string[] names = { "BooruCopyAllTags", "BooruCopySelectedTags", "BooruUseAsSearch" };
+        string[] names = searchAvailable
+            ? ["BooruCopyAllTags", "BooruCopySelectedTags", "BooruUseAsSearch"]
+            : ["BooruCopyAllTags", "BooruCopySelectedTags"];
+        if (!searchAvailable) RequireSearchAbsent(dialog, phase);
         foreach (BooruPostClaimTagCategory category in details.Tags.Select(tag => tag.Category).Distinct())
         {
             Button copyCategory = Named("BooruCopyCategory:" + category);
@@ -472,7 +640,8 @@ internal static class BooruMediaChecks
                 + KeyboardNavigation.GetTabNavigation(TagList(dialog, category)));
         }
         foreach (string name in names) Require(Named(name).Focusable && Named(name).IsTabStop && !string.IsNullOrWhiteSpace(Named(name).Content as string), phase + ": " + name + " must be a named tab stop.");
-        Require(Named("BooruCopyAllTags").IsEnabled && !Named("BooruCopySelectedTags").IsEnabled && !Named("BooruUseAsSearch").IsEnabled
+        Require(Named("BooruCopyAllTags").IsEnabled && !Named("BooruCopySelectedTags").IsEnabled
+            && (!searchAvailable || !Named("BooruUseAsSearch").IsEnabled)
             && hint.Text == Texts.T("booru.media.tags.selection.none"), phase + ": initial tag action state.");
 
         // All source tags, in the provider's spelling and one space apart; one category alone.
@@ -495,8 +664,11 @@ internal static class BooruMediaChecks
         string query = string.Join(' ', dialog.SelectedTagNames());
         Require(query.Split(' ').OrderBy(x => x).SequenceEqual(new[] { "artist_name", "main_character" }) && hint.Text == Texts.Count("booru.media.tags.selection.count", 2),
             phase + ": two marked tags: '" + query + "' / " + hint.Text);
-        await ClickAsync("BooruUseAsSearch", 4);
-        Require(copied[^1] == query && dialog.TagStatus.Text == Texts.T("booru.media.tags.search.copied", query), phase + ": search query copy: '" + copied[^1] + "' / " + dialog.TagStatus.Text);
+        if (searchAvailable) Require(Named("BooruUseAsSearch").IsEnabled, phase + ": two marked tags must enable the real search handoff.");
+        else RequireSearchAbsent(dialog, phase + " / two marked tags");
+        await ClickAsync("BooruCopySelectedTags", 4);
+        Require(copied[^1] == query && dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2),
+            phase + ": explicit copy of the two-tag query: '" + copied[^1] + "' / " + dialog.TagStatus.Text);
         TagList(dialog, BooruPostClaimTagCategory.Artist).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.C, KeyModifiers = KeyModifiers.Control });
         await UntilAsync(() => copied.Count >= 5);
         Require(copied[^1] == query, phase + ": the copy shortcut in a tag list must copy the marked tags: '" + copied[^1] + "'");
@@ -504,8 +676,14 @@ internal static class BooruMediaChecks
         // A third tag cannot become a Danbooru search: stated, nothing dropped, nothing copied as a search; plain copy still works.
         Mark(dialog, BooruPostClaimTagCategory.General, "blue_sky");
         Require(hint.Text == Texts.Count("booru.media.tags.selection.tooMany", 3, 3, 2), phase + ": three marked tags: " + hint.Text);
-        Named("BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        await UntilAsync(() => dialog.TagStatus.Text == Texts.T("booru.media.tags.search.tooMany", 2, 3));
+        if (searchAvailable)
+        {
+            Named("BooruUseAsSearch").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => dialog.TagStatus.Text == Texts.T("booru.media.tags.search.tooMany", 2, 3));
+            Require(ReferenceEquals(shell.BooruDetailsWindow, dialog) && shell.SelectedPage == MainWindow.WorkspacePage.Media,
+                phase + ": refusing three tags must leave details open without navigating to Booru.");
+        }
+        else RequireSearchAbsent(dialog, phase + " / three marked tags");
         Require(copied.Count == 5 && dialog.SelectedTagNames().Count == 3, phase + ": a refused search must not copy or drop tags.");
         await ClickAsync("BooruCopySelectedTags", 6);
         Require(copied[^1].Split(' ').Length == 3, phase + ": plain copy of three tags: '" + copied[^1] + "'");
@@ -531,6 +709,7 @@ internal static class BooruMediaChecks
         await ClickAsync("BooruCopySelectedTags", 7);
         Require(dialog.TagStatus.Text == Texts.Count("booru.media.tags.copied", 2), phase + ": status after recovery: " + dialog.TagStatus.Text);
         Require(host.GetPrivateTagSnapshot().Snapshot!.Tags.Count == 0, phase + ": copying provider tags must never create private tags.");
+        return copied;
     }
 
     private static async Task TagActionAsync(MediaPage page, MediaLibraryTileRow row, DesktopSessionHost host, string phase)

@@ -17,7 +17,7 @@ namespace MeowChan;
 // plus "Switch work view". Nothing here depends on which view is active except the radio's checked entry.
 public partial class MainWindow
 {
-    private MenuItem? _themeMenu, _fullscreenMenu, _viewCycleMenu, _workViewGroupMenu;
+    private MenuItem? _themeMenu, _fullscreenMenu, _viewCycleMenu, _workViewGroupMenu, _booruToolsMenu;
     private readonly Dictionary<WorkView, MenuItem> _workViewRadios = new();
 
     private void InitializeWorkViewMenu()
@@ -42,6 +42,13 @@ public partial class MainWindow
         }
         _workViewGroupMenu.Items.Add(new Separator());
         _workViewGroupMenu.Items.Add(_viewCycleMenu);
+        _booruToolsMenu = new MenuItem
+        {
+            Name = "BooruToolsMenuItem",
+            ToggleType = MenuItemToggleType.CheckBox
+        };
+        _booruToolsMenu.Click += (_, _) => _ = SetBooruToolsVisibilityAsync(_booruToolsMenu.IsChecked);
+        WorkViewElement.SetId(_booruToolsMenu, "shell.appmenu.booru-toggle");
         WorkViewElement.SetId(_workViewGroupMenu, "shell.appmenu.view-group");
         WorkViewElement.SetId(_viewCycleMenu, "shell.appmenu.view-cycle");
         WorkViewElement.SetId(_themeMenu, "shell.appmenu.theme");
@@ -51,6 +58,7 @@ public partial class MainWindow
         WorkspaceMenuItem.Items.Insert(at, _themeMenu);
         WorkspaceMenuItem.Items.Insert(at + 1, _fullscreenMenu);
         WorkspaceMenuItem.Items.Insert(at + 2, _workViewGroupMenu);
+        WorkspaceMenuItem.Items.Insert(at + 3, _booruToolsMenu);
         _shortcutRouter?.Register(new CommandRegistration("workspace.view-cycle", this, () => true, () => CanSwitchWorkView,
             () => _ = CycleWorkViewAsync()));
         ActualThemeVariantChanged += (_, _) => RefreshWorkViewMenu();
@@ -102,6 +110,7 @@ public partial class MainWindow
     private void RefreshWorkViewMenu()
     {
         RefreshWorkViewSwitchNoticeAvailability();
+        RefreshBooruToolsPresentation();
         if (_workViewGroupMenu == null || _themeMenu == null || _fullscreenMenu == null || _viewCycleMenu == null) return;
         WorkView current = ConfiguredWorkView;
         CommandBindings.Apply(_themeMenu, "appearance.theme", label: ThemeMenuLabel);

@@ -140,6 +140,21 @@ internal sealed class GalleryImageCache<T> where T : class, IDisposable
         }
     }
 
+    /// <summary>
+    /// Like the delegate-based <c>Touch</c> overload for a request whose own occurrence was just
+    /// proven. Reuses that proof for the kept slot when it came from the same occurrence, while still rechecking the requested file.
+    /// </summary>
+    internal long Touch(string key, GalleryDecodeRequest.Fit fit, GalleryImageCache.FileValidity proven)
+    {
+        if (FindValid(key, fit, proven.IsCurrent, proven) is not { } slot) return -1;
+        lock (_gate)
+        {
+            if (slot.Evicted) return -1;
+            Touch(slot);
+            return slot.Bytes;
+        }
+    }
+
     /// <summary>Whether a fitting candidate exists, without validating either file. Used to avoid hashing on a cold miss.</summary>
     internal bool HasCandidate(string key, GalleryDecodeRequest.Fit fit)
     {
@@ -365,7 +380,7 @@ internal static class GalleryImageCache
 
     internal static FileValidity? Capture(GalleryEntry entry) => Capture(entry, RegularProfileFile.TryGetIdentity);
 
-    private static FileValidity? Capture(GalleryEntry entry, Func<string, RegularProfileFileIdentity?> identityOf)
+    internal static FileValidity? Capture(GalleryEntry entry, Func<string, RegularProfileFileIdentity?> identityOf)
     {
         try
         {
@@ -487,15 +502,18 @@ internal static class GalleryImageCache
             // A decode may have raced a replace. Do not memoize or keep a bitmap whose source identity no longer matches.
             if (validity == null) return (bitmap, decodedInfo);
             bool current = validity.IsCurrent();
-            // Cancellation may arrive while the post-decode identity read is in progress. Even when that read rejects the
-            // occurrence (and would otherwise return the unkept bitmap), a cancelled request must not hand any bitmap to its caller.
-            try { cancellationToken.ThrowIfCancellationRequested(); }
-            catch
+            // Cancellation during the identity read must not hand out an invalid, unkept bitmap. A valid decode can still
+            // be retained for the next request; the post-Add cancellation check releases its lease before throwing.
+            if (!current)
             {
-                bitmap.Dispose();
-                throw;
+                try { cancellationToken.ThrowIfCancellationRequested(); }
+                catch
+                {
+                    bitmap.Dispose();
+                    throw;
+                }
+                return (bitmap, decodedInfo);
             }
-            if (!current) return (bitmap, decodedInfo);
             // Just confirmed current: the decoder's proof belongs to exactly this occurrence (as RememberVerified, without a second stat).
             cache.VerifiedFiles.Remember(validity.Path, validity.Identity, validity.Sha256);
             T shown = cache.Add(key, bitmap, decodedInfo, validity);

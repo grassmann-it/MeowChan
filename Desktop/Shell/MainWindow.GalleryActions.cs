@@ -10,7 +10,9 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -289,6 +291,10 @@ public partial class MainWindow
     // The same details for a downloaded provider medium from the media page and from the gallery. Local data only.
     private async Task ShowBooruMediaDetailsAsync(GalleryEntry entry, string postId, Control? origin)
     {
+        // The dialog may remain open across a plugin/profile presentation change. Capture the
+        // exact service object that was current at open time; the live gate below refuses to
+        // hand the old dialog's query to a later composition.
+        BooruWorkbenchServices? openedServices = CanOpenBooru ? _session.BooruServices : null;
         BooruMediaDetails? details = null;
         // Off the UI thread: a cold catalog cache parses the whole file once.
         try { if (await Task.Run(_session.ReadBooruCatalog) is { } catalog) details = BooruMediaProjection.Find(catalog, postId, localFilePresent: true); }
@@ -312,7 +318,8 @@ public partial class MainWindow
                 if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
                 await Clipboard.SetTextAsync(text);
             },
-            UseAsBooruSearch);
+            openedServices is null ? null : query => UseAsBooruSearchForDialog(query, openedServices),
+            openedServices is null ? null : () => IsBooruSearchAvailable(openedServices));
         BooruDetailsWindow = dialog;
         try { await dialog.ShowDialog(this); }
         finally
@@ -320,5 +327,32 @@ public partial class MainWindow
             BooruDetailsWindow = null;
             if (!_isClosing && origin?.IsEffectivelyVisible == true) origin.Focus();
         }
+    }
+
+    /// <summary>
+    /// Live presentation/lifetime gate for a source-tag query opened from local media. The
+    /// service reference is deliberately part of the gate: <see cref="UseAsBooruSearch"/>
+    /// would otherwise resolve the current page and could feed a stale dialog into a new
+    /// profile/plugin composition.
+    /// </summary>
+    private bool IsBooruSearchAvailable(BooruWorkbenchServices openedServices) =>
+        !_isClosing && CanOpenBooru && ReferenceEquals(_session.BooruServices, openedServices);
+
+    private bool UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
+    {
+        if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return false;
+        if (!IsBooruSearchAvailable(openedServices) || _booruPage is not { } page
+            || !ReferenceEquals(page.Services, openedServices)) return false;
+
+        // This is the same unsent-draft handoff as the main Booru entry, but it is bound to the
+        // captured page identity. No search or other provider request is started here.
+        page.ShowQuery(query);
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (IsBooruSearchAvailable(openedServices) && _selectedPage == WorkspacePage.Booru
+                && ReferenceEquals(_booruPage, page))
+                page.View.FocusSearchInput();
+        });
+        return true;
     }
 }

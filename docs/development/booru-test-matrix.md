@@ -1,6 +1,7 @@
 # Booru test matrix (MeowChan 1.1.0, Danbooru)
 
-Documentation reconciliation, 14.11.2026, against integrated base `88627d6b`.
+Documentation reconciliation, 14.11.2026, against integrated base
+`63fd4190407973026d2a9ac96c479aa191325868`.
 The original inventory was written at `3c675786` plus B8; its B4/B5-*open* labels
 were historical missing-wiring/test notes, not a description of today's source.
 The tables below index **synthetic fixtures and test source**, not test execution.
@@ -9,9 +10,14 @@ Remaining execution/audit gaps are listed separately below.
 
 The scenarios follow package B9 of the 1.1.0 Booru work plan
 (`docs/architecture/gesamtprogramm-2026-10-31/pakete/1.1.0-booru-arbeitsplan-2026-11-12.md`).
-The integrated B1 correction honors longer valid Retry-After values without a
-24-hour cap (only the representable date limit). Invalid Retry-After input is
-treated as absent, so the contractual minimum remains the fallback. This
+The current B1 host bounds valid Retry-After values by the configurable
+`Config.BooruRetryAfterCooldownHours` setting: default 24 hours, range 1–168 hours.
+For 429, the wait is at least 60 seconds and at most the live configured cap;
+invalid, absent, expired or shorter values keep the minimum. Calendar arithmetic
+also saturates at the maximum representable date; that technical bound does not
+replace the configurable cap. Lowering the live cap can shorten an existing
+in-memory source fence. A 429 stops its job without retry; a fresh job can send
+after the fence expires, subject to normal pacing and budgets. This
 documentation records test source and static reconciliation, without claiming a run.
 B13 UI details in the help were read from `6e8e4437`, which is an ancestor of the
 integrated base; native UI acceptance remains a separate open gate.
@@ -69,8 +75,8 @@ that check cannot establish runtime correctness.
 | redirect (3xx) | `BooruHostHttpTests.RedirectIsTerminalAndDoesNotFollowLocation`, `UnconditionalNotModifiedStaysATerminalThreeHundredWithoutRetry` (a 304 only answers a conditional request: `ConditionalNotModifiedIsAnEmptyResponseAndReadsNoBody`); `PluginHostBooruRoutingTests.ChanSourceKeepsItsPolicyAndRedirectsBesideTheZeroRedirectBooruRoute` (chan sources keep their redirects); `DanbooruSourceTests` status table (301) | fake transport |
 | 401 and 403 | `DanbooruSourceTests` (`access-denied` for both, HTML body on 403) | fake host response |
 | 404 and 410 | `DanbooruSourceTests.PostNotFoundIsOnlyAVerified404`; `BooruRealWorkerTests.RealWorkerMapsSinglePost404ToNotFound` | fake host response, loopback stub |
-| 429 and cooldown | `BooruHostHttpTests.TooManyRequestsStartsSourceCooldownAndDoesNotTouchTransportAgain`, `InvalidRetryAfterOnTooManyRequestsFallsBackToTheSixtySecondFloor`; `BooruHostHttpTests.FarFutureRetryAfterCooldownIsNotShortened`, `FarFutureRetryAfterDateIsNotShortenedAndShortDateKeepsTheMinimum`, `RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit`; `BooruRealWorkerTests.RealWorkerReceivesProvider429AsDeferredAndSecondCallDoesNotHitStub`; `DanbooruSourceTests.RetryAfterHttpDateSetsTheDueTime`, `RetryAfterInThePastIsDueNowAndFarFutureIsCapped` (plugin-only parser fixture, not the host cooldown contract), `HostDeferredPassesThroughUnchanged` | fake transport and clock, loopback stub; valid provider deadlines are preserved, invalid headers fall back to the 60-second floor, and technical date overflow saturates at the representable maximum |
-| 502 and 503 | `BooruHostHttpTests.BadGatewayRetriesOnceAfterTwoSeconds`, `SecondFiveOhThreeIsReturnedWithoutAnotherRetry`, `InvalidRetryAfterOnFiveOhThreeFallsBackToTwoSecondRetry` | fake transport and clock |
+| 429 and cooldown | `BooruHostHttpTests.TooManyRequestsStartsSourceCooldownAndDoesNotTouchTransportAgain`, `InvalidRetryAfterOnTooManyRequestsFallsBackToTheSixtySecondFloor`; `BooruHostHttpTests.FarFutureRetryAfterCooldownIsCappedAtTheDefaultMaximum`, `SyntacticallyValidHugeDeltaSaturatesAtTheConfiguredCap`, `RetryAfterDateIsCappedAndExpiredDateKeepsTheMinimum`, `RetryAfterDeltaAndConfiguredCapSaturateAtTechnicalDateLimit`; `BooruHostHttpContractTests.TooManyRequestsEnforcesSixtySecondFloorAndIsNotRetried`, `RateLimitedJobNeverResumesButNewJobsRespectSourceCooldown`, `CooldownHonorsRetryAfterDateAndSpansJobsUntilItElapses`, `RetryAfterCooldownIsCappedByTheConfiguredBound`, `LoweringTheLiveCapShortensAnExistingInMemoryFence`; `BooruCatalogLimitTests.RetryAfterCooldownSettingDefaultsCopiesPersistsAndRejectsUnsafeValues`; `BooruRealWorkerTests.RealWorkerReceivesProvider429AsDeferredAndSecondCallDoesNotHitStub`; `DanbooruSourceTests.RetryAfterHttpDateSetsTheDueTime`, `RetryAfterInThePastIsDueNowAndFarFutureIsCapped` (plugin-only parser fixture, not the host cooldown contract), `HostDeferredPassesThroughUnchanged` | fake transport and clock, loopback stub; 60-second minimum, configurable 1–168-hour maximum (24-hour default), malformed-input fallback, huge valid deltas, capped/expired dates, cap expiry and live lowering; technical date saturation remains a separate boundary. Plugin-only parsing is not the host fence or a live settings/UI acceptance |
+| 502 and 503 | `BooruHostHttpTests.BadGatewayRetriesOnceAfterTwoSeconds`, `SecondFiveOhThreeIsReturnedWithoutAnotherRetry`, `InvalidRetryAfterOnFiveOhThreeFallsBackToTwoSecondRetry`; `BooruHostHttpContractTests.RetryAfterLongerThanTwoSecondsIsHonoredAndZeroStillWaitsTwoSeconds`, `RetryAfterBeyondTheJobDeadlineFailsAsBudgetWithoutWaitingOrRetrying`, `FinalFiveOhThreeRetryAfterIsNormalizedToTheLiveCap` | fake transport and clock; one retry no earlier than two seconds, bounded by live Retry-After cap and job deadline; the final 503 header is normalized to the live cap before the plugin sees it |
 | timeout | `BooruHostHttpTests.SlowMetadataBodyIsBoundedByFifteenSecondResponseDeadline`, `TwentyFirstSendAndExpiredJobDoNotReachTransport` | fake transport and clock |
 | too large answer | `BooruHostHttpTests.WireAndDecodedLimitsReturnMetadataTooLarge`, `WireLimitAlsoAppliesWhenContentLengthIsUnknown`; `DanbooruSourceTests.TooManyPostsFixtureFailsInsteadOfTruncating` | `too-many-posts.json` |
 | not JSON, truncated or wrong shape | `DanbooruSourceTests.HtmlChallengeFixtureIsNotJson`, `MalformedJsonAndWrongShapeFixturesAreMalformed`, `OneBadPostMakesASearchMalformedInsteadOfLosingIt` | `html-challenge.html`, `malformed-json.json`, `wrong-shape.json`, `post-missing-id.json`, `post-bad-md5.json` |
@@ -89,7 +95,7 @@ use the `booru.ui.*` key prefix and are not covered by this catalog; their separ
 checks are in `BooruLocalizationTests` and `BundledLanguagePackCompletenessTests`.
 Presence/completeness is not a native, screen-reader or translation-quality PASS.
 
-## Current lifecycle audit and acceptance gaps (13.11.2026)
+## Current lifecycle audit and acceptance gaps (14.11.2026)
 
 Static wiring is present: `Desktop/Booru/BooruSessionComposition.cs` composes search,
 original admission over the shared queue, watcher host and UI ports. The following
@@ -108,19 +114,27 @@ regression sources narrow the old B4/B5 gaps; they do not close final acceptance
   exist. A fresh integrated audit/run of late responses, pause/remove, plugin
   invalidation and profile shutdown across scheduler, host and queue is still open;
   source presence alone establishes neither quiescence nor absence of races.
-- B1 terminal-status handling, job lifetime across pages/worker waits, and long
-  429 cooldowns from `b82741dd` are integrated into `88627d6b`.
-  Deterministic regression runs must cover them together with the watcher/admission
-  lifecycle. `BooruHostHttpTests.RetryAfterDeltaSaturatesOnlyAtTechnicalDateLimit`
-  uses a valid HTTP delta near the calendar limit; the two invalid-header tests
-  prove that malformed provider input falls back without faulting the host.
+- B1 terminal-status handling, job lifetime across pages/worker waits, configured
+  429 cooldowns and 502/503 retry/header normalization have source coverage in the
+  failure matrix above. The default-cap theory covers seven-day and Int32-maximum
+  deltas and a fresh send after cap expiry; the configured-bound theory covers
+  1, 24 and 168 hours. Separate cases cover a syntactically valid huge decimal,
+  expired/near/far HTTP dates, live lowering of an existing fence and saturation
+  near the calendar limit. Invalid-header regressions retain the 60-second (429)
+  and two-second (503 retry) fallbacks. These cases need a joint deterministic
+  final-freeze run with the watcher/admission lifecycle; none was executed here.
+- The config regression cited above covers default, clone/copy, save/reload and
+  rejection of unsafe cooldown values. `Desktop/PluginSession.cs` supplies the
+  live setting to the host. This is source evidence, not a fresh integrated
+  settings-to-host/UI, persistence/restart or watcher-fence acceptance run.
 - `HelpDocumentationTests.DocumentedMetadataHttpBudgetsMatchTransportConstants`
-  and `GermanCatalogDefaultsAndProviderCooldownContractMatchTheSameCode` now assert
-  the minimum wait and that a longer valid provider deadline is not shortened.
-  They assert that the minimum wait and a longer valid provider deadline are not
-  shortened. There is no product-level 24-hour cap. A green help suite still
-  requires execution on the integrated base; source changes alone are not an
-  acceptance result.
+  and `GermanCatalogDefaultsAndProviderCooldownContractMatchTheSameCode` still
+  assert the obsolete uncapped-provider-deadline text (including the claim that
+  only the technical date limit applies). **Open parent reconciliation:** align
+  those assertions and the affected Help/guide text with the configurable cap,
+  while retaining minimum-wait, malformed-input and technical-bound coverage.
+  Merely passing those old text assertions would not validate today's cooldown
+  contract. Neither those tests nor Help/guide files were changed or run here.
 - Fresh native Booru workbench, offline media/gallery/favorites and accessibility
   acceptance, plus the real-old-profile upgrade run noted in scenario 8, remain
   unverified here. No build, restore, .NET test, native smoke or live-provider

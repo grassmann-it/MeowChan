@@ -2,7 +2,9 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Automation;
 using MeowChan.Gallery;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
@@ -16,12 +18,40 @@ public sealed partial class MediaPage
 {
     private MediaToolbarLayout.Level _toolbarLevel = MediaToolbarLayout.Level.Wide;
     private Grid? _toolbar;
+    private Func<bool>? _canOpenBooru;
+    private Action? _openBooru;
+    private readonly Button _booruOpen = new() { Name = "MediaBooruOpen", IsVisible = false };
 
     /// <summary>The width class the toolbar row is laid out for (tests and smokes).</summary>
     internal MediaToolbarLayout.Level ToolbarLevel => _toolbarLevel;
 
     /// <summary>The toolbar row (smokes).</summary>
     internal Grid ToolbarRow => _toolbar!;
+
+    /// <summary>Attaches the optional action to the ordinary registered work-view overflow surface.</summary>
+    internal void AttachBooruOverflow(Func<bool> canOpen, Action open)
+    {
+        ArgumentNullException.ThrowIfNull(canOpen);
+        ArgumentNullException.ThrowIfNull(open);
+        _canOpenBooru = canOpen;
+        _openBooru = open;
+        LocalizeBooruOverflow();
+        RefreshWorkView();
+    }
+
+    private void LocalizeBooruOverflow()
+    {
+        _booruOpen.Content = Texts.T("media.toolbar.booru");
+        AutomationProperties.SetName(_booruOpen, Texts.T("media.toolbar.booru"));
+        ToolTip.SetTip(_booruOpen, Texts.T("media.toolbar.booruTip"));
+    }
+
+    private void InvokeBooruOverflow()
+    {
+        // A menu may remain open across a profile/composition or visibility change. Recheck at invocation.
+        if (!_lifetime.IsCancellationRequested && _canOpenBooru?.Invoke() == true)
+            _openBooru?.Invoke();
+    }
 
     private Grid BuildToolbar()
     {
@@ -35,7 +65,7 @@ public sealed partial class MediaPage
         tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        foreach (Control control in new Control[] { _shuffle, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _more })
+        foreach (Control control in new Control[] { _shuffle, _sort, _sortDirection, _refresh, _focus, _exportAll, _manageRatings, _booruOpen, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).

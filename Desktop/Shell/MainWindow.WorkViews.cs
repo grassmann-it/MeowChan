@@ -54,6 +54,7 @@ public partial class MainWindow
     {
         _diagnosticsPage?.ApplyWorkView(view);
         _statisticsPage?.ApplyWorkView(view);
+        _booruPage?.ApplyWorkView(view, viewChanged: true);
     }
 
     // view-barebones|view-simple|view-advanced are for density only (margins, spacing), never for what is shown;

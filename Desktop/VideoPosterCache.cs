@@ -409,8 +409,38 @@ internal static class VideoPosterCache
         Trim(directory, incomingBytes, maximumBytes, maximumFiles, delete: null);
 
     /// <param name="delete">Test seam replacing <see cref="File.Delete"/> for eviction candidates.</param>
-    internal static TrimResult Trim(string directory, int incomingBytes, long maximumBytes, int maximumFiles, Action<string>? delete) =>
-        TrimCore(directory, protectedPath: null, maximumBytes - incomingBytes, maximumFiles - 1, delete);
+    internal static TrimResult Trim(string directory, int incomingBytes, long maximumBytes, int maximumFiles, Action<string>? delete)
+    {
+        string fullDirectory = Path.GetFullPath(directory);
+        DirectoryLedger ledger;
+        lock (LedgersLock)
+            ledger = LedgerForLocked(fullDirectory);
+
+        // Publish-triggered trims and explicit maintenance trims must observe one directory at a time. Without this gate two
+        // concurrent scans can both decide that the same oldest candidate is present, then publish stale byte/file totals.
+        ledger.TrimGate.Wait();
+        try
+        {
+            long savedBytes;
+            long savedFiles;
+            lock (LedgersLock)
+            {
+                savedBytes = ledger.SavedBytes;
+                savedFiles = ledger.SavedFiles;
+            }
+
+            TrimResult result = TrimCore(fullDirectory, protectedPath: null, maximumBytes - incomingBytes, maximumFiles - 1, delete);
+            lock (LedgersLock)
+            {
+                ledger.Bytes = result.Bytes + (ledger.SavedBytes - savedBytes);
+                ledger.Files = (int)Math.Min(int.MaxValue, result.Files + (ledger.SavedFiles - savedFiles));
+                ledger.SavesSinceScan = 0;
+                ledger.Known = true;
+            }
+            return result;
+        }
+        finally { ledger.TrimGate.Release(); }
+    }
 
     /// <summary>
     /// Evicts the oldest <c>*.png</c> files (by write time) until at most <paramref name="targetFiles"/> files and
