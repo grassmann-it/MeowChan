@@ -40,7 +40,8 @@ public partial class ArchivePage
     private sealed record ReaderViewOption(string CommandId, Func<bool>? IsChecked, Action Toggle);
     // Fixed menu order; options registered later (P2, P4) slot in here, unknown ones go last.
     private static readonly string[] ReaderViewOptionOrder =
-        { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.post-filters" };
+        { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
+          "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.post-filters" };
 
     private ReaderPostProjection? _projection;
     private ReaderPostProjection? _announcedProjection;

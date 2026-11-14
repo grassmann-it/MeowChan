@@ -128,6 +128,12 @@ public partial class MainWindow
             string mode = _config.WorkspaceMode;
             return _session.SaveViewPreferencesAsync(current => current.GetLayoutProfile(mode).ArchiveMediaTiles = tiles);
         };
+        // The reader's quick media switches (View menu) write only the switch that was flipped; Settings shows the confirmed value again.
+        _archivePage.SaveReaderMediaSwitches = async change =>
+        {
+            await _session.SaveViewPreferencesAsync(change);
+            _settingsEditor?.RefreshConfirmedReaderMedia();
+        };
         _archivePage.FullscreenRequested = ToggleFullscreen;
         _archivePage.ReadingFontSizePreference = ReadingFontSize();
         _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;

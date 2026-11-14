@@ -89,6 +89,8 @@ internal sealed class MediaFramePanel : Panel
     internal double? Aspect { get; set; }
     /// <summary>Optional reader preference override; tiles keep the standard large/normal limits.</summary>
     internal double MaximumWidthOverride { get; set; } = double.NaN;
+    /// <summary>Optional override of the height cap, for previews drawn wider than the reader default (textless or enlarged ones keep the cap's proportion).</summary>
+    internal double MaximumHeightOverride { get; set; } = double.NaN;
     internal static double MaximumWidth(bool large) => large ? 360 : 240;
     internal static double MaximumHeight(bool large) => large ? 280 : 180;
 
@@ -97,7 +99,8 @@ internal sealed class MediaFramePanel : Panel
         double maximumWidth = double.IsFinite(MaximumWidthOverride) && MaximumWidthOverride > 0
             ? MaximumWidthOverride
             : MaximumWidth(Large);
-        Size frame = MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, MaximumHeight(Large));
+        double maximumHeight = double.IsFinite(MaximumHeightOverride) && MaximumHeightOverride > 0 ? MaximumHeightOverride : MaximumHeight(Large);
+        Size frame = MediaSlotGeometry.Fit(Aspect, availableSize.Width, maximumWidth, maximumHeight);
         foreach (Control child in Children) child.Measure(frame);
         return frame;
     }

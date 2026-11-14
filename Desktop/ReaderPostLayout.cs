@@ -14,13 +14,33 @@ public sealed class ReaderPostLayout : Panel
         AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, int>("ThumbnailWidth",
             ReaderDisplayPreferences.ReaderThumbnailWidthDefault, inherits: true);
 
-    static ReaderPostLayout() => AffectsMeasure<ReaderPostLayout>(LargeReaderProperty, ThumbnailWidthProperty);
+    /// <summary>
+    /// The effective media width of this post alone (already scaled for the large reader); 0 keeps the list-wide thumbnail width.
+    /// Posts without text of their own use it for their larger image (R6).
+    /// </summary>
+    public static readonly StyledProperty<int> MediaWidthProperty =
+        AvaloniaProperty.Register<ReaderPostLayout, int>(nameof(MediaWidth));
+    /// <summary>The percentage the focused card's media is enlarged to; set on the list (inherited), 100 while the option is off.</summary>
+    public static readonly AttachedProperty<int> FocusScalePercentProperty =
+        AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, int>("FocusScalePercent", 100, inherits: true);
+    /// <summary>True inside the focused (selected) card; set by the list's item style, inherited by everything in the card.</summary>
+    public static readonly AttachedProperty<bool> FocusedProperty =
+        AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, bool>("Focused", false, inherits: true);
+
+    static ReaderPostLayout() => AffectsMeasure<ReaderPostLayout>(LargeReaderProperty, ThumbnailWidthProperty, MediaWidthProperty,
+        FocusScalePercentProperty, FocusedProperty);
+
+    public int MediaWidth { get => GetValue(MediaWidthProperty); set => SetValue(MediaWidthProperty, value); }
+
+    /// <summary>How much larger the media of a card is drawn: only the focused card, only while the option is on.</summary>
+    internal static double FocusFactor(bool focused, int scalePercent) => focused && scalePercent > 100 ? scalePercent / 100d : 1;
 
     private bool _beside;
 
     private bool IsLargeReader => GetValue(LargeReaderProperty);
-    private double ThumbnailWidth => ReaderDisplayPreferences.EffectiveThumbnailWidth(
-        GetValue(ThumbnailWidthProperty), IsLargeReader);
+    private double ThumbnailWidth =>
+        (MediaWidth > 0 ? MediaWidth : ReaderDisplayPreferences.EffectiveThumbnailWidth(GetValue(ThumbnailWidthProperty), IsLargeReader))
+        * FocusFactor(GetValue(FocusedProperty), GetValue(FocusScalePercentProperty));
 
     // The threshold includes the media column and the body breathing room. Defaults remain 600/760 DIP, while a
     // wider configured thumbnail grows the threshold instead of making the body overlap the media.

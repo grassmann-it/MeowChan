@@ -16,7 +16,7 @@ internal static class ReaderSettingsPreferences
     {
         // Capture the original reader place before any of the inherited layout preferences are updated.
         reader.ApplyReaderDisplayPreferences(config.ReaderThumbnailWidth, DateStyle(config), config.ReaderPageSize,
-            config.ReaderThreadingDepth);
+            config.ReaderThreadingDepth, ReaderMediaPreferences.From(config));
         reader.ReaderFoldLinesPreference = config.ReaderFoldLines;
         reader.ReaderSpoilerModePreference = Spoilers(config);
         reader.QuotePreviewMaxLines = config.ReaderPreviewLines;

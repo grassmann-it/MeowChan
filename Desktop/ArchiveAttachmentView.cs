@@ -74,6 +74,12 @@ public sealed class ArchiveAttachmentView : UserControl
     private readonly Border _placeholder = new() { CornerRadius = new CornerRadius(5), IsHitTestVisible = false };
     private readonly TextBlock _provenance = new TextBlock { TextWrapping = TextWrapping.Wrap, IsVisible = false }.MetaText();
     private readonly Button _button;
+    // The accent edge of an enlarged (focused) picture: the look the media sidebar shares (ReaderFocusedMedia).
+    private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
+    private Bitmap? _enlarged;
+    private int _enlargedWidth;
+    private CancellationTokenSource? _enlarging;
+    private int _enlargeRequest;
     private readonly ArchiveFavoriteButton _favorite = new() { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
 
     /// <summary>Bounded placeholder/loaded-preview height retained for the existing reader geometry contract.</summary>
@@ -94,6 +100,13 @@ public sealed class ArchiveAttachmentView : UserControl
     public static void SetLoadingSuspended(Control control, bool value) => control.SetValue(LoadingSuspendedProperty, value);
     internal static long LoadsSkippedWhileSuspended;
 
+    /// <summary>
+    /// Inherited: the reader's hover preview. An attachment in its subtree offers the enlarged preview while the pointer rests on it,
+    /// when the option is on; without one (lists, gallery strips) nothing happens on hover.
+    /// </summary>
+    internal static readonly AttachedProperty<ReaderHoverEnlarge?> HoverEnlargeProperty =
+        AvaloniaProperty.RegisterAttached<ArchiveAttachmentView, Control, ReaderHoverEnlarge?>("HoverEnlarge", null, inherits: true);
+
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
@@ -103,6 +116,91 @@ public sealed class ArchiveAttachmentView : UserControl
             else if (_visible) _ = LoadAsync();
         }
         if (change.Property == IsVisibleProperty && change.NewValue is false) SetViewportVisible(false);
+        // The focused card (the list's selected item) and the enlargement percentage arrive by inheritance from the post list.
+        if (change.Property == ReaderPostLayout.FocusedProperty || change.Property == ReaderPostLayout.FocusScalePercentProperty)
+            RefreshFocus();
+    }
+
+    private double FocusFactor() =>
+        ReaderPostLayout.FocusFactor(GetValue(ReaderPostLayout.FocusedProperty), GetValue(ReaderPostLayout.FocusScalePercentProperty));
+
+    // The frame limits: the row's own width (textless posts are wider), times the focus factor while this card is focused.
+    // Without either the legacy limits stay exactly as they were (no height override).
+    private void ApplyFrameLimits(ArchiveAttachmentRow? row, bool large)
+    {
+        double factor = FocusFactor();
+        double width = row?.ThumbnailWidth > 0 ? row.ThumbnailWidth : MediaFramePanel.MaximumWidth(large);
+        _slot.MaximumWidthOverride = width * factor;
+        double height = row?.ThumbnailMaxHeight > 0 ? row.ThumbnailMaxHeight : MediaFramePanel.MaximumHeight(large);
+        _slot.MaximumHeightOverride = row?.ThumbnailMaxHeight > 0 || factor > 1 ? height * factor : double.NaN;
+        _edge.IsVisible = factor > 1 && row != null;
+    }
+
+    private void RefreshFocus()
+    {
+        ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
+        ApplyFrameLimits(row, row?.LargePreview == true);
+        _slot.InvalidateMeasure();
+        if (FocusFactor() > 1) _ = EnlargeAsync();
+        else DropEnlarged();
+    }
+
+    // The focused card's picture is decoded again at its larger size, only for this card and only when the ordinary decode is smaller.
+    // A failure keeps the ordinary picture: enlarging is never an error.
+    private async Task EnlargeAsync()
+    {
+        double factor = FocusFactor();
+        if (factor <= 1 || !_visible || _bitmap == null || GetLoadingSuspended(this)
+            || DataContext is not ArchiveAttachmentRow { LoadSized: { } load } row) return;
+        int target = (int)Math.Ceiling(Math.Max(1, row.ThumbnailWidth) * factor);
+        ReaderDisplayPreferences.ThumbnailDecodeBounds bounds = ReaderDisplayPreferences.DecodeBoundsForWidth(target, row.LargePreview);
+        if (ReaderDisplayPreferences.DecodeBoundsForWidth(row.ThumbnailWidth, row.LargePreview).MaximumWidth >= bounds.MaximumWidth
+            || _enlarged != null && _enlargedWidth >= bounds.MaximumWidth) return;
+        CancelEnlarging();
+        int request = ++_enlargeRequest;
+        CancellationTokenSource enlarging = new();
+        _enlarging = enlarging;
+        Task<Bitmap?>? pending = null;
+        try
+        {
+            pending = load(bounds.MaximumWidth, bounds.MaximumHeight, enlarging.Token);
+            Bitmap? bitmap = await pending.WaitAsync(LoadTimeout, enlarging.Token);
+            if (request != _enlargeRequest || enlarging.IsCancellationRequested || !_visible || FocusFactor() <= 1)
+            { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
+            if (bitmap == null) return;
+            Bitmap? previous = _enlarged;
+            _enlarged = bitmap; _enlargedWidth = bounds.MaximumWidth;
+            _image.Source = bitmap;
+            if (previous != null) MediaTileThumbnails.Release(previous);
+        }
+        catch (Exception)
+        {
+            enlarging.Cancel();
+            if (pending != null) await DisposeLateAsync(pending);
+        }
+        finally
+        {
+            if (ReferenceEquals(_enlarging, enlarging)) _enlarging = null;
+            enlarging.Dispose();
+        }
+    }
+
+    private void CancelEnlarging()
+    {
+        CancellationTokenSource? running = _enlarging;
+        _enlarging = null;
+        try { running?.Cancel(); } catch (ObjectDisposedException) { }
+    }
+
+    // The ordinary picture is shown again before the enlarged one is given back.
+    private void DropEnlarged()
+    {
+        CancelEnlarging();
+        ++_enlargeRequest;
+        if (_enlarged == null) return;
+        _image.Source = _bitmap;
+        MediaTileThumbnails.Release(_enlarged);
+        _enlarged = null; _enlargedWidth = 0;
     }
 
     private CancellationTokenSource? _loading;
@@ -126,7 +224,15 @@ public sealed class ArchiveAttachmentView : UserControl
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
         _button.Click += (_, _) => (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
-        _slot.Children.Add(_button); _slot.Children.Add(_play);
+        _slot.Children.Add(_button); _slot.Children.Add(_play); _slot.Children.Add(_edge);
+        // The hover preview of the reader (off unless the option is on; the owner supplies it through HoverEnlargeProperty).
+        _button.PointerEntered += (_, _) =>
+        {
+            if (DataContext is ArchiveAttachmentRow row && FocusFactor() <= 1) GetValue(HoverEnlargeProperty)?.Enter(this, row, _button);
+        };
+        _button.PointerExited += (_, _) => GetValue(HoverEnlargeProperty)?.Leave(this);
+        _button.AddHandler(PointerPressedEvent, (_, _) => GetValue(HoverEnlargeProperty)?.Leave(this), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        _button.AddHandler(PointerWheelChangedEvent, (_, _) => GetValue(HoverEnlargeProperty)?.Leave(this), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         // The file line and the star share one row above the thumbnail (the star used to take a row of its own and
         // pushed the picture down); the thumbnail below it is the click target for the preview. The row is as wide as the picture.
         Grid fileLine = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), MinHeight = 0 };
@@ -164,9 +270,7 @@ public sealed class ArchiveAttachmentView : UserControl
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
         _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
         bool large = row?.LargePreview == true;
-        _slot.MaximumWidthOverride = row?.ThumbnailWidth > 0
-            ? row.ThumbnailWidth
-            : MediaFramePanel.MaximumWidth(large);
+        ApplyFrameLimits(row, large);
         SetFrame(large, row?.KnownAspect);
         _slot.InvalidateMeasure();
         _label.Text = row?.FileLine ?? string.Empty;
@@ -240,6 +344,7 @@ public sealed class ArchiveAttachmentView : UserControl
             _bitmap = bitmap;
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;
+            if (bitmap != null && FocusFactor() > 1) _ = EnlargeAsync();
             _status.IsVisible = bitmap == null;
             _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
                 == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");
@@ -289,7 +394,10 @@ public sealed class ArchiveAttachmentView : UserControl
         ++_request;
         CancelPendingLoad();
         _image.Source = null; _image.IsVisible = false;
+        CancelEnlarging(); ++_enlargeRequest;
+        if (_enlarged != null) MediaTileThumbnails.Release(_enlarged); _enlarged = null; _enlargedWidth = 0;
         if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
+        GetValue(HoverEnlargeProperty)?.Leave(this);
         _status.IsVisible = true;
     }
 }

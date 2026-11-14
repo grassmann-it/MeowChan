@@ -60,6 +60,10 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public bool LargePreview { get; init; }
     /// <summary>Reader image width; zero keeps the legacy list-preview default.</summary>
     public int ThumbnailWidth { get; init; }
+    /// <summary>Height cap of the preview frame for a width that differs from the reader default (textless posts); zero keeps the default cap.</summary>
+    public int ThumbnailMaxHeight { get; init; }
+    /// <summary>Decodes the preview at explicit bounds (the enlarged focused card, the hover preview); null in the lists. The caller releases the result.</summary>
+    public Func<int, int, CancellationToken, Task<Bitmap?>>? LoadSized { get; init; }
     /// <summary>
     /// Width over height of the thumbnail once one was loaded (the capture records no pixel size). The preview frame follows it and keeps
     /// it when the pixels are released, so a post's height changes once on the first load and not again on scrolling.
@@ -102,6 +106,11 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     public bool HasAttachments => Attachments.Count > 0;
     // Hidden media read as a text-only post: the body takes the whole width and no thumbnail is loaded.
     public bool IsTextOnly => !HasAttachments || MediaHidden;
+    /// <summary>
+    /// Effective width of this post's images when it has no text of its own (R6); 0 for every other post, which uses the list-wide
+    /// preview width. The post layout and the previews read it, so the larger image is one measured width and not a per-pass guess.
+    /// </summary>
+    public int MediaWidth { get; init; }
 
     // Reader view (plan P0). Each row is built for one page of the projection and never changes afterwards.
     /// <summary>Index in the thread read (not the shown position).</summary>

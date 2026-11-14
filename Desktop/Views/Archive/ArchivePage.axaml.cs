@@ -568,8 +568,12 @@ public partial class ArchivePage : UserControl
         if (text.Length > 65536) text = text[..65536] + "\n\n" + Texts.T("archive.displayLimit");
         ReaderPostVerdict verdict = entry.Verdict;
         bool stub = verdict.Visibility == ReaderPostVisibility.Stub;
+        // A post without text of its own (after trimming) shows its images larger (R6); hidden media and stubs keep the ordinary width.
+        int textlessWidth = !stub && !context.HideMedia && post.Attachments is { Count: > 0 } && string.IsNullOrWhiteSpace(text)
+            ? ReaderDisplayPreferences.EffectiveTextlessWidth(ReaderThumbnailWidth, _readerDisplayPreferences.Media, _largeReader)
+            : 0;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
-            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task)).ToArray());
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task, textlessWidth)).ToArray());
         return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
@@ -591,6 +595,7 @@ public partial class ArchivePage : UserControl
             IsHighlighted = (verdict.Marks & ReaderPostMarks.Highlight) != 0,
             IsRevealed = (verdict.Marks & ReaderPostMarks.Revealed) != 0,
             MediaHidden = context.HideMedia && attachments.Count > 0,
+            MediaWidth = textlessWidth,
             SuppressReplyToggle = context.SuppressReplyToggle
         };
     }
@@ -716,44 +721,51 @@ public partial class ArchivePage : UserControl
     }
 
     private ArchiveAttachmentRow CreateAttachmentRow(ResourceId resource, CapturedAttachment attachment, string postId,
-        Task<IReadOnlyList<ArchiveAssetRow>> ready)
+        Task<IReadOnlyList<ArchiveAssetRow>> ready, int widthOverride = 0)
     {
         bool large = _largeReader;
+        int thumbnailWidth = widthOverride > 0 ? widthOverride : ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, large);
         global::MeowChan.Desktop.ReaderDisplayPreferences.ThumbnailDecodeBounds bounds =
-            global::MeowChan.Desktop.ReaderDisplayPreferences.DecodeBounds(ReaderThumbnailWidth, large);
-        int thumbnailWidth = ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, large);
+            global::MeowChan.Desktop.ReaderDisplayPreferences.DecodeBoundsForWidth(thumbnailWidth, large);
         ArchiveAttachmentRow row = new(attachment);
+        // One decode at explicit bounds serves the ordinary preview, the enlarged focused card and the hover preview. Only the ordinary
+        // size is kept by its bytes (a kept preview is leased at once, with no slot); the enlarged ones are held by their one view.
+        async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken)
+        {
+            using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
+            ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
+            row.Binding = resolved?.Binding;
+            ArchiveAssetRow? match = resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
+            if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
+                asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
+                ? "archive.differentVersion" : "archive.notSaved"));
+            // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
+            // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
+            bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
+            string? key = large || !keep ? null : MediaTileThumbnails.ByteKey(match.Asset,
+                video ? $"@poster{maximumWidth}x{maximumHeight}"
+                    : maximumWidth == 240 && maximumHeight == 180 ? string.Empty
+                    : $"@reader{maximumWidth}x{maximumHeight}");
+            // A kept preview is leased at once (no slot, no thread hop); only a real decode takes a slot, images before posters.
+            loading.Token.ThrowIfCancellationRequested(); // Coverage can change while waiting for the manifests.
+            if (video)
+                return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
+                    Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
+                    maximumWidth, maximumHeight, key, loading.Token, _thumbnailGate).ConfigureAwait(false);
+            return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, ThumbnailDecodePriority.Image, key,
+                () => Task.Run(() => DecodeThumbnailAsync(match, loading.Token,
+                    maximumWidth, maximumHeight, MediaTileThumbnails.Verified), loading.Token), loading.Token).ConfigureAwait(false);
+        }
         row = row with
         {
             LargePreview = large,
             ThumbnailWidth = thumbnailWidth,
-            LoadThumbnail = async cancellationToken =>
-            {
-                using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-                IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
-                ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
-                row.Binding = resolved?.Binding;
-                ArchiveAssetRow? match = resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
-                if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
-                    asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
-                    ? "archive.differentVersion" : "archive.notSaved"));
-                // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
-                // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
-                bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
-                string? key = large ? null : MediaTileThumbnails.ByteKey(match.Asset,
-                    video ? $"@poster{bounds.MaximumWidth}x{bounds.MaximumHeight}"
-                        : bounds is { MaximumWidth: 240, MaximumHeight: 180 } ? string.Empty
-                        : $"@reader{bounds.MaximumWidth}x{bounds.MaximumHeight}");
-                // A kept preview is leased at once (no slot, no thread hop); only a real decode takes a slot, images before posters.
-                loading.Token.ThrowIfCancellationRequested(); // Coverage can change while waiting for the manifests.
-                if (video)
-                    return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
-                        Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                        bounds.MaximumWidth, bounds.MaximumHeight, key, loading.Token, _thumbnailGate).ConfigureAwait(false);
-                return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, ThumbnailDecodePriority.Image, key,
-                    () => Task.Run(() => DecodeThumbnailAsync(match, loading.Token,
-                        bounds.MaximumWidth, bounds.MaximumHeight, MediaTileThumbnails.Verified), loading.Token), loading.Token).ConfigureAwait(false);
-            },
+            // A textless post's frame keeps the reader's height-to-width proportion at its wider width.
+            ThumbnailMaxHeight = widthOverride > 0
+                ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
+            LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
+            LoadSized = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: false, cancellationToken),
             OpenPreview = async () =>
             {
                 if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available || !ready.IsCompletedSuccessfully) return;

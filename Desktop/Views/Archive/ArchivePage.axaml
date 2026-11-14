@@ -358,6 +358,10 @@
                                                     <Setter Property="Margin" Value="8,4" />
                                                     <Setter Property="Padding" Value="2,0" />
                                                 </Style>
+                                                <!-- The selected (focused) card: its media can be drawn larger (R6); inherited by everything in the card. -->
+                                                <Style Selector="ListBoxItem:selected">
+                                                    <Setter Property="desktop:ReaderPostLayout.Focused" Value="True" />
+                                                </Style>
                                                 <Style Selector="ListBoxItem /template/ ContentPresenter">
                                                     <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
@@ -512,7 +516,7 @@
                                                             <Button Classes="reader-quote reader-view-hide-again" Content="{Binding HideAgainLabel}" AutomationProperties.Name="{Binding HideAgainLabel}"
                                                                     Click="OnReaderHideAgainClick" VerticalAlignment="Center" />
                                                         </WrapPanel>
-                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}">
+                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}" MediaWidth="{Binding MediaWidth}">
                                                             <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
