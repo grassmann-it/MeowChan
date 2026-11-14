@@ -143,7 +143,7 @@ public sealed class BooruPageNavigationContractTests
             "A delayed media activation must revalidate navigation and source lifetime before changing selection.");
     }
 
-    // Source-wiring regression only. A native shell scenario separately covers the actual
+    // Source-wiring regression only. Native shell execution must additionally cover the actual
     // asynchronous pause owner, service loss and completed Downloads navigation.
     [Theory]
     [InlineData("private async Task ApplySettingsAsync(Config candidate)", "private void ApplyAppearance()")]
