@@ -137,7 +137,7 @@ internal static class StatisticsChecks
         string text = AutomationProperties.GetName(Speed(window))!;
         Require(ToolTip.GetTip(Speed(window)) as string == text, scenario + ": the tooltip differs from the accessible name.");
         Require(DiskRowShown(window) == disk, scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
-        // The header matrix has no Network/Disk titles or glyphs: solid words are Down/Write, dashed words Up/Read.
+        // The header matrix has no Network/Disk titles or glyphs: solid words are Down/Read, dashed words Up/Write.
         string netDown = TextOf(window, "TransferDownMark"), netUp = TextOf(window, "TransferUpMark");
         string diskWrite = TextOf(window, "TransferWriteMark"), diskRead = TextOf(window, "TransferReadMark");
         Require(HeaderWordIs(window, "TransferDownMark", "stats.header.down") && HeaderWordIs(window, "TransferUpMark", "stats.header.up")
@@ -159,7 +159,7 @@ internal static class StatisticsChecks
         {
             Require(HeaderGraph(window).IsEffectivelyVisible && HeaderGraph(window).SampleCount >= 8 && HeaderGraph(window).Bounds.Width > 0,
                 scenario + ": the header graph shows no history.");
-            // Exactly two graph surfaces, each with both directions on its own scale: network down+up, disk write+read.
+            // Exactly two graph surfaces, each with both directions on its own scale: network down+up, disk read+write.
             Require(HeaderGraph(window).Source == IoGraphSource.NetworkIo && HeaderDiskGraph(window).Source == IoGraphSource.DiskIo,
                 scenario + ": a header row draws the wrong series.");
             if (disk && graph)
@@ -311,8 +311,8 @@ internal static class StatisticsChecks
         {
             (layout.NetValue, layout.NetGraph, "TransferSpeedGraph", "TransferSpeedLabel", "TransferUploadLabel",
                 "TransferDownMark", "TransferUpMark", "stats.header.down", "stats.header.up"),
-            (layout.DiskValue, layout.DiskGraph, "TransferDiskGraph", "TransferDiskLabel", "TransferDiskReadLabel",
-                "TransferWriteMark", "TransferReadMark", "stats.header.write", "stats.header.read")
+            (layout.DiskValue, layout.DiskGraph, "TransferDiskGraph", "TransferDiskReadLabel", "TransferDiskLabel",
+                "TransferReadMark", "TransferWriteMark", "stats.header.read", "stats.header.write")
         })
         {
             if (!shown) continue;
@@ -347,18 +347,18 @@ internal static class StatisticsChecks
         {
             if (layout.TwoLineLabels)
             {
-                Require(Near(Bounds("TransferSpeedLabel").Top, Bounds("TransferDiskLabel").Top)
-                    && Near(Bounds("TransferUploadLabel").Top, Bounds("TransferDiskReadLabel").Top),
+                Require(Near(Bounds("TransferSpeedLabel").Top, Bounds("TransferDiskReadLabel").Top)
+                    && Near(Bounds("TransferUploadLabel").Top, Bounds("TransferDiskLabel").Top),
                     scenario + ": the solid and dashed directions do not share baselines across blocks.");
-                string nextBlock = layout.DiskGraph ? "TransferDiskGraph" : "TransferWriteMark";
+                string nextBlock = layout.DiskGraph ? "TransferDiskGraph" : "TransferReadMark";
                 Require(Near(Bounds(nextBlock).Left - Bounds("TransferSpeedLabel").Right, 24),
                     scenario + ": block gap is not 24 DIP.");
             }
             else
             {
-                foreach ((string net, string disk) in new[] { ("TransferDownMark", "TransferWriteMark"),
-                    ("TransferSpeedLabel", "TransferDiskLabel"), ("TransferUpMark", "TransferReadMark"),
-                    ("TransferUploadLabel", "TransferDiskReadLabel") })
+                foreach ((string net, string disk) in new[] { ("TransferDownMark", "TransferReadMark"),
+                    ("TransferSpeedLabel", "TransferDiskReadLabel"), ("TransferUpMark", "TransferWriteMark"),
+                    ("TransferUploadLabel", "TransferDiskLabel") })
                     Require(Near(Bounds(net).Left, Bounds(disk).Left) && Near(Bounds(net).Right, Bounds(disk).Right),
                         scenario + ": compact rows do not share the four matrix columns: " + net + "/" + disk);
             }

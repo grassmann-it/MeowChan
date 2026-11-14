@@ -44,7 +44,7 @@ public sealed class IoStatsDisplayTests : IDisposable
     public void TheGraphSentenceNamesNetworkDiskAndActiveDownloadsInBinaryUnits()
     {
         IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3, NetUp: 0.5 * MiB);
-        Assert.Equal(1.5 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // what MeowChan writes, not what it reads back
+        Assert.Equal(0.4 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // solid primary disk series: reading its own media
         Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), En));
         Texts.SetLanguage("de");
@@ -56,11 +56,13 @@ public sealed class IoStatsDisplayTests : IDisposable
     }
 
     [Fact]
-    public void ReadingBackFromDiskNeverChangesTheHeaderGraphRateButIsAValueOfItsOwn()
+    public void ReadingBackFromDiskIsThePrimaryHeaderRateAndWritingStaysSeparate()
     {
         IoRates quiet = new(NetDown: 1 * MiB, NetUp: 0, DiskWrite: 200 * 1024, DiskRead: 0, Requests: 1);
         IoRates busyReading = quiet with { DiskRead = 80 * MiB };
-        Assert.Equal(IoStatsDisplay.HeaderDiskRate(quiet), IoStatsDisplay.HeaderDiskRate(busyReading));
+        Assert.Equal(0, IoStatsDisplay.HeaderDiskRate(quiet));
+        Assert.Equal(80 * MiB, IoStatsDisplay.HeaderDiskRate(busyReading));
+        Assert.Equal(IoStatsDisplay.HeaderDiskRate(busyReading), IoStatsDisplay.HeaderDiskRate(busyReading with { DiskWrite = 90 * MiB }));
         Assert.Contains("80.0 MiB/s", IoStatsDisplay.DiskValues(busyReading, En));
         Assert.Contains("80.0 MiB/s", IoStatsDisplay.GraphDescription(busyReading, default, En));
         Assert.Contains("200 KiB/s", IoStatsDisplay.DiskValues(busyReading, En));

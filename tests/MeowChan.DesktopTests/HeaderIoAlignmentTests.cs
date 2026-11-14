@@ -104,6 +104,21 @@ public sealed class HeaderIoAlignmentTests
         Assert.DoesNotContain("Attach(TransferUp", chrome);
     }
 
+    [Theory]
+    [InlineData("TransferSpeedText", "TransferDownMark", "TransferSpeedLabel", "TransferUpMark", "TransferUploadLabel")]
+    [InlineData("TransferDiskText", "TransferReadMark", "TransferDiskReadLabel", "TransferWriteMark", "TransferDiskLabel")]
+    public void InitialMatrixOrdersTheSolidDirectionBeforeTheDashedDirection(string gridName,
+        string firstWord, string firstRate, string secondWord, string secondRate)
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement grid = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == gridName);
+        XElement[] cells = grid.Elements().Where(node => node.Name.LocalName == "TextBlock").ToArray();
+        Assert.Equal(new[] { firstWord, firstRate, secondWord, secondRate }, cells.Select(node => (string?)node.Attribute(x + "Name")));
+        for (int i = 0; i < cells.Length; i++)
+            Assert.Equal(i, (int?)cells[i].Attribute("Grid.Column") ?? 0);
+    }
+
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
 }

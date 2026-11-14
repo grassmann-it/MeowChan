@@ -37,8 +37,8 @@
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
                              statistics page. The inner parts are not exposed separately. -->
                         <Button x:Name="TransferSpeed" Classes="subtle header-graph" VerticalAlignment="Center" Click="OnTransferSpeedClick">
-                            <!-- Two word/rate matrices, without headings or glyphs. First = solid series (Down / Write),
-                                 second = dashed (Up / Read). The button alone exposes the full accessible description. -->
+                            <!-- Two word/rate matrices, without headings or glyphs. First = solid series (Down / Read),
+                                 second = dashed (Up / Write). The button alone exposes the full accessible description. -->
                             <Grid x:Name="TransferLayoutGrid" ColumnDefinitions="Auto,Auto,Auto,Auto" RowDefinitions="Auto,Auto" RowSpacing="2"
                                   Grid.IsSharedSizeScope="True" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetworkIo" Width="128" MinWidth="120" Height="14" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw"
@@ -64,10 +64,10 @@
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderIoLabel2" />
                                         <ColumnDefinition Width="Auto" MinWidth="72" SharedSizeGroup="HeaderIoRate" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock x:Name="TransferWriteMark" Classes="muted" TextAlignment="Left" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Text="Write" />
-                                    <TextBlock x:Name="TransferDiskLabel" Grid.Column="1" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Foreground="{DynamicResource Workspace.Text}" TextAlignment="Right" FontFeatures="tnum" Text="0 B/s" />
-                                    <TextBlock x:Name="TransferReadMark" Grid.Column="2" Classes="muted" TextAlignment="Left" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Text="Read" />
-                                    <TextBlock x:Name="TransferDiskReadLabel" Grid.Column="3" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Foreground="{DynamicResource Workspace.Text}" TextAlignment="Right" FontFeatures="tnum" Text="0 B/s" />
+                                    <TextBlock x:Name="TransferReadMark" Classes="muted" TextAlignment="Left" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Text="Read" />
+                                    <TextBlock x:Name="TransferDiskReadLabel" Grid.Column="1" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Foreground="{DynamicResource Workspace.Text}" TextAlignment="Right" FontFeatures="tnum" Text="0 B/s" />
+                                    <TextBlock x:Name="TransferWriteMark" Grid.Column="2" Classes="muted" TextAlignment="Left" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Text="Write" />
+                                    <TextBlock x:Name="TransferDiskLabel" Grid.Column="3" VerticalAlignment="Center" FontSize="{StaticResource Workspace.Text.Caption}" FontWeight="Normal" LineHeight="14" FontFamily="{DynamicResource Workspace.Font.UI}" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw" Foreground="{DynamicResource Workspace.Text}" TextAlignment="Right" FontFeatures="tnum" Text="0 B/s" />
                                 </Grid>
                             </Grid>
                         </Button>

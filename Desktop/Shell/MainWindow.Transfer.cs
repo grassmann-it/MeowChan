@@ -80,10 +80,10 @@ public partial class MainWindow
         TransferSpeedGraph.Height = TransferDiskGraph.Height = graphHeight;
         ArrangeHeaderRates(TransferSpeedText, TransferDownMark, TransferSpeedLabel,
             TransferUpMark, TransferUploadLabel, twoLine);
-        ArrangeHeaderRates(TransferDiskText, TransferWriteMark, TransferDiskLabel,
-            TransferReadMark, TransferDiskReadLabel, twoLine);
-        // Solid series first, dashed second: Down over Up / Write over Read in blocks,
-        // Down above Write / Up above Read in compact rows. Remove unused tracks so
+        ArrangeHeaderRates(TransferDiskText, TransferReadMark, TransferDiskReadLabel,
+            TransferWriteMark, TransferDiskLabel, twoLine);
+        // Solid series first, dashed second: Down over Up / Read over Write in blocks,
+        // Down above Read / Up above Write in compact rows. Remove unused tracks so
         // their spacing cannot survive a layout switch or enlarge a single block.
         TransferLayoutGrid.RowDefinitions = new RowDefinitions(twoLine ? "Auto" : "Auto,Auto");
         Grid.SetRow(TransferSpeedGraph, 0); Grid.SetColumn(TransferSpeedGraph, 0);
@@ -162,7 +162,7 @@ public partial class MainWindow
         IoStatsHub? hub = _ioStats;
         if (_isClosing || hub == null || (!force && _ioClaim?.Visibility is null or IoStatsVisibility.None)) return;
         IoStatsSnapshot snapshot = hub.Snapshot();
-        // Two graph surfaces, each with its own history and scale: network down (solid) and up (dashed), disk write (solid) and read (dashed).
+        // Two graph surfaces, each with its own history and scale: network down (solid) and up (dashed), disk read (solid) and write (dashed).
         if (_headerLayout.NetGraph) TransferSpeedGraph.SetSeries(snapshot.Series);
         if (_headerLayout.DiskGraph) TransferDiskGraph.SetSeries(snapshot.Series);
         if (_headerLayout.NetValue)

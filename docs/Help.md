@@ -627,12 +627,12 @@ Open **Statistics** with Ctrl+8 (Command+8 on macOS), from **More** or the app
 menu, or by clicking the header graph. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
 media-I/O counters, not operating-system totals. **Network I/O (`NetworkIo`)** keeps
-Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Write and Read
+Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Read and Write
 separate as well. Each category has its own scale, and retries or failed transfers
 can contribute bytes without a saved file. The header uses the same directional
 categories; **Auto** keeps both available in every work view where the layout fits.
 These counters are separate from saved/selected media progress. The header uses a word/rate matrix: **Down** then **Up** for network traffic,
-**Write** then **Read** for disk traffic;
+**Read** then **Write** for disk traffic;
 the directions are never combined. **Reset statistics** asks for confirmation before
 clearing the counters, not media.
 
@@ -660,9 +660,9 @@ untouched. Retention includes today; older days are pruned on load and at midnig
 Further sources beyond the row limit are grouped as **Other sources**.
 **Header graph → Auto** keeps both **Network I/O (`NetworkIo`)** and **Disk I/O
 (`DiskIo`)** available in every work view where the layout fits. Down and Up remain
-separate network directions; Write and Read remain separate disk directions. An
+separate network directions; Read and Write remain separate disk directions. An
 explicit layout can select Network, Disk or text without summing the categories or
-claiming system-wide traffic. The visible header keeps **Down / Up** and **Write / Read** in solid-series / dashed-series order, with no Network or Disk headings, even when the graph layout
+claiming system-wide traffic. The visible header keeps **Down / Up** and **Read / Write** in solid-series / dashed-series order, with no Network or Disk headings, even when the graph layout
 changes. The Statistics page keeps its directional histories regardless of this
 setting.
 These controls do not alter

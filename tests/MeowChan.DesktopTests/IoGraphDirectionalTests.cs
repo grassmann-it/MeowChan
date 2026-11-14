@@ -24,17 +24,17 @@ public sealed class IoGraphDirectionalTests
     private static IoGraph DiskIo() => new() { Source = IoGraphSource.DiskIo };
 
     [Fact]
-    public void ReadingWithoutWritingIsTrafficWithItsOwnScaleAndADrawnCurve()
+    public void ReadingWithoutWritingIsTheSolidPrimaryCurveWithItsOwnScale()
     {
         IoGraph graph = DiskIo();
         graph.SetSeries(Series(new float[10], Last(10, 300_000)));
         Assert.True(graph.HasTraffic);
         Assert.False(graph.IsIdle);
-        Assert.Equal(0, graph.PrimaryTrafficPeak);
-        Assert.Equal(300_000, graph.SecondaryTrafficPeak);
+        Assert.Equal(300_000, graph.PrimaryTrafficPeak);
+        Assert.Equal(0, graph.SecondaryTrafficPeak);
         Assert.Equal(300_000, graph.TrafficPeak);
         Assert.Equal(393_216, graph.Peak); // 384 KiB, the step above the read value, not the 64 KiB idle scale
-        (Point[] write, Point[] read) = graph.Layout(Bounds);
+        (Point[] read, Point[] write) = graph.Layout(Bounds);
         Assert.Empty(write); // a silent write series draws nothing over the baseline
         Assert.Equal(10, read.Length);
         Assert.Equal(129, read[^1].X, 6);
@@ -43,15 +43,15 @@ public sealed class IoGraphDirectionalTests
     }
 
     [Fact]
-    public void WritingWithoutReadingDrawsOnlyTheWriteCurve()
+    public void WritingWithoutReadingDrawsOnlyTheDashedSecondaryCurve()
     {
         IoGraph graph = DiskIo();
         graph.SetSeries(Series(Last(10, 90_000), new float[10]));
         Assert.True(graph.HasTraffic);
-        Assert.Equal(90_000, graph.PrimaryTrafficPeak);
-        Assert.Equal(0, graph.SecondaryTrafficPeak);
+        Assert.Equal(0, graph.PrimaryTrafficPeak);
+        Assert.Equal(90_000, graph.SecondaryTrafficPeak);
         Assert.Equal(98_304, graph.Peak);
-        (Point[] write, Point[] read) = graph.Layout(Bounds);
+        (Point[] read, Point[] write) = graph.Layout(Bounds);
         Assert.Equal(10, write.Length);
         Assert.Empty(read);
         Assert.Equal(Bottom - 90_000d / 98_304 * Height, write[^1].Y, 6);
@@ -69,7 +69,7 @@ public sealed class IoGraphDirectionalTests
         Assert.Equal(1_048_576, graph.Peak);                 // 1 MiB; the sum would have needed 1.5 MiB
         Assert.Equal(10, graph.SampleCount);
         Assert.Equal(10, graph.SecondarySampleCount);
-        (Point[] w, Point[] r) = graph.Layout(Bounds);
+        (Point[] r, Point[] w) = graph.Layout(Bounds);
         Assert.Equal(Bottom - 1_000_000d / 1_048_576 * Height, w[^1].Y, 6);
         Assert.Equal(Bottom - 250_000d / 1_048_576 * Height, r[^1].Y, 6);
         Assert.Equal(Bottom - 100_000d / 1_048_576 * Height, w[4].Y, 6);
@@ -94,7 +94,7 @@ public sealed class IoGraphDirectionalTests
         networkOnly.SetSeries(Series(new float[10], new float[10], Enumerable.Repeat(50_000_000f, 10).ToArray()));
         Assert.True(networkOnly.IsIdle);
         Assert.Equal(IoGraphGeometry.DefaultMinimumPeak, networkOnly.Peak);
-        (Point[] silentWrite, Point[] silentRead) = networkOnly.Layout(Bounds);
+        (Point[] silentRead, Point[] silentWrite) = networkOnly.Layout(Bounds);
         Assert.Empty(silentWrite);
         Assert.Empty(silentRead);
     }
@@ -187,9 +187,9 @@ public sealed class IoGraphDirectionalTests
     }
 
     [Fact]
-    public void ReadIsDashedSoItIsToldApartFromWriteWithoutColour()
+    public void WriteIsDashedSoItIsToldApartFromReadWithoutColour()
     {
-        // Write is a solid line over its filled area, read a dashed line without an area: different in shape, not only hue.
+        // Read is a solid line over its filled area, write a dashed line without an area: different in shape, not only hue.
         Assert.True(IoGraph.SecondaryDashes.Count >= 2 && IoGraph.SecondaryDashes.All(d => d > 0));
         IBrush primary = Brushes.Red, legacy = Brushes.Green, secondary = Brushes.Blue;
         IoGraph graph = new() { Source = IoGraphSource.DiskIo, Stroke = primary };

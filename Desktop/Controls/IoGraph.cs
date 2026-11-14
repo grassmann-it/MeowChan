@@ -79,7 +79,7 @@ public enum IoGraphSource
     DiskWrite,
     DiskRead,
     /// <summary>
-    /// Two directions of the disk in one graph: writing as the primary series (solid line over its filled area) and reading as
+    /// Two directions of the disk in one graph: reading as the primary series (solid line over its filled area) and writing as
     /// the secondary series (dashed line, no area), both under one shared disk scale that never includes the network.
     /// </summary>
     DiskIo,
@@ -126,7 +126,7 @@ public sealed class IoGraph : Control
 
     public IBrush? Stroke { get => GetValue(StrokeProperty); set => SetValue(StrokeProperty, value); }
     public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
-    /// <summary>The stroke of the dashed secondary series (upload or disk read, depending on <see cref="Source"/>).</summary>
+    /// <summary>The stroke of the dashed secondary series (upload or disk write, depending on <see cref="Source"/>).</summary>
     public IBrush? SecondaryStroke { get => GetValue(SecondaryStrokeProperty); set => SetValue(SecondaryStrokeProperty, value); }
     /// <summary>Markup compatibility: used for the secondary series only when <see cref="SecondaryStroke"/> is not set.</summary>
     public IBrush? DiskStroke { get => GetValue(DiskStrokeProperty); set => SetValue(DiskStrokeProperty, value); }
@@ -143,7 +143,7 @@ public sealed class IoGraph : Control
     internal bool IsIdle => _idle;
     /// <summary>The largest visible value of any drawn series (never a sum of two series).</summary>
     internal double TrafficPeak { get; private set; }
-    /// <summary>The largest visible value of the primary series (download for network, write for disk).</summary>
+    /// <summary>The largest visible value of the primary series (download for network, read for disk).</summary>
     internal double PrimaryTrafficPeak { get; private set; }
     /// <summary>The largest visible value of the secondary series; zero outside the two-direction modes.</summary>
     internal double SecondaryTrafficPeak { get; private set; }
@@ -158,14 +158,14 @@ public sealed class IoGraph : Control
         IoGraphSource source = Source;
         float[] primary = source switch
         {
-            IoGraphSource.DiskWrite or IoGraphSource.DiskIo => series.DiskWrite,
-            IoGraphSource.DiskRead => series.DiskRead,
+            IoGraphSource.DiskWrite => series.DiskWrite,
+            IoGraphSource.DiskRead or IoGraphSource.DiskIo => series.DiskRead,
             _ => series.NetDown
         };
         float[]? secondary = source switch
         {
             IoGraphSource.NetworkIo => series.NetUp,
-            IoGraphSource.DiskIo => series.DiskRead,
+            IoGraphSource.DiskIo => series.DiskWrite,
             _ => null
         };
         (int skip, int capacity) = IoStatsDisplay.GraphWindow(series, SampleIntervalMs?.Invoke() ?? 1000, HistoryWindowSeconds);

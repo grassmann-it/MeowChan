@@ -386,12 +386,12 @@ public sealed class HelpDocumentationTests
 
         string text = Plain(Section(Read(Help), "Statistics and disk traffic"));
         Assert.Contains("Network I/O (NetworkIo) keeps Down and Up as separate directions", text, StringComparison.Ordinal);
-        Assert.Contains("Disk I/O (DiskIo) keeps Write and Read separate as well", text, StringComparison.Ordinal);
+        Assert.Contains("Disk I/O (DiskIo) keeps Read and Write separate as well", text, StringComparison.Ordinal);
         Assert.Contains("Auto keeps both available in every work view where the layout fits", text, StringComparison.Ordinal);
         Assert.Contains("application-payload and media-I/O counters, not operating-system totals", text, StringComparison.Ordinal);
         Assert.Contains("explicit layout can select Network, Disk or text without summing the categories", text, StringComparison.Ordinal);
-        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Write then Read for disk traffic", text, StringComparison.Ordinal);
-        Assert.Contains("The visible header keeps Down / Up and Write / Read in solid-series / dashed-series order, with no Network or Disk headings", text, StringComparison.Ordinal);
+        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Read then Write for disk traffic", text, StringComparison.Ordinal);
+        Assert.Contains("The visible header keeps Down / Up and Read / Write in solid-series / dashed-series order, with no Network or Disk headings", text, StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
@@ -416,14 +416,14 @@ public sealed class HelpDocumentationTests
         Assert.Equal("Write", english["stats.header.write"]);
         Assert.Equal("Read", english["stats.header.read"]);
         string documented = Plain(Section(Read(Help), "Statistics and disk traffic"));
-        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Write then Read for disk traffic", documented, StringComparison.Ordinal);
+        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Read then Write for disk traffic", documented, StringComparison.Ordinal);
         Assert.Contains("request payload", english["stats.footnote"], StringComparison.Ordinal);
         Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
         Assert.DoesNotContain("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);
 
-        // The header shows download and upload, write and read as values; Automatic draws both graphs in every work view.
+        // The header shows download and upload, read and write as values; Automatic draws both graphs in every work view.
         IoRates rates = new(NetDown: 10, NetUp: 5, DiskWrite: 20, DiskRead: 3000, Requests: 4);
-        Assert.Equal(20, IoStatsDisplay.HeaderDiskRate(rates));
+        Assert.Equal(3000, IoStatsDisplay.HeaderDiskRate(rates));
         Assert.False(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphNetwork));
         Assert.True(IoStatsDisplay.HeaderShowsDiskValue(IoStatsDisplay.HeaderGraphAuto));
         Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));

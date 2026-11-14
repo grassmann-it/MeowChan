@@ -93,8 +93,8 @@ public sealed class IoDirectionalPipelineTests
         IoGraph graph = new() { Source = IoGraphSource.DiskIo };
         graph.SetSeries(snapshot.Series);
         Assert.True(graph.HasTraffic);
-        Assert.Equal(0, graph.PrimaryTrafficPeak);
-        Assert.Equal(readBytes / 2d, graph.SecondaryTrafficPeak);
+        Assert.Equal(readBytes / 2d, graph.PrimaryTrafficPeak);
+        Assert.Equal(0, graph.SecondaryTrafficPeak);
         Assert.Equal(readBytes / 2d, graph.TrafficPeak); // max direction, never write + read or network + disk
     }
 

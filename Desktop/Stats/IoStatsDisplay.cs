@@ -29,10 +29,10 @@ internal static class IoStatsDisplay
     }
 
     /// <summary>
-    /// The main (solid, filled) disk rate of the header: what MeowChan writes (what it archives). Reading back its own media files is
+    /// The main (solid, filled) disk rate of the header: MeowChan reading its own media files. Writing is
     /// the dashed second line of the same disk graph and a value of its own in the header text.
     /// </summary>
-    internal static double HeaderDiskRate(IoRates rate) => rate.DiskWrite;
+    internal static double HeaderDiskRate(IoRates rate) => rate.DiskRead;
 
     // --- the sentence of the graph button ----------------------------------------------------------------------------------
 
