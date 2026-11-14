@@ -540,9 +540,9 @@
   (20, 1 to 100), neighbouring media checked for tags (2000, 100 to 20000), file name words used
   for tags (8, 0 to 32), source tags per medium (24, 0 to 200) and media marked for tagging (500,
   10 to 5000, never above what the tag file accepts). A value outside its range is refused when
-  saved and reduced when a settings file is read; the search finds each row. The saved limits are
-  meant to apply when the gallery panel is opened again; connecting the panel to them is being
-  completed, and until it is in, the panel runs with the built-in defaults (**Pending**). The marked-media limit has
+  saved and reduced when a settings file is read; the search finds each row. The saved limits apply
+  when the gallery panel is opened again. The recent-tag limit also updates immediately on save:
+  zero forgets the remembered tags, and re-enabling it does not restore them. The marked-media limit has
   no effect until marking (TP4) is connected. The twelve language packs carry the texts (ten of
   them unreviewed).
 - Prepare a lazy scrub preview for videos (positional thumbnails in 5 % slots keyed by the verified
