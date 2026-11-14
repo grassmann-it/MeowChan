@@ -228,7 +228,7 @@ internal static class ArchiveCleanupChecks
         Capture(dialog, "real-result");
         Evidence.Add(new { stage = "real-private-deletion", deleted = new[] { "100", "102" }, retained = new[] { "101", "103", "104", "105" }, globalPause = host.IsPaused,
             unchangedFiles = after.Keys.Order().ToArray(), freshCatalogReader = true, retainedExport = true, protectedMediaSha256 = Convert.ToHexString(SHA256.HashData(keepBytes)) });
-        Click(dialog, "Close"); await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog)); 
+        Click(dialog, "Close"); await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog));
         // The completed cleanup reloads the list; the return target is the same rule as above, read again for the new layout.
         Control resultTarget = owner.ArchivePage.ActionOriginFocusTarget(entry) ?? entry;
         await Program.WaitUntilAsync(() => entry.IsEnabled && ReferenceEquals(owner.FocusManager?.GetFocusedElement(), resultTarget),
