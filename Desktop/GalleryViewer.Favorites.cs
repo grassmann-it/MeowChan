@@ -32,7 +32,7 @@ internal sealed partial class GalleryViewer
         // A drawn star (outline: not saved, filled gold: saved) and, while a write is pending, a trailing "…" (P6: no font glyphs).
         Child = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsHitTestVisible = false,
             Children = { WorkspaceIcons.Create(WorkspaceIcons.Star, inheritForeground: false), new TextBlock { Name = "GalleryFavoritePending", Text = "…",
-                FontSize = 16, Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false },
+                Foreground = Brushes.White, IsVisible = false, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false }.SubtitleText(),
                 // A Border, a StackPanel and a Path have no automation peer: the saved / saving state is also a hidden text (content view), so a screen reader reads it.
                 new TextBlock { Name = "GalleryFavoriteStateText", Classes = { "visually-hidden" } } } }
     }.BadgeCorners();
