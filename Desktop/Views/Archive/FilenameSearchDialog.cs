@@ -175,7 +175,6 @@ internal sealed class FilenameSearchDialog : Window
 {
     private sealed record Row(ArchiveFilenameHit Hit, string Label) { public override string ToString() => Label; }
     private readonly FilenameSearchSession _session;
-    private readonly WindowChromeBar _chrome = new() { Name = "FilenameSearchChrome" };
     private readonly TextBox _query = new() { Name = "FilenameSearchQuery" };
     private readonly TextBlock _label = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
@@ -203,10 +202,8 @@ internal sealed class FilenameSearchDialog : Window
             _searchOnOpen = true;
         }
         Name = "FilenameSearchDialog";
-        Width = 820; Height = 680; MinWidth = 360; MinHeight = 380;
-        DialogFit.OnOpen(this);
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal list dialog on the list step (fitted to the screen); the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
@@ -217,8 +214,8 @@ internal sealed class FilenameSearchDialog : Window
         header.Children.Add(_label); header.Children.Add(_query);
         var actions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 };
         actions.Children.Add(_search); actions.Children.Add(_cancel); header.Children.Add(actions); header.Children.Add(_status);
-        var footer = new WrapPanel { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        foreach (var button in new[] { _previous, _next, _select, _close }) footer.Children.Add(button);
+        // Paging and Select come first, Close is the primary slot (right-most). The request status stays in the header.
+        var footer = DialogFooter.Build(_close, new Control[] { _previous, _next, _select });
         _results.ItemTemplate = new FuncDataTemplate<Row>((row, _) => new TextBlock
         { Text = row?.Label, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(4) });
         var body = new StackPanel { Spacing = 8, Margin = new Thickness(16, 0, 16, 16) };
@@ -232,21 +229,20 @@ internal sealed class FilenameSearchDialog : Window
         };
         // The caption bar sits outside the frame; the window keeps cycling Tab through both.
         KeyboardNavigation.SetTabNavigation(frame, KeyboardNavigationMode.Continue);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome); layout.Children.Add(frame); Grid.SetRow(frame, 1); Content = layout;
+        DialogWindow.Frame(this, frame, modal: true, captionName: "FilenameSearchChrome");
         _query.PropertyChanged += OnQueryChanged;
         _query.AddHandler(KeyDownEvent, OnQueryKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _search.Click += OnSearch; _cancel.Click += OnCancel;
         _previous.Click += OnPrevious; _next.Click += OnNext; _select.Click += OnSelect; _close.Click += OnClose;
         _results.SelectionChanged += OnSelection;
         Opened += OnOpened; Closed += OnClosed;
-        AddHandler(KeyDownEvent, OnKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        DialogEscape.Attach(this);
         _session.Changed += OnChanged; Texts.Changed += OnLanguageChanged;
         Refresh();
     }
     private void OnOpened(object? sender, EventArgs e)
     {
-        _chrome.Attach(this); _query.Focus();
+        _query.Focus();
         if (_searchOnOpen) _ = _session.SearchAsync();
     }
     private void OnQueryChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -275,8 +271,6 @@ internal sealed class FilenameSearchDialog : Window
         if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None)
         { e.Handled = true; await _session.SearchAsync(); }
     }
-    private void OnKey(object? sender, KeyEventArgs e)
-    { if (e.Key == Key.Escape) { e.Handled = true; Close(); } }
     internal static string DescribeHit(ArchiveFilenameHit hit, Func<string, object?[], string> text) =>
         text("filename.search.row", new object?[] { hit.OriginalName, hit.Thread.Source, hit.Thread.Board,
             hit.Thread.Thread, hit.Post, hit.Variant, hit.Position,
@@ -294,7 +288,8 @@ internal sealed class FilenameSearchDialog : Window
         AutomationProperties.SetName(_results, FilenameSearchCatalog.T("filename.search.results"));
         void Label(Button button, string key)
         { button.Content = FilenameSearchCatalog.T("filename.search." + key); AutomationProperties.SetName(button, (string)button.Content); }
-        Label(_search, "search"); Label(_cancel, "cancel"); Label(_previous, "previous"); Label(_next, "next"); Label(_select, "select"); Label(_close, "close");
+        Label(_search, "search"); Label(_cancel, "cancel"); Label(_previous, "previous"); Label(_next, "next"); Label(_select, "select");
+        _close.Content = Texts.T("action.close"); AutomationProperties.SetName(_close, (string)_close.Content);
         _cancel.IsEnabled = view.Busy; _previous.IsEnabled = view.CanPrevious; _next.IsEnabled = view.CanNext;
         _status.Text = view.StatusKey == "filename.search.ready"
             ? FilenameSearchCatalog.T(view.StatusKey, view.Total, view.Rows.Length, view.Offset) : FilenameSearchCatalog.T(view.StatusKey);
@@ -314,7 +309,7 @@ internal sealed class FilenameSearchDialog : Window
             _query.PropertyChanged -= OnQueryChanged; _query.RemoveHandler(KeyDownEvent, OnQueryKey);
             _search.Click -= OnSearch; _cancel.Click -= OnCancel; _previous.Click -= OnPrevious; _next.Click -= OnNext;
             _select.Click -= OnSelect; _close.Click -= OnClose; _results.SelectionChanged -= OnSelection;
-            Opened -= OnOpened; Closed -= OnClosed; RemoveHandler(KeyDownEvent, OnKey);
+            Opened -= OnOpened; Closed -= OnClosed;
         }
         return _session.CloseAsync();
     }

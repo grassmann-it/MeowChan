@@ -24,8 +24,6 @@ namespace MeowChan.Desktop;
 internal sealed class InterruptedTransfersDialog : Window
 {
     private readonly IReadOnlyList<InterruptedNativeMediaOperation> _operations;
-    private readonly WindowChromeBar _chrome = new();
-    private readonly TextBlock _heading = new() { Name = "InterruptedTransfersHeading", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _explanation = new() { Name = "InterruptedTransfersExplanation", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly StackPanel _rows = new() { Name = "InterruptedTransfersRows", Spacing = 6 };
     private readonly Button _discard = new() { Name = "InterruptedTransfersDiscard" };
@@ -37,38 +35,28 @@ internal sealed class InterruptedTransfersDialog : Window
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         Name = "InterruptedTransfersDialog";
-        Width = 640; Height = 440; MinWidth = 420; MinHeight = 300;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal form-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _explanation.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_discard, AutomationLiveSetting.Polite);
         _discard.Click += (_, _) => OnDiscard();
         _keep.Click += (_, _) => Close();
-        // Header: title and what is at stake; body: the interrupted operations; footer: Discard/Keep.
+        // Header: what is at stake; body: the interrupted operations; footer: Discard, then Keep (the safe way out) right-most.
         StackPanel header = new() { Spacing = 12 };
-        header.Children.Add(_heading); header.Children.Add(_explanation);
+        header.Children.Add(_explanation);
         StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_rows);
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(_discard); actions.Children.Add(_keep);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        Grid frame = DialogFrame.Build(header, body, footer);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
-        Opened += (_, _) => { _chrome.Attach(this); _keep.Focus(); };
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, DialogFooter.Build(_keep, new Control[] { _discard })), modal: true);
+        Opened += (_, _) => _keep.Focus();
         Closed += (_, _) => { Texts.Changed -= OnLanguageChanged; _decision.TrySetResult(false); };
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first withdraws the second press, then closes like Keep.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_confirming) { _confirming = false; Render(); } else Close();
-        }, RoutingStrategies.Tunnel);
+            if (!_confirming) return false;
+            _confirming = false; Render(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         Render();
     }
@@ -87,8 +75,7 @@ internal sealed class InterruptedTransfersDialog : Window
 
     private void Render()
     {
-        _heading.Text = Texts.T("transfer.interrupted.title");
-        Title = _heading.Text;
+        Title = Texts.T("transfer.interrupted.title");
         _explanation.Text = Texts.T("transfer.interrupted.explanation");
         long bytes = _operations.Sum(operation => operation.CandidateBytes);
         _discard.Content = _confirming

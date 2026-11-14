@@ -25,8 +25,8 @@ internal sealed class MediaTagDialog : Window
 {
     private readonly MediaTagSession _session;
     private readonly string _mediaLabel;
-    private readonly WindowChromeBar _chrome = new() { Name = "MediaTagChrome" };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
+    // The medium this dialog tags ("Tags for {0}"): the subtitle under the title bar, not a repeat of the title.
+    private readonly TextBlock _subject = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
     private readonly IdentitySuggestionBox _input = new() { Name = "MediaTagInput" };
     private readonly Button _add = new() { Name = "MediaTagAdd" };
@@ -52,9 +52,8 @@ internal sealed class MediaTagDialog : Window
         _sources.Read = readSourceTags;
         _mediaLabel = mediaLabel ?? string.Empty;
         Name = "MediaTagDialog";
-        Width = 520; Height = 600; MinWidth = 360; MinHeight = 420;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal form-step dialog (fitted to the screen); the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _surface = new TagToggleSurface(false, "MediaTag", _input, () => _session.Snapshot, _session.Coverage,
@@ -65,21 +64,16 @@ internal sealed class MediaTagDialog : Window
         // UX103 P7 frame: medium and scope on top, the (error-only) status in the local strip, the tag field and the one
         // list in the body (the list scrolls itself, so the body fills instead of scrolling), undo and Close in the footer.
         var header = new StackPanel { Spacing = 6 };
-        header.Children.Add(_heading); header.Children.Add(_scope);
+        header.Children.Add(_subject); header.Children.Add(_scope);
         var body = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
         body.Children.Add(input);
         body.Children.Add(_surface.SummaryRow); Grid.SetRow(_surface.SummaryRow, 1);
         body.Children.Add(_surface.ListArea); Grid.SetRow(_surface.ListArea, 2);
-        var footer = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
-        footer.Children.Add(_surface.Notice);
-        footer.Children.Add(_surface.Undo); Grid.SetColumn(_surface.Undo, 1);
-        footer.Children.Add(_close); Grid.SetColumn(_close, 2);
+        // The last change's notice on the left, then Undo, and Close right-most.
+        var footer = DialogFooter.Build(_close, new Control[] { _surface.Undo }, _surface.Notice);
         // Every status of this dialog is a failure (unavailable index or refused change).
         var frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
-        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
+        DialogWindow.Frame(this, frame, modal: true, captionName: "MediaTagChrome");
 
         _add.Click += OnAdd; _close.Click += OnClose; _surface.Undo.Click += OnUndo;
         _surface.List.Toggled += OnToggled;
@@ -88,13 +82,14 @@ internal sealed class MediaTagDialog : Window
             () => _session.AssignedIds, () => _ = AddTypedAsync(), _sources);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        DialogEscape.Attach(this);
         Opened += OnOpened; Closed += OnClosed;
         _session.Updated += OnSessionUpdated; Texts.Changed += OnLanguageChanged;
         Localize();
         Refresh();
     }
 
-    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _sources.Load(); _input.Focus(); }
+    private void OnOpened(object? sender, EventArgs e) { _sources.Load(); _input.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_closed) { Localize(); Refresh(); } });
 
@@ -147,11 +142,10 @@ internal sealed class MediaTagDialog : Window
     {
         // Every change is saved as it is made: Enter on a list row only closes.
         if (_surface.ClosesOnEnter(e)) { e.Handled = true; Close(); return; }
+        // The first Escape closes an open suggestion list; the next one reaches the dialog policy (DialogEscape) and closes it.
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        // The first Escape closes an open suggestion list, the next one the dialog.
-        if (TagSuggestionInput.Route(_input, e) == TagFieldKey.CloseList) _input.Dismiss();
-        else Close();
+        if (TagSuggestionInput.Route(_input, e) != TagFieldKey.CloseList) return;
+        e.Handled = true; _input.Dismiss();
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }
@@ -159,11 +153,11 @@ internal sealed class MediaTagDialog : Window
     private void Localize()
     {
         Title = Texts.T("tags.media.title");
-        _heading.Text = Texts.T("tags.media.heading", _mediaLabel);
+        _subject.Text = Texts.T("tags.media.heading", _mediaLabel);
         _scope.Text = Texts.T(_session.IsLocal ? "tags.media.scopeLocal" : "tags.media.scope");
         TagSuggestionInput.Localize(_input);
         _add.Content = Texts.T("tags.add"); AutomationProperties.SetName(_add, Texts.T("tags.add"));
-        _close.Content = Texts.T("tags.media.close"); AutomationProperties.SetName(_close, Texts.T("tags.media.close"));
+        _close.Content = Texts.T("action.close"); AutomationProperties.SetName(_close, Texts.T("action.close"));
         _surface.Localize();
     }
 

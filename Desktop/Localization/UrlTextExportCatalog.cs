@@ -19,6 +19,7 @@ internal static class UrlTextExportCatalog
         ("urltext.export.availability", "This file contains no offline content and does not guarantee that the page is reachable or supported by the target program.", "Diese Datei enthält keine Offlineinhalte und garantiert weder die Erreichbarkeit der Seite noch deren Unterstützung durch das Zielprogramm."),
         ("urltext.export.save", "Save URL file…", "Linkdatei speichern…"),
         ("urltext.export.cancel", "Cancel", "Abbrechen"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("urltext.export.close", "Close", "Schließen"),
         ("urltext.export.fileType", "Page URL text file (UTF-8)", "Seiten-URL-Textdatei (UTF-8)"),
         ("urltext.export.choosing", "Choosing a new local file… Existing files will not be overwritten.", "Neue lokale Datei wählen… Bestehende Dateien werden nicht überschrieben."),

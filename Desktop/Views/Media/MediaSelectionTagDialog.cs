@@ -28,8 +28,8 @@ internal sealed class MediaSelectionTagDialog : Window
 {
     private readonly MediaSelectionTagSession _session;
     private readonly int _tiles;
-    private readonly WindowChromeBar _chrome = new() { Name = "MediaSelectionTagChrome" };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
+    // The selection this dialog tags ("Tags for {0} selected files"): the subtitle under the title bar, not a repeat of the title.
+    private readonly TextBlock _subject = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _scope = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Expander _occurrenceFrame = new() { Name = "MediaSelectionOccurrencesExpander", IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _all = new() { Name = "MediaSelectionTagAll" };
@@ -62,10 +62,8 @@ internal sealed class MediaSelectionTagDialog : Window
         _sources.Read = readSourceTags;
         _tiles = tiles;
         Name = "MediaSelectionTagDialog";
-        Width = 560; Height = 640; MinWidth = 380; MinHeight = 420;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        DialogFit.OnOpen(this);
-        WindowChrome.Apply(this);
+        // Modals plan MD2: a modal form-step dialog (fitted to the screen); the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         _surface = new TagToggleSurface(true, "MediaSelectionTag", _input, () => _session.Snapshot, _session.Coverage,
@@ -87,21 +85,16 @@ internal sealed class MediaSelectionTagDialog : Window
         input.Children.Add(_input); input.Children.Add(_add); Grid.SetColumn(_add, 1);
         // UX103 P7 frame as in the single-file dialog: the tags first, the occurrences as one collapsed line below them.
         StackPanel header = new() { Spacing = 6 };
-        header.Children.Add(_heading); header.Children.Add(_scope);
+        header.Children.Add(_subject); header.Children.Add(_scope);
         Grid body = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto"), RowSpacing = 8, Margin = new Thickness(16, 0, 16, 8) };
         body.Children.Add(input);
         body.Children.Add(_surface.SummaryRow); Grid.SetRow(_surface.SummaryRow, 1);
         body.Children.Add(_surface.ListArea); Grid.SetRow(_surface.ListArea, 2);
         body.Children.Add(_occurrenceFrame); Grid.SetRow(_occurrenceFrame, 3);
-        Grid footer = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8 };
-        footer.Children.Add(_surface.Notice);
-        footer.Children.Add(_surface.Undo); Grid.SetColumn(_surface.Undo, 1);
-        footer.Children.Add(_close); Grid.SetColumn(_close, 2);
+        // The last change's notice on the left, then Undo, and Close right-most.
+        Border footer = DialogFooter.Build(_close, new Control[] { _surface.Undo }, _surface.Notice);
         Grid frame = DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_status), fillBody: true);
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_chrome);
-        layout.Children.Add(frame); Grid.SetRow(frame, 1);
-        Content = layout;
+        DialogWindow.Frame(this, frame, modal: true, captionName: "MediaSelectionTagChrome");
 
         _all.Click += (_, _) => _session.ChooseAll(true);
         _none.Click += (_, _) => _session.ChooseAll(false);
@@ -111,13 +104,14 @@ internal sealed class MediaSelectionTagDialog : Window
         TagSuggestionInput.Attach(_input, () => _session.Busy ? null : _session.Snapshot, CarriedByAllChosen, () => OnAdd(null, new RoutedEventArgs()), _sources);
         _input.AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKey, RoutingStrategies.Tunnel);
+        DialogEscape.Attach(this);
         Opened += OnOpened; Closed += OnClosed;
         _session.Updated += OnSessionUpdated; Texts.Changed += OnLanguageChanged;
         Localize();
         Refresh();
     }
 
-    private void OnOpened(object? sender, EventArgs e) { _chrome.Attach(this); _sources.Load(); _input.Focus(); }
+    private void OnOpened(object? sender, EventArgs e) { _sources.Load(); _input.Focus(); }
     private void OnSessionUpdated() => Dispatcher.UIThread.Post(Refresh);
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_closed) { Localize(); Refresh(); } });
 
@@ -182,11 +176,10 @@ internal sealed class MediaSelectionTagDialog : Window
     {
         // Every change is saved as it is made: Enter on a list row only closes.
         if (_surface.ClosesOnEnter(e)) { e.Handled = true; Close(); return; }
+        // The first Escape closes an open suggestion list; the next one reaches the dialog policy (DialogEscape) and closes it.
         if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-        e.Handled = true;
-        // The first Escape closes an open suggestion list, the next one the dialog.
-        if (TagSuggestionInput.Route(_input, e) == TagFieldKey.CloseList) _input.Dismiss();
-        else Close();
+        if (TagSuggestionInput.Route(_input, e) != TagFieldKey.CloseList) return;
+        e.Handled = true; _input.Dismiss();
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }
@@ -209,12 +202,12 @@ internal sealed class MediaSelectionTagDialog : Window
     private void Localize()
     {
         Title = Texts.T("media.selection.tag.title");
-        _heading.Text = Texts.T("media.selection.tag.heading", _tiles, _session.Candidates.Count);
+        _subject.Text = Texts.T("media.selection.tag.heading", _tiles, _session.Candidates.Count);
         _scope.Text = Texts.T("media.selection.tag.scope");
         TagSuggestionInput.Localize(_input);
         _add.Content = Texts.T("tags.add"); AutomationProperties.SetName(_add, Texts.T("tags.add"));
         _all.Content = Texts.T("media.selection.tag.all"); _none.Content = Texts.T("media.selection.tag.none");
-        _close.Content = Texts.T("tags.media.close"); AutomationProperties.SetName(_close, Texts.T("tags.media.close"));
+        _close.Content = Texts.T("action.close"); AutomationProperties.SetName(_close, Texts.T("action.close"));
         for (int index = 0; index < _rows.Count; index++)
         {
             (CheckBox box, TextBlock text) = _rows[index];

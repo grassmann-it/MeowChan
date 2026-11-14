@@ -15,6 +15,7 @@ internal static class FilenameSearchCatalog
         ("filename.search.previous", "Previous page", "Vorherige Seite"),
         ("filename.search.next", "Next page", "Nächste Seite"),
         ("filename.search.select", "Go to post of selected hit", "Zum Post des gewählten Treffers"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("filename.search.close", "Close", "Schließen"),
         ("filename.search.idle", "Enter text and choose Search. Empty text matches all known names.", "Text eingeben und Suchen wählen. Leerer Text findet alle bekannten Namen."),
         ("filename.search.reading", "Reading catalog…", "Katalog wird gelesen…"),

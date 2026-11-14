@@ -14,6 +14,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -39,7 +40,6 @@ internal sealed class ArchiveCleanupDialog : Window
     private readonly StackPanel _inventoryControls = new() { Spacing = 8 };
     private readonly TextBox _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 52, MaxHeight = 100 };
     private readonly Expander _detailsSection = new() { HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _candidatesHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _lossHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _loss = new() { TextWrapping = TextWrapping.Wrap };
@@ -84,9 +84,9 @@ internal sealed class ArchiveCleanupDialog : Window
         _execute = (plan, token, _) => execute(plan, token);
         _openThreads = openThreads; _openFolder = openFolder;
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
-        Name = "ArchiveCleanupDialog"; Width = 820; Height = 700; MinWidth = 360; MinHeight = 380;
-        DialogFit.OnOpen(this);
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD2: the list step of the dialog factory (modal, fitted to the screen); the title stands in the title bar only.
+        Name = "ArchiveCleanupDialog";
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         NameScope names = new(); NameScope.SetNameScope(this, names);
         T Named<T>(T control, string suffix) where T : Control
         { string name = "ArchiveCleanup" + suffix; control.Name = name; names.Register(name, control); return control; }
@@ -97,7 +97,7 @@ internal sealed class ArchiveCleanupDialog : Window
         Named(_confirm, "Confirm"); Named(_back, "Back"); Named(_cancel, "Cancel"); Named(_close, "Close"); Named(_folder, "OpenFolder");
         _error.Classes.Add("workspace-error");
         _hint.Classes.Add("workspace-help"); _scope.Classes.Add("workspace-meta"); _loss.Classes.Add("workspace-warning");
-        _heading.Classes.Add("page-title"); _candidatesHeading.Classes.Add("section-title");
+        _candidatesHeading.Classes.Add("section-title");
         _lossHeading.Classes.Add("section-title"); _selectionSummary.Classes.Add("section-title");
         _review.Classes.Add("primary"); _confirm.Classes.Add("danger");
         _back.Classes.Add("subtle"); _close.Classes.Add("subtle");
@@ -137,7 +137,7 @@ internal sealed class ArchiveCleanupDialog : Window
         Named(_hint, "Hint");
         // Fixed header: task, protection rules and archive scope stay in view while the inventory scrolls.
         StackPanel header = new() { Spacing = 12 };
-        header.Children.Add(_heading); header.Children.Add(_hint); header.Children.Add(_scope);
+        header.Children.Add(_hint); header.Children.Add(_scope);
         _inventoryControls.Children.Add(_candidatesHeading);
         _inventoryControls.Children.Add(_search);
         _inventoryControls.Children.Add(_filter);
@@ -155,27 +155,24 @@ internal sealed class ArchiveCleanupDialog : Window
         _confirmation.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) warning.IsVisible = _confirmation.IsVisible; };
         warning.IsVisible = false; bottom.Children.Add(warning);
         _outcome.Children.Add(_status);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Classes.Add("workspace-actions");
-        foreach (Button button in new[] { _refresh, _close, _cancel, _back, _review, _confirm }) actions.Children.Add(button);
-        StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
+        // The outcome keeps the full width above the actions; the confirm step's action stands right-most (review and confirm never show together).
+        Border footer = DialogFooter.Build(_confirm, new Control[] { _refresh, _close, _cancel, _back, _review },
+            new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, statusAbove: true);
         // Inventory, details and loss summary scroll; the next safe action stays in the fixed footer.
         Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
         body.Children.Add(_inventoryControls); body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
-        Content = WindowChrome.Frame(this, MeowChan.Desktop.Controls.DialogFrame.Build(header, body, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(_error)));
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
         names.Complete();
         Localize();
-        KeyDown += (_, e) =>
+        // Escape cancels the running operation, then the confirmation step, then closes (RequestClose defers while busy).
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_busy) CancelOperation(); else if (_plan != null) EndConfirmation(); else RequestClose();
-        };
+            if (_busy) { CancelOperation(); return true; }
+            if (_plan == null) return false;
+            EndConfirmation(); return true;
+        }, close: RequestClose);
         Closing += (_, e) =>
         {
             if (!_busy) return;
@@ -194,7 +191,7 @@ internal sealed class ArchiveCleanupDialog : Window
     private void Localize()
     {
         if (_closed) return;
-        Title = ArchiveCleanupText.Title; _heading.Text = Title;
+        Title = ArchiveCleanupText.Title;
         _candidatesHeading.Text = Texts.T("archive.cleanup.inventory");
         _detailsSection.Header = Texts.T("archive.cleanup.details.heading");
         _lossHeading.Text = Texts.T("archive.cleanup.loss.heading");
@@ -220,7 +217,7 @@ internal sealed class ArchiveCleanupDialog : Window
         _review.Content = Texts.T("archive.cleanup.review");
         _confirm.Content = Texts.T("archive.cleanup.confirm");
         _back.Content = Texts.T("archive.cleanup.back");
-        _cancel.Content = Texts.T("archive.cleanup.cancelOperation"); _close.Content = Texts.T("archive.cleanup.close");
+        _cancel.Content = Texts.T("archive.cleanup.cancelOperation"); _close.Content = Texts.T("action.close");
         _folder.Content = Texts.T("archive.cleanup.openFolder");
         _ack.Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = Texts.T("archive.cleanup.acknowledge") };
         RenderRows(); UpdateSummary(); UpdateLoss(); UpdateActions();

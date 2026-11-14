@@ -52,6 +52,7 @@ internal static class InlineTextCatalog
         ("archive.cleanup.confirm", "Permanently delete locally", "Lokal endgültig löschen"),
         ("archive.cleanup.back", "Back to selection", "Zurück zur Auswahl"),
         ("archive.cleanup.cancelOperation", "Cancel operation", "Vorgang abbrechen"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("archive.cleanup.close", "Close", "Schließen"),
         ("archive.cleanup.openFolder", "Open storage folder", "Speicherordner öffnen"),
         ("archive.cleanup.openParentFolder", "Open parent storage folder", "Übergeordneten Speicherordner öffnen"),

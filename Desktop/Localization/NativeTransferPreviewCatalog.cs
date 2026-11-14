@@ -6,6 +6,7 @@ internal static class NativeTransferPreviewCatalog
     {
         ("transfer.preview.open", "Inspect transfer package…", "Transferpaket prüfen…"),
         ("transfer.preview.title", "Inspect transfer package", "Transferpaket prüfen"),
+        // Obsolete since modals MD2: the title stands in the title bar only (E1); kept so the language packs keep one key set.
         ("transfer.preview.heading", "Transfer package inventory", "Transferpaket-Inventar"),
         ("transfer.preview.choose", "Choose transfer package…", "Transferpaket wählen…"),
         ("transfer.preview.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),

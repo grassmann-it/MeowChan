@@ -59,6 +59,7 @@ internal static class TagBarCatalog
         ("tags.manage.confirm", "Delete the tag “{0}”? It will be removed from threads ({1}) and media ({2}). This cannot be undone.", "Tag „{0}“ löschen? Er wird von Threads ({1}) und Medien ({2}) entfernt. Das lässt sich nicht rückgängig machen."),
         ("tags.manage.confirmDelete", "Delete", "Löschen"),
         ("tags.manage.keep", "Keep tag", "Tag behalten"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("tags.manage.close", "Close", "Schließen"),
         ("tags.manage.renamed", "Renamed.", "Umbenannt."),
         ("tags.manage.deleted", "Tag deleted.", "Tag gelöscht."),
@@ -91,6 +92,7 @@ internal static class TagBarCatalog
         ("tags.manage.orphansRemove", "Remove these assignments", "Diese Zuordnungen entfernen"),
         ("tags.manage.orphansRemoved", "Orphaned assignments removed. The tags themselves were kept.", "Verwaiste Zuordnungen entfernt. Die Tags selbst bleiben erhalten."),
         ("tags.export.omitted", "Only the files are copied. Own tags, including tags of loose files, are not part of any export or transfer yet and stay in this profile.", "Kopiert werden nur die Dateien. Eigene Tags, auch die loser Dateien, sind noch in keinem Export und keiner Übertragung enthalten und bleiben in diesem Profil."),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("tags.media.close", "Close", "Schließen")
     };
 }

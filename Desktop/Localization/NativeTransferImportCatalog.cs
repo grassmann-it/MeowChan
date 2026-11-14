@@ -5,12 +5,14 @@ internal static class NativeTransferImportCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("transfer.import.title", "Import transfer package", "Transferpaket importieren"),
+        // Obsolete since modals MD2: the title stands in the title bar only (E1); kept so the language packs keep one key set.
         ("transfer.import.heading", "Import transfer package", "Transferpaket importieren"),
         ("transfer.import.choose", "Choose transfer package…", "Transferpaket wählen…"),
         ("transfer.import.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
         ("transfer.import.apply", "Import and merge", "Importieren und zusammenführen"),
         ("transfer.import.recheck", "Check again", "Erneut prüfen"),
         ("transfer.import.cancel", "Cancel", "Abbrechen"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("transfer.import.close", "Close", "Schließen"),
         ("transfer.import.noSource", "No package selected.", "Kein Paket ausgewählt."),
         ("transfer.import.scope", "Apply scope (choose before selecting a package)", "Übernahmeumfang (vor der Paketauswahl festlegen)"),

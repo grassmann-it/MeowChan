@@ -67,6 +67,7 @@ internal static class PostFilterCatalog
         ("postFilter.recovery.available", "The post filter file is damaged, so no post filter applies. A backup (rules: {0}, hidden posts: {1}) can be restored.", "Die Postfilter-Datei ist beschädigt, deshalb wirkt kein Postfilter. Eine Sicherung (Regeln: {0}, ausgeblendete Posts: {1}) lässt sich wiederherstellen."),
         ("postFilter.recovery.restore", "Restore backup", "Sicherung wiederherstellen"),
         ("postFilter.recovery.done", "The backup was restored.", "Die Sicherung wurde wiederhergestellt."),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("postFilter.close", "Close", "Schließen"),
         ("budgets.postFilterRules", "Post filter rules", "Postfilter-Regeln"),
         ("budgets.hiddenPosts", "Individually hidden posts", "Einzeln ausgeblendete Posts"),

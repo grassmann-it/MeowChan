@@ -51,6 +51,7 @@ internal static class ManualImportCatalog
         ("import.cancel.check", "Stop check", "Prüfung anhalten"),
         ("import.cancel.run", "Stop after current file", "Nach aktueller Datei anhalten"),
         ("import.cancel.run.tip", "Files already copied stay imported.", "Bereits kopierte Dateien bleiben importiert."),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("import.close", "Close", "Schließen"),
         ("import.showBatch", "Show batch", "Stapel anzeigen"),
         ("import.run.starting", "Preparing the import…", "Import wird vorbereitet…"),
