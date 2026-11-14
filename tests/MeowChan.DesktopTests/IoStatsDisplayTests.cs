@@ -46,13 +46,13 @@ public sealed class IoStatsDisplayTests : IDisposable
     {
         IoRates rates = new(NetDown: 2.4 * MiB, DiskWrite: 1.5 * MiB, DiskRead: 0.4 * MiB, Requests: 3, NetUp: 0.5 * MiB);
         Assert.Equal(0.4 * MiB, IoStatsDisplay.HeaderDiskRate(rates), 3);          // solid primary disk series: reading its own media
-        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.",
+        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk read 410 KiB/s, written 1.5 MiB/s; active downloads: 3. Opens the statistics.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), En));
         Texts.SetLanguage("de");
-        Assert.Equal("Netzwerk (Anwendungsdaten) herunter 2,4 MiB/s, hoch 512 KiB/s; Mediendateien auf dem Datenträger geschrieben 1,5 MiB/s, gelesen 410 KiB/s; aktive Downloads: 3. Öffnet die Statistik.",
+        Assert.Equal("Netzwerk (Anwendungsdaten) herunter 2,4 MiB/s, hoch 512 KiB/s; Mediendateien auf dem Datenträger gelesen 410 KiB/s, geschrieben 1,5 MiB/s; aktive Downloads: 3. Öffnet die Statistik.",
             IoStatsDisplay.GraphDescription(rates, new IoActivity(3, 41, 0), De));
         Texts.SetLanguage("en");
-        Assert.Equal("Network (application data) download 0 B/s, upload 0 B/s; media files on disk written 0 B/s, read 0 B/s; active downloads: 0. Opens the statistics.",
+        Assert.Equal("Network (application data) download 0 B/s, upload 0 B/s; media files on disk read 0 B/s, written 0 B/s; active downloads: 0. Opens the statistics.",
             IoStatsDisplay.GraphDescription(IoRates.Zero, default, En));
     }
 

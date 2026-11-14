@@ -124,8 +124,8 @@ public sealed class StatsHeaderGraphTests : IDisposable
     public void TheSentenceNamesExactlyTheValuesTheHeaderShows()
     {
         IoActivity activity = new(3, 41, 0);
-        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, true, En));
-        Assert.Equal("Media files on disk written 1.5 MiB/s, read 410 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, false, true, En));
+        Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; media files on disk read 410 KiB/s, written 1.5 MiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, true, En));
+        Assert.Equal("Media files on disk read 410 KiB/s, written 1.5 MiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, false, true, En));
         Assert.Equal("Network (application data) download 2.4 MiB/s, upload 512 KiB/s; active downloads: 3. Opens the statistics.", IoStatsDisplay.GraphDescription(SampleRates, activity, true, false, En));
     }
 
