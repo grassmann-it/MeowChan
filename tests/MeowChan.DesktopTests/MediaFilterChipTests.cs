@@ -191,7 +191,7 @@ public sealed class MediaFilterChipTests : IDisposable
     [InlineData(false)]
     public void EveryPartOfATermChipHasItsLogicalParent(bool negatable)
     {
-        ClosableTag chip = WorkspaceChips.CreateTermChip("Type: Images", negatable, exclude: false, () => { }, negatable ? () => { } : null, "Images", menu: true);
+        ClosableTag chip = WorkspaceChips.CreateTermChip("Type: Images", negatable, exclude: false, () => { }, negatable ? () => { } : null, "Images", menu: FilterChipMenuOptions.Plain);
         Control content = Assert.IsAssignableFrom<Control>(chip.Content);
         Assert.Same(chip, content.Parent);
         if (content is StackPanel panel)
