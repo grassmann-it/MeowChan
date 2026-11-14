@@ -171,8 +171,8 @@ internal static class DownloadSessionChecks
             // the file it wrote, and the header graph shows that as the disk write rate.
             await Program.WaitUntilAsync(() => initial.FindControl<TextBlock>("TransferSpeedLabel")!.Text is string speed
                 && speed.EndsWith("/s", StringComparison.Ordinal)
-                && StatisticsChecks.HeaderDirectionIsDrawn(initial, "TransferDownMark", WorkspaceIcons.ArrowDown)
-                && StatisticsChecks.HeaderDirectionIsDrawn(initial, "TransferUpMark", WorkspaceIcons.ArrowUp)
+                && StatisticsChecks.HeaderWordIs(initial, "TransferDownMark", "stats.header.down")
+                && StatisticsChecks.HeaderWordIs(initial, "TransferUpMark", "stats.header.up")
                 && initial.FindControl<TextBlock>("TransferDiskLabel")!.Text is string disk && disk.EndsWith("/s", StringComparison.Ordinal) && !string.Equals(disk, "0 B/s", StringComparison.Ordinal));
             Require(initial.SettingsPageVisible && settings.DownloadPath == settingsDraft,
                 "A background download discarded the settings page or its draft.");

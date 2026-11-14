@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
@@ -118,13 +119,12 @@ internal static class StatisticsChecks
     private static bool DiskRowShown(MainWindow window) => window.FindControl<Control>("TransferDiskText")!.IsVisible;
     private static string TextOf(MainWindow window, string name) => window.FindControl<TextBlock>(name)!.Text ?? "";
 
-    internal static bool HeaderDirectionIsDrawn(MainWindow window, string slotName, string expectedIcon)
+    internal static bool HeaderWordIs(MainWindow window, string slotName, string key)
     {
-        Border? slot = window.FindControl<Border>(slotName);
-        return slot?.Child is Avalonia.Controls.Shapes.Path icon && icon.Data != null
-            && WorkspaceIcons.KeyOf(icon) == expectedIcon && !slot.IsHitTestVisible
-            && AutomationProperties.GetAccessibilityView(slot) == AccessibilityView.Raw
-            && AutomationProperties.GetAccessibilityView(icon) == AccessibilityView.Raw;
+        TextBlock? word = window.FindControl<TextBlock>(slotName);
+        return word is not null && word.Text == Texts.T(key) && word.Classes.Contains("muted")
+            && word.FontSize == 11 && word.FontWeight == FontWeight.Normal
+            && AutomationProperties.GetAccessibilityView(word) == AccessibilityView.Raw;
     }
 
     private static async Task RequireHeaderAsync(MainWindow window, bool disk, bool graph, string scenario)
@@ -137,19 +137,19 @@ internal static class StatisticsChecks
         string text = AutomationProperties.GetName(Speed(window))!;
         Require(ToolTip.GetTip(Speed(window)) as string == text, scenario + ": the tooltip differs from the accessible name.");
         Require(DiskRowShown(window) == disk, scenario + ": the disk value is " + (disk ? "missing" : "shown") + ".");
-        // Both blocks carry a written heading and compact values: Network ↓ down ↑ up, Disk R read W write (English at this point).
-        string netTitle = TextOf(window, "TransferSpeedTitle"), netValues = TextOf(window, "TransferSpeedLabel");
-        string diskTitle = TextOf(window, "TransferDiskTitle"), diskValues = TextOf(window, "TransferDiskLabel");
-        Require(netTitle == Texts.T("stats.header.networkTitle") && HeaderDirectionIsDrawn(window, "TransferDownMark", WorkspaceIcons.ArrowDown)
-            && HeaderDirectionIsDrawn(window, "TransferUpMark", WorkspaceIcons.ArrowUp)
-            && netValues.EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferUploadLabel").EndsWith("/s", StringComparison.Ordinal),
-            scenario + ": the network block lacks its heading or its down/up values: '" + netTitle + "' '" + netValues + "'.");
+        // The header matrix has no Network/Disk titles or glyphs: solid words are Down/Write, dashed words Up/Read.
+        string netDown = TextOf(window, "TransferDownMark"), netUp = TextOf(window, "TransferUpMark");
+        string diskWrite = TextOf(window, "TransferWriteMark"), diskRead = TextOf(window, "TransferReadMark");
+        Require(HeaderWordIs(window, "TransferDownMark", "stats.header.down") && HeaderWordIs(window, "TransferUpMark", "stats.header.up")
+            && TextOf(window, "TransferSpeedLabel").EndsWith("/s", StringComparison.Ordinal)
+            && TextOf(window, "TransferUploadLabel").EndsWith("/s", StringComparison.Ordinal),
+            scenario + ": the network word/rate matrix is incomplete: '" + netDown + "' '" + netUp + "'.");
         Require(text.Contains("upload", StringComparison.OrdinalIgnoreCase), scenario + ": the sentence does not name the upload: '" + text + "'.");
         if (disk)
         {
-            Require(diskTitle == Texts.T("stats.header.diskTitle") && TextOf(window, "TransferReadMark") == "R" && TextOf(window, "TransferWriteMark") == "W"
-                && diskValues.EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferDiskReadLabel").EndsWith("/s", StringComparison.Ordinal),
-                scenario + ": the disk block lacks its heading or its read/write values: '" + diskTitle + "' '" + diskValues + "'.");
+            Require(HeaderWordIs(window, "TransferWriteMark", "stats.header.write") && HeaderWordIs(window, "TransferReadMark", "stats.header.read")
+                && TextOf(window, "TransferDiskLabel").EndsWith("/s", StringComparison.Ordinal) && TextOf(window, "TransferDiskReadLabel").EndsWith("/s", StringComparison.Ordinal),
+                scenario + ": the disk word/rate matrix is incomplete: '" + diskWrite + "' '" + diskRead + "'.");
             Require(HeaderDiskGraph(window).IsVisible == graph, scenario + ": the disk graph is " + (graph ? "missing" : "drawn") + ".");
             Require(text.Contains("read", StringComparison.OrdinalIgnoreCase) && text.Contains("written", StringComparison.OrdinalIgnoreCase),
                 scenario + ": the sentence does not name disk read and written: '" + text + "'.");
@@ -303,44 +303,64 @@ internal static class StatisticsChecks
             Point origin = control.TranslatePoint(default, window)!.Value;
             return new Rect(origin, control.Bounds.Size);
         }
-        foreach ((bool shown, bool graph, string graphName, string title, string first, string second, string firstMark, string secondMark) in new[]
+        bool Near(double actual, double expected) => Math.Abs(actual - expected) < 0.6;
+        Require(window.FindControl<Control>("TransferSpeedTitle") is null && window.FindControl<Control>("TransferDiskTitle") is null,
+            scenario + ": a removed Network/Disk heading remains in the header.");
+        foreach ((bool shown, bool graph, string graphName, string first, string second, string firstWord, string secondWord,
+            string firstKey, string secondKey) in new[]
         {
-            (layout.NetValue, layout.NetGraph, "TransferSpeedGraph", "TransferSpeedTitle", "TransferSpeedLabel", "TransferUploadLabel", "TransferDownMark", "TransferUpMark"),
-            (layout.DiskValue, layout.DiskGraph, "TransferDiskGraph", "TransferDiskTitle", "TransferDiskReadLabel", "TransferDiskLabel", "TransferReadMark", "TransferWriteMark")
+            (layout.NetValue, layout.NetGraph, "TransferSpeedGraph", "TransferSpeedLabel", "TransferUploadLabel",
+                "TransferDownMark", "TransferUpMark", "stats.header.down", "stats.header.up"),
+            (layout.DiskValue, layout.DiskGraph, "TransferDiskGraph", "TransferDiskLabel", "TransferDiskReadLabel",
+                "TransferWriteMark", "TransferReadMark", "stats.header.write", "stats.header.read")
         })
         {
             if (!shown) continue;
-            Rect a = Bounds(first), b = Bounds(second), markA = Bounds(firstMark), markB = Bounds(secondMark);
-            if (layout.TwoLineLabels)
+            Require(HeaderWordIs(window, firstWord, firstKey) && HeaderWordIs(window, secondWord, secondKey),
+                scenario + ": the direction labels are not localized regular caption words.");
+            Rect a = Bounds(first), b = Bounds(second), wordA = Bounds(firstWord), wordB = Bounds(secondWord);
+            foreach (string rate in new[] { first, second })
             {
-                Require(b.Top >= a.Bottom + 3 && Math.Abs(a.Right - b.Right) < 0.5 && Math.Abs(markA.Left - markB.Left) < 0.5,
-                    $"{scenario}: directional rates are not vertically spaced and column-aligned ({a}, {b}).");
+                TextBlock value = window.FindControl<TextBlock>(rate)!;
+                Require(value.FontSize == 11 && value.FontWeight == FontWeight.Normal
+                    && value.TextAlignment == TextAlignment.Right && value.Bounds.Width >= 72,
+                    scenario + ": the rate lost its caption size, regular weight or minimum shared width: " + rate);
             }
+            if (layout.TwoLineLabels)
+                Require(Near(b.Top - a.Bottom, 2) && Near(a.Right, b.Right) && Near(wordA.Left, wordB.Left),
+                    $"{scenario}: stacked rates are not a two-line aligned matrix with 2 DIP spacing ({a}, {b}).");
             else
-                Require(Math.Abs(a.Top - b.Top) < 0.5 && markB.Left >= a.Right + 8,
-                    scenario + ": compact rates have no common baseline or directional gap.");
-            Require(a.Left >= markA.Right + 3 && b.Left >= markB.Right + 3,
-                scenario + ": direction markers touch their values.");
+                Require(Near(a.Top, b.Top) && Near(wordB.Left - a.Right, 12),
+                    scenario + ": the row matrix has no common baseline or its pair gap is not 12 DIP.");
+            Require(Near(a.Left - wordA.Right, 6) && Near(b.Left - wordB.Right, 6),
+                scenario + ": word/rate column gaps are not 6 DIP.");
             if (graph)
-                Require(Bounds(title).Left >= Bounds(graphName).Right + 11,
-                    scenario + ": graph touches its labels (including the initial layout).");
+            {
+                Rect plot = Bounds(graphName);
+                Require(Near(wordA.Left - plot.Right, 8), scenario + ": graph/word gap is not 8 DIP.");
+                Require(Near(plot.Width, layout.TwoLineLabels ? 120 : 128)
+                    && Near(plot.Height, layout.TwoLineLabels ? 30 : 14),
+                    scenario + ": graph dimensions do not match the word matrix.");
+            }
         }
         if (layout.NetValue && layout.DiskValue)
         {
             if (layout.TwoLineLabels)
             {
-                Require(Math.Abs(Bounds("TransferSpeedLabel").Top - Bounds("TransferDiskReadLabel").Top) < 0.5
-                    && Math.Abs(Bounds("TransferUploadLabel").Top - Bounds("TransferDiskLabel").Top) < 0.5,
-                    scenario + ": the network and disk blocks do not share rate baselines.");
+                Require(Near(Bounds("TransferSpeedLabel").Top, Bounds("TransferDiskLabel").Top)
+                    && Near(Bounds("TransferUploadLabel").Top, Bounds("TransferDiskReadLabel").Top),
+                    scenario + ": the solid and dashed directions do not share baselines across blocks.");
+                string nextBlock = layout.DiskGraph ? "TransferDiskGraph" : "TransferWriteMark";
+                Require(Near(Bounds(nextBlock).Left - Bounds("TransferSpeedLabel").Right, 24),
+                    scenario + ": block gap is not 24 DIP.");
             }
             else
             {
-                foreach ((string net, string disk) in new[] { ("TransferSpeedTitle", "TransferDiskTitle"),
-                    ("TransferDownMark", "TransferReadMark"), ("TransferSpeedLabel", "TransferDiskReadLabel"),
-                    ("TransferUpMark", "TransferWriteMark"), ("TransferUploadLabel", "TransferDiskLabel") })
-                    Require(Math.Abs(Bounds(net).Left - Bounds(disk).Left) < 0.5
-                        && Math.Abs(Bounds(net).Right - Bounds(disk).Right) < 0.5,
-                        scenario + ": compact rows do not share aligned columns: " + net + "/" + disk);
+                foreach ((string net, string disk) in new[] { ("TransferDownMark", "TransferWriteMark"),
+                    ("TransferSpeedLabel", "TransferDiskLabel"), ("TransferUpMark", "TransferReadMark"),
+                    ("TransferUploadLabel", "TransferDiskReadLabel") })
+                    Require(Near(Bounds(net).Left, Bounds(disk).Left) && Near(Bounds(net).Right, Bounds(disk).Right),
+                        scenario + ": compact rows do not share the four matrix columns: " + net + "/" + disk);
             }
         }
     }

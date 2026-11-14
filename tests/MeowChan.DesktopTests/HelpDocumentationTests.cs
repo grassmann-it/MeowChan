@@ -390,8 +390,8 @@ public sealed class HelpDocumentationTests
         Assert.Contains("Auto keeps both available in every work view where the layout fits", text, StringComparison.Ordinal);
         Assert.Contains("application-payload and media-I/O counters, not operating-system totals", text, StringComparison.Ordinal);
         Assert.Contains("explicit layout can select Network, Disk or text without summing the categories", text, StringComparison.Ordinal);
-        Assert.Contains("The header renders Network as ↓ Down and ↑ Up, and Disk as R Read before W Write", text, StringComparison.Ordinal);
-        Assert.Contains("The visible header keeps the Network arrows (↓ Down, ↑ Up) and the Disk order (R Read, W Write)", text, StringComparison.Ordinal);
+        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Write then Read for disk traffic", text, StringComparison.Ordinal);
+        Assert.Contains("The visible header keeps Down / Up and Write / Read in solid-series / dashed-series order, with no Network or Disk headings", text, StringComparison.Ordinal);
         Assert.DoesNotContain("upload is not measured", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("writes only", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("disk history graph is drawn only in Advanced", text, StringComparison.Ordinal);
@@ -403,7 +403,7 @@ public sealed class HelpDocumentationTests
     {
         // The catalogs are read as data (no language state), and the visible Help wording is pinned alongside the display seams.
         string[] names = ["stats.header.networkTitle", "stats.header.diskTitle", "stats.header.netValues", "stats.header.diskValues",
-            "stats.header.readMark", "stats.header.writeMark", "stats.footnote"];
+            "stats.header.down", "stats.header.up", "stats.header.write", "stats.header.read", "stats.footnote"];
         Dictionary<string, string> english = IoStatsPageTexts.Entries.Where(entry => names.Contains(entry.Key))
             .ToDictionary(entry => entry.Key, entry => entry.English, StringComparer.Ordinal);
         Assert.Equal(names.Order(StringComparer.Ordinal), english.Keys.Order(StringComparer.Ordinal));
@@ -411,10 +411,12 @@ public sealed class HelpDocumentationTests
         Assert.Equal("Disk", english["stats.header.diskTitle"]);
         Assert.Equal("↓ {0} ↑ {1}", english["stats.header.netValues"]);
         Assert.Equal("R {0} W {1}", english["stats.header.diskValues"]);
-        Assert.Equal("R", english["stats.header.readMark"]);
-        Assert.Equal("W", english["stats.header.writeMark"]);
+        Assert.Equal("Down", english["stats.header.down"]);
+        Assert.Equal("Up", english["stats.header.up"]);
+        Assert.Equal("Write", english["stats.header.write"]);
+        Assert.Equal("Read", english["stats.header.read"]);
         string documented = Plain(Section(Read(Help), "Statistics and disk traffic"));
-        Assert.Contains("The header renders Network as ↓ Down and ↑ Up, and Disk as R Read before W Write", documented, StringComparison.Ordinal);
+        Assert.Contains("The header uses a word/rate matrix: Down then Up for network traffic, Write then Read for disk traffic", documented, StringComparison.Ordinal);
         Assert.Contains("request payload", english["stats.footnote"], StringComparison.Ordinal);
         Assert.Contains("without headers or encryption", english["stats.footnote"], StringComparison.Ordinal);
         Assert.DoesNotContain("Upload is not measured", english["stats.footnote"], StringComparison.Ordinal);

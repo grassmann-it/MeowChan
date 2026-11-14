@@ -106,7 +106,7 @@ internal static class IoStatsDisplay
 
     /// <summary>
     /// How the header is arranged. <see cref="Rows"/>: one row per value, a half-height graph and a one-line label each.
-    /// <see cref="GraphBlocks"/>: two blocks side by side, each a full-height graph, a centred heading and vertically stacked directional rates.
+    /// <see cref="GraphBlocks"/>: two blocks side by side, each a full-height graph and a two-line word/rate matrix (solid series first).
     /// <see cref="TextBlocks"/>: the same two-line labels without graphs. <see cref="TextRows"/>: one-line labels, one under the
     /// other, without graphs (the narrow form).
     /// </summary>

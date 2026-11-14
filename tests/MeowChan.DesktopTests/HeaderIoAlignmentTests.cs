@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia.Controls;
-using MeowChan.Desktop.Controls;
 using MeowChan.DesktopTests.DesignLint;
 
 namespace MeowChan.DesktopTests;
@@ -11,85 +10,98 @@ public sealed class HeaderIoAlignmentTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void DirectionsHaveSeparateStableCellsAndSwitchBackWithoutStaleColumns(bool firstStacked)
+    public void WordRateMatrixUsesSolidThenDashedRowsAndResetsWithoutStaleColumns(bool firstStacked)
     {
-        Grid grid = new() { ColumnDefinitions = new("Auto,Auto,Auto,Auto,Auto") };
-        TextBlock title = new(), first = new(), second = new();
-        Control firstMark = new Border { Child = WorkspaceIcons.Create(WorkspaceIcons.ArrowDown) };
-        Control secondMark = new Border { Child = WorkspaceIcons.Create(WorkspaceIcons.ArrowUp) };
+        Grid grid = new() { ColumnDefinitions = new("Auto,Auto,Auto,Auto"), RowDefinitions = new("Auto,Auto") };
+        TextBlock firstWord = new(), firstValue = new(), secondWord = new(), secondValue = new();
         foreach (bool stacked in new[] { firstStacked, !firstStacked, firstStacked })
         {
-            MainWindow.ArrangeHeaderRates(grid, title, firstMark, first, secondMark, second, stacked);
-            Assert.Equal(stacked ? 2 : 1, Grid.GetRowSpan(title));
-            Assert.Equal(0, Grid.GetRow(first));
-            Assert.Equal(2, Grid.GetColumn(first));
-            Assert.Equal(stacked ? 1 : 0, Grid.GetRow(second));
-            Assert.Equal(stacked ? 2 : 4, Grid.GetColumn(second));
-            Assert.Equal(stacked ? 1 : 3, Grid.GetColumn(secondMark));
-            Assert.Equal(stacked ? null : "HeaderIoRate", grid.ColumnDefinitions[4].SharedSizeGroup);
-            Assert.Equal(stacked ? 0 : 64, grid.ColumnDefinitions[4].MinWidth);
-            Assert.Equal(stacked ? 0 : 8, secondMark.Margin.Left);
+            MainWindow.ArrangeHeaderRates(grid, firstWord, firstValue, secondWord, secondValue, stacked);
+            Assert.Equal(stacked ? 2 : 1, grid.RowDefinitions.Count);
+            Assert.Equal(stacked ? 2 : 4, grid.ColumnDefinitions.Count);
+            Assert.Equal(0, Grid.GetRow(firstWord));
+            Assert.Equal(0, Grid.GetColumn(firstWord));
+            Assert.Equal(0, Grid.GetRow(firstValue));
+            Assert.Equal(1, Grid.GetColumn(firstValue));
+            Assert.Equal(stacked ? 1 : 0, Grid.GetRow(secondWord));
+            Assert.Equal(stacked ? 0 : 2, Grid.GetColumn(secondWord));
+            Assert.Equal(stacked ? 1 : 0, Grid.GetRow(secondValue));
+            Assert.Equal(stacked ? 1 : 3, Grid.GetColumn(secondValue));
+            Assert.Equal(6, grid.ColumnSpacing);
+            Assert.Equal(2, grid.RowSpacing);
+            Assert.Equal("HeaderIoLabel", grid.ColumnDefinitions[0].SharedSizeGroup);
+            Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[1].SharedSizeGroup);
+            Assert.Equal(72, grid.ColumnDefinitions[1].MinWidth);
+            Assert.Equal(stacked ? 0 : 6, secondWord.Margin.Left);
+            if (!stacked)
+            {
+                Assert.Equal("HeaderIoLabel2", grid.ColumnDefinitions[2].SharedSizeGroup);
+                Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[3].SharedSizeGroup);
+                Assert.Equal(72, grid.ColumnDefinitions[3].MinWidth);
+                Assert.Equal(12, grid.ColumnSpacing + secondWord.Margin.Left);
+            }
         }
     }
 
     [Fact]
-    public void AllFourRatesUseSharedColumnsRightAlignmentAndTabularDigits()
+    public void HeaderUsesTwoSharedLabelGroupsAndTwoSharedRateGroupsWithCaptionTnumValues()
     {
         XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement Named(string name) => document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == name);
         Assert.Equal("True", (string?)Named("TransferLayoutGrid").Attribute("Grid.IsSharedSizeScope"));
-        foreach (string name in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskReadLabel", "TransferDiskLabel" })
+        foreach (string name in new[] { "TransferDownMark", "TransferUpMark", "TransferWriteMark", "TransferReadMark" })
+        {
+            XElement word = Named(name);
+            Assert.Equal("TextBlock", word.Name.LocalName);
+            Assert.Equal("muted", (string?)word.Attribute("Classes"));
+            Assert.Equal("{StaticResource Workspace.Text.Caption}", (string?)word.Attribute("FontSize"));
+            Assert.Equal("14", (string?)word.Attribute("LineHeight"));
+            Assert.Equal("Normal", (string?)word.Attribute("FontWeight"));
+            Assert.Equal("Raw", (string?)word.Attribute("AutomationProperties.AccessibilityView"));
+        }
+        foreach (string name in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskLabel", "TransferDiskReadLabel" })
         {
             XElement value = Named(name);
             Assert.Equal("Right", (string?)value.Attribute("TextAlignment"));
             Assert.Equal("tnum", (string?)value.Attribute("FontFeatures"));
             Assert.Equal("0 B/s", (string?)value.Attribute("Text"));
+            Assert.Equal("Normal", (string?)value.Attribute("FontWeight"));
+            Assert.Equal("{StaticResource Workspace.Text.Caption}", (string?)value.Attribute("FontSize"));
+            Assert.Equal("{DynamicResource Workspace.Text}", (string?)value.Attribute("Foreground"));
+            Assert.Equal("14", (string?)value.Attribute("LineHeight"));
+            Assert.Equal("Raw", (string?)value.Attribute("AutomationProperties.AccessibilityView"));
         }
         foreach (string name in new[] { "TransferSpeedText", "TransferDiskText" })
         {
             XElement block = Named(name);
             Assert.Equal("Grid", block.Name.LocalName);
-            Assert.Equal("4", (string?)block.Attribute("RowSpacing"));
-            Assert.Equal("Auto,Auto", (string?)block.Attribute("RowDefinitions"));
-            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoTitle");
+            Assert.Equal("2", (string?)block.Attribute("RowSpacing"));
+            Assert.Equal("6", (string?)block.Attribute("ColumnSpacing"));
+            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel");
+            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel2");
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoRate"
-                && (string?)node.Attribute("MinWidth") == "64");
+                && (string?)node.Attribute("MinWidth") == "72");
         }
-    }
-
-    [Fact]
-    public void NetworkDirectionMarksUseDecorativeDrawingsInStretchingGridCells()
-    {
-        string markup = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml"));
-        XDocument document = XDocument.Parse(markup);
-        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        foreach (string direction in new[] { "Down", "Up" })
-        {
-            XElement slot = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == "Transfer" + direction + "Mark");
-            Assert.Equal("Border", slot.Name.LocalName);
-            // The cell stretches to the common marker column; only its decorative child has the icon dimensions.
-            Assert.Null(slot.Attribute("Width"));
-            Assert.Null(slot.Attribute("HorizontalAlignment"));
-            Assert.Equal("False", (string?)slot.Attribute("IsHitTestVisible"));
-            Assert.Equal("Raw", (string?)slot.Attribute("AutomationProperties.AccessibilityView"));
-            XElement drawing = Assert.Single(slot.Elements());
-            Assert.Equal("Path", drawing.Name.LocalName);
-            Assert.Equal("Transfer" + direction + "Icon", (string?)drawing.Attribute(x + "Name"));
-            Assert.Equal(WorkspaceIcons.StyleClass, (string?)drawing.Attribute("Classes"));
-            Assert.Equal("{DynamicResource Workspace.Muted}", (string?)drawing.Attribute("Stroke"));
-        }
-        Assert.DoesNotContain(DesignLintScanner.ScanFile("Desktop/Shell/MainWindow.axaml", markup,
+        Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferSpeedTitle" or "TransferDiskTitle");
+        Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferDownIcon" or "TransferUpIcon");
+        Assert.DoesNotContain(DesignLintScanner.ScanFile("Desktop/Shell/MainWindow.axaml", File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml")),
             new double[] { 11, 12, 13, 14, 16, 20 }), violation => violation.Rule == DesignRules.GlyphIcon);
     }
 
     [Fact]
-    public void DirectionDrawingsAreOppositeArrowsAndNeedNoRenderPlatformUntilShown()
+    public void FirstLayoutUsesTheRowGraphSizeAndNoIconAttachmentRemains()
     {
-        Assert.Equal("M8,3 L8,13 M3,8 L8,13 L13,8", WorkspaceIcons.DataOf(WorkspaceIcons.ArrowDown));
-        Assert.Equal("M8,13 L8,3 M3,8 L8,3 L13,8", WorkspaceIcons.DataOf(WorkspaceIcons.ArrowUp));
-        Assert.Null(WorkspaceIcons.Create(WorkspaceIcons.ArrowDown).Data);
-        Assert.Null(WorkspaceIcons.Create(WorkspaceIcons.ArrowUp).Data);
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement Named(string name) => document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == name);
+        Assert.Equal("128", (string?)Named("TransferSpeedGraph").Attribute("Width"));
+        Assert.Equal("14", (string?)Named("TransferSpeedGraph").Attribute("Height"));
+        Assert.Equal("128", (string?)Named("TransferDiskGraph").Attribute("Width"));
+        Assert.Equal("14", (string?)Named("TransferDiskGraph").Attribute("Height"));
+        string chrome = File.ReadAllText(Root("Desktop/Shell/MainWindow.Chrome.cs"));
+        Assert.DoesNotContain("Attach(TransferDown", chrome);
+        Assert.DoesNotContain("Attach(TransferUp", chrome);
     }
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>

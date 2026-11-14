@@ -631,8 +631,8 @@ Down and Up as separate directions; **Disk I/O (`DiskIo`)** keeps Write and Read
 separate as well. Each category has its own scale, and retries or failed transfers
 can contribute bytes without a saved file. The header uses the same directional
 categories; **Auto** keeps both available in every work view where the layout fits.
-These counters are separate from saved/selected media progress. The header renders
-Network as **↓** Down and **↑** Up, and Disk as **R** Read before **W** Write;
+These counters are separate from saved/selected media progress. The header uses a word/rate matrix: **Down** then **Up** for network traffic,
+**Write** then **Read** for disk traffic;
 the directions are never combined. **Reset statistics** asks for confirmation before
 clearing the counters, not media.
 
@@ -662,8 +662,7 @@ Further sources beyond the row limit are grouped as **Other sources**.
 (`DiskIo`)** available in every work view where the layout fits. Down and Up remain
 separate network directions; Write and Read remain separate disk directions. An
 explicit layout can select Network, Disk or text without summing the categories or
-claiming system-wide traffic. The visible header keeps the Network arrows (**↓** Down,
-**↑** Up) and the Disk order (**R** Read, **W** Write) even when the graph layout
+claiming system-wide traffic. The visible header keeps **Down / Up** and **Write / Read** in solid-series / dashed-series order, with no Network or Disk headings, even when the graph layout
 changes. The Statistics page keeps its directional histories regardless of this
 setting.
 These controls do not alter
