@@ -212,7 +212,14 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                     await video.DisposeAsync().ConfigureAwait(false);
                     throw;
                 }
-                png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false);
+                try { png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false); }
+                finally
+                {
+                    // WaitAsync's cancellation callback can run before the linked source's callback. Disposing
+                    // bounded while unwinding that wait would then unregister the link without ever canceling
+                    // the decoder. Signal it explicitly before the using scope disposes the link.
+                    if (token.IsCancellationRequested) bounded.Cancel();
+                }
             }
             if (!VideoScrubPreviewCache.Valid(png)) throw new InvalidDataException("The scrub thumbnail exceeds its safe limits.");
             // The cut after the decode: the original must still verify (file identity, else a full hash), so a file changed while it
