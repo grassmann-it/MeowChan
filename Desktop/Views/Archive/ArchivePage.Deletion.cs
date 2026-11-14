@@ -13,9 +13,9 @@ public partial class ArchivePage
         _contentCancellation?.Cancel();
         CancelMediaLoad(); ClosePreview();
         _mediaMenuPresenter.Invalidate();
-        CloseThreadFind();
         // R10: an inline player holds a verified read handle of the file; it is closed before the deletion goes on.
         Task videos = ReleaseInlineVideos();
+        CloseThreadFind();
         _thread = null; _selectedThread = null;
         _assets = System.Array.Empty<MeowChan.Desktop.ArchiveAssetRow>();
         _showReader = false; _busy = false;
