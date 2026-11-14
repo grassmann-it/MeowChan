@@ -234,6 +234,13 @@ public sealed class ProfileLease : IDisposable
         _admission.RunWithToken(admission, () => RunExclusive(operation),
             ProfileAdmissionKind.Startup, ProfileAdmissionKind.Exclusive);
 
+    /// <summary>
+    /// Whether the OS lease is still held, read without the lease monitor. For a store with its own file and its own lock
+    /// whose reads must not queue behind every other store's writes (the folder source catalog); writes still use
+    /// <see cref="RunStoreWrite{T}"/>.
+    /// </summary>
+    internal bool IsHeld => System.Threading.Volatile.Read(ref _lockStream) != null;
+
     internal T RunExclusive<T>(Func<T> operation)
     {
         lock (_sync)

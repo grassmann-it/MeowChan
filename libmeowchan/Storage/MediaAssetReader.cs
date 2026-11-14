@@ -177,12 +177,23 @@ public static class MediaAssetReader
     /// Missing/corrupt manifests are explicit states; unsupported versions and IO failures throw.
     /// Unknown files, including pre-existing conflict files, are not assigned to any media identity.
     /// </summary>
-    public static Task<MediaAssetSnapshot> OpenAsync(string threadDirectory, CancellationToken cancellationToken = default)
+    public static Task<MediaAssetSnapshot> OpenAsync(string threadDirectory, CancellationToken cancellationToken = default) =>
+        Open(threadDirectory, preview: false, cancellationToken);
+
+    /// <summary>
+    /// <see cref="OpenAsync"/> for a preview (media tiles, the sound check): a folder source file whose bytes were not read yet is
+    /// missing here instead of being read in full to learn its identity, so scrolling past a folder of videos reads none of them.
+    /// Every other manifest reads exactly as with <see cref="OpenAsync"/>.
+    /// </summary>
+    internal static Task<MediaAssetSnapshot> OpenForPreviewAsync(string threadDirectory, CancellationToken cancellationToken = default) =>
+        Open(threadDirectory, preview: true, cancellationToken);
+
+    private static Task<MediaAssetSnapshot> Open(string threadDirectory, bool preview, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadDirectory);
         string directory = Path.GetFullPath(threadDirectory);
         // A folder source item has no manifest file: its catalog answers (and nothing is read from or written to a folder).
-        if (VirtualMediaManifests.TryOpen(directory, cancellationToken, out Task<MediaAssetSnapshot> virtualManifest)) return virtualManifest;
+        if (VirtualMediaManifests.TryOpen(directory, cancellationToken, out Task<MediaAssetSnapshot> virtualManifest, preview)) return virtualManifest;
         return MediaStore.ReadAssetSnapshotAsync(directory, cancellationToken);
     }
 }

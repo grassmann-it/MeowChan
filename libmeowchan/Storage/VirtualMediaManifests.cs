@@ -11,17 +11,22 @@ namespace MeowChan.Storage;
 /// (<see cref="FolderSources.FolderSourceManifests"/>). A provider owns every folder below its root; <see cref="MediaAssetReader.OpenAsync"/>
 /// asks it before reading anything from disk, so every view (thumbnails, gallery, export, revalidation) reads such a file
 /// through the ordinary verified path. Other folders are read as before. One registration per profile and process.
+/// A preview (<see cref="MediaAssetReader.OpenForPreviewAsync"/>: tiles, the sound check) asks the provider not to read a
+/// user's file just to learn its identity; it then answers only what it already knows (W3-02).
 /// </summary>
 internal static class VirtualMediaManifests
 {
-    private sealed record Provider(string Root, Func<string, CancellationToken, Task<MediaAssetSnapshot>> Open);
+    private sealed record Provider(string Root, Func<string, bool, CancellationToken, Task<MediaAssetSnapshot>> Open);
 
     private static ImmutableArray<Provider> s_providers = ImmutableArray<Provider>.Empty;
 
     private static StringComparison Comparison => OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
-    /// <summary>Answers every folder below <paramref name="root"/> with <paramref name="open"/> until the result is disposed.</summary>
-    internal static IDisposable Register(string root, Func<string, CancellationToken, Task<MediaAssetSnapshot>> open)
+    /// <summary>
+    /// Answers every folder below <paramref name="root"/> with <paramref name="open"/> until the result is disposed. Its second
+    /// argument is true for a preview, which must not read a file only to learn what it is.
+    /// </summary>
+    internal static IDisposable Register(string root, Func<string, bool, CancellationToken, Task<MediaAssetSnapshot>> open)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(root);
         ArgumentNullException.ThrowIfNull(open);
@@ -31,12 +36,13 @@ internal static class VirtualMediaManifests
     }
 
     /// <summary>True (with the provider's answer) when <paramref name="fullDirectory"/> lies below a registered root.</summary>
-    internal static bool TryOpen(string fullDirectory, CancellationToken cancellationToken, out Task<MediaAssetSnapshot> snapshot)
+    internal static bool TryOpen(string fullDirectory, CancellationToken cancellationToken, out Task<MediaAssetSnapshot> snapshot,
+        bool preview = false)
     {
         foreach (Provider provider in s_providers)
             if (fullDirectory.StartsWith(provider.Root + Path.DirectorySeparatorChar, Comparison))
             {
-                snapshot = provider.Open(fullDirectory, cancellationToken);
+                snapshot = provider.Open(fullDirectory, preview, cancellationToken);
                 return true;
             }
         snapshot = null!;
