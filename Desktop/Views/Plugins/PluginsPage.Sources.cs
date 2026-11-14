@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 
@@ -150,17 +151,19 @@ public partial class PluginsPage
     internal Task ExecuteSourcePluginActionAsync(Button action) => action.Tag is PluginActionInvocation invocation
         ? ExecutePluginActionAsync(invocation, action) : Task.CompletedTask;
 
-    internal void AppendSourcePluginActions(ContextMenu menu, string key, Control origin)
+    internal void AppendSourcePluginActions(ContextMenuBuilder menu, string key, Control origin)
     {
         if (_catalog?.Entries.FirstOrDefault(entry => entry.Key == key) is not { } entry) return;
         var target = PluginActionTarget.Capture(entry, _catalog.Profile.Revision);
-        menu.Items.Add(new Separator());
+        menu.Section();
         foreach (string id in new[] { "plugins.details", entry.Activation?.Enabled == true ? "plugins.disable" : "plugins.enable",
             "plugins.show-settings", "plugins.select-candidate", "plugins.rollback", "plugins.show-grants", "plugins.show-developer-tools" })
         {
             var invocation = CapturePluginActionInvocation(id, target);
-            menu.Items.Add(CommandBindings.CreateMenuItem(id, () => _ = ExecutePluginActionAsync(invocation, origin),
-                () => PluginActionUnavailableReason(invocation) == null, () => PluginActionUnavailableReason(invocation)));
+            bool CanExecute() => PluginActionUnavailableReason(invocation) == null;
+            menu.Command(id, () => _ = ExecutePluginActionAsync(invocation, origin),
+                CanExecute(), PluginActionUnavailableReason(invocation), availableWhen: CanExecute,
+                reasonWhen: () => PluginActionUnavailableReason(invocation));
         }
     }
 

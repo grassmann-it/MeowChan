@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -24,7 +25,7 @@ public partial class DiagnosticsPage
 
     private void InitializeContextMenu(DataGrid grid)
     {
-        grid.ContextMenu = new ContextMenu();
+        grid.ContextMenu = ContextMenuBuilder.Empty();
         grid.ContextMenu.Opening += (_, args) =>
         {
             // Pointer invocation has already frozen both clicked lead and batch
@@ -75,27 +76,25 @@ public partial class DiagnosticsPage
     private void BuildDiagnosticContextMenu(DataGrid grid, DiagnosticEntry? lead = null)
     {
         ContextMenu menu = grid.ContextMenu!;
-        menu.Items.Clear();
         DiagnosticEntry? frozen = lead ?? grid.SelectedItem as DiagnosticEntry;
-        if (frozen == null || _ended) { menu.Close(); return; }
+        if (frozen == null || _ended) { menu.Items.Clear(); menu.Close(); return; }
         string unavailable = Texts.T("menu.unavailable.target");
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.diagnostics"));
         void Add(string id, Action execute, bool available)
         {
-            var item = CommandBindings.CreateMenuItem(id, execute, () => !_ended && _available && available,
-                () => !_ended && _available && available ? null : unavailable);
-            menu.Items.Add(item);
+            bool CanExecute() => !_ended && _available && available;
+            builder.Command(id, execute, CanExecute(), CanExecute() ? null : unavailable,
+                availableWhen: CanExecute, reasonWhen: () => CanExecute() ? null : unavailable);
         }
         DiagnosticRetryTarget[] selection = DiagnosticRetryScope.Capture(SelectedDiagnostics());
         DiagnosticRetryTarget[] filtered = DiagnosticRetryScope.Capture(_visibleDiagnostics);
         void AddBatch(string id, DiagnosticRetryTarget[] scope)
         {
-            MenuItem item = CommandBindings.CreateMenuItem(id, () => _ = RetryFrozenScopeAsync(scope),
-                () => CanRetryScope(scope), () => Texts.T("diagnostics.retryScope"),
-                () => CommandCatalog.Label(id) + " (" + scope.Length + ")");
-            item.Tag = id;
-            menu.Items.Add(item);
+            bool CanExecute() => CanRetryScope(scope);
+            string? Reason() => CanExecute() ? null : Texts.T("diagnostics.retryScope");
+            builder.Command(id, () => _ = RetryFrozenScopeAsync(scope), CanExecute(), Reason(),
+                CommandCatalog.Label(id) + " (" + scope.Length + ")", availableWhen: CanExecute, reasonWhen: Reason);
         }
-        // A platform fact is information: it can be copied, never retried.
         if (frozen.Kind != DiagnosticKind.Information)
         {
             AddBatch("diagnostics.retry-selection", selection);
@@ -108,6 +107,7 @@ public partial class DiagnosticsPage
                 !_retryBusy && !IsRemoved(target) && IsCurrentDiagnostic(frozen) && _retry != null && _canRetry?.Invoke(target) == true);
             Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null && !IsRemoved(target));
         }
+        builder.Populate(menu);
     }
 
     private async Task CopyFrozenDiagnosticAsync(DiagnosticEntry frozen)

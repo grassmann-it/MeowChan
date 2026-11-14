@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Persistence;
@@ -58,17 +59,24 @@ public partial class ArchivePage
         ArgumentNullException.ThrowIfNull(row);
         ResourceId thread = _thread!.Summary.Id;
         string? link = PostMenuText.Link(thread, _thread.Summary.Url, row.Id);
-        ContextMenu menu = new();
-        menu.Items.Add(CreatePostCopyItem("post.copy-text", PostMenuText.Text(row), "post.copy.textDone"));
-        menu.Items.Add(CreatePostCopyItem("post.copy-number", PostMenuText.Number(row.Id), "post.copy.numberDone"));
-        if (link != null) menu.Items.Add(CreatePostCopyItem("post.copy-link", link, "post.copy.linkDone"));
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        Func<bool> CanCopy = () => !_ended;
+        builder.Command("post.copy-text", () => _ = CopyPostTextAsync(PostMenuText.Text(row), "post.copy.textDone"),
+            available: CanCopy(), availableWhen: CanCopy);
+        builder.Command("post.copy-number", () => _ = CopyPostTextAsync(PostMenuText.Number(row.Id), "post.copy.numberDone"),
+            available: CanCopy(), availableWhen: CanCopy);
+        if (link != null)
+            builder.Command("post.copy-link", () => _ = CopyPostTextAsync(link, "post.copy.linkDone"),
+                available: CanCopy(), availableWhen: CanCopy);
         if (EditPostBookmark != null)
         {
-            menu.Items.Add(new Separator());
-            menu.Items.Add(CreatePostBookmarkMenuItem(new PostBookmarkKey(thread, row.Id), origin));
+            Func<bool> CanEdit = () => !_ended && !IsFilenameSearchOpen && EditPostBookmark != null;
+            builder.Section().Command("post-bookmarks.edit-post",
+                () => _ = ExecutePostBookmarkAsync(new PostBookmarkKey(thread, row.Id), origin),
+                available: CanEdit(), availableWhen: CanEdit);
         }
-        AddPostFilterMenuItems(menu, row);
-        return menu;
+        AddPostFilterMenuItems(builder, row);
+        return builder.Build()!;
     }
 
     /// <summary>Test seam: receives the copied text instead of the clipboard.</summary>
@@ -90,12 +98,15 @@ public partial class ArchivePage
         { if (!_ended) Message(Texts.T("post.copy.failed"), true); }
     }
 
+    private async Task ExecutePostBookmarkAsync(PostBookmarkKey frozen, Control origin)
+    {
+        try { if (!IsFilenameSearchOpen && EditPostBookmark != null) await EditPostBookmark(frozen, origin); }
+        catch (Exception error) { if (!_ended) Message(Texts.T("bookmarks.failed", error.Message), true); }
+    }
+
     private MenuItem CreatePostBookmarkMenuItem(PostBookmarkKey frozen, Control origin)
-        => CommandBindings.CreateMenuItem("post-bookmarks.edit-post", async () =>
-        {
-            try { if (!IsFilenameSearchOpen && EditPostBookmark != null) await EditPostBookmark(frozen, origin); }
-            catch (Exception error) { if (!_ended) Message(Texts.T("bookmarks.failed", error.Message), true); }
-        }, () => !_ended && !IsFilenameSearchOpen && EditPostBookmark != null);
+        => CommandBindings.CreateMenuItem("post-bookmarks.edit-post", () => _ = ExecutePostBookmarkAsync(frozen, origin),
+            () => !_ended && !IsFilenameSearchOpen && EditPostBookmark != null);
 
     /// <summary>Reads one local immutable view and refuses any missing-post fallback.</summary>
     internal async Task<bool> OpenPostBookmarkAsync(PostBookmarkKey key, Action beforeShow,

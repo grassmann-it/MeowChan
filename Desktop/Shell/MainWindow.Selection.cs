@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -36,17 +37,22 @@ public partial class MainWindow
         _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
         && (_appliedThreadSearchReconciliation?.Includes(row) ?? false);
 
-    private void AddUserPriorityMenus(ContextMenu menu, bool ready)
+    private void AddUserPriorityMenus(ContextMenuBuilder menu, bool ready)
     {
-        foreach (MenuItem item in CreateUserPriorityMenuItems(SelectedThreads(), ready,
-            () => !RowCommandBusy && !_selectionCommandRunning && !_sessionRowsApplying
-                && _restoreCompleted && UserPriorityAvailable(),
-            IsCurrentUserPriorityRow, (rows, high) => ApplyFrozenUserPriority(rows, high)))
+        ThreadRow[] frozen = SelectedThreads().Where(IsCurrentUserPriorityRow).DistinctBy(row => row.WatchId).ToArray();
+        bool CanExecute() => ready && !RowCommandBusy && !_selectionCommandRunning && _restoreCompleted && UserPriorityAvailable();
+        foreach (bool high in new[] { true, false })
         {
-            // Reuse the shared glyphs without registering navigation actions.
-            item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh")
-                ? "reader.previous-post" : "reader.next-post");
-            menu.Items.Add(item);
+            ThreadRow[] affected = frozen.Where(row => row.IsHighPriority != high).ToArray();
+            if (affected.Length == 0) continue;
+            string key = high ? "priority.menuHigh" : "priority.menuNormal";
+            string label = Texts.T(key, affected.Length);
+            menu.Item(key, label, () =>
+            {
+                if (!UserPriorityAvailable()) return;
+                ThreadRow[] targets = affected.Where(row => IsUserPriorityTarget(row, high, IsCurrentUserPriorityRow)).ToArray();
+                if (targets.Length > 0) ApplyFrozenUserPriority(targets, high);
+            }, available: CanExecute(), availableWhen: CanExecute);
         }
     }
 

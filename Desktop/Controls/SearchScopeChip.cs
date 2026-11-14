@@ -152,31 +152,28 @@ public sealed class SearchScopeChip : Button
     public void ShowMenu()
     {
         if (!IsEffectivelyEnabled) return;
-        ContextMenu menu = new() { Placement = PlacementMode.BottomEdgeAlignedLeft };
-        MenuItem? current = null;
+        ContextMenuBuilder builder = new ContextMenuBuilder();
         foreach (SearchScope scope in _scopes.Length > 1 ? _scopes : Array.Empty<SearchScope>())
         {
             SearchScope frozen = scope;
-            MenuItem item = new()
-            {
-                Header = Label(scope),
-                ToggleType = MenuItemToggleType.Radio,
-                GroupName = "search-scope",
-                IsChecked = scope == _scope,
-                Tag = scope,
-            };
-            AutomationProperties.SetName(item, Label(scope));
-            item.Click += (_, _) => { Scope = frozen; Dispatcher.UIThread.Post(() => Owner?.Focus(NavigationMethod.Tab)); };
-            menu.Items.Add(item);
-            if (scope == _scope) current = item;
+            builder.Radio("search-scope", "search.scope." + scope, Label(scope), scope == _scope,
+                () => { Scope = frozen; Dispatcher.UIThread.Post(() => Owner?.Focus(NavigationMethod.Tab)); });
         }
         SearchCarryAction[] carry = CarryActions?.Invoke().ToArray() ?? Array.Empty<SearchCarryAction>();
-        if (carry.Length > 0 && menu.Items.Count > 0) menu.Items.Add(new Separator());
-        if (menu.Items.Count == 0 && carry.Length == 0) return; // one scope and nowhere to carry: nothing to choose
-        foreach (SearchCarryAction action in carry)
+        if (carry.Length > 0 && _scopes.Length > 1) builder.Section();
+        if (builder.ToModel().IsEmpty && carry.Length == 0) return; // one scope and nowhere to carry: nothing to choose
+        for (int index = 0; index < carry.Length; index++)
         {
-            SearchCarryAction frozen = action;
-            MenuItem item = new() { Header = action.Label, IsEnabled = action.IsEnabled, Name = action.Name };
+            SearchCarryAction frozen = carry[index];
+            builder.Item("search.carry." + index, frozen.Label, frozen.Execute, frozen.IsEnabled, frozen.Reason);
+        }
+        ContextMenu menu = builder.Build()!;
+        menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
+        foreach (int index in Enumerable.Range(0, carry.Length))
+        {
+            SearchCarryAction action = carry[index];
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "search.carry." + index)) is not { } item) continue;
+            item.Name = action.Name;
             AutomationProperties.SetName(item, action.Label);
             if (!string.IsNullOrEmpty(action.Reason))
             {
@@ -184,9 +181,8 @@ public sealed class SearchScopeChip : Button
                 ToolTip.SetShowOnDisabled(item, true);
                 AutomationProperties.SetHelpText(item, action.Reason);
             }
-            item.Click += (_, _) => frozen.Execute();
-            menu.Items.Add(item);
         }
+        MenuItem? current = menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "search.scope." + _scope));
         menu.Closed += (_, _) => { if (ReferenceEquals(OpenMenu, menu)) OpenMenu = null; };
         ContextMenu = menu;
         OpenMenu = menu;

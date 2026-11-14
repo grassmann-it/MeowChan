@@ -13,6 +13,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Serilog;
 
@@ -157,22 +158,24 @@ public partial class ArchivePage
 
     internal ContextMenu BuildReaderViewMenu()
     {
-        ContextMenu menu = new();
+        // Reader settings keeps its marked empty slot after the view options; it is installed by the settings handoff.
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("reader.view.menu"));
         foreach (ReaderViewOption option in OrderedViewOptions())
         {
             ReaderViewOption frozen = option;
-            MenuItem item = CommandBindings.CreateMenuItem(frozen.CommandId, () => { if (!_ended) frozen.Toggle(); },
-                () => !_ended && !IsFilenameSearchOpen && (frozen.IsEnabled?.Invoke() ?? true), frozen.Note);
-            item.Tag = frozen.CommandId;
-            if (frozen.IsChecked != null)
-            {
-                item.ToggleType = MenuItemToggleType.CheckBox;
-                item.IsChecked = frozen.IsChecked();
-            }
-            menu.Items.Add(item);
+            bool CanExecute() => !_ended && !IsFilenameSearchOpen && (frozen.IsEnabled?.Invoke() ?? true);
+            string? Reason() => CanExecute() ? null : frozen.Note?.Invoke();
+            builder.Command(frozen.CommandId, () => { if (!_ended) frozen.Toggle(); }, CanExecute(), Reason(),
+                availableWhen: CanExecute, reasonWhen: Reason);
         }
-        // Slot for the reader settings (R7 adds its separator and "Reader settings…" entry here, after the view options).
-        // The media rules and the other downloader-side thread actions are in the "Thread" menu (ArchivePage.ThreadMenu.cs).
+        ContextMenu menu = builder.Build()!;
+        foreach (ReaderViewOption option in OrderedViewOptions())
+        {
+            if (option.IsChecked == null) continue;
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, option.CommandId)) is not { } item) continue;
+            item.ToggleType = MenuItemToggleType.CheckBox;
+            item.IsChecked = option.IsChecked();
+        }
         return menu;
     }
 

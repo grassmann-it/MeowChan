@@ -12,9 +12,11 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
+using MeowChan.PluginSdk;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -280,32 +282,59 @@ public partial class PluginsPage
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
         var target = PluginActionTarget.Capture(entry, _catalog.Profile.Revision);
-        var menu = new ContextMenu();
         var reasons = new List<string>();
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("plugins.actions"));
         if (!details) Add("plugins.details");
         Add(entry.Activation?.Enabled == true ? "plugins.disable" : "plugins.enable");
-        menu.Items.Add(new Separator());
+        builder.Section();
         if (HasPluginSettings(entry)) Add("plugins.show-settings");
-        if (PluginEntryPresentation.Create(entry).Sources.Count > 0) AddWatches(menu, target, origin, reasons);
         PluginEntryPresentation view = PluginEntryPresentation.Create(entry);
+        IReadOnlyList<SourceDescription> sources = view.Sources;
+        if (sources.Count > 0) Add("plugins.watches");
         if (view.CandidateChoiceRequired || details)
-        { menu.Items.Add(new Separator()); if (view.CandidateChoiceRequired) Add("plugins.select-candidate"); }
+        {
+            builder.Section();
+            if (view.CandidateChoiceRequired) Add("plugins.select-candidate");
+        }
         if (details)
         {
             Add("plugins.rollback");
-            menu.Items.Add(new Separator());
+            builder.Section();
             if (view.Filters.Count > 0) Add("plugins.show-grants");
             Add("plugins.show-developer-tools");
         }
+        ContextMenu menu = builder.Build()!;
+        if (sources.Count > 1 && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "plugins.watches")) is { } watches)
+        {
+            watches.Command = null;
+            foreach (SourceDescription source in sources)
+            {
+                PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
+                watches.Items.Add(CreatePluginSourceMenuItem(action, origin, source.Name + " · " + source.SourceId));
+            }
+        }
+        if (sources.Count > 0 && PluginActionUnavailableReason(CapturePluginActionInvocation("plugins.watches", target)) is { } watchesWhy)
+            reasons.Add(CommandCatalog.Label("plugins.watches") + ": " + watchesWhy);
         if (_drafts.Values.Any(draft => draft.Dirty)) AddPluginMenuInformation(menu, Texts.T("plugins.actionsDirtyHint"));
         AddPluginMenuReasons(menu, reasons);
         OpenPreparedPluginMenu(menu, target, origin, anchor);
 
         void Add(string id)
         {
-            var action = CapturePluginActionInvocation(id, target);
-            menu.Items.Add(CreatePluginActionMenuItem(action, origin));
-            if (PluginActionUnavailableReason(action) is { } why) reasons.Add(CommandCatalog.Label(id) + ": " + why);
+            PluginActionInvocation action = CapturePluginActionInvocation(id, target);
+            bool CanExecute() => PluginActionUnavailableReason(action) == null;
+            string? Reason() => PluginActionUnavailableReason(action);
+            bool available = CanExecute();
+            string? why = Reason();
+            string label = CommandCatalog.Label(id);
+            if (id is "plugins.select-candidate" or "plugins.rollback")
+            {
+                string? version = id == "plugins.select-candidate" ? entry.Candidate?.Description?.PluginVersion : entry.Activation?.LastGood?.Description.PluginVersion;
+                if (!string.IsNullOrEmpty(version)) label += " · " + version;
+            }
+            builder.Command(id, () => _ = ExecutePluginActionAsync(action, origin), available, why, label,
+                availableWhen: CanExecute, reasonWhen: Reason);
+            if (why != null) reasons.Add(label + ": " + why);
         }
     }
 
@@ -361,12 +390,19 @@ public partial class PluginsPage
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
         ClosePluginActionMenu();
-        var menu = new ContextMenu();
-        foreach (var source in PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources)
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        int index = 0;
+        foreach (SourceDescription source in PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources)
         {
-            MenuItem item = CreatePluginSourceMenuItem(CapturePluginActionInvocation("plugins.watches", target, source.SourceId), origin, source.Name + " · " + source.SourceId);
-            menu.Items.Add(item);
+            PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
+            bool CanExecute() => PluginActionUnavailableReason(action) == null;
+            builder.Item("plugins.watches." + index++, source.Name + " · " + source.SourceId,
+                () => _ = ExecutePluginActionAsync(action, origin),
+                available: CanExecute(), reason: PluginActionUnavailableReason(action), availableWhen: CanExecute,
+                reasonWhen: () => PluginActionUnavailableReason(action));
         }
+        ContextMenu menu = builder.Build()!;
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>()) item.Icon = CommandBindings.Icon("plugins.watches");
         OpenPreparedPluginMenu(menu, target, origin);
     }
 

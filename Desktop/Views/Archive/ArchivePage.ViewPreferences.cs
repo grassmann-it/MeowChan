@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -182,37 +183,25 @@ public partial class ArchivePage
     /// </summary>
     private ContextMenu BuildArchiveColumnsMenu(DataGrid grid, string? target)
     {
-        ContextMenu menu = new();
+        ContextMenuBuilder builder = new ContextMenuBuilder();
         string[] keys = ColumnKeys(grid);
         if (target != null)
-        {
-            MenuItem fit = new() { Header = Texts.T("archive.columnsFit"), IsEnabled = CanFitArchiveColumn(grid, target) };
-            fit.Click += async (_, _) => await FitArchiveColumnsAsync(grid, target);
-            menu.Items.Add(fit);
-        }
-        MenuItem fitAll = new() { Header = Texts.T("archive.columnsFitAll") };
-        fitAll.Click += async (_, _) => await FitArchiveColumnsAsync(grid, null);
-        menu.Items.Add(fitAll);
-        menu.Items.Add(new Separator());
+            builder.Item("archive.columnsFit", Texts.T("archive.columnsFit"),
+                () => _ = FitArchiveColumnsAsync(grid, target), available: CanFitArchiveColumn(grid, target));
+        builder.Item("archive.columnsFitAll", Texts.T("archive.columnsFitAll"),
+            () => _ = FitArchiveColumnsAsync(grid, null));
+        builder.Section();
         foreach (string key in keys)
         {
-            MenuItem item = new()
-            {
-                Header = Texts.T("archive.columns." + key),
-                ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = ColumnVisible(grid, key),
-                IsEnabled = !(key == "name" ||
-                    (key is "identity" or "title" &&
-                     !ColumnVisible(grid, key == "identity" ? "title" : "identity")))
-            };
-            item.Click += async (_, _) => await ToggleArchiveColumnAsync(grid, key, !ColumnVisible(grid, key));
-            menu.Items.Add(item);
+            bool visible = ColumnVisible(grid, key);
+            bool available = !(key == "name" || (key is "identity" or "title"
+                && !ColumnVisible(grid, key == "identity" ? "title" : "identity")));
+            builder.Check("archive.column." + key, Texts.T("archive.columns." + key), visible,
+                () => _ = ToggleArchiveColumnAsync(grid, key, !visible), available: available);
         }
-        menu.Items.Add(new Separator());
-        MenuItem reset = new() { Header = Texts.T("archive.columnsReset") };
-        reset.Click += async (_, _) => await ResetArchiveColumnsAsync(grid);
-        menu.Items.Add(reset);
-        return menu;
+        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
+            () => _ = ResetArchiveColumnsAsync(grid));
+        return builder.Build()!;
     }
 
     private async Task ToggleArchiveColumnAsync(DataGrid grid, string key, bool visible)

@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -164,7 +165,7 @@ public partial class MainWindow
             items => { _readingHistoryMenu.Items.Clear(); foreach (Control item in items) _readingHistoryMenu.Items.Add(item); },
             () => _readingHistoryMenu.IsSubMenuOpen);
         WorkspaceMenuItem.Items.Insert(WorkspaceMenuItem.Items.IndexOf(_resumeReadingMenu!) + 1, _readingHistoryMenu);
-        _readingHistoryContext = new ContextMenu();
+        _readingHistoryContext = ContextMenuBuilder.Empty();
         _readingHistoryContext.Opening += (_, e) =>
         {
             if (!CanResumeReading) { e.Cancel = true; return; }

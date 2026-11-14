@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Serilog;
 
@@ -135,13 +136,17 @@ public partial class MainWindow
 
     private void BuildTaglineMenu()
     {
-        _taglineAnotherItem = new MenuItem();
-        _taglineAnotherItem.Click += OnTaglineAnotherClick;
-        _taglineHideItem = new MenuItem();
-        _taglineHideItem.Click += OnTaglineHideClick;
-        _taglineSettingsItem = new MenuItem();
-        _taglineSettingsItem.Click += (_, _) => NavigateWorkspace(WorkspacePage.Settings);
-        WorkspaceSubtitle.ContextMenu = new ContextMenu { ItemsSource = new Control[] { _taglineAnotherItem, _taglineHideItem, new Separator(), _taglineSettingsItem } };
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        builder.Item("tagline.another", Texts.T("shell.tagline.menuAnother"),
+            () => OnTaglineAnotherClick(null, new RoutedEventArgs()), available: _taglinePool.Count > 1);
+        builder.Item("tagline.hide", Texts.T("shell.tagline.menuHide"), () => OnTaglineHideClick(null, new RoutedEventArgs()));
+        builder.Section().Item("tagline.settings", CommandCatalog.Label("navigation.settings"),
+            () => NavigateWorkspace(WorkspacePage.Settings));
+        ContextMenu menu = builder.Build()!;
+        _taglineAnotherItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.another"));
+        _taglineHideItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.hide"));
+        _taglineSettingsItem = menu.Items.OfType<MenuItem>().First(item => Equals(item.Tag, "tagline.settings"));
+        WorkspaceSubtitle.ContextMenu = menu;
         LocalizeTaglineMenu();
     }
 

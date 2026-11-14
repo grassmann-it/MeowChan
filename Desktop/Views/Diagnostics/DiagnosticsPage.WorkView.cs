@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -18,7 +19,7 @@ public partial class DiagnosticsPage
     // Until a window applies a view the page shows everything (Advanced), so a page used on its own is complete.
     private WorkView _workView = WorkView.Advanced;
     private bool _workViewApplied;
-    private readonly ContextMenu _moreMenu = new();
+    private readonly ContextMenu _moreMenu = ContextMenuBuilder.Empty();
 
     private Expander FiltersSection => this.FindControl<Expander>("DiagnosticFiltersSection")!;
     private Button MoreButton => this.FindControl<Button>("DiagnosticMoreButton")!;

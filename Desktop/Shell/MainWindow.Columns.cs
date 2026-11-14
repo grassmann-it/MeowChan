@@ -7,6 +7,7 @@ using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using Serilog;
@@ -55,33 +56,29 @@ public partial class MainWindow
     {
         DataGrid grid = WorkspaceControl<DataGrid>(gridName);
         string mode = _config.WorkspaceMode;
-        ContextMenu menu = new();
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        List<(string Key, string? Help)> help = new();
         foreach (DataGridColumn column in grid.Columns)
         {
             if (!WorkViewPolicy.ColumnOffered(WorkViewPolicy.DownloadColumnId(gridName, column.SortMemberPath), ConfiguredWorkView)) continue;
             string key = gridName + "." + column.SortMemberPath;
-            MenuItem item = new()
-            {
-                Header = column.Header,
-                ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = column.IsVisible,
-                IsEnabled = !column.IsVisible || CanHideDownloadColumn(gridName, column.SortMemberPath,
-                    grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray())
-            };
-            if (IsAdvancedWorkColumn(column))
-            {
-                string help = Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint");
-                ToolTip.SetTip(item, help);
-                Avalonia.Automation.AutomationProperties.SetHelpText(item, help);
-            }
             bool visible = column.IsVisible;
-            item.Click += async (_, _) => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode);
-            menu.Items.Add(item);
+            bool available = !visible || CanHideDownloadColumn(gridName, column.SortMemberPath,
+                grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray());
+            builder.Check(key, column.Header?.ToString() ?? key, visible,
+                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode), available: available);
+            if (IsAdvancedWorkColumn(column))
+                help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
-        menu.Items.Add(new Separator());
-        MenuItem reset = new() { Header = Texts.T("archive.columnsReset") };
-        reset.Click += async (_, _) => await ResetDownloadColumnsAsync(gridName, mode);
-        menu.Items.Add(reset);
+        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
+            () => _ = ResetDownloadColumnsAsync(gridName, mode));
+        ContextMenu menu = builder.Build()!;
+        foreach ((string key, string? text) in help)
+        {
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, key)) is not { } item || text == null) continue;
+            ToolTip.SetTip(item, text);
+            Avalonia.Automation.AutomationProperties.SetHelpText(item, text);
+        }
         return menu;
     }
 
