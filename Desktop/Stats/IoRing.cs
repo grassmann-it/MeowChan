@@ -5,19 +5,13 @@ namespace MeowChan.Desktop.Stats;
 /// <summary>One sampling interval: rates in bytes per second (requests per second for <see cref="Requests"/>).</summary>
 internal readonly record struct IoSample(float NetDown, float NetUp, float DiskWrite, float DiskRead, float Requests)
 {
-    internal IoSample(float NetDown, float DiskWrite, float DiskRead, float Requests)
-        : this(NetDown, 0, DiskWrite, DiskRead, Requests) { }
-
     internal bool IsZero => NetDown == 0 && NetUp == 0 && DiskWrite == 0 && DiskRead == 0 && Requests == 0;
 }
 
 /// <summary>An oldest-first copy of the ring; every row has <see cref="Count"/> values.</summary>
 internal sealed class IoSeries
 {
-    internal static readonly IoSeries Empty = new(0, 0, [], [], [], [], []);
-
-    internal IoSeries(int capacity, int count, float[] netDown, float[] diskWrite, float[] diskRead, float[] requests)
-        : this(capacity, count, netDown, new float[count], diskWrite, diskRead, requests) { }
+    internal static readonly IoSeries Empty = new IoSeries(Capacity: 0, Count: 0, NetDown: [], NetUp: [], DiskWrite: [], DiskRead: [], Requests: []);
 
     internal IoSeries(int capacity, int count, float[] netDown, float[] netUp, float[] diskWrite, float[] diskRead, float[] requests)
     {
@@ -99,6 +93,6 @@ internal sealed class IoRing
             if (firstPart < _count) Array.Copy(from, 0, to, firstPart, _count - firstPart);
         }
         Copy(_down, down); Copy(_up, up); Copy(_write, write); Copy(_read, read); Copy(_requests, requests);
-        return new IoSeries(Capacity, _count, down, up, write, read, requests);
+        return new IoSeries(Capacity: Capacity, Count: _count, NetDown: down, NetUp: up, DiskWrite: write, DiskRead: read, Requests: requests);
     }
 }

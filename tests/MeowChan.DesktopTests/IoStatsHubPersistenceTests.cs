@@ -132,8 +132,8 @@ public sealed class IoStatsHubPersistenceTests
         using ProfileLease lease = ProfileLease.Acquire(dir.Path);
         IoStatsStore store = new(dir.Path, lease);
         IoDays saved = new();
-        saved.Add(new DateOnly(2026, 11, 12), "a", new IoCounts(1000, 0, 0, 0, 0), 64);
-        saved.Add(new DateOnly(2026, 11, 13), "a", new IoCounts(500, 0, 0, 0, 0), 64);
+        saved.Add(new DateOnly(2026, 11, 12), "a", new IoCounts(NetDown: 1000, NetUp: 0, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), 64);
+        saved.Add(new DateOnly(2026, 11, 13), "a", new IoCounts(NetDown: 500, NetUp: 0, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), 64);
         Assert.True(store.TrySave(IoStatsStore.Serialize(saved, new DateOnly(2026, 11, 13), 30), out _));
 
         IoManualClock clock = new(Noon);
@@ -218,9 +218,9 @@ public sealed class IoStatsHubPersistenceTests
         IoStatsStore store = new(dir.Path, lease);
         IoDays saved = new();
         Dictionary<string, IoCounts> many = new();
-        for (int i = 0; i < 20; i++) many["s" + i.ToString("00")] = new IoCounts(100 + i, 0, 0, 0, 0);
+        for (int i = 0; i < 20; i++) many["s" + i.ToString("00")] = new IoCounts(NetDown: 100 + i, NetUp: 0, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0);
         saved.Merge(new DateOnly(2026, 11, 13), many, 64);
-        saved.Add(new DateOnly(2026, 11, 1), "old", new IoCounts(9, 0, 0, 0, 0), 64);
+        saved.Add(new DateOnly(2026, 11, 1), "old", new IoCounts(NetDown: 9, NetUp: 0, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), 64);
         Assert.True(store.TrySave(IoStatsStore.Serialize(saved, new DateOnly(2026, 11, 13), 30), out _));
 
         IoManualClock clock = new(Noon);

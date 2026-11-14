@@ -12,7 +12,7 @@ public sealed class IoStatsStoreTests
     {
         IoDays days = new();
         foreach ((string day, string key, long net) in entries)
-            days.Add(DateOnly.ParseExact(day, "yyyy-MM-dd"), key, new IoCounts(net, net + 1, net + 2, net + 3, net + 4), 64);
+            days.Add(DateOnly.ParseExact(day, "yyyy-MM-dd"), key, new IoCounts(NetDown: net, NetUp: 0, DiskWritten: net + 1, DiskRead: net + 2, Requests: net + 3, Errors: net + 4), 64);
         return days;
     }
 
@@ -34,8 +34,8 @@ public sealed class IoStatsStoreTests
         Assert.Null(loaded.Notice);
         Assert.Equal(2, loaded.Days.Count);
         Assert.True(loaded.Days.TryGet(new DateOnly(2026, 11, 12), out Dictionary<string, IoCounts>? first));
-        Assert.Equal(new IoCounts(100, 101, 102, 103, 104), first!["4chan"]);
-        Assert.Equal(new IoCounts(50, 51, 52, 53, 54), first["danbooru"]);
+        Assert.Equal(new IoCounts(NetDown: 100, NetUp: 0, DiskWritten: 101, DiskRead: 102, Requests: 103, Errors: 104), first!["4chan"]);
+        Assert.Equal(new IoCounts(NetDown: 50, NetUp: 0, DiskWritten: 51, DiskRead: 52, Requests: 53, Errors: 54), first["danbooru"]);
         Assert.True(loaded.Days.TryGet(Today, out Dictionary<string, IoCounts>? second));
         Assert.Equal(10, second!["4chan"].NetDown);
         Assert.Equal("""{"version":1,"days":[{"day":"2026-11-13","sources":{"4chan":{"down":10,"diskWrite":11,"diskRead":12,"requests":13,"errors":14}}}]}""",
@@ -257,7 +257,7 @@ public sealed class IoStatsStoreTests
         IoDays days = new();
         for (int d = 0; d < 365; d++)
             for (int s = 0; s < 256; s++)
-                days.Add(Today.AddDays(-d), "source-with-a-rather-long-name-" + s, new IoCounts(long.MaxValue / 2, 1_000_000_000_000, 1_000_000_000, 999_999, 12), 256);
+                days.Add(Today.AddDays(-d), "source-with-a-rather-long-name-" + s, new IoCounts(NetDown: long.MaxValue / 2, NetUp: 0, DiskWritten: 1_000_000_000_000, DiskRead: 1_000_000_000, Requests: 999_999, Errors: 12), 256);
         string json = IoStatsStore.Serialize(days, Today, 365);
         Assert.True(Encoding.UTF8.GetByteCount(json) <= IoStatsStore.MaximumFileBytes);
         Assert.True(store.TrySave(json, out _));

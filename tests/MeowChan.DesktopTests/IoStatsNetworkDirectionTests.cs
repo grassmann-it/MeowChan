@@ -1,5 +1,7 @@
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using MeowChan.Desktop.Stats;
 using MeowChan.Persistence;
 
@@ -31,19 +33,19 @@ public sealed class IoStatsNetworkDirectionTests
         IoStatsSnapshot snapshot = hub.Snapshot();
         IoSourceStats a = Assert.Single(snapshot.Sources, row => row.Key == "a");
         IoSourceStats b = Assert.Single(snapshot.Sources, row => row.Key == "b");
-        Assert.Equal(new IoCounts(1200, 42, 80, 14, 6, 1), a.Session);
-        Assert.Equal(new IoCounts(100, 600, 8, 4, 2, 2), b.Session);
+        Assert.Equal(new IoCounts(NetDown: 1200, NetUp: 42, DiskWritten: 80, DiskRead: 14, Requests: 6, Errors: 1), a.Session);
+        Assert.Equal(new IoCounts(NetDown: 100, NetUp: 600, DiskWritten: 8, DiskRead: 4, Requests: 2, Errors: 2), b.Session);
         Assert.Equal(a.Session, a.Today);
         Assert.Equal(a.Today, a.Retained);
         Assert.Equal(b.Session, b.Today);
         Assert.Equal(b.Today, b.Retained);
-        Assert.Equal(new IoRates(600, 21, 40, 7, 3), a.Rate);
-        Assert.Equal(new IoRates(50, 300, 4, 2, 1), b.Rate);
-        IoCounts total = new(1300, 642, 88, 18, 8, 3);
+        Assert.Equal(new IoRates(NetDown: 600, NetUp: 21, DiskWrite: 40, DiskRead: 7, Requests: 3), a.Rate);
+        Assert.Equal(new IoRates(NetDown: 50, NetUp: 300, DiskWrite: 4, DiskRead: 2, Requests: 1), b.Rate);
+        IoCounts total = new IoCounts(NetDown: 1300, NetUp: 642, DiskWritten: 88, DiskRead: 18, Requests: 8, Errors: 3);
         Assert.Equal(total, snapshot.Total.Session);
         Assert.Equal(total, snapshot.Total.Today);
         Assert.Equal(total, snapshot.Total.Retained);
-        Assert.Equal(new IoRates(650, 321, 44, 9, 4), snapshot.Rate);
+        Assert.Equal(new IoRates(NetDown: 650, NetUp: 321, DiskWrite: 44, DiskRead: 9, Requests: 4), snapshot.Rate);
         Assert.Equal(snapshot.Rate, snapshot.Total.Rate);
         Assert.Equal([650f], snapshot.Series.NetDown);
         Assert.Equal([321f], snapshot.Series.NetUp);
@@ -72,8 +74,8 @@ public sealed class IoStatsNetworkDirectionTests
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot snapshot = hub.Snapshot();
         Assert.Equal(before + 1, raised);
-        Assert.Equal(new IoCounts(0, 38, 0, 0, 0, 0), snapshot.Total.Session);
-        Assert.Equal(new IoRates(0, 19, 0, 0, 0), snapshot.Rate);
+        Assert.Equal(new IoCounts(NetDown: 0, NetUp: 38, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), snapshot.Total.Session);
+        Assert.Equal(new IoRates(NetDown: 0, NetUp: 19, DiskWrite: 0, DiskRead: 0, Requests: 0), snapshot.Rate);
         Assert.Equal(19f, snapshot.Series.NetUp[^1]);
         Assert.All(snapshot.Series.NetDown, v => Assert.Equal(0f, v));
         Assert.All(snapshot.Series.DiskWrite, v => Assert.Equal(0f, v));
@@ -92,15 +94,15 @@ public sealed class IoStatsNetworkDirectionTests
         source.Set("a", net: 1100, netUp: 2, diskWritten: 100, diskRead: 26, requests: 6, errors: 2);
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot reset = hub.Snapshot();
-        Assert.Equal(new IoRates(50, 0, 10, 3, 1), reset.Rate);
-        Assert.Equal(new IoCounts(1100, 300, 100, 26, 6, 2), reset.Total.Session);
+        Assert.Equal(new IoRates(NetDown: 50, NetUp: 0, DiskWrite: 10, DiskRead: 3, Requests: 1), reset.Rate);
+        Assert.Equal(new IoCounts(NetDown: 1100, NetUp: 300, DiskWritten: 100, DiskRead: 26, Requests: 6, Errors: 2), reset.Total.Session);
         source.Add("a", net: 20, netUp: 8, diskWritten: 4, diskRead: 2, requests: 2);
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot next = hub.Snapshot();
-        Assert.Equal(new IoCounts(1120, 308, 104, 28, 8, 2), next.Total.Session);
+        Assert.Equal(new IoCounts(NetDown: 1120, NetUp: 308, DiskWritten: 104, DiskRead: 28, Requests: 8, Errors: 2), next.Total.Session);
         Assert.Equal(next.Total.Session, next.Total.Today);
         Assert.Equal(next.Total.Today, next.Total.Retained);
-        Assert.Equal(new IoRates(10, 4, 2, 1, 1), next.Rate);
+        Assert.Equal(new IoRates(NetDown: 10, NetUp: 4, DiskWrite: 2, DiskRead: 1, Requests: 1), next.Rate);
         Assert.Equal([150f, 0f, 4f], next.Series.NetUp);
         Assert.Equal([500f, 50f, 10f], next.Series.NetDown);
     }
@@ -112,12 +114,12 @@ public sealed class IoStatsNetworkDirectionTests
         DuplicateSource source = new();
         using IoStatsHub hub = new(source, clock, Options);
         using IoStatsSubscription window = hub.Subscribe(IoStatsVisibility.Window);
-        source.Readings.Add(new IoCounterReading("a", 30, 2, 4, 8, 1, 0));
-        source.Readings.Add(new IoCounterReading("a", 10, 18, 6, 2, 3, 1));
+        source.Readings.Add(new IoCounterReading(Key: "a", NetDown: 30, NetUp: 2, DiskWritten: 4, DiskRead: 8, Requests: 1, Errors: 0));
+        source.Readings.Add(new IoCounterReading(Key: "a", NetDown: 10, NetUp: 18, DiskWritten: 6, DiskRead: 2, Requests: 3, Errors: 1));
         clock.Advance(TimeSpan.FromSeconds(2));
         IoStatsSnapshot snapshot = hub.Snapshot();
-        Assert.Equal(new IoCounts(40, 20, 10, 10, 4, 1), Assert.Single(snapshot.Sources).Session);
-        Assert.Equal(new IoRates(20, 10, 5, 5, 2), snapshot.Rate);
+        Assert.Equal(new IoCounts(NetDown: 40, NetUp: 20, DiskWritten: 10, DiskRead: 10, Requests: 4, Errors: 1), Assert.Single(snapshot.Sources).Session);
+        Assert.Equal(new IoRates(NetDown: 20, NetUp: 10, DiskWrite: 5, DiskRead: 5, Requests: 2), snapshot.Rate);
     }
 
     private sealed class DuplicateSource : IIoCounterSource
@@ -142,14 +144,14 @@ public sealed class IoStatsNetworkDirectionTests
             IoStatsSnapshot snapshot = hub.Snapshot();
             Assert.Equal(8, snapshot.Sources.Count);
             IoSourceStats other = Assert.Single(snapshot.Sources, row => row.Key == IoStatsKeys.Other);
-            IoCounts expected = new(780, 11922, 78, 156, 0, 0);
+            IoCounts expected = new IoCounts(NetDown: 780, NetUp: 11922, DiskWritten: 78, DiskRead: 156, Requests: 0, Errors: 0);
             Assert.Equal(expected, snapshot.Total.Session);
             Assert.Equal(expected, snapshot.Total.Today);
             Assert.Equal(expected, snapshot.Total.Retained);
             Assert.Equal(780, snapshot.Sources.Sum(row => row.Session.NetDown));
             Assert.Equal(11922, snapshot.Sources.Sum(row => row.Session.NetUp));
             Assert.Equal(5961d, snapshot.Sources.Sum(row => row.Rate.NetUp));
-            Assert.Equal(new IoRates(390, 5961, 39, 78, 0), snapshot.Rate);
+            Assert.Equal(new IoRates(NetDown: 390, NetUp: 5961, DiskWrite: 39, DiskRead: 78, Requests: 0), snapshot.Rate);
             Assert.Equal(snapshot.Sources.Where(row => row.Key != IoStatsKeys.Other).Sum(row => row.Session.NetUp) + other.Session.NetUp,
                 snapshot.Total.Session.NetUp);
             Assert.True(other.Session.NetUp > 0);
@@ -183,7 +185,7 @@ public sealed class IoStatsNetworkDirectionTests
         ring.Clear();
         Assert.Equal(0, ring.ToSeries().Count);
         Assert.Empty(ring.ToSeries().NetUp);
-        ring.Add(new IoSample(0, 9, 0, 0, 0));
+        ring.Add(new IoSample(NetDown: 0, NetUp: 9, DiskWrite: 0, DiskRead: 0, Requests: 0));
         Assert.Equal([9f], ring.ToSeries().NetUp);
         Assert.Equal([0f], ring.ToSeries().NetDown);
         Assert.Equal([0f], ring.ToSeries().DiskWrite);
@@ -220,7 +222,7 @@ public sealed class IoStatsNetworkDirectionTests
         Assert.Equal(IoRates.Zero, empty.Rate);
         source.Add("a", net: 4, netUp: 14);
         clock.Advance(TimeSpan.FromSeconds(2));
-        Assert.Equal(new IoCounts(4, 14, 0, 0, 0, 0), hub.Snapshot().Total.Session);
+        Assert.Equal(new IoCounts(NetDown: 4, NetUp: 14, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), hub.Snapshot().Total.Session);
         Assert.Equal([7f], hub.Snapshot().Series.NetUp);
     }
 
@@ -231,13 +233,13 @@ public sealed class IoStatsNetworkDirectionTests
         IoFakeSource source = new();
         using IoStatsHub hub = new(source, clock, Options);
         source.Add("a", net: 10, netUp: 90);
-        Assert.Equal(new IoCounts(10, 90, 0, 0, 0, 0), hub.Peek().Today);
+        Assert.Equal(new IoCounts(NetDown: 10, NetUp: 90, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), hub.Peek().Today);
         clock.Advance(TimeSpan.FromMinutes(2));
         source.Add("a", net: 3, netUp: 7, diskRead: 5);
         IoStatsSnapshot snapshot = hub.Snapshot();
         Assert.Equal(Today.AddDays(1), snapshot.Today);
-        Assert.Equal(new IoCounts(13, 97, 0, 5, 0, 0), snapshot.Total.Session);
-        Assert.Equal(new IoCounts(3, 7, 0, 5, 0, 0), snapshot.Total.Today);
+        Assert.Equal(new IoCounts(NetDown: 13, NetUp: 97, DiskWritten: 0, DiskRead: 5, Requests: 0, Errors: 0), snapshot.Total.Session);
+        Assert.Equal(new IoCounts(NetDown: 3, NetUp: 7, DiskWritten: 0, DiskRead: 5, Requests: 0, Errors: 0), snapshot.Total.Today);
         Assert.Equal(snapshot.Total.Session, snapshot.Total.Retained);
         Assert.Equal(IoRates.Zero, snapshot.Rate);
         Assert.Empty(snapshot.Series.NetUp);
@@ -266,7 +268,7 @@ public sealed class IoStatsNetworkDirectionTests
         string old = Document("\"down\":100,\"diskWrite\":11,\"diskRead\":12,\"requests\":13,\"errors\":14");
         IoDays days = Parse(old);
         Assert.True(days.TryGet(Today, out Dictionary<string, IoCounts> sources));
-        Assert.Equal(new IoCounts(100, 0, 11, 12, 13, 14), sources["a"]);
+        Assert.Equal(new IoCounts(NetDown: 100, NetUp: 0, DiskWritten: 11, DiskRead: 12, Requests: 13, Errors: 14), sources["a"]);
         Assert.Equal(old, IoStatsStore.Serialize(days, Today, 30));
         Assert.True(Parse(Document("\"up\":0")).TryGet(Today, out sources));
         Assert.Equal(IoCounts.Zero, sources["a"]);
@@ -276,9 +278,9 @@ public sealed class IoStatsNetworkDirectionTests
     public void V1RoundTripPreservesBothDirectionsOnEveryDayAndSource()
     {
         IoDays days = new();
-        days.Add(Today.AddDays(-1), "a", new IoCounts(100, 7, 20, 30, 4, 1), 64);
-        days.Add(Today, "a", new IoCounts(3, 500, 9, 11, 2, 0), 64);
-        days.Add(Today, "b", new IoCounts(0, long.MaxValue, 0, 4, 0, 0), 64);
+        days.Add(Today.AddDays(-1), "a", new IoCounts(NetDown: 100, NetUp: 7, DiskWritten: 20, DiskRead: 30, Requests: 4, Errors: 1), 64);
+        days.Add(Today, "a", new IoCounts(NetDown: 3, NetUp: 500, DiskWritten: 9, DiskRead: 11, Requests: 2, Errors: 0), 64);
+        days.Add(Today, "b", new IoCounts(NetDown: 0, NetUp: long.MaxValue, DiskWritten: 0, DiskRead: 4, Requests: 0, Errors: 0), 64);
         string json = IoStatsStore.Serialize(days, Today, 30);
         using JsonDocument doc = JsonDocument.Parse(json);
         Assert.Equal(1, doc.RootElement.GetProperty("version").GetInt32());
@@ -298,8 +300,8 @@ public sealed class IoStatsNetworkDirectionTests
         IoDays days = new();
         for (int i = 1; i <= 12; i++)
         {
-            days.Add(Today.AddDays(-1), "s" + i.ToString("00"), new IoCounts(i, 100 - i, 2 * i, 3 * i, 0, 0), 64);
-            days.Add(Today, "s" + i.ToString("00"), new IoCounts(2 * i, 200 - i, 4 * i, 6 * i, 0, 0), 64);
+            days.Add(Today.AddDays(-1), "s" + i.ToString("00"), new IoCounts(NetDown: i, NetUp: 100 - i, DiskWritten: 2 * i, DiskRead: 3 * i, Requests: 0, Errors: 0), 64);
+            days.Add(Today, "s" + i.ToString("00"), new IoCounts(NetDown: 2 * i, NetUp: 200 - i, DiskWritten: 4 * i, DiskRead: 6 * i, Requests: 0, Errors: 0), 64);
         }
         string json = IoStatsStore.Serialize(days, Today, 30);
         IoDays loaded = IoStatsStore.Parse(Encoding.UTF8.GetBytes(json), Today, 30, 8);
@@ -339,7 +341,7 @@ public sealed class IoStatsNetworkDirectionTests
     {
         IoDays days = Parse(Document("\"diskWrite\":700,\"diskRead\":900"));
         Assert.True(days.TryGet(Today, out Dictionary<string, IoCounts> sources));
-        Assert.Equal(new IoCounts(0, 0, 700, 900, 0, 0), sources["a"]);
+        Assert.Equal(new IoCounts(NetDown: 0, NetUp: 0, DiskWritten: 700, DiskRead: 900, Requests: 0, Errors: 0), sources["a"]);
     }
 
     [Fact]
@@ -363,14 +365,14 @@ public sealed class IoStatsNetworkDirectionTests
         {
             IoStatsSnapshot snapshot = restarted.Snapshot();
             Assert.Equal(IoCounts.Zero, snapshot.Total.Session);
-            Assert.Equal(new IoCounts(120, 34, 9, 6, 0, 0), snapshot.Total.Today);
+            Assert.Equal(new IoCounts(NetDown: 120, NetUp: 34, DiskWritten: 9, DiskRead: 6, Requests: 0, Errors: 0), snapshot.Total.Today);
             Assert.Equal(snapshot.Total.Today, snapshot.Total.Retained);
         }
         File.WriteAllText(store.FilePath, Document("\"up\":-1"));
         IoStatsLoadResult recovered = store.Load(Today, 30, 64);
         Assert.Equal(IoStatsLoadStatus.RestoredFromBackup, recovered.Status);
         Assert.True(recovered.Days.TryGet(Today, out Dictionary<string, IoCounts> sources));
-        Assert.Equal(new IoCounts(100, 31, 9, 6, 0, 0), sources["a"]);
+        Assert.Equal(new IoCounts(NetDown: 100, NetUp: 31, DiskWritten: 9, DiskRead: 6, Requests: 0, Errors: 0), sources["a"]);
         Assert.NotNull(recovered.SetAsidePath);
         Assert.True(File.Exists(recovered.SetAsidePath));
     }
@@ -378,22 +380,85 @@ public sealed class IoStatsNetworkDirectionTests
     [Fact]
     public void CountsSaturateDirectionsIndependentlyAndUploadIsNotZero()
     {
-        IoCounts counts = new(long.MaxValue - 1, 3, 5, 7, 11, 13);
-        Assert.Equal(new IoCounts(long.MaxValue, 20, 24, 30, 40, 44), counts.Plus(new IoCounts(2, 17, 19, 23, 29, 31)));
-        Assert.Equal(new IoCounts(7, long.MaxValue, 0, 0, 0, 0),
-            new IoCounts(3, long.MaxValue, 0, 0, 0, 0).Plus(new IoCounts(4, 1, 0, 0, 0, 0)));
-        Assert.False(new IoCounts(0, 1, 0, 0, 0, 0).IsZero);
-        Assert.False(new IoSample(0, 1, 0, 0, 0).IsZero);
-        Assert.NotEqual(IoRates.Zero, new IoRates(0, 1, 0, 0, 0));
+        IoCounts counts = new IoCounts(NetDown: long.MaxValue - 1, NetUp: 3, DiskWritten: 5, DiskRead: 7, Requests: 11, Errors: 13);
+        Assert.Equal(new IoCounts(NetDown: long.MaxValue, NetUp: 20, DiskWritten: 24, DiskRead: 30, Requests: 40, Errors: 44), counts.Plus(new IoCounts(NetDown: 2, NetUp: 17, DiskWritten: 19, DiskRead: 23, Requests: 29, Errors: 31)));
+        Assert.Equal(new IoCounts(NetDown: 7, NetUp: long.MaxValue, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0),
+            new IoCounts(NetDown: 3, NetUp: long.MaxValue, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0).Plus(new IoCounts(NetDown: 4, NetUp: 1, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0)));
+        Assert.False(new IoCounts(NetDown: 0, NetUp: 1, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0).IsZero);
+        Assert.False(new IoSample(NetDown: 0, NetUp: 1, DiskWrite: 0, DiskRead: 0, Requests: 0).IsZero);
+        Assert.NotEqual(IoRates.Zero, new IoRates(NetDown: 0, NetUp: 1, DiskWrite: 0, DiskRead: 0, Requests: 0));
     }
 
     [Fact]
-    public void DownOnlyConstructorAndFakeCallsKeepTheirOriginalPositionalMeaning()
+    public void DirectionalProductionConstructorCallsNameEveryField()
     {
-        Assert.Equal(new IoCounts(1, 0, 2, 3, 4, 5), new IoCounts(1, 2, 3, 4, 5));
-        Assert.Equal(new IoRates(1, 0, 2, 3, 4), new IoRates(NetDown: 1, DiskWrite: 2, DiskRead: 3, Requests: 4));
-        Assert.Equal(new IoSample(1, 0, 2, 3, 4), new IoSample(1, 2, 3, 4));
-        IoSeries series = new(30, 2, [1, 2], [3, 4], [5, 6], [7, 8]);
+        (string Type, string[] Fields)[] contracts =
+        [
+            ("IoCounts", ["NetDown", "NetUp", "DiskWritten", "DiskRead", "Requests", "Errors"]),
+            ("IoRates", ["NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
+            ("IoSample", ["NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
+            ("IoSeries", ["Capacity", "Count", "NetDown", "NetUp", "DiskWrite", "DiskRead", "Requests"]),
+            ("IoCounterReading", ["Key", "NetDown", "NetUp", "DiskWritten", "DiskRead", "Requests", "Errors"])
+        ];
+
+        foreach (string path in new[]
+        {
+            "Desktop/Stats/IoStatsModel.cs", "Desktop/Stats/IoRing.cs", "Desktop/Stats/IoStatsHub.cs", "Desktop/Stats/IoStatsStore.cs"
+        })
+        {
+            string source = File.ReadAllText(Source(path));
+            foreach ((string type, string arguments) in ConstructorCalls(source))
+            {
+                string[] fields = Assert.Single(contracts, contract => contract.Type == type).Fields;
+                foreach (string field in fields)
+                    Assert.True(arguments.Contains(field + ":", StringComparison.Ordinal), $"{path}: {type} call must name {field}");
+            }
+        }
+    }
+
+    private static IEnumerable<(string Type, string Arguments)> ConstructorCalls(string source)
+    {
+        MatchCollection matches = Regex.Matches(source, @"\bnew\s+(IoCounts|IoRates|IoSample|IoSeries|IoCounterReading)\s*\(");
+        foreach (Match match in matches)
+        {
+            int open = source.IndexOf('(', match.Index);
+            int depth = 0;
+            bool inString = false;
+            bool escaped = false;
+            for (int i = open; i < source.Length; i++)
+            {
+                char character = source[i];
+                if (inString)
+                {
+                    if (escaped) escaped = false;
+                    else if (character == '\\') escaped = true;
+                    else if (character == '\"') inString = false;
+                    continue;
+                }
+                if (character == '\"') { inString = true; continue; }
+                if (character == '(') depth++;
+                else if (character == ')' && --depth == 0)
+                {
+                    yield return (match.Groups[1].Value, source[(open + 1)..i]);
+                    break;
+                }
+            }
+        }
+    }
+
+    private static string Source(string path, [CallerFilePath] string sourcePath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", path));
+
+    [Fact]
+    public void DownOnlyValuesRemainExplicitlyZeroForEveryDirectionalRecord()
+    {
+        Assert.Equal(new IoCounts(NetDown: 1, NetUp: 0, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5),
+            new IoCounts(NetDown: 1, NetUp: 0, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5));
+        Assert.Equal(new IoRates(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4),
+            new IoRates(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4));
+        Assert.Equal(new IoSample(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4),
+            new IoSample(NetDown: 1, NetUp: 0, DiskWrite: 2, DiskRead: 3, Requests: 4));
+        IoSeries series = new IoSeries(Capacity: 30, Count: 2, NetDown: [1, 2], NetUp: [0, 0], DiskWrite: [3, 4], DiskRead: [5, 6], Requests: [7, 8]);
         Assert.Equal([0f, 0f], series.NetUp);
         Assert.Equal([3f, 4f], series.DiskWrite);
         IoFakeSource source = new();
@@ -401,10 +466,10 @@ public sealed class IoStatsNetworkDirectionTests
         source.Add("a", netUp: 9);
         List<IoCounterReading> readings = [];
         source.Read(readings);
-        Assert.Equal(new IoCounterReading("a", 1, 9, 2, 3, 4, 5), Assert.Single(readings));
+        Assert.Equal(new IoCounterReading(Key: "a", NetDown: 1, NetUp: 9, DiskWritten: 2, DiskRead: 3, Requests: 4, Errors: 5), Assert.Single(readings));
         source.Set("a", 17);
         readings.Clear();
         source.Read(readings);
-        Assert.Equal(new IoCounterReading("a", 17, 0, 0, 0, 0, 0), Assert.Single(readings));
+        Assert.Equal(new IoCounterReading(Key: "a", NetDown: 17, NetUp: 0, DiskWritten: 0, DiskRead: 0, Requests: 0, Errors: 0), Assert.Single(readings));
     }
 }

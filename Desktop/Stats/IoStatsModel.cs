@@ -9,15 +9,12 @@ namespace MeowChan.Desktop.Stats;
 /// <summary>Raw byte and request totals. Units are applied by the display (<see cref="ByteUnits"/>), never here.</summary>
 internal readonly record struct IoCounts(long NetDown, long NetUp, long DiskWritten, long DiskRead, long Requests, long Errors)
 {
-    // Preserve the positional meaning of existing down-only callers.
-    internal IoCounts(long NetDown, long DiskWritten, long DiskRead, long Requests, long Errors)
-        : this(NetDown, 0, DiskWritten, DiskRead, Requests, Errors) { }
-
     internal static IoCounts Zero => default;
     internal bool IsZero => this == default;
 
-    internal IoCounts Plus(in IoCounts other) => new(Sat(NetDown, other.NetDown), Sat(NetUp, other.NetUp), Sat(DiskWritten, other.DiskWritten),
-        Sat(DiskRead, other.DiskRead), Sat(Requests, other.Requests), Sat(Errors, other.Errors));
+    internal IoCounts Plus(in IoCounts other) => new IoCounts(NetDown: Sat(NetDown, other.NetDown), NetUp: Sat(NetUp, other.NetUp),
+        DiskWritten: Sat(DiskWritten, other.DiskWritten), DiskRead: Sat(DiskRead, other.DiskRead),
+        Requests: Sat(Requests, other.Requests), Errors: Sat(Errors, other.Errors));
 
     private static long Sat(long a, long b) => a > long.MaxValue - b ? long.MaxValue : a + b;
 }
@@ -25,10 +22,6 @@ internal readonly record struct IoCounts(long NetDown, long NetUp, long DiskWrit
 /// <summary>Per second: bytes for the first four, requests for the last.</summary>
 internal readonly record struct IoRates(double NetDown, double NetUp, double DiskWrite, double DiskRead, double Requests)
 {
-    // Existing down-only callers must not shift disk rates into NetUp.
-    internal IoRates(double NetDown, double DiskWrite, double DiskRead, double Requests)
-        : this(NetDown, 0, DiskWrite, DiskRead, Requests) { }
-
     internal static IoRates Zero => default;
 }
 
@@ -53,9 +46,10 @@ internal sealed class TransferMeterSource : IIoCounterSource
         foreach (KeyValuePair<string, SourceCounters> pair in TransferMeter.All)
         {
             SourceCounters c = pair.Value;
-            into.Add(new IoCounterReading(pair.Key, System.Threading.Volatile.Read(ref c.NetDown), System.Threading.Volatile.Read(ref c.NetUp),
-                System.Threading.Volatile.Read(ref c.DiskWritten),
-                System.Threading.Volatile.Read(ref c.DiskRead), System.Threading.Volatile.Read(ref c.Requests), System.Threading.Volatile.Read(ref c.Errors)));
+            into.Add(new IoCounterReading(Key: pair.Key, NetDown: System.Threading.Volatile.Read(ref c.NetDown),
+                NetUp: System.Threading.Volatile.Read(ref c.NetUp), DiskWritten: System.Threading.Volatile.Read(ref c.DiskWritten),
+                DiskRead: System.Threading.Volatile.Read(ref c.DiskRead), Requests: System.Threading.Volatile.Read(ref c.Requests),
+                Errors: System.Threading.Volatile.Read(ref c.Errors)));
         }
     }
 }

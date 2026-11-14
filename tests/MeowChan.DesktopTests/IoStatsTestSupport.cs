@@ -71,11 +71,11 @@ internal sealed class IoFakeSource : IIoCounterSource
     internal void Add(string key, long net = 0, long diskWritten = 0, long diskRead = 0, long requests = 0, long errors = 0, long netUp = 0)
     {
         _readings.TryGetValue(key, out IoCounterReading r);
-        _readings[key] = new IoCounterReading(key, r.NetDown + net, r.NetUp + netUp, r.DiskWritten + diskWritten, r.DiskRead + diskRead, r.Requests + requests, r.Errors + errors);
+        _readings[key] = new IoCounterReading(Key: key, NetDown: r.NetDown + net, NetUp: r.NetUp + netUp, DiskWritten: r.DiskWritten + diskWritten, DiskRead: r.DiskRead + diskRead, Requests: r.Requests + requests, Errors: r.Errors + errors);
     }
 
     internal void Set(string key, long net, long netUp = 0, long diskWritten = 0, long diskRead = 0, long requests = 0, long errors = 0)
-        => _readings[key] = new IoCounterReading(key, net, netUp, diskWritten, diskRead, requests, errors);
+        => _readings[key] = new IoCounterReading(Key: key, NetDown: net, NetUp: netUp, DiskWritten: diskWritten, DiskRead: diskRead, Requests: requests, Errors: errors);
 
     public void Read(List<IoCounterReading> into)
     {

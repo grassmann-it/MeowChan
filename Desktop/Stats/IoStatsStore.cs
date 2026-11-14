@@ -144,8 +144,9 @@ internal sealed class IoStatsStore
                 if (key.Length is 0 or > IoStatsKeys.MaximumKeyLength || ContainsControl(key))
                     throw new InvalidDataException("A statistics source key is invalid.");
                 if (source.Value.ValueKind != JsonValueKind.Object) throw new InvalidDataException("A statistics source is not an object.");
-                parsed[key] = new IoCounts(Counter(source.Value, "down"), Counter(source.Value, "up"), Counter(source.Value, "diskWrite"),
-                    Counter(source.Value, "diskRead"), Counter(source.Value, "requests"), Counter(source.Value, "errors"));
+                parsed[key] = new IoCounts(NetDown: Counter(source.Value, "down"), NetUp: Counter(source.Value, "up"),
+                    DiskWritten: Counter(source.Value, "diskWrite"), DiskRead: Counter(source.Value, "diskRead"),
+                    Requests: Counter(source.Value, "requests"), Errors: Counter(source.Value, "errors"));
             }
             if (day < oldestKept || day > newestKept) continue;
             result.Merge(day, parsed, maxSources);
