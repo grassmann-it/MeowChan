@@ -263,6 +263,62 @@ public sealed class WorkViewActionStateGuardTests
         });
     }
 
+    // Reproduce the old broad-run precondition explicitly, not by relying on which xunit
+    // collection happens to initialize UIThread first. "Work views" already excludes
+    // concurrent access to the process-wide primary slot; its scheduling is unchanged.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AForeignPrimaryDispatcherIsIsolatedAndRestoredEvenWhenTheBodyThrows(bool fail)
+    {
+        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)
+            ?? throw new InvalidOperationException("Avalonia primary dispatcher slot is missing.");
+        object? previous = primary.GetValue(null);
+        try
+        {
+            Dispatcher? foreign = null;
+            Exception? setupFailure = null;
+            Thread other = new(() =>
+            {
+                try { foreign = Dispatcher.CurrentDispatcher; }
+                catch (Exception error) { setupFailure = error; }
+            }) { IsBackground = true };
+            other.Start();
+            Assert.True(other.Join(TimeSpan.FromSeconds(5)), "The foreign dispatcher was not created.");
+            Assert.Null(setupFailure);
+            Assert.NotNull(foreign);
+            Assert.NotSame(Dispatcher.CurrentDispatcher, foreign);
+            primary.SetValue(null, foreign);
+            Assert.False(Dispatcher.UIThread.CheckAccess());
+            // Negative control: the historical, unowned menu path must actually hit
+            // Avalonia's primary-thread check. Otherwise this is not a reproducer.
+            Assert.Throws<InvalidOperationException>(() =>
+            {
+                using TargetFixture fixture = new();
+                MenuItemFor(fixture.Entry());
+            });
+
+            InvalidOperationException expected = new("synthetic action-guard failure");
+            void Run() => OnOwnedDispatcher(() =>
+            {
+                using TargetFixture fixture = new();
+                MenuItem item = MenuItemFor(fixture.Entry());
+                item.Command!.Execute(null);
+                Assert.Equal(1, fixture.Clicks);
+                fixture.Surface.IsEnabled = false;
+                item.Command.Execute(null);
+                Assert.Equal(1, fixture.Clicks);
+                if (fail) throw expected;
+            });
+            if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(Run));
+            else Run();
+
+            Assert.Same(foreign, primary.GetValue(null));
+            Assert.False(Dispatcher.UIThread.CheckAccess());
+        }
+        finally { primary.SetValue(null, previous); }
+    }
+
     // Avalonia 12.1.4: ItemCollection (menu items) verifies the process-primary UIThread, which belongs to whichever xunit worker
     // touched it first. "Work views" is a DisableParallelization collection: align the primary slot with this thread's dispatcher
     // for the synchronous body (same seam as ThreadPriorityContextMenuTests) and restore it. Fails closed if the seam moves.
