@@ -253,6 +253,7 @@ public partial class SourcesPage : UserControl
         Button allWatches = this.FindControl<Button>("SourceAllWatchesButton")!;
         allWatches.IsVisible = row.Watches.Count > shownWatches.Count;
         allWatches.Content = Texts.T("sources.showAll", row.Watches.Count);
+        CommandBindings.EnsureIconBeforeText(allWatches, "list");
         allWatches.IsEnabled = _available && !IsBusy && _openDownloads != null;
         foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
             this.FindControl<Button>(name)!.IsEnabled = _available && !IsBusy;

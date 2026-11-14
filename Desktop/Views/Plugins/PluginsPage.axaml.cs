@@ -180,6 +180,10 @@ public partial class PluginsPage : UserControl
                 CommandBindings.ApplyLabeled(button, key, Texts.T(key));
             else { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
         }
+        // Actions that carried a word only: catalog icons before the (still string) label.
+        CommandBindings.EnsureIconBeforeText(C<Button>("PluginCopyTechnicalDetails"), "copy");
+        CommandBindings.EnsureIconBeforeText(C<Button>("PluginDefaultEditor"), "external-link");
+        CommandBindings.EnsureIconBeforeText(C<Button>("PluginEditorSave"), "save");
         Button add = C<Button>("PluginsAdd");
         add.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("plus"), new TextBlock { Text = Texts.T("plugins.add") } } }; AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
         C<Button>("PluginsReviewRepairs").Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("check"), new TextBlock { Text = Texts.T("plugins.repair.review") } } };

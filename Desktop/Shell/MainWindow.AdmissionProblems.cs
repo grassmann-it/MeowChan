@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -62,6 +63,7 @@ public partial class MainWindow
         _admissionProblemsOnlyBox.Content = Texts.T("admission.problemsOnly", rejected);
         AutomationProperties.SetName(_admissionProblemsOnlyBox, Texts.T("admission.problemsOnly", rejected));
         _admissionPutBackButton.Content = Texts.T("admission.putBack");
+        CommandBindings.EnsureIconBeforeText(_admissionPutBackButton, "corner-up-left");
         AutomationProperties.SetName(_admissionPutBackButton, Texts.T("admission.putBack"));
     }
 

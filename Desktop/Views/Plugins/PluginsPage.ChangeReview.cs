@@ -10,6 +10,7 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Configuration;
@@ -174,6 +175,7 @@ public partial class PluginsPage
             if (draft.NeedsRemovedValueAcknowledgement)
             {
                 removedAcknowledgement ??= new Button { Content = Texts.T("plugins.acceptSchema"), HorizontalAlignment = HorizontalAlignment.Left };
+                CommandBindings.EnsureIconBeforeText(removedAcknowledgement, "check");
                 AutomationProperties.SetAutomationId(removedAcknowledgement, "BundledChangeReviewSchemaAcknowledgement:" + row.PluginId);
                 removedAcknowledgement.Click -= AcknowledgeRemoved;
                 removedAcknowledgement.Click += AcknowledgeRemoved;

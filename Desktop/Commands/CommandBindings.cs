@@ -300,6 +300,15 @@ public static class CommandBindings
         });
     }
 
+    /// <summary>
+    /// <see cref="ShowIconBeforeText"/> once: for a button whose string label is set again with every language refresh, so the template
+    /// is not rebuilt each time and a template that is already there (an icon chosen earlier) stays.
+    /// </summary>
+    internal static void EnsureIconBeforeText(Button button, string icon, int size = 16)
+    {
+        if (button.ContentTemplate == null) ShowIconBeforeText(button, icon, size);
+    }
+
     private static Control ButtonIcon(string id, int size, TextBlock? label = null, bool byKey = false)
     {
         Border icon = (Border)(byKey ? IconFromKey(id, size) : Icon(id, size));

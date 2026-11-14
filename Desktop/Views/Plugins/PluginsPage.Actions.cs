@@ -127,6 +127,7 @@ public partial class PluginsPage
         C<Button>("PluginSelectCandidate").IsVisible = view.CandidateChoiceRequired;
         Button sdkTransition = C<Button>("PluginApproveSdkTransition");
         sdkTransition.Content = Texts.T("plugins.sdkTransition.action");
+        CommandBindings.EnsureIconBeforeText(sdkTransition, "check"); // The same icon the Sources page gives its copy of this action.
         sdkTransition.IsVisible = view.HasAutomaticSdkTransition;
         sdkTransition.IsEnabled = view.HasAutomaticSdkTransition && !_busy && !IsDiscardConfirmationOpen;
         AutomationProperties.SetName(sdkTransition, Texts.T("plugins.sdkTransition.action"));

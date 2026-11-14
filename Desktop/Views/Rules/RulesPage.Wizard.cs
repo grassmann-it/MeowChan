@@ -201,6 +201,7 @@ public partial class RulesPage
         ApplyIconLabel(RuleWizardNextButton, "arrow-right", Texts.T("rules.wizard.review"));
         ApplyIconLabel(OpenNewRuleScopeButton, "arrow-right", Texts.T("rules.wizard.next"));
         ApplyIconLabel(RuleWizardCloseButton, "x", Texts.T("rules.wizard.close"));
+        CommandBindings.EnsureIconBeforeText(RuleGoToInvalidFieldButton, "crosshair"); // Its label is bound (GoToFieldLabel); only the icon is added.
         AutomationProperties.SetName(RuleWizardCloseButton, Texts.T("rules.wizard.closeName"));
         ToolTip.SetTip(RuleWizardCloseButton, Texts.T("rules.wizard.closeName") + " · Esc");
     }

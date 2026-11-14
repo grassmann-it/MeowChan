@@ -12,6 +12,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 using MeowChan.Rules;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 public partial class RulesPage
@@ -203,7 +204,7 @@ public partial class RulesPage
                 if (editor.Filter.SchemaVersion != editor.Parameters.Schema.Version || editor.Parameters.UnmappedValues.Count > 0)
                 {
                     panel.Children.Add(TemplateText(Texts.T("plugins.ruleSchemaChanged", editor.Filter.SchemaVersion, editor.Parameters.Schema.Version)));
-                    AddTemplateButton(panel, "plugins.acceptSchema", () => { editor.SchemaAcknowledged = true; editor.Parameters.AcknowledgeRemovedFields(); editor.ViewVersion++; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return Task.CompletedTask; });
+                    AddTemplateButton(panel, "plugins.acceptSchema", () => { editor.SchemaAcknowledged = true; editor.Parameters.AcknowledgeRemovedFields(); editor.ViewVersion++; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return Task.CompletedTask; }, icon: "check");
                 }
                 _templateParameterEditor = new PluginSettingsEditor(editor.Parameters, "template:" + editor.Id.ToString("N"));
                 _templateParameterEditor.ShowErrors(editor.ParameterErrors);
@@ -219,9 +220,9 @@ public partial class RulesPage
         _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         panel.Children.Add(_templateEditorStaleView);
         WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-        Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; });
+        Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; }, icon: "x");
         _templateEditorConfirmation = new(cancel);
-        _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision);
+        _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision, icon: "save");
         _templateEditorSaveButton.Classes.Add("primary");
     }
     private static void AddTemplateInclude(StackPanel panel, string key, bool value, Action<bool> set)

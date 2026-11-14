@@ -154,7 +154,7 @@ public partial class RulesPage
                 head.Children.Add(_templateHintView);
                 Grid top = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; panel.Children.Add(top);
                 top.Children.Add(head);
-                _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
+                _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync(), icon: "refresh-cw");
                 Grid.SetColumn(_templateReloadButton, 1); _templateReloadButton.VerticalAlignment = VerticalAlignment.Top;
                 _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Classes.Add("workspace-error"); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
@@ -210,7 +210,7 @@ public partial class RulesPage
             AutomationProperties.SetName(_templateList, Texts.T("templates.title"));
             foreach ((string id, Button button) in _templateActionButtons)
             {
-                CommandBindings.Apply(button, "rules.template-" + id);
+                CommandBindings.Apply(button, "rules.template-" + id, iconWithLabel: true);
                 button.IsEnabled = CanExecuteTemplateCommand("rules.template-" + id);
                 button.IsVisible = id switch
                 {
@@ -249,9 +249,10 @@ public partial class RulesPage
         if (heading) label.Classes.Add("section-title");
         return label;
     }
-    private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true)
+    private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true, string? icon = null)
     {
         Button button = new() { Name = key.Replace('.', '-'), Content = Texts.T(key), IsEnabled = enabled };
+        if (icon != null) CommandBindings.EnsureIconBeforeText(button, icon); // The label stays the string content; the template draws the icon.
         AutomationProperties.SetName(button, Texts.T(key)); button.Click += async (_, _) => await action(); panel.Children.Add(button); return button;
     }
     private string TemplateGroups(RuleTemplate template) => string.Join(", ", new[] { template.Types == null ? null : TypesLabel,
@@ -335,10 +336,10 @@ public partial class RulesPage
         panel.Children.Add(TemplateText(Texts.T("templates.effectAfter", EffectiveDescription(preview.After))));
         panel.Children.Add(TemplateText(Texts.T("templates.replaceWarning")));
         WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-        AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; });
+        AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; }, icon: "x");
         Button apply = AddTemplateButton(actions, "templates.apply",
             async () => await ExecuteTemplateCommandAsync("rules.template-apply"), CanExecuteTemplateCommand("rules.template-apply"));
-        CommandBindings.Apply(apply, "rules.template-apply");
+        CommandBindings.Apply(apply, "rules.template-apply", iconWithLabel: true);
     }
     private string OwnGroup(RuleDraft draft, string group) => group switch
     {

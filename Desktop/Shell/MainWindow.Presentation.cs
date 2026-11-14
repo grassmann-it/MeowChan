@@ -318,6 +318,13 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
         CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
         CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
+        // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
+        CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
+        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, "navigation.diagnostics", Texts.T("feedback.open"));
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();

@@ -69,6 +69,8 @@ public partial class MainWindow
         _archiveBridgeHintText.Text = Texts.T("downloads.archiveHint", archive);
         _archiveBridgeHintOpen.Content = Texts.T("downloads.archiveHint.open");
         _archiveBridgeHintDismiss.Content = Texts.T("downloads.archiveHint.dismiss");
+        CommandBindings.EnsureIconBeforeText(_archiveBridgeHintOpen, "arrow-right");
+        CommandBindings.EnsureIconBeforeText(_archiveBridgeHintDismiss, "check");
         AutomationProperties.SetName(_archiveBridgeHint, _archiveBridgeHintText.Text);
     }
 
