@@ -68,7 +68,8 @@ public sealed class GalleryTagPanelTests : IDisposable
         foreach (TagSuggestionReason reason in Enum.GetValues<TagSuggestionReason>())
             Assert.False(string.IsNullOrWhiteSpace(QuickTagReasons.Text(GalleryTagPanelSuggestions.MapReason(reason))), reason.ToString());
         foreach (QuickTagReason reason in Enum.GetValues<QuickTagReason>())
-            Assert.Contains(reason, Enum.GetValues<TagSuggestionReason>().Select(GalleryTagPanelSuggestions.MapReason).Append(QuickTagReason.Frequent));
+            // The stamp reason (PT5) is no context reason: the stamp decorator (QuickTagStampSource) gives it to the pinned chips.
+            Assert.Contains(reason, Enum.GetValues<TagSuggestionReason>().Select(GalleryTagPanelSuggestions.MapReason).Append(QuickTagReason.Frequent).Append(QuickTagReason.Stamp));
         Assert.Throws<ArgumentOutOfRangeException>(() => GalleryTagPanelSuggestions.MapReason((TagSuggestionReason)999));
     }
 
@@ -425,7 +426,7 @@ public sealed class GalleryTagPanelTests : IDisposable
         IReadOnlySet<string> awaiting = QuickTagCommands.AwaitingHandler;
         IEnumerable<string> wired = QuickTagCommands.All.Where(id => !awaiting.Contains(id));
         Assert.Equal(GalleryTagPanelCommands.Handled.OrderBy(x => x, StringComparer.Ordinal), wired.OrderBy(x => x, StringComparer.Ordinal));
-        Assert.Equal(16, GalleryTagPanelCommands.Handled.Count);
+        Assert.Equal(17, GalleryTagPanelCommands.Handled.Count); // PT3 wired the stamp (stamp-apply) in the panel
         Assert.DoesNotContain(QuickTagCommands.MarkNext, awaiting);
         Assert.DoesNotContain(QuickTagCommands.MarkPrevious, awaiting);
         foreach (string id in GalleryTagPanelCommands.Handled) Assert.NotNull(GalleryTagPanelCommands.RouteOf(id));

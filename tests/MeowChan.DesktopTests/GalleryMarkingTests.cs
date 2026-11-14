@@ -566,7 +566,7 @@ public sealed class GalleryMarkingTests : IDisposable
         Assert.DoesNotContain("Marks", ReadSource("Desktop/GalleryViewer.Overlay.cs"));
         Assert.DoesNotContain("Marks", ReadSource("Desktop/GalleryVideoPlayer.cs"));
         // The commands are wired only here: the ids are in the wired list and the handlers exist.
-        Assert.Contains("MarkNext, MarkPrevious, ThreadSection, Undo }", ReadSource("Desktop/Commands/QuickTagCommands.cs"));
+        Assert.Contains("MarkNext, MarkPrevious, ThreadSection, Undo, StampApply }", ReadSource("Desktop/Commands/QuickTagCommands.cs"));
     }
 
     private static string ReadSource(string relative)

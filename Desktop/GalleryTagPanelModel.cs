@@ -62,7 +62,7 @@ internal sealed record GalleryTagPanelFrame(IQuickTagTarget Target, string Label
 internal static class GalleryTagPanelCommands
 {
     /// <summary>Handled here, and so the ids <see cref="QuickTagCommands"/> counts as wired: paging, commit and next, marking
-    /// (Shift+Page Down/Up, TP4), the thread section, undo and the nine suggestion toggles.</summary>
+    /// (Shift+Page Down/Up, TP4), the thread section, undo, the stamp (PT5) and the nine suggestion toggles.</summary>
     internal static IReadOnlyList<string> Handled { get; } = Array.AsReadOnly(
         new[] { QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious,
             QuickTagCommands.ThreadSection, QuickTagCommands.Undo, QuickTagCommands.StampApply }
@@ -209,6 +209,15 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal QuickTagSession Session { get; }
     /// <summary>Favorite and rating of the panel's targets with their own undo stack; null when the owner offers neither.</summary>
     internal GalleryDecisionSession? Decisions { get; }
+    /// <summary>The stamp of the newest tag step (the order shared with favorite, rating and queue steps); 0 without one.</summary>
+    internal long NewestTagStamp
+    {
+        get
+        {
+            IReadOnlyList<TagDialogChange> tags = Session.UndoSteps;
+            return tags.Count > 0 && _tagStamps.TryGetValue(tags[^1], out System.Runtime.CompilerServices.StrongBox<long>? box) ? box.Value : 0;
+        }
+    }
     /// <summary>The decision stack as the second undo stack of the surface (shares its undo key and button); null without decisions.</summary>
     internal IQuickTagExtraUndo? ExtraUndo { get; }
     internal GalleryTagPanelSuggestions Suggestions { get; }
