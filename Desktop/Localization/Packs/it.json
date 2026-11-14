@@ -854,7 +854,7 @@
     "export.collectionProgress": "Thread {0}/{1} · Post {2} · File multimediali condivisi {3}",
     "export.collectionDone": "Esportato – thread: {0} · post: {1} · file multimediali condivisi: {2} · omissioni: {3} · avvisi: {4}",
     "export.collectionMemberDone": "{0} – post: {1} · omissioni: {2}",
-    "selection.export": "Esporta selezione…",
+    "selection.export": "Esporta selezione",
     "selection.remove": "Rimuovi selezione",
     "selection.copyUrls": "Copia URL selezionati",
     "selection.failed": "{0} di {1} azioni non riuscite: {2}",
