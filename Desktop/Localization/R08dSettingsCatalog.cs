@@ -119,6 +119,7 @@ internal static class R08dSettingsCatalog
         ("settings.unsaved", "Not saved", "Nicht gespeichert"),
         ("settings.notSaved", "Not saved. Check the marked field.", "Nicht gespeichert. Das markierte Feld prüfen."),
         ("settings.saveProblem", "Settings could not be saved. Your draft is still here.", "Die Einstellungen konnten nicht gespeichert werden. Dein Entwurf bleibt erhalten."),
+        ("settings.themeColors.openFailed", "The color dialog could not be opened.", "Der Farbdialog konnte nicht geöffnet werden."),
         ("settings.errorDetails", "Error details", "Fehlerdetails"),
         ("settings.fieldNumber", "{0}: enter a valid number.", "{0}: eine gültige Zahl eingeben."),
         ("settings.fieldInteger", "{0}: enter a whole number from {1} to {2}.", "{0}: eine ganze Zahl von {1} bis {2} eingeben."),

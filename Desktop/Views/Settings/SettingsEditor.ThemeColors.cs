@@ -6,6 +6,7 @@ using Avalonia.Styling;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Theming;
 using MeowChan.Desktop.Views.Settings;
+using Serilog;
 
 namespace MeowChan;
 
@@ -25,7 +26,19 @@ public partial class SettingsEditor
     /// <summary>The open colour dialog, or null (smokes and tests).</summary>
     internal ThemeColorsDialog? ThemeColorsWindow => _themeColorsDialog;
 
+    // N8: an event handler must not let an exception escape (it would reach the dispatcher unhandled); building or showing the dialog failing is told in the page.
     private async void OnThemeColorsClick(object? sender, RoutedEventArgs e)
+    {
+        try { await OpenThemeColorsAsync(); }
+        catch (Exception error)
+        {
+            Log.Warning(error, "The colour dialog could not be opened.");
+            _themeColorsDialog = null;
+            if (!_isClosed) SetErrorMessage("settings.themeColors.openFailed");
+        }
+    }
+
+    private async Task OpenThemeColorsAsync()
     {
         if (_themeColorsDialog is { } open) { open.Activate(); return; }
         if (!IsEditable || _isClosed || TopLevel.GetTopLevel(this) is not Window owner) return;

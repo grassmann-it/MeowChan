@@ -1568,6 +1568,7 @@
     "settings.unsaved": "Não salvo",
     "settings.notSaved": "Não salvo. Verifique o campo marcado.",
     "settings.saveProblem": "Não foi possível salvar as configurações. Seu rascunho continua aqui.",
+    "settings.themeColors.openFailed": "Não foi possível abrir a caixa de diálogo de cores.",
     "settings.errorDetails": "Detalhes do erro",
     "settings.fieldNumber": "{0}: digite um número válido.",
     "settings.fieldInteger": "{0}: digite um número inteiro de {1} a {2}.",

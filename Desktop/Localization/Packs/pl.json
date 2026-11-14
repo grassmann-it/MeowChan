@@ -1578,6 +1578,7 @@
     "settings.unsaved": "Nie zapisano",
     "settings.notSaved": "Nie zapisano. Sprawdź zaznaczone pole.",
     "settings.saveProblem": "Nie udało się zapisać ustawień. Twoja wersja robocza nadal tu jest.",
+    "settings.themeColors.openFailed": "Nie udało się otworzyć okna dialogowego kolorów.",
     "settings.errorDetails": "Szczegóły błędu",
     "settings.fieldNumber": "{0}: wpisz prawidłową liczbę.",
     "settings.fieldInteger": "{0}: wpisz liczbę całkowitą od {1} do {2}.",

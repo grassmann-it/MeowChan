@@ -14,10 +14,11 @@ namespace MeowChan.Desktop.Theming;
 /// Stored, exported and imported in exactly this shape:
 /// <code>"ThemeOverrides": { "Light": { "Workspace.Accent": "#RRGGBB" }, "Dark": { "Workspace.Panel": "#AARRGGBB" } }</code>
 /// Each variant object has the shape a future <c>theme.json</c> "seeds" object holds (TH5): <see cref="ThemeTokens.Seeds"/> ids
-/// to <c>#RRGGBB</c> or <c>#AARRGGBB</c>. Keep both identical, so "save as theme" and a theme import are plain copies.
+/// to <c>#RRGGBB</c> (opaque only, N9: the colour dialog offers no transparency and the contrast gate cannot judge it). Keep both
+/// identical, so "save as theme" and a theme import are plain copies.
 /// <para>
 /// Immutable and always normalized: only seed ids, upper-case hex, an opaque <c>#FFRRGGBB</c> written as <c>#RRGGBB</c>. Reading
-/// drops unknown or non-seed keys and malformed colours (with one log warning) instead of failing the profile. Related seeds a
+/// drops unknown or non-seed keys, malformed colours and translucent colours (with one log warning) instead of failing the profile. Related seeds a
 /// role derives (<see cref="ThemeUserColors"/>) are not stored; they follow at apply time. Not contrast-checked here: the gate
 /// is <see cref="ThemeCustomization.Preview"/> / <see cref="ThemeRuntime.ApplyOverrides"/>.
 /// </para>
@@ -74,7 +75,7 @@ public sealed class ThemeColorOverrides : IEquatable<ThemeColorOverrides>
             foreach (var (key, value) in raw ?? [])
             {
                 if (key == null || !ThemeTokens.Seeds.Contains(key)) dropped?.Add(variant + ": unknown seed " + Describe(key));
-                else if (!TryNormalizeHex(value, out string hex)) dropped?.Add(variant + ": invalid colour for " + key);
+                else if (!TryNormalizeOpaqueHex(value, out string hex)) dropped?.Add(variant + ": invalid colour for " + key);
                 else result[key] = hex;
             }
             return result.ToFrozenDictionary(StringComparer.Ordinal);
@@ -89,7 +90,11 @@ public sealed class ThemeColorOverrides : IEquatable<ThemeColorOverrides>
         ArgumentNullException.ThrowIfNull(seed);
         if (!ThemeTokens.Seeds.Contains(seed)) throw new ArgumentException($"\"{seed}\" is not a colour seed.", nameof(seed));
         var next = new Dictionary<string, string>(For(theme), StringComparer.Ordinal);
-        if (color is { } value) next[seed] = ThemePalette.Hex(value);
+        if (color is { } value)
+        {
+            if (value.A != byte.MaxValue) throw new ArgumentException("A colour override must be opaque.", nameof(color)); // N9
+            next[seed] = ThemePalette.Hex(value);
+        }
         else next.Remove(seed);
         return Replace(theme, next);
     }
@@ -131,6 +136,10 @@ public sealed class ThemeColorOverrides : IEquatable<ThemeColorOverrides>
         hex = text.Length == 9 && text.StartsWith("#FF", StringComparison.Ordinal) ? "#" + text[3..] : text;
         return true;
     }
+
+    /// <summary>N9: as <see cref="TryNormalizeHex"/>, but only an opaque colour (<c>#RRGGBB</c> or <c>#FFRRGGBB</c>) is a valid override; <c>#AARRGGBB</c> with another alpha is not.</summary>
+    internal static bool TryNormalizeOpaqueHex(string? value, out string hex) =>
+        TryNormalizeHex(value, out hex) && hex.Length == 7;
 
     private static string Describe(string? key) =>
         key == null ? "(null)" : "\"" + new string(key.Take(64).Select(c => char.IsControl(c) ? '?' : c).ToArray()) + (key.Length > 64 ? "…\"" : "\"");

@@ -2058,6 +2058,7 @@
     "settings.unsaved": "Non enregistré",
     "settings.notSaved": "Non enregistré. Vérifiez le champ signalé.",
     "settings.saveProblem": "Impossible d’enregistrer les paramètres. Votre brouillon est toujours présent.",
+    "settings.themeColors.openFailed": "Impossible d’ouvrir la boîte de dialogue des couleurs.",
     "settings.errorDetails": "Détails de l’erreur",
     "settings.fieldNumber": "{0} : saisissez un nombre valide.",
     "settings.fieldInteger": "{0} : saisissez un entier compris entre {1} et {2}.",

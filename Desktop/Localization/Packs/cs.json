@@ -1578,6 +1578,7 @@
     "settings.unsaved": "Neuloženo",
     "settings.notSaved": "Neuloženo. Zkontrolujte označené pole.",
     "settings.saveProblem": "Nastavení se nepodařilo uložit. Váš koncept tu stále je.",
+    "settings.themeColors.openFailed": "Dialog barev se nepodařilo otevřít.",
     "settings.errorDetails": "Podrobnosti chyby",
     "settings.fieldNumber": "{0}: zadejte platné číslo.",
     "settings.fieldInteger": "{0}: zadejte celé číslo od {1} do {2}.",

@@ -1881,6 +1881,7 @@
     "settings.unsaved": "未保存",
     "settings.notSaved": "未保存。请检查标记的字段。",
     "settings.saveProblem": "无法保存设置。你的草稿仍在此处。",
+    "settings.themeColors.openFailed": "无法打开颜色对话框。",
     "settings.errorDetails": "错误详情",
     "settings.fieldNumber": "{0}：请输入有效的数字。",
     "settings.fieldInteger": "{0}：请输入 {1} 到 {2} 之间的整数。",

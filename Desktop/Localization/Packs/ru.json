@@ -2062,6 +2062,7 @@
     "settings.unsaved": "Не сохранено",
     "settings.notSaved": "Не сохранено. Проверьте отмеченное поле.",
     "settings.saveProblem": "Не удалось сохранить настройки. Ваш черновик остаётся здесь.",
+    "settings.themeColors.openFailed": "Не удалось открыть диалог выбора цветов.",
     "settings.errorDetails": "Подробности ошибки",
     "settings.fieldNumber": "{0}: введите корректное число.",
     "settings.fieldInteger": "{0}: введите целое число от {1} до {2}.",

@@ -1568,6 +1568,7 @@
     "settings.unsaved": "Non salvato",
     "settings.notSaved": "Non salvato. Controlla il campo evidenziato.",
     "settings.saveProblem": "Impossibile salvare le impostazioni. La tua bozza è ancora qui.",
+    "settings.themeColors.openFailed": "Impossibile aprire la finestra di dialogo dei colori.",
     "settings.errorDetails": "Dettagli dell’errore",
     "settings.fieldNumber": "{0}: inserisci un numero valido.",
     "settings.fieldInteger": "{0}: inserisci un numero intero da {1} a {2}.",

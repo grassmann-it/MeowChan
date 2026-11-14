@@ -13,7 +13,7 @@ public sealed class ThemeOverridesConfigTests
 
     private static ThemeColorOverrides Sample() => ThemeColorOverrides.Empty
         .WithRole(ThemeTokenTheme.Light, ThemeUserColors.Accent, C("#1D5E3A"))
-        .WithSeed(ThemeTokenTheme.Light, "Workspace.Scrim", C("#80102030"))
+        .WithSeed(ThemeTokenTheme.Light, "Workspace.Scrim", C("#102030"))
         .WithRole(ThemeTokenTheme.Dark, ThemeUserColors.Surface, C("#232A3A"));
 
     [Fact]
@@ -33,7 +33,7 @@ public sealed class ThemeOverridesConfigTests
     public void TheStoredShapeIsPerVariantSeedToHexLikeThemeJsonSeeds()
     {
         JsonObject saved = JsonSerializer.SerializeToNode(new Config { ThemeOverrides = Sample() }, ConfigJsonContext.Default.Config)!.AsObject();
-        Assert.Equal("{\"Light\":{\"Workspace.Accent\":\"#1D5E3A\",\"Workspace.Scrim\":\"#80102030\"},\"Dark\":{\"Workspace.Panel\":\"#232A3A\"}}",
+        Assert.Equal("{\"Light\":{\"Workspace.Accent\":\"#1D5E3A\",\"Workspace.Scrim\":\"#102030\"},\"Dark\":{\"Workspace.Panel\":\"#232A3A\"}}",
             saved[nameof(Config.ThemeOverrides)]!.ToJsonString());
         Assert.Equal("{\"Light\":{},\"Dark\":{}}",
             JsonSerializer.SerializeToNode(new Config(), ConfigJsonContext.Default.Config)![nameof(Config.ThemeOverrides)]!.ToJsonString());
@@ -75,7 +75,7 @@ public sealed class ThemeOverridesConfigTests
     [InlineData("{\"Light\":{\"Workspace.Accent\":\"#12345\",\"Workspace.Text\":\"red\",\"Workspace.Muted\":\"#GG0000\",\"Workspace.Panel\":\"\",\"Workspace.Card\":\"#1234567\"}}", "{}", "{}")]
     [InlineData("{\"Light\":{\"workspace.accent\":\"#123456\",\"ButtonDefaultPrimaryForeground\":\"#123456\",\"Workspace.Shadow.Overlay\":\"#123456\",\"\":\"#123456\"}}", "{}", "{}")]
     [InlineData("{\"Light\":{\"Workspace.Accent\":\" #abcdef \",\"Nope\":\"#123456\"},\"Dark\":{\"Workspace.Text\":\"#FFeeddcc\",\"Workspace.Scrim\":\"#66000000\"}}",
-        "{\"Workspace.Accent\":\"#ABCDEF\"}", "{\"Workspace.Scrim\":\"#66000000\",\"Workspace.Text\":\"#EEDDCC\"}")]
+        "{\"Workspace.Accent\":\"#ABCDEF\"}", "{\"Workspace.Text\":\"#EEDDCC\"}")] // N9: the translucent Scrim is dropped, overrides are opaque
     public void DamagedEntriesAreDroppedAndTheRestOfTheProfileIsKept(string raw, string light, string dark)
     {
         using TempDirectory directory = new();

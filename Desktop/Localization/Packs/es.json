@@ -2058,6 +2058,7 @@
     "settings.unsaved": "Sin guardar",
     "settings.notSaved": "Sin guardar. Revise el campo marcado.",
     "settings.saveProblem": "No se pudo guardar la configuración. Su borrador sigue aquí.",
+    "settings.themeColors.openFailed": "No se pudo abrir el cuadro de diálogo de colores.",
     "settings.errorDetails": "Detalles del error",
     "settings.fieldNumber": "{0}: introduzca un número válido.",
     "settings.fieldInteger": "{0}: introduzca un número entero de {1} a {2}.",

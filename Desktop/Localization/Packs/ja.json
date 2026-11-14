@@ -1881,6 +1881,7 @@
     "settings.unsaved": "未保存",
     "settings.notSaved": "保存されていません。マークされた項目を確認してください。",
     "settings.saveProblem": "設定を保存できませんでした。下書きはここに残っています。",
+    "settings.themeColors.openFailed": "色のダイアログを開けませんでした。",
     "settings.errorDetails": "エラーの詳細",
     "settings.fieldNumber": "{0}: 有効な数値を入力してください。",
     "settings.fieldInteger": "{0}: {1}から{2}までの整数を入力してください。",

@@ -1881,6 +1881,7 @@
     "settings.unsaved": "저장되지 않음",
     "settings.notSaved": "저장되지 않았습니다. 표시된 필드를 확인하세요.",
     "settings.saveProblem": "설정을 저장할 수 없습니다. 초안은 그대로 남아 있습니다.",
+    "settings.themeColors.openFailed": "색상 대화 상자를 열 수 없습니다.",
     "settings.errorDetails": "오류 세부 정보",
     "settings.fieldNumber": "{0}: 올바른 숫자를 입력하세요.",
     "settings.fieldInteger": "{0}: {1}에서 {2} 사이의 정수를 입력하세요.",
