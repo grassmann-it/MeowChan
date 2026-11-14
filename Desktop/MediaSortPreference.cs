@@ -55,4 +55,14 @@ internal static class MediaSortPreference
         MediaLibrarySort restored = ParseSort(sort);
         return (restored, MediaLibraryView.HasDirection(restored) ? ParseDirection(direction) : DefaultDirection);
     }
+
+    /// <summary>
+    /// The order a page applies for a restored pair. A random or unknown criterion falls back as a whole: its direction belonged
+    /// to it, not to the default order. A criterion without a direction, or an unknown direction, reads as the default direction.
+    /// </summary>
+    internal static (MediaLibrarySort Sort, MediaLibrarySortDirection Direction) Applicable(MediaLibrarySort sort, MediaLibrarySortDirection direction)
+    {
+        if (!Enum.IsDefined(sort) || sort == MediaLibrarySort.Random) return (DefaultSort, DefaultDirection);
+        return (sort, Enum.IsDefined(direction) && MediaLibraryView.HasDirection(sort) ? direction : DefaultDirection);
+    }
 }

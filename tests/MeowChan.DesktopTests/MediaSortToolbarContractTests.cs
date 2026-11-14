@@ -26,6 +26,25 @@ public sealed class MediaSortToolbarContractTests
     public void ASavedCriterionReadsBackOrFallsBackToTheDefaultOrder(string? saved, string expected) =>
         Assert.Equal(Enum.Parse<MediaLibrarySort>(expected), MediaSortPreference.ParseSort(saved));
 
+    // Wave-3 smoke regression (media-page): a restored Random/Reversed pair became "by thread, reversed"; the fallback takes both parts.
+    [Theory]
+    [InlineData(2)]  // Random (the enums are internal, so the cases are their values)
+    [InlineData(99)] // unknown
+    [InlineData(-1)]
+    public void ARestoredOrderThatFallsBackTakesTheDefaultDirectionToo(int sort)
+    {
+        Assert.Equal(MediaLibrarySort.Random, (MediaLibrarySort)2);
+        Assert.Equal((MediaLibrarySort.ByThread, MediaLibrarySortDirection.Default),
+            MediaSortPreference.Applicable((MediaLibrarySort)sort, MediaLibrarySortDirection.Reversed));
+        // A kept criterion keeps its direction; an unknown direction reads as the default one.
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Applicable(MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed));
+        Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Default), MediaSortPreference.Applicable(MediaLibrarySort.Size, (MediaLibrarySortDirection)7));
+        Assert.Contains("(sort, direction) = MediaSortPreference.Applicable(sort, direction);", File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(SourceFile())!, "../..", "Desktop/Views/Media/MediaPage.Sorting.cs"))));
+    }
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string file = "") => file;
+
     [Fact]
     public void EveryCriterionExceptRandomSurvivesAFormatAndParseRoundTrip()
     {

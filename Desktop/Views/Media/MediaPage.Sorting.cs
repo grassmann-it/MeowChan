@@ -64,8 +64,8 @@ public sealed partial class MediaPage
     /// </summary>
     internal void RestoreSort(MediaLibrarySort sort, MediaLibrarySortDirection direction)
     {
-        if (!Enum.IsDefined(sort) || sort == MediaLibrarySort.Random) sort = MediaSortPreference.DefaultSort;
-        if (!Enum.IsDefined(direction) || !MediaLibraryView.HasDirection(sort)) direction = MediaSortPreference.DefaultDirection;
+        // A random or unknown order falls back as a whole (its direction belonged to it, not to the default order).
+        (sort, direction) = MediaSortPreference.Applicable(sort, direction);
         _restoringSort = true;
         try
         {
