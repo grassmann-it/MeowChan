@@ -35,7 +35,7 @@ public partial class ArchivePage : UserControl
     private readonly Action<string>? _openFolder;
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
-    private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(2);
+    private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots);
     private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
     private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _mediaGate = new SemaphoreSlim(1, 1);

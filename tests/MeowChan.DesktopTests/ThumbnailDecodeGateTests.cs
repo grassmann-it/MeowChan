@@ -151,4 +151,18 @@ public sealed class ThumbnailDecodeGateTests
         releases[0].SetResult();
         await Task.WhenAll(running);
     }
+
+    // R21 (review 14.11. night): the archive's decode parallelism is a named, documented technical limit, not a hidden literal.
+    [Fact]
+    public void TheArchivePageUsesTheDocumentedDecodeSlots()
+    {
+        Assert.Equal(2, ThumbnailDecodeGate.ArchiveSlots);
+        Assert.Equal(ThumbnailDecodeGate.ArchiveSlots, new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots).Free);
+        string page = File.ReadAllText(SourcePath("Desktop/Views/Archive/ArchivePage.axaml.cs"));
+        Assert.Contains("new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots)", page);
+        Assert.DoesNotMatch(@"new ThumbnailDecodeGate\(\d", page);
+    }
+
+    private static string SourcePath(string relativePath, [System.Runtime.CompilerServices.CallerFilePath] string testPath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(testPath)!, "../..", relativePath));
 }
