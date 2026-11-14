@@ -286,6 +286,14 @@ public static class CommandCatalog
         new("tags.queue.skip", "command.tags.queue.skip", "Skip and next", "Überspringen und weiter", "arrow-right", "Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.back", "command.tags.queue.back", "Back: undo the last decision", "Zurück: letzte Entscheidung zurücknehmen", "corner-up-left", "Back", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("tags.queue.play-pause", "command.tags.queue.play-pause", "Play / pause in tagging mode", "Wiedergabe / Pause im Tagging-Modus", "play", "Shift+Space", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        // Card mode (PT4): K switches it on and off inside the tagging mode; the five card keys (1 to 5) act only while the cards are shown.
+        // Same context as the keys above, so 1 to 5 never compete with the plain gallery's 1 (actual size) and 0 outside the mode.
+        new("tags.queue.cards", "command.tags.queue.cards", "Card mode on / off", "Kartenmodus ein / aus", "columns", "K", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.card-1", "command.tags.queue.card-1", "Choose card 1", "Karte 1 wählen", "check", "D1", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.card-2", "command.tags.queue.card-2", "Choose card 2", "Karte 2 wählen", "check", "D2", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.card-3", "command.tags.queue.card-3", "Choose card 3", "Karte 3 wählen", "check", "D3", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.card-4", "command.tags.queue.card-4", "Choose card 4", "Karte 4 wählen", "check", "D4", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
+        new("tags.queue.card-5", "command.tags.queue.card-5", "Choose card 5", "Karte 5 wählen", "check", "D5", CommandScope.Gallery, new[] { "gallery-tagging" }, new[] { "gallery-tagging" }),
         new("favorites.toggle", "command.favorites.toggle", "Add / remove favorite", "Als Favorit markieren / entfernen", "star", "F", CommandScope.Reader | CommandScope.Gallery | CommandScope.Media, new[] { "reader-inline-media", "gallery-toolbar", "media-tile", "media-context-menu" }),
         new("favorites.add", "command.favorites.add", "Add favorite", "Favorit hinzufügen", "star", "M", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("favorites.remove", "command.favorites.remove", "Remove favorite", "Favorit entfernen", "x", "U", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),

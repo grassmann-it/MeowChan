@@ -625,6 +625,31 @@ namespace MeowChan
         public string[] TagStamp { get => _tagStamp; set => _tagStamp = value ?? []; }
         private string[] _tagStamp = [];
 
+        /// <summary>
+        /// Card mode of the tagging mode (PT4): a walk starts in the card mode (the choice the person made with K last). A direct view
+        /// preference, saved when the mode is toggled.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool TaggingCardsDefault { get; set; }
+
+        /// <summary>
+        /// The cards of the card mode, in order (key 1 first): any of back, skip, done, favorite, stamp, rate-1 to rate-5. Empty is the default
+        /// set; unknown and repeated names are dropped and a short list is filled up (<c>TaggingCardSettings</c>).
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
+        public string[] TaggingCards { get => _taggingCards; set => _taggingCards = value ?? []; }
+        private string[] _taggingCards = [];
+
+        /// <summary>How many of the cards are shown (default 5, minimum 2, maximum 5: one key each); an out-of-range value is clamped.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTaggingCardCountConverter))]
+        public int TaggingCardCount
+        {
+            get => _taggingCardCount;
+            set => _taggingCardCount = Math.Clamp(value, TaggingCardCountMinimum, TaggingCardCountMaximum);
+        }
+        private int _taggingCardCount = TaggingCardCountDefault;
+        internal const int TaggingCardCountDefault = 5, TaggingCardCountMinimum = 2, TaggingCardCountMaximum = TaggingCardCommands.CardKeys;
+
 
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string Theme
@@ -1501,6 +1526,9 @@ namespace MeowChan
                 PluginEditorExecutable = PluginEditorExecutable,
                 PluginEditorArguments = (string[])PluginEditorArguments.Clone(),
                 TagStamp = (string[])TagStamp.Clone(),
+                TaggingCardsDefault = TaggingCardsDefault,
+                TaggingCards = (string[])TaggingCards.Clone(),
+                TaggingCardCount = TaggingCardCount,
                 Theme = Theme,
                 Animations = Animations,
                 Language = Language,
@@ -1738,6 +1766,9 @@ namespace MeowChan
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
             TagStamp = (string[])source.TagStamp.Clone();
+            TaggingCardsDefault = source.TaggingCardsDefault;
+            TaggingCards = (string[])source.TaggingCards.Clone();
+            TaggingCardCount = source.TaggingCardCount;
             LoadWarning = source.LoadWarning;
             LoadProblem = source.LoadProblem;
             LoadDisabledSourceGrants = source.LoadDisabledSourceGrants;
@@ -2281,6 +2312,19 @@ namespace MeowChan
                 return Math.Clamp(value, Config.GallerySlideshowVideoRepeatsMinimum, Config.GallerySlideshowVideoRepeatsMaximum);
             reader.Skip();
             return Config.GallerySlideshowVideoRepeatsDefault;
+        }
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
+    }
+
+    internal sealed class DesktopPreferenceTaggingCardCountConverter : JsonConverter<int>
+    {
+        public override bool HandleNull => true;
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Number && reader.TryGetInt32(out int value))
+                return Math.Clamp(value, Config.TaggingCardCountMinimum, Config.TaggingCardCountMaximum);
+            reader.Skip();
+            return Config.TaggingCardCountDefault;
         }
         public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options) => writer.WriteNumberValue(value);
     }
