@@ -19,10 +19,11 @@ public sealed class MediaFilterTermTests
     }
 
     [Fact]
-    public void OnlyTagTypeSourceAndBoardCanExclude()
+    public void OnlyTagTypeSourceBoardQueueAndSourceTagCanExclude()
     {
         foreach (MediaFilterField field in Enum.GetValues<MediaFilterField>())
-            Assert.Equal(field is MediaFilterField.Tag or MediaFilterField.Type or MediaFilterField.Source or MediaFilterField.Board, MediaFilterTerm.CanExclude(field));
+            Assert.Equal(field is MediaFilterField.Tag or MediaFilterField.Type or MediaFilterField.Source or MediaFilterField.Board
+                or MediaFilterField.Queue or MediaFilterField.SourceTag, MediaFilterTerm.CanExclude(field));
         Assert.True(MediaFilterTerm.Type(MediaLibraryKindFilter.Video).Toggled().Exclude);
         Assert.False(MediaFilterTerm.Type(MediaLibraryKindFilter.Video).Toggled().Toggled().Exclude);
         MediaFilterTerm favorite = MediaFilterTerm.Flag(MediaFilterField.Favorite);
@@ -42,7 +43,7 @@ public sealed class MediaFilterTermTests
             Assert.Equal(field, MediaFilterTerm.FieldOf(MediaFilterTerm.KeyOf(field)));
             Assert.Equal(field, MediaFilterTerm.FieldOf(" " + MediaFilterTerm.KeyOf(field).ToUpperInvariant() + " "));
         }
-        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name"], keys);
+        Assert.Equal(["tag", "type", "sound", "source", "board", "rating", "fav", "missing", "untagged", "thread", "name", "queue", "booru"], keys);
         Assert.Null(MediaFilterTerm.FieldOf("typ"));
         Assert.Null(MediaFilterTerm.FieldOf(null));
     }

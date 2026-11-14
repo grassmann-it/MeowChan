@@ -8,7 +8,7 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>The fields a media filter term can be about (M2): every filter of the media page is one of these.</summary>
-internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favorite, Missing, Untagged, Thread, Name }
+internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favorite, Missing, Untagged, Thread, Name, Queue, SourceTag }
 
 /// <summary>
 /// One filter of the media page as data: a field, its value and whether it excludes (M2 groundwork). A set of terms is what the chips of
@@ -18,14 +18,28 @@ internal enum MediaFilterField { Tag, Type, Sound, Source, Board, Rating, Favori
 /// <item>Tag: <see cref="Value"/> is the tag id (format D); Type: image, gif, video or other; Sound: with or without;</item>
 /// <item>Source: the source name; Board: the board name with its source in <see cref="Scope"/>;</item>
 /// <item>Rating: the least rating, 1 to 5; Name: the text the file name contains; Thread: <see cref="Resource"/>;</item>
-/// <item>Favorite, Missing, Untagged: flags, the value is empty.</item>
+/// <item>Favorite, Missing, Untagged: flags, the value is empty;</item>
+/// <item>Queue (MP1): the value is empty; included = in the tagging queue, excluded = not in it;</item>
+/// <item>SourceTag (MP4): the provider's tag name (Danbooru spelling, lower case, no white space).</item>
 /// </list>
-/// Only Tag, Type, Source and Board can be excluded (<see cref="CanExclude"/>); the other fields have no meaningful "not".
+/// Only Tag, Type, Source, Board, Queue and SourceTag can be excluded (<see cref="CanExclude"/>); the other fields have no meaningful "not".
+/// Queue and SourceTag are page-side terms: the core filter does not know them (<see cref="MediaFilterTerms.ToFilter"/> skips them) and
+/// the media page applies them after it (<see cref="MediaPageTermFilter"/>).
 /// </summary>
 internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = "", bool Exclude = false, string? Scope = null, ResourceId? Resource = null)
 {
     /// <summary>Whether a term of this field may exclude (the chips of these fields get the include/exclude switch).</summary>
-    internal static bool CanExclude(MediaFilterField field) => field is MediaFilterField.Tag or MediaFilterField.Type or MediaFilterField.Source or MediaFilterField.Board;
+    internal static bool CanExclude(MediaFilterField field) => field is MediaFilterField.Tag or MediaFilterField.Type or MediaFilterField.Source or MediaFilterField.Board
+        or MediaFilterField.Queue or MediaFilterField.SourceTag;
+
+    /// <summary>The longest source tag name a term holds (a technical ceiling of the term, not a user limit; Danbooru names are far shorter).</summary>
+    internal const int MaximumSourceTagLength = 256;
+
+    /// <summary>Whether a text can be a source tag name: not empty, no white space or control characters, at most <see cref="MaximumSourceTagLength"/>.</summary>
+    internal static bool IsSourceTagName(string? name) => name is { Length: > 0 and <= MaximumSourceTagLength } && !name.Any(c => char.IsWhiteSpace(c) || char.IsControl(c));
+
+    /// <summary>The spelling a source tag term keeps: trimmed and in lower case (provider tags compare without case).</summary>
+    internal static string SourceTagValue(string name) => name.Trim().ToLowerInvariant();
 
     /// <summary>The same term, including instead of excluding or the other way round; a field that cannot exclude is returned unchanged.</summary>
     internal MediaFilterTerm Toggled() => CanExclude(Field) ? this with { Exclude = !Exclude } : this;
@@ -43,6 +57,8 @@ internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = ""
         MediaFilterField.Missing => "missing",
         MediaFilterField.Untagged => "untagged",
         MediaFilterField.Thread => "thread",
+        MediaFilterField.Queue => "queue",
+        MediaFilterField.SourceTag => "booru",
         _ => "name"
     };
 
@@ -76,6 +92,11 @@ internal sealed record MediaFilterTerm(MediaFilterField Field, string Value = ""
     internal static MediaFilterTerm Rating(int least) => new(MediaFilterField.Rating, least.ToString(CultureInfo.InvariantCulture));
     internal static MediaFilterTerm Name(string text) => new(MediaFilterField.Name, text);
     internal static MediaFilterTerm InThread(ResourceId thread) => new(MediaFilterField.Thread, thread.Thread ?? string.Empty, Resource: thread);
+    /// <summary>MP1: in the tagging queue (<paramref name="inQueue"/> true) or not in it (the excluded term).</summary>
+    internal static MediaFilterTerm InQueue(bool inQueue = true) => new(MediaFilterField.Queue, string.Empty, !inQueue);
+    /// <summary>MP4: media whose provider post carries this source tag (or, excluded, does not).</summary>
+    internal static MediaFilterTerm SourceTag(string name, bool exclude = false) =>
+        IsSourceTagName(name?.Trim()) ? new(MediaFilterField.SourceTag, SourceTagValue(name!), exclude) : throw new ArgumentException("A source tag needs a name without spaces.", nameof(name));
     internal static MediaFilterTerm Flag(MediaFilterField field) => field is MediaFilterField.Favorite or MediaFilterField.Missing or MediaFilterField.Untagged
         ? new(field) : throw new ArgumentOutOfRangeException(nameof(field), "Only favorites, missing and untagged are flags.");
 }
@@ -157,6 +178,13 @@ internal static class MediaFilterTerms
                 case MediaFilterField.Favorite: favorites = true; break;
                 case MediaFilterField.Untagged: untagged = true; break;
                 case MediaFilterField.Missing: break;
+                // Page-side terms (MediaPageTermFilter): checked here, applied by the page after the core filter.
+                case MediaFilterField.Queue:
+                    if (term.Value.Length > 0) throw new ArgumentException("A queue term has no value.", nameof(terms));
+                    break;
+                case MediaFilterField.SourceTag:
+                    if (!MediaFilterTerm.IsSourceTagName(term.Value)) throw new ArgumentException("A source tag term needs a tag name.", nameof(terms));
+                    break;
                 default: throw new ArgumentOutOfRangeException(nameof(terms), term.Field, "Unknown field.");
             }
         }
@@ -181,6 +209,9 @@ internal static class MediaFilterTerms
 
     /// <summary>Whether the terms ask to show missing files (a flag of the presentation, not of the filter).</summary>
     internal static bool IncludesMissing(IEnumerable<MediaFilterTerm> terms) => terms.Any(term => term.Field == MediaFilterField.Missing);
+
+    /// <summary>Whether a term is applied by the page after the core filter (queue membership, source tags) rather than by the core filter.</summary>
+    internal static bool IsPageTerm(MediaFilterTerm term) => term.Field is MediaFilterField.Queue or MediaFilterField.SourceTag;
 
     /// <summary>
     /// The terms of a filter, in the order of <see cref="MediaFilterField"/> (tags: included before excluded). A type set of up to two
@@ -342,12 +373,14 @@ internal static class MediaFilterTermSet
     }
 
     /// <summary>
-    /// The place of a term's chip in the row (the order the chips had before M2): included tags, excluded tags, [the tag mode chip, 2],
-    /// thread, without media tags, name, type, sound, source, board, rating, favourites, missing; within a field included before excluded.
+    /// The place of a term's chip in the row (the order the chips had before M2): included tags, excluded tags, [the tag mode chip],
+    /// source tags (2), thread, without media tags, name, type, sound, source, board, rating, favourites and the tagging queue, missing;
+    /// within a field included before excluded.
     /// </summary>
     internal static int DisplayRank(MediaFilterTerm term) => term.Field switch
     {
         MediaFilterField.Tag => term.Exclude ? 1 : 0,
+        MediaFilterField.SourceTag => 2,
         MediaFilterField.Thread => 3,
         MediaFilterField.Untagged => 4,
         MediaFilterField.Name => 5,
@@ -356,7 +389,7 @@ internal static class MediaFilterTermSet
         MediaFilterField.Source => 8,
         MediaFilterField.Board => 9,
         MediaFilterField.Rating => 10,
-        MediaFilterField.Favorite => 11,
+        MediaFilterField.Favorite or MediaFilterField.Queue => 11,
         _ => 12
     };
 

@@ -104,7 +104,8 @@ internal sealed record MediaFilterQueryApplication(IReadOnlyList<MediaFilterTerm
 /// <item><c>field:value</c>, <c>-field:value</c> (exclude; tag, type, source and board only) with the fields of
 /// <see cref="MediaFilterTerm.KeyOf"/> in English plus the aliases of the vocabulary: <c>tag:cats</c>, <c>type:video</c>,
 /// <c>sound:with|none</c>, <c>source:4chan</c>, <c>board:g</c> or <c>board:4chan/g</c>, <c>rating:&gt;=3</c>, <c>thread:1234</c>, <c>name:x</c>;</item>
-/// <item>the bare flags <c>fav</c>, <c>missing</c>, <c>untagged</c> (their aliases too);</item>
+/// <item>the bare flags <c>fav</c>, <c>missing</c>, <c>untagged</c> and <c>queue</c> (their aliases too; only <c>-queue</c> may exclude);
+/// <c>queue:yes|no</c> and the provider's tags <c>booru:name</c>, <c>-booru:name</c>;</item>
 /// <item>free text, which stays the file name text. A value in double quotes may hold spaces (<c>tag:"two words"</c>; inside quotes
 /// <c>\"</c> and <c>\\</c> are escapes); a bare quoted phrase is free text, and quoting a token (<c>"type:video"</c>) keeps it free text.</item>
 /// </list>
@@ -207,6 +208,8 @@ internal static class MediaFilterQuery
             if (raw.Quoted) return Plain(raw, vocabulary, nested);
             string word = decoded.StartsWith('-') ? decoded[1..] : decoded;
             if (!IsFieldWord(word) || vocabulary.FieldOf(word) is not { } flag || !IsFlag(flag)) return Plain(raw, vocabulary, nested);
+            // "queue" and "-queue": in the tagging queue or not (the one flag that can exclude).
+            if (flag == MediaFilterField.Queue) return Term(raw.Text, MediaFilterTerm.InQueue(!decoded.StartsWith('-')));
             return decoded.StartsWith('-') ? Problem(raw.Text, MediaFilterQueryProblem.CannotExclude) : Term(raw.Text, MediaFilterTerm.Flag(flag));
         }
         if (key.StartsWith('-')) { exclude = true; key = key[1..]; }
@@ -239,12 +242,23 @@ internal static class MediaFilterQuery
                     ? Term(raw.Text, MediaFilterTerm.Flag(field)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             case MediaFilterField.Thread:
                 return ClassifyThread(raw.Text, value, vocabulary);
+            // MP1: "queue:yes" / "queue:no" ("-queue:yes" is "queue:no").
+            case MediaFilterField.Queue:
+                return value.ToLowerInvariant() switch
+                {
+                    "" or "yes" or "true" or "on" or "1" => Term(raw.Text, MediaFilterTerm.InQueue(!exclude)),
+                    "no" or "false" or "off" or "0" => Term(raw.Text, MediaFilterTerm.InQueue(exclude)),
+                    _ => Problem(raw.Text, MediaFilterQueryProblem.UnknownValue)
+                };
+            // MP4: "booru:cat_ears", "-booru:comic" - the provider's tag name as written (compared without case).
+            case MediaFilterField.SourceTag:
+                return MediaFilterTerm.IsSourceTagName(value) ? Term(raw.Text, MediaFilterTerm.SourceTag(value, exclude)) : Problem(raw.Text, MediaFilterQueryProblem.UnknownValue);
             default: // Name: the file name text, written as a field
                 return new MediaFilterQueryToken(MediaFilterQueryTokenKind.Text, raw.Text, value);
         }
     }
 
-    private static bool IsFlag(MediaFilterField field) => field is MediaFilterField.Favorite or MediaFilterField.Missing or MediaFilterField.Untagged;
+    private static bool IsFlag(MediaFilterField field) => field is MediaFilterField.Favorite or MediaFilterField.Missing or MediaFilterField.Untagged or MediaFilterField.Queue;
 
     private static MediaFilterQueryToken ClassifyBoard(string raw, string value, bool exclude, MediaFilterQueryVocabulary vocabulary,
         List<(int Index, string Value, bool Exclude, string Raw)> pendingBoards, int index)
@@ -376,6 +390,12 @@ internal static class MediaFilterQuery
                     break;
                 case MediaFilterField.Thread:
                     parts.Add(key + ":" + Quote(ThreadText(term, vocab)));
+                    break;
+                case MediaFilterField.Queue:
+                    parts.Add(key + (term.Exclude ? ":no" : ":yes"));
+                    break;
+                case MediaFilterField.SourceTag:
+                    parts.Add(minus + key + ":" + Quote(term.Value));
                     break;
                 case MediaFilterField.Name:
                     name = name == null ? term.Value : name + " " + term.Value;

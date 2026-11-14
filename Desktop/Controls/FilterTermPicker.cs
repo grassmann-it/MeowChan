@@ -208,7 +208,7 @@ internal class FilterTermPicker : Button
         MediaFilterField.Source => 3,
         MediaFilterField.Board => 4,
         MediaFilterField.Rating => 5,
-        MediaFilterField.Favorite or MediaFilterField.Missing or MediaFilterField.Untagged => 6,
+        MediaFilterField.Favorite or MediaFilterField.Missing or MediaFilterField.Untagged or MediaFilterField.Queue => 6,
         MediaFilterField.Thread => 7,
         _ => 8
     };

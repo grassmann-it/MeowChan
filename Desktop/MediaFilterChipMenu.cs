@@ -27,7 +27,8 @@ internal static class MediaFilterChipMenu
     {
         ArgumentNullException.ThrowIfNull(terms);
         ArgumentNullException.ThrowIfNull(actions);
-        bool tag = term?.Field == MediaFilterField.Tag && tagName != null;
+        // Own tags and the provider's source tags (MP4) both have a name to copy.
+        bool tag = term?.Field is MediaFilterField.Tag or MediaFilterField.SourceTag && tagName != null;
         return new FilterChipMenuOptions
         {
             TagName = tag ? tagName : null,

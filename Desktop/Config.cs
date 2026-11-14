@@ -251,6 +251,11 @@ namespace MeowChan
         internal const int TagQueueConfirmAboveDefault = 200;
         internal const int TagQueueConfirmAboveMinimum = 10;
         internal const int TagQueueConfirmAboveMaximum = 10_000;
+        /// <summary>MP4: how many tags each group of the media page's Booru-mode tag list shows before "Show all" (the rest stays one click away).</summary>
+        public int MediaTagListTop { get; set; } = MediaTagListTopDefault;
+        internal const int MediaTagListTopDefault = 30;
+        internal const int MediaTagListTopMinimum = 5;
+        internal const int MediaTagListTopMaximum = 1_000;
         /// <summary>Most entries in the list of known profiles (profiles.json, shared by all profiles). Lowering it keeps every entry; only new profiles are not listed.</summary>
         public int ProfileRegistryLimit { get; set; } = ProfileRegistryLimitDefault;
         internal const int ProfileRegistryLimitDefault = Persistence.ProfileRegistry.DefaultLimit;
@@ -594,6 +599,16 @@ namespace MeowChan
         {
             get => _mediaSortDirection;
             set => _mediaSortDirection = MediaSortPreference.ParseDirection(value).ToString();
+        }
+        // MP4: the Booru mode of the media page (the tag list beside the grid) and the order of that list ("Count" or "Name").
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool MediaBooruMode { get; set; }
+        private string _mediaTagListSort = nameof(Desktop.MediaTagListSort.Count);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string MediaTagListSort
+        {
+            get => _mediaTagListSort;
+            set => _mediaTagListSort = Enum.TryParse(value?.Trim(), true, out Desktop.MediaTagListSort sort) && Enum.IsDefined(sort) ? sort.ToString() : nameof(Desktop.MediaTagListSort.Count);
         }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryFitUpscaleLimited { get; set; }
@@ -1279,6 +1294,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(TagQueueHistory), "TagQueueHistory is outside its supported range (" + TagQueueHistoryMinimum + " to " + TagQueueHistoryMaximum + ").");
             if (TagQueueConfirmAbove is < TagQueueConfirmAboveMinimum or > TagQueueConfirmAboveMaximum)
                 throw new ArgumentOutOfRangeException(nameof(TagQueueConfirmAbove), "TagQueueConfirmAbove is outside its supported range (" + TagQueueConfirmAboveMinimum + " to " + TagQueueConfirmAboveMaximum + ").");
+            if (MediaTagListTop is < MediaTagListTopMinimum or > MediaTagListTopMaximum)
+                throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ProfileRegistryLimit), "ProfileRegistryLimit is outside its supported range (" + ProfileRegistryLimitMinimum + " to " + ProfileRegistryLimitMaximum + ").");
             if (TagQueueWalkWindow is < TagQueueWalkWindowMinimum or > TagQueueWalkWindowMaximum)
@@ -1505,6 +1522,7 @@ namespace MeowChan
                 TagQueueFileLimitMiB = TagQueueFileLimitMiB,
                 TagQueueHistory = TagQueueHistory,
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
+                MediaTagListTop = MediaTagListTop,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
                 TagQueueUndoDepth = TagQueueUndoDepth,
@@ -1600,6 +1618,8 @@ namespace MeowChan
                 ReaderSpoilers = ReaderSpoilers,
                 MediaSort = MediaSort,
                 MediaSortDirection = MediaSortDirection,
+                MediaBooruMode = MediaBooruMode,
+                MediaTagListSort = MediaTagListSort,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -1729,6 +1749,7 @@ namespace MeowChan
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            MediaTagListTop = source.MediaTagListTop;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
             TagQueueUndoDepth = source.TagQueueUndoDepth;
@@ -1824,6 +1845,8 @@ namespace MeowChan
             ReaderSpoilers = source.ReaderSpoilers;
             MediaSort = source.MediaSort;
             MediaSortDirection = source.MediaSortDirection;
+            MediaBooruMode = source.MediaBooruMode;
+            MediaTagListSort = source.MediaTagListSort;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();
@@ -1912,6 +1935,7 @@ namespace MeowChan
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB;
             TagQueueHistory = source.TagQueueHistory;
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
+            MediaTagListTop = source.MediaTagListTop;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
             TagQueueUndoDepth = source.TagQueueUndoDepth;
