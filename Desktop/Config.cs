@@ -359,6 +359,20 @@ namespace MeowChan
             set => _readerSpoilers = Enum.TryParse(value?.Trim(), true, out ReaderSpoilerMode mode) && Enum.IsDefined(mode)
                 ? mode.ToString() : "Hide";
         }
+        // The order of the media page (MediaSortPreference): a criterion name and "Default"/"Reversed". The random order is not kept.
+        private string _mediaSort = MediaSortPreference.Format(MediaSortPreference.DefaultSort), _mediaSortDirection = "Default";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string MediaSort
+        {
+            get => _mediaSort;
+            set => _mediaSort = MediaSortPreference.Format(MediaSortPreference.ParseSort(value));
+        }
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string MediaSortDirection
+        {
+            get => _mediaSortDirection;
+            set => _mediaSortDirection = MediaSortPreference.ParseDirection(value).ToString();
+        }
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryFitUpscaleLimited { get; set; }
 
@@ -1077,6 +1091,8 @@ namespace MeowChan
                 HiddenPostLimit = HiddenPostLimit,
                 ReaderDateStyle = ReaderDateStyle,
                 ReaderSpoilers = ReaderSpoilers,
+                MediaSort = MediaSort,
+                MediaSortDirection = MediaSortDirection,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
 
                 ShortcutBindings = ShortcutBindings.Clone(),
@@ -1235,6 +1251,8 @@ namespace MeowChan
             HiddenPostLimit = source.HiddenPostLimit;
             ReaderDateStyle = source.ReaderDateStyle;
             ReaderSpoilers = source.ReaderSpoilers;
+            MediaSort = source.MediaSort;
+            MediaSortDirection = source.MediaSortDirection;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
 
             ShortcutBindings = source.ShortcutBindings.Clone();

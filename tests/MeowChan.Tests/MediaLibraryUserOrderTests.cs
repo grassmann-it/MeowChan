@@ -191,4 +191,63 @@ public sealed class MediaLibraryUserOrderTests
                 Assert.Equal(expected.Select(tile => tile.Entry.Thread.Thread), actual.Select(tile => tile.Entry.Thread.Thread));
             }
     }
+
+    [Fact]
+    public void OnlyTheOwnDataSortsGetKeysAndAFittingInstanceIsKept()
+    {
+        MediaLibraryEntry a = Entry("a", 'a'), b = Entry("b", 'b');
+        MediaLibraryEntry[] all = [a, b];
+        MediaLibraryUserData data = Data(ratings: [(a, 3)]);
+
+        foreach (MediaLibrarySort sort in Enum.GetValues<MediaLibrarySort>().Where(sort => sort is not (MediaLibrarySort.TagCount or MediaLibrarySort.Rating)))
+        {
+            Assert.False(MediaLibraryUserOrder.Needs(sort));
+            // An order that reads nothing of the own data makes no keys, whatever is kept.
+            Assert.Null(MediaLibraryUserOrder.For(sort, all, data, null));
+            Assert.Null(MediaLibraryUserOrder.For(sort, all, data, MediaLibraryUserOrder.Of(all, data)));
+        }
+        foreach (MediaLibrarySort sort in new[] { MediaLibrarySort.TagCount, MediaLibrarySort.Rating })
+        {
+            Assert.True(MediaLibraryUserOrder.Needs(sort));
+            MediaLibraryUserOrder made = MediaLibraryUserOrder.For(sort, all, data, null)!;
+            Assert.NotNull(made);
+            Assert.Same(made, MediaLibraryUserOrder.For(sort, all, data, made)); // the same index and data state: kept
+            Assert.NotSame(made, MediaLibraryUserOrder.For(sort, all, Data(revision: 2, ratings: [(a, 3)]), made)); // another tag revision
+            Assert.NotSame(made, MediaLibraryUserOrder.For(sort, all.ToArray(), data, made)); // another index
+            Assert.NotSame(made, MediaLibraryUserOrder.For(sort, all, MediaLibraryUserData.Unavailable, made));
+        }
+    }
+
+    [Fact]
+    public void TheKeysCanBeMadeOnAWorkerThreadAndGiveTheSameOrderAsOnTheCallingThread()
+    {
+        MediaLibraryEntry t1 = Entry("t1", 'a', 1), t2 = Entry("t2", 'b', 2), t3 = Entry("t3", 'c', 3), t4 = Entry("t4", 'a', 4);
+        MediaLibraryEntry[] all = [t1, t2, t3, t4];
+        MediaLibraryUserData data = Data(threads: [ThreadTag(Rpt, t2), ThreadTag(Cute, t2), ThreadTag(Rpt, t3)], ratings: [(t1, 4), (t3, 2)]);
+        foreach (MediaLibrarySort sort in new[] { MediaLibrarySort.TagCount, MediaLibrarySort.Rating })
+        {
+            MediaLibraryUserOrder here = MediaLibraryUserOrder.For(sort, all, data, null)!;
+            MediaLibraryUserOrder there = Task.Run(() => MediaLibraryUserOrder.For(sort, all, data, null)!).GetAwaiter().GetResult();
+            foreach (MediaLibrarySortDirection direction in Enum.GetValues<MediaLibrarySortDirection>())
+                Assert.Equal(Threads(MediaLibraryView.Select(all, sort, true, direction: direction, userOrder: here)),
+                    Threads(MediaLibraryView.Select(all, sort, true, direction: direction, userOrder: there)));
+        }
+    }
+
+    [Fact]
+    public void TheTagCountIsTheSizeOfTheTagSetWithoutBuildingIt()
+    {
+        MediaLibraryEntry a = Entry("a", 'a'), b = Entry("b", 'b'), c = Entry("c", 'c'), d = Entry("d", 'd'), gone = Entry("gone", 'e', missing: true);
+        MediaLibraryUserData data = Data(
+            threads: [ThreadTag(Rpt, a), ThreadTag(Cute, a), ThreadTag(Rpt, b), ThreadTag(Bad, d)],
+            // a: one own tag that its thread also has (counts once) and a new one; b: only an own tag the thread has; c: nothing; d: own only
+            media: [MediaTag(Rpt, a), MediaTag(Bad, a), MediaTag(Rpt, b), MediaTag(Cute, d)]);
+        foreach (MediaLibraryEntry entry in new[] { a, b, c, d, gone })
+            Assert.Equal(data.TagsOf(entry).Count, data.TagCountOf(entry));
+        Assert.Equal(3, data.TagCountOf(a));
+        Assert.Equal(1, data.TagCountOf(b));
+        Assert.Equal(0, data.TagCountOf(c));
+        Assert.Equal(2, data.TagCountOf(d));
+        Assert.Throws<MediaLibraryFilterException>(() => MediaLibraryUserData.Unavailable.TagCountOf(a));
+    }
 }
