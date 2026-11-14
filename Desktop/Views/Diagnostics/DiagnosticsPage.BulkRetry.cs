@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -101,9 +102,7 @@ public partial class DiagnosticsPage
             {
                 _visibleDiagnostics = visible;
                 grid.ItemsSource = visible;
-                grid.SelectedItem = retained.FirstOrDefault(entry => entry.Key == lead) ?? retained.FirstOrDefault();
-                foreach (DiagnosticEntry item in retained)
-                    if (!grid.SelectedItems.Contains(item)) grid.SelectedItems.Add(item);
+                DataGridSelection.Select(grid, retained, retained.FirstOrDefault(entry => entry.Key == lead));
             }
             finally { _refreshingDiagnostics = false; }
         }

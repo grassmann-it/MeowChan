@@ -56,7 +56,7 @@ public partial class DiagnosticsPage
             _diagnosticContextPrepared = true;
             if (grid.ContextMenu?.ItemCount > 0) grid.ContextMenu.Open(grid);
         }
-        else { grid.SelectedItems.Clear(); grid.ContextMenu?.Close(); _diagnosticContextPrepared = false; }
+        else { MeowChan.Desktop.Controls.DataGridSelection.Clear(grid); grid.ContextMenu?.Close(); _diagnosticContextPrepared = false; }
         e.Handled = true;
     }
 
