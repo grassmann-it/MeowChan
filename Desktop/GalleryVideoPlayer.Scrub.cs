@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -47,6 +48,11 @@ internal sealed partial class GalleryVideoPlayer
         BorderThickness = new Thickness(1),
         IsHitTestVisible = false
     };
+    // Hide-trigger state machine (pure, unit tested) plus the window facts that feed it. The popup is a separate
+    // top-level window; it must never outlive minimise, deactivation, hide-to-tray or the timeline's visual tree.
+    private readonly VideoScrubPopupGate _scrubGate = new();
+    private readonly Dictionary<Window, bool> _scrubWindows = new(); // window -> must be visible for the popup to exist
+    private readonly DispatcherTimer _scrubWatchdog = new() { Interval = TimeSpan.FromMilliseconds(250) };
     private CancellationTokenSource? _scrubHoverCancellation;
     private VideoScrubPreviewCache? _scrubCache;
     private VideoScrubPreviewSession? _scrubSession;
@@ -104,15 +110,124 @@ internal sealed partial class GalleryVideoPlayer
         _scrubPopup.PlacementTarget = _seek;
         _root.Children.Add(_scrubPopup);
 
-        _seek.AddHandler(PointerEnteredEvent, (_, e) => OnSeekPointerMoved(e), RoutingStrategies.Bubble, handledEventsToo: true);
+        _seek.AddHandler(PointerEnteredEvent, (_, e) => OnSeekPointerMoved(e, entered: true), RoutingStrategies.Bubble, handledEventsToo: true);
         _seek.AddHandler(PointerMovedEvent, (_, e) => OnSeekPointerMoved(e), RoutingStrategies.Bubble, handledEventsToo: true);
-        _seek.AddHandler(PointerExitedEvent, (_, _) => CancelScrubPreviewRequest(), RoutingStrategies.Bubble, handledEventsToo: true);
+        _seek.AddHandler(PointerExitedEvent, (_, _) =>
+        {
+            _scrubGate.OnPointerExited();
+            CancelScrubPreviewRequest();
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
+        _seek.AttachedToVisualTree += (_, _) =>
+        {
+            _scrubPopup.PlacementTarget = _seek;
+            RefreshScrubWindowWatch();
+        };
+        // The popup must not keep a reference to, or stay open for, a timeline that left the tree.
+        _seek.DetachedFromVisualTree += (_, _) => OnScrubTimelineDetached();
+        _scrubWatchdog.Tick += (_, _) => EnforceScrubGate();
     }
 
-    private void OnSeekPointerMoved(PointerEventArgs args)
+    private void OnScrubTimelineDetached()
     {
+        ReleaseScrubWindowWatch();
+        _scrubGate.ApplyEnvironment(VideoScrubEnvironment.Unknown);
+        CancelScrubPreviewRequest();
+        _scrubPopup.PlacementTarget = null;
+    }
+
+    /// <summary>Recomputes the window facts for the gate. Returns true when the popup may show.</summary>
+    private bool ApplyScrubEnvironment()
+    {
+        bool attached = TopLevel.GetTopLevel(_seek) != null;
+        bool active = _scrubWindows.Count == 0, minimized = false, visible = true;
+        foreach ((Window window, bool mustBeVisible) in _scrubWindows)
+        {
+            active |= window.IsActive;
+            minimized |= window.WindowState == WindowState.Minimized;
+            if (mustBeVisible) visible &= window.IsVisible;
+        }
+        return _scrubGate.ApplyEnvironment(new VideoScrubEnvironment(attached, active, minimized, visible));
+    }
+
+    /// <summary>Hides the popup unless the gate (windows, pointer, latches) still allows it.</summary>
+    private void EnforceScrubGate()
+    {
+        bool mayShow = ApplyScrubEnvironment();
+        // A mouse pointer that left the bar without a PointerExited (window left behind it) also hides the popup.
+        // An active pointer gesture (touch drag, capture) keeps owning the bar.
+        if (mayShow && !_seek.IsPointerOver && _seekPointer == null)
+        {
+            _scrubGate.OnPointerExited();
+            mayShow = false;
+        }
+        if (!mayShow) CancelScrubPreviewRequest();
+    }
+
+    private void RefreshScrubWindowWatch()
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        Dictionary<Window, bool> next = new();
+        void Add(Window? window, bool mustBeVisible)
+        {
+            // The owner chain (the main window behind a native video overlay or transport window) counts too.
+            for (int depth = 0; window != null && depth < 8; depth++, window = window.Owner as Window)
+                next[window] = next.TryGetValue(window, out bool known) ? known | mustBeVisible : mustBeVisible;
+        }
+        Window? seekWindow = TopLevel.GetTopLevel(_seek) as Window;
+        Add(seekWindow, true);
+        Add(TopLevel.GetTopLevel(this) as Window, false);
+        Add((Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow, true);
+
+        foreach (Window window in new List<Window>(_scrubWindows.Keys))
+        {
+            if (next.ContainsKey(window)) continue;
+            window.PropertyChanged -= OnScrubWindowPropertyChanged;
+            window.RemoveHandler(KeyDownEvent, OnScrubWindowKeyDown);
+        }
+        foreach (Window window in next.Keys)
+        {
+            if (_scrubWindows.ContainsKey(window)) continue;
+            window.PropertyChanged += OnScrubWindowPropertyChanged;
+            window.AddHandler(KeyDownEvent, OnScrubWindowKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
+        }
+        _scrubWindows.Clear();
+        foreach ((Window window, bool mustBeVisible) in next) _scrubWindows[window] = mustBeVisible;
+        EnforceScrubGate();
+    }
+
+    private void ReleaseScrubWindowWatch()
+    {
+        foreach (Window window in _scrubWindows.Keys)
+        {
+            window.PropertyChanged -= OnScrubWindowPropertyChanged;
+            window.RemoveHandler(KeyDownEvent, OnScrubWindowKeyDown);
+        }
+        _scrubWindows.Clear();
+    }
+
+    private void OnScrubWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.IsActiveProperty || e.Property == Window.WindowStateProperty
+            || e.Property == Visual.IsVisibleProperty) EnforceScrubGate();
+    }
+
+    // Escape never stops here (handledEventsToo, tunnel): it only dismisses the hover preview.
+    private void OnScrubWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape) return;
+        _scrubGate.OnEscape();
+        CancelScrubPreviewRequest();
+    }
+
+    /// <summary>Hides the preview now (gallery chrome events such as a medium change call this).</summary>
+    internal void DismissScrubPreview() => CancelScrubPreviewRequest();
+
+    private void OnSeekPointerMoved(PointerEventArgs args, bool entered = false)
+    {
+        bool environmentOk = ApplyScrubEnvironment();
+        bool mayShow = entered ? _scrubGate.OnPointerEntered() : _scrubGate.OnPointerMoved();
         if (IsDisposed || _scrubSession == null || _length <= 0 || _seek.Bounds.Width <= 0
-            || !_canSeek || !_seek.IsEffectivelyEnabled)
+            || !_canSeek || !_seek.IsEffectivelyEnabled || !environmentOk || !mayShow)
         {
             CancelScrubPreviewRequest();
             return;
@@ -195,6 +310,8 @@ internal sealed partial class GalleryVideoPlayer
         if (!IsCurrentScrubRequest(generation, revision, slot, _scrubSessionGeneration, _scrubHoverRevision,
                 _scrubHoverSlot, _length > 0) || !IsCurrent(generation) || !ReferenceEquals(session, _scrubSession) || IsDisposed)
             return;
+        // A frame that finishes loading after the window was minimised/deactivated/hidden must not open a popup.
+        if (!ApplyScrubEnvironment() || !_scrubGate.MayShow) { CancelScrubPreviewRequest(); return; }
 
         Bitmap bitmap;
         try
@@ -224,6 +341,7 @@ internal sealed partial class GalleryVideoPlayer
         _scrubTime.Text = FormatVideoTime((long)Math.Clamp(frame.Fraction * _length, 0, _length));
         previous?.Dispose();
         _scrubPopup.IsOpen = true;
+        _scrubWatchdog.Start();
     }
 
     private void CancelScrubPreviewRequest()
@@ -239,10 +357,12 @@ internal sealed partial class GalleryVideoPlayer
         _scrubHoverCancellation?.Cancel();
         _scrubHoverCancellation = null;
         _scrubPopup.IsOpen = false;
+        _scrubWatchdog.Stop();
     }
 
     private VideoScrubPreviewSession? DetachScrubSession()
     {
+        _scrubGate.OnMediaChanged();
         CancelScrubPreviewRequest();
         VideoScrubPreviewSession? previous = _scrubSession;
         _scrubSession = null;
@@ -290,8 +410,11 @@ internal sealed partial class GalleryVideoPlayer
         }
 
         _scrubEntry = null;
+        _scrubGate.Retire();
+        ReleaseScrubWindowWatch();
         VideoScrubPreviewSession? previous = DetachScrubSession();
         if (previous != null) RetireScrubSession(previous);
+        _scrubPopup.PlacementTarget = null;
         if (_scrubRetirements.Count == 0) return;
         Task[] retirements = _scrubRetirements.ToArray();
         _scrubRetirements.Clear();
