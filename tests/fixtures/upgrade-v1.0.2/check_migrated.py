@@ -7,7 +7,8 @@ code. Expected schema markers come from local Git objects of the pinned release 
 the current revision stamped into the cycle results, not from this checkout.
 Asserted: the documented 1.1.0 upgrade outcomes that need no user action (archive
 user_version released -> current, journal marker, no private-tags/booru file created
-by opening). Manifest versions, prune backup and other new files are only reported.
+by opening), and every cycle's effective scalar settings against the released file
+and this build's defaults. Manifest versions, prune backup and other new files are only reported.
 """
 import argparse
 import hashlib
@@ -111,6 +112,43 @@ def cycle_revision(version):
     return revision
 
 
+def check_effective_settings(released_bytes, released_sha256, cycles):
+    """All three post-shutdown Config reads, not merely the receipt's ten selected settings.
+
+    The parent copies settings.json BEFORE the first current open; the released receipt
+    binds its bytes. Missing evidence fails closed. Complex settings remain outside the
+    consumer's scalar AllSettings projection; never deserialize them as current defaults.
+    """
+    require(digest(released_bytes) == released_sha256.lower(), 'released settings digest mismatch')
+    released = json.loads(released_bytes, object_pairs_hook=unique)
+    require(isinstance(released, dict) and released, 'missing released settings')
+    require(len(cycles) == 3, 'effective settings require all three cycles')
+    old_scalars = {key: value for key, value in released.items() if not isinstance(value, (dict, list))}
+    reference_defaults = None
+    for index, cycle in enumerate(cycles):
+        name = f'cycle-{index}'
+        persisted = cycle.get('Persisted')
+        require(isinstance(persisted, dict), name + ': missing Persisted settings')
+        effective, defaults = persisted.get('AllSettings'), persisted.get('DefaultSettings')
+        require(isinstance(effective, dict) and effective and isinstance(defaults, dict) and defaults,
+                name + ': missing AllSettings/DefaultSettings')
+        require(effective.keys() == defaults.keys(), name + ': effective/default settings keys differ')
+        require(old_scalars.keys() <= effective.keys(), name + ': old scalar settings missing')
+        if reference_defaults is None:
+            reference_defaults = defaults
+        require(defaults == reference_defaults, name + ': defaults differ between cycles')
+        for key, actual in effective.items():
+            expected = released[key] if key in released else defaults[key]
+            # Config.TryRead intentionally marks pre-work-view profiles for a one-time notice
+            # (Config.cs). It is an upgrade outcome, unlike new Config().WorkViewNoticePending.
+            if key == 'WorkViewNoticePending' and key not in released:
+                expected = True
+            require(not isinstance(actual, (dict, list)) and not isinstance(expected, (dict, list)),
+                    f'{name}: non-scalar setting in AllSettings: {key}')
+            require(isinstance(actual, bool) == isinstance(expected, bool) and actual == expected,
+                    f'{name}: effective setting differs from released value/upgrade default: {key}')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--profile', type=Path, required=True)
@@ -130,6 +168,7 @@ def main():
             'final result provenance/shape mismatch')
     require([c['Cycle'] for c in final['Cycles']] == [0, 1, 2], 'final result is not cycles 0, 1, 2')
     revisions = set()
+    snapshots = []
     for cycle in final['Cycles']:
         name = cycle['Result']
         require(name == f"cycle-{cycle['Cycle']}.json", 'unexpected cycle file name')
@@ -139,6 +178,7 @@ def main():
         require(current['Schema'] == 'meowchan.released-102-current-cycle.v1' and current['HostStopped'] is True and
                 current['NetworkRequests'] == [] and current['Profile'] == str(profile), 'cycle shape mismatch: ' + name)
         revisions.add(cycle_revision(current['CurrentVersion']))
+        snapshots.append(current)
     require(len(revisions) == 1, 'cycles ran different current revisions')
     current_revision = revisions.pop()
     if args.expect_revision:
@@ -150,6 +190,7 @@ def main():
     receipt = json.loads(receipt_bytes, object_pairs_hook=unique)
     require(receipt['Synthetic'] is True and receipt['SourceRevision'] == REVISION, 'receipt provenance mismatch')
     files = receipt['Files']
+    check_effective_settings(read(results / 'released-settings.json'), files['settings.json'], snapshots)
 
     released_archive, current_archive = archive_schema(REVISION), archive_schema(current_revision)
     require(released_archive < current_archive, 'no archive migration expected between these revisions')

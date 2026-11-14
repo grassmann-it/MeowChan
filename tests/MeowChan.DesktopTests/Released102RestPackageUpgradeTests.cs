@@ -43,6 +43,9 @@ public sealed class Released102RestPackageUpgradeTests(ITestOutputHelper output)
         // Receipt and source binding survive independently even when current startup fails.
         Directory.CreateDirectory(results);
         File.WriteAllBytes(Path.Combine(results, "released-receipt.json"), receiptBytes);
+        // Keep the full released settings for check_migrated.py, bound by receipt.Files["settings.json"].
+        // The receipt's selected Settings projection cannot attest new defaults or every old scalar.
+        File.WriteAllBytes(Path.Combine(results, "released-settings.json"), ReadOrdinaryFile(SafePath(profile, "settings.json")));
         File.Copy(sourceManifest, Path.Combine(results, "released-source-manifest.json"));
         var cycles = new List<object>();
         for (int cycle = 0; cycle < 3; cycle++)

@@ -1,20 +1,25 @@
 """Regressions for the 1.0.2 -> 1.1.0 upgrade state capture and its assertions.
 
-These do not open a profile or run a build: they check that the assertions in
-tests/fixtures/upgrade-v1.0.2/upgrade_state.py actually fail when something is
-lost, and pass on an untouched upgrade.
+No product, build or database is opened: assertion inputs exercise upgrade_state.py
+and check_migrated.py, including AP04's three-cycle effective-settings gate.
+These helper tests are not evidence of an executed product upgrade.
 """
 import copy
 import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 MODULE = Path(__file__).resolve().parents[1] / 'tests' / 'fixtures' / 'upgrade-v1.0.2' / 'upgrade_state.py'
 _spec = importlib.util.spec_from_file_location('upgrade_state', MODULE)
 state = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(state)
+
+_check_spec = importlib.util.spec_from_file_location('check_migrated', MODULE.with_name('check_migrated.py'))
+migrated = importlib.util.module_from_spec(_check_spec)
+_check_spec.loader.exec_module(migrated)
 
 
 def profile(files, stores, settings, user_version, extra=None):
@@ -148,6 +153,124 @@ class TagAssertionTests(unittest.TestCase):
         report = state.Report()
         state.tag_checks([v1, v2], [], None, report)
         self.assertEqual([line for line in report.lines if ' FAIL ' in line], [])
+
+
+class AP04EffectiveSettingsTests(unittest.TestCase):
+    """Assertion inputs only: no generated predecessor profile or product execution."""
+
+    def setUp(self):
+        self.released = {'VideoVolume': 31, 'MaxParallelDownloads': 2, 'CompactDensity': True,
+                         'LayoutProfiles': {'Barebones': {'CompactDensity': True}}}
+        self.defaults = {'VideoVolume': 70, 'MaxParallelDownloads': 5, 'CompactDensity': False,
+                         'TagQueueUndoDepth': 20, 'TaggingCardCount': 5, 'ReaderInlineVideo': False,
+                         'ReaderInlineVideoMaxPlayers': 2, 'GalleryMaxZoomPercent': 1600,
+                         'WorkViewNoticePending': False}
+        effective = {**self.defaults, **{k: v for k, v in self.released.items() if k != 'LayoutProfiles'},
+                     'WorkViewNoticePending': True}
+        self.cycles = [{'Persisted': {'AllSettings': copy.deepcopy(effective),
+                                     'DefaultSettings': copy.deepcopy(self.defaults)}} for _ in range(3)]
+        self.released_bytes = json.dumps(self.released).encode()
+        self.released_sha = migrated.digest(self.released_bytes)
+
+    def check(self, cycles=None, data=None):
+        migrated.check_effective_settings(self.released_bytes if data is None else data,
+                                          self.released_sha, self.cycles if cycles is None else cycles)
+
+    def test_all_three_correct_cycles_pass_including_the_legacy_notice(self):
+        self.check()
+
+    def test_each_cycle_rejects_wrong_new_defaults_and_old_values(self):
+        # Late-cycle drift must fail too, not just an invalid first open.
+        for index in range(3):
+            for key, value in [('TagQueueUndoDepth', 0), ('TaggingCardCount', 2),
+                               ('ReaderInlineVideo', True), ('ReaderInlineVideoMaxPlayers', 1),
+                               ('GalleryMaxZoomPercent', 0), ('VideoVolume', 70),
+                               ('MaxParallelDownloads', 5), ('CompactDensity', 1),
+                               ('WorkViewNoticePending', False)]:
+                with self.subTest(cycle=index, key=key):
+                    cycles = copy.deepcopy(self.cycles)
+                    cycles[index]['Persisted']['AllSettings'][key] = value
+                    with self.assertRaisesRegex(ValueError, key):
+                        self.check(cycles)
+
+    def test_missing_or_empty_settings_maps_never_count_as_success(self):
+        for index in range(3):
+            for key in ('AllSettings', 'DefaultSettings'):
+                for replacement in (None, {}):
+                    with self.subTest(cycle=index, key=key, value=replacement):
+                        cycles = copy.deepcopy(self.cycles)
+                        if replacement is None:
+                            del cycles[index]['Persisted'][key]
+                        else:
+                            cycles[index]['Persisted'][key] = replacement
+                        with self.assertRaises(ValueError):
+                            self.check(cycles)
+
+    def test_a_missing_effective_key_or_old_scalar_is_rejected(self):
+        for both in (False, True):
+            cycles = copy.deepcopy(self.cycles)
+            del cycles[2]['Persisted']['AllSettings']['MaxParallelDownloads']
+            if both:
+                del cycles[2]['Persisted']['DefaultSettings']['MaxParallelDownloads']
+            with self.assertRaises(ValueError):
+                self.check(cycles)
+
+    def test_defaults_cannot_drift_between_same_build_cycles(self):
+        cycles = copy.deepcopy(self.cycles)
+        for key in ('AllSettings', 'DefaultSettings'):
+            cycles[2]['Persisted'][key]['TagQueueUndoDepth'] = 0
+        with self.assertRaises(ValueError):
+            self.check(cycles)
+
+    def test_missing_cycles_and_unbound_or_duplicate_settings_are_rejected(self):
+        with self.assertRaises(ValueError):
+            self.check(self.cycles[:2])
+        with self.assertRaisesRegex(ValueError, 'digest'):
+            self.check(data=self.released_bytes + b' ')
+        duplicate = b'{"VideoVolume":31,"VideoVolume":70}'
+        with self.assertRaisesRegex(ValueError, 'duplicate'):
+            migrated.check_effective_settings(duplicate, migrated.digest(duplicate), self.cycles)
+
+    def test_migrated_entrypoint_rejects_late_drift_before_reading_database_markers(self):
+        # Minimal oracle-protocol inputs, NOT a generated old profile or runtime proof.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            revision = 'e' * 40
+            cycles = copy.deepcopy(self.cycles)
+            cycles[2]['Persisted']['AllSettings']['TaggingCardCount'] = 2
+            files = {}
+            rows = []
+            for index, cycle in enumerate(cycles):
+                cycle.update(Schema='meowchan.released-102-current-cycle.v1', HostStopped=True,
+                             NetworkRequests=[], Profile=str(root), CurrentVersion='1.1.0+' + revision)
+                name = f'cycle-{index}.json'
+                data = json.dumps(cycle).encode()
+                files[name] = data
+                rows.append({'Cycle': index, 'Result': name, 'Sha256': migrated.digest(data)})
+            receipt = json.dumps({'Synthetic': True, 'SourceRevision': migrated.REVISION,
+                                  'Files': {'settings.json': self.released_sha}}).encode()
+            files.update({'v102-receipt.json': receipt, 'released-receipt.json': receipt,
+                          'released-settings.json': self.released_bytes})
+            final = {'Schema': 'meowchan.released-102-rest-package-result.v1', 'Synthetic': True,
+                     'SourceRevision': migrated.REVISION, 'SubsequentOfflineProcessRestarts': 2,
+                     'Cycles': rows, 'ReceiptSha256': migrated.digest(receipt)}
+            argv = ['check_migrated.py', '--profile', str(root), '--results', str(root),
+                    '--expect-revision', revision]
+            with patch('sys.argv', argv), patch.object(migrated, 'document', return_value=final), \
+                    patch.object(migrated, 'read', side_effect=lambda path: files[path.name]), \
+                    patch.object(migrated, 'archive_schema', side_effect=AssertionError('must not read a DB marker')):
+                with self.assertRaisesRegex(ValueError, 'cycle-2.*TaggingCardCount'):
+                    migrated.main()
+
+    def test_explicit_legacy_notice_value_is_preserved(self):
+        # The exception is only for a missing old key, not a blanket waiver.
+        released = json.dumps({**self.released, 'WorkViewNoticePending': False}).encode()
+        with self.assertRaisesRegex(ValueError, 'WorkViewNoticePending'):
+            migrated.check_effective_settings(released, migrated.digest(released), self.cycles)
+        cycles = copy.deepcopy(self.cycles)
+        for cycle in cycles:
+            cycle['Persisted']['AllSettings']['WorkViewNoticePending'] = False
+        migrated.check_effective_settings(released, migrated.digest(released), cycles)
 
 
 class SnapshotTests(unittest.TestCase):
