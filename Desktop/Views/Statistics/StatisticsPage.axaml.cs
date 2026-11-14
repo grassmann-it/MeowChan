@@ -44,6 +44,7 @@ public partial class StatisticsPage : UserControl
         StatisticsGrid.LoadingRow += (_, e) => e.Row.Classes.Set("stats-total-row", e.Row.DataContext is StatisticsRow { IsTotal: true });
         // A click on an error count (table cell or compact details) asks for the problems of that source.
         AddHandler(Button.ClickEvent, OnErrorLinkClick);
+        InitializeRowMenus();
         ApplyLanguage();
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
@@ -72,6 +73,7 @@ public partial class StatisticsPage : UserControl
     internal void EndLifetime()
     {
         _ended = true;
+        DisposeRowMenus();
         _statusHide?.Dispose();
         ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;

@@ -311,6 +311,7 @@ namespace MeowChan
             ApplyCommandIcons();
             InitializeSectionNavigation();
             InitializeSearch();
+            InitializeRowMenu();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
@@ -817,6 +818,7 @@ namespace MeowChan
         {
             if (_isClosed) return;
             _isClosed = true;
+            _rowMenu?.Dispose();
             _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();

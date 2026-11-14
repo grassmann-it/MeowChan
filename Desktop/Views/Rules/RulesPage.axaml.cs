@@ -226,13 +226,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string SizeOriginLabel => _preview == null ? string.Empty : Texts.T("rules.origin", FormatOrigin(_preview.SizeLimitOrigin));
 
     public MediaRuleScope ActiveScope => _draft.Scope;
-    public MediaRuleScope? ParentScope => _draft.Scope.Kind switch
-    {
-        MediaRuleScopeKind.Thread => MediaRuleScope.ForBoard(_draft.Scope.Source!, _draft.Scope.Board!),
-        MediaRuleScopeKind.Board => MediaRuleScope.ForSource(_draft.Scope.Source!),
-        MediaRuleScopeKind.Source => MediaRuleScope.Global,
-        _ => null
-    };
+    public MediaRuleScope? ParentScope => ParentOf(_draft.Scope);
     public bool CanOpenParent => IsEditable && ParentScope != null;
     public bool CanOpenTypesOrigin => IsEditable && _preview?.TypesOrigin.Scope != null;
     public bool CanOpenSizeOrigin => IsEditable && _preview?.SizeLimitOrigin.Scope != null;

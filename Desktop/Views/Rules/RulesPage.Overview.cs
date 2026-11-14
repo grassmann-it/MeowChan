@@ -23,6 +23,7 @@ public partial class RulesPage
     private (string Key, string Scope)? _overviewStatus;
     private readonly Dictionary<(MediaRuleScope Scope, string Action), Button> _overviewButtons = new();
     private readonly List<DraftDiscardConfirmation> _overviewConfirmations = new();
+    private readonly Dictionary<(MediaRuleScope Scope, bool Draft), ContextMenuHost> _overviewMenus = new();
 
     internal bool IsOverviewConfirmationOpen => _overviewConfirmations.Any(confirmation => confirmation.IsOpen);
 
@@ -67,6 +68,8 @@ public partial class RulesPage
         (MediaRuleScope Scope, string Action)? focused = FocusedOverviewAction();
 
         _overviewButtons.Clear();
+        foreach (ContextMenuHost menu in _overviewMenus.Values) menu.Dispose();
+        _overviewMenus.Clear();
         foreach (DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _overviewConfirmations.Clear();
 
@@ -140,12 +143,14 @@ public partial class RulesPage
         if (row.Saved && !row.HasDraft)
             AddOverviewAction(actions, scope, "toggle", "power", Texts.T(row.Enabled ? "rules.overview.disable" : "rules.overview.enable"),
                 () => _ = ToggleRuleAsync(scope));
+        Action removeOrDiscard;
         if (draftRow)
         {
             Button discard = AddOverviewAction(actions, scope, "discard", "rotate-ccw", Texts.T("rules.discard"), () => { });
             DraftDiscardConfirmation confirmation = new(discard);
             _overviewConfirmations.Add(confirmation);
             discard.Click += (_, _) => RequestDiscardDraft(scope, confirmation);
+            removeOrDiscard = () => RequestDiscardDraft(scope, confirmation);
         }
         else
         {
@@ -153,11 +158,13 @@ public partial class RulesPage
             DraftDiscardConfirmation confirmation = new(delete);
             _overviewConfirmations.Add(confirmation);
             delete.Click += (_, _) => RequestDeleteRule(scope, confirmation);
+            removeOrDiscard = () => RequestDeleteRule(scope, confirmation);
         }
 
         Border card = new() { Child = grid };
         card.Classes.Add("workspace-card");
         AutomationProperties.SetName(card, FormatScope(row.Scope) + ": " + string.Join(", ", row.Chips.Select(chip => chip.Text)));
+        _overviewMenus[(scope, draftRow)] = AttachOverviewRowMenu(card, row, draftRow, removeOrDiscard);
         return card;
     }
 
