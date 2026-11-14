@@ -133,14 +133,14 @@
         </controls:WorkspaceBanner>
         <StackPanel Grid.Row="1">
         <!-- One-time notice for profiles that existed before the work views reduced every page (plan AP5 question 3). -->
-        <Border x:Name="WorkViewNoticePanel" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8">
+        <Border x:Name="WorkViewNoticePanel" IsVisible="False" Classes="workspace-section" Margin="12,8,12,0" Padding="12,8">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                 <TextBlock x:Name="WorkViewNoticeText" TextWrapping="Wrap" VerticalAlignment="Center" />
                 <Button x:Name="WorkViewNoticeAdvanced" Grid.Column="1" Click="OnWorkViewNoticeAdvanced" />
                 <Button x:Name="WorkViewNoticeDismiss" Grid.Column="2" Classes="primary" Click="OnWorkViewNoticeDismiss" />
             </Grid>
         </Border>
-        <Border x:Name="ClipboardSuggestionPanel" IsVisible="False" Classes="panel" Margin="12,8,12,0" Padding="12,8"
+        <Border x:Name="ClipboardSuggestionPanel" IsVisible="False" Classes="workspace-section" Margin="12,8,12,0" Padding="12,8"
                 KeyDown="OnClipboardSuggestionKeyDown">
             <Grid ColumnDefinitions="*,Auto,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
                 <TextBlock x:Name="ClipboardSuggestionTitle" TextWrapping="Wrap" VerticalAlignment="Center" />
@@ -157,10 +157,10 @@
                 <TextBlock Tag="downloads.title" Classes="localized page-title" Text="Downloads" />
             </Grid>
             <ScrollViewer x:Name="WorkspaceIntakeScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
-            <Border x:Name="WorkspaceIntakeCard" Classes="panel" Padding="12">
+            <Border x:Name="WorkspaceIntakeCard" Classes="workspace-section" Padding="12">
                 <StackPanel x:Name="WorkspaceIntakeStack" Spacing="8">
                     <!-- Display-only last session: rows below come from a disposable cache, not from the session. -->
-                    <Border x:Name="StartupPreviewPanel" Classes="panel" Padding="10,6" IsVisible="False">
+                    <Border x:Name="StartupPreviewPanel" Classes="workspace-section" Padding="10,6" IsVisible="False">
                         <StackPanel Spacing="2">
                             <TextBlock x:Name="StartupPreviewTitle" FontWeight="SemiBold" TextWrapping="Wrap" />
                             <TextBlock x:Name="StartupPreviewDetails" Classes="workspace-meta" TextWrapping="Wrap" />
@@ -188,7 +188,7 @@
             </Border>
             </ScrollViewer>
             <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
-                <Border x:Name="DownloadsPanel" Classes="panel" ClipToBounds="True">
+                <Border x:Name="DownloadsPanel" Classes="workspace-section-flush" ClipToBounds="True">
                     <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*">
                         <TabControl x:Name="DownloadsTabs" MinHeight="38" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
                             <TabControl.Styles>
@@ -369,7 +369,7 @@
                 </Border>
                 <GridSplitter x:Name="WorkspaceInspectorSplitter" Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
                               ResizeDirection="Columns" Background="Transparent" />
-                <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="panel" MinWidth="260">
+                <Border x:Name="WorkspaceInspector" Grid.Column="2" Classes="workspace-section-flush" MinWidth="260">
                     <Grid RowDefinitions="Auto,*">
                         <Grid Margin="16,10,10,8" ColumnDefinitions="*,Auto">
                             <TextBlock Tag="detail.title" Classes="localized section-title" Text="Details" VerticalAlignment="Center" />
@@ -523,7 +523,7 @@
              stays the drop target and the routed drag events still bubble to WorkspaceRoot. -->
         <Grid x:Name="DropOverlay" Grid.RowSpan="4" ZIndex="150" IsVisible="False" IsHitTestVisible="False">
             <Border Background="{DynamicResource Workspace.Background}" Opacity="0.82" />
-            <Border x:Name="DropOverlayCard" Classes="panel" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}"
+            <Border x:Name="DropOverlayCard" Classes="workspace-overlay" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}"
                     Padding="28,22" Margin="20" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel Spacing="6">
                     <TextBlock x:Name="DropOverlayTitle" Classes="section-title" TextWrapping="Wrap" TextAlignment="Center"
@@ -533,7 +533,7 @@
             </Border>
         </Grid>
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
-                Classes="panel" Margin="20" MaxWidth="620"
+                Classes="workspace-overlay" Margin="20" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
             <Grid RowDefinitions="Auto,*,Auto">
                 <TextBlock x:Name="ShellHelpTitle" Classes="section-title" Margin="16,16,16,12" />

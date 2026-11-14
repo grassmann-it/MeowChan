@@ -40,7 +40,7 @@
                 <TextBlock x:Name="DiagnosticFilterSummary" wv:WorkViewElement.Id="diagnostics.filter-summary" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                 <TextBlock Tag="diagnostics.current" Classes="section-title localized" TextWrapping="Wrap" />
                 <Grid x:Name="DiagnosticSplit" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="12">
-                    <Border x:Name="DiagnosticListPane" wv:WorkViewElement.Id="diagnostics.table" Classes="panel">
+                    <Border x:Name="DiagnosticListPane" wv:WorkViewElement.Id="diagnostics.table" Classes="workspace-section-flush">
                         <!-- The "no problems" hint has its own row above the list: the platform information rows are
                              always listed, so an overlay inside the grid cell would draw over them (MS-R2). -->
                         <Grid RowDefinitions="Auto,Auto">

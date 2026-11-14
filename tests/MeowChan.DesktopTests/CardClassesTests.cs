@@ -10,13 +10,9 @@ public sealed class CardClassesTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
 
-    // The remaining pre-migration users of the deprecated "panel" alias. This list only shrinks: move a site to
-    // workspace-section-flush (content to the edge) or workspace-section (own inset) and delete its file here.
-    private static readonly string[] PanelAllowList =
-    {
-        "Desktop/Shell/MainWindow.axaml",
-        "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"
-    };
+    // The retired "panel" class has no users left; a section is workspace-section-flush (content to the edge) or
+    // workspace-section (own inset), an in-window overlay is workspace-overlay.
+    private static readonly string[] PanelAllowList = Array.Empty<string>();
 
     [Fact]
     public void TheFlushSectionIsTheSectionSurfaceWithInsetZeroAndTheControlRadius()

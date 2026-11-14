@@ -592,7 +592,7 @@
                workspace-card (Card + CardEdge, radius 5, inset Card: a content card in a list or on a section) and workspace-overlay
                (Overlay + ControlBorder, radius 8: an in-window overlay), plus workspace-section-flush (a section with inset 0 for
                content that runs to the edge: tables, media grids, reader content, a frame that brings its own insets).
-               Border.panel is deprecated (alias of the flush look, kept only for the sites listed in DesignLint); Border.raised is gone.
+               Border.panel and Border.raised are retired.
              Radius: None 0 (window, title bar, caption, tab/nav bars, transport), Badge 3 (marks under 20 dip),
                Control 5 (buttons, inputs, sections, cards, tiles), Group 8 (overlays, dialog body),
                Chip 12 (pill at 24 dip), ChipCompact 9 (pill at 18 dip). Circles use Width/2 locally.
@@ -702,15 +702,12 @@
     <Style Selector="TextBlock.mono"><Setter Property="FontFamily" Value="monospace" /></Style>
     <Style Selector="SelectableTextBlock.reader-body"><Setter Property="FontFamily" Value="{DynamicResource Workspace.Font.Reading}" /></Style>
     <Style Selector="Window.workspace-advanced TextBlock.inline-thread-id"><Setter Property="IsVisible" Value="False" /></Style>
-    <Style Selector="Border.panel, Border.shell-bar">
+    <Style Selector="Border.shell-bar">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
         <Setter Property="BorderThickness" Value="1" />
     </Style>
     <Style Selector="Border.settings-divider"><Setter Property="Padding" Value="0,8" /><Setter Property="BorderThickness" Value="0,0,0,1" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /></Style>
-    <!-- DS-P4: deprecated. Use workspace-section-flush (same surface, inset 0) or workspace-section (inset 16); this alias only keeps the
-         remaining pre-migration sites drawing until they move. -->
-    <Style Selector="Border.panel"><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" /></Style>
     <Style Selector="Button">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
