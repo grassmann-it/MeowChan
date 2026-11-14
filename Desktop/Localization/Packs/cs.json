@@ -3683,6 +3683,13 @@
     "tags.quick.reason.sameFileIn": "stejný soubor v {0}",
     "tags.quick.reason.fileName": "z názvu souboru",
     "tags.quick.reason.title": "z názvu vlákna",
-    "tags.quick.reason.sourceTag": "zdrojový štítek"
+    "tags.quick.reason.sourceTag": "zdrojový štítek",
+    "nav.status": "Stav",
+    "command.navigation.status": "Stav",
+    "status.hint": "Síť, disk a aktuální problémy aplikace MeowChan na tomto počítači.",
+    "status.segments": "Části stavu",
+    "status.segment.diagnosticsCount": "Diagnostika ({0})",
+    "status.strip": "Aktivní {0} · Čeká {1} · Problémy {2}",
+    "status.strip.rates": "↓ {0} · Z {1}"
   }
 }

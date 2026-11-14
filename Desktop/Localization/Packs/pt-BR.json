@@ -3651,6 +3651,13 @@
     "tags.quick.reason.sameFileIn": "mesmo arquivo em {0}",
     "tags.quick.reason.fileName": "do nome do arquivo",
     "tags.quick.reason.title": "do título do tópico",
-    "tags.quick.reason.sourceTag": "tag de origem"
+    "tags.quick.reason.sourceTag": "tag de origem",
+    "nav.status": "Status",
+    "command.navigation.status": "Status",
+    "status.hint": "Rede, disco e problemas atuais do MeowChan neste computador.",
+    "status.segments": "Seções de status",
+    "status.segment.diagnosticsCount": "Diagnóstico ({0})",
+    "status.strip": "Ativos {0} · Em espera {1} · Problemas {2}",
+    "status.strip.rates": "↓ {0} · G {1}"
   }
 }

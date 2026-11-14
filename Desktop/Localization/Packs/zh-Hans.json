@@ -3608,6 +3608,13 @@
     "tags.quick.reason.sameFileIn": "{0} 中的相同文件",
     "tags.quick.reason.fileName": "来自文件名",
     "tags.quick.reason.title": "来自帖子标题",
-    "tags.quick.reason.sourceTag": "来源标签"
+    "tags.quick.reason.sourceTag": "来源标签",
+    "nav.status": "状态",
+    "command.navigation.status": "状态",
+    "status.hint": "MeowChan 在此计算机上的网络、磁盘和当前问题。",
+    "status.segments": "状态分区",
+    "status.segment.diagnosticsCount": "诊断（{0}）",
+    "status.strip": "活动 {0} · 等待中 {1} · 问题 {2}",
+    "status.strip.rates": "↓ {0} · 写 {1}"
   }
 }

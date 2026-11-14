@@ -3645,6 +3645,13 @@
     "tags.quick.reason.sameFileIn": "même fichier dans {0}",
     "tags.quick.reason.fileName": "du nom de fichier",
     "tags.quick.reason.title": "du titre du fil",
-    "tags.quick.reason.sourceTag": "étiquette source"
+    "tags.quick.reason.sourceTag": "étiquette source",
+    "nav.status": "État",
+    "command.navigation.status": "État",
+    "status.hint": "Réseau, disque et problèmes actuels de MeowChan sur cet ordinateur.",
+    "status.segments": "Sections de l’état",
+    "status.segment.diagnosticsCount": "Diagnostic ({0})",
+    "status.strip": "Actifs {0} · En attente {1} · Problèmes {2}",
+    "status.strip.rates": "↓ {0} · É {1}"
   }
 }

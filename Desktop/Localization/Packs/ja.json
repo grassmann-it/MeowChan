@@ -3608,6 +3608,13 @@
     "tags.quick.reason.sameFileIn": "{0}の同じファイル",
     "tags.quick.reason.fileName": "ファイル名から",
     "tags.quick.reason.title": "スレッドタイトルから",
-    "tags.quick.reason.sourceTag": "ソースタグ"
+    "tags.quick.reason.sourceTag": "ソースタグ",
+    "nav.status": "状態",
+    "command.navigation.status": "状態",
+    "status.hint": "このコンピューター上の MeowChan のネットワーク、ディスク、現在の問題。",
+    "status.segments": "状態のセクション",
+    "status.segment.diagnosticsCount": "診断（{0}）",
+    "status.strip": "実行中 {0} · 待機中 {1} · 問題 {2}",
+    "status.strip.rates": "↓ {0} · 書 {1}"
   }
 }

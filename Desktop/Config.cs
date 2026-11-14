@@ -87,6 +87,7 @@ namespace MeowChan
         private Dictionary<string, PresentationProfile> _layoutProfiles = new(StringComparer.Ordinal);
         private Dictionary<string, PresentationProfile>? _deserializedLayoutProfiles;
         private string _lastExportDirectory = string.Empty;
+        private string _statusPageSegment = StatusPageSegmentStatistics;
         private string _galleryFrameDirectory = string.Empty;
 
         public Desktop.Commands.ShortcutBindingsSection ShortcutBindings { get; set; } = new();
@@ -667,6 +668,16 @@ namespace MeowChan
         /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveBridgeHintSeen { get; set; }
+        internal const string StatusPageSegmentStatistics = "statistics";
+        internal const string StatusPageSegmentDiagnostics = "diagnostics";
+        /// <summary>The segment of the Status page that its footer button and menu entry open: the one used last. Not a
+        /// setting: no editor shows it. Anything unknown reads as the statistics segment.</summary>
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string StatusPageSegment
+        {
+            get => _statusPageSegment;
+            set => _statusPageSegment = value == StatusPageSegmentDiagnostics ? StatusPageSegmentDiagnostics : StatusPageSegmentStatistics;
+        }
 
         /// <summary>English, path-free description of a failed load for the log; the window shows <see cref="LocalizedLoadWarning"/>.</summary>
         [JsonIgnore]
@@ -1142,6 +1153,7 @@ namespace MeowChan
                 LastExportDirectory = LastExportDirectory,
                 GalleryFrameDirectory = GalleryFrameDirectory,
                 ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
+                StatusPageSegment = StatusPageSegment,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
                 LoadDisabledSourceGrants = LoadDisabledSourceGrants,
@@ -1282,6 +1294,7 @@ namespace MeowChan
             LastExportDirectory = source.LastExportDirectory;
             GalleryFrameDirectory = source.GalleryFrameDirectory;
             ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
+            StatusPageSegment = source.StatusPageSegment;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
             LoadWarning = source.LoadWarning;

@@ -27,7 +27,7 @@ internal static class FeedbackChecks
         bool information = config.ShowInformationNotifications, warning = config.ShowWarningNotifications, error = config.ShowErrorNotifications;
         SessionFeedbackStore store = (SessionFeedbackStore)typeof(MainWindow).GetField("_feedback", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         MethodInfo publish = typeof(MainWindow).GetMethod("ShowNotification", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         DiagnosticsPage? page = null;
         try
@@ -40,7 +40,7 @@ internal static class FeedbackChecks
             Require(window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible, "Suppressed errors have no local shell banner.");
             page = new DiagnosticsPage(_ => false, _ => Task.FromException(new IOException("Clipboard fixture unavailable")));
             page.AttachFeedback(store); host.Content = page;
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page.FindControl<Expander>("SessionFeedbackSection")!.IsExpanded = true;
             DataGrid grid = page.FindControl<DataGrid>("SessionFeedbackGrid")!;
             // DataGrid defers SelectionChanged after ItemsSource changes until its first arrange.
@@ -118,7 +118,7 @@ internal static class FeedbackChecks
         object Dequeue() => queue.GetType().GetMethod("Dequeue")!.Invoke(queue, null)!;
         bool wasOpened = (bool)opened.GetValue(window)!;
         Require(wasOpened && Queued() == 0, "Dismissal checks require the real shell's completed startup queue.");
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         DiagnosticsPage? page = null;
         string operation = "fixture.dismiss." + Guid.NewGuid().ToString("N");
@@ -178,7 +178,7 @@ internal static class FeedbackChecks
                 "Popup re-enable or a late pre-Opened queue item replayed closed A.");
 
             page = new DiagnosticsPage(); page.AttachFeedback(store); host.Content = page;
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page.FindControl<Expander>("SessionFeedbackSection")!.IsExpanded = true;
             DataGrid grid = page.FindControl<DataGrid>("SessionFeedbackGrid")!;
             Require(grid.ItemsSource!.Cast<SessionFeedback>().Single(entry => entry.Id == Entry("source-A").Id).Count == 4,

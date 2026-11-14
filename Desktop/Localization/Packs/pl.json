@@ -3689,6 +3689,13 @@
     "tags.quick.reason.sameFileIn": "ten sam plik w {0}",
     "tags.quick.reason.fileName": "z nazwy pliku",
     "tags.quick.reason.title": "z tytułu wątku",
-    "tags.quick.reason.sourceTag": "tag źródłowy"
+    "tags.quick.reason.sourceTag": "tag źródłowy",
+    "nav.status": "Stan",
+    "command.navigation.status": "Stan",
+    "status.hint": "Sieć, dysk i bieżące problemy MeowChan na tym komputerze.",
+    "status.segments": "Sekcje stanu",
+    "status.segment.diagnosticsCount": "Diagnostyka ({0})",
+    "status.strip": "Aktywne {0} · Oczekuje {1} · Problemy {2}",
+    "status.strip.rates": "↓ {0} · Z {1}"
   }
 }

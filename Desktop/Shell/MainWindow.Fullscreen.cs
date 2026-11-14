@@ -703,11 +703,13 @@ public partial class MainWindow
             }
         }
         if (_selectedPage == WorkspacePage.Media && !_largeReaderOpen) ids.Insert(0, "input.focus-media-search");
-        if (_selectedPage == WorkspacePage.Diagnostics && !_largeReaderOpen) ids.Insert(0, "input.focus-diagnostics-search");
+        if (DiagnosticsSegmentShown && !_largeReaderOpen) ids.Insert(0, "input.focus-diagnostics-search");
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
-        string activeContext = _largeReaderOpen ? "reader" : _selectedPage.ToString().ToLowerInvariant();
+        // The Status page's commands are those of the segment it shows (diagnostics or statistics).
+        string activePage = _selectedPage == WorkspacePage.Status ? CurrentStatusSegment.ToString() : _selectedPage.ToString();
+        string activeContext = _largeReaderOpen ? "reader" : activePage.ToLowerInvariant();
         // These download commands were selected above from the actual row target.
         // The registry supplement must not add unavailable selection actions back.
         var downloadSelectionCommands = new HashSet<string>(StringComparer.Ordinal)
@@ -727,7 +729,7 @@ public partial class MainWindow
             && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
         // R9: a shortcut whose button this view keeps under "More" says so.
         WorkView helpView = ConfiguredWorkView;
-        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(_selectedPage.ToString(), _largeReaderOpen);
+        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(activePage, _largeReaderOpen);
         string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
             + (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty)
             + (WorkViewHelp.UnderMore(id, helpView, helpPages) ? " · " + Texts.T("workview.underMore") : string.Empty);
@@ -823,7 +825,16 @@ public partial class MainWindow
                 WorkspacePage page = PageFor(id);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);
                 if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-                e.Handled = NavigateWorkspace(page);
+                e.Handled = page == WorkspacePage.Status ? ShowStatus() : NavigateWorkspace(page);
+                return;
+            }
+            // The old Diagnostics and Statistics commands: no default gesture, a saved binding opens their segment.
+            foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            {
+                if (!CommandBindings.Matches(e, id) || StatusSegmentFor(id) is not { } segment) continue;
+                if (_gallery != null) CloseGallery(restoreOrigin: false);
+                if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+                e.Handled = ShowStatus(segment);
                 return;
             }
             if (CommandBindings.Matches(e, "session.pause"))
@@ -861,7 +872,7 @@ public partial class MainWindow
         else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _mediaPage.FocusSearch(); }
         // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.
-        else if (CommandBindings.Matches(e, "input.focus-diagnostics-search") && _selectedPage == WorkspacePage.Diagnostics && _diagnosticsPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        else if (CommandBindings.Matches(e, "input.focus-diagnostics-search") && DiagnosticsSegmentShown && _diagnosticsPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
         { e.Handled = true; _diagnosticsPage.FocusSearch(); }
     }
 

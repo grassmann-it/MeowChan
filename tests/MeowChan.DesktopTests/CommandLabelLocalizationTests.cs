@@ -83,6 +83,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.rules", "Rules", "Regeln", "Reglas", "Règles", "Правила"),
             ("navigation.sources", "Sources", "Quellen", "Fuentes", "Sources", "Источники"),
             ("navigation.diagnostics", "Diagnostics", "Diagnose", "Diagnóstico", "Diagnostics", "Диагностика"),
+            ("navigation.status", "Status", "Status", "Estado", "État", "Состояние"),
             ("navigation.plugins", "Plugins", "Plugins", "Complementos", "Plugins", "Плагины"),
             ("navigation.settings", "Settings", "Einstellungen", "Configuración", "Paramètres", "Настройки"),
             ("navigation.about", "About MeowChan", "Über MeowChan", "Acerca de MeowChan", "À propos de MeowChan", "О программе MeowChan"),

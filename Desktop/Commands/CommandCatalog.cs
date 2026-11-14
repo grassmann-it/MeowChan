@@ -47,7 +47,8 @@ public static class CommandCatalog
         new("navigation.media", "command.navigation.media", "Media", "Medien", "grid", MainPageOrder.DefaultShortcut("navigation.media"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.rules", "command.navigation.rules", "Rules", "Regeln", "sliders", MainPageOrder.DefaultShortcut("navigation.rules"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
         new("navigation.sources", "command.navigation.sources", "Sources", "Quellen", "globe", MainPageOrder.DefaultShortcut("navigation.sources"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
-        new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", MainPageOrder.DefaultShortcut("navigation.diagnostics"), CommandScope.Sources | CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
+        // The Diagnostics segment of Status: no main page, no default gesture (MainPageOrder.StatusSegmentCommandIds); the Sources page opens it.
+        new("navigation.diagnostics", "command.navigation.diagnostics", "Diagnostics", "Diagnose", "activity", null, CommandScope.Sources | CommandScope.Application, new[] { "sources", "status-segment" }),
         new("plugins.refresh", "plugins.refresh", "Refresh status", "Status aktualisieren", "refresh-cw", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.folder", "plugins.folder", "Open plugin folder", "Pluginordner öffnen", "folder", null, CommandScope.Settings, new[] { "plugins" }),
         new("plugins.back", "plugins.back", "Back to plugins", "Zurück zur Pluginliste", "arrow-left", null, CommandScope.Settings, new[] { "plugins" }),
@@ -69,7 +70,9 @@ public static class CommandCatalog
         new("plugins.actions", "plugins.actions", "Actions", "Aktionen", "more-horizontal", null, CommandScope.Settings, new[] { "plugins" }),
         new("updates.check", "updates.check", "Check for updates", "Nach Updates suchen", "refresh-cw", null, CommandScope.Application | CommandScope.Settings, new[] { "app-menu", "about" }),
         new("navigation.plugins", "command.navigation.plugins", "Plugins", "Plugins", "tool", MainPageOrder.DefaultShortcut("navigation.plugins"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu", "sources" }),
-        new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", MainPageOrder.DefaultShortcut("navigation.statistics"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        new("navigation.status", "command.navigation.status", "Status", "Status", "activity", MainPageOrder.DefaultShortcut("navigation.status"), CommandScope.Application, new[] { "footer", "app-menu", "tools-menu" }),
+        // The Statistics segment of Status: no default gesture; the header graph and the tray open it.
+        new("navigation.statistics", "command.navigation.statistics", "Statistics", "Statistik", "monitor", null, CommandScope.Application, new[] { "status-segment", "header-graph", "tray" }),
         new("booru.open", "booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…", "search", null, CommandScope.Application, new[] { "app-menu", "tools-menu" }),
         new("navigation.settings", "command.navigation.settings", "Settings", "Einstellungen", "settings", "Primary+,", CommandScope.Application, new[] { "footer", "app-menu" }),
         new("navigation.about", "command.navigation.about", "About MeowChan", "Über MeowChan", "info", null, CommandScope.Settings | CommandScope.Application, new[] { "app-menu", "settings:planned" }),
@@ -337,7 +340,8 @@ public static class CommandCatalog
     }
 
     /// <summary>The shortcut works outside inputs and overlays, when the action is available: the common case that the shortcut help states once.</summary>
-    internal static bool HasGenericScope(string id) => id == "session.pause" || MainPageOrder.Contains(id);
+    internal static bool HasGenericScope(string id) => id == "session.pause" || MainPageOrder.Contains(id)
+        || MainPageOrder.StatusSegmentCommandIds.Contains(id, StringComparer.Ordinal);
 
     public static string? ScopeHint(string id, CommandScope context = CommandScope.None)
     {

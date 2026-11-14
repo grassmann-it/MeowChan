@@ -3608,6 +3608,13 @@
     "tags.quick.reason.sameFileIn": "{0}의 같은 파일",
     "tags.quick.reason.fileName": "파일 이름에서",
     "tags.quick.reason.title": "스레드 제목에서",
-    "tags.quick.reason.sourceTag": "소스 태그"
+    "tags.quick.reason.sourceTag": "소스 태그",
+    "nav.status": "상태",
+    "command.navigation.status": "상태",
+    "status.hint": "이 컴퓨터에서 MeowChan의 네트워크, 디스크 및 현재 문제입니다.",
+    "status.segments": "상태 섹션",
+    "status.segment.diagnosticsCount": "진단 ({0})",
+    "status.strip": "진행 중 {0} · 대기 중 {1} · 문제 {2}",
+    "status.strip.rates": "↓ {0} · 쓰기 {1}"
   }
 }

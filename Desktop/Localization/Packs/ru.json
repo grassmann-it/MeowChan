@@ -3663,6 +3663,13 @@
     "tags.quick.reason.sameFileIn": "тот же файл в {0}",
     "tags.quick.reason.fileName": "из имени файла",
     "tags.quick.reason.title": "из заголовка треда",
-    "tags.quick.reason.sourceTag": "исходный тег"
+    "tags.quick.reason.sourceTag": "исходный тег",
+    "nav.status": "Состояние",
+    "command.navigation.status": "Состояние",
+    "status.hint": "Сеть, диск и текущие проблемы MeowChan на этом компьютере.",
+    "status.segments": "Разделы состояния",
+    "status.segment.diagnosticsCount": "Диагностика ({0})",
+    "status.strip": "Активно {0} · В очереди {1} · Проблемы {2}",
+    "status.strip.rates": "↓ {0} · З {1}"
   }
 }

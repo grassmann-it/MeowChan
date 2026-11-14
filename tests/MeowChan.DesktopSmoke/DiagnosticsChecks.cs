@@ -33,7 +33,7 @@ internal static class DiagnosticsChecks
         SettingsEditor settings = window.SettingsEditor;
         double width = window.Width;
         double height = window.Height;
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         // The live owner may refresh its own page while these passive fixture snapshots are rendered.
         // Keep the isolated fixture as a retained page without introducing another native window.
@@ -66,7 +66,7 @@ internal static class DiagnosticsChecks
                 foreach (string mode in new[] { "Simple", "Barebones", "Advanced" })
                 {
                     await PresentationChecks.SwitchModeAsync(window, mode);
-                    window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                    window.ShowStatus(StatusSegment.Diagnostics);
                     window.Width = mode == "Barebones" ? 640 : 760;
                     window.Height = mode == "Barebones" ? 480 : 500;
                     foreach (string language in new[] { "en", "de" })
@@ -125,7 +125,7 @@ internal static class DiagnosticsChecks
                             && Fits(page, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
                             && Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "Diagnostic actions extend beneath the shell footer.");
-                        Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics && settings.DownloadPath == "retained diagnosis draft",
+                        Require(window.DiagnosticsSegmentShown && settings.DownloadPath == "retained diagnosis draft",
                             "Diagnostics navigation lost the selected page or settings draft.");
                         Require(page.FindControl<TextBox>("DiagnosticDetails")!.Text!.Contains("HTTP 429"), "The complete diagnostic was not rendered.");
                         Require(page.FindControl<TextBlock>("DiagnosticSelectionTitle")!.Text == (grid.SelectedItem as DiagnosticEntry)?.Summary
@@ -161,7 +161,7 @@ internal static class DiagnosticsChecks
                         grid.ScrollIntoView(grid.SelectedItem, null);
                         await Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>()
                             .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, grid.SelectedItem)));
-                        Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics
+                        Require(window.DiagnosticsSegmentShown
                             && !string.IsNullOrEmpty(page.FindControl<TextBlock>("DiagnosticsActionError")!.Text), "A stale diagnostic action changed pages.");
                         page.Refresh(view with { Threads = Array.Empty<DesktopThreadEntry>() }, true);
                         Require(!page.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled

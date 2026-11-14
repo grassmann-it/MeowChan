@@ -28,7 +28,7 @@ internal static class DiagnosticsScopedRetryChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         string language = Texts.Language;
         MainWindow.WorkspacePage previousPage = window.SelectedPage;
@@ -58,7 +58,7 @@ internal static class DiagnosticsScopedRetryChecks
         }
         try
         {
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page = Create();
             page.Refresh(View(first, second), true);
             DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;

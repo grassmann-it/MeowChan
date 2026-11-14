@@ -12,7 +12,7 @@ public sealed class PowerUserCommandTests
     [InlineData("navigation.rules", "4")]
     [InlineData("navigation.sources", "5")]
     [InlineData("navigation.plugins", "6")]
-    [InlineData("navigation.diagnostics", "7")]
+    [InlineData("navigation.status", "7")]
     [InlineData("session.pause", "Shift+P")]
     public void PlatformGesturesUseTheDeclaredShortcut(string id, string suffix)
     {

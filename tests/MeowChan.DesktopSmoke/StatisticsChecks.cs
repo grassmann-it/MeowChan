@@ -325,14 +325,23 @@ internal static class StatisticsChecks
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
     }
 
-    private static StatisticsPage Page(MainWindow window) => (StatisticsPage)window.FindControl<ContentControl>("StatisticsPageHost")!.Content!;
+    // Statistics is a segment of the Status page: the page shortcut opens Status, the segment is then chosen like a deep link does.
+    private static async Task GoToStatisticsAsync(MainWindow window)
+    {
+        await GoToAsync(window, "navigation.status", MainWindow.WorkspacePage.Status);
+        Require(window.ShowStatus(StatusSegment.Statistics), "The Status page does not switch to its statistics segment.");
+        await Program.WaitUntilAsync(() => window.StatisticsSegmentShown, () => "segment " + window.StatusSegmentSelected);
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+    }
+
+    private static StatisticsPage Page(MainWindow window) => (StatisticsPage)window.StatisticsPageHost.Content!;
 
     private static async Task OpenPageAsync(MainWindow window, bool byGraphClick)
     {
         if (byGraphClick) Speed(window).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-        else await GoToAsync(window, "navigation.statistics", MainWindow.WorkspacePage.Statistics);
-        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Statistics
-            && window.FindControl<ContentControl>("StatisticsPageHost")!.Content is StatisticsPage
+        else await GoToStatisticsAsync(window);
+        await Program.WaitUntilAsync(() => window.StatisticsSegmentShown
+            && window.StatisticsPageHost.Content is StatisticsPage
             && Page(window).Rows.Any(row => row.Key == Fixture) && Page(window).Graph.SampleCount >= 8,
             () => "page " + window.SelectedPage);
     }
@@ -341,7 +350,7 @@ internal static class StatisticsChecks
     {
         // The shortcut opens the page and the footer button is selected.
         await OpenPageAsync(window, byGraphClick: false);
-        Button footer = window.FindControl<Button>("StatisticsNavigationButton")!;
+        Button footer = window.FindControl<Button>("StatusNavigationButton")!;
         Require(footer.IsVisible && footer.Classes.Contains("selected"), "The footer does not mark the open Statistics page.");
         await GoToAsync(window, "navigation.downloads", MainWindow.WorkspacePage.Downloads);
         Require(!footer.Classes.Contains("selected"), "The footer still marks Statistics after leaving it.");
@@ -422,7 +431,7 @@ internal static class StatisticsChecks
         window.Width = Math.Max(window.MinWidth, 660);
         await Program.WaitUntilAsync(() => !Speed(window).IsVisible && window.IoStatsClaim == IoStatsVisibility.None && Hub(window).SamplingMode == IoStatsVisibility.None,
             () => $"claim {window.IoStatsClaim}, mode {Hub(window).SamplingMode}, graph {Speed(window).IsVisible}");
-        await GoToAsync(window, "navigation.statistics", MainWindow.WorkspacePage.Statistics);
+        await GoToStatisticsAsync(window);
         await Program.WaitUntilAsync(() => window.IoStatsClaim == IoStatsVisibility.Window && Hub(window).SamplingMode == IoStatsVisibility.Window,
             () => $"claim {window.IoStatsClaim}, mode {Hub(window).SamplingMode}");
         await Settle(window);
