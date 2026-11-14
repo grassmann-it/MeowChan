@@ -17,7 +17,6 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private BooruPage? _booruPage;
-    private bool _updatingBooruToolsPresentation;
     private readonly BooruUnavailableNavigation _booruUnavailableNavigation = new();
     private bool _booruFallbackRestoreContinuation;
     private bool _booruFallbackRestoreSettled;
@@ -92,38 +91,15 @@ public partial class MainWindow
         TryCompleteBooruUnavailableFallback();
     }
 
-    /// <summary>Refreshes both switch surfaces without changing any non-presentation preference.</summary>
+    /// <summary>
+    /// Refreshes the Booru entries that depend on <c>Config.ShowBooruTools</c> ("Show Booru actions" in Settings › Appearance › Footer; the check
+    /// box that used to stand in the footer and its twin in the ⋯ menu are gone, F1): the Danbooru tools entry of the ⋯ menu and the Booru entry of More.
+    /// Nothing else is changed.
+    /// </summary>
     private void RefreshBooruToolsPresentation()
     {
-        bool available = !_isClosing && _session.BooruServices != null;
-        bool visible = available && _config.ShowBooruTools;
-        bool enabled = available && _restoreCompleted && !_applyingPreferences && !WorkspaceCommandBusy;
-        try
-        {
-            _updatingBooruToolsPresentation = true;
-            ShowBooruToolsToggle.IsVisible = available;
-            ShowBooruToolsToggle.IsEnabled = enabled;
-            ShowBooruToolsToggle.IsChecked = visible;
-            ShowBooruToolsLabel.Text = Texts.T("workview.booru.show");
-            string hint = Texts.T("workview.booru.showHint");
-            ToolTip.SetTip(ShowBooruToolsToggle, hint);
-            AutomationProperties.SetName(ShowBooruToolsToggle, Texts.T("workview.booru.show"));
-            AutomationProperties.SetHelpText(ShowBooruToolsToggle, hint);
-
-            if (_booruToolsMenu is { } menu)
-            {
-                menu.IsVisible = available;
-                menu.IsEnabled = enabled;
-                menu.IsChecked = visible;
-                menu.Header = Texts.T("workview.booru.show");
-                AutomationProperties.SetName(menu, Texts.T("workview.booru.show"));
-                AutomationProperties.SetHelpText(menu, hint);
-            }
-            if (_booruMenu != null) _booruMenu.IsVisible = CanOpenBooru;
-            if (!CanOpenBooru) BooruMoreMenuItem.IsVisible = false;
-            BooruMenuItem.IsVisible = CanOpenBooru;
-        }
-        finally { _updatingBooruToolsPresentation = false; }
+        if (_booruMenu != null) _booruMenu.IsVisible = CanOpenBooru;
+        if (!CanOpenBooru) BooruMoreMenuItem.IsVisible = false;
     }
 
     private void RequestBooruUnavailableFallback()
@@ -161,38 +137,6 @@ public partial class MainWindow
                 _booruFallbackRestoreSettled = true;
                 if (!_isClosing) TryCompleteBooruUnavailableFallback();
             });
-        }
-    }
-
-    private void OnBooruToolsToggleChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_updatingBooruToolsPresentation) return;
-        _ = SetBooruToolsVisibilityAsync(ShowBooruToolsToggle.IsChecked == true);
-    }
-
-    private async System.Threading.Tasks.Task SetBooruToolsVisibilityAsync(bool visible)
-    {
-        if (_isClosing || _updatingBooruToolsPresentation || !_restoreCompleted
-            || _session.BooruServices == null || WorkspaceCommandBusy)
-        {
-            RefreshBooruToolsPresentation();
-            return;
-        }
-        try
-        {
-            await _session.SaveViewPreferencesAsync(current => current.ShowBooruTools = visible);
-            if (!visible && _selectedPage == WorkspacePage.Booru)
-                NavigateWorkspace(WorkspacePage.Downloads);
-            if (!_isClosing) UpdateInteractionState();
-        }
-        catch (Exception exception)
-        {
-            Serilog.Log.Error(exception, "Could not save Booru presentation preference.");
-            RefreshBooruToolsPresentation();
-            ShowNotification(Texts.T("notification.error"),
-                Texts.T("preferences.failed", exception.Message),
-                Avalonia.Controls.Notifications.NotificationType.Error,
-                operation: "preferences.booru-visibility");
         }
     }
 }
