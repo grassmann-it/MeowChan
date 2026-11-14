@@ -132,6 +132,21 @@ public sealed class GlyphIconTests
     }
 
     [Fact]
+    public void TheHelpIconIsAPlainQuestionMarkOnTheGridWithoutARing()
+    {
+        Assert.Contains(WorkspaceIcons.Help, WorkspaceIcons.Keys);
+        string data = WorkspaceIcons.DataOf(WorkspaceIcons.Help);
+        // The arc of the question mark is the only arc; a ring around it would be a closed path or a full circle of two arcs.
+        Assert.Single(Regex.Matches(data, "A"));
+        Assert.DoesNotContain("Z", data, StringComparison.OrdinalIgnoreCase);
+        // On the 16 dip grid, and the "?" stays inside its middle: a ring-sized shape would reach the edge.
+        double[] numbers = Regex.Matches(data, "-?[0-9]+(?:\\.[0-9]+)?").Select(number => double.Parse(number.Value, CultureInfo.InvariantCulture)).ToArray();
+        Assert.All(numbers, number => Assert.InRange(number, 0, 16));
+        Assert.Contains(WorkspaceIcons.StyleClass, WorkspaceIcons.Create(WorkspaceIcons.Help).Classes);
+        Assert.Equal(AccessibilityView.Raw, AutomationProperties.GetAccessibilityView(WorkspaceIcons.Create(WorkspaceIcons.Help)));
+    }
+
+    [Fact]
     public void AnIconOnlySquareButtonKeepsItsTooltipAndAccessibleName()
     {
         Button button = new();

@@ -1345,8 +1345,8 @@
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
-    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the help-circle icon centred, the subtle outline
-         and the shared focus ring. Never text, never a glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
+    <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the plain drawn "?" (WorkspaceIcons.Help, no ring of its own: the
+         button outline is the one circle) centred, the subtle outline and the shared focus ring. Never text, never a font glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
     <Style Selector="Button.help-round">
         <Setter Property="Width" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="0" />
