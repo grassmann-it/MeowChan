@@ -497,12 +497,14 @@ internal static class WorkViewCaptures
         {
             string id = WorkViewElement.GetId(control)!;
             if (derived.Contains(id)) continue;
-            bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, workView));
+            // S3: a narrow page also moves "Refresh" and "Shuffle again" under More (MediaToolbarLayout), whatever the view says.
+            bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, workView)) && !MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id);
             if (control.IsVisible != expected)
-                throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)}.");
+                throw new InvalidOperationException($"media/{view}: {control.Name ?? id} is {(control.IsVisible ? "shown" : "hidden")} but {id} says {WorkViewPolicy.Resolve(id, workView)} at {page.ToolbarLevel}.");
         }
-        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.missing", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
-        string[] expectedMore = header.Where(id => WorkViewPolicy.Resolve(id, workView) == Presence.Overflow
+        // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
+        string[] header = ["media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))
                 && (id != "media.toolbar.shuffle" || page.Sort == MediaLibrarySort.Random))
             .OrderBy(id => WorkViewPolicy.Get(id).OverflowOrder).ToArray();
         if (!page.HeaderMoreIds.SequenceEqual(expectedMore))

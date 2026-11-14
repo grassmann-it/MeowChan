@@ -2414,6 +2414,7 @@
     "media.sort.direction.unavailable": "ランダム順では向きを指定できません",
     "media.shuffle": "再シャッフル",
     "media.showMissing": "取得済みだが見つからないファイルを表示",
+    "media.filter.missingChip": "見つからないファイルを含む",
     "media.refresh": "更新",
     "media.indexing": "アーカイブを読み込んでいます… スレッド {0} / {1}",
     "media.count": "スレッド{1}件にメディア{0}件",

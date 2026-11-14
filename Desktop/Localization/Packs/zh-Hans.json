@@ -2414,6 +2414,7 @@
     "media.sort.direction.unavailable": "随机顺序下无法设置方向",
     "media.shuffle": "重新随机排列",
     "media.showMissing": "显示已抓取但缺失的文件",
+    "media.filter.missingChip": "包含缺失的文件",
     "media.refresh": "刷新",
     "media.indexing": "正在读取归档…{0} / {1} 个串",
     "media.count": "{1} 个串中的 {0} 个媒体",

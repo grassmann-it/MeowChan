@@ -20,9 +20,9 @@ public static partial class WorkViewPolicy
         Same("media.toolbar.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
-        // Showing missing files is a maintenance view; switched on it is a state and stays on the bar (R6).
-        new("media.toolbar.missing", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct, OverflowOrder: 30),
-        new("media.toolbar.export-all", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 40),
+        // Since S3 the header holds search, filter toggle, order and refresh; exporting every match is under More in every view
+        // (showing missing files moved to the filter fields below: it is a filter, and its chip shows while it is on).
+        new("media.toolbar.export-all", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 40),
         // After AP6 the saved-ratings manager lives under the media page's More in every view; its shortcut is routed by the shell.
         new("media.toolbar.manage-ratings", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow,
             "media.rating.manage", OverflowOrder: 50),
@@ -37,6 +37,9 @@ public static partial class WorkViewPolicy
         new("media.filter.sound", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("media.filter.without-media-tags", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
         new("media.filter.tag-mode", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
+        // Showing captured but missing files is a maintenance view: under "More filters" until Advanced; switched on it is a state
+        // (an active filter with its chip) and stays shown in every view (R6).
+        new("media.filter.missing", WorkViewPage.Media, WorkViewKind.Element, Overflow, Overflow, Direct),
         // The toggle that opens the fields a view keeps back; shown while any is held back or while it is open.
         Same("media.filter.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         // The "N without media tags" count is derived information; Barebones leaves it out (its filter is under More filters).

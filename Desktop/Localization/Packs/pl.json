@@ -2357,6 +2357,7 @@
     "media.sort.direction.unavailable": "Kierunek nie jest dostępny dla kolejności losowej",
     "media.shuffle": "Przetasuj ponownie",
     "media.showMissing": "Pokaż przechwycone, ale brakujące pliki",
+    "media.filter.missingChip": "Z brakującymi plikami",
     "media.refresh": "Odśwież",
     "media.indexing": "Odczytywanie archiwum… {0} z {1} wątków",
     "media.count": "Media: {0} w {1} wątkach",

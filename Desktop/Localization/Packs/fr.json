@@ -2580,6 +2580,7 @@
     "media.sort.direction.unavailable": "Le sens n’est pas disponible pour l’ordre aléatoire",
     "media.shuffle": "Remélanger",
     "media.showMissing": "Afficher les fichiers capturés mais manquants",
+    "media.filter.missingChip": "Fichiers manquants inclus",
     "media.refresh": "Actualiser",
     "media.indexing": "Lecture de l’archive… {0} sur {1} fils",
     "media.count": "{0} médias dans {1} fils",

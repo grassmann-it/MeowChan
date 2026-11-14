@@ -2356,6 +2356,7 @@
     "media.sort.direction.unavailable": "Pro náhodné pořadí není směr k dispozici",
     "media.shuffle": "Znovu zamíchat",
     "media.showMissing": "Zobrazit zachycené, ale chybějící soubory",
+    "media.filter.missingChip": "Včetně chybějících souborů",
     "media.refresh": "Obnovit",
     "media.indexing": "Čte se archiv… vlákno {0} z {1}",
     "media.count": "Média: {0} · vlákna: {1}",

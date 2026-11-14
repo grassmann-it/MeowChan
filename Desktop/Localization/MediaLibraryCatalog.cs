@@ -27,6 +27,7 @@ internal static class MediaLibraryCatalog
         ("media.sort.direction.unavailable", "Direction is not available for random order", "Für die zufällige Reihenfolge gibt es keine Richtung"),
         ("media.shuffle", "Shuffle again", "Neu mischen"),
         ("media.showMissing", "Show captured but missing files", "Erfasste, aber fehlende Dateien zeigen"),
+        ("media.filter.missingChip", "Including missing files", "Mit fehlenden Dateien"),
         ("media.refresh", "Refresh", "Aktualisieren"),
         ("media.indexing", "Reading archive… {0} of {1} threads", "Archiv wird gelesen… {0} von {1} Threads"),
         ("media.count", "{0} media in {1} threads", "{0} Medien in {1} Threads"),

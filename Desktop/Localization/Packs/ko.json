@@ -2414,6 +2414,7 @@
     "media.sort.direction.unavailable": "무작위 순서에서는 방향을 사용할 수 없습니다",
     "media.shuffle": "다시 섞기",
     "media.showMissing": "캡처되었지만 없는 파일 표시",
+    "media.filter.missingChip": "없는 파일 포함",
     "media.refresh": "새로 고침",
     "media.indexing": "보관함을 읽는 중… 스레드 {1}개 중 {0}개",
     "media.count": "스레드 {1}개의 미디어 {0}개",

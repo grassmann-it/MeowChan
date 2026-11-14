@@ -159,16 +159,7 @@ public sealed partial class MediaPage : UserControl
         _manifests = new MediaManifestCache(openManifest, _lifetime.Token);
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
-        WrapPanel tools = new() { Classes = { "workspace-toolbar" } };
-        _nameFilter.ScopeChip = _searchScope; // inside the field, as in Archive and the reader (S5)
-        foreach (Control control in new Control[] { _nameFilter, _filters, _sort, _sortDirection, _shuffle, _missing, _refresh, _exportAll, _manageRatings })
-        {
-            control.VerticalAlignment = VerticalAlignment.Center;
-            // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
-            if (control is Button) control.MinHeight = 32;
-            tools.Children.Add(control);
-        }
-        tools.Children.Add(_more); // WV5: what the work view moves off the header (MediaPage.WorkView.cs)
+        Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
         StackPanel header = new() { Spacing = 4, Margin = new Thickness(12, 8, 12, 4) };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
@@ -198,7 +189,7 @@ public sealed partial class MediaPage : UserControl
         _sort.SelectionChanged += (_, _) => OnSortChanged();
         _sortDirection.Click += (_, _) => { if (!_localizing) ToggleSortDirection(); };
         _shuffle.Click += (_, _) => { _seed = unchecked(_seed * 31 + 17); Present(); };
-        _missing.IsCheckedChanged += (_, _) => { if (!_localizing) { RefreshWorkView(); Present(); } };
+        _missing.IsCheckedChanged += (_, _) => FilterEdited(); // a filter: chips, work view and the grid follow
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
@@ -349,7 +340,7 @@ public sealed partial class MediaPage : UserControl
 
     private sealed record PresentResult(IReadOnlyList<MediaLibraryTile> Tiles, MediaLibraryEntry[] Shown, int[] PresentPositions,
         MediaLibraryTileRow[] Rows, int ShownMissing, int Unfiltered, bool FilterActive, string? ErrorKey, int AudioUnknown,
-        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored);
+        int? UntaggedTiles, MediaLibraryUntagged? Untagged, IReadOnlyList<int> Restored, MediaLibraryUserOrder? UserOrder);
 
     private void Present()
     {
@@ -409,7 +400,7 @@ public sealed partial class MediaPage : UserControl
         catch (ArgumentException) { invalid = true; }
         // Selected tiles that are still shown stay selected; the others drop out (see MediaPage.Selection.cs).
         return new PresentInputs(snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>(), snapshot == null ? null : _presentIndex, filter, invalid,
-            Sort, SortDirection, _missing.IsChecked == true, _seed, _userData, snapshot == null ? null : UserOrderFor(snapshot),
+            Sort, SortDirection, _missing.IsChecked == true, _seed, _userData, snapshot == null ? null : _userOrder,
             _audio, _untagged, _tiles, _grid.Selection.SelectedIndexes.ToArray(), _selectionStamp);
     }
 
@@ -466,9 +457,12 @@ public sealed partial class MediaPage : UserControl
         token.ThrowIfCancellationRequested();
         // Filter the occurrences first; a tile of equal bytes stays when any of its occurrences passed.
         MediaLibraryUserData userData = input.UserData;
+        // S01: the tag count and rating keys are read for every index entry; they are made here (off the UI thread for a large index),
+        // and only when the chosen order needs them. The page keeps the result for the next presentation (ApplyPresent).
+        MediaLibraryUserOrder? userOrder = MediaLibraryUserOrder.For(input.Sort, all, userData, input.UserOrder);
         IReadOnlyList<MediaLibraryTile> tiles = input.Holder is { } holder
-            ? holder.Index.Build(passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, token, input.Direction, input.UserOrder)
-            : MediaLibraryGrouping.Build(all, passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, input.Direction, input.UserOrder);
+            ? holder.Index.Build(passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, token, input.Direction, userOrder)
+            : MediaLibraryGrouping.Build(all, passing, input.Sort, input.IncludeMissing, input.Seed, userData.IsFavorite, input.Direction, userOrder);
         MediaLibraryEntry[] shown = new MediaLibraryEntry[tiles.Count];
         int missing = 0;
         for (int i = 0; i < shown.Length; i++)
@@ -485,7 +479,7 @@ public sealed partial class MediaPage : UserControl
         for (int i = 0; i < rows.Length; i++) rows[i] = new MediaLibraryTileRow(tiles[i], i, state);
         IReadOnlyList<int> restored = RestoredSelection(input, tiles);
         return new PresentResult(tiles, shown, MediaLibraryView.PresentIndex(shown), rows, missing, unfiltered, filterActive, errorKey,
-            audioUnknown, untaggedTiles, untagged, restored);
+            audioUnknown, untaggedTiles, untagged, restored, userOrder ?? input.UserOrder);
     }
 
     private static IReadOnlyList<int> RestoredSelection(PresentInputs input, IReadOnlyList<MediaLibraryTile> tiles)
@@ -504,10 +498,11 @@ public sealed partial class MediaPage : UserControl
         _filterFailed = result.ErrorKey != null;
         _untaggedTiles = result.UntaggedTiles;
         _untagged = result.Untagged;
+        _userOrder = result.UserOrder;
         _audioUnknown = result.AudioUnknown;
         _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
         _filterError.IsVisible = result.ErrorKey != null;
-        _filterReset.IsEnabled = _filterActive;
+        _filterReset.IsEnabled = _filterActive || _missing.IsChecked == true;
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
         // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.

@@ -2580,6 +2580,7 @@
     "media.sort.direction.unavailable": "La dirección no está disponible en orden aleatorio",
     "media.shuffle": "Volver a mezclar",
     "media.showMissing": "Mostrar archivos capturados pero ausentes",
+    "media.filter.missingChip": "Incluye archivos ausentes",
     "media.refresh": "Actualizar",
     "media.indexing": "Leyendo el archivo… {0} de {1} hilos",
     "media.count": "{0} medios en {1} hilos",

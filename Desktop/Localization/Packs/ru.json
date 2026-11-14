@@ -2584,6 +2584,7 @@
     "media.sort.direction.unavailable": "Для случайного порядка направление недоступно",
     "media.shuffle": "Перемешать снова",
     "media.showMissing": "Показывать сохранённые в каталоге, но отсутствующие файлы",
+    "media.filter.missingChip": "С отсутствующими файлами",
     "media.refresh": "Обновить",
     "media.indexing": "Чтение архива… {0} из {1} тредов",
     "media.count": "Медиа: {0}, тредов: {1}",

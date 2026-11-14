@@ -2346,6 +2346,7 @@
     "media.sort.direction.unavailable": "La direzione non è disponibile per l’ordine casuale",
     "media.shuffle": "Mescola di nuovo",
     "media.showMissing": "Mostra i file acquisiti ma mancanti",
+    "media.filter.missingChip": "Inclusi i file mancanti",
     "media.refresh": "Aggiorna",
     "media.indexing": "Lettura dell’archivio… {0} di {1} thread",
     "media.count": "{0} media in {1} thread",

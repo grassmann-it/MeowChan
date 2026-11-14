@@ -69,7 +69,7 @@ public sealed partial class MediaPage
     private Control BuildFilterRow()
     {
         WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _minRating,
+        foreach (Control control in new Control[] { _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _withoutMediaTags, _missing, _minRating,
             _tagAdd, _tagMode, _filterReset, _moreFilters, _audioNote })
         { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
@@ -233,6 +233,7 @@ public sealed partial class MediaPage
             RenderSourceOptions();
             _favoritesOnly.IsChecked = false;
             _withoutMediaTags.IsChecked = false;
+            _missing.IsChecked = false;
             _minRating.SelectedIndex = 0;
             _tagMode.SelectedIndex = 0;
             _includeTags.Clear(); _excludeTags.Clear();
