@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Automation;
+using Avalonia.LogicalTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -15,7 +17,7 @@ namespace MeowChan.DesktopSmoke;
 internal static class PluginAddChecks
 {
     internal static string[] ChipTexts(PluginsPage page) =>
-        page.FindControl<WrapPanel>("PluginStepChips")!.Children.OfType<Border>().Select(chip => ((TextBlock)chip.Child!).Text ?? string.Empty).ToArray();
+        page.FindControl<WrapPanel>("PluginStepChips")!.Children.OfType<Border>().Select(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Single().Text ?? string.Empty).ToArray();
 
     internal static string NextLine(PluginsPage page)
     {
@@ -23,11 +25,22 @@ internal static class PluginAddChecks
         return line.IsVisible ? line.Text ?? string.Empty : string.Empty;
     }
 
-    internal static void RequireSteps(PluginsPage page, string[] marks, string? nextText, string phase)
+    internal static void RequireSteps(PluginsPage page, PluginStepState[] states, string? nextText, string phase)
     {
-        string[] chips = ChipTexts(page);
-        Require(chips.Length == 3 && marks.Select((mark, index) => chips[index].StartsWith(mark + " ", StringComparison.Ordinal)).All(match => match),
-            $"{phase}: the plugin steps are '{string.Join(" | ", chips)}', expected marks {string.Join(" ", marks)}.");
+        Border[] chips = page.FindControl<WrapPanel>("PluginStepChips")!.Children.OfType<Border>().ToArray();
+        Require(chips.Length == 3 && states.Length == 3, phase + ": expected three lifecycle steps.");
+        for (int index = 0; index < chips.Length; index++)
+        {
+            string stateClass = states[index] switch { PluginStepState.Done => "chip-step-done", PluginStepState.Next => "chip-step-next",
+                PluginStepState.Problem => "chip-warning", _ => "chip-neutral" };
+            string stateKey = states[index] switch { PluginStepState.Done => "done", PluginStepState.Next => "next",
+                PluginStepState.Problem => "problem", _ => "later" };
+            TextBlock label = chips[index].GetLogicalDescendants().OfType<TextBlock>().Single();
+            Require(chips[index].Classes.Contains(stateClass) && chips[index].Child is StackPanel content
+                && content.Children.Count == 2 && content.Children[0] is not TextBlock
+                && AutomationProperties.GetName(label) == Texts.T("plugins.step.name", index + 1, 3, label.Text!, Texts.T("plugins.step.state." + stateKey)),
+                $"{phase}: step {index + 1} lost its drawn icon, {states[index]} state or spoken name.");
+        }
         Require(NextLine(page) == (nextText ?? string.Empty), $"{phase}: next action is '{NextLine(page)}', expected '{nextText}'.");
     }
 
@@ -43,7 +56,9 @@ internal static class PluginAddChecks
         string[] before = Directory.GetFileSystemEntries(pluginDirectory).Select(Path.GetFileName).Order().ToArray()!;
         await page.ActivateAsync();
         Button add = page.FindControl<Button>("PluginsAdd")!;
-        Require(add.IsEffectivelyVisible && add.IsEnabled && add.Content?.ToString() == Texts.T("plugins.add"),
+        Require(add.IsEffectivelyVisible && add.IsEnabled && AutomationProperties.GetName(add) == Texts.T("plugins.add")
+            && add.Content is StackPanel addLabel && addLabel.Children.Count == 2
+            && addLabel.Children.OfType<TextBlock>().Single().Text == Texts.T("plugins.add"),
             "The header has no usable 'Add plugin…' action.");
 
         // A rejected file: reason shown, folder unchanged.
@@ -73,7 +88,7 @@ internal static class PluginAddChecks
         Require(page.Selected!.Activation == null && page.Selected.Description == null,
             "Adding a file registered or described it; that must wait for the restart.");
         Require(!page.FindControl<Button>("PluginEnabled")!.IsEnabled, "The Enable action is available for a file that is not registered yet.");
-        RequireSteps(page, new[] { "✓", "→", "○" }, Texts.T("plugins.step.next.restart"), "after adding");
+        RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Next, PluginStepState.Later }, Texts.T("plugins.step.next.restart"), "after adding");
         Require((await profile.ReadAsync()).Revision == revision, "Adding a file changed the plugin profile.");
         Require(httpRequests() == requests, "Adding a file made a network request.");
 
@@ -87,8 +102,10 @@ internal static class PluginAddChecks
         // German: the status, the steps and the next action follow the language.
         Texts.SetLanguage("de");
         await page.RefreshAsync();
-        Require(page.FindControl<Button>("PluginsAdd")!.Content?.ToString() == Texts.T("plugins.add"), "The add action did not follow the language.");
-        RequireSteps(page, new[] { "✓", "→", "○" }, Texts.T("plugins.step.next.restart"), "after adding (de)");
+        Require(AutomationProperties.GetName(page.FindControl<Button>("PluginsAdd")!) == Texts.T("plugins.add")
+            && page.FindControl<Button>("PluginsAdd")!.Content is StackPanel translated
+            && translated.Children.OfType<TextBlock>().Single().Text == Texts.T("plugins.add"), "The add action did not follow the language.");
+        RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Next, PluginStepState.Later }, Texts.T("plugins.step.next.restart"), "after adding (de)");
         Texts.SetLanguage("en");
 
         // Leave the folder as it was found.

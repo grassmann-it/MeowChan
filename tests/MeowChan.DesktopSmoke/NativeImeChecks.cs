@@ -48,10 +48,10 @@ internal static class NativeImeChecks
         long ReadSearchGeneration() => (long)searchGeneration.GetValue(archive)!;
         archive.AppliedSearchChanged += OnAppliedSearchChanged;
         void OnAppliedSearchChanged() => appliedSearchChanges++;
-        ContentControl pluginHost = owner.FindControl<ContentControl>("PluginsPageHost")!;
+        ContentControl pluginHost = owner.FindControl<ContentControl>("SourcesPageHost")!;
         object? originalPlugins = pluginHost.Content;
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(owner.SessionHost.ProfileDirectory, "ime-plugin-fixture"));
-        PluginsPage plugins = new(); plugins.Attach(fixture.Services);
+        SourcesPage sources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage plugins);
         // The Sources page has no URL field any more; the field that takes links is the Downloads one. An Enter that the
         // product's own handler accepted as a submit is counted at the real boundary, without network or a watch.
         TextBox downloadUrl = owner.FindControl<TextBox>("UrlInput")!;
@@ -59,8 +59,8 @@ internal static class NativeImeChecks
         downloadUrl.AddHandler(InputElement.KeyDownEvent, CountSubmitEnter, RoutingStrategies.Tunnel, handledEventsToo: true);
         try
         {
-            pluginHost.Content = plugins;
-            Navigate("PluginsMenuItem");
+            pluginHost.Content = sources;
+            MergedSourcesSmoke.OpenPlugins(owner);
             await plugins.ActivateAsync(); plugins.Select(PluginUxFixture.SourceKey);
             PluginSettingsEditor settings = await PluginSettingsFormChecks.OpenManagedScopeAsync(plugins, SettingScope.Plugin);
             TextBox label = (TextBox)settings.FindField("label")!;
@@ -119,7 +119,7 @@ internal static class NativeImeChecks
         {
             archive.AppliedSearchChanged -= OnAppliedSearchChanged;
             downloadUrl.RemoveHandler(InputElement.KeyDownEvent, CountSubmitEnter);
-            plugins.EndLifetime();
+            sources.EndLifetime();
             pluginHost.Content = originalPlugins;
         }
 

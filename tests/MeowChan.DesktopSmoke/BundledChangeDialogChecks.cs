@@ -26,21 +26,19 @@ internal static class BundledChangeDialogChecks
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "bundled-change-dialog"));
         RecordingStore store = new(fixture);
         var original = fixture.Services;
-        PluginsPage page = new();
-        page.Attach(new(store, original.Compiler, original.Inventory, original.PluginDirectory,
-            original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync));
-        ContentControl host = owner.FindControl<ContentControl>("PluginsPageHost")!;
+        SourcesPage sources = MergedSourcesSmoke.Create(new(store, original.Compiler, original.Inventory, original.PluginDirectory,
+            original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync), out PluginsPage page);
+        ContentControl host = owner.FindControl<ContentControl>("SourcesPageHost")!;
         object? previous = host.Content;
         string language = Texts.Language;
-        host.Content = page;
+        host.Content = sources;
         store.Admit = () => page.IsBusy && !CommandRouter.IsRoutingContextActive(page, page) &&
             owner.OwnedWindows.Any(modal => modal.IsVisible && modal.IsActive && ReferenceEquals(modal.Owner, owner) &&
                 CommandRouter.IsRoutingContextActive(modal, modal));
         byte[] untouched = SdkJson.Serialize(await fixture.Store.ReadAsync());
         try
         {
-            owner.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MergedSourcesSmoke.OpenPlugins(owner);
             await page.ActivateAsync();
             foreach (string current in new[] { "en", "de" })
             {
@@ -215,7 +213,7 @@ internal static class BundledChangeDialogChecks
                     exactChangeDispatch = true, pendingOnly = true }));
             }
         }
-        finally { page.EndLifetime(); host.Content = previous; Texts.SetLanguage(language); }
+        finally { sources.EndLifetime(); host.Content = previous; Texts.SetLanguage(language); }
     }
 
     private static void RequireFreshChangeConsent(Window modal, RecordingStore store, int before, string action)

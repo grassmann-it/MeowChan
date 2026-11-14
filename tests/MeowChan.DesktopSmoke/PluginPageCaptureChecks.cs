@@ -7,30 +7,31 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
+using Ursa.Controls;
 
 namespace MeowChan.DesktopSmoke;
 
 /// <summary>
-/// Evidence only: the Plugins page over the passive UX fixture at 1440 x 920, 900 x 760 and 860 x 760 (one pane), Dark and Light, EN and DE, so its look
+/// Evidence only: the merged Sources & Plugins page over the passive UX fixture at 1440 x 920, 900 x 760 and 860 x 760 (one pane), Dark and Light, EN and DE, so its look
 /// can be compared with the Sources page (smoke-sources-wide-*). Nothing is compiled, described, started or probed; the checks are
-/// limited to what the comparison needs (the selected plugin's heading and its state action are on screen).
+/// limited to passive presentation, dropdown/layer navigation and the selected plugin's visible state action.
 /// </summary>
 internal static class PluginPageCaptureChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(Path.Combine(Config.GetConfigDirectory(), "plugin-page-captures"));
-        PluginsPage page = new(); page.Attach(fixture.Services);
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
+        SourcesPage sources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage page);
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
         object? retained = host.Content;
         string language = Texts.Language, mode = window.SessionHost.Config.WorkspaceMode;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         double width = window.Width, height = window.Height;
-        host.Content = page;
+        host.Content = sources;
         try
         {
-            window.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MergedSourcesSmoke.OpenPlugins(window);
             await PresentationChecks.SwitchModeAsync(window, "Simple");
             await page.ActivateAsync();
             foreach ((double captureWidth, double captureHeight, string size) in new[] { (1440d, 920d, "1440"), (900d, 760d, "900"), (860d, 760d, "860") })
@@ -47,32 +48,38 @@ internal static class PluginPageCaptureChecks
                     await page.RefreshAsync();
                     if (size == "1440" && captureLanguage == "de")
                     {
-                        // The page before any choice (the list and the hint in the detail column) needs a page without a selection.
-                        PluginsPage fresh = new(); fresh.Attach(fixture.Services);
-                        host.Content = fresh;
+                        // Fresh merged entry now selects the first plugin passively; it must not enable/start/save it.
+                        SourcesPage freshSources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage fresh);
+                        byte[] beforeOpening = MeowChan.PluginSdk.SdkJson.Serialize(await fixture.Store.ReadAsync());
+                        host.Content = freshSources;
                         try
                         {
                             await fresh.ActivateAsync();
-                            Require(fresh.Selected == null, "A fresh Plugins page selected a plugin by itself.");
-                            await Capture(window, fresh, null, "smoke-plugins-page-" + size + "-none-" + captureLanguage + "-" + suffix);
+                            Require(fresh.Selected != null && fresh.FindControl<SelectionList>("PluginCards")!.SelectedItem != null,
+                                "A fresh merged catalog did not select its first plugin.");
+                            Require(beforeOpening.SequenceEqual(MeowChan.PluginSdk.SdkJson.Serialize(await fixture.Store.ReadAsync()))
+                                && fixture.ForbiddenCalls == 0, "Passive initial selection mutated the profile or executed plugin code.");
+                            await Capture(window, fresh, fresh.Selected!.Key, "smoke-sources-page-" + size + "-initial-all-" + captureLanguage + "-" + suffix);
                         }
-                        finally { fresh.EndLifetime(); host.Content = page; }
+                        finally { freshSources.EndLifetime(); host.Content = sources; }
                         await page.RefreshAsync();
                     }
-                    await Capture(window, page, PluginUxFixture.SourceKey, "smoke-plugins-page-" + size + "-source-" + captureLanguage + "-" + suffix);
+                    await CaptureSourceLayersAsync(window, sources, size + "-" + captureLanguage + "-" + suffix);
+                    MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
+                    await Capture(window, page, PluginUxFixture.SourceKey, "smoke-sources-page-" + size + "-source-" + captureLanguage + "-" + suffix);
                     // The steps of an installed, enabled and active plugin: all three done, nothing left to do.
-                    PluginAddChecks.RequireSteps(page, new[] { "✓", "✓", "✓" }, null, "source plugin " + captureLanguage + "/" + suffix);
+                    PluginAddChecks.RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Done, PluginStepState.Done }, null, "source plugin " + captureLanguage + "/" + suffix);
                     if (captureLanguage == "de")
-                        await Capture(window, page, PluginUxFixture.FilterKey, "smoke-plugins-page-" + size + "-filter-" + captureLanguage + "-" + suffix);
+                        await Capture(window, page, PluginUxFixture.FilterKey, "smoke-sources-page-" + size + "-filter-" + captureLanguage + "-" + suffix);
                     if (captureLanguage == "de")
                         // A disabled plugin: installed, "Enable plugin" is the next step, active comes after it.
-                        PluginAddChecks.RequireSteps(page, new[] { "✓", "→", "○" },
+                        PluginAddChecks.RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Next, PluginStepState.Later },
                             Texts.T("plugins.step.next.enable", MeowChan.Desktop.Commands.CommandCatalog.Label("plugins.enable")), "filter plugin " + suffix);
                     if (size == "1440")
                     {
                         // A file the app has not registered yet (just added): installed, and the restart is the next step.
-                        await Capture(window, page, PluginUxFixture.UnknownKey, "smoke-plugins-page-" + size + "-new-" + captureLanguage + "-" + suffix);
-                        PluginAddChecks.RequireSteps(page, new[] { "✓", "→", "○" }, Texts.T("plugins.step.next.restart"), "new file " + captureLanguage + "/" + suffix);
+                        await Capture(window, page, PluginUxFixture.UnknownKey, "smoke-sources-page-" + size + "-new-" + captureLanguage + "-" + suffix);
+                        PluginAddChecks.RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Next, PluginStepState.Later }, Texts.T("plugins.step.next.restart"), "new file " + captureLanguage + "/" + suffix);
                     }
                     if (size == "860" && captureLanguage == "de")
                     {
@@ -80,14 +87,16 @@ internal static class PluginPageCaptureChecks
                         Require(page.FindControl<Button>("PluginBack")!.IsEffectivelyVisible && !page.FindControl<Grid>("PluginListPane")!.IsVisible,
                             "At 860 dip the Plugins page was not in its one-pane layout.");
                         page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                        await Capture(window, page, null, "smoke-plugins-page-" + size + "-list-" + captureLanguage + "-" + suffix);
+                        await Capture(window, page, null, "smoke-sources-page-" + size + "-list-" + captureLanguage + "-" + suffix);
                     }
                     if (size == "1440" && captureLanguage == "de")
                     {
                         // The image-filter category: the list shows only the filter plugin, the details stay with the choice.
-                        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 2;
-                        await Capture(window, page, PluginUxFixture.FilterKey, "smoke-plugins-page-" + size + "-category-" + captureLanguage + "-" + suffix);
-                        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 0;
+                        MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.ImageFilters);
+                        await Capture(window, page, PluginUxFixture.FilterKey, "smoke-sources-page-" + size + "-category-" + captureLanguage + "-" + suffix);
+                        Require(page.FindControl<SelectionList>("PluginCards")!.Items.Count == 1 && page.Selected?.IsFilter == true,
+                            "The Image filters dropdown included a source-only or not-yet-described plugin.");
+                        MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
                     }
                 }
             }
@@ -98,11 +107,46 @@ internal static class PluginPageCaptureChecks
         }
         finally
         {
-            page.EndLifetime(); host.Content = retained;
+            sources.EndLifetime(); host.Content = retained;
             Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
             await PresentationChecks.SwitchModeAsync(window, mode);
             window.Width = width; window.Height = height;
         }
+    }
+
+    private static async Task CaptureSourceLayersAsync(MainWindow window, SourcesPage sources, string cell)
+    {
+        PluginsPage management = sources.PluginManagement;
+        // One registered source plus the described, unregistered source tests the active/inactive union in the real list.
+        sources.Refresh(new[] { new ProviderDescriptor("capture-active", "Registered capture source", new Uri("https://capture.example.test/"),
+            ProviderCapabilities.ThreadWatch, new[] { "capture.example.test" }, "fixture", false) }, window.SessionHost.GetView(), true);
+        MergedSourcesSmoke.Filter(management, SourcesPluginsFilter.Sources);
+        SelectionList rows = sources.FindControl<SelectionList>("SourceCards")!;
+        Require(rows.Items.Count == 2 && ((SelectionListItem)rows.Items[0]!).Content is StackPanel active
+            && active.Children.OfType<TextBlock>().First().Text == "Registered capture source",
+            "The Sources dropdown did not put the registered source before the inactive described source.");
+        SelectionListItem inactive = (SelectionListItem)rows.Items[1]!;
+        Require(((StackPanel)inactive.Content!).Children.OfType<WrapPanel>().Single().Children.OfType<Border>()
+            .Any(chip => chip.GetLogicalDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("sources.badge.status.inactive"))),
+            "The described but unregistered source lost its inactive chip.");
+        sources.SelectSource(PluginUxFixture.SourceId);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
+        Require(sources.FindControl<TextBlock>("SourceHeading")!.IsEffectivelyVisible && !management.ShowingSourcePluginDetails,
+            "Sources did not start at its source overview layer.");
+        Program.CaptureWindow(window, "smoke-sources-page-" + cell + "-overview.png");
+        sources.FindControl<Button>("SourcePluginButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => management.ShowingSourcePluginDetails
+            && management.FindControl<TextBlock>("PluginHeading")!.IsFocused);
+        Require(management.Selected?.Key == PluginUxFixture.SourceKey && management.Filter == SourcesPluginsFilter.Sources
+            && !management.FindControl<Grid>("PluginListPane")!.IsEffectivelyVisible,
+            "Plugin details escaped the selected source or opened a separate workspace/list.");
+        Program.CaptureWindow(window, "smoke-sources-page-" + cell + "-plugin-details.png");
+        management.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => !management.ShowingSourcePluginDetails
+            && sources.FindControl<TextBlock>("SourceHeading")!.IsEffectivelyVisible);
+        Require(window.SelectedPage == MainWindow.WorkspacePage.Sources
+            && ReferenceEquals(window.FindControl<ContentControl>("SourcesPageHost")!.Content, sources),
+            "Back from plugin details left the actual merged Sources host.");
     }
 
     // The Diagnostics filter row mixes a combo box, a text box, two checkboxes and a button: the checkboxes sit on the

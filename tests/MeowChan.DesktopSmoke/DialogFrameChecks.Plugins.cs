@@ -42,14 +42,13 @@ internal static partial class DialogFrameChecks
         var original = fixture.Services;
         PluginManagementServices services = new(store, original.Compiler, original.Inventory, original.PluginDirectory,
             original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync);
-        PluginsPage page = new(); page.Attach(services);
-        ContentControl host = owner.FindControl<ContentControl>("PluginsPageHost")!;
+        SourcesPage sources = MergedSourcesSmoke.Create(services, out PluginsPage page);
+        ContentControl host = owner.FindControl<ContentControl>("SourcesPageHost")!;
         object? previous = host.Content;
-        host.Content = page;
+        host.Content = sources;
         try
         {
-            owner.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MergedSourcesSmoke.OpenPlugins(owner);
             await page.ActivateAsync();
             foreach (bool escape in new[] { false, true })
             {
@@ -73,7 +72,7 @@ internal static partial class DialogFrameChecks
             }
             Require(fixture.ForbiddenCalls == 0, "Bundled review frame invoked compiler, worker or network services.");
         }
-        finally { page.EndLifetime(); host.Content = previous; }
+        finally { sources.EndLifetime(); host.Content = previous; }
     }
 
     private static async Task<Window> OpenBundledReviewAsync(MainWindow owner, PluginsPage page)

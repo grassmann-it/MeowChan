@@ -31,18 +31,17 @@ internal static class PluginReselectionChecks
         var original = fixture.Services;
         PluginManagementServices services = new(store, original.Compiler, original.Inventory, original.PluginDirectory,
             original.DescribeTestAsync, original.StartTestWorkerAsync, original.ProbeAsync);
-        PluginsPage page = new(); page.Attach(services);
+        SourcesPage sources = MergedSourcesSmoke.Create(services, out PluginsPage page);
         store.ModalReady = () => page.IsBusy && !CommandRouter.IsRoutingContextActive(page, page) &&
             owner.OwnedWindows.Any(modal => modal.IsVisible && ReferenceEquals(modal.Owner, owner) &&
                 CommandRouter.IsRoutingContextActive(modal, modal));
-        ContentControl host = owner.FindControl<ContentControl>("PluginsPageHost")!;
+        ContentControl host = owner.FindControl<ContentControl>("SourcesPageHost")!;
         object? previous = host.Content;
         string language = Texts.Language;
-        host.Content = page;
+        host.Content = sources;
         try
         {
-            owner.GetLogicalDescendants().OfType<MenuItem>().First(item => Equals(item.Tag, "nav.plugins"))
-                .RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            MergedSourcesSmoke.OpenPlugins(owner);
             await page.ActivateAsync();
             // Long localized footer labels at the modal's 320 px floor. Runs first: the catalog-reload boundary
             // below reinitializes Texts without the bundled packs, after which RU would fall back to English.
@@ -301,7 +300,7 @@ internal static class PluginReselectionChecks
         }
         finally
         {
-            page.EndLifetime(); host.Content = previous; Texts.SetLanguage(language);
+            sources.EndLifetime(); host.Content = previous; Texts.SetLanguage(language);
         }
     }
 

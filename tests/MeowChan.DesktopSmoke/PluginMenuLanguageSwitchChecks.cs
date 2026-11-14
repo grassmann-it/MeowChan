@@ -21,12 +21,11 @@ internal static class PluginMenuLanguageSwitchChecks
         string initialLanguage = Texts.Language;
         string root = Path.Combine(Config.GetConfigDirectory(), "plugin-menu-language");
         PluginUxFixture fixture = await PluginUxFixture.CreateAsync(root);
-        PluginsPage page = new();
-        page.Attach(fixture.Services);
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")
+        SourcesPage sources = MergedSourcesSmoke.Create(fixture.Services, out PluginsPage page);
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")
             ?? throw new InvalidOperationException("The plugin page host is missing.");
         object? retained = host.Content;
-        host.Content = page;
+        host.Content = sources;
 
         try
         {
@@ -123,7 +122,7 @@ internal static class PluginMenuLanguageSwitchChecks
         }
         finally
         {
-            page.EndLifetime();
+            sources.EndLifetime();
             host.Content = retained;
             Texts.SetLanguage(initialLanguage);
         }
@@ -131,10 +130,7 @@ internal static class PluginMenuLanguageSwitchChecks
 
     private static async Task ActivatePageAsync(MainWindow window, PluginsPage page)
     {
-        MenuItem navigation = window.GetLogicalDescendants().OfType<MenuItem>()
-            .FirstOrDefault(item => Equals(item.Tag, "nav.plugins"))
-            ?? throw new InvalidOperationException("The Plugins navigation item is missing.");
-        navigation.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        MergedSourcesSmoke.OpenPlugins(window);
         await page.ActivateAsync();
         await Program.WaitUntilAsync(() => page.IsAttachedToVisualTree() && page.IsEffectivelyVisible);
     }
