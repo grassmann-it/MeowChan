@@ -33,8 +33,6 @@ internal static class BoardAdmissionCatalog
         ("settings.boardAdmissionWizard", "Preview and select threads when adding boards", "Beim Hinzufügen von Boards Threads vorab auswählen"),
         ("wizard.title", "Select board threads", "Board-Threads auswählen"),
         ("wizard.intro", "Preview the current catalog before watching starts. Rules also apply to future discoveries. Existing watches continue; remove those separately in Downloads. Only catalog text is loaded; no thread pages or media are downloaded.", "Aktuellen Katalog vor Beginn der Beobachtung prüfen. Regeln gelten auch für künftig entdeckte Threads. Bestehende Beobachtungen laufen weiter; entferne diese separat unter Downloads. Es wird nur Katalogtext geladen, keine Threadseiten oder Medien."),
-        ("wizard.semantics", "Contains matches literal text, ignoring case. Include rules: any match is enough; without includes, all qualify. Exclude rules win. Individual choices override rules. Previously removed threads stay excluded until you select them explicitly.", "Enthält sucht wörtlich ohne Groß-/Kleinschreibung. Bei Einschlussregeln genügt ein Treffer; ohne solche Regeln sind alle zugelassen. Ausschlussregeln haben Vorrang. Einzelentscheidungen überschreiben Regeln. Entfernte Threads bleiben ausgeschlossen, bis du sie ausdrücklich auswählst."),
-        ("wizard.rulesHelp", "How text rules work", "So funktionieren Textregeln"),
         ("wizard.rulesTitle", "Rules for this board", "Regeln für dieses Board"),
         ("wizard.previewTitle", "Catalog preview", "Katalogvorschau"),
         ("wizard.previewLoaded", "Preview loaded", "Vorschau geladen"),
