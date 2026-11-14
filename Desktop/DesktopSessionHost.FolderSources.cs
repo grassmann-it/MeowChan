@@ -71,10 +71,15 @@ internal sealed partial class DesktopSessionHost
                 }
                 _folderSourceHasher.Parallelism = Config.FolderSourceHashParallelism;
                 _folderSourceHasher.MaxFileBytes = (long)Config.FolderSourceHashMaxFileGiB * 1024 * 1024 * 1024;
+                // Views hash only for the opened gallery: at most its window (both sides and the opened file) waits (W3-02).
+                _folderSourceHasher.ViewQueueLimit = 2 * Config.FolderSourceGalleryHashWindow + 1;
                 return _folderSourceHasher;
             }
         }
     }
+
+    /// <summary>Test seam: the shadow catalog, so tests can watch when and where it is read.</summary>
+    internal FolderSourceCatalog FolderSourceCatalogForTests => FolderSourceCatalog;
 
     /// <summary>Test seam: the hasher, so tests can replace how bytes are read.</summary>
     internal FolderSourceHasher FolderSourceHasherForTests => FolderSourceHasher;
@@ -147,6 +152,9 @@ internal sealed partial class DesktopSessionHost
         catch (Exception error) when (FolderSourceFailure(error)) { return null; }
     }
 
+    /// <summary>The folder sources without their counts (one small query). Throws like <see cref="ListFolderSources"/>.</summary>
+    internal IReadOnlyList<FolderSourceRoot> ReadFolderSourceRoots() => FolderSourceCatalog.ReadRoots();
+
     /// <summary>Why folder sources cannot be used right now (damaged or newer catalog), or <see cref="FolderSourceError.None"/>.</summary>
     internal FolderSourceError FolderSourcesBlocked()
     {
@@ -193,16 +201,23 @@ internal sealed partial class DesktopSessionHost
         return FolderSourceValidation.Check(folder, _profileLease.ProfileDirectory, Path.GetFullPath(Config.DownloadPath), roots);
     }
 
-    /// <summary>Adds a folder source and starts its first scan in the background. Throws <see cref="FolderSourceException"/>.</summary>
+    /// <summary>
+    /// Adds a folder source and starts its first scan in the background. Throws <see cref="FolderSourceException"/>. The check of the
+    /// folder (a stat, a listing, the catalog) runs with the write on a worker, never on the caller's (UI) thread (W3-12).
+    /// </summary>
     internal async Task<FolderSourceRoot> AddFolderSourceAsync(string folder, string name, bool includeSubfolders, CancellationToken token = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         EnsureReady();
-        FolderSourceError check = CheckFolderSource(folder);
-        if (check != FolderSourceError.None) throw new FolderSourceException(check);
-        FolderSourceRoot root = await Task.Run(() => FolderSourceCatalog.AddRoot(folder, name, includeSubfolders, DateTimeOffset.UtcNow, token), token)
-            .ConfigureAwait(false);
-        _logger.Information("Folder source added ({Sources} in total).", FolderSourceCatalog.ReadRoots().Count);
+        (FolderSourceRoot root, int sources) = await Task.Run(() =>
+        {
+            FolderSourceError check = CheckFolderSource(folder);
+            if (check != FolderSourceError.None) throw new FolderSourceException(check);
+            FolderSourceCatalog catalog = FolderSourceCatalog;
+            FolderSourceRoot added = catalog.AddRoot(folder, name, includeSubfolders, DateTimeOffset.UtcNow, token);
+            return (added, catalog.ReadRoots().Count);
+        }, token).ConfigureAwait(false);
+        _logger.Information("Folder source added ({Sources} in total).", sources);
         QueueFolderSourcesChanged(immediately: true);
         _ = RescanInBackgroundAsync(root.Id);
         return root;

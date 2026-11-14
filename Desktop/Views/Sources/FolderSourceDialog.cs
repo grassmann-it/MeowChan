@@ -185,7 +185,11 @@ internal sealed class FolderSourceDialog : Window
         catch (FolderSourceException error) { SetBusy(false); if (!_closed) ShowError(ErrorKey(error.Error)); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidOperationException or ObjectDisposedException
             or Microsoft.Data.Sqlite.SqliteException)
-        { SetBusy(false); if (!_closed) ShowError("folderSource.error.damaged"); }
+        {
+            FolderSourceErrorText.Log(error, _renaming == null ? "add" : "rename");
+            SetBusy(false);
+            if (!_closed) ShowError(FolderSourceErrorText.Key(error));
+        }
     }
 
     private void SetBusy(bool busy)

@@ -109,7 +109,10 @@ internal sealed class FolderSourcesPanel : UserControl
                     catch (FolderSourceException error) { return (Array.Empty<FolderSourceView>(), null, error.Error); }
                     catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
                         or Microsoft.Data.Sqlite.SqliteException)
-                    { return (Array.Empty<FolderSourceView>(), null, FolderSourceError.CatalogDamaged); }
+                    {
+                        FolderSourceErrorText.Log(error, "list");
+                        return (Array.Empty<FolderSourceView>(), null, FolderSourceError.CatalogDamaged);
+                    }
                 });
                 (_views, _activity, _blockedError) = (views, activity, blocked);
                 Render();
@@ -216,7 +219,11 @@ internal sealed class FolderSourcesPanel : UserControl
         catch (FolderSourceException error) { ShowError(FolderSourceDialog.ErrorKey(error.Error)); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException
             or InvalidOperationException or OperationCanceledException or Microsoft.Data.Sqlite.SqliteException)
-        { ShowError("folderSource.error.damaged"); }
+        {
+            // A passing read or write problem is not a damaged catalog: say which it is, log the codes (W3-15).
+            FolderSourceErrorText.Log(error, "action");
+            ShowError(FolderSourceErrorText.Key(error));
+        }
         finally { _busy = false; Refresh(); }
     }
 
