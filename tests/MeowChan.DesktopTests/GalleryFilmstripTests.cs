@@ -488,6 +488,16 @@ public sealed class GalleryFilmstripTests : IDisposable
     }
 
     [Fact]
+    public void TheViewerClearsAndPublishesTheSelectedVideoDurationToTheStrip()
+    {
+        string filmstrip = Source("Desktop/GalleryViewer.Filmstrip.cs");
+        string viewer = Source("Desktop/GalleryViewer.cs");
+        Assert.Contains("_filmstrip.SetDuration(index, null);", filmstrip);
+        Assert.Contains("_filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);", filmstrip);
+        Assert.Contains("_video.DurationChanged += OnVideoDurationChanged;", viewer);
+    }
+
+    [Fact]
     public void TheTileUsesTheBadgeViewWithoutOwnBadgeCodeOrExtraFocusStops()
     {
         string source = Source("Desktop/Controls/GalleryFilmstrip.cs");

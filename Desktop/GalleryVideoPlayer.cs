@@ -93,6 +93,8 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private readonly VideoAudioProbeSchedule _audioProbe = new();
 
     internal event Action<int>? VolumeChanged;
+    /// <summary>Publishes the verified media length for the gallery filmstrip; null retires the previous medium's value.</summary>
+    internal event Action<TimeSpan?>? DurationChanged;
     internal event Action<bool>? LoopChanged;
     internal event Action? PlaybackEnded;
     internal event Action? PlaybackFailed;
@@ -708,7 +710,7 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _audioAvailable = false; _audioTracks = -1; _audioProbe.BeginMedia();
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
-        EnableTransport(false); _length = 0; UpdateTime(0);
+        EnableTransport(false); _length = 0; DurationChanged?.Invoke(null); UpdateTime(0);
         _status.Text = Texts.T("gallery.video.verifying");
         await Task.Run(async () =>
         {
@@ -779,7 +781,12 @@ internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 {
                     // The verified local medium has not changed; terminal input teardown may
                     // report zero. Keep its last known duration until the next Show resets it.
-                    if (args.Length > 0) _length = args.Length;
+                    if (args.Length > 0)
+                    {
+                        bool changed = _length != args.Length;
+                        _length = args.Length;
+                        if (changed) DurationChanged?.Invoke(TimeSpan.FromMilliseconds(args.Length));
+                    }
                     RenderTime(); _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0;
                 });
                 player.TimeChanged += (_, args) =>

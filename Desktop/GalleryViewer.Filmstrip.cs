@@ -100,7 +100,18 @@ internal sealed partial class GalleryViewer
         bool more = index >= 0 && index == list.Count - 1 && _next.IsEnabled;
         _filmstrip.SetEntries(list, list.Count, more);
         _filmstrip.SetCurrent(index);
+        // The player reports the new length asynchronously. Clear the selected slot first so a reused
+        // viewer never leaves the previous medium's duration on a video whose length is not known yet.
+        _filmstrip.SetDuration(index, null);
         UpdateFilmstripPlacement();
+    }
+
+    private void OnVideoDurationChanged(TimeSpan? duration)
+    {
+        if (_entry?.Kind != SavedMediaKind.Video) return;
+        // LengthChanged is admitted by GalleryVideoPlayer's generation fence. The filmstrip already
+        // received the same entry synchronously in ShowAsync(entry, associations, ...).
+        _filmstrip.SetDuration(_filmstrip.CurrentIndex, duration);
     }
 
     private static int IndexInList(IReadOnlyList<GalleryEntry> list, GalleryEntry entry)

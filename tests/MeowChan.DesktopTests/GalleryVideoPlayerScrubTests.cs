@@ -1,3 +1,5 @@
+using System.IO;
+using System.Runtime.CompilerServices;
 using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
@@ -39,10 +41,23 @@ public sealed class GalleryVideoPlayerScrubTests
     }
 
     [Fact]
+    public void LengthChangesPublishDurationAndAResetPublishesNull()
+    {
+        string source = ReadDesktopSource("GalleryVideoPlayer.cs");
+        Assert.Contains("internal event Action<TimeSpan?>? DurationChanged;", source);
+        Assert.Contains("_length = 0; DurationChanged?.Invoke(null); UpdateTime(0);", source);
+        Assert.Contains("DurationChanged?.Invoke(TimeSpan.FromMilliseconds(args.Length));", source);
+        Assert.Contains("player.LengthChanged += (_, args) => Post(generation, () =>", source);
+    }
+
+    [Fact]
     public void HoverPreviewUsesTheExistingPlayerTimeFormat()
     {
         Assert.Equal("0:00", GalleryVideoPlayer.FormatVideoTime(0));
         Assert.Equal("1:05", GalleryVideoPlayer.FormatVideoTime(65_000));
         Assert.Equal("1:01:05", GalleryVideoPlayer.FormatVideoTime(3_665_000));
     }
+
+    private static string ReadDesktopSource(string name, [CallerFilePath] string testPath = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(testPath)!, "..", "..", "Desktop", name)));
 }
