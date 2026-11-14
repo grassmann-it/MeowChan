@@ -31,6 +31,9 @@ public partial class MainWindow
     {
         if (!ReferenceEquals(_gallery, owner) || _isClosing) return;
         _desiredGalleryLayout = GalleryLayoutNow().With(mode, choice);
+        // The gallery owns the live layout choice. Keep the already-created Settings editor in step with
+        // the View set immediately; waiting for the preference write leaves the old GalleryFilmstrip draft visible.
+        if (mode == GalleryChromeMode.View) _settingsEditor?.RefreshConfirmedGalleryFilmstrip(choice.Filmstrip != false);
         if (mode == GalleryChromeMode.Tag) _pendingGalleryLayoutTag = choice; else _pendingGalleryLayoutView = choice;
         QueueGalleryPreference(null, null);
     }

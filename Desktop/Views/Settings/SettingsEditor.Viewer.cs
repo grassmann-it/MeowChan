@@ -209,6 +209,13 @@ public partial class SettingsEditor
         RaiseViewerVisibilityChanged();
     }
 
+    /// <summary>Updates the filmstrip setting when the gallery changes its live View layout (for example with Shift+L).</summary>
+    internal void RefreshConfirmedGalleryFilmstrip(bool shown)
+    {
+        if (_isClosed) return;
+        GalleryFilmstrip = shown;
+    }
+
     /// <summary>The idle time from <paramref name="config"/> (start, discard, after a save). <paramref name="layoutReset"/>: the section reset also resets the gallery layout.</summary>
     private void LoadViewerDraft(Config config, bool layoutReset = false)
     {

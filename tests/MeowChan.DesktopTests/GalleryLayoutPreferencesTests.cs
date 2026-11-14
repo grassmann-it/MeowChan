@@ -563,6 +563,17 @@ public sealed class GalleryLayoutPreferencesTests
     }
 
     [Fact]
+    public void ALiveViewToggleRefreshesTheSettingsDraftBeforeThePreferenceWriteCompletes()
+    {
+        string window = Source("Desktop/Shell/MainWindow.GalleryFilmstrip.cs");
+        string editor = Source("Desktop/Views/Settings/SettingsEditor.Viewer.cs");
+
+        Assert.Contains("if (mode == GalleryChromeMode.View) _settingsEditor?.RefreshConfirmedGalleryFilmstrip(choice.Filmstrip != false);", window);
+        Assert.Contains("internal void RefreshConfirmedGalleryFilmstrip(bool shown)", editor);
+        Assert.Contains("GalleryFilmstrip = shown;", editor);
+    }
+
+    [Fact]
     public void TheWindowLoadsBothModesAndSavesOnlyTheChangedOne()
     {
         string window = Source("Desktop/Shell/MainWindow.GalleryFilmstrip.cs");
