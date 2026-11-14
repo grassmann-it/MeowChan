@@ -148,16 +148,20 @@ public sealed class StatisticsReadabilityTests : IDisposable
     }
 
     [Fact]
-    public void ZeroTrafficHidesThePeakWithoutCollapsingItsHistoryHeaderColumn()
+    public void PeakHasAnAlwaysMeasuredHistoryContainerRatherThanAHiddenColumn()
     {
         XDocument page = Markup("Desktop/Views/Statistics/StatisticsPage.axaml");
         XElement slot = Named(page, "PeakSlot");
         XElement peak = Named(page, "PeakText");
 
         Assert.Equal("1", (string?)slot.Attribute("Grid.Column"));
-        Assert.Equal("104", (string?)slot.Attribute("MinWidth"));
+        Assert.Null(slot.Attribute("IsVisible"));
+        Assert.Equal("False", (string?)slot.Attribute("IsHitTestVisible"));
+        // The peak belongs to the scrolling history header, not to the overlaid result toast.
+        // The exact retained width is captured from native layout, not a fixed locale-specific DIP guess;
+        // StatisticsReadabilityChecks verifies unchanged graph/label bounds and scroll offset on reset.
         Assert.Contains(slot.Descendants(), element => ReferenceEquals(element, peak));
-        Assert.DoesNotContain(peak.Ancestors(), element => element.Name.LocalName == "ScrollViewer");
+        Assert.Contains(peak.Ancestors(), element => element.Name.LocalName == "ScrollViewer");
     }
 
     [Fact]

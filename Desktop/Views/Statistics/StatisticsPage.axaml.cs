@@ -155,10 +155,13 @@ public partial class StatisticsPage : UserControl
         ApplyGraph(DiskWriteGraph, DiskWriteScale, "stats.metric.diskWrite", snapshot.Series, seconds, ref _writeGraphName);
         ApplyGraph(DiskReadGraph, DiskReadScale, "stats.metric.diskRead", snapshot.Series, seconds, ref _readGraphName);
         bool hasTraffic = NetGraph.HasTraffic;
+        // Retain the width that was actually arranged before hiding the peak. A fixed DIP floor
+        // only works for one label/font: longer translations and larger values would still make
+        // the Auto column collapse on reset and reflow HistoryNote. Before the first layout there
+        // is no visible column to preserve; later zero snapshots must not erase the retained width.
+        if (!hasTraffic && PeakText.IsVisible)
+            PeakSlot.MinWidth = Math.Max(PeakSlot.MinWidth, PeakSlot.Bounds.Width);
         PeakText.Text = hasTraffic ? Texts.T("stats.peak", ByteUnits.Rate(NetGraph.TrafficPeak)) : string.Empty;
-        // PeakSlot deliberately remains measured in the zero-traffic state. It reserves the
-        // localized peak column without showing a made-up value, so HistoryNote keeps its wrap
-        // width and the graph does not move when Reset completes.
         PeakText.IsVisible = hasTraffic;
         ScaleTop.IsVisible = hasTraffic;
         ScaleHalf.IsVisible = hasTraffic;
