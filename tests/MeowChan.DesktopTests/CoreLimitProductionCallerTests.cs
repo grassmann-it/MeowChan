@@ -3,6 +3,7 @@ using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
+using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 

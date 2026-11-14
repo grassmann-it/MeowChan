@@ -4,6 +4,8 @@ using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Testing;
+using MeowChan.Downloader;
+using MeowChan.Interfaces;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
