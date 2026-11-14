@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -81,6 +82,15 @@ internal static class MediaSlotChecks
     private static bool Inside(Rect outer, Rect inner) => inner.Left >= outer.Left - Tolerance && inner.Top >= outer.Top - Tolerance
         && inner.Right <= outer.Right + Tolerance && inner.Bottom <= outer.Bottom + Tolerance;
 
+    // The play mark of a badge view, in the host's coordinates; null when the plan carries none.
+    private static Rect? PlayMark(MeowChan.Desktop.Controls.MediaBadgeView badges, Visual host)
+    {
+        foreach (MeowChan.Desktop.Controls.PlacedBadge placed in badges.Plan.Badges)
+            if (placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.PlayMark)
+                return new Rect(RectIn(badges, host).Position + placed.Bounds.Position, placed.Bounds.Size);
+        return null;
+    }
+
     private static bool Same(Rect a, Rect b) => Math.Abs(a.Left - b.Left) <= Tolerance && Math.Abs(a.Top - b.Top) <= Tolerance
         && Math.Abs(a.Width - b.Width) <= Tolerance && Math.Abs(a.Height - b.Height) <= Tolerance;
 
@@ -97,7 +107,7 @@ internal static class MediaSlotChecks
             ("large-portrait.png", 400, 600, SKColors.Chocolate, false, true)
         ];
         StackPanel rows = new() { Spacing = 6, Margin = new Thickness(8) };
-        List<(ArchiveAttachmentView View, TextBlock Body, ReaderPostLayout Layout, string File, bool Video, bool Large, int Width, int Height)> built = new();
+        List<(ArchiveAttachmentView View, TextBlock Body, ReaderPostLayout Layout, string File, bool Video, bool Large, int Width, int Height, bool Favorite)> built = new();
         foreach (var item in cases)
         {
             ArchiveAttachmentView view = new() { Margin = new Thickness(0, 2, 0, 8) };
@@ -113,7 +123,7 @@ internal static class MediaSlotChecks
             ReaderPostLayout layout = new() { Children = { mediaHost, body } };
             if (item.Large) layout.SetValue(ReaderPostLayout.LargeReaderProperty, true);
             rows.Children.Add(new Border { BorderThickness = new Thickness(0, 0, 0, 1), BorderBrush = Brushes.Gray, Child = layout });
-            built.Add((view, body, layout, item.File, video, item.Large, item.Width, item.Height));
+            built.Add((view, body, layout, item.File, video, item.Large, item.Width, item.Height, item.Favorite));
         }
         Window host = new() { Width = 800, Height = 1150, RequestedThemeVariant = theme, Content = new ScrollViewer { Content = rows }, Title = "media-slot reader" };
         host.Show();
@@ -141,10 +151,18 @@ internal static class MediaSlotChecks
                     Rect starRect = RectIn(star, host);
                     Expect(starRect.Right <= viewRect.Right + Tolerance, $"{label}: the star {starRect} is outside its block {viewRect}.");
                 }
+                // MB1b: the shared badge view lies exactly on the shown picture, never takes a click and is not in the accessibility tree.
+                MeowChan.Desktop.Controls.MediaBadgeView badges = view.Badges;
+                Expect(Same(RectIn(badges, host), image) || !badges.IsVisible, $"{label}: the badge view {RectIn(badges, host)} is not on the shown picture {image}.");
+                Expect(!badges.IsHitTestVisible, $"{label}: the badge view takes clicks.");
+                Expect(badges.Plan.Badges.All(placed => placed.Bounds.Left >= -Tolerance && placed.Bounds.Top >= -Tolerance
+                    && placed.Bounds.Right <= image.Width + Tolerance && placed.Bounds.Bottom <= image.Height + Tolerance), $"{label}: a badge leaves the picture {image}.");
+                // A favourite shows its star in the top left corner of the picture (the interactive toggle in the file line stays as it was).
+                Expect(entry.Favorite == badges.Plan.Badges.Any(placed => placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.Favorite), $"{label}: the favourite badge does not follow the row (favourite {entry.Favorite}).");
+                Expect(entry.Video == badges.State.Kind.Equals(MeowChan.Desktop.Controls.MediaBadgeKind.Video), $"{label}: the badge kind {badges.State.Kind} does not follow the file ({entry.File}).");
                 if (entry.Video)
                 {
-                    Border play = view.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "VideoPlayOverlay");
-                    Rect playRect = RectIn(play, host);
+                    Rect playRect = PlayMark(badges, host) ?? throw new InvalidOperationException($"{label}: no play mark in the badge plan.");
                     Expect(Math.Abs(playRect.Center.X - image.Center.X) <= Tolerance && Math.Abs(playRect.Center.Y - image.Center.Y) <= Tolerance,
                         $"{label}: the play button {playRect.Center} is not centered on the image {image.Center}.");
                     // It scales with the picture (45 % of its shorter side, 20 to 44 dip) and never leaves it.
@@ -204,13 +222,22 @@ internal static class MediaSlotChecks
                 Expect(line.TextWrapping == TextWrapping.NoWrap && line.Bounds.Height < line.FontSize * 2, $"{label}: the file line is {line.Bounds.Height:0.#} high, more than one line.");
                 // The file favourite is never wired in the list (the thread's star is on the right): hidden, so the line has the whole slot.
                 Expect(view.GetVisualDescendants().OfType<Control>().Single(c => c.Name == "ArchiveMediaFavorite").IsVisible == false, $"{label}: the dead file star is still shown in the list row.");
+                Expect(!view.Badges.State.Favorite, $"{label}: the list row carries a favourite badge for a file favourite that is never wired there.");
                 Expect(RectIn(line, host).Right <= viewRect.Right + Tolerance, $"{label}: the file line {RectIn(line, host)} leaves the slot {viewRect}.");
                 if (entry.Video)
                 {
-                    Border play = view.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "VideoPlayOverlay");
-                    Rect playRect = RectIn(play, host);
                     // The shown picture is the letterboxed rectangle in the frame (a very thin strip is a wider frame with the picture centred in it).
                     Rect letterbox = MediaSlotGeometry.Letterbox(image.Size, entry.Aspect), shown = new(image.Position + letterbox.Position, letterbox.Size);
+                    MeowChan.Desktop.Controls.MediaBadgeView badges = view.Badges;
+                    Expect(!badges.IsHitTestVisible, $"{label}: the badge view takes clicks, so the whole picture is no longer the click target.");
+                    // A picture shorter than the hide limit (a thin strip) carries no badge at all (MB1a); every other picture carries the mark as before.
+                    if (Math.Min(shown.Width, shown.Height) < MeowChan.Desktop.Controls.MediaBadgeLimits.Current.HideBelow)
+                    {
+                        Expect(PlayMark(badges, host) == null, $"{label}: a picture of {shown.Width:0.#} x {shown.Height:0.#} still carries a play mark below the hide limit.");
+                        continue;
+                    }
+                    Expect(Same(RectIn(badges, host), shown), $"{label}: the badge view {RectIn(badges, host)} is not on the shown picture {shown}.");
+                    Rect playRect = PlayMark(badges, host) ?? throw new InvalidOperationException($"{label}: no play mark in the badge plan.");
                     Expect(Inside(shown, playRect), $"{label}: the play button {playRect} leaves the picture {shown}.");
                     Expect(Math.Abs(playRect.Center.X - shown.Center.X) <= Tolerance && Math.Abs(playRect.Center.Y - shown.Center.Y) <= Tolerance,
                         $"{label}: the play button {playRect.Center} is not centred on the picture {shown.Center}.");
@@ -286,9 +313,21 @@ internal static class MediaSlotChecks
                 // Where the picture is really drawn inside the (uniform) image control.
                 Rect drawn = Marks(Drawn(picture, aspect));
                 Console.WriteLine("SMOKE media-slot archive-tile: " + JsonSerializer.Serialize(new { label, cell = cell.ToString(), control = picture.ToString(), drawn = drawn.ToString() }));
-                foreach (string overlayName in new[] { "ArchiveMediaFavorite", "ArchiveMediaKind" })
+                foreach (string overlayName in new[] { "ArchiveMediaFavorite" })
                     if (tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == overlayName && c.IsVisible && c.Bounds.Width > 0) is { } overlay)
                         Expect(Inside(drawn, RectIn(overlay, host)), $"{label}: {overlayName} {RectIn(overlay, host)} is not on the drawn image {drawn}.");
+                // MB1b: one badge view lies exactly on the drawn picture (not on the marks band) and every badge is inside it.
+                MeowChan.Desktop.Controls.MediaBadgeView badges = tile.Badges;
+                Rect picture2 = Drawn(picture, aspect), badgeRect = RectIn(badges, host);
+                Expect(Same(badgeRect, picture2), $"{label}: the badge view {badgeRect} is not on the drawn image {picture2}.");
+                Expect(!badges.IsHitTestVisible, $"{label}: the badge view takes clicks.");
+                Expect(badges.State.Favorite, $"{label}: the favourite row shows no favourite badge.");
+                Expect((file == "clip.webm") == (badges.State.Kind == MeowChan.Desktop.Controls.MediaBadgeKind.Video) && (file == "wide.gif") == (badges.State.Kind == MeowChan.Desktop.Controls.MediaBadgeKind.Gif),
+                    $"{label}: the badge kind {badges.State.Kind} does not follow the file name.");
+                Expect(AutomationProperties.GetName(tile)!.Contains(tile.BadgeDescription, StringComparison.Ordinal) && tile.BadgeDescription.Length > 0, $"{label}: the tile's name lacks the badge sentence.");
+                foreach (MeowChan.Desktop.Controls.PlacedBadge placed in badges.Plan.Badges)
+                    Expect(Inside(picture2, new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size)), $"{label}: badge {placed.Badge.Id} {placed.Bounds} leaves the drawn image.");
+                Console.WriteLine("SMOKE media-slot archive-badges: " + JsonSerializer.Serialize(new { label, mode = badges.Plan.Mode.ToString(), ids = badges.Plan.Badges.Select(placed => placed.Badge.Id.ToString()).ToArray(), text = tile.BadgeDescription }));
             }
             foreach (MediaLibraryTileView tile in libraryTiles)
             {
@@ -303,10 +342,12 @@ internal static class MediaSlotChecks
             }
             foreach (ArchiveMediaTileView tile in archiveTiles)
             {
-                Control? kind = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaKind" && c.IsVisible && c.Bounds.Width > 0);
+                // The interactive toggle (bottom right) and the badges of the picture's bottom left corner (type) never overlap.
                 Control? star = tile.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == "ArchiveMediaFavorite" && c.IsVisible && c.Bounds.Width > 0);
-                if (kind != null && star != null)
-                    Expect(!RectIn(kind, host).Intersects(RectIn(star, host)), $"archive tile {(tile.DataContext as ArchiveAssetRow)!.Name} {name}: type badge and star overlap.");
+                Rect badgeRect = RectIn(tile.Badges, host);
+                if (star != null)
+                    foreach (MeowChan.Desktop.Controls.PlacedBadge placed in tile.Badges.Plan.Badges.Where(placed => placed.Badge.Corner == MeowChan.Desktop.Controls.MediaBadgeCorner.BottomLeft))
+                        Expect(!new Rect(badgeRect.Position + placed.Bounds.Position, placed.Bounds.Size).Intersects(RectIn(star, host)), $"archive tile {(tile.DataContext as ArchiveAssetRow)!.Name} {name}: type badge and star overlap.");
             }
             foreach (MediaLibraryTileView tile in libraryTiles)
             {

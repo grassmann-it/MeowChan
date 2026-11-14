@@ -1,13 +1,22 @@
 using Avalonia;
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
 // The play mark scales with the picture that is shown and stays centred inside it (pure sizing rule, plus the frame panel that
-// applies it without a window). The GUI evidence is the media-slot, reader-preview and archive list smokes.
+// applies it without a window). Archive surfaces draw the mark with the shared badge view (MB1b): the same rule, checked on the badge plan
+// that the frame panel and the tile panel hand their picture to. The GUI evidence is the media-slot, reader-preview and archive list smokes.
+[Collection("Localization")] // the badge limits (hide below) are process-wide; the other badge tests change them
 public sealed class VideoPlayMarkTests
 {
+    public VideoPlayMarkTests()
+    {
+        MediaBadgeLimits defaults = MediaBadgeLimits.Default;
+        MediaBadgeLimits.Configure(defaults.CollapseBelow, defaults.HideBelow, defaults.MaxPerCorner);
+    }
+
     [Theory]
     [InlineData(76, 42.75, 20)]      // list thumbnail, landscape: 0.45 x 42.75 = 19.2, raised to the smallest circle
     [InlineData(38, 57, 20)]         // list thumbnail, portrait: 0.45 x 38 = 17.1, raised to 20
@@ -130,5 +139,109 @@ public sealed class VideoPlayMarkTests
         frame.Measure(new Size(76, double.PositiveInfinity));
         frame.Arrange(new Rect(default, frame.DesiredSize));
         Assert.Equal(new Rect(default, frame.DesiredSize), image.Bounds);
+    }
+    // ---- MB1b: the archive's attachment frame draws the mark with the shared badge view ----
+
+    private static MediaBadgeState Video => new(Kind: MediaBadgeKind.Video);
+
+    private static PlacedBadge? PlayMarkOf(MediaBadgeView view) =>
+        view.Plan.Badges.Where(placed => placed.Badge.Id == MediaBadgeId.PlayMark).Select(placed => (PlacedBadge?)placed).FirstOrDefault();
+
+    [Theory]
+    [InlineData("landscape in the list", 16d / 9, 76, 240, 180)]
+    [InlineData("portrait in the list", 2d / 3, 76, 240, 180)]
+    [InlineData("square in the list", 1d, 76, 240, 180)]
+    [InlineData("landscape reader card", 16d / 9, 1000, 240, 180)]
+    [InlineData("portrait reader card", 2d / 3, 1000, 360, 280)]
+    [InlineData("enlarged focus card", 4d / 3, 1000, 480, 360)]
+    [InlineData("no picture yet (reserved wide-screen box)", double.NaN, 76, 240, 180)]
+    public void TheBadgeViewLiesOnTheShownPictureAndItsPlayMarkIsCentredInsideItAtTheScaledSize(string label, double aspect, double available, double maxWidth, double maxHeight)
+    {
+        Border image = new();
+        MediaBadgeView badges = new() { Options = MediaBadgeOptions.Archive };
+        badges.Apply(Video, new Size(1, 1));
+        MediaFramePanel frame = new()
+        {
+            Aspect = double.IsNaN(aspect) ? null : aspect, MaximumWidthOverride = maxWidth, MaximumHeightOverride = maxHeight,
+            Children = { image, badges }
+        };
+        frame.Measure(new Size(available, double.PositiveInfinity));
+        frame.Arrange(new Rect(default, frame.DesiredSize));
+        Rect picture = MediaSlotGeometry.Letterbox(frame.DesiredSize, frame.Aspect);
+        const double Tolerance = 1;
+        // The badge view is exactly the picture, the picture button (here: the first child) keeps the whole frame.
+        Assert.True(Math.Abs(badges.Bounds.X - picture.X) <= Tolerance && Math.Abs(badges.Bounds.Y - picture.Y) <= Tolerance
+            && Math.Abs(badges.Bounds.Width - picture.Width) <= Tolerance && Math.Abs(badges.Bounds.Height - picture.Height) <= Tolerance,
+            $"{label}: the badge view {badges.Bounds} is not on the picture {picture}.");
+        Assert.Equal(new Rect(default, frame.DesiredSize), image.Bounds);
+        Assert.False(badges.IsHitTestVisible);
+        PlacedBadge mark = PlayMarkOf(badges) ?? throw new Xunit.Sdk.XunitException($"{label}: no play mark.");
+        // The plan is in the view's own coordinates: the mark is centred on the picture, inside it, 45 percent of its shorter side (20 to 44 dip).
+        Assert.True(Math.Abs(mark.Bounds.Center.X - picture.Width / 2) <= Tolerance && Math.Abs(mark.Bounds.Center.Y - picture.Height / 2) <= Tolerance,
+            $"{label}: the mark {mark.Bounds.Center} is not centred on the picture {picture.Size}.");
+        Assert.True(mark.Bounds.Left >= -Tolerance && mark.Bounds.Top >= -Tolerance && mark.Bounds.Right <= picture.Width + Tolerance && mark.Bounds.Bottom <= picture.Height + Tolerance,
+            $"{label}: the mark {mark.Bounds} leaves the picture {picture.Size}.");
+        Assert.True(Math.Abs(mark.Bounds.Width - VideoPlayMark.Diameter(picture.Size)) <= Tolerance,
+            $"{label}: the mark is {mark.Bounds.Width} wide, the rule gives {VideoPlayMark.Diameter(picture.Size)}.");
+        Assert.InRange(mark.Bounds.Width, VideoPlayMark.MinimumDiameter - Tolerance, VideoPlayMark.MaximumDiameter + Tolerance);
+    }
+
+    [Theory]
+    [InlineData("tiny owner: the frame is wider than the picture", 16d / 9, 30, 240, 180)]
+    [InlineData("tiny owner, panorama", 4d, 30, 240, 180)]
+    [InlineData("thin strip", 1d / 50, 1000, 240, 180)]
+    public void APictureBelowTheHideLimitCarriesNoBadgeAtAllButStaysWhole(string label, double aspect, double available, double maxWidth, double maxHeight)
+    {
+        Border image = new();
+        MediaBadgeView badges = new() { Options = MediaBadgeOptions.Archive };
+        badges.Apply(Video with { Favorite = true }, new Size(1, 1));
+        MediaFramePanel frame = new() { Aspect = aspect, MaximumWidthOverride = maxWidth, MaximumHeightOverride = maxHeight, Children = { image, badges } };
+        frame.Measure(new Size(available, double.PositiveInfinity));
+        frame.Arrange(new Rect(default, frame.DesiredSize));
+        Size picture = MediaSlotGeometry.Letterbox(frame.DesiredSize, aspect).Size;
+        Assert.True(Math.Min(picture.Width, picture.Height) < MediaBadgeLimits.Current.HideBelow, label);
+        Assert.Empty(badges.Plan.Badges);
+        Assert.False(badges.IsVisible);
+        // The picture is still the frame's whole click target (a thin strip is a frame of at least 24 dip).
+        Assert.Equal(new Rect(default, frame.DesiredSize), image.Bounds);
+        Assert.True(image.Bounds.Width >= Math.Min(MediaSlotGeometry.MinimumExtent, available) - 1e-9);
+    }
+
+    [Fact]
+    public void TheBadgeViewFollowsTheFrameWhenThePictureChangesItsAspect()
+    {
+        MediaBadgeView badges = new() { Options = MediaBadgeOptions.Archive };
+        badges.Apply(Video, new Size(1, 1));
+        MediaFramePanel frame = new() { Aspect = 16d / 9, Children = { new Border(), badges } };
+        frame.Measure(new Size(1000, double.PositiveInfinity)); frame.Arrange(new Rect(default, frame.DesiredSize));
+        Size first = badges.Bounds.Size;
+        frame.Aspect = 2d / 3;
+        frame.InvalidateMeasure();
+        frame.Measure(new Size(1000, double.PositiveInfinity)); frame.Arrange(new Rect(default, frame.DesiredSize));
+        Assert.NotEqual(first, badges.Bounds.Size);
+        Assert.Equal(MediaSlotGeometry.Letterbox(frame.DesiredSize, 2d / 3).Size.Width, badges.Bounds.Width, 1);
+        Assert.NotNull(PlayMarkOf(badges));
+    }
+
+    [Fact]
+    public void TheTilePanelGivesTheBadgeViewThePictureNotTheMarksBand()
+    {
+        // A cell of 170 x 125 with a wide picture (letterboxed to 170 x 42.5): the badges lie on the picture, the other marks on the 64 dip band.
+        MediaBadgeView badges = new() { Options = MediaBadgeOptions.Archive };
+        badges.Apply(new MediaBadgeState(Favorite: true, Kind: MediaBadgeKind.Gif), new Size(1, 1));
+        Border other = new();
+        LetterboxPanel panel = new() { Aspect = 4, Children = { new Border(), other, badges } };
+        panel.Measure(new Size(170, 125)); panel.Arrange(new Rect(0, 0, 170, 125));
+        Rect picture = MediaSlotGeometry.Letterbox(new Size(170, 125), 4), band = MediaSlotGeometry.Marks(new Size(170, 125), 4);
+        // Whole device pixels (layout rounding): compare within a pixel.
+        void Near(Rect expected, Rect actual) => Assert.True(Math.Abs(expected.X - actual.X) <= 1 && Math.Abs(expected.Y - actual.Y) <= 1
+            && Math.Abs(expected.Width - actual.Width) <= 1 && Math.Abs(expected.Height - actual.Height) <= 1, $"{actual} is not {expected}.");
+        Near(picture, badges.Bounds);
+        Near(band, other.Bounds);
+        Assert.NotEqual(picture.Height, band.Height);
+        Assert.Equal(picture, panel.PictureBounds);
+        Assert.Equal(band, panel.MarksBounds);
+        // Picture shorter than the collapse limit: dots; the favourite stays a dot in the top left corner.
+        Assert.Equal(MediaBadgeMode.Dots, badges.Plan.Mode);
     }
 }

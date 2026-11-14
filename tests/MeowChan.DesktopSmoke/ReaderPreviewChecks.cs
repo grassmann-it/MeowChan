@@ -206,12 +206,15 @@ internal static class ReaderPreviewChecks
         { LoadThumbnail = _ => Task.FromResult<Bitmap?>(NewBitmap()) };
         await Program.WaitUntilAsync(() => view.Thumbnail.Source is Bitmap);
         await SmokeDispatcher.SettleAsync();
-        Border play = view.GetVisualDescendants().OfType<Border>().Single(control => control.Name == "VideoPlayOverlay");
-        Point center = play.TranslatePoint(new Point(play.Bounds.Width / 2, play.Bounds.Height / 2), view.Thumbnail)
-            ?? throw new InvalidOperationException("Video play overlay has no thumbnail position.");
+        // MB1b: the mark is drawn by the shared badge view that lies on the shown picture; its place is the play badge of the plan.
+        MeowChan.Desktop.Controls.MediaBadgeView badges = view.Badges;
+        MeowChan.Desktop.Controls.PlacedBadge play = badges.Plan.Badges.Single(placed => placed.Badge.Id == MeowChan.Desktop.Controls.MediaBadgeId.PlayMark);
+        Point origin = badges.TranslatePoint(default, view.Thumbnail)
+            ?? throw new InvalidOperationException("Video badge view has no thumbnail position.");
+        Point center = origin + play.Bounds.Center;
         // The mark scales with the shown picture (45 % of its shorter side, 20 to 44 dip, never past the picture).
         double expected = VideoPlayMark.Diameter(view.Thumbnail.Bounds.Size);
-        Require(play.IsEffectivelyVisible && expected > 0 && Math.Abs(play.Bounds.Width - expected) <= 1.5 && play.Bounds.Width <= view.Thumbnail.Bounds.Height + 1.5
+        Require(badges.IsEffectivelyVisible && !badges.IsHitTestVisible && expected > 0 && Math.Abs(play.Bounds.Width - expected) <= 1.5 && play.Bounds.Width <= view.Thumbnail.Bounds.Height + 1.5
             && Math.Abs(center.X - view.Thumbnail.Bounds.Width / 2) <= 2
             && Math.Abs(center.Y - view.Thumbnail.Bounds.Height / 2) <= 2,
             "Video preview play affordance is not centered and bounded over the poster.");
