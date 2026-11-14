@@ -66,7 +66,7 @@ internal sealed partial class GalleryViewer
         _slideshowFlyout.FlyoutPresenterClasses.Add("gallery-overflow");
         _slideshowFlyout.Content = _slideshowFlyoutHost;
         _slideshowMenuButton.Flyout = _slideshowFlyout; // a click, Enter or Space on the button opens it; an open flyout is a popup (HasGalleryPopup)
-        KeyboardNavigation.SetTabNavigation(_slideshowHome, KeyboardNavigationMode.Cycle);
+        KeyboardNavigation.SetTabNavigation(_slideshowFlyoutHost, KeyboardNavigationMode.Cycle); // Tab stays inside the flyout (the host, not the lent panel: under "⋯" the menu cycles)
         _slideshowFlyoutHost.AddHandler(KeyDownEvent, (_, e) => OnMenuKeyDown(e, _slideshowHome, _slideshowFlyout), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _slideshowFlyoutHost.GotFocus += (_, _) => _slideshowMenuHadFocus = true;
         // Right click, long press and the menu key on the toggle open the same flyout (the toggle itself keeps its click).
