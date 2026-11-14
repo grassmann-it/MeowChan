@@ -86,6 +86,13 @@ internal static class ShortcutPresentationChecks
                 Write("cell-start", new { cell, mode, language, theme, client = window.ClientSize.ToString(),
                     scale = window.RenderScaling, width, height, initialGesture = CommandCatalog.ShortcutDisplay("navigation.archive") });
 
+                // Every cell ends in Settings (the card opens the window there); F1 is checked on Downloads, whose group it opens (KS2/KS3).
+                if (window.SelectedPage != MainWindow.WorkspacePage.Downloads)
+                {
+                    Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+                    await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+                    await LayoutAsync();
+                }
                 // Help is opened through the actual action (F1) and must show the current remap: the one shortcuts window (KS2).
                 Press(window, CommandBindings.Gesture("viewer.shortcut-help")!);
                 await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
@@ -112,9 +119,15 @@ internal static class ShortcutPresentationChecks
                 window.SettingsEditor.OpenSectionNavigation();
                 Require(window.SettingsEditor.CanGoToSection("settings.shortcuts"), "The real shortcut section is unavailable.");
                 window.SettingsEditor.GoToSection("settings.shortcuts");
-                Button open = editor.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "SettingsShortcutsOpen");
+                // Since KS2 F1 opens the shortcuts window, so this is the card's first showing: its template (and the button in it)
+                // exists only after the category page has laid it out. Look the button up once the card is materialized.
+                Button? found = null;
                 await Program.WaitUntilAsync(() => ReferenceEquals(CurrentEditor(), editor) && ReferenceEquals(TopLevel.GetTopLevel(editor), window)
-                    && window.SettingsEditor.GetVisualDescendants().Contains(editor) && Materialized(editor) && Materialized(open));
+                    && window.SettingsEditor.GetVisualDescendants().Contains(editor) && Materialized(editor)
+                    && (found = editor.GetVisualDescendants().OfType<Button>().SingleOrDefault(button => button.Name == "SettingsShortcutsOpen")) != null
+                    && Materialized(found),
+                    () => "editor visible " + editor.IsEffectivelyVisible + ", open button " + (found == null ? "missing" : "not materialized"));
+                Button open = found!;
                 await Program.WaitUntilAsync(() => editor.SectionHeading.IsFocused && Visible(window, editor.SectionHeading));
                 Click(open);
                 await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
@@ -145,7 +158,12 @@ internal static class ShortcutPresentationChecks
                 await LayoutAsync();
                 Require(ShortcutService.IsCapturing && capture.IsKeyboardFocusWithin, "Recording did not acquire real capture focus/suppression.");
                 var input = shortcuts.FocusManager?.GetFocusedElement() as Control ?? throw new InvalidOperationException("Capture has no focused control.");
-                KeyGesture conflict = CommandBindings.Gesture("navigation.rules")!;
+                // A real symmetric conflict needs a page command whose default is old: a default added or changed in a later
+                // revision (Rules, Media, Sources since revision 2) yields to the saved Archive binding instead (defaultYields,
+                // non-blocking). Take the first such stable page shortcut.
+                string conflictId = new[] { "navigation.downloads", "navigation.settings", "navigation.status", "navigation.diagnostics" }
+                    .First(id => !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(id) && CommandBindings.Gesture(id) != null);
+                KeyGesture conflict = CommandBindings.Gesture(conflictId)!;
                 MainWindow.WorkspacePage page = window.SelectedPage;
                 Press(input, conflict);
                 await Program.WaitUntilAsync(() => capture.Gesture?.Key == conflict.Key && capture.Gesture.KeyModifiers == conflict.KeyModifiers);
@@ -158,7 +176,10 @@ internal static class ShortcutPresentationChecks
                 await Program.WaitUntilAsync(() => editor.IsDirty && !ShortcutService.IsCapturing);
                 var issues = EffectiveShortcutBindings.Build(editor.Draft).Issues;
                 Require(issues.Any(issue => issue.BlocksSave && (issue.CommandId == "navigation.archive" || issue.OtherCommandId == "navigation.archive")),
-                    "Applying the recorded Rules gesture did not expose the real conflict.");
+                    "Applying the recorded " + conflictId + " gesture did not expose the real conflict: issues ["
+                    + string.Join("; ", issues.Select(issue => issue.CommandId + "/" + issue.OtherCommandId + " blocks " + issue.BlocksSave))
+                    + "], archive " + string.Join(",", table.Session.Requested("navigation.archive").Select(gesture => gesture.ToString()))
+                    + ", recorded " + conflict + ", session issues " + table.Session.Issues.Count);
                 Require(table.Model.Rows.Single(row => row.CommandId == "navigation.archive").HasBlockingConflict,
                     "The conflict row is not marked in the table.");
                 string conflictRaw = editor.Draft.Raw.GetRawText();
