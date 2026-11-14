@@ -622,7 +622,8 @@ internal sealed partial class GalleryViewer
         if (_lastRunning != _slideshow.IsRunning || _shownSlideshowStatus != CurrentSlideshowStatus) RefreshPlaybackControls();
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
-            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText,
+            // The tagging mode holds the controls: its decision strip is never auto-hidden (PT3).
+            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
             Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds);
         if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity), _controlsIdleHideMs))
         {

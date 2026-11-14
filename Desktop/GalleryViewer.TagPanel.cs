@@ -92,6 +92,7 @@ internal sealed partial class GalleryViewer
         }
         _tagController = controller;
         _tagSurface = surface;
+        if (_tagging != null) CoupleTaggingPanel(surface, controller); // the tagging mode's undo and stamp (PT3)
         surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
@@ -126,6 +127,7 @@ internal sealed partial class GalleryViewer
         _tagSurface = null; _tagController = null; _tagOwner = null;
         if (surface != null)
         {
+            UncoupleTaggingPanel(surface);
             surface.CloseRequested -= CloseTagPanel;
             surface.AdvancedRequested -= OnTagAdvancedRequested;
             surface.NavigationRequested -= OnTagNavigationRequested;

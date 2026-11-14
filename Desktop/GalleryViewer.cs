@@ -379,7 +379,7 @@ internal sealed partial class GalleryViewer : UserControl
         UpdateMediaFocusPresentation();
         // Reserve navigation below the picture; secondary tools collapse only on request.
         // The media viewport keeps its black matte; the footer follows the host theme.
-        _chrome.Child = toolbar;
+        _chrome.Child = WithTaggingStrip(toolbar); // the tagging mode's decision strip sits below the toolbar (PT3)
         foreach (TextBlock text in new[] { _quality, _position, _compactPosition, _scope, _ratingStatus })
             text.Classes.Add("workspace-meta");
         StackPanel infoContent = new() { Spacing = 2 };
@@ -525,6 +525,7 @@ internal sealed partial class GalleryViewer : UserControl
         RefreshPlaybackControls();
         RefreshOverflowItems();
         RefreshGifTransport();
+        RefreshTaggingTexts();
     }
 
     // Names, icons, labels and tooltips of the toolbar and menu controls from the current language, shortcuts and density.
@@ -929,6 +930,7 @@ internal sealed partial class GalleryViewer : UserControl
         foreach (string id in ids.Concat(CommandCatalog.All.Where(command => command.IsImplemented
             && command.ExecutionContexts.Contains("gallery") && command.ShortcutDisplay != null).Select(command => command.Id)).Distinct())
             _helpContent.Children.Add(new TextBlock { Text = id == "gallery.close" ? CommandBindings.Tooltip(id, visibleLabel: CloseLabel) : CommandBindings.Tooltip(id), [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text"), TextWrapping = TextWrapping.Wrap });
+        AddTaggingHelp();
         _helpContent.Children.Add(new TextBlock { Text = Texts.T(_returnTarget == GalleryReturnTarget.Media ? "viewer.help.escape.media" : "viewer.help.escape"), Classes = { "workspace-help" } });
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         if (!_helpExpanded) Command(actions, "GalleryHelpMore", Texts.T("viewer.help.more"), () => SetHelp(true, true));
@@ -1045,6 +1047,7 @@ internal sealed partial class GalleryViewer : UserControl
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = entry.Kind == SavedMediaKind.Video;
+        RefreshTaggingStrip(); // the decisions follow the shown medium (PT3)
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
@@ -1403,6 +1406,7 @@ internal sealed partial class GalleryViewer : UserControl
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); e.Handled = true; return; }
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
+        if (_tagging != null && RouteTaggingKey(e)) return; // the tagging mode's keys come first (PT3)
         if (_tagPanelOpen && RouteTagPanelKey(e)) return;
         // This is part of the existing gallery handler, not a second router. Only
         // actual owned transport sliders may opt into these four effective commands.
