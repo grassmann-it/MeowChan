@@ -68,8 +68,22 @@ public sealed class HelpDocumentationTests
             { "Import: files in total", c.ImportMaxTotalFiles, Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum },
             { "Import: number of batches", c.ImportMaxBatches, Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum },
             { "Import: tags per batch", c.ImportMaxTagsPerBatch, Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum },
-            { "Import: catalog file size (MiB)", c.ImportCatalogLimitMiB, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum }
+            { "Import: catalog file size (MiB)", c.ImportCatalogLimitMiB, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum },
+            // The seven TP5 quick tagging limits; the row names are the English labels of the settings page itself.
+            { QuickTagLabel("quickTagSuggestions"), c.QuickTagSuggestionCount, Config.QuickTagSuggestionCountMinimum, Config.QuickTagSuggestionCountMaximum },
+            { QuickTagLabel("quickTagRecent"), c.QuickTagRecentCount, Config.QuickTagRecentCountMinimum, Config.QuickTagRecentCountMaximum },
+            { QuickTagLabel("quickTagUndo"), c.QuickTagUndoDepth, Config.QuickTagUndoDepthMinimum, Config.QuickTagUndoDepthMaximum },
+            { QuickTagLabel("quickTagNeighbours"), c.QuickTagNeighbourScan, Config.QuickTagNeighbourScanMinimum, Config.QuickTagNeighbourScanMaximum },
+            { QuickTagLabel("quickTagFilename"), c.QuickTagFilenameTokens, Config.QuickTagFilenameTokensMinimum, Config.QuickTagFilenameTokensMaximum },
+            { QuickTagLabel("quickTagSourceTags"), c.QuickTagSourceTagsPerMedium, Config.QuickTagSourceTagsPerMediumMinimum, Config.QuickTagSourceTagsPerMediumMaximum },
+            { QuickTagLabel("quickTagMarked"), c.QuickTagMarkedMediaLimit, Config.QuickTagMarkedMediaLimitMinimum, Config.QuickTagMarkedMediaLimitMaximum }
         };
+    }
+
+    private static string QuickTagLabel(string stem)
+    {
+        Assert.Contains(QuickTagSettingsCatalog.Limits, limit => limit.Stem == stem);
+        return QuickTagSettingsCatalog.Entries.Single(entry => entry.Key == "budgets." + stem).English;
     }
 
     [Fact]
@@ -170,8 +184,13 @@ public sealed class HelpDocumentationTests
             Assert.Contains(marker, workViews, StringComparison.Ordinal);
         }
 
-        Assert.Contains("Quick-tag suggestion panels and popovers are not connected to the gallery or media context menus", workViews, StringComparison.Ordinal);
-        Assert.Contains("Edit media tags… still opens the existing tag dialog", workViews, StringComparison.Ordinal);
+        // TP2 connected the quick tag panel to the gallery; the old "not connected" statements must not come back.
+        Assert.Contains("In the gallery, Tags and Edit media tags… open the quick tag panel in the slot of the post panel instead of a dialog", workViews, StringComparison.Ordinal);
+        Assert.Contains("[Gallery tag panel](#gallery-tag-panel)", Section(Read(Help), "Integrated work-view behavior"), StringComparison.Ordinal);
+        Assert.Contains("quick-tag popover for other pages and marking several media for one change are not available yet", workViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("not connected to the gallery", workViews, StringComparison.Ordinal);
+        Assert.DoesNotContain("still opens the existing tag dialog", workViews, StringComparison.Ordinal);
+        Assert.Contains("gallery-tag-panel", HeadingAnchors(Read(Help)));
 
         var showPlugin = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.manageSource");
         var showSources = Assert.Single(PluginCatalog.Entries, entry => entry.Key == "plugins.watches");
@@ -179,6 +198,73 @@ public sealed class HelpDocumentationTests
         Assert.Contains(showSources.English, workViews, StringComparison.Ordinal);
         Assert.Contains("German: " + showPlugin.German, workViews, StringComparison.Ordinal);
         Assert.Contains("German: " + showSources.German, workViews, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GalleryTagPanelHelpDescribesOnlyTheWiredFlowAndItsOwnLimits()
+    {
+        string panel = Plain(Section(Read(Help), "Gallery tag panel"));
+
+        // What TP2 wires: paging, commit-and-next, the thread section, undo and the nine toggles. Marking (TP4) and the popover (TP3) are not.
+        string[] wired = [QuickTagCommands.Next, QuickTagCommands.Previous, QuickTagCommands.CommitNext, QuickTagCommands.ThreadSection, QuickTagCommands.Undo];
+        Assert.Equal(wired.Concat(Enumerable.Range(1, QuickTagCommands.SuggestionCount).Select(QuickTagCommands.Suggestion)).Order(StringComparer.Ordinal),
+            GalleryTagPanelCommands.Handled.Order(StringComparer.Ordinal));
+        Assert.Equal(new[] { QuickTagCommands.MarkNext, QuickTagCommands.MarkPrevious }.Order(StringComparer.Ordinal),
+            QuickTagCommands.AwaitingHandler.Order(StringComparer.Ordinal));
+        Assert.Contains("Marking with Shift+Page Down and Shift+Page Up does nothing yet", panel, StringComparison.Ordinal);
+        Assert.Equal("Shift+PageDown", CommandCatalog.Get(QuickTagCommands.MarkNext).Shortcut);
+        Assert.Equal("Shift+PageUp", CommandCatalog.Get(QuickTagCommands.MarkPrevious).Shortcut);
+        Assert.Contains("quick-tag popover outside the gallery and marking several media for one change are not available yet", panel, StringComparison.Ordinal);
+        Assert.DoesNotContain("not connected", panel, StringComparison.Ordinal);
+
+        // Shortcuts named in the text are the catalog defaults, not a second copy.
+        Assert.Equal("PageDown", CommandCatalog.Get(QuickTagCommands.Next).Shortcut);
+        Assert.Equal("PageUp", CommandCatalog.Get(QuickTagCommands.Previous).Shortcut);
+        Assert.Equal("Primary+Enter", CommandCatalog.Get(QuickTagCommands.CommitNext).Shortcut);
+        Assert.Equal("Primary+T", CommandCatalog.Get(QuickTagCommands.ThreadSection).Shortcut);
+        Assert.Equal("Primary+Z", CommandCatalog.Get(QuickTagCommands.Undo).Shortcut);
+        Assert.Equal("Primary+Shift+T", CommandCatalog.Get("media.tags.edit").Shortcut);
+        for (int number = 1; number <= QuickTagCommands.SuggestionCount; number++)
+            Assert.Equal("Alt+D" + number, CommandCatalog.Get(QuickTagCommands.Suggestion(number)).Shortcut);
+        foreach (string phrase in new[]
+        {
+            "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 to Alt+9 (Command+1 to Command+9 on macOS)", "Page Down and Page Up",
+            "Ctrl+Enter (Command+Enter)", "Ctrl+Z (Command+Z)", "Ctrl+T (Command+T)", "P switches to the post panel"
+        })
+            Assert.Contains(phrase, panel, StringComparison.Ordinal);
+
+        // Surface texts quoted by the help are the English catalog texts.
+        IReadOnlyDictionary<string, string> english = BuiltInCatalog.English;
+        Assert.Contains(english["tags.quick.advanced"], panel, StringComparison.Ordinal);
+        Assert.Contains(english["tags.quick.assigned"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
+        Assert.Contains(english["tags.quick.thread.heading"].Replace(" ({0})", ""), panel, StringComparison.Ordinal);
+        Assert.Contains(string.Format(CultureInfo.InvariantCulture, english["tags.quick.gallery.position"], 4, 27), panel, StringComparison.Ordinal);
+        Assert.Contains(string.Format(CultureInfo.InvariantCulture, english["tags.quick.gallery.positionMore"], 4, 27), panel, StringComparison.Ordinal);
+        Assert.Contains(english["tags.quick.undo"], panel, StringComparison.Ordinal);
+        foreach (string reason in new[] { "frequent", "recent", "thread", "neighbour", "fileName", "title", "sourceTag" })
+            Assert.Contains(english["tags.quick.reason." + reason], panel, StringComparison.Ordinal);
+        Assert.Contains(english["tags.quick.reason.sameFile"], panel, StringComparison.Ordinal);
+
+        // Medium, thread and source tags stay three things; the three named settings and the undo depth are the real labels.
+        Assert.Contains("Medium tags are your own tags on exactly the shown file", panel, StringComparison.Ordinal);
+        Assert.Contains("Thread tags mark the thread, not its media files", panel, StringComparison.Ordinal);
+        Assert.Contains("Source tags come from a source such as Danbooru", panel, StringComparison.Ordinal);
+        Assert.Contains("Danbooru is not edited", panel, StringComparison.Ordinal);
+        Assert.Contains("Nothing is assigned automatically", panel, StringComparison.Ordinal);
+        Assert.Contains("Favorites and ratings are separate gallery actions", panel, StringComparison.Ordinal);
+        Assert.Contains("the Tag undo steps setting", panel, StringComparison.Ordinal);
+        Assert.Contains("Source tags per medium", panel, StringComparison.Ordinal);
+        Assert.Equal("Tag undo steps", QuickTagLabel("quickTagUndo"));
+        Assert.Equal("Source tags per medium", QuickTagLabel("quickTagSourceTags"));
+
+        // The limits table has the group, its German heading and the real defaults; the marking limit is documented as not active yet.
+        string limits = Plain(Section(Read(Help), "Storage and limits"));
+        Assert.Contains("Quick tagging group (German: Schnell-Taggen)", limits, StringComparison.Ordinal);
+        Assert.Equal("Quick tagging", english[QuickTagSettingsCatalog.GroupKey]);
+        Assert.Equal("Schnell-Taggen", BuiltInCatalog.German[QuickTagSettingsCatalog.GroupKey]);
+        Assert.Contains("applies a new value to panels you open afterwards", limits, StringComparison.Ordinal);
+        Assert.Contains("Media marked for tagging is stored for the later marking feature and has no effect yet", limits, StringComparison.Ordinal);
+        Assert.Equal(7, QuickTagSettingsCatalog.Limits.Length);
     }
 
     [Theory]

@@ -160,10 +160,11 @@ can be rebound. Existing profiles affected by the reduction can show a one-time
 notice with **Switch to Advanced** (**Zu Erweitert wechseln**) and **Got it**
 (**Verstanden**). This does not silently change the saved view.
 
-Quick-tag suggestion panels and popovers are not connected to the gallery or
-media context menus in this integrated checkout. **Edit media tags…** still opens
-the existing tag dialog; the quick-tag foundations do not make a new user flow
-available.
+In the gallery, **Tags** and **Edit media tags…** open the quick tag panel in the
+slot of the post panel instead of a dialog; it follows the post panel's work-view
+row, placement and controls hold. See [Gallery tag panel](#gallery-tag-panel).
+The quick-tag popover for other pages and marking several media for one change
+are not available yet.
 
 ### Language packs
 
@@ -430,7 +431,7 @@ The platform-specific exceptions are listed below:
 | Shift+Delete | Permanently delete selected Archive threads and their local media (confirmation required) |
 | F5 / Shift+F5 | Check eligible selected watches / retry their missing media |
 | Ctrl+R | Open the lead entry's **Media rules…** |
-| Ctrl+T / Ctrl+Shift+T | Open the lead thread's **Tags…** in Archive or the reader / **Edit media tags…** on Media or in the gallery |
+| Ctrl+T / Ctrl+Shift+T | Open the lead thread's **Tags…** in Archive or the reader / **Edit media tags…** on Media, or the tag panel in the gallery |
 | Ctrl+D | Favorite or unfavorite the thread in Archive or the reader |
 | Ctrl+Shift+F | Open a board's **Thread filters…**; in the Archive, **Filters and sorting** |
 | Ctrl+O / Ctrl+Shift+O | Open the lead entry's folder / open its source in the browser |
@@ -631,10 +632,26 @@ of the limit; do not delete their files to get past an error.
 | Import: number of batches | 100000 | 1000 to 1000000 |
 | Import: tags per batch | 32 | 1 to 256 |
 | Import: catalog file size (MiB) | 32 | 1 to 128 |
+| Tag suggestions shown | 9 | 3 to 18 |
+| Recently used tags remembered | 50 | 0 to 500 |
+| Tag undo steps | 20 | 1 to 100 |
+| Neighbouring media checked for tags | 2000 | 100 to 20000 |
+| File name words used for tags | 8 | 0 to 32 |
+| Source tags per medium | 24 | 0 to 200 |
+| Media marked for tagging | 500 | 10 to 5000 |
 
 At 75 % utilization, the relevant status line warns for favorites, thread
 favorites, ratings, the Danbooru catalog or the saved media index. The message
 names the setting that can be raised.
+
+The last seven rows form the **Quick tagging** group (German: **Schnell-Taggen**).
+They size the [gallery tag panel](#gallery-tag-panel): chips, remembered recent
+tags, undo steps, the neighbouring media and file name words used to rank
+suggestions, and offered source tags. A value of 0 switches off recent tags, file
+name words or source tags where the range allows it. **Save** applies a new value
+to panels you open afterwards; an already open panel keeps the limits it opened
+with. **Media marked for tagging** is stored for the later marking feature and has
+no effect yet; its tag-store write limit stays fixed and separate.
 
 Cache and confirmation limits behave differently from collection limits. A full
 video-preview cache evicts old **derived previews**, never saved originals; the
@@ -1205,7 +1222,8 @@ In Archive, right-click a thread and choose **Tags…**, or use Ctrl+T (Command+
 on macOS), to open its own-tag editor beside the posts. The inline editor follows
 the open thread until you close it. **Edit media tags…** (German: **Medientags
 bearbeiten…**, Ctrl+Shift+T / Command+Shift+T) opens the medium's tag dialog on
-Media or in the gallery. That dialog has a search field, selection counts for
+Media; in the gallery it opens the [tag panel](#gallery-tag-panel), whose
+**Advanced…** button leads to the same dialog. That dialog has a search field, selection counts for
 group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
 own tags first and Danbooru source tags in a separate group. Choosing a source tag as an
 own tag creates a local tag; it does not edit Danbooru. Clicking a tag chip on a
@@ -1215,6 +1233,61 @@ Tagging an older loose file records that local occurrence/revision. Equal file
 bytes alone do not merge tags between unrelated files. Back up the profile's
 `private-tags.json` with its media; the one-time v1 backup described below is not
 a replacement for a complete backup.
+
+### Gallery tag panel
+
+**Tags** on the gallery toolbar (under **More** in Barebones), **Edit media tags…**
+in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open the
+tag panel for the shown medium; a running slideshow pauses. The panel takes the
+slot of the post panel and stays open while you page through the gallery. The same
+command, **Esc** or its close button closes it; **P** switches to the post panel.
+Outside the gallery, Media still opens the full tag dialog.
+
+**Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
+give your own tag to the shown medium; a new name creates a local own tag. With an
+empty field the panel offers suggestion chips; hover a chip, or read its accessible
+name, for why it is offered: often used, recently used, from this thread, on nearby
+media, same file elsewhere, from the file name, from the thread title or source tag.
+Choosing a chip, or the number on it, gives or takes off that tag at once. Each
+change is written to the tag store immediately, only for the medium it was made on.
+**On this media file** lists what the medium carries; select a tag and press Delete
+to remove it. A medium that cannot be tagged, for example without a bound version
+or while the tag index is unavailable, shows the reason with a disabled field
+instead of writing to the previous medium.
+
+**Keys.** The numbered chips 1 to 9 toggle with Alt+1 to Alt+9 (Command+1 to
+Command+9 on macOS) wherever the focus is in the panel; bare number or letter keys
+work only while focus is in the suggestion strip, so names such as `2girls` stay
+typeable. Page Down and Page Up show the next or previous medium and keep the
+field focused; the counter reads “Medium 4 of 27” or “Medium 4 of at least 27” while
+more threads are still being resolved. Ctrl+Enter (Command+Enter) adds the typed
+tag and moves to the next medium. Undo is the **Undo** button or Ctrl+Z
+(Command+Z); with text in the field Ctrl+Z edits that text instead. These
+shortcuts are rebindable. Marking with Shift+Page Down and Shift+Page Up does
+nothing yet.
+
+**Undo.** The panel keeps a stack of changes up to the **Tag undo steps** setting
+and drops older steps. The stack stays while you page, so an undo can reach a change
+made on an earlier medium; it reverses exactly that step on that medium and the
+status line names it. A tag created by a step stays in your own tag list after its
+undo. Closing the panel ends the stack. Favorites and ratings are separate gallery
+actions: tagging never changes them, and a favorite is not a tag.
+
+**Medium, thread and source tags are different things.**
+- **Medium tags** are your own tags on exactly the shown file; the main list of the
+  panel changes only these.
+- **Thread tags** mark the thread, not its media files. Ctrl+T (Command+T) opens the
+  **Thread tags** section of the shown medium's thread with its own field; click a
+  tag to remove it, and Ctrl+T again collapses the section. They do not appear under
+  **On this media file**.
+- **Source tags** come from a source such as Danbooru. They are not your own tags;
+  choosing one creates a local own tag and gives it to this medium, and Danbooru is
+  not edited. **Source tags per medium** limits how many are offered.
+
+**Advanced…** opens the full tag dialog for the same medium (occurrences, sorting
+and long lists). When it closes, the panel reloads and shows what the dialog
+changed. The quick-tag popover outside the gallery and marking several media for
+one change are not available yet.
 
 ### Several files in a thread's media tab
 
