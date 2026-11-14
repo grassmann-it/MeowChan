@@ -330,6 +330,32 @@ public sealed class VideoPosterCacheMaintenanceTests
     }
 
     [Fact]
+    public void ChunkReservedBitUsesTheThirdCharacterAndAllowsSafeToCopyAncillaryChunks()
+    {
+        byte[] png = Png(12, 8, SKColors.Coral);
+        byte[] withMetadata = InsertBeforeIdat(png,
+            Chunk("pHYs", [0, 0, 0, 1, 0, 0, 0, 1, 1]),
+            Chunk("tEXt", Encoding.ASCII.GetBytes("Comment\0offline")),
+            Chunk("iTXt", Encoding.UTF8.GetBytes("Comment\0\0\0\0\0offline")));
+
+        Assert.True(PreviewPngIntegrity.TryReadStructure(withMetadata, withMetadata.Length, 960, 640, out _, out _));
+
+        // The third type byte is the PNG reserved bit. A lowercase fourth byte is valid Safe-to-Copy metadata.
+        byte[] invalidReserved = InsertBeforeIdat(png, Chunk("pHys", []));
+        Assert.False(PreviewPngIntegrity.TryReadStructure(invalidReserved, invalidReserved.Length, 960, 640, out _, out _));
+    }
+
+    [Fact]
+    public void StoredCheckRequiresTheZlibAdlerTrailer()
+    {
+        byte[] withoutAdler = WithoutIdatAdlerTrailer(Png(12, 8, SKColors.Coral));
+
+        // Chunk framing and CRC remain valid; only the mandatory zlib trailer is missing.
+        Assert.True(PreviewPngIntegrity.TryReadStructure(withoutAdler, withoutAdler.Length, 960, 640, out _, out _));
+        Assert.False(VideoPosterCache.ValidStored(withoutAdler));
+    }
+
+    [Fact]
     public void StoredCheckRejectsMalformedZlibEvenWhenTheChunkCrcIsValid()
     {
         byte[] malformed = Png(12, 8, SKColors.Coral);
@@ -388,6 +414,58 @@ public sealed class VideoPosterCacheMaintenanceTests
     }
 
     private static int IndexOf(byte[] bytes, ReadOnlySpan<byte> value) => bytes.AsSpan().IndexOf(value);
+
+    private static byte[] Chunk(string type, byte[] data)
+    {
+        Assert.Equal(4, Encoding.ASCII.GetByteCount(type));
+        byte[] chunk = new byte[data.Length + 12];
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(0, 4), (uint)data.Length);
+        Encoding.ASCII.GetBytes(type).CopyTo(chunk.AsSpan(4, 4));
+        data.CopyTo(chunk.AsSpan(8));
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(8 + data.Length, 4),
+            PreviewPngIntegrity.Crc32(chunk.AsSpan(4, 4 + data.Length)));
+        return chunk;
+    }
+
+    private static byte[] InsertBeforeIdat(byte[] png, params byte[][] chunks)
+    {
+        int idat = IndexOf(png, "IDAT"u8);
+        Assert.True(idat >= 4);
+        int insertion = idat - 4;
+        int extra = chunks.Sum(chunk => chunk.Length);
+        byte[] result = new byte[png.Length + extra];
+        Buffer.BlockCopy(png, 0, result, 0, insertion);
+        int offset = insertion;
+        foreach (byte[] chunk in chunks)
+        {
+            Buffer.BlockCopy(chunk, 0, result, offset, chunk.Length);
+            offset += chunk.Length;
+        }
+        Buffer.BlockCopy(png, insertion, result, offset, png.Length - insertion);
+        return result;
+    }
+
+    private static byte[] WithoutIdatAdlerTrailer(byte[] png)
+    {
+        int idat = IndexOf(png, "IDAT"u8);
+        Assert.True(idat >= 4);
+        int chunkStart = idat - 4;
+        int payloadLength = checked((int)BinaryPrimitives.ReadUInt32BigEndian(png.AsSpan(chunkStart, 4)));
+        Assert.True(payloadLength >= 6);
+
+        // The small test PNG has one IDAT chunk. Remove exactly its four-byte Adler trailer and rebuild its length/CRC.
+        byte[] result = new byte[png.Length - 4];
+        Buffer.BlockCopy(png, 0, result, 0, chunkStart);
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(chunkStart, 4), (uint)(payloadLength - 4));
+        Buffer.BlockCopy(png, idat, result, chunkStart + 4, payloadLength);
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(chunkStart + 4 + payloadLength, 4),
+            PreviewPngIntegrity.Crc32(result.AsSpan(chunkStart + 4, payloadLength)));
+
+        int originalEnd = chunkStart + 12 + payloadLength;
+        int newEnd = chunkStart + 8 + payloadLength;
+        Buffer.BlockCopy(png, originalEnd, result, newEnd, png.Length - originalEnd);
+        return result;
+    }
 
     internal static async Task WaitUntilAsync(Func<bool> condition)
     {

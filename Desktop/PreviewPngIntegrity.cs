@@ -101,7 +101,7 @@ internal static class PreviewPngIntegrity
 
             ReadOnlySpan<byte> typeBytes = png.Slice(offset + 4, 4);
             uint type = BinaryPrimitives.ReadUInt32BigEndian(typeBytes);
-            if (!ValidChunkType(typeBytes) || typeBytes[3] is < (byte)'A' or > (byte)'Z') return false;
+            if (!ValidChunkType(typeBytes) || typeBytes[2] is < (byte)'A' or > (byte)'Z') return false;
             ReadOnlySpan<byte> data = png.Slice(offset + 8, (int)length);
             uint stored = BinaryPrimitives.ReadUInt32BigEndian(png[(offset + 8 + (int)length)..]);
             if (Crc32(png.Slice(offset + 4, 4 + (int)length)) != stored) return false;
@@ -245,6 +245,8 @@ internal static class PreviewPngIntegrity
         {
             int compressedLength = 0;
             foreach ((_, int length) in parsed.IdatSegments) compressedLength = checked(compressedLength + length);
+            if (compressedLength < 6) return false; // zlib header plus the mandatory Adler-32 trailer
+
             byte[] compressedBytes = new byte[compressedLength];
             int compressedOffset = 0;
             foreach ((int offset, int length) in parsed.IdatSegments)
@@ -252,15 +254,21 @@ internal static class PreviewPngIntegrity
                 Buffer.BlockCopy(png, offset, compressedBytes, compressedOffset, length);
                 compressedOffset += length;
             }
+            if (!ValidZlibHeader(compressedBytes)) return false;
 
+            // MemoryStream supplies blocks to the managed/native inflater. The previous one-byte adapter made every compressed byte
+            // an inflater roundtrip; exact scanline bounds plus the explicit zlib header/trailer checks below provide the same bound
+            // without that avoidable per-byte cost.
             using MemoryStream compressed = new(compressedBytes, writable: false);
-            // Returning at most one source byte per read prevents a decompressor read-ahead from hiding trailing IDAT bytes.
-            using SingleByteReadStream exactInput = new(compressed);
-            using ZLibStream inflater = new(exactInput, CompressionMode.Decompress, leaveOpen: true);
+            using ZLibStream inflater = new(compressed, CompressionMode.Decompress, leaveOpen: true);
             byte[] discard = new byte[8192];
-            if (!ValidateRows(inflater, parsed, discard)) return false;
-            if (inflater.ReadByte() != -1 || exactInput.Position != exactInput.Length) return false;
-            return true;
+            uint adlerA = 1, adlerB = 0;
+            if (!ValidateRows(inflater, parsed, discard, ref adlerA, ref adlerB)) return false;
+            if (inflater.ReadByte() != -1 || compressed.Position != compressed.Length) return false;
+
+            uint expectedAdler = BinaryPrimitives.ReadUInt32BigEndian(compressedBytes.AsSpan(compressedLength - 4));
+            uint actualAdler = (adlerB << 16) | adlerA;
+            return actualAdler == expectedAdler;
         }
         catch (Exception error) when (error is InvalidDataException or IOException or OverflowException)
         {
@@ -268,7 +276,18 @@ internal static class PreviewPngIntegrity
         }
     }
 
-    private static bool ValidateRows(ZLibStream inflater, ParsedPng png, byte[] discard)
+    private static bool ValidZlibHeader(byte[] compressed)
+    {
+        int cmf = compressed[0];
+        int flg = compressed[1];
+        return (cmf & 0x0F) == 8
+            && (cmf >> 4) <= 7
+            && ((cmf << 8) | flg) % 31 == 0
+            && (flg & 0x20) == 0; // PNG forbids a preset dictionary.
+    }
+
+    private static bool ValidateRows(ZLibStream inflater, ParsedPng png, byte[] discard,
+        ref uint adlerA, ref uint adlerB)
     {
         int channels = png.ColorType switch
         {
@@ -284,7 +303,7 @@ internal static class PreviewPngIntegrity
         long consumed = 0;
         if (png.InterlaceMethod == 0)
         {
-            if (!ReadRows(inflater, png.Width, png.Height, channels, png.BitDepth, discard, ref consumed)) return false;
+            if (!ReadRows(inflater, png.Width, png.Height, channels, png.BitDepth, discard, ref consumed, ref adlerA, ref adlerB)) return false;
         }
         else
         {
@@ -297,20 +316,21 @@ internal static class PreviewPngIntegrity
                 int passWidth = CountPassSamples(png.Width, startX[pass], stepX[pass]);
                 int passHeight = CountPassSamples(png.Height, startY[pass], stepY[pass]);
                 if (passWidth != 0 && passHeight != 0
-                    && !ReadRows(inflater, passWidth, passHeight, channels, png.BitDepth, discard, ref consumed)) return false;
+                    && !ReadRows(inflater, passWidth, passHeight, channels, png.BitDepth, discard, ref consumed, ref adlerA, ref adlerB)) return false;
             }
         }
         return consumed == png.InflatedLength;
     }
 
     private static bool ReadRows(ZLibStream inflater, int width, int height, int channels, int bitDepth,
-        byte[] discard, ref long consumed)
+        byte[] discard, ref long consumed, ref uint adlerA, ref uint adlerB)
     {
         long bits = checked((long)width * channels * bitDepth);
         long rowLength = checked(1 + (bits + 7) / 8);
         for (int row = 0; row < height; row++)
         {
             if (!ReadExactly(inflater, discard, 1)) return false;
+            UpdateAdler(discard.AsSpan(0, 1), ref adlerA, ref adlerB);
             if (discard[0] > 4) return false;
             long remaining = rowLength - 1;
             while (remaining > 0)
@@ -318,12 +338,25 @@ internal static class PreviewPngIntegrity
                 int requested = (int)Math.Min(remaining, discard.Length);
                 int read = inflater.Read(discard, 0, requested);
                 if (read <= 0) return false;
+                UpdateAdler(discard.AsSpan(0, read), ref adlerA, ref adlerB);
                 remaining -= read;
             }
             consumed = checked(consumed + rowLength);
             if (consumed > MaximumInflatedBytes) return false;
         }
         return true;
+    }
+
+    private static void UpdateAdler(ReadOnlySpan<byte> bytes, ref uint first, ref uint second)
+    {
+        const uint Modulus = 65_521;
+        foreach (byte value in bytes)
+        {
+            first += value;
+            if (first >= Modulus) first -= Modulus;
+            second += first;
+            if (second >= Modulus) second %= Modulus;
+        }
     }
 
     private static bool ReadExactly(Stream input, byte[] buffer, int count)
@@ -336,32 +369,6 @@ internal static class PreviewPngIntegrity
             total += read;
         }
         return true;
-    }
-
-    private sealed class SingleByteReadStream : Stream
-    {
-        private readonly Stream _inner;
-
-        internal SingleByteReadStream(Stream inner) => _inner = inner;
-
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => _inner.Length;
-        public override long Position
-        {
-            get => _inner.Position;
-            set => throw new NotSupportedException();
-        }
-
-        public override void Flush() => throw new NotSupportedException();
-        public override int Read(byte[] buffer, int offset, int count) => count == 0 ? 0 : _inner.Read(buffer, offset, 1);
-        public override int Read(Span<byte> buffer) => buffer.Length == 0 ? 0 : _inner.Read(buffer[..1]);
-        public override int ReadByte() => _inner.ReadByte();
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
-        protected override void Dispose(bool disposing) { }
     }
 
     private static bool CodecHeaderMatches(byte[] png, int width, int height)
