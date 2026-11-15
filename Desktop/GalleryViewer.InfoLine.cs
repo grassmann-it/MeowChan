@@ -48,7 +48,7 @@ internal static class GalleryInfoLine
 internal sealed partial class GalleryViewer
 {
     private readonly Grid _infoLine = new() { Name = "GalleryInfoLine", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
-    private readonly WrapPanel _infoSegments = new() { Name = "GalleryInfoSegments", Orientation = Orientation.Horizontal, ItemSpacing = 8, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Center };
+    private readonly GalleryInfoSegmentsPanel _infoSegments = new() { Name = "GalleryInfoSegments", VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _statusSegment = new() { Name = "GalleryStatusSegment", Orientation = Orientation.Horizontal, Spacing = 8,
         HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
     // The segments of the left column in order, and the separator before each (the first has none).
@@ -151,6 +151,9 @@ internal sealed partial class GalleryViewer
             }
             TextBlock segment = _infoSegmentTexts[index];
             segment.VerticalAlignment = VerticalAlignment.Center;
+            // One row: a segment that does not fit ends in an ellipsis (GalleryInfoSegmentsPanel) instead of wrapping onto a second row.
+            segment.TextWrapping = TextWrapping.NoWrap;
+            segment.TextTrimming = TextTrimming.CharacterEllipsis;
             _infoSegments.Children.Add(segment);
             segment.PropertyChanged += (_, e) =>
             {
@@ -175,6 +178,8 @@ internal sealed partial class GalleryViewer
         }
         _infoLine.Children.Add(_infoSegments);
         _infoLine.Children.Add(_statusSegment); Grid.SetColumn(_statusSegment, 1);
+        // A long status (a slideshow reason, the overlay note) wraps inside half of the line; the segments keep the other half at least.
+        _infoLine.SizeChanged += (_, e) => _statusSegment.MaxWidth = Math.Max(0, e.NewSize.Width * 0.5);
         _statusDwellTimer.Tick += (_, _) =>
         {
             _statusDwellTimer.Stop();

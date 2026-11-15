@@ -86,6 +86,11 @@ internal static partial class SmokeScenarios
         ["media-menu-surfaces"] = new(SmokeStage.Ready, mainWindow => MediaMenuSurfacesChecks.RunAsync(mainWindow)),
         ["motion"] = new(SmokeStage.Ready, mainWindow => MotionChecks.RunAsync(mainWindow)),
         ["gallery-toolbar"] = new(SmokeStage.Ready, mainWindow => GalleryToolbarLayoutChecks.RunAsync(mainWindow)),
+        ["gallery-narrow"] = new(SmokeStage.Ready, mainWindow => GalleryNarrowChromeChecks.RunAsync(mainWindow))
+        {
+            // The busiest bar by default (Advanced, window minimum 760); MEOWCHAN_GALLERY_NARROW_VIEW=Barebones reaches the 640 dip window of the compact density.
+            Configure = config => { config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_NARROW_VIEW") ?? "Advanced"; config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
+        },
         ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
         ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow)),
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),

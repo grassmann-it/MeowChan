@@ -227,7 +227,6 @@ public sealed class GalleryChromePlanTests
     {
         // The viewer picks words or icons by its own width constant; the plan says the same.
         Assert.Equal(GalleryChromePlan.CompactWidth, GalleryViewer.CompactToolbarWidth);
-        Assert.Equal(GalleryChromePlan.TinyWidth, GalleryViewer.CompactBackWidth);
         Assert.False(Plan(Input(width: GalleryChromePlan.CompactWidth)).ModeIcons);
         Assert.True(Plan(Input(width: GalleryChromePlan.CompactWidth - 1)).ModeIcons);
     }

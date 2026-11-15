@@ -84,7 +84,7 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     internal const double CompactWidth = 1100;
     /// <summary>Below this width every tool with a menu row leaves the bar, apart from an active slideshow's toggle.</summary>
     internal const double NarrowWidth = 900;
-    /// <summary>Below this width the way back shows only its arrow (GalleryViewer.CompactBackWidth) and the 1:1 button leaves the bar (its key stays).</summary>
+    /// <summary>Below this width the 1:1 button leaves the bar (its key stays). The way back has no stage of its own: it shows only its arrow where its measured label no longer fits (<see cref="GalleryBackLabel"/>).</summary>
     internal const double TinyWidth = 640;
     /// <summary>Below this viewer height the filmstrip stays away (GalleryViewer.FilmstripMinimumHeight).</summary>
     internal const double FilmstripMinimumHeight = 420;
