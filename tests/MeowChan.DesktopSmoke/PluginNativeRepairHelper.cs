@@ -53,13 +53,13 @@ internal static class PluginNativeRepairHelper
         await Program.WaitUntilAsync(() => {
             window.UpdateLayout(); control.BringIntoView(); window.UpdateLayout();
             Point? point = control.TranslatePoint(default, window);
-            return control.IsAttachedToVisualTree() && control.IsEffectivelyVisible &&
+            return control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.IsEffectivelyEnabled &&
                 ReferenceEquals(TopLevel.GetTopLevel(control), window) && point is { } p &&
                 p.X >= 0 && p.Y >= 0 && p.X + control.Bounds.Width <= window.ClientSize.Width + 1 &&
                 p.Y + control.Bounds.Height <= window.ClientSize.Height + 1 && control.Bounds.Width > 0 && control.Bounds.Height > 0;
-        }, () => "Native repair target is not reachable: " + control.GetType().Name + ":" +
+        }, () => "Native repair target is not reachable/enabled: " + control.GetType().Name + ":" +
             AutomationProperties.GetAutomationId(control) + " bounds=" + control.Bounds +
-            " origin=" + control.TranslatePoint(default, window));
+            " origin=" + control.TranslatePoint(default, window) + " enabled=" + control.IsEffectivelyEnabled);
         await input.ClickAsync(control);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
