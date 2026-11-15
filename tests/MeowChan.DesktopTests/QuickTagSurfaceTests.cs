@@ -757,7 +757,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [InlineData("ja", "元に戻す", "スタンプ", "タグエディターを開く")]
     [InlineData("ko", "실행 취소", "스탬프", "태그 편집기 열기")]
     [InlineData("pt-BR", "Desfazer", "Carimbo", "Abrir editor de tags")]
-    [InlineData("cs", "Vrátit zpět", "Razítko", "Otevřít editor štítků")]
+    [InlineData("cs", "Zpět", "Razítko", "Otevřít editor štítků")]
     [InlineData("it", "Annulla", "Timbro", "Apri editor dei tag")]
     [InlineData("pl", "Cofnij", "Stempel", "Otwórz edytor tagów")]
     public void TheFooterLabelsAreRealTranslationsThatFitOnOneLineInEveryLanguage(string code, string undo, string stamp, string editor)
