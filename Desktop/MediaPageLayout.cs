@@ -334,7 +334,7 @@ internal sealed record MediaPageLayoutPlan(bool Title, bool Subtitle, bool Toolb
 internal readonly record struct MediaPanelColumns(bool PanelShown, bool CollapsedByWidth, double TagListWidth, double PanelWidth)
 {
     /// <summary>What the panel's column adds beside the grid besides its width: its edge margin and the drag handle (a layout measure).</summary>
-    internal const double PanelChrome = 12 + 6;
+    internal const double PanelChrome = 12 + 6 + 4;
 
     internal static MediaPanelColumns Of(MediaPageLayout layout, double bodyWidth, int minimumPageWidth)
     {
@@ -357,6 +357,19 @@ internal readonly record struct MediaPanelColumns(bool PanelShown, bool Collapse
             else panel = Math.Clamp(self.PanelWidth, MeowChan.Config.MediaPanelWidthMinimum, Math.Min(MeowChan.Config.MediaPanelWidthMaximum, room));
         }
         return new MediaPanelColumns(wanted, collapsed, tagList, wanted ? panel : 0);
+    }
+
+    /// <summary>
+    /// The body width from which the panel fits at all: the page-width setting, or more where the smallest panel, the smallest tag list (when shown) and the
+    /// grid's minimum need more. The Layout menu names it when the choice stays hidden, so the sentence is true both for a narrow page and for no room beside the tag list.
+    /// </summary>
+    internal static double MinimumBodyWidth(MediaPageLayout layout, int minimumPageWidth)
+    {
+        MediaPageLayout self = layout.Normalized();
+        int setting = Math.Clamp(minimumPageWidth, MeowChan.Config.MediaPanelMinimumPageWidthMinimum, MeowChan.Config.MediaPanelMinimumPageWidthMaximum);
+        double needed = MediaPageLayoutPlan.MinimumGridWidth + MediaPageLayoutPlan.BodyChrome + PanelChrome + MeowChan.Config.MediaPanelWidthMinimum
+            + (self.TagList ? MeowChan.Config.MediaTagListWidthMinimum : 0);
+        return Math.Ceiling(Math.Max(setting, needed));
     }
 
     /// <summary>

@@ -49,6 +49,7 @@ public sealed partial class MediaPage
     private Control? _chipRow, _statusRow;
     private bool _layoutInstalled, _statusAttention;
     private double _appliedTagListWidth, _appliedPanelWidth, _panelEdge = SidebarMargin;
+    private bool _panelHasItems = true;
 
     /// <summary>Saves the layout of the profile (the tag list switch and the rest); null: nothing is saved.</summary>
     internal Func<MediaPageLayout, Task>? SaveLayoutAsync { get; set; }
@@ -142,7 +143,7 @@ public sealed partial class MediaPage
     }
 
     // The Layout menu's panel row says why a chosen panel is not on screen: the page is narrower than the setting.
-    private string? PanelHint() => _panelCollapsed ? Texts.T("media.layout.panel.collapsed", PanelMinimumPageWidth) : null;
+    private string? PanelHint() => _panelCollapsed ? Texts.T("media.layout.panel.collapsed", MediaPanelColumns.MinimumBodyWidth(_layout, PanelMinimumPageWidth)) : null;
 
     // The body row: the tag list column, its drag handle and the content column. The content column is a grid of its own: the media panel, its drag
     // handle and the grid surface (the panel sits on the left or the right of the grid, the tag list beside both on its own side).
@@ -250,7 +251,7 @@ public sealed partial class MediaPage
         _appliedTagListWidth = width;
         ColumnDefinitions columns = row.ColumnDefinitions;
         columns[listColumn].MinWidth = shown ? Math.Min(MeowChan.Config.MediaTagListWidthMinimum, width) + SidebarMargin : 0;
-        columns[listColumn].MaxWidth = shown ? MediaPanelColumns.MaximumTagListWidth(bodyWidth, panelColumns.PanelShown, panelColumns.PanelWidth) + SidebarMargin : double.PositiveInfinity;
+        columns[listColumn].MaxWidth = shown ? MediaPanelColumns.MaximumTagListWidth(bodyWidth, panelColumns.PanelShown && _tiles.Count > 0, panelColumns.PanelWidth) + SidebarMargin : double.PositiveInfinity;
         columns[listColumn].Width = new GridLength(shown ? width + SidebarMargin : 0);
         columns[1].Width = new GridLength(shown ? HandleWidth : 0);
         columns[contentColumn].MinWidth = 0;
@@ -260,7 +261,8 @@ public sealed partial class MediaPage
         _tagSidebar.Margin = right ? new Thickness(0, 0, SidebarMargin, 8) : new Thickness(SidebarMargin, 0, 0, 8);
 
         // The content column: the panel on its side, then its handle, then the grid.
-        bool panelRight = plan.PanelSide == MediaPanelSide.Right, panelShown = panelColumns.PanelShown;
+        _panelHasItems = _tiles.Count > 0;
+        bool panelRight = plan.PanelSide == MediaPanelSide.Right, panelShown = panelColumns.PanelShown && _panelHasItems;
         int panelColumn = panelRight ? 2 : 0, surfaceColumn = panelRight ? 0 : 2;
         // The panel's outer edge keeps the page margin, or the smaller gap beside the tag list's handle when the list is on the same side.
         double edge = shown && right == panelRight ? 8 : SidebarMargin;
@@ -277,6 +279,10 @@ public sealed partial class MediaPage
         inner[surfaceColumn].MaxWidth = double.PositiveInfinity;
         inner[surfaceColumn].Width = new GridLength(1, GridUnitType.Star);
         _panelHandle.IsVisible = panelShown;
+        // Tab follows what is seen: panel, handle, grid on the left; grid, handle, panel on the right.
+        KeyboardNavigation.SetTabIndex(surface, panelRight ? 0 : 2);
+        KeyboardNavigation.SetTabIndex(_panelHandle, 1);
+        if (_panel != null) KeyboardNavigation.SetTabIndex(_panel, panelRight ? 2 : 0);
         // The surface keeps the page margin on a side where nothing is shown, the smaller gap beside a handle.
         bool leftBlock = shown && !right || panelShown && !panelRight, rightBlock = shown && right || panelShown && panelRight;
         surface.Margin = new Thickness(leftBlock ? 8 : 12, 0, rightBlock ? 8 : 12, 8);

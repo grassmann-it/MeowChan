@@ -132,7 +132,7 @@ public sealed partial class MediaPage
         if (e.Property == Window.WindowStateProperty && e.NewValue is WindowState.Minimized) _ = PausePanelVideo();
     }
 
-    private bool _panelObscured, _panelDirty;
+    private bool _panelObscured, _panelDirty, _panelPinned;
 
     /// <summary>The gallery covers the page (or uncovers it): the panel's video pauses and nothing new is decoded under it; a change made meanwhile shows when it is uncovered.</summary>
     internal void SetObscuredByGallery(bool covers)
@@ -190,6 +190,9 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? lastAdded = e.AddedItems.Count > 0 ? e.AddedItems[e.AddedItems.Count - 1] as MediaLibraryTileRow : null;
         MediaLibraryTileRow? pick = MediaPanelFollow.Pick(e.AddedItems.Count, lastAdded, _panelWanted ?? _panelRow,
             row => _grid.Selection.IsSelected(row.Index), () => SelectedRow);
+        // The arrows moved the panel alone (several tiles selected): a change that adds nothing leaves it where the arrows put it.
+        if (_panelPinned && e.AddedItems.Count == 0 && _grid.Selection.Count > 1) return;
+        _panelPinned = false;
         if (pick == null || ReferenceEquals(pick, _panelRow) && ReferenceEquals(pick, _panelWanted)) return;
         RequestPanel(pick);
     }
@@ -202,7 +205,7 @@ public sealed partial class MediaPage
         if (!_panelShown || _panel == null) { _panelRow = _panelWanted = null; return; }
         MediaLibraryTileRow? previous = _panelRow ?? _panelWanted;
         MediaLibraryTileRow? rebound = previous == null ? null : RowOfTile(MediaLibraryTileKey.Of(previous.Tile));
-        MediaLibraryTileRow? pick = rebound != null && _grid.Selection.IsSelected(rebound.Index) ? rebound : SelectedRow ?? rebound;
+        MediaLibraryTileRow? pick = rebound != null && (_panelPinned || _grid.Selection.IsSelected(rebound.Index)) ? rebound : SelectedRow ?? rebound;
         bool sameMedium = pick != null && _panelRow != null && MediaLibraryTileKey.Of(pick.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
         if (sameMedium)
         {
@@ -449,6 +452,15 @@ public sealed partial class MediaPage
         if (!CanStepPanel(delta) || _panelRow is not { } row) return;
         int target = MediaPanelFollow.Step(row.Index, _tiles.Count, delta);
         if (target < 0) return;
+        // Several tiles selected (to tag or export together): the arrows only move the panel, the selection is the person's work and stays.
+        if (_grid.Selection.Count > 1 && _grid.ItemsSource is IReadOnlyList<MediaLibraryTileRow> rows && target < rows.Count)
+        {
+            _panelPinned = true;
+            RequestPanel(rows[target]);
+            _grid.ScrollIntoView(target);
+            return;
+        }
+        _panelPinned = false;
         _grid.SelectedIndex = target;
         _grid.ScrollIntoView(target);
     }

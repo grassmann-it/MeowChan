@@ -586,6 +586,8 @@ public sealed partial class MediaPage : UserControl
         UpdateSortDirection();
         UpdateStatus();
         RefreshTagSidebar(); // MP4: the tag list counts the tiles now shown
+        // No results: nothing to choose, so the panel gives its place to the empty state (the choice stays); results again bring it back.
+        if (_panelHasItems != _tiles.Count > 0) ApplyLayoutPlan();
         SyncPanelToRows(); // the media panel keeps its medium (by its key) or follows the restored selection
     }
 
