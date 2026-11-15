@@ -998,7 +998,7 @@
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="VideoStartMutedFieldLabel" Text="{Binding VideoStartMutedLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                             </StackPanel>
-                            <ToggleSwitch x:Name="VideoStartMutedInput" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=VideoStartMutedFieldLabel}" AutomationProperties.Name="{Binding VideoStartMutedLabel}" />
+                            <ToggleSwitch x:Name="VideoStartMutedInput" IsChecked="{Binding VideoStartMuted, Mode=TwoWay}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=VideoStartMutedFieldLabel}" AutomationProperties.Name="{Binding VideoStartMutedLabel}" AutomationProperties.HelpText="{Binding GalleryPlaybackProfileHelp}" />
                         </Grid>
                     </Border>
                     <Border Classes="settings-divider">

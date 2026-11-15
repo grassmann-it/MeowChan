@@ -91,7 +91,7 @@ internal partial class PostBookmarksDialog : Window
         Bind("OpenTarget", "post-bookmarks.open-target", OpenAsync, () => CanOpen);
         // Dead-affordance audit: a double click on a bookmark opens its exact local post (the "Open" button); a right-click, Menu key or
         // Shift+F10 offers Open and Remove, the buttons' own actions.
-        MeowChan.Desktop.Controls.ListRowActions.OnDoubleClick(List, () => { if (CanOpen) _ = OpenAsync(); });
+        MeowChan.Desktop.Controls.ListRowActions.OnDoubleClick(List, () => { if (CanOpen) OpenActions.Start(OpenAsync, "post-bookmarks.open-target"); });
         _rowMenu = MeowChan.Desktop.Controls.ListRowActions.AttachMenu(List, ComposeRowMenu);
         B("Reload").Content = Texts.T("bookmarks.retry");
         B("Reload").Click += async (_, _) => await ReloadAsync(preserveDraft: true);
@@ -218,7 +218,7 @@ internal partial class PostBookmarksDialog : Window
     /// <summary>The menu of the selected bookmark as it would open now (null without one); also the test seam.</summary>
     internal MeowChan.Desktop.Controls.ContextMenuBuilder? ComposeRowMenu() => _postEditor || _key == null || _confirming ? null
         : new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(Title ?? string.Empty)
-            .Command("post-bookmarks.open-target", () => _ = OpenAsync(), CanOpen)
+            .Command("post-bookmarks.open-target", () => OpenActions.Start(OpenAsync, "post-bookmarks.open-target"), CanOpen)
             .Section()
             .Command("post-bookmarks.remove", () => _ = RemoveAsync(), CanRemove);
     private bool CanSave => !_busy && !_conflicted && !_orphanDraft && _snapshot != null && _key != null && ValidNote;

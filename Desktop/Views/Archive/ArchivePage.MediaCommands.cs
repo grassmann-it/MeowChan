@@ -116,7 +116,7 @@ public partial class ArchivePage
         ArchiveMediaSubject subject = ResolveArchiveMediaSubject(row, null, null);
         ArchiveAssetRow[]? selection = SeveralSelectedWith(row, null);
         Action<string> report = CaptureActionErrorReporter();
-        _ = OpenAsync();
+        OpenActions.Start(OpenAsync, "archive.media.rateAndTag");
         async Task OpenAsync()
         {
             try { await OpenRateAndTagAsync(subject, tile, selection, focusRating: true); }
