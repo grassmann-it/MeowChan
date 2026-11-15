@@ -672,8 +672,18 @@ internal static class BooruMediaChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             Require(ReferenceEquals(shell.BooruDetailsWindow, dialog) && dialog.IsVisible && !search.IsVisible && !search.IsEnabled,
                 phase + ": the stale search action must disappear and leave details open.");
+            // Losing the provider composition disposes the hosted page before the stale dialog
+            // click is evaluated. In that case there is no live visual tree to inspect; the model
+            // assertion above still proves the old draft was not changed. Only inspect the field
+            // when the shell still owns a live page (tools-off/replacement paths).
+            bool pageIsLive = currentPage is { } livePage
+                && livePage.IsEffectivelyVisible
+                && ReferenceEquals(shell.FindControl<ContentControl>("BooruPageHost")?.Content, livePage)
+                && TopLevel.GetTopLevel(livePage.View) == shell;
+            bool fieldMatchesDraft = !pageIsLive
+                || C<TextBox>(currentPage!.View, BooruWorkbenchView.InputName).Text == draft;
             Require(ReferenceEquals(shell.BooruPageForTests, currentPage) && shell.SelectedPage == selectedPage
-                && page.Model.Search.View.Input == draft && C<TextBox>(page.View, BooruWorkbenchView.InputName).Text == draft && copied.Count == 0
+                && page.Model.Search.View.Input == draft && fieldMatchesDraft && copied.Count == 0
                 && dialog.SelectedTagNames().Count == 2,
                 phase + ": a stale dialog must not overwrite a page draft, silently copy, or drop selected tags.");
             C<Button>(dialog, "BooruCopySelectedTags").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
