@@ -184,6 +184,7 @@ public sealed partial class MediaPage
         _filterAdd.IsVisible = chips.Count > 0; // the work view re-applies it below (media.filter.add)
         RefreshWorkView(); // an active filter keeps its field shown in every view (R6)
         _filterChips.IsVisible = _filterResetAll.IsVisible = chips.Count > 0;
+        UpdateChipRowVisibility(); // no chip: no row (and no empty gap in the header)
         // An unchanged row is kept as it is: a late text event must not rebuild the chips under the keyboard focus.
         string[] rendered = chips.Select(chip => chip.Key + "\u0001" + chip.Label).ToArray();
         if (rendered.SequenceEqual(_renderedChips) && _filterChips.Children.Count == chips.Count) return;
