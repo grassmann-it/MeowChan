@@ -4932,6 +4932,12 @@
     "sources.stat.queued": "In coda",
     "sources.stat.threads": "Thread",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati."
+    "theme.colors.resetAll.hint": "Riporta tutti i colori a quelli integrati.",
+    "settings.galleryWheel": "Rotellina del mouse nella galleria",
+    "settings.galleryWheel.hint": "Cosa fa la rotellina del mouse sull’immagine o sul video della galleria. Zoom (predefinito): la rotellina ingrandisce sul puntatore e Ctrl+rotellina passa al contenuto successivo o precedente. Scorri i contenuti: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. La striscia di anteprime, i controlli video e i pannelli mantengono la propria rotellina.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+rotellina scorre)",
+    "settings.galleryWheel.browse": "Scorri i contenuti (Ctrl+rotellina ingrandisce)",
+    "gallery.wheelBrowse": "La rotellina del mouse scorre i contenuti",
+    "gallery.wheelBrowse.help": "Attivo: la rotellina passa al contenuto successivo o precedente e Ctrl+rotellina ingrandisce. Disattivo: la rotellina ingrandisce e Ctrl+rotellina passa al contenuto successivo o precedente."
   }
 }

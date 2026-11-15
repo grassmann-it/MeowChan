@@ -4932,6 +4932,12 @@
     "sources.stat.queued": "Na fila",
     "sources.stat.threads": "Tópicos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas."
+    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas.",
+    "settings.galleryWheel": "Roda do mouse na galeria",
+    "settings.galleryWheel.hint": "O que a roda do mouse faz sobre a imagem ou o vídeo da galeria. Zoom (padrão): a roda amplia no ponteiro e Ctrl+roda passa para a mídia seguinte ou anterior. Percorrer mídias: a roda passa para a mídia seguinte ou anterior e Ctrl+roda amplia. A faixa de miniaturas, os controles de vídeo e os painéis mantêm a própria roda.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+roda percorre)",
+    "settings.galleryWheel.browse": "Percorrer mídias (Ctrl+roda amplia)",
+    "gallery.wheelBrowse": "A roda do mouse percorre as mídias",
+    "gallery.wheelBrowse.help": "Ativado: a roda passa para a mídia seguinte ou anterior e Ctrl+roda amplia. Desativado: a roda amplia e Ctrl+roda passa para a mídia seguinte ou anterior."
   }
 }

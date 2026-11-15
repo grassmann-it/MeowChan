@@ -128,6 +128,7 @@ public static class SettingsTransfer
             ControlsIdleHideMs = source.ControlsIdleHideMs,
             ReaderNavigationMode = source.ReaderNavigationMode,
             ReaderNavigationShowPosition = source.ReaderNavigationShowPosition,
+            GalleryWheelMode = source.GalleryWheelMode,
             GalleryStatusDwellMs = source.GalleryStatusDwellMs,
             StatsHistorySamples = source.StatsHistorySamples,
             StatsBackgroundIntervalMs = source.StatsBackgroundIntervalMs,

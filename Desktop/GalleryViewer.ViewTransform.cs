@@ -206,13 +206,16 @@ internal sealed partial class GalleryViewer
     private void OnViewWheel(object? sender, PointerWheelEventArgs e)
     {
         if (sender is not Control root) return;
+        // The setting decides what the wheel does here (zoom or browse), Ctrl holds the other one (GalleryViewer.WheelMode.cs).
+        bool browse = WheelActionFor(e.KeyModifiers) == GalleryWheelAction.Browse;
         if (IsVideoView)
         {
             // Over the transport (docked, not overlaid) the wheel belongs to its sliders, not to the picture.
-            if (!IsOverVideoSurface(e.Source, root) || CurrentGeometry == null) return;
+            if (!IsOverVideoSurface(e.Source, root) || !browse && CurrentGeometry == null) return;
         }
         else if (ReferenceEquals(root, _nativeVideoOverlay)) return;
         Focus();
+        if (browse) { BrowseByWheel(e.Delta.Y); e.Handled = true; return; }
         Point point = e.GetPosition(root);
         Zoom(GalleryGeometry.WheelFactor(e.Delta.Y), new Point(point.X - root.Bounds.Width / 2, point.Y - root.Bounds.Height / 2));
         e.Handled = true;

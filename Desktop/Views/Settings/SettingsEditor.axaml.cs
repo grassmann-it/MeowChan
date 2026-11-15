@@ -1661,7 +1661,7 @@ namespace MeowChan
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
                     nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
-                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode)
+                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryWheelMode)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {

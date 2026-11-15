@@ -151,6 +151,7 @@ public partial class SettingsEditor
             Flag(ShowShortcutHelpInput, () => ShowShortcutHelp, value => ShowShortcutHelp = value, config => config.ShowShortcutHelp),
             Flag(MediaFocusHidesHeaderInput, () => MediaFocusHidesHeader, value => MediaFocusHidesHeader = value, config => config.MediaFocusHidesHeader),
             Flag(ReaderNavigationShowPositionInput, () => ReaderNavigationShowPosition, value => ReaderNavigationShowPosition = value, config => config.ReaderNavigationShowPosition),
+            Choice(GalleryWheelModeInput, () => SelectedGalleryWheelMode?.Value, value => SelectedGalleryWheelMode = GalleryWheelModeChoices.FirstOrDefault(item => item.Value == value) ?? SelectedGalleryWheelMode, config => config.GalleryWheelMode),
             Choice(ReaderNavigationModeInput, () => SelectedReaderNavigationMode?.Value, value => SelectedReaderNavigationMode = ReaderNavigationModeChoices.FirstOrDefault(item => item.Value == value) ?? SelectedReaderNavigationMode, config => config.ReaderNavigationMode),
             Choice(ThemeInput, () => SelectedTheme?.Value, value => SelectedTheme = ThemeChoices.FirstOrDefault(item => item.Value == value) ?? SelectedTheme, config => config.Theme),
             Choice(AnimationsInput, () => SelectedAnimations?.Value, value => SelectedAnimations = AnimationsChoices.FirstOrDefault(item => item.Value == value) ?? SelectedAnimations, config => config.Animations),

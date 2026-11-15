@@ -4837,6 +4837,12 @@
     "sources.stat.queued": "排队",
     "sources.stat.threads": "串",
     "stats.footer.tip": "{0}：{1}",
-    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。"
+    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。",
+    "settings.galleryWheel": "图库中的鼠标滚轮",
+    "settings.galleryWheel.hint": "鼠标滚轮在图库的图片或视频上的作用。缩放（默认）：滚轮在指针处缩放，Ctrl+滚轮切换到下一个或上一个媒体。浏览媒体：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。缩略图条、视频控件和面板保持各自的滚轮行为。",
+    "settings.galleryWheel.zoom": "缩放（Ctrl+滚轮浏览）",
+    "settings.galleryWheel.browse": "浏览媒体（Ctrl+滚轮缩放）",
+    "gallery.wheelBrowse": "鼠标滚轮浏览媒体",
+    "gallery.wheelBrowse.help": "开启：滚轮切换到下一个或上一个媒体，Ctrl+滚轮缩放。关闭：滚轮缩放，Ctrl+滚轮切换到下一个或上一个媒体。"
   }
 }

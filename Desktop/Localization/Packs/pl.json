@@ -4975,6 +4975,12 @@
     "sources.stat.queued": "W kolejce",
     "sources.stat.threads": "Wątki",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Przywraca wszystkie kolory do wbudowanych."
+    "theme.colors.resetAll.hint": "Przywraca wszystkie kolory do wbudowanych.",
+    "settings.galleryWheel": "Kółko myszy w galerii",
+    "settings.galleryWheel.hint": "Co robi kółko myszy nad obrazem lub filmem w galerii. Powiększanie (domyślnie): kółko powiększa w miejscu wskaźnika, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku. Przeglądanie plików: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Pasek miniatur, sterowanie filmem i panele zachowują własne działanie kółka.",
+    "settings.galleryWheel.zoom": "Powiększanie (Ctrl+kółko przegląda)",
+    "settings.galleryWheel.browse": "Przeglądanie plików (Ctrl+kółko powiększa)",
+    "gallery.wheelBrowse": "Kółko myszy przegląda pliki",
+    "gallery.wheelBrowse.help": "Włączone: kółko przechodzi do następnego lub poprzedniego pliku, a Ctrl+kółko powiększa. Wyłączone: kółko powiększa, a Ctrl+kółko przechodzi do następnego lub poprzedniego pliku."
   }
 }

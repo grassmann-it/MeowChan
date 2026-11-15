@@ -4926,6 +4926,12 @@
     "sources.stat.queued": "En cola",
     "sources.stat.threads": "Hilos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados."
+    "theme.colors.resetAll.hint": "Devuelve todos los colores a los colores integrados.",
+    "settings.galleryWheel": "Rueda del ratón en la galería",
+    "settings.galleryWheel.hint": "Qué hace la rueda del ratón sobre la imagen o el vídeo de la galería. Zoom (predeterminado): la rueda amplía en el puntero y Ctrl+rueda pasa al medio siguiente o anterior. Recorrer medios: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. La tira de miniaturas, los controles de vídeo y los paneles conservan su propia rueda.",
+    "settings.galleryWheel.zoom": "Zoom (Ctrl+rueda recorre)",
+    "settings.galleryWheel.browse": "Recorrer medios (Ctrl+rueda amplía)",
+    "gallery.wheelBrowse": "La rueda del ratón recorre los medios",
+    "gallery.wheelBrowse.help": "Activado: la rueda pasa al medio siguiente o anterior y Ctrl+rueda amplía. Desactivado: la rueda amplía y Ctrl+rueda pasa al medio siguiente o anterior."
   }
 }

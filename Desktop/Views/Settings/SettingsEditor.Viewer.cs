@@ -182,7 +182,7 @@ public partial class SettingsEditor
         nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint),
         nameof(MediaBadgeCollapseBelowLabel), nameof(MediaBadgeCollapseBelowHint), nameof(MediaBadgeHideBelowLabel), nameof(MediaBadgeHideBelowHint),
         nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint), nameof(GalleryStatusDwellMsLabel), nameof(GalleryStatusDwellMsHint),
-        nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint)
+        nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint), nameof(GalleryWheelModeLabel), nameof(GalleryWheelModeHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -205,6 +205,7 @@ public partial class SettingsEditor
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowVideoRuleChoices)));
         SelectedGallerySlideshowVideoRule = GallerySlideshowVideoRuleChoices.FirstOrDefault(item => item.Value == rule) ?? GallerySlideshowVideoRuleChoices[0];
         RefreshReaderNavigationModeChoices(SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode);
+        RefreshGalleryWheelModeChoices(SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode);
         if (_refreshingLanguageLabels) RaiseViewerVisibilityChanged();
     }
 
@@ -249,6 +250,7 @@ public partial class SettingsEditor
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
         ReaderNavigationShowPosition = config.ReaderNavigationShowPosition;
+        RefreshGalleryWheelModeChoices(config.GalleryWheelMode);
         GalleryFilmstrip = config.GalleryFilmstrip;
         if (!layoutReset) _initialGalleryFilmstrip = config.GalleryFilmstrip; // the section reset is an edit of this draft, not a new load
         MediaFocusHidesHeader = config.MediaFocusHidesHeader;
@@ -275,6 +277,7 @@ public partial class SettingsEditor
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
         candidate.ReaderNavigationMode = SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode;
         candidate.ReaderNavigationShowPosition = ReaderNavigationShowPosition;
+        candidate.GalleryWheelMode = SelectedGalleryWheelMode?.Value ?? _config.GalleryWheelMode;
         candidate.GalleryFilmstrip = GalleryFilmstrip;
         candidate.SettingsBaselineGalleryFilmstrip = _initialGalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
