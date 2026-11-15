@@ -485,8 +485,7 @@ internal sealed partial class GalleryViewer : UserControl
         SizeChanged += (_, _) =>
         {
             _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
-            bool compactBack = Bounds.Width > 0 && Bounds.Width < CompactBackWidth;
-            if (compactBack != _compactBack) { _compactBack = compactBack; ApplyCloseLabel(); }
+            UpdateBackLabel();
             UpdateToolbarDensity();
             LayoutContext();
             ApplyChrome(); // the width moves blocks under "More" in the plan's overflow order
@@ -691,25 +690,72 @@ internal sealed partial class GalleryViewer : UserControl
         _ => "viewer.help.escape"
     };
 
-    /// <summary>Below this viewer width the way back shows only its arrow; its name and tooltip keep the target.</summary>
-    internal const double CompactBackWidth = 640;
+    private double _backLabelledWidth;
 
+    // The way back shows its arrow and its label while the labelled pair at the corner fits (GalleryBackLabel: computed from the measured width of the
+    // labelled button, not from a breakpoint), otherwise only the arrow. The button owns this presentation; the toolbar's density (ApplyCompactLabel)
+    // never touches it, because the icon-only square of that style clipped the label to its first letter (Tom, 16.11., half-screen windows).
     private void ApplyCloseLabel()
     {
         CommandBindings.Apply(_close, "gallery.close");
         string label = CloseLabel;
         string tip = CommandBindings.Tooltip("gallery.close", visibleLabel: label);
-        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
-        Border icon = (Border)CommandBindings.Icon("archive.back-to-list", 16); // the arrow-left of every "back"
-        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-        content.Children.Add(icon);
-        if (Bounds.Width <= 0 || Bounds.Width >= CompactBackWidth)
-            content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        _close.Content = content;
+        _backLabel = label;
+        // The labelled form first, so the button is measured at the width its label needs; the arrow-only form follows from that width.
+        PresentBack(withLabel: true);
+        _backLabelledWidth = MeasureLabelledBack();
+        _compactBack = !GalleryBackLabel.ShowsLabel(Bounds.Width, _backLabelledWidth, StarGap);
+        if (_compactBack) PresentBack(withLabel: false);
         ToolTip.SetTip(_close, tip);
         AutomationProperties.SetName(_close, label);
         AutomationProperties.SetHelpText(_close, tip);
     }
+
+    private string _backLabel = string.Empty;
+
+    private void PresentBack(bool withLabel)
+    {
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
+        Border icon = (Border)CommandBindings.Icon("archive.back-to-list", 16); // the arrow-left of every "back"
+        icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
+        content.Children.Add(icon);
+        if (withLabel) content.Children.Add(new TextBlock { Text = _backLabel, VerticalAlignment = VerticalAlignment.Center });
+        _close.Classes.Set("icon-only", !withLabel); // the square of the input height for the arrow alone (WorkspaceStyles .icon-only)
+        _close.Content = content;
+    }
+
+    // The width of the button with its label, without its margin. 0 while it is not in a laid-out visual tree (no styles, no font): the label shows then.
+    private double MeasureLabelledBack()
+    {
+        if (TopLevel.GetTopLevel(_close) == null) return 0;
+        _close.ApplyTemplate();
+        _close.Measure(Size.Infinity);
+        double width = Math.Max(0, _close.DesiredSize.Width - _close.Margin.Left - _close.Margin.Right);
+        // The probe validated the measure at an unbounded size; the layout must measure and arrange the button again at its real room, or its
+        // parent never learns the new size and arranges it at the old one.
+        _close.InvalidateMeasure();
+        return width;
+    }
+
+    // On every width change: the form follows the rule; a flip re-presents the button (and measures again when the first measure had to wait).
+    private void UpdateBackLabel()
+    {
+        if (_close == null) return;
+        if (_backLabelledWidth <= 0 && !_compactBack && TopLevel.GetTopLevel(_close) != null)
+        {
+            _backLabelledWidth = MeasureLabelledBack(); // the button is in the labelled form here (an unmeasured one never collapsed)
+        }
+        bool compact = !GalleryBackLabel.ShowsLabel(Bounds.Width, _backLabelledWidth, StarGap);
+        if (compact == _compactBack) return;
+        _compactBack = compact;
+        PresentBack(withLabel: !compact);
+    }
+
+    /// <summary>Whether the way back shows only its arrow now (tests and smokes).</summary>
+    internal bool IsBackCompact => _compactBack;
+
+    /// <summary>The width of the way back with its label in the current language and target, 0 before its first measure (tests and smokes).</summary>
+    internal double BackLabelledWidth => _backLabelledWidth;
 
     private bool _compactBack;
 
@@ -777,6 +823,7 @@ internal sealed partial class GalleryViewer : UserControl
     {
         string? label = visibleLabel ?? CompactLabelFor(name);
         if (label == null || CommandId(name) is not { } id) return;
+        if (name == "GalleryClose") return; // The way back is a corner control, not a toolbar tool: ApplyCloseLabel decides its form by its measured label.
         if (button.Tag is OverflowItem) return; // A menu row shows its own text.
         // The favourite button draws the app's one favourite mark for its state (outline or filled); the other icons follow the foreground.
         // Untinted here: the marked toggle already shows its checked fill, and the gold tint on that fill fell to 1.5:1 (Light) and
