@@ -4837,6 +4837,15 @@
     "sources.stat.queued": "대기 중",
     "sources.stat.threads": "스레드",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "모든 색상을 기본 제공 색상으로 되돌립니다."
+    "theme.colors.resetAll.hint": "모든 색상을 기본 제공 색상으로 되돌립니다.",
+    "settings.galleryFilmstripFlagFavorite": "필름스트립에 표시: 즐겨찾기",
+    "settings.galleryFilmstripFlagFavoriteHint": "즐겨찾기한 미디어의 미리보기에 작은 채워진 별을 표시합니다.",
+    "settings.galleryFilmstripFlagRating": "필름스트립에 표시: 평점",
+    "settings.galleryFilmstripFlagRatingHint": "평점을 매긴 미디어의 미리보기에 내 평점(1~5)을 반쪽 별과 함께 작은 숫자로 표시합니다.",
+    "settings.galleryFilmstripFlagUntagged": "필름스트립에 표시: 태그 없음",
+    "settings.galleryFilmstripFlagUntaggedHint": "자체 태그가 없는 미디어에 빗금이 그어진 작은 태그 표시를 보여 줍니다. 미디어 페이지와 같은 표시입니다. ‘태그 지정 보기가 열려 있는 동안’을 고르면 오른쪽 태그 패널이 열려 있을 때만 표시됩니다.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "태그 지정 보기가 열려 있는 동안",
+    "settings.galleryFilmstripFlagUntagged.always": "항상",
+    "settings.galleryFilmstripFlagUntagged.off": "표시 안 함"
   }
 }

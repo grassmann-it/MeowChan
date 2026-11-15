@@ -4949,6 +4949,15 @@
     "sources.stat.queued": "В очереди",
     "sources.stat.threads": "Треды",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Возвращает все цвета к встроенным."
+    "theme.colors.resetAll.hint": "Возвращает все цвета к встроенным.",
+    "settings.galleryFilmstripFlagFavorite": "Лента показывает: избранное",
+    "settings.galleryFilmstripFlagFavoriteHint": "Маленькая закрашенная звезда на миниатюрах избранных медиа.",
+    "settings.galleryFilmstripFlagRating": "Лента показывает: оценку",
+    "settings.galleryFilmstripFlagRatingHint": "Собственная оценка от 1 до 5 в виде маленького числа с половиной звезды на миниатюрах оценённых медиа.",
+    "settings.galleryFilmstripFlagUntagged": "Лента показывает: без тегов",
+    "settings.galleryFilmstripFlagUntaggedHint": "Маленькая перечёркнутая метка тега на медиа без собственных тегов — та же метка, что на странице медиа. В режиме «пока открыт вид тегирования» она видна, только пока открыта панель тегов справа.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Пока открыт вид тегирования",
+    "settings.galleryFilmstripFlagUntagged.always": "Всегда",
+    "settings.galleryFilmstripFlagUntagged.off": "Никогда"
   }
 }

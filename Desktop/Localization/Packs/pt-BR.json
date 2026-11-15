@@ -4932,6 +4932,15 @@
     "sources.stat.queued": "Na fila",
     "sources.stat.threads": "Tópicos",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas."
+    "theme.colors.resetAll.hint": "Volta todas as cores às cores integradas.",
+    "settings.galleryFilmstripFlagFavorite": "A faixa mostra: favorito",
+    "settings.galleryFilmstripFlagFavoriteHint": "Uma pequena estrela preenchida nas miniaturas das mídias favoritas.",
+    "settings.galleryFilmstripFlagRating": "A faixa mostra: avaliação",
+    "settings.galleryFilmstripFlagRatingHint": "A própria avaliação, de 1 a 5, como um pequeno número com meia estrela nas miniaturas das mídias avaliadas.",
+    "settings.galleryFilmstripFlagUntagged": "A faixa mostra: sem etiquetas",
+    "settings.galleryFilmstripFlagUntaggedHint": "Uma pequena marca de etiqueta riscada nas mídias sem etiquetas próprias, a mesma marca da página de mídias. Com a visão de etiquetagem, aparece só enquanto o painel de etiquetas à direita está aberto.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Enquanto a visão de etiquetagem está aberta",
+    "settings.galleryFilmstripFlagUntagged.always": "Sempre",
+    "settings.galleryFilmstripFlagUntagged.off": "Nunca"
   }
 }

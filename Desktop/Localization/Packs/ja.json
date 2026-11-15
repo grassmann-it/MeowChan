@@ -4837,6 +4837,15 @@
     "sources.stat.queued": "キュー待ち",
     "sources.stat.threads": "スレッド",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "すべての色を内蔵の色に戻します。"
+    "theme.colors.resetAll.hint": "すべての色を内蔵の色に戻します。",
+    "settings.galleryFilmstripFlagFavorite": "フィルムストリップに表示：お気に入り",
+    "settings.galleryFilmstripFlagFavoriteHint": "お気に入りのメディアのサムネイルに小さな塗りつぶしの星を表示します。",
+    "settings.galleryFilmstripFlagRating": "フィルムストリップに表示：評価",
+    "settings.galleryFilmstripFlagRatingHint": "評価済みのメディアのサムネイルに、自分の評価（1～5）を半分の星付きの小さな数字で表示します。",
+    "settings.galleryFilmstripFlagUntagged": "フィルムストリップに表示：タグなし",
+    "settings.galleryFilmstripFlagUntaggedHint": "自分のタグがないメディアに、斜線入りの小さなタグ印を表示します。メディアページと同じ印です。「タグ付けビューの表示中」では、右側のタグパネルが開いている間だけ表示されます。",
+    "settings.galleryFilmstripFlagUntagged.tagging": "タグ付けビューの表示中",
+    "settings.galleryFilmstripFlagUntagged.always": "常に",
+    "settings.galleryFilmstripFlagUntagged.off": "表示しない"
   }
 }

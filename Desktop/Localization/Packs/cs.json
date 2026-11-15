@@ -4972,6 +4972,15 @@
     "sources.stat.queued": "Ve frontě",
     "sources.stat.threads": "Vlákna",
     "stats.footer.tip": "{0}: {1}",
-    "theme.colors.resetAll.hint": "Vrátí všechny barvy na vestavěné."
+    "theme.colors.resetAll.hint": "Vrátí všechny barvy na vestavěné.",
+    "settings.galleryFilmstripFlagFavorite": "Pás náhledů zobrazuje: oblíbené",
+    "settings.galleryFilmstripFlagFavoriteHint": "Malou plnou hvězdičku na náhledech oblíbených médií.",
+    "settings.galleryFilmstripFlagRating": "Pás náhledů zobrazuje: hodnocení",
+    "settings.galleryFilmstripFlagRatingHint": "Vlastní hodnocení 1 až 5 jako malé číslo s půlhvězdou na náhledech ohodnocených médií.",
+    "settings.galleryFilmstripFlagUntagged": "Pás náhledů zobrazuje: bez štítků",
+    "settings.galleryFilmstripFlagUntaggedHint": "Malou přeškrtnutou značku štítku u médií bez vlastních štítků, stejnou jako na stránce médií. U volby s pohledem na štítkování se zobrazí jen při otevřeném panelu štítků vpravo.",
+    "settings.galleryFilmstripFlagUntagged.tagging": "Při otevřeném pohledu na štítkování",
+    "settings.galleryFilmstripFlagUntagged.always": "Vždy",
+    "settings.galleryFilmstripFlagUntagged.off": "Nikdy"
   }
 }

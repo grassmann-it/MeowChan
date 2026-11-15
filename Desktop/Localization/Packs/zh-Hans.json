@@ -4837,6 +4837,15 @@
     "sources.stat.queued": "排队",
     "sources.stat.threads": "串",
     "stats.footer.tip": "{0}：{1}",
-    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。"
+    "theme.colors.resetAll.hint": "将所有颜色恢复为内置颜色。",
+    "settings.galleryFilmstripFlagFavorite": "缩略图条显示：收藏",
+    "settings.galleryFilmstripFlagFavoriteHint": "在已收藏媒体的缩略图上显示一颗小的实心星。",
+    "settings.galleryFilmstripFlagRating": "缩略图条显示：评分",
+    "settings.galleryFilmstripFlagRatingHint": "在已评分媒体的缩略图上，以半颗星加小数字显示自己的评分（1 到 5）。",
+    "settings.galleryFilmstripFlagUntagged": "缩略图条显示：尚无标签",
+    "settings.galleryFilmstripFlagUntaggedHint": "在没有自有标签的媒体上显示带斜线的小标签标记，与媒体页面上的标记相同。选择“打标签视图打开时”则仅在右侧标签面板打开时显示。",
+    "settings.galleryFilmstripFlagUntagged.tagging": "打标签视图打开时",
+    "settings.galleryFilmstripFlagUntagged.always": "始终",
+    "settings.galleryFilmstripFlagUntagged.off": "从不"
   }
 }

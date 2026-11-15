@@ -512,7 +512,7 @@ public sealed class GalleryFilmstripTests : IDisposable
         string source = Source("Desktop/Controls/GalleryFilmstrip.cs");
         Assert.Contains("MediaBadgeView _badges = new()", source);
         Assert.Contains("MediaBadgeOptions.Filmstrip", source);
-        Assert.Contains("MediaBadgeText.Describe(badges, MediaBadgeOptions.Filmstrip)", source); // the sentence goes into the tile's AutomationName
+        Assert.Contains("MediaBadgeText.Describe(badges, options)", source); // the sentence goes into the tile's AutomationName
         foreach (string gone in new[] { "CreateCornerBadge", "_playGlyph", "Geometry.Parse", "GalleryFilmstripGif", "_gif" })
             Assert.DoesNotContain(gone, source);
         // The badge view takes no hit, no focus and sits outside the accessibility tree; the only focus stop stays the strip itself.

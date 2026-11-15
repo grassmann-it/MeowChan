@@ -93,6 +93,8 @@ internal readonly record struct MediaBadgeOptions(
     internal static MediaBadgeOptions ArchiveTile => new(Anchor: MediaBadgeAnchor.Slot);
     /// <summary>The gallery filmstrip: small tiles, the dense play mark.</summary>
     internal static MediaBadgeOptions Filmstrip => new(Density: MediaBadgeDensity.Dense);
+    /// <summary>The gallery filmstrip with the "no tags yet" mark switched on or off (the filmstrip flags, decision 123): the mark shows only where the person asked for it.</summary>
+    internal static MediaBadgeOptions FilmstripWith(bool showUntagged) => new(ShowUntagged: showUntagged, Density: MediaBadgeDensity.Dense);
     /// <summary>The reader's media sidebar: the sidebar keeps its own play button.</summary>
     internal static MediaBadgeOptions Sidebar => new(PlayMark: MediaPlayMarkMode.External);
     /// <summary>Every fact, for a description that does not depend on a surface.</summary>
@@ -111,7 +113,7 @@ internal readonly record struct MediaBadge(MediaBadgeId Id, MediaBadgeCorner Cor
 internal static class MediaBadgeIcons
 {
     internal const string Missing = "x-circle", Favorite = "star-filled", Play = "play", Queued = "clipboard", Done = "check",
-        Skipped = "skip-forward", Tag = "tag", Rating = "star", Booru = "globe";
+        Skipped = "skip-forward", Tag = "tag", Rating = "star-half", Booru = "globe";
     /// <summary>Not a mask: the existing drawn mark of the untagged state (<see cref="WorkspaceChips.MarkUntagged"/>).</summary>
     internal const string Untagged = "untagged";
     /// <summary>The masks the badges can use (the lint of the assets in the tests).</summary>

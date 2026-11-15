@@ -25,6 +25,9 @@ public partial class SettingsEditor
     private SettingsChoice? _selectedReaderNavigationMode;
     private bool _readerNavigationShowPosition = true;
     private bool _galleryFilmstrip = true;
+    private bool _galleryFilmstripFlagFavorite = true;
+    private bool _galleryFilmstripFlagRating = true;
+    private SettingsChoice? _selectedGalleryFilmstripFlagUntagged;
     private bool _mediaFocusHidesHeader = true;
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
     private decimal? _galleryFilmstripPreload = Config.GalleryFilmstripPreloadDefault;
@@ -42,6 +45,8 @@ public partial class SettingsEditor
     public IReadOnlyList<SettingsChoice> GallerySlideshowVideoRuleChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
     public IReadOnlyList<SettingsChoice> ReaderNavigationModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+
+    public IReadOnlyList<SettingsChoice> GalleryFilmstripFlagUntaggedChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
     public bool GalleryVideoRepeat { get => _galleryVideoRepeat; set => SetField(ref _galleryVideoRepeat, value, nameof(GalleryVideoRepeat)); }
 
@@ -62,6 +67,9 @@ public partial class SettingsEditor
     public SettingsChoice? SelectedReaderNavigationMode { get => _selectedReaderNavigationMode; set => SetField(ref _selectedReaderNavigationMode, value, nameof(SelectedReaderNavigationMode)); }
     public bool ReaderNavigationShowPosition { get => _readerNavigationShowPosition; set => SetField(ref _readerNavigationShowPosition, value, nameof(ReaderNavigationShowPosition)); }
     public bool GalleryFilmstrip { get => _galleryFilmstrip; set => SetField(ref _galleryFilmstrip, value, nameof(GalleryFilmstrip)); }
+    public bool GalleryFilmstripFlagFavorite { get => _galleryFilmstripFlagFavorite; set => SetField(ref _galleryFilmstripFlagFavorite, value, nameof(GalleryFilmstripFlagFavorite)); }
+    public bool GalleryFilmstripFlagRating { get => _galleryFilmstripFlagRating; set => SetField(ref _galleryFilmstripFlagRating, value, nameof(GalleryFilmstripFlagRating)); }
+    public SettingsChoice? SelectedGalleryFilmstripFlagUntagged { get => _selectedGalleryFilmstripFlagUntagged; set => SetField(ref _selectedGalleryFilmstripFlagUntagged, value, nameof(SelectedGalleryFilmstripFlagUntagged)); }
     public bool MediaFocusHidesHeader { get => _mediaFocusHidesHeader; set => SetField(ref _mediaFocusHidesHeader, value, nameof(MediaFocusHidesHeader)); }
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
     public decimal? GalleryFilmstripPreload { get => _galleryFilmstripPreload; set => SetField(ref _galleryFilmstripPreload, value, nameof(GalleryFilmstripPreload)); }
@@ -118,6 +126,12 @@ public partial class SettingsEditor
     // The key sentence names the filmstrip command's key as bound now (never a fixed key); an unbound command adds no sentence.
     public string GalleryFilmstripHint => Texts.T("settings.galleryFilmstripHint")
         + (CommandCatalog.ShortcutDisplay("gallery.filmstrip-toggle") is string key ? " " + Texts.T("settings.galleryFilmstripKeyHint", key) : string.Empty);
+    public string GalleryFilmstripFlagFavoriteLabel => Texts.T("settings.galleryFilmstripFlagFavorite");
+    public string GalleryFilmstripFlagFavoriteHint => Texts.T("settings.galleryFilmstripFlagFavoriteHint");
+    public string GalleryFilmstripFlagRatingLabel => Texts.T("settings.galleryFilmstripFlagRating");
+    public string GalleryFilmstripFlagRatingHint => Texts.T("settings.galleryFilmstripFlagRatingHint");
+    public string GalleryFilmstripFlagUntaggedLabel => Texts.T("settings.galleryFilmstripFlagUntagged");
+    public string GalleryFilmstripFlagUntaggedHint => Texts.T("settings.galleryFilmstripFlagUntaggedHint");
     public string GalleryFilmstripHeightLabel => Texts.T("settings.galleryFilmstripHeight");
     public string GalleryFilmstripHeightHint => Texts.T("settings.galleryFilmstripHeightHint",
         Config.GalleryFilmstripHeightDefault, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
@@ -182,7 +196,9 @@ public partial class SettingsEditor
         nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint),
         nameof(MediaBadgeCollapseBelowLabel), nameof(MediaBadgeCollapseBelowHint), nameof(MediaBadgeHideBelowLabel), nameof(MediaBadgeHideBelowHint),
         nameof(MediaBadgeMaxPerCornerLabel), nameof(MediaBadgeMaxPerCornerHint), nameof(GalleryStatusDwellMsLabel), nameof(GalleryStatusDwellMsHint),
-        nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint)
+        nameof(GalleryFilmstripTileGapLabel), nameof(GalleryFilmstripTileGapHint),
+        nameof(GalleryFilmstripFlagFavoriteLabel), nameof(GalleryFilmstripFlagFavoriteHint), nameof(GalleryFilmstripFlagRatingLabel),
+        nameof(GalleryFilmstripFlagRatingHint), nameof(GalleryFilmstripFlagUntaggedLabel), nameof(GalleryFilmstripFlagUntaggedHint)
     };
 
     private void RaiseViewerVisibilityChanged() => Raise(new[] { nameof(IsGallerySlideshowVideoSeconds), nameof(IsGallerySlideshowVideoRepeats) });
@@ -205,6 +221,7 @@ public partial class SettingsEditor
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowVideoRuleChoices)));
         SelectedGallerySlideshowVideoRule = GallerySlideshowVideoRuleChoices.FirstOrDefault(item => item.Value == rule) ?? GallerySlideshowVideoRuleChoices[0];
         RefreshReaderNavigationModeChoices(SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode);
+        RefreshGalleryFilmstripFlagUntaggedChoices(SelectedGalleryFilmstripFlagUntagged?.Value ?? _config.GalleryFilmstripFlagUntagged);
         if (_refreshingLanguageLabels) RaiseViewerVisibilityChanged();
     }
 
@@ -219,6 +236,19 @@ public partial class SettingsEditor
         };
         Raise(new[] { nameof(ReaderNavigationModeChoices) });
         SelectedReaderNavigationMode = ReaderNavigationModeChoices.FirstOrDefault(item => item.Value == mode) ?? ReaderNavigationModeChoices[0];
+    }
+
+    /// <summary>Rebuilds the localized choices of the filmstrip's "no tags yet" mark (never / with the tagging view / always) and selects <paramref name="mode"/>.</summary>
+    private void RefreshGalleryFilmstripFlagUntaggedChoices(string mode)
+    {
+        GalleryFilmstripFlagUntaggedChoices = new SettingsChoice[]
+        {
+            new(Config.GalleryFilmstripUntaggedWithTagging, Texts.T("settings.galleryFilmstripFlagUntagged.tagging")),
+            new(Config.GalleryFilmstripUntaggedAlways, Texts.T("settings.galleryFilmstripFlagUntagged.always")),
+            new(Config.GalleryFilmstripUntaggedOff, Texts.T("settings.galleryFilmstripFlagUntagged.off")),
+        };
+        Raise(new[] { nameof(GalleryFilmstripFlagUntaggedChoices) });
+        SelectedGalleryFilmstripFlagUntagged = GalleryFilmstripFlagUntaggedChoices.FirstOrDefault(item => item.Value == mode) ?? GalleryFilmstripFlagUntaggedChoices[0];
     }
 
     /// <summary>The video choices from the playback baseline (start, discard, after a save).</summary>
@@ -250,6 +280,9 @@ public partial class SettingsEditor
         RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
         ReaderNavigationShowPosition = config.ReaderNavigationShowPosition;
         GalleryFilmstrip = config.GalleryFilmstrip;
+        GalleryFilmstripFlagFavorite = config.GalleryFilmstripFlagFavorite;
+        GalleryFilmstripFlagRating = config.GalleryFilmstripFlagRating;
+        RefreshGalleryFilmstripFlagUntaggedChoices(config.GalleryFilmstripFlagUntagged);
         if (!layoutReset) _initialGalleryFilmstrip = config.GalleryFilmstrip; // the section reset is an edit of this draft, not a new load
         MediaFocusHidesHeader = config.MediaFocusHidesHeader;
         GalleryFilmstripHeight = config.GalleryFilmstripHeight;
@@ -276,6 +309,9 @@ public partial class SettingsEditor
         candidate.ReaderNavigationMode = SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode;
         candidate.ReaderNavigationShowPosition = ReaderNavigationShowPosition;
         candidate.GalleryFilmstrip = GalleryFilmstrip;
+        candidate.GalleryFilmstripFlagFavorite = GalleryFilmstripFlagFavorite;
+        candidate.GalleryFilmstripFlagRating = GalleryFilmstripFlagRating;
+        candidate.GalleryFilmstripFlagUntagged = SelectedGalleryFilmstripFlagUntagged?.Value ?? _config.GalleryFilmstripFlagUntagged;
         candidate.SettingsBaselineGalleryFilmstrip = _initialGalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
         candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;

@@ -85,6 +85,7 @@ public partial class MainWindow
     }
     private void RefreshGalleryRating()
     {
+        RefreshGalleryFilmstripFlags(); // the filmstrip's flags follow a favourite or rating the gallery just changed
         if (_gallery == null || _galleryIndex < 0 || _galleryIndex >= _galleryEntries.Count) return;
         GalleryEntry entry = _galleryEntries[_galleryIndex];
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
