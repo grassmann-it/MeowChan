@@ -262,7 +262,8 @@ internal sealed partial class GalleryViewer : UserControl
         _nativeOverlayActive && ReferenceEquals(TopLevel.GetTopLevel(_nativeVideoOverlay), window);
     internal IEnumerable<Visual> GetGalleryVisualDescendants() =>
         ((Visual)this).GetVisualDescendants().Concat(_nativeVideoOverlay.GetVisualDescendants())
-            .Concat(_overflowPanel.GetVisualDescendants()).Prepend(_overflowPanel).Distinct();
+            .Concat(_overflowPanel.GetVisualDescendants()).Prepend(_overflowPanel)
+            .Concat(_slideshowHome?.GetVisualDescendants() ?? []).Distinct(); // G2: the slideshow settings also while the flyout borrows them
     internal bool TryDismissOverlay()
     {
         if (IsFavoriteConfirmOpen) { CloseFavoriteConfirm(); return true; }
