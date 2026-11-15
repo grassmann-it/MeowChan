@@ -40,7 +40,7 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(new[] { 1, 4 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.Done).Select(row => row.Number));
         Assert.Equal(new[] { 2 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.Skipped).Select(row => row.Number));
         Assert.Equal("Entry 3: file-3.png, Open, the walk continues here", all[2].AccessibleName);
-        Assert.Equal("Entry 1: file-1.png, Done", all[0].AccessibleName);
+        Assert.Equal("Entry 1: file-1.png, Finished", all[0].AccessibleName);
         Assert.Equal("4chan · /g/ · 123", all[0].SourceText);
         Assert.Equal("Image", all[0].KindText);
     }
@@ -73,7 +73,7 @@ public sealed class TaggingPageTests : IDisposable
     public void TheProgressCountsEveryStateAndNeverRoundsUpToAHundredPercent()
     {
         TagQueueSnapshot queue = Queue(0, Enumerable.Range(1, 200).Select(n => Item(n, n <= 199 ? TagQueueState.Done : TagQueueState.Open)).ToArray());
-        Assert.Equal("Open: 1 · Done: 199 · Skipped: 0", TaggingQueueView.ProgressText(queue));
+        Assert.Equal("Open: 1 · Finished: 199 · Skipped: 0", TaggingQueueView.ProgressText(queue));
         Assert.Equal(0.995, TaggingQueueView.Share(queue), 3);
         Assert.Equal("99% worked through", TaggingQueueView.PercentText(queue));
         Assert.Equal(0, TaggingQueueView.Share(TagQueueSnapshot.Empty));
@@ -86,9 +86,9 @@ public sealed class TaggingPageTests : IDisposable
     public void TheStartButtonStartsAFreshQueueContinuesAWalkedOneAndIsOffWithoutOpenEntries()
     {
         Assert.Equal("Start tagging", TaggingQueueView.StartLabel(Queue(0, Item(1), Item(2))));
-        Assert.Equal("Continue tagging at 2 of 3", TaggingQueueView.StartLabel(Queue(1, Item(1, TagQueueState.Done), Item(2), Item(3))));
+        Assert.Equal("Continue at 2 of 3", TaggingQueueView.StartLabel(Queue(1, Item(1, TagQueueState.Done), Item(2), Item(3))));
         // Nothing decided, but the cursor was moved behind the first open entry: that is a continue, too.
-        Assert.Equal("Continue tagging at 2 of 2", TaggingQueueView.StartLabel(Queue(1, Item(1), Item(2))));
+        Assert.Equal("Continue at 2 of 2", TaggingQueueView.StartLabel(Queue(1, Item(1), Item(2))));
         Assert.Null(TaggingQueueView.StartLabel(Queue(0, Item(1, TagQueueState.Done), Item(2, TagQueueState.Skipped))));
         Assert.Null(TaggingQueueView.StartLabel(TagQueueSnapshot.Empty));
     }
@@ -217,9 +217,9 @@ public sealed class TaggingPageTests : IDisposable
 
             Assert.True(await work.SetStatesAsync(new[] { Item(1).Key, Item(2).Key }, TagQueueState.Done));
             Assert.Equal(new[] { TagQueueState.Done, TagQueueState.Done, TagQueueState.Open, TagQueueState.Open }, host.GetTagQueue()!.Items.Select(item => item.State));
-            Assert.Equal("Marked as done: 2.", work.Status);
-            Assert.Equal("Open: 2 · Done: 2 · Skipped: 0", TaggingQueueView.ProgressText(work.Queue));
-            Assert.Equal("Continue tagging at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
+            Assert.Equal("Marked as finished: 2.", work.Status);
+            Assert.Equal("Open: 2 · Finished: 2 · Skipped: 0", TaggingQueueView.ProgressText(work.Queue));
+            Assert.Equal("Continue at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
             // Marking what already has the state is no change and no write.
             long revision = work.Queue.Revision;
             Assert.False(await work.SetStatesAsync(new[] { Item(1).Key }, TagQueueState.Done));
@@ -232,11 +232,11 @@ public sealed class TaggingPageTests : IDisposable
             Assert.False(await work.MoveAsync(Item(1).Key, TaggingQueueFilter.All, -1));
             Assert.True(await work.SetCursorAsync(2));
             Assert.Equal(2, host.GetTagQueue()!.Cursor);
-            Assert.Equal("Continue tagging at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
+            Assert.Equal("Continue at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
 
             Assert.True(await work.ClearFinishedAsync());
             Assert.Equal(new[] { "asset-4", "asset-3" }, host.GetTagQueue()!.Items.Select(item => item.AssetId));
-            Assert.Equal("Removed done entries: 2.", work.Status);
+            Assert.Equal("Finished entries removed: 2.", work.Status);
             Assert.False(await work.ClearFinishedAsync());
 
             Assert.True(await work.RemoveAsync(new[] { Item(3).Key }));
@@ -342,7 +342,7 @@ public sealed class TaggingPageTests : IDisposable
         string progress = TaggingQueueView.ProgressText(work.Queue);
         watch.Stop();
         Assert.Equal(2_000, rows.Count);
-        Assert.Equal("Open: 2000 · Done: 0 · Skipped: 0", progress);
+        Assert.Equal("Open: 2000 · Finished: 0 · Skipped: 0", progress);
         // §1.8: the page opens in at most 100 ms; the list is virtualized, so reading and the rows are the cost. The test machine
         // shares its cores, so it allows ten times that.
         Assert.True(watch.ElapsedMilliseconds < 1_000, "Opening took " + watch.ElapsedMilliseconds + " ms.");
