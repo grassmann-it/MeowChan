@@ -58,7 +58,7 @@ public static class CommandCatalog
         new("media.rating.set-3", "command.media.rating.set-3", "Rating: 3 of 5", "Bewertung: 3 von 5", "star", "Shift+3", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.set-4", "command.media.rating.set-4", "Rating: 4 of 5", "Bewertung: 4 von 5", "star", "Shift+4", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
         new("media.rating.set-5", "command.media.rating.set-5", "Rating: 5 of 5", "Bewertung: 5 von 5", "star", "Shift+5", CommandScope.Media | CommandScope.Gallery | CommandScope.Dialog, new[] { "media-rating" }),
-        new("post-bookmarks.open-manager", "bookmarks.title", "Post bookmarks", "Post-Lesezeichen", "message-square", null, CommandScope.Application, new[] { "app-menu", "archive-results-toolbar" }),
+        new("post-bookmarks.open-manager", "bookmarks.title", "Post bookmarks", "Post-Lesezeichen", "message-square", null, CommandScope.Application, new[] { "app-menu", "archive-results-toolbar", "reader-thread-menu" }),
         new("post-bookmarks.edit-post", "bookmarks.edit", "Add / edit post bookmark…", "Post-Lesezeichen hinzufügen / bearbeiten…", "edit-2", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post-bookmarks.open-target", "bookmarks.open", "Open exact local post", "Exakten lokalen Post öffnen", "corner-up-right", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
         new("post-bookmarks.save", "bookmarks.save", "Save bookmark", "Lesezeichen speichern", "save", null, CommandScope.Dialog, new[] { "post-bookmarks" }),
@@ -123,7 +123,7 @@ public static class CommandCatalog
         new("watch.add-url", "command.watch.add-url", "Add URL", "URL hinzufügen", "plus", null, CommandScope.Downloads, new[] { "downloads-url-bar" }),
         new("watch.import-clipboard", "command.watch.import-clipboard", "Add URLs from clipboard", "URLs aus Zwischenablage hinzufügen", "clipboard", "Primary+V", CommandScope.Downloads, new[] { "tray", "downloads-list-keyboard", "empty-add" }),
         new("selection.select-all", "command.selection.select-all", "Select all", "Alle auswählen", "check-square", "Primary+A", CommandScope.Downloads, new[] { "downloads-thread-list", "downloads-board-list" }),
-        new("thread.read", "command.thread.read", "Read posts", "Posts lesen", "file-text", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
+        new("thread.read", "command.thread.read", "Read posts", "Posts lesen", "eye", "Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "gallery-empty-state", "thread-double-click" }),
         new("gallery.open", "command.gallery.open", "Open in gallery", "In der Galerie öffnen", "image", "Shift+Enter", CommandScope.Archive | CommandScope.Reader | CommandScope.Media | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-toolbar", "media-list", "media-tiles", "inline-attachment" }),
         new("media.open", "command.media.open", "Open selected media", "Ausgewähltes Medium öffnen", "image", "Enter", CommandScope.Media, new[] { "media-list", "media-tiles" }),
         // The empty Media page opens the read-only folder-source flow; keep its presentation in the shared command catalog.
@@ -172,7 +172,7 @@ public static class CommandCatalog
         new("archive.back-to-list", "command.archive.back-to-list", "Back to thread list", "Zurück zur Threadliste", "arrow-left", null, CommandScope.Reader, new[] { "embedded-reader" }),
         new("archive.capture-toggle", "command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen", "circle", null, CommandScope.Reader | CommandScope.Application, new[] { "reader-thread-menu" }),
         new("reader.close", "command.reader.close", "Close reader", "Reader schließen", "arrow-left", "Escape", CommandScope.Reader, new[] { "large-reader-toolbar" }),
-        new("reader.expand", "command.reader.expand", "Read in large reader", "Im großen Reader lesen", "external-link", null, CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
+        new("reader.expand", "command.reader.expand", "Read in large reader", "Im großen Reader lesen", "eye", null, CommandScope.Reader, new[] { "embedded-reader-toolbar" }),
         new("reader.history-back", "command.reader.history-back", "Back to last read", "Zurück zum Lesestand", "arrow-left", "Alt+Left", CommandScope.Reader, new[] { "reader-toolbar" }, new[] { "reader-history" }),
         new("reader.previous-thread", "command.reader.previous-thread", "Previous thread", "Voriger Thread", "arrow-left", "Left", CommandScope.Reader, new[] { "large-reader-navigation" }),
         new("reader.next-thread", "command.reader.next-thread", "Next thread", "Nächster Thread", "arrow-right", "Right", CommandScope.Reader, new[] { "large-reader-navigation" }),
@@ -269,21 +269,21 @@ public static class CommandCatalog
         new("table.choose-columns", "command.table.choose-columns", "Choose columns…", "Spalten auswählen…", "columns", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table" }),
         new("table.reset-layout", "command.table.reset-layout", "Reset table layout", "Tabellenlayout zurücksetzen", "rotate-ccw", null, CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-table", "archive-table", "split-layout" }),
         new("reader.font-size", "command.reader.font-size", "Reading font size", "Leseschriftgröße", "type", null, CommandScope.Reader | CommandScope.Media | CommandScope.Settings, new[] { "reader-toolbar", "settings-reading-media" }),
-        new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-view-menu", "threadwatcher" }),
+        new("watch.follow-live", "command.watch.follow-live", "Show new posts automatically", "Neue Posts automatisch anzeigen", "arrow-down", "Primary+Shift+L", CommandScope.Reader | CommandScope.Downloads, new[] { "reader-settings", "threadwatcher" }),
         new("reader.show-new-posts", "command.reader.show-new-posts", "Show new posts", "Neue Posts anzeigen", "arrow-down", "Primary+Shift+N", CommandScope.Reader, new[] { "reader-new-posts-notice" }),
-        // The reader's "View" menu (plan P0). No default gesture; each one can be given a shortcut. The conversation view
+        // The reader's view options (plan P0; the settings popover's session rows since RL1). No default gesture; each one can be given a shortcut. The conversation view
         // (P4) and the post filters (P2) appear in the menu once their package registers them.
-        new("reader.view.hide-media", "command.reader.view.hide-media", "Hide media", "Medien ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.view.media-only", "command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien", "image", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.view.conversation", "command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen", "message-square", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.view.textless-large", "command.reader.view.textless-large", "Larger images in posts without text", "Größere Bilder in Posts ohne Text", "image", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.view.focused-enlarge", "command.reader.view.focused-enlarge", "Enlarge focused post's media", "Medien des markierten Posts vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.view.hover-enlarge", "command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        // The reader's quick settings popover (R7): a plain item at the end of the View menu; a user shortcut opens it too.
-        new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "sliders", null, CommandScope.Reader, new[] { "reader-view-menu" }),
-        // R8: the media sidebar of the large reader (a View menu switch) and its steps through the focused post's media.
-        new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-view-menu", "reader-media-sidebar" }),
+        new("reader.view.hide-media", "command.reader.view.hide-media", "Hide media", "Medien ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.view.media-only", "command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien", "image", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.view.conversation", "command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen", "message-square", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.view.textless-large", "command.reader.view.textless-large", "Larger images in posts without text", "Größere Bilder in Posts ohne Text", "image", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.view.focused-enlarge", "command.reader.view.focused-enlarge", "Enlarge focused post's media", "Medien des markierten Posts vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.view.hover-enlarge", "command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern", "zoom-in", null, CommandScope.Reader, new[] { "reader-settings" }),
+        new("reader.post-filters", "command.reader.post-filters", "Post filters…", "Postfilter…", "filter", null, CommandScope.Reader, new[] { "reader-settings" }),
+        // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
+        new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
+        // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
+        new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).
@@ -293,7 +293,7 @@ public static class CommandCatalog
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
         new("thread.favorite-toggle", "command.thread.favorite-toggle", "Favorite / unfavorite thread", "Threadfavorit markieren / entfernen", "star", "Primary+D", CommandScope.Archive | CommandScope.Reader, new[] { "archive-card", "archive-table", "archive-thread-menu", "reader-toolbar" }),
-        new("thread.tags", "command.thread.tags", "Thread tags…", "Thread-Tags…", "edit-2", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
+        new("thread.tags", "command.thread.tags", "Thread tags…", "Thread-Tags…", "tag", "Primary+T", CommandScope.Archive | CommandScope.Reader, new[] { "archive-thread-menu" }, new[] { "archive", "reader" }),
         // Quick tagging (tag panel in the gallery, tag popover elsewhere). Registered ahead of the handlers: QuickTagCommands.AwaitingHandler keeps them inactive and unlisted until
         // the packages that wire them say so. The panel commands act in the gallery only (Ctrl+T there is the thread tags section; thread.tags stays in the archive and the reader);
         // undo and the suggestion toggles also act in the popover on the media page, the reader attachment and the archive tile.
@@ -477,6 +477,7 @@ public static class CommandCatalog
             "input.focus-media-search" => Texts.T("command.scope.input.focus-media-search"),
             "input.focus-diagnostics-search" => Texts.T("command.scope.input.focus-diagnostics-search"),
             "export.open-all-results-html-dialog" => Texts.T("command.scope.export.open-all-results-html-dialog"),
+            "reader.expand" => Texts.T("command.scope.reader.expand"),
             _ when HasGenericScope(id) => Texts.T("command.scope.navigation.generic"),
             _ => null
         };
