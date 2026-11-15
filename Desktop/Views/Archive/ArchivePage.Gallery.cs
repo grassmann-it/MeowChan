@@ -335,7 +335,7 @@ public partial class ArchivePage
     private async void OnMediaKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || !_available || _ended || _lifetime.IsCancellationRequested || _busy || IsReaderDialogOpen || sender is not Control list) return;
-        if (TryRouteArchiveMediaShortcut(list, e)) return;
+        if (TryRouteFavoriteKey(list, e) || TryRouteArchiveMediaShortcut(list, e)) return;
         if (!MeowChan.Desktop.Commands.CommandBindings.Matches(e, "media.open") || !MainWindow.IsListCommandSource(e.Source, list)) return;
         ArchiveAssetRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>()
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault() ?? SelectedMediaRow();

@@ -900,8 +900,9 @@ internal sealed partial class GalleryViewer : UserControl
         _favorite.IsChecked = _favoriteSelected;
         ApplyCompactLabel(_favorite, "GalleryFavorite");
         AutomationProperties.SetName(_favorite, label);
-        ToolTip.SetTip(_favorite, CommandBindings.Tooltip("favorites.toggle"));
-        AutomationProperties.SetHelpText(_favorite, CommandBindings.Tooltip("favorites.toggle"));
+        string tip = FavoriteKeys.Tooltip(_favoriteSelected);
+        ToolTip.SetTip(_favorite, tip);
+        AutomationProperties.SetHelpText(_favorite, tip);
         _favorite.IsEnabled = _entry != null && !_terminalRetirement;
         UpdateFavoriteIndicators();
     }

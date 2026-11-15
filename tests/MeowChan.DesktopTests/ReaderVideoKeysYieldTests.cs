@@ -31,11 +31,12 @@ public sealed class ReaderVideoKeysYieldTests
     }
 
     [Fact]
-    public void MSavedForAReaderCommandStaysTheGalleryMuteKeyButTheReaderGivesItToTheCommand()
+    public void ShiftMSavedForAReaderCommandStaysTheGalleryMuteKeyButTheReaderGivesItToTheCommand()
     {
-        var section = new ShortcutBindingsSection().Set("post.hide", [ShortcutGesture.Parse("M")]);
+        // Mute is Shift+M since revision 20 (M adds a favourite).
+        var section = new ShortcutBindingsSection().Set("post.hide", [ShortcutGesture.Parse("Shift+M")]);
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-        var m = new KeyEventArgs { Key = Key.M };
+        var m = new KeyEventArgs { Key = Key.M, KeyModifiers = KeyModifiers.Shift };
         Assert.True(bindings.Matches(m, "video.mute"));
         Assert.True(bindings.Matches(m, "post.hide"));
         Assert.Empty(bindings.Issues);
@@ -47,8 +48,8 @@ public sealed class ReaderVideoKeysYieldTests
         Assert.False(ReaderVideoKeys.ReaderClaims(id => plain.Matches(m, id)));
         Assert.Equal(ReaderVideoAction.Mute, ReaderVideoKeys.ClassifyUnclaimed(id => plain.Matches(m, id)));
         // The gallery's own bindings still make a video default yield.
-        var galleryKey = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("M")]);
-        Assert.False(Has(EffectiveShortcutBindings.Build(galleryKey, ShortcutPlatform.Linux), "video.mute", ShortcutGesture.Parse("M")));
+        var galleryKey = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Shift+M")]);
+        Assert.False(Has(EffectiveShortcutBindings.Build(galleryKey, ShortcutPlatform.Linux), "video.mute", ShortcutGesture.Parse("Shift+M")));
     }
 
     [Fact]

@@ -184,7 +184,7 @@ public sealed class ArchiveMediaTileView : UserControl
     internal void RefreshFavorite()
     {
         ArchiveAssetRow? row = DataContext as ArchiveAssetRow;
-        _favorite.Configure(row?.FavoriteAvailable, row?.IsFavorite, row?.ToggleFavoriteAsync, row?.FavoriteError);
+        _favorite.Configure(row);
         // The name is rebuilt only when the badges' sentence changed (the page refreshes every tile whenever a favourite changes).
         string before = BadgeDescription;
         UpdateBadges(row);

@@ -140,7 +140,7 @@ internal static class GalleryHiddenFavoriteChecks
 
                 await HideAsync();
                 RequireBadge(false);
-                Press(Key.B); // first hidden-controls key must perform the action, not only reveal
+                Press(Key.M); // first hidden-controls key must perform the action, not only reveal
                 Require(requests.SequenceEqual(new[] { (firstKey, true) }) && !save.IsCompleted,
                     "Hidden pick did not request exactly A, or the held save was not pending.");
                 RequireBadge(false, pending: true);
@@ -165,12 +165,12 @@ internal static class GalleryHiddenFavoriteChecks
                 Program.CaptureWindow(window, "smoke-hidden-favorite-late-a-current-b.png");
 
                 await HideAsync();
-                Press(Key.B);
+                Press(Key.M);
                 await save.WaitAsync(Deadline);
                 RequireBadge(true);
                 byte[] markedBytes = await File.ReadAllBytesAsync(Path.Combine(profile, "media-favorites.json"));
                 await HideAsync();
-                Press(Key.B);
+                Press(Key.M);
                 await save.WaitAsync(Deadline);
                 RequireBadge(true);
                 byte[] repeatedMarkedBytes = await File.ReadAllBytesAsync(Path.Combine(profile, "media-favorites.json"));

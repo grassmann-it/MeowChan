@@ -480,12 +480,20 @@ internal sealed class ReaderMediaSidebar : Border
         ToolTip.SetTip(_title, _title.Text);
     }
 
+    /// <summary>
+    /// The star for a reader attachment. It asks the row each time (not the callbacks the row had when the sidebar showed it): the page wires the
+    /// row's favourite once its saved files are known and again whenever they are reloaded, often after the sidebar already shows the medium, so
+    /// callbacks copied here could stay unset (a star that does nothing) or point at an earlier scan.
+    /// </summary>
     internal void ConfigureFavorite(ArchiveAttachmentRow? row)
     {
         _favorite.IsVisible = row != null;
-        if (row != null) _favorite.Configure(row.FavoriteAvailable, row.IsFavorite, row.ToggleFavoriteAsync, row.FavoriteError);
+        if (row != null) _favorite.Configure(row);
         UpdateBadges();
     }
+
+    /// <summary>The header's favourite star (tests and smokes).</summary>
+    internal Avalonia.Controls.Primitives.ToggleButton FavoriteButton => _favorite;
 
     /// <summary>The star for a medium that is no reader attachment (the Media page): the same button with the host's own state and toggle.</summary>
     internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)

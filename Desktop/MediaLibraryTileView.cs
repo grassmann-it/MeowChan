@@ -217,8 +217,11 @@ internal sealed class MediaLibraryTileView : UserControl
         {
             e.Handled = true; // The tile itself is not activated by its star.
             if (DataContext is not MediaLibraryTileRow row || FavoriteToggle is not { } toggle) return;
-            _favoriteToggle.IsChecked = row.State?.Favorite == MediaLibraryFlag.Yes; // The page re-presents with the stored state.
+            bool marked = row.State?.Favorite == MediaLibraryFlag.Yes;
+            _favoriteToggle.IsChecked = marked; // The page re-presents with the stored state.
             _favoriteToggle.IsEnabled = false;
+            // Pending: the name says the write is under way until the page presents the stored state.
+            AutomationProperties.SetName(_favoriteToggle, Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add") + " · " + Texts.T("gallery.saving"));
             try { await toggle(row.Entry); }
             finally { if (ReferenceEquals(DataContext, row)) _favoriteToggle.IsEnabled = true; }
         };
@@ -361,7 +364,7 @@ internal sealed class MediaLibraryTileView : UserControl
         _favoriteToggle.IsChecked = marked;
         _favoriteToggle.IsEnabled = true;
         string favoriteName = canFavorite ? Texts.T(marked ? "viewer.favorite.remove" : "viewer.favorite.add") : string.Empty;
-        ToolTip.SetTip(_favoriteToggle, canFavorite ? favoriteName : null);
+        ToolTip.SetTip(_favoriteToggle, canFavorite ? FavoriteKeys.Tooltip(marked) : null);
         AutomationProperties.SetName(_favoriteToggle, favoriteName);
     }
 
