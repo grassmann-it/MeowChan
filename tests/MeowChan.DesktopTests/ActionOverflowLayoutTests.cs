@@ -153,6 +153,71 @@ public sealed class ActionOverflowLayoutTests
     }
 
     [Fact]
+    public void AGroupStartThatFitsWithTheItemGapButNotTheGroupGapStaysOnTheBar()
+    {
+        // a (group 1) | m (group 0) | b (group 1); m ranks last. The first guess counts b with the group gap 16 it has behind m, and the
+        // passes keep that largest gap although b, once m is under More, stands behind a with the item gap 8: 50 + 8 + 50 = 108.
+        // Without the refill b moved under More with 150 - 40 left for it.
+        OverflowMode[] modes = [OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded];
+        (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced([50, 50, 50], [1, 0, 1], [false, false, false], modes,
+            [true, true, true], 150, 40, [0, 2, 1]);
+        Assert.Equal(new[] { false, true, false }, overflow);
+        Assert.Equal(108, width);
+        // One dip less and the real bar (108) plus More (40) no longer fits: b stays under More, the refill stops at that first miss.
+        (overflow, width) = ActionOverflowLayout.ResolveSpaced([50, 50, 50], [1, 0, 1], [false, false, false], modes,
+            [true, true, true], 147, 40, [0, 2, 1]);
+        Assert.Equal(new[] { false, true, true }, overflow);
+        Assert.Equal(50, width);
+    }
+
+    [Fact]
+    public void TheRefillPassNeverTakesBackAnAlwaysItemAndNeverExceedsTheAvailableWidth()
+    {
+        Random random = new(15112026);
+        OverflowMode[] all = [OverflowMode.Never, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.AsNeeded, OverflowMode.Always];
+        for (int round = 0; round < 3000; round++)
+        {
+            int count = random.Next(1, 9);
+            double[] widths = new double[count]; int[] groups = new int[count]; bool[] segments = new bool[count];
+            OverflowMode[] modes = new OverflowMode[count]; bool[] visible = new bool[count]; int[] priorities = new int[count];
+            int group = 0;
+            for (int i = 0; i < count; i++)
+            {
+                widths[i] = random.Next(20, 120);
+                if (random.Next(3) == 0) group++;
+                groups[i] = group; segments[i] = random.Next(4) == 0;
+                modes[i] = all[random.Next(all.Length)]; visible[i] = random.Next(6) != 0; priorities[i] = random.Next(5);
+            }
+            double available = random.Next(0, 700), more = random.Next(20, 60);
+            (bool[] overflow, double width) = ActionOverflowLayout.ResolveSpaced(widths, groups, segments, modes, visible, available, more,
+                random.Next(2) == 0 ? priorities : null);
+            bool remaining = false, onlyNever = true;
+            for (int i = 0; i < count; i++)
+            {
+                if (!visible[i]) continue;
+                Assert.False(modes[i] == OverflowMode.Always && !overflow[i], "an Always item stayed on the bar");
+                Assert.False(modes[i] == OverflowMode.Never && overflow[i], "a Never item moved under More");
+                if (overflow[i]) remaining = true;
+                else if (modes[i] != OverflowMode.Never) onlyNever = false;
+            }
+            // Only the items that must stay (Never) may take more than there is; every other result fits with More counted.
+            if (!onlyNever) Assert.True(width + (remaining ? more : 0) <= available + 1e-9, $"round {round}: {width} + more exceeds {available}");
+        }
+    }
+
+    [Fact]
+    public void AnItemUnderMoreIsJudgedByTheWidthItHadOnTheBar()
+    {
+        // Under "More" the item is measured in the popup's plain style (narrower); the bar width it last had decides.
+        Assert.Equal(90, ActionToolBarPanel.DecisionWidth(true, 90, 70));
+        // On the bar the measured width is the bar width.
+        Assert.Equal(70, ActionToolBarPanel.DecisionWidth(false, 90, 70));
+        // Never seen on the bar: the width measured where it is.
+        Assert.Equal(70, ActionToolBarPanel.DecisionWidth(true, double.NaN, 70));
+        Assert.Equal(70, ActionToolBarPanel.DecisionWidth(true, double.PositiveInfinity, 70));
+    }
+
+    [Fact]
     public void AnAlwaysItemTakesNoGapOnTheBarAndMoreReservesTheItemGapInFrontOfIt()
     {
         // The Always item sits under More from the start: its neighbours of one group stand one item gap apart (50 + 8 + 50).
