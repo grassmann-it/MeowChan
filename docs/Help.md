@@ -193,8 +193,9 @@ see [Work-view overview and switch notice](#work-view-overview-and-switch-notice
 In Settings, choose **Language** and Save. Alongside English and German, the app
 bundles **Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil),
 Čeština, Italiano and Polski**; every one is marked **Untested**. No separate pack
-download is needed. These are AI-authored preview translations, not qualified
-linguistic or native-UI reviews; missing translations fall back to English.
+download is needed. These are AI-authored preview translations with text, plural and
+terminology reviews, but without qualified native-speaker or native-UI acceptance; missing
+translations fall back to English.
 Catalog coverage is not complete-UI localization: some legacy and vendor controls
 still use English. Linux users need suitable installed CJK fonts for the CJK packs.
 See the [bundled-pack limitations](../Desktop/Localization/Packs/README.md#known-english-surfaces).
@@ -1486,6 +1487,15 @@ direction (initially **By thread**).
 
 Search and Filters sit on the left of the Media toolbar, Order on the right.
 Refresh and Shuffle again are icon buttons beside the order, named in tooltips.
+
+The Media page's **Media sidebar** is on by default and shows the selected medium large to
+the right of the grid. A selection change, the sidebar's Previous/Next buttons or its video
+ keys changes the shown medium; **Open in gallery** starts at the sidebar's medium. Use
+ **Layout** or Ctrl/Cmd+Shift+M to switch the sidebar. Its saved width defaults to 360 dip
+ (240–900), and **Hide the media sidebar below this page width** defaults to 1000 dip
+ (600–3000). On a narrower page it hides automatically and returns when the page is wide
+ enough; the saved choice remains. Drag the sidebar edge to change its width, or choose its
+left/right side in Layout.
 **Export all matches** (German: **Alle Treffer exportieren**) and **Manage saved
 ratings…** (**Gespeicherte Bewertungen verwalten…**) stay under **More** (**Mehr**).
 In narrow windows the focus button, Refresh and Shuffle again move under More;
@@ -1675,7 +1685,7 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 **Enlarge an image while the pointer rests on it** are also switches in View;
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
-**Media sidebar in the large reader** is off by default. When enabled in View or
+**Media sidebar in the large reader** is on by default. When enabled in View or
 Settings, it shows the selected post’s media beside the posts, following Up/Down
 navigation. Choose left or right, step through multiple attachments with its
 buttons, or open the shown item in the gallery. Drag the divider to change its
@@ -2420,6 +2430,12 @@ downgrade of data changed by 1.0. If you need the
 [0.9.0 fallback](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0), use
 an untouched profile or restore a pre-upgrade backup to a separate location;
 keep the 1.0 data for investigating the problem.
+
+The unreleased 1.1.0 development line migrates `archive.db` to schema 13 on first open.
+Schema 13 adds nullable provider-reported `width` and `height` columns to captured
+attachments; old captures and non-image media retain null values. A 1.0.2 build refuses the
+upgraded archive, so keep a complete pre-upgrade backup and do not use an upgraded profile
+for a downgrade.
 
 **Plugin-state transition introduced in 1.0.2:** the current source can write a v2
 plugin-state envelope that 1.0.0/1.0.1 do not read. Before replacing an existing

@@ -8,6 +8,11 @@
   multi-select tagging, gallery and original export, and a way back from the thread.
   Tiles show favorite, rating, own tags and the video poster, and tags can be edited on
   the tile.
+- Add the Media page's **Media sidebar**: the selected medium is shown large beside the
+  grid, with previous/next arrows for the current selection and the gallery's video keys.
+  It is on by default, can be switched in **Layout** or with Ctrl/Cmd+Shift+M, and hides
+  below a configurable page width without losing the choice. Its width defaults to 360 dip
+  (240–900), and the hide threshold to 1000 dip (600–3000).
 - Share one right-click menu across the Media page, Archive table, tiles, inline
   attachments, gallery and video overlay (same order, labels and reasons; also via
   Shift+F10 and the Menu key); the gallery menu now offers own tags.
@@ -189,8 +194,9 @@
 - Add seven bundled UI languages next to English, German, Spanish, French and Russian: Simplified
   Chinese (简体中文), Japanese (日本語), Korean (한국어), Brazilian Portuguese (Português (Brasil)),
   Czech (Čeština), Italian (Italiano) and Polish (Polski). They are AI-authored translation
-  previews that no native speaker has reviewed, so the chooser marks each one **(Untested)**;
-  missing texts fall back to English, and the saved language is never changed on its own. Counted
+  previews with text, plural and terminology reviews, but no native-speaker acceptance, so the
+  chooser marks each one **(Untested)**; missing texts fall back to English, and the saved language
+  is never changed on its own. Counted
   texts follow each language's plural rules (Czech and Polish have separate forms for 2 to 4).
   Chinese, Japanese and Korean use the fonts of your system, with the regional glyph shapes of the
   chosen language first; nothing is bundled, so **Linux needs Noto Sans CJK installed**
@@ -302,8 +308,8 @@
   link; captured addresses stay inert) and the cats Simba and Mila with the photographer's
   credit; the picture is copied as `meowchan-cats.png` next to `index.html`. The export still has
   no script, no external load and the same strict content policy; its texts follow the export
-  language, in all 12 interface languages (the seven newer texts are AI-authored and not reviewed by
-  native speakers).
+  language, in all 12 interface languages (the preview packs have text/plural reviews but no
+  native-speaker acceptance).
 - Explain an unusable settings file at startup in your language instead of an English technical
   sentence: the window says what happened (a usable backup exists, the file is from a newer
   version, it is damaged without a backup, or the profile has data but no settings file), that
@@ -517,11 +523,11 @@
   a value (no name, never saved, unrated) stay last in both directions, and a group of identical
   files counts its highest tag count or rating. The criterion and direction are saved and restored;
   **Random** returns to **By thread** on the next start.
-- Tag from a panel in the gallery (quick tagging, first part). **Tags** in the gallery (also
-  **Ctrl/Cmd+Shift+T**) opens a quick tag panel in the slot of the post panel instead of the tag
-  dialog; the two panels exclude each other (**P** returns to the post panel) and the placement
-  rules of the post panel apply. The panel follows the gallery from medium to medium with a fresh
-  target frozen to exactly the shown file ("Medium 4 of 27", announced politely), keeps its
+- Complete quick tagging across the gallery and the other media surfaces. **Tags** in the
+  gallery (also **Ctrl/Cmd+Shift+T**) opens a quick tag panel in the slot of the post panel instead
+  of the tag dialog; the two panels exclude each other (**P** returns to the post panel) and the
+  placement rules of the post panel apply. The panel follows the gallery from medium to medium with
+  a fresh target frozen to exactly the shown file ("Medium 4 of 27", announced politely), keeps its
   undo steps and the text of the field, and says why a medium cannot be tagged instead of keeping
   the previous file's target. It offers numbered suggestions ranked from the context (tags used
   often and recently, from the thread, on nearby media, same file elsewhere, file name, thread
@@ -532,9 +538,10 @@
   (**Cmd+Down** and **Cmd+Up** on macOS), **Ctrl/Cmd+Enter** to add the typed tag and go on,
   **Ctrl/Cmd+T** for the thread section, **Ctrl/Cmd+Z** to undo and **Alt+1** to **Alt+9** for the
   suggestions. **Advanced…** opens the full tag dialog (occurrences, sorting, long lists) and
-  the panel reloads afterwards. The panel texts are in all 12 languages (the ten beyond English and
-  German are unreviewed). Still open: the right-click popover (TP3) and marking several media for one
-  tag change (TP4, **Shift+Page Down/Up**) are not connected, and the other tag dialogs remain.
+  the panel reloads afterwards. The panel texts are in all 12 languages, with text/plural reviews
+  but no native-speaker acceptance. The right-click popovers on Media, Reader attachments and
+  Archive tiles and marking several media for one tag change (**Shift+Page Down/Up**) are integrated;
+  native interaction acceptance remains open.
 - Add the seven quick tagging limits under **Storage and limits**, group **Quick tagging**:
   suggestions shown (default 9, 3 to 18), recently used tags remembered (50, 0 to 500), undo steps
   (20, 1 to 100), neighbouring media checked for tags (2000, 100 to 20000), file name words used
@@ -543,8 +550,8 @@
   saved and reduced when a settings file is read; the search finds each row. The saved limits apply
   when the gallery panel is opened again. The recent-tag limit also updates immediately on save:
   zero forgets the remembered tags, and re-enabling it does not restore them. The marked-media limit has
-  no effect until marking (TP4) is connected. The twelve language packs carry the texts (ten of
-  them unreviewed).
+  bounds the integrated gallery marking selection. The texts are in all 12 languages, with
+  text/plural reviews but no native-speaker acceptance.
 - Prepare a lazy scrub preview for videos (positional thumbnails in 5 % slots keyed by the verified
   content, with a bounded disk budget): the code is in, but no control, setting or screen uses it
   yet.
@@ -563,9 +570,11 @@
   the wizard returns to the overview, says "Rule for … saved. Applies to new decisions." in a polite
   status and focuses the saved rule's row (a new rule: its new row). A refused or failed save
   (invalid input, a rule changed meanwhile, a store error) stays in the wizard with its field
-  error; **Discard** is unchanged. The text is in all 12 languages (ten unreviewed).
-- Upgrade: archive schema 5 to 12, media manifest 4 to 5 (6 for imported representations),
-  work journal pruning with one backup and a `user_version` stamp, new `private-tags.json`,
+  error; **Discard** is unchanged. The text is in all 12 languages, with text/plural reviews
+  but no native-speaker acceptance.
+- Upgrade: archive schema 5 to 13 (schema 13 adds nullable provider-reported attachment
+  width and height), media manifest 4 to 5 (6 for imported representations), work journal pruning
+  with one backup and a `user_version` stamp, new `private-tags.json`,
   media index cache (version 4; version 3 files are still read, so there is no cold rebuild
   after the update), `booru-catalog.json`, `local-imports.json` with the `meowchan-import/`
   folder, and the new limit and animation settings.
