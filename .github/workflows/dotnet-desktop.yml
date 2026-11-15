@@ -273,7 +273,7 @@ jobs:
           PY
           fi
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils
+          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils bubblewrap
       - name: Exercise native graphical startup and fallback paths
         id: smoke_normal
         # Keep independent checks running so one failure yields a complete evidence set.

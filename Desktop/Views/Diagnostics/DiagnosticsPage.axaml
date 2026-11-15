@@ -13,9 +13,8 @@
          the one the Status head and segment bar use, so the sides line up at 12 dip, not 24. -->
     <Grid Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
         <!-- Keep page content scrollable at the shell minimum, including with a retained error banner. The Status page above
-             already carries the title, the hint and the counts, so the segment starts with its filters. The content root
-             takes at least the viewport height (code-behind), which lets the table row use the free height (Height *); its
-             own bounded, virtualized row viewport comes from the grid's MaxHeight. -->
+             already carries the title, the hint and the counts, so the segment starts with its filters. The fixed action row
+             below owns the remaining space; the scroll content must not claim that same viewport a second time. -->
         <ScrollViewer x:Name="DiagnosticsContentScroll" HorizontalScrollBarVisibility="Disabled" SizeChanged="OnDiagnosticScrollSizeChanged">
             <Grid x:Name="DiagnosticsContentRoot" RowDefinitions="Auto,Auto,*,Auto,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                 <!-- Work views: Barebones starts with the filters closed (an active filter opens them, R6); the data and the default values are the same in every view. -->
