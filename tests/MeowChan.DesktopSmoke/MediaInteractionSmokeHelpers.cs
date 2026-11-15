@@ -12,8 +12,8 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>Geometry and decoder observations only; never fabricates input or playback state.</summary>
 internal static class MediaInteractionSmokeHelpers
 {
-    internal static bool EdgeHintVisible(Button target) => target.GetVisualDescendants().OfType<TextBlock>()
-        .Any(text => text.IsEffectivelyVisible && text.Opacity > .01);
+    internal static bool EdgeHintVisible(Button target) => target.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()
+        .Any(path => path.IsEffectivelyVisible && path.Opacity > .01);
 
     internal static void RequireBorderlessEdgeTarget(Button target)
     {

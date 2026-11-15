@@ -163,9 +163,14 @@ internal sealed class GallerySidePanel : Grid
     {
         if (e.Handled || ArrowTarget(e.Key, e.KeyModifiers) is not { } target) return false;
         if (!_post.IsFocused && !_tags.IsFocused) return false;
+        // An arrow pointing at the segment that is already shown is still a gallery
+        // navigation command. The post edge indicator focuses the Post segment;
+        // swallowing its first Left would make the native key look like a reveal-only
+        // press instead of moving to the previous medium.
+        if (target == _shown) return false;
         e.Handled = true;
         if (target == GallerySidePanelSegment.Tags && !_tagsAvailable) return true;
-        if (target != _shown) SegmentRequested?.Invoke(target, false);
+        SegmentRequested?.Invoke(target, false);
         (_shown == GallerySidePanelSegment.Tags ? _tags : _post).Focus(NavigationMethod.Directional);
         return true;
     }
