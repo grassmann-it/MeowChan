@@ -218,6 +218,66 @@ internal sealed class TagSuggestionIndex
         return mine.Concat(provided).Concat(create).ToArray();
     }
 
+    /// <summary>
+    /// The list of a tag field that takes several tags at once (<see cref="TagEntryParser"/>). While the first word is typed it is
+    /// <see cref="Combine"/>, plus the aliases that match (<c>pee → piss</c>, choosing it writes the target's name). Once other tags
+    /// stand before it, the last word is completed: existing names that continue the whole draft first (a name with spaces), then
+    /// own tags, aliases and source tags matching the last word, each written in place of that word (quoted when needed). No "New
+    /// tag" row then: Enter adds every name of the draft.
+    /// </summary>
+    internal static IdentitySuggestion[] CombineEntry(PrivateTagStoreSnapshot snapshot, TagSuggestionIndex? sources, string? text,
+        IReadOnlySet<TagId>? assigned, bool browse = false)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        TagSuggestionIndex own = For(snapshot);
+        (string prefix, string last) = TagEntryParser.SplitLast(text);
+        if (prefix.Trim().Length == 0)
+        {
+            IdentitySuggestion[] plain = Combine(own, sources, text, assigned, browse);
+            IdentitySuggestion[] aliasRows = AliasRows(snapshot, string.Empty, text, assigned);
+            if (aliasRows.Length == 0) return plain;
+            // A typed alias gives its tag: no "New tag" row for it.
+            bool mapped = snapshot.Resolve(text, out PrivateTagAlias? alias) != null && alias != null;
+            IdentitySuggestion[] kept = plain.Where(item => !(mapped && item.Source == CreateGroup)).ToArray();
+            int create = Array.FindIndex(kept, item => item.Source is SourceGroup or CreateGroup);
+            return create < 0 ? kept.Concat(aliasRows).ToArray() : kept[..create].Concat(aliasRows).Concat(kept[create..]).ToArray();
+        }
+        if (QueryKey(last) == null) return Array.Empty<IdentitySuggestion>();
+        List<IdentitySuggestion> rows = new();
+        HashSet<string> values = new(StringComparer.Ordinal);
+        void Add(IdentitySuggestion item) { if (values.Add(item.Value)) rows.Add(item); }
+        // A name with spaces that the whole draft starts: "big ti" offers "big tits".
+        foreach (TagSuggestion item in own.Match(text, assigned, OwnLimit).Where(item => item.Kind is TagMatchKind.Exact or TagMatchKind.Prefix))
+            Add(Present(item));
+        foreach (TagSuggestion item in own.Match(last, assigned, OwnLimit))
+            Add(Present(item) with { Value = TagEntryParser.Complete(prefix, item.Name.Display) });
+        foreach (IdentitySuggestion item in AliasRows(snapshot, prefix, last, assigned)) Add(item);
+        TagSuggestion[] sourceMatches = sources?.Match(last, null, SourceLimit, own.Keys).ToArray() ?? Array.Empty<TagSuggestion>();
+        IdentitySuggestion[] provided = sourceMatches.Select(item => PresentSource(item) with { Value = TagEntryParser.Complete(prefix, item.Name.Display) }).ToArray();
+        if (provided.Length > 0) provided[0] = provided[0] with { GroupHeader = Texts.T("tags.suggest.sourceGroup") };
+        foreach (IdentitySuggestion item in provided) Add(item);
+        return rows.Take(VisibleLimit).ToArray();
+    }
+
+    // Aliases whose name starts with the typed word, each offering its tag (never one the target carries already).
+    private static IdentitySuggestion[] AliasRows(PrivateTagStoreSnapshot snapshot, string prefix, string? word, IReadOnlySet<TagId>? assigned)
+    {
+        if (snapshot.Aliases.Count == 0 || QueryKey(word) is not { } key) return Array.Empty<IdentitySuggestion>();
+        string folded = TagNameFold.Fold(key);
+        List<IdentitySuggestion> rows = new();
+        foreach (PrivateTagAlias alias in snapshot.Aliases)
+        {
+            if (!alias.Name.Key.StartsWith(key, StringComparison.Ordinal)
+                && !TagNameFold.Fold(alias.Name).StartsWith(folded, StringComparison.Ordinal)) continue;
+            if (assigned?.Contains(alias.Tag) == true || snapshot.Find(alias.Tag) is not { } tag) continue;
+            rows.Add(new IdentitySuggestion(TagEntryParser.Complete(prefix, tag.Name.Display), AliasGroup,
+                Texts.T("tags.suggest.alias", alias.Name.Display, tag.Name.Display),
+                Texts.T("tags.suggest.aliasName", alias.Name.Display, tag.Name.Display)));
+            if (rows.Count >= SourceLimit) break;
+        }
+        return rows.ToArray();
+    }
+
     internal static IdentitySuggestion Present(TagSuggestion item)
     {
         string name = item.Name.Display;
@@ -236,6 +296,8 @@ internal sealed class TagSuggestionIndex
 
     /// <summary><see cref="IdentitySuggestion.Source"/> of a provider source tag row and of the "New tag" row.</summary>
     internal const string SourceGroup = "booru-source-tag", CreateGroup = "new-tag";
+    /// <summary><see cref="IdentitySuggestion.Source"/> of an alias row ("pee → piss").</summary>
+    internal const string AliasGroup = "tag-alias";
 }
 
 /// <summary>
@@ -315,7 +377,7 @@ internal static class TagSuggestionInput
         {
             PrivateTagStoreSnapshot? current = snapshot();
             if (current == null || !box.IsEffectivelyEnabled) return Task.FromResult(Array.Empty<IdentitySuggestion>());
-            return Task.FromResult(TagSuggestionIndex.Combine(TagSuggestionIndex.For(current), sources?.Current, text, assigned(),
+            return Task.FromResult(TagSuggestionIndex.CombineEntry(current, sources?.Current, text, assigned(),
                 browse: box.IsExplicitRequest));
         };
         if (sources != null) sources.Loaded += box.RefreshSuggestions;

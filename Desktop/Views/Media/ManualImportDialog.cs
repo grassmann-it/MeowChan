@@ -214,7 +214,12 @@ internal sealed class ManualImportDialog : Window
     {
         string text = _tagInput.Text ?? string.Empty;
         if (string.IsNullOrWhiteSpace(text)) return;
-        if (_session.AddTag(text)) _tagInput.Text = string.Empty;
+        // Several tags in one entry (spaces, quotes, commas), each through the alias table to its unified name.
+        TagEntry entry = TagEntryParser.Parse(text, _tagSnapshot());
+        if (TagEntryParser.IsPlain(entry, text) || entry.Invalid.Count > 0) { if (_session.AddTag(text)) _tagInput.Text = string.Empty; return; }
+        bool all = true;
+        foreach (TagEntryItem item in entry.Items) all &= _session.AddTag(item.Name.Display);
+        if (all) _tagInput.Text = string.Empty;
     }
 
     private void OnTagKey(object? sender, KeyEventArgs e)

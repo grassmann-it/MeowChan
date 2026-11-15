@@ -17,7 +17,7 @@ internal static class TagSuggestionCatalog
         ("tags.suggest.sourceLabel", "{0} · Danbooru ({1})", "{0} · Danbooru ({1})"),
         ("tags.suggest.sourceName", "{0}, Danbooru source tag, saved posts with it: {1}. Choosing it creates an own tag with this name.",
             "{0}, Danbooru-Quelltag, gespeicherte Posts damit: {1}. Die Auswahl legt einen eigenen Tag mit diesem Namen an."),
-        ("tags.suggest.hint", "Type to see matching own tags. Enter or a comma at the end adds the tag; Tab completes the highlighted suggestion.",
-            "Tippen zeigt passende eigene Tags. Enter oder ein Komma am Ende fügt den Tag hinzu; Tab vervollständigt den markierten Vorschlag."),
+        ("tags.suggest.hint", "Type to see matching own tags. Enter or a comma at the end adds the tag; Tab completes the highlighted suggestion. Several tags at once: separate them with spaces and put a tag with spaces in quotes (\"big cats\" fox), or separate them with commas. Other names of a tag give that tag.",
+            "Tippen zeigt passende eigene Tags. Enter oder ein Komma am Ende fügt den Tag hinzu; Tab vervollständigt den markierten Vorschlag. Mehrere Tags auf einmal: mit Leerzeichen trennen und einen Tag mit Leerzeichen in Anführungszeichen setzen (\"big cats\" fox), oder mit Kommas trennen. Weitere Namen eines Tags ergeben diesen Tag."),
     };
 }

@@ -50,7 +50,7 @@ internal static class TagBarCatalog
         ("tags.filter.error.both", "This tag is already in the other list. A tag cannot be included and excluded at the same time.", "Dieser Tag steht schon in der anderen Liste. Ein Tag kann nicht zugleich eingeschlossen und ausgeschlossen sein."),
         ("tags.manage.open", "Manage tags…", "Tags verwalten…"),
         ("tags.manage.title", "Manage tags", "Tags verwalten"),
-        ("tags.manage.intro", "Rename or delete your own tags. Tags stay local in this profile.", "Eigene Tags umbenennen oder löschen. Tags bleiben lokal in diesem Profil."),
+        ("tags.manage.intro", "Rename, merge or delete your own tags. Tags stay local in this profile.", "Eigene Tags umbenennen, zusammenführen oder löschen. Tags bleiben lokal in diesem Profil."),
         ("tags.manage.list", "Own tags", "Eigene Tags"),
         ("tags.manage.row", "{0} · threads: {1} · media: {2}", "{0} · Threads: {1} · Medien: {2}"),
         ("tags.manage.name", "New name", "Neuer Name"),

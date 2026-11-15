@@ -67,6 +67,8 @@ public partial class ArchivePage
         _deletePrivateTag = host.DeletePrivateTagAsync;
         _inspectLocalTagOrphans = host.InspectLocalMediaTagOrphansAsync;
         _removeLocalTagOrphans = host.RemoveLocalMediaTagAssignmentsAsync;
+        _tagMergeCommands = new TagMergeCommands(host.MergePrivateTagsAsync, host.UndoPrivateTagMergeAsync,
+            host.AddPrivateTagAliasAsync, host.RemovePrivateTagAliasAsync);
         ReloadPrivateTags();
     }
 
@@ -235,12 +237,19 @@ public partial class ArchivePage
         PrivateTagTask = AddThreadTagAsync(name, clearInput: true);
     }
 
-    // Create-or-get, then assign. Both steps are idempotent, so a repeated click cannot duplicate.
+    // Create-or-get, then assign. Both steps are idempotent, so a repeated click cannot duplicate. One entry may name several
+    // tags (TagEntryParser: spaces, quotes, commas); each goes through the alias table and is added in turn.
     private Task AddThreadTagAsync(string name, bool clearInput) => RunThreadTagOperationAsync(async (thread, token) =>
     {
-        PrivateTagCommit defined = await _definePrivateTag!(name, token);
-        AdoptPrivateTagCommit(defined);
-        AdoptPrivateTagCommit(await _setThreadTag!(defined.Tag, thread, true, token));
+        TagEntry entry = TagEntryParser.Parse(name, _privateTags);
+        IEnumerable<string> names = TagEntryParser.IsPlain(entry, name) || entry.Invalid.Count > 0
+            ? new[] { entry.Invalid.Count > 0 ? entry.Invalid[0] : name } : entry.Items.Select(item => item.Name.Display);
+        foreach (string each in names)
+        {
+            PrivateTagCommit defined = await _definePrivateTag!(each, token);
+            AdoptPrivateTagCommit(defined);
+            AdoptPrivateTagCommit(await _setThreadTag!(defined.Tag, thread, true, token));
+        }
     }, clearInput);
 
     private Task RemoveThreadTagAsync(TagId tag) => RunThreadTagOperationAsync(async (thread, token) =>

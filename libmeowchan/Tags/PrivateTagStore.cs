@@ -253,10 +253,10 @@ internal enum PrivateTagWritePhase { BeforeBackupCheck, BeforeReplace, AfterRepl
 
 /// <summary>
 /// Profile-owned persistence for own tags (contracts: private-tag-store-v1, private-tag-store-v2 with the
-/// local-media-occurrence-v1 registry). One JSON document,
+/// local-media-occurrence-v1 registry, private-tag-store-v3 with aliases and tag merging). One JSON document,
 /// rewritten atomically with a backup, guarded by the profile lease and store-writer admission.
-/// Invalid or newer documents are never overwritten. No merge of tags, no transfer, no source
-/// tags and no archive-existence checks live here.
+/// Invalid or newer documents are never overwritten. No transfer, no source tags and no
+/// archive-existence checks live here.
 /// </summary>
 internal sealed class PrivateTagStore
 {

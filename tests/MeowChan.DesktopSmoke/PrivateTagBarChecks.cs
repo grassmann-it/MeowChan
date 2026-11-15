@@ -749,6 +749,31 @@ internal static class PrivateTagBarChecks
         Require(TagCell(f, secondRow) == "navy" && secondRow.TagsText == "Tags: navy" && TagCell(f, firstRow) == "", "Table column did not follow the rename: " + TagCell(f, secondRow));
         Require(ReferenceEquals(f.C<DataGrid>("ArchiveThreadTable").ItemsSource, f.C<ListBox>("ArchiveThreads").ItemsSource)
             && f.C<ListBox>("ArchiveThreads").ItemsSource!.Cast<ArchiveThreadRow>().Contains(secondRow), "Rename reloaded the list.");
+        // Merge: two selected tags, the question with the most used tag as target, preview and Cancel as the default; then merge,
+        // the merged name as an alias of the target, and the one-step undo.
+        manager = await OpenManagerAsync();
+        Require(manager.MergeButton.IsVisible && !manager.MergeButton.IsEffectivelyEnabled, "Merge is offered without two selected tags.");
+        manager.List.SelectedItems!.Clear();
+        foreach (TagManagerRow row in manager.List.ItemsSource!.Cast<TagManagerRow>()) manager.List.SelectedItems.Add(row);
+        Require(manager.MergeButton.IsEffectivelyEnabled, "Merge is not enabled for two selected tags.");
+        manager.MergeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(manager.MergePanel.IsVisible && manager.MergeCancelButton.IsFocused
+            && (manager.MergeTarget.SelectedItem as TagManagerRow)?.Name == "navy"
+            && manager.MergePreview.Text == Texts.T("tags.merge.preview", 0, 0, "navy", Texts.T("tags.merge.quoted", "fixed_name")),
+            "Merge did not ask with target, preview and a safe default: " + manager.MergePreview.Text);
+        Require(f.Stored().Tags.Count == 2, "Asking already merged.");
+        Capture(manager, "manager-merge");
+        manager.MergeConfirmButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        Require(Listed(manager).SequenceEqual(new[] { "navy:1:0" }) && manager.Status.Text == Texts.T("tags.merge.done", "navy")
+            && f.Stored().Aliases.Single().Name.Display == "fixed_name" && manager.UndoMergeButton.IsVisible
+            && manager.AliasPanel.IsVisible && manager.AliasList.ItemCount == 1, "Merge failed: " + manager.Status.Text);
+        manager.UndoMergeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await IdleAsync(manager);
+        Require(f.Stored().Tags.Count == 2 && f.Stored().Aliases.Count == 0 && !manager.UndoMergeButton.IsVisible
+            && manager.Status.Text == Texts.T("tags.merge.undone"), "Undo merge failed: " + manager.Status.Text);
+        manager.List.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await page.TagManagerTask.WaitAsync(Deadline);
         // SHA-256 search is reachable from the reader, for exactly this thread's one media inventory:
         // AP2 makes it the SHA-256 scope of the reader find bar (empty draft opens the dialog idle).
         Button hash = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.Sha256);
