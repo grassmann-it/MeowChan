@@ -397,6 +397,7 @@ public sealed class MediaFilterGridTests : IDisposable
         }
         string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs");
         Assert.Contains("Name = \"MediaFilterResetAll\"", chips);
+        Assert.Contains("MinHeight = 32", chips);
         Assert.Contains("_filterResetAll.Content = Texts.T(\"media.filter.resetAll\");", chips);
         // The grid's empty state keeps its own reset (a filter that matches nothing).
         Assert.Contains("_emptyReset.Content = Texts.T(\"media.filter.reset\");", chips);
