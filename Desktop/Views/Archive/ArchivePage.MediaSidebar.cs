@@ -147,6 +147,8 @@ public partial class ArchivePage
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
+        // The "No." of its header line copies the post's reference like the post's own number does.
+        sidebar.PostLinkClicked += (_, _) => { if (!_ended && ArchivePosts.SelectedItem is ArchivePostRow post) _ = CopyPostReferenceAsync(post); };
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
@@ -522,7 +524,7 @@ public partial class ArchivePage
             sidebar.ClearStrip();
             OfferSidebarVideo(null, null);
             string reason = Texts.T(post.HasMediaHiddenLine ? "reader.sidebar.hidden" : "reader.sidebar.noMedia", post.Id);
-            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false);
+            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);
             sidebar.ConfigureFavorite(null);
             sidebar.Dim(reason);
             ScheduleSidebarAnnouncement(reason);
@@ -535,7 +537,7 @@ public partial class ArchivePage
         // The position of the medium in its post is the strip's and the announcement's; the header line names the post, the file and its size.
         string postLine = post.NumberLabel;
         string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
-        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null);
+        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);

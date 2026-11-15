@@ -76,7 +76,7 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
 /// One tile: verified thumbnail for saved images and the local poster of saved videos, a placeholder otherwise. Thumbnails load only while
 /// visible and never fetch anything from the network.
 /// </summary>
-internal sealed class MediaLibraryTileView : UserControl
+internal sealed partial class MediaLibraryTileView : UserControl
 {
     private static int _pendingLoads;
     /// <summary>Tile previews waiting for a load slot or being loaded right now, over all media pages (the sound check waits for them).</summary>
@@ -115,6 +115,9 @@ internal sealed class MediaLibraryTileView : UserControl
     // C1: filled own-tag chips (chip-own chip-compact); a thread tag carries a small house mark besides (R7).
     private readonly Button[] _tagChips = new Button[2];
     private readonly TextBlock _moreTags = new TextBlock { Name = "MediaTileMoreTags", MaxLines = 1, IsVisible = false, VerticalAlignment = VerticalAlignment.Center }.CaptionText();
+    // The "+N" is a link that opens the tag editor of the tile (the tooltip lists the names that did not fit).
+    private readonly Button _moreTagsLink = new() { Name = "MediaTileMoreTagsLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
+        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Center };
     private IDisposable? _selection;
     private Bitmap? _bitmap;
     private Grid? _rows;
@@ -267,11 +270,13 @@ internal sealed class MediaLibraryTileView : UserControl
             };
             tags.Children.Add(chip);
         }
-        tags.Children.Add(_moreTags);
+        _moreTagsLink.Content = _moreTags;
+        tags.Children.Add(_moreTagsLink);
         _favorite.VerticalAlignment = VerticalAlignment.Center;
         grid.Children.Add(tags); Grid.SetRow(tags, 4);
         foreach (TextBlock text in new[] { _thread, _detail, _duplicates, _favorite, _moreTags }) text.Classes.Add("workspace-meta");
         Content = grid;
+        InitializeAffordances(); // the "+N" link, the badge zones, the chips' menus (MediaLibraryTileView.Affordances.cs)
         DataContextChanged += (_, _) => { Reset(); Present(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
@@ -390,10 +395,12 @@ internal sealed class MediaLibraryTileView : UserControl
         }
         int more = tags.Count - shown;
         _moreTags.IsVisible = more > 0;
+        _moreTagsLink.IsVisible = more > 0;
         _moreTags.Text = more > 0 ? "+" + more.ToString(Texts.Culture) : null;
         string moreHint = more > 0 ? Texts.T("media.tile.moreTags", string.Join(", ", tags.Skip(shown).Select(tag => tag.Name.Display))) : string.Empty;
         ToolTip.SetTip(_moreTags, more > 0 ? moreHint : null);
         AutomationProperties.SetName(_moreTags, moreHint);
+        AutomationProperties.SetName(_moreTagsLink, moreHint);
     }
 
     /// <summary>The tag name inside a tile chip.</summary>
@@ -409,16 +416,19 @@ internal sealed class MediaLibraryTileView : UserControl
     {
         private const double Spacing = 8;
 
+        // The "+N" link keeps its width like the favourite; only the tag chips share what is left.
+        private static bool IsChip(Control child) => child is Button button && !button.Classes.Contains("link");
+
         protected override Size MeasureOverride(Size availableSize)
         {
             Control[] visible = Children.Where(child => child.IsVisible).ToArray();
             double left = Math.Max(0, availableSize.Width - Spacing * Math.Max(0, visible.Length - 1)), height = 0;
-            foreach (Control child in visible.Where(child => child is not Button))
+            foreach (Control child in visible.Where(child => !IsChip(child)))
             {
                 child.Measure(new Size(left, availableSize.Height));
                 left = Math.Max(0, left - child.DesiredSize.Width);
             }
-            Button[] chips = visible.OfType<Button>().ToArray();
+            Button[] chips = visible.Where(IsChip).Cast<Button>().ToArray();
             for (int index = 0; index < chips.Length; index++)
             {
                 chips[index].Measure(new Size(left / (chips.Length - index), availableSize.Height));

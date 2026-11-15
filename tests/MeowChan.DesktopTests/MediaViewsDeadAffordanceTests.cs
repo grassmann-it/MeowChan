@@ -1,0 +1,386 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
+using Avalonia.Rendering;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+using MeowChan.Tags;
+
+namespace MeowChan.DesktopTests;
+
+// Package D of the dead-affordance audit (15.11.2026), the media views: the sidebar's cursor, hidden cross and "No." link, the media tile's "+N" link, badge
+// zones and tag chip menu, the file name of a post's attachment and the media panel's right click. The views are built and driven without a window; the
+// wiring that needs a page is checked against its source, as the other package tests do.
+[Collection("Localization")]
+public sealed class MediaViewsDeadAffordanceTests : IDisposable
+{
+    private static readonly DateTimeOffset Day = new(2026, 11, 1, 0, 0, 0, TimeSpan.Zero);
+
+    public MediaViewsDeadAffordanceTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
+
+    // The sidebar loads icon masks, so its tests need the asset loader (and the hand cursor needs a cursor factory): the platform without a window, once.
+    private static readonly object PlatformGate = new();
+    private static void Platform()
+    {
+        lock (PlatformGate)
+            if (Application.Current == null)
+                AppBuilder.Configure<Application>().UseSkia().UseStandardRuntimePlatformSubsystem().UseHarfBuzz()
+                    .UseWindowingSubsystem(() => { }).SetupWithoutStarting();
+    }
+    public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
+
+    private static string RepositoryRoot()
+    {
+        string? directory = AppContext.BaseDirectory;
+        while (directory != null && !File.Exists(Path.Combine(directory, "MeowChan.sln"))) directory = Path.GetDirectoryName(directory);
+        return directory ?? throw new DirectoryNotFoundException("The repository root was not found.");
+    }
+
+    private static string Source(string relative) => File.ReadAllText(Path.Combine(RepositoryRoot(), relative));
+
+    // ---- the reader sidebar -----------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheSidebarsHandCursorShowsOnlyWhileAClickOpensAMedium()
+    {
+        Platform();
+        ReaderMediaSidebar sidebar = new();
+        // Nothing selected: the placeholder says so, a click opens nothing, so no hand.
+        Assert.False(sidebar.FrameClickable);
+        Assert.Null(sidebar.Frame.Cursor);
+        // A medium that is loading (its text shows) can be opened: the hand.
+        sidebar.Describe("No. 7", "cat.png", "1 KiB", canOpen: true);
+        sidebar.ShowPlaceholder("Loading");
+        Assert.True(sidebar.FrameClickable);
+        Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
+        // A post without media: the reason is shown, but nothing opens.
+        sidebar.Describe("No. 8", string.Empty, string.Empty, canOpen: false);
+        sidebar.Dim("No media");
+        Assert.False(sidebar.FrameClickable);
+        Assert.Null(sidebar.Frame.Cursor);
+        // Back to empty.
+        sidebar.ShowEmpty();
+        Assert.False(sidebar.FrameClickable);
+        Assert.Null(sidebar.Frame.Cursor);
+        // The gallery button changing its state follows too.
+        sidebar.ShowPlaceholder("Loading");
+        Assert.False(sidebar.FrameClickable);
+        sidebar.Open.IsEnabled = true;
+        Assert.True(sidebar.FrameClickable);
+        Assert.Same(PointerCursors.Hand, sidebar.Frame.Cursor);
+    }
+
+    [Fact]
+    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible()
+    {
+        Platform();
+        ReaderMediaSidebar sidebar = new();
+        Assert.Equal(0, sidebar.Close.Opacity);
+        Assert.False(sidebar.Close.IsHitTestVisible);
+        // The pointer over the sidebar shows it, and then it is clickable; leaving hides it and takes the click away again.
+        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerEnteredEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
+            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
+        Assert.Equal(1, sidebar.Close.Opacity);
+        Assert.True(sidebar.Close.IsHitTestVisible);
+        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerExitedEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
+            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
+        Assert.Equal(0, sidebar.Close.Opacity);
+        Assert.False(sidebar.Close.IsHitTestVisible);
+    }
+
+    [Fact]
+    public void TheHeadersPostNumberIsALinkWhenTheHostGaveItATipAndTheLineStaysWhole()
+    {
+        Platform();
+        ReaderMediaSidebar sidebar = new();
+        int clicks = 0;
+        sidebar.PostLinkClicked += (_, _) => clicks++;
+        sidebar.Describe("No. 75", "cat.png", "880 KiB", canOpen: true, postLinkTip: "Copy >>75");
+        Assert.True(sidebar.PostLink.IsVisible);
+        Assert.Equal("No. 75", sidebar.PostLink.Content);
+        Assert.Equal("Copy >>75", ToolTip.GetTip(sidebar.PostLink));
+        Assert.Equal("No. 75 · cat.png · 880 KiB", sidebar.HeaderLine); // smokes and the screen reader still read one line
+        Assert.Contains("link", sidebar.PostLink.Classes);
+        RoutedEventArgs click = new(Button.ClickEvent);
+        sidebar.PostLink.RaiseEvent(click);
+        Assert.Equal(1, clicks);
+        Assert.True(click.Handled); // the picture and the header are not activated by it
+
+        // A post without a medium: the number alone is still the link.
+        sidebar.Describe("No. 75", string.Empty, string.Empty, canOpen: false, postLinkTip: "Copy >>75");
+        Assert.True(sidebar.PostLink.IsVisible);
+        Assert.Equal("No. 75", sidebar.HeaderLine);
+
+        // The media page's panel gives no tip: its line is the plain text, as before.
+        sidebar.Describe("Post 12", "dog.png", "1 KiB", canOpen: true);
+        Assert.False(sidebar.PostLink.IsVisible);
+        Assert.Equal("Post 12 · dog.png · 1 KiB", sidebar.HeaderLine);
+        sidebar.ShowEmpty();
+        Assert.False(sidebar.PostLink.IsVisible);
+        Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
+    }
+
+    [Fact]
+    public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber()
+    {
+        string page = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
+        Assert.Contains("sidebar.PostLinkClicked += (_, _) => { if (!_ended && ArchivePosts.SelectedItem is ArchivePostRow post) _ = CopyPostReferenceAsync(post); };", page);
+        Assert.Contains("sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);", page);
+        Assert.Contains("sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel);", page);
+    }
+
+    // ---- the media tile ----------------------------------------------------------------------------------------------------------
+
+    private static MediaLibraryEntry Entry(string thread = "1") =>
+        new(new ResourceId("s", "b", thread), "T" + thread, 1, Day, Day, "1", 1, null, 0, "att-v1:" + new string('a', 64),
+            "/dir/" + thread, "asset-" + thread, new string('a', 64), 1, "m" + thread, "original", "f.png", SavedMediaKind.Image,
+            MediaLibraryPresence.Present, false, false);
+
+    private static PrivateTagDefinition Tag(int id, string name)
+    {
+        Assert.True(PrivateTagName.TryCreate(name, out PrivateTagName? tagName, out _));
+        return new PrivateTagDefinition(new TagId(new Guid(id, 0, 0, new byte[8])), tagName!);
+    }
+
+    private static MediaLibraryTileRow Row(MediaLibraryEntry entry, params PrivateTagDefinition[] tags) => new(new MediaLibraryTile(entry, [entry]), 0, e =>
+        new MediaLibraryEntryState(MediaLibraryFlag.No, true, null, true, tags.Select(tag => tag.Name.Display).ToArray(), Array.Empty<string>(), MediaTagSubjects.Of(e))
+        { CarriedTags = tags });
+
+    private static Button[] Chips(Control view) => view.GetLogicalDescendants().OfType<Button>().Where(button => button.Name == "MediaTileTag").ToArray();
+
+    [Fact]
+    public void ThePlusNAfterTheTagChipsIsALinkThatOpensTheTagEditorOfThatTile()
+    {
+        MediaLibraryEntry entry = Entry();
+        MediaLibraryTileRow row = Row(entry, Tag(1, "cat"), Tag(2, "dog"), Tag(3, "owl"));
+        List<(MediaLibraryTileRow Row, Control Anchor)> edited = new();
+        MediaLibraryTileView view = new() { EditTags = (r, anchor) => edited.Add((r, anchor)), DataContext = row };
+        Button link = view.MoreTagsLink;
+        Assert.True(link.IsVisible);
+        Assert.Contains("link", link.Classes);
+        Assert.Same(link, view.GetLogicalDescendants().OfType<Button>().Single(button => button.Name == "MediaTileMoreTagsLink"));
+        Assert.Equal("+1", ((TextBlock)link.Content!).Text);
+        Assert.Equal(Texts.T("media.tile.moreTags", "owl"), Avalonia.Automation.AutomationProperties.GetName(link));
+        RoutedEventArgs click = new(Button.ClickEvent);
+        link.RaiseEvent(click);
+        Assert.True(click.Handled); // the tile is not activated by it
+        Assert.Equal([(row, (Control)view)], edited);
+
+        // No tag beyond the chips: no link, and a recycled tile loses it.
+        view.DataContext = Row(entry, Tag(1, "cat"));
+        Assert.False(link.IsVisible);
+    }
+
+    [Fact]
+    public void TheLinkKeepsItsWidthInTheTagRowWhileTheChipsShareTheRest()
+    {
+        string tile = Source("Desktop/MediaLibraryTileView.cs");
+        Assert.Contains("private static bool IsChip(Control child) => child is Button button && !button.Classes.Contains(\"link\");", tile);
+        Assert.Contains("visible.Where(child => !IsChip(child))", tile);
+        Assert.Contains("visible.Where(IsChip).Cast<Button>()", tile);
+    }
+
+    [Fact]
+    public void OnlyTheUntaggedMarkAndTheTagCountEditTagsAndOnlyTheQueueBadgeOpensTagging()
+    {
+        MediaLibraryEntry entry = Entry();
+        MediaLibraryTileRow row = Row(entry);
+        List<string> log = new();
+        bool tagging = true;
+        MediaLibraryTileView view = new() { DataContext = row };
+        // Nothing wired (a harness page): no badge acts.
+        Assert.All(Enum.GetValues<MediaBadgeId>(), id => Assert.False(view.IsBadgeAction(id)));
+        view.EditTags = (r, anchor) => log.Add("tags:" + ReferenceEquals(r, row) + ":" + ReferenceEquals(anchor, view));
+        view.OpenTagging = () => log.Add("tagging");
+        view.CanOpenTagging = () => tagging;
+        Assert.Equal(new HashSet<MediaBadgeId> { MediaBadgeId.TagCount, MediaBadgeId.Untagged, MediaBadgeId.Queued }, Enum.GetValues<MediaBadgeId>().Where(view.IsBadgeAction).ToHashSet());
+        Assert.All(new[] { MediaBadgeId.Favorite, MediaBadgeId.Rating, MediaBadgeId.Video, MediaBadgeId.Gif, MediaBadgeId.Missing, MediaBadgeId.Booru,
+            MediaBadgeId.PlayMark, MediaBadgeId.Tagging }, id => Assert.False(view.IsBadgeAction(id)));
+        view.OnBadgeActivated(MediaBadgeId.Untagged);
+        view.OnBadgeActivated(MediaBadgeId.TagCount);
+        view.OnBadgeActivated(MediaBadgeId.Queued);
+        Assert.Equal(["tags:True:True", "tags:True:True", "tagging"], log);
+        // The page without the Tagging navigation: the queue badge is only drawn.
+        tagging = false;
+        Assert.False(view.IsBadgeAction(MediaBadgeId.Queued));
+        // Without a row nothing edits.
+        view.DataContext = null;
+        Assert.False(view.IsBadgeAction(MediaBadgeId.TagCount));
+    }
+
+    [Fact]
+    public void ThePageWiresThePlusNAndTheBadgesToItsOwnTagPopoverAndToTheTaggingNavigation()
+    {
+        string page = Source("Desktop/Views/Media/MediaPage.cs");
+        Assert.Contains("EditTags = EditTagsOfTile, OpenTagging = () => OpenTaggingPage?.Invoke(), CanOpenTagging = () => OpenTaggingPage != null", page);
+        string affordances = Source("Desktop/Views/Media/MediaPage.TileAffordances.cs");
+        // The same "Tag…" as the menu entry and the shortcut: the popover on the tile, or the reason as text for a medium that cannot be tagged.
+        Assert.Contains("await OpenTagsAsync(row.Entry, row, anchor, Current);", affordances);
+    }
+
+    [Fact]
+    public void ARightClickOrTheMenuKeyOnATagChipLeavesTheTileMenuAndOpensTheChipsFilterMenu()
+    {
+        string page = Source("Desktop/Views/Media/MediaPage.cs");
+        Assert.Contains("|| IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)", page);
+        Assert.Contains("if (!IsContextKey(e) || IsTileTagChip(e.Source)) return;", page);
+        Assert.Contains("WorkspaceChips.HasMenu", Source("Desktop/Views/Media/MediaPage.TileAffordances.cs"));
+
+        PrivateTagDefinition cat = Tag(1, "cat");
+        List<Guid> included = new(), excluded = new();
+        MediaLibraryTileView view = new() { TagFilter = included.Add, TagExclude = excluded.Add, DataContext = Row(Entry(), cat, Tag(2, "dog"), Tag(3, "owl")) };
+        Button[] shown = Chips(view).Where(chip => chip.IsVisible).ToArray();
+        Assert.Equal(2, shown.Length);
+        Assert.All(shown, chip => Assert.True(WorkspaceChips.HasMenu(chip)));
+        ContextMenuModel menu = WorkspaceChips.MenuModelOf(shown[0])!;
+        Assert.Equal([TagPickerMenu.Include, TagPickerMenu.Exclude, TagPickerMenu.CopyName], menu.Entries.Select(entry => entry.CommandId));
+        menu.Entries.Single(entry => entry.CommandId == TagPickerMenu.Include).Invoke!();
+        menu.Entries.Single(entry => entry.CommandId == TagPickerMenu.Exclude).Invoke!();
+        Assert.Equal([cat.Id.Value], included);
+        Assert.Equal([cat.Id.Value], excluded);
+
+        // A chip that is hidden (no tag) has nothing to offer.
+        view.DataContext = Row(Entry(), cat);
+        Button hidden = Chips(view).First(chip => !chip.IsVisible);
+        Assert.Null(WorkspaceChips.MenuModelOf(hidden));
+    }
+
+    // ---- the badge zones ----------------------------------------------------------------------------------------------------------
+
+    private static (LetterboxPanel Panel, MediaBadgeView Badges) Arranged(MediaBadgeState state)
+    {
+        MediaBadgeView badges = new() { Options = MediaBadgeOptions.MediaPage };
+        LetterboxPanel panel = new() { Width = 174, Height = 120, Aspect = 1.5, MarksOnSlot = true, Children = { new Image(), badges } };
+        badges.Apply(state, new Size(1, 1));
+        panel.Measure(new Size(174, 120)); panel.Arrange(new Rect(0, 0, 174, 120));
+        return (panel, badges);
+    }
+
+    [Fact]
+    public void AViewNobodyAsksToActIsNoHitTargetAtAll()
+    {
+        (_, MediaBadgeView badges) = Arranged(new MediaBadgeState(TagCount: 3, Queued: true));
+        Assert.False(badges.IsHitTestVisible);
+        Assert.Null(badges.Cursor);
+        Assert.Empty(badges.Zones());
+        Assert.Null(badges.ZoneAt(new Point(160, 110)));
+    }
+
+    [Fact]
+    public void OnlyTheNamedBadgesHaveAZoneAndAZoneIsNeverSmallerThanAPointerTarget()
+    {
+        (_, MediaBadgeView badges) = Arranged(new MediaBadgeState(Favorite: true, TagCount: 3, Queued: true, Kind: MediaBadgeKind.Video));
+        badges.Activatable = id => id is MediaBadgeId.TagCount or MediaBadgeId.Queued;
+        Assert.True(badges.IsHitTestVisible);
+        PlacedBadge count = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.TagCount);
+        PlacedBadge queue = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Queued);
+        PlacedBadge star = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Favorite);
+        Assert.Equal(MediaBadgeId.TagCount, badges.ZoneAt(count.Bounds.Center));
+        Assert.Equal(MediaBadgeId.Queued, badges.ZoneAt(queue.Bounds.Center));
+        Assert.Null(badges.ZoneAt(star.Bounds.Center));            // drawn only (the favourite is another package's)
+        Assert.Null(badges.ZoneAt(new Point(87, 60)));             // the picture's centre: the tile's own click
+        Assert.Equal(2, badges.Zones().Length);
+        Assert.All(badges.Zones(), zone => Assert.True(zone.Width >= MediaBadgeView.MinimumZone - 0.01 && zone.Height >= MediaBadgeView.MinimumZone - 0.01
+            || zone.Right >= 174 - 0.01 || zone.Bottom >= 120 - 0.01 || zone.Left <= 0.01 || zone.Top <= 0.01)); // only an edge may cut it
+        // The hit test of the framework agrees: the point counts for the view only inside a zone.
+        ICustomHitTest hit = badges;
+        Assert.True(hit.HitTest(count.Bounds.Center));
+        Assert.False(hit.HitTest(new Point(87, 60)));
+        Assert.False(hit.HitTest(star.Bounds.Center));
+        // Taking the callback away takes the target away.
+        badges.Activatable = null;
+        Assert.False(badges.IsHitTestVisible);
+        Assert.False(hit.HitTest(count.Bounds.Center));
+    }
+
+    [Fact]
+    public void AClickOnAZoneIsTheZonesAloneAndAClickElsewhereOrWithTheOtherButtonIsNot()
+    {
+        (_, MediaBadgeView badges) = Arranged(new MediaBadgeState(TagCount: 0, Queued: true));
+        badges.Activatable = id => id is MediaBadgeId.Untagged or MediaBadgeId.Queued;
+        List<MediaBadgeId> activated = new();
+        badges.Activated += activated.Add;
+        Point untagged = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Untagged).Bounds.Center;
+        Point queued = badges.Plan.Badges.Single(placed => placed.Badge.Id == MediaBadgeId.Queued).Bounds.Center;
+
+        // The press and the release go through the same methods the pointer events call (a pointer event needs a window's root to place its position).
+        Assert.True(badges.Press(untagged, leftButton: true)); // handled: the list's selection and the tile's activation never see the press
+        Assert.True(badges.Release(untagged, MouseButton.Left));
+        Assert.Equal([MediaBadgeId.Untagged], activated);
+
+        // Pressed on one zone, released on the other: no click (still the zone's gesture).
+        Assert.True(badges.Press(untagged, true));
+        Assert.True(badges.Release(queued, MouseButton.Left));
+        Assert.Equal([MediaBadgeId.Untagged], activated);
+
+        // Outside every zone the press stays unhandled (the picture's own click) and the release is nobody's.
+        Assert.False(badges.Press(new Point(87, 60), true));
+        Assert.False(badges.Release(new Point(87, 60), MouseButton.Left));
+        Assert.Equal([MediaBadgeId.Untagged], activated);
+
+        // The right button is the menu's, not the badge's.
+        Assert.False(badges.Press(queued, leftButton: false));
+        Assert.False(badges.Release(queued, MouseButton.Right));
+        Assert.Equal([MediaBadgeId.Untagged], activated);
+        Assert.True(badges.Press(queued, true));
+        Assert.True(badges.Release(queued, MouseButton.Left));
+        Assert.Equal([MediaBadgeId.Untagged, MediaBadgeId.Queued], activated);
+    }
+
+    [Fact]
+    public void AMediaTileOffersItsBadgeZonesAndOtherSurfacesKeepTheirRenderOnlyViews()
+    {
+        Assert.NotNull(new MediaLibraryTileView().Badges.Activatable);
+        Assert.Null(new MediaBadgeView().Activatable);
+        Assert.False(new MediaBadgeView().IsHitTestVisible);
+    }
+
+    // ---- the file name of a post's attachment ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void TheFileNameOfAPostsAttachmentDoesWhatAClickOnTheThumbnailDoes()
+    {
+        string view = Source("Desktop/ArchiveAttachmentView.cs");
+        Assert.Contains("ConfigureFileNameClick();", view);
+        int start = view.IndexOf("private void ConfigureFileNameClick()", StringComparison.Ordinal);
+        string body = view[start..view.IndexOf("private readonly AttachmentColumn _column;", start, StringComparison.Ordinal)];
+        Assert.Contains("_label.Cursor = PointerCursors.Hand;", body);
+        Assert.Contains("_label.Tapped += (_, e) =>", body);
+        Assert.Contains("ActivateMedium();", body);
+        // A double click opens the gallery like the thumbnail's, after putting an expanded picture back.
+        Assert.Contains("_label.DoubleTapped += (_, e) =>", body);
+        Assert.Contains("if (_expanded) SetExpanded(false);", body);
+        Assert.Contains("open();", body);
+    }
+
+    // ---- the media page's panel -----------------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void ThePanelsRightClickFlagLivesUntilTheReleaseHasPassedAndTheWholePanelIsCovered()
+    {
+        string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs");
+        int press = panel.IndexOf("private void OnPanelPointerPressed", StringComparison.Ordinal);
+        int released = panel.IndexOf("private void OnPanelPointerReleased", StringComparison.Ordinal);
+        int requested = panel.IndexOf("private void OnPanelContextRequested", StringComparison.Ordinal);
+        string pressBody = panel[press..released];
+        // The press no longer drops the flag on a Background tick (that came before Avalonia's release-time ContextRequested); the release does.
+        Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody);
+        Assert.Contains("_panelPointerContextPending = false; // each press starts its own gesture", pressBody);
+        Assert.Contains("_panelPointerContextPending = true;", pressBody);
+        string releaseBody = panel[released..requested];
+        Assert.Contains("e.InitialPressMouseButton != MouseButton.Right", releaseBody);
+        Assert.Contains("Dispatcher.UIThread.Post(() => _panelPointerContextPending = false, DispatcherPriority.Background);", releaseBody);
+        Assert.Contains("panel.AddHandler(PointerReleasedEvent, OnPanelPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);", panel);
+        // A key ends a gesture whose release never came.
+        Assert.Contains("_panelPointerContextPending = false; // a key ends a pointer gesture whose release never came", panel);
+        // The whole panel, header line and its buttons included: the handlers sit on the panel itself and the press path asks for no frame.
+        Assert.Contains("panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);", panel);
+        Assert.Contains("panel.AddHandler(ContextRequestedEvent, OnPanelContextRequested, RoutingStrategies.Bubble);", panel);
+        Assert.DoesNotContain("FrameArea", pressBody);
+        Assert.DoesNotContain("Frame.IsPointerOver", pressBody);
+    }
+}

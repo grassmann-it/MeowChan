@@ -123,6 +123,7 @@ public sealed partial class MediaPage
         panel.VideoRow.Children.Add(slot.Below);
         panel.AddHandler(KeyDownEvent, OnPanelKeyDown, RoutingStrategies.Tunnel);
         panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);
+        panel.AddHandler(PointerReleasedEvent, OnPanelPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
         panel.AddHandler(ContextRequestedEvent, OnPanelContextRequested, RoutingStrategies.Bubble);
         _grid.AddHandler(KeyDownEvent, OnPanelGridKeyDown, RoutingStrategies.Tunnel);
         // A minimised window pauses the video (the shell pauses it when another page or the gallery covers this one).
@@ -526,7 +527,11 @@ public sealed partial class MediaPage
 
     private void OnPanelGridKeyDown(object? sender, KeyEventArgs e) => TryRoutePanelKey(e, fromPanel: false);
 
-    private void OnPanelKeyDown(object? sender, KeyEventArgs e) => TryRoutePanelKey(e, fromPanel: true);
+    private void OnPanelKeyDown(object? sender, KeyEventArgs e)
+    {
+        _panelPointerContextPending = false; // a key ends a pointer gesture whose release never came
+        TryRoutePanelKey(e, fromPanel: true);
+    }
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
     {
@@ -546,14 +551,24 @@ public sealed partial class MediaPage
         }
     }
 
-    // The panel's own right click and Menu key: the same media menu as the tile's, with the playback group on top for a video.
+    // The panel's own right click, anywhere in it (picture, video row, header line with its buttons, the edge around the card), and the Menu key: the same
+    // media menu as the tile's, with the playback group on top for a video. The press itself opens the menu; the ContextRequested that Avalonia 12 sends while
+    // it processes the release of that click is consumed once. The flag lives from the press until that release is through (a click lasts far longer than a
+    // Background tick: a flag dropped right after the press let the release open a second menu over the first).
     private void OnPanelPointerPressed(object? sender, PointerPressedEventArgs e)
     {
+        _panelPointerContextPending = false; // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
             || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
         _panelPointerContextPending = true;
         e.Handled = true;
+    }
+
+    // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the flag ends on the next tick.
+    private void OnPanelPointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (!_panelPointerContextPending || e.InitialPressMouseButton != MouseButton.Right) return;
         Dispatcher.UIThread.Post(() => _panelPointerContextPending = false, DispatcherPriority.Background);
     }
 
