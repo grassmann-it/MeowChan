@@ -627,6 +627,10 @@
         <!-- P2 page grid: title to subtitle inside a page header (4), gap between the cards of a page (12) and between a
              form's label column and its value column (24); ValueColumn is the width of that value column. -->
         <x:Double x:Key="Workspace.Space.Header">4</x:Double>
+        <!-- Toolbar UX review 15.11.: the gap between neighbouring items on a bar (8; the 4-dip focus ring then stays 4 clear of the
+             neighbour) and between two groups (16, the 1x20 group line centred in it). ActionToolBarPanel owns both (ItemGap, GroupGap). -->
+        <x:Double x:Key="Workspace.Space.BarGap">8</x:Double>
+        <x:Double x:Key="Workspace.Space.BarGroupGap">16</x:Double>
         <x:Double x:Key="Workspace.Space.Card">12</x:Double>
         <x:Double x:Key="Workspace.Form.Gap">24</x:Double>
         <x:Double x:Key="Workspace.Form.ValueColumn">280</x:Double>
@@ -1475,6 +1479,43 @@
          under "More" (ActionToolBarPanel marks it :in-overflow) keeps the popup's plain rows. -->
     <Style Selector="Button.bar-button:not(:in-overflow)">
         <Setter Property="Theme" Value="{DynamicResource {x:Type Button}}" />
+    </Style>
+    <!-- Toolbar UX review 15.11. (bar-flat): the item of a page or pane toolbar is a flat button with room around it. At rest only its label
+         (transparent fill and a reserved transparent 1-px edge, so nothing jumps); hover the Hover fill with the ControlBorder edge (the fill
+         alone is too faint in Light, #D2CABE on #E3DFD8); pressed AccentSurface with the accent edge and the label staying Workspace.Text;
+         disabled the Muted label; focus the shared ring. These are the media-control values, so gallery and toolbars match. Padding 8,4 and
+         height 32 give back about 4 dip per item against the 8-dip gaps ActionToolBarPanel puts between them.
+         ursa|ToolBar is the ActionToolBar (its style key is Ursa's ToolBar; the app has no other); items keep the toolbar as logical parent
+         wherever their panel is, so the child selector reaches an item back from "More" too. Under "More" (:in-overflow) the popup's plain
+         rows stay. Outlined bar-button (selection bars), primary, help-round, the joined segments and media-control keep their own look. -->
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), Button.bar-flat">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Padding" Value="8,4" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ursa|ToolBar > SplitButton:not(:in-overflow)">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /><Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Padding" Value="8,4" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):checked /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- A disclosure (Tagging stamp block): the quiet section head that opens and closes a block - the turning arrow and the title, no fill
          and no outline at rest and when open (only the page's primary action is filled). Hover shows the Hover fill with the 1-px ControlBorder

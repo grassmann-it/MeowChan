@@ -160,9 +160,16 @@ internal static class ActionToolBarPresentationChecks
                     $"{item.Language}/{item.Theme}/{item.Mode}/focus-transition");
                 Button gallery = page.FindControl<Button>("ArchiveResultsGallery")!;
                 // WV2: the List/Table toggles are AsNeeded now (Always in Barebones), so the bar items in front of the gallery that stay on the bar are the required width.
-                double never = archive.Items.OfType<Control>().TakeWhile(c => !ReferenceEquals(c, gallery))
-                    .Where(c => c.IsVisible && ToolBar.GetOverflowMode(c) != OverflowMode.Always).Sum(c => c.DesiredSize.Width);
-                double small = never + archive.MoreWidth() + 1, large = small + gallery.DesiredSize.Width + 1;
+                // Toolbar UX review 15.11.: with the panel's gaps (none between the two joined segments, the group gap in front of the gallery).
+                double never = 0;
+                Control? previous = null;
+                foreach (Control c in archive.Items.OfType<Control>().TakeWhile(c => !ReferenceEquals(c, gallery))
+                    .Where(c => c.IsVisible && ToolBar.GetOverflowMode(c) != OverflowMode.Always))
+                {
+                    never += ActionToolBarPanel.LeadingGap(previous, c) + c.DesiredSize.Width;
+                    previous = c;
+                }
+                double small = never + archive.MoreWidth() + 1, large = small + ActionToolBarPanel.LeadingGap(previous, gallery) + gallery.DesiredSize.Width + 1;
                 archive.Width = small; await Settle(owner, host);
                 Require(archive.OverflowHost!.Children.Contains(gallery), "Controlled measured small toolbar did not overflow gallery.");
                 archive.More!.IsChecked = true;

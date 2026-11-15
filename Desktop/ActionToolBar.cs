@@ -184,6 +184,9 @@ public sealed class ActionToolBar : ToolBar
         base.OnApplyTemplate(e);
         OverflowHost = e.NameScope.Find<Panel>(PART_OverflowPanel);
         More = e.NameScope.Find<ToggleButton>("button");
+        // Toolbar UX review 15.11.: "⋮" stands one item gap after the last item on the bar, with no line before it. The gap is the
+        // toggle's own left margin, so MoreWidth (which counts the margin) reserves it and the bar's items end flush without it.
+        if (More != null) More.Margin = MoreMargin(More.Margin);
         if (More?.Parent is Panel panel) _popup = panel.Children.OfType<Popup>().FirstOrDefault();
         if (_popup != null) { _popup.Opened += OnPopupOpened; }
         if (OverflowHost != null)
@@ -222,6 +225,13 @@ public sealed class ActionToolBar : ToolBar
         ? Localization.Texts.Count("workview.moreCount", count)
         : Localization.Texts.T("workview.more");
 
+    /// <summary>The margin of the "More" toggle: <see cref="ActionToolBarPanel.ItemGap"/> in front of it, the rest kept.</summary>
+    internal static Thickness MoreMargin(Thickness margin) => new(ActionToolBarPanel.ItemGap, margin.Top, margin.Right, margin.Bottom);
+
+    /// <summary>
+    /// The width the bar reserves for "More": the toggle itself plus its margins, which hold the item gap in front of it
+    /// (<see cref="MoreMargin"/>), so items that move under "More" leave exactly that gap and no more.
+    /// </summary>
     internal double MoreWidth()
     {
         if (More == null) return 0;
@@ -230,11 +240,15 @@ public sealed class ActionToolBar : ToolBar
         if (More.Content is Control content)
         {
             content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-            return Math.Max(More.MinWidth, content.DesiredSize.Width + More.Padding.Left + More.Padding.Right
-                + More.BorderThickness.Left + More.BorderThickness.Right + More.Margin.Left + More.Margin.Right);
+            return MoreSlot(content.DesiredSize.Width + More.Padding.Left + More.Padding.Right
+                + More.BorderThickness.Left + More.BorderThickness.Right, More.MinWidth, More.Margin);
         }
         return More.DesiredSize.Width;
     }
+
+    /// <summary>The slot of "More" on the bar: the toggle (at least its minimum width) and its margins, the leading item gap included.</summary>
+    internal static double MoreSlot(double toggleWidth, double minWidth, Thickness margin) =>
+        Math.Max(minWidth, toggleWidth) + margin.Left + margin.Right;
 
     private bool _overflowShown;
 
@@ -337,6 +351,18 @@ public sealed class ActionToolBarPanel : StackPanel
 
     internal static void MarkReduced(Control item, bool reduced) => ((IPseudoClasses)item.Classes).Set(ReducedPseudoClass, reduced);
 
+    /// <summary>
+    /// Toolbar UX review 15.11.: the gap between two neighbouring items on the bar (Workspace.Space.BarGap). The panel owns it, so no
+    /// item or toolbar patches it with a margin; the focus ring (4 outside the control) then stays 4 clear of the neighbour.
+    /// </summary>
+    public const double ItemGap = 8;
+
+    /// <summary>The gap between two groups (Workspace.Space.BarGroupGap), with the group line centred in it.</summary>
+    public const double GroupGap = 16;
+
+    /// <summary>The class of a joined segment (the List/Table toggle): two neighbouring segments stand with no gap.</summary>
+    public const string SegmentClass = "segment";
+
     /// <summary>The width of the line between two groups (device-independent pixels).</summary>
     public const double GroupSeparatorThickness = 1;
     private const double GroupSeparatorHeight = 20;
@@ -358,6 +384,11 @@ public sealed class ActionToolBarPanel : StackPanel
     private bool[] _overflowed = Array.Empty<bool>();
     private int[] _priorities = Array.Empty<int>();
     private int[] _order = Array.Empty<int>();
+    private double[] _itemWidths = Array.Empty<double>();
+    private double[] _gaps = Array.Empty<double>();
+    private int[] _groups = Array.Empty<int>();
+    private bool[] _segments = Array.Empty<bool>();
+    private bool[] _previous = Array.Empty<bool>();
 
     private void EnsureScratch(int count)
     {
@@ -365,7 +396,21 @@ public sealed class ActionToolBarPanel : StackPanel
         int size = Math.Max(count, 8);
         _widths = new double[size]; _modes = new OverflowMode[size]; _visible = new bool[size];
         _overflowed = new bool[size]; _priorities = new int[size]; _order = new int[size];
+        _itemWidths = new double[size]; _gaps = new double[size]; _groups = new int[size]; _segments = new bool[size]; _previous = new bool[size];
     }
+
+    private static bool IsSegment(Control item) => item.Classes.Contains(SegmentClass);
+
+    /// <summary>
+    /// The gap in front of an item on the bar after the shown item before it: the group gap where a new group starts, none between two
+    /// joined segments, the item gap otherwise. The first shown item has none (<see cref="LeadingGap(Control?, Control)"/>).
+    /// </summary>
+    public static double LeadingGap(bool previousSegment, int previousGroup, bool segment, int group) =>
+        StartsNewGroup(previousGroup, group) ? GroupGap : previousSegment && segment ? 0 : ItemGap;
+
+    /// <summary>The gap in front of <paramref name="item"/> on the bar; <paramref name="previous"/> is the shown item before it (null: none).</summary>
+    public static double LeadingGap(Control? previous, Control item) => previous == null ? 0
+        : LeadingGap(IsSegment(previous), ActionToolBar.GetGroup(previous), IsSegment(item), ActionToolBar.GetGroup(item));
 
     protected override Size MeasureOverride(Size availableSize)
     {
@@ -384,25 +429,26 @@ public sealed class ActionToolBarPanel : StackPanel
             // An omitted item takes part like an invisible one: no width, never in the overflow.
             bool visible = item.IsVisible && !ActionToolBar.GetOmitted(item);
             _visible[i] = visible;
-            _widths[i] = visible ? item.DesiredSize.Width : 0;
+            _itemWidths[i] = visible ? item.DesiredSize.Width : 0;
             _modes[i] = ToolBar.GetOverflowMode(item);
+            _groups[i] = ActionToolBar.GetGroup(item);
+            _segments[i] = IsSegment(item);
             if (prioritized) _priorities[i] = ActionToolBar.GetOverflowPriority(item);
         }
-        // One measure of the More content per pass: it lives in another subtree and is measured mid-pass.
+        // One measure of the More content per pass: it lives in another subtree and is measured mid-pass. It holds the gap before "⋮".
         double moreWidth = owner.MoreWidth();
-        ActionOverflowLayout.Resolve(count, _widths, _modes, _visible,
+        double width = ActionOverflowLayout.ResolveSpaced(count, _itemWidths, _groups, _segments, _modes, _visible,
             availableSize.Width + (owner.More?.IsVisible == true ? moreWidth : 0), moreWidth,
-            prioritized ? _priorities : null, _overflowed, _order);
+            prioritized ? _priorities : null, _overflowed, _gaps, _widths, _previous, _order);
         _overflow.Clear();
         _omitted.Clear();
-        double width = 0, height = 0;
+        double height = 0;
         for (int i = 0; i < count; i++)
         {
             Control item = items[i];
             if (_overflowed[i]) _overflow.Add(item);
             if (ActionToolBar.GetOmitted(item)) _omitted.Add(item);
             if (!_visible[i]) continue;
-            if (!_overflowed[i]) width += item.DesiredSize.Width;
             height = Math.Max(height, item.DesiredSize.Height);
         }
         owner.SetOverflow(_overflow.Count);
@@ -430,9 +476,21 @@ public sealed class ActionToolBarPanel : StackPanel
                 MarkReduced(item, overflow || omitted);
             }
         }
-        Size arranged = base.ArrangeOverride(finalSize);
+        // One horizontal row with the bar's own gaps (the measure counted the same ones): the item gap between neighbours, the group gap
+        // where a new group starts (the line stands in its middle), none between two joined segments and none at either end.
+        double x = 0;
+        Control? previous = null;
+        foreach (Control child in Children)
+        {
+            if (!child.IsVisible) continue;
+            x += LeadingGap(previous, child);
+            double width = child.DesiredSize.Width;
+            child.Arrange(new Rect(x, 0, width, finalSize.Height));
+            x += width;
+            previous = child;
+        }
         UpdateGroupSeparators();
-        return arranged;
+        return finalSize;
     }
 
     /// <summary>Whether a line stands between two neighbouring shown items of these groups (the one rule of the bar's separators).</summary>
@@ -455,8 +513,8 @@ public sealed class ActionToolBarPanel : StackPanel
     /// <summary>The lines between groups on the bar now (left edge x, top, width, height in the panel), in order (tests and smokes).</summary>
     internal IReadOnlyList<Rect> GroupSeparators => _separators;
 
-    // The line stands in the middle of the margin gap that precedes the first item of the next group (the items keep their own
-    // spacing), centred on the row; only visible items of the bar itself count.
+    // The line stands in the middle of the group gap that precedes the first item of the next group (ActionToolBarPanel.GroupGap),
+    // centred on the row; only visible items of the bar itself count.
     private void UpdateGroupSeparators()
     {
         List<Rect> lines = new();
@@ -548,6 +606,64 @@ public static class ActionOverflowLayout
         bool[] result = new bool[count];
         Resolve(count, w, m, v, available, moreWidth, p, result, new int[count]);
         return result;
+    }
+
+    /// <summary>
+    /// <see cref="Resolve(IReadOnlyList{double}, IReadOnlyList{OverflowMode}, IReadOnlyList{bool}, double, double, IReadOnlyList{int}?)"/>
+    /// with the bar's gaps (<see cref="ActionToolBarPanel.LeadingGap(bool, int, bool, int)"/>): which items go into "More" and the width
+    /// the items that stay take on the bar, gaps included. <paramref name="widths"/> are the items' own widths.
+    /// </summary>
+    public static (bool[] Overflow, double Width) ResolveSpaced(IReadOnlyList<double> widths, IReadOnlyList<int> groups, IReadOnlyList<bool> segments,
+        IReadOnlyList<OverflowMode> modes, IReadOnlyList<bool> visible, double available, double moreWidth, IReadOnlyList<int>? priorities = null)
+    {
+        int count = widths.Count;
+        double[] w = widths.ToArray(); int[] g = groups.ToArray(); bool[] s = segments.ToArray();
+        OverflowMode[] m = modes.ToArray(); bool[] v = visible.ToArray(); int[]? p = priorities?.ToArray();
+        bool[] result = new bool[count];
+        double width = ResolveSpaced(count, w, g, s, m, v, available, moreWidth, p, result, new double[count], new double[count], new bool[count], new int[count]);
+        return (result, width);
+    }
+
+    /// <summary>
+    /// Allocation-free form of <see cref="ResolveSpaced(IReadOnlyList{double}, IReadOnlyList{int}, IReadOnlyList{bool}, IReadOnlyList{OverflowMode}, IReadOnlyList{bool}, double, double, IReadOnlyList{int}?)"/>
+    /// for the toolbar panel; returns the width on the bar. The gap in front of an item depends on the shown item before it, which depends
+    /// on what overflows: each pass counts every item with the largest gap it had so far against the items then on the bar, so the widths
+    /// only grow, what overflows only grows, and the passes end; a prioritized bar whose middle item moved away is never underestimated.
+    /// <paramref name="gaps"/> ends with the real gap of each item that stays (0 for the others); <paramref name="widths"/>,
+    /// <paramref name="previous"/> and <paramref name="order"/> are scratch of at least <paramref name="count"/>.
+    /// </summary>
+    public static double ResolveSpaced(int count, double[] itemWidths, int[] groups, bool[] segments, OverflowMode[] modes, bool[] visible,
+        double available, double moreWidth, int[]? priorities, bool[] result, double[] gaps, double[] widths, bool[] previous, int[] order)
+    {
+        // First guess: every visible item stands on the bar except the Always ones.
+        for (int i = 0; i < count; i++) { previous[i] = visible[i] && modes[i] == OverflowMode.Always; gaps[i] = 0; }
+        for (int pass = 0; pass <= count; pass++)
+        {
+            int last = -1;
+            for (int i = 0; i < count; i++)
+            {
+                if (!visible[i]) { widths[i] = 0; continue; }
+                double gap = last < 0 ? 0 : ActionToolBarPanel.LeadingGap(segments[last], groups[last], segments[i], groups[i]);
+                gaps[i] = Math.Max(gaps[i], gap);
+                widths[i] = itemWidths[i] + gaps[i];
+                if (!previous[i]) last = i;
+            }
+            Resolve(count, widths, modes, visible, available, moreWidth, priorities, result, order);
+            bool settled = true;
+            for (int i = 0; i < count; i++)
+                if (result[i] != previous[i]) { settled = false; previous[i] = result[i]; }
+            if (settled) break;
+        }
+        double total = 0;
+        int shown = -1;
+        for (int i = 0; i < count; i++)
+        {
+            if (!visible[i] || result[i]) { gaps[i] = 0; continue; }
+            gaps[i] = shown < 0 ? 0 : ActionToolBarPanel.LeadingGap(segments[shown], groups[shown], segments[i], groups[i]);
+            total += itemWidths[i] + gaps[i];
+            shown = i;
+        }
+        return total;
     }
 
     /// <summary>
