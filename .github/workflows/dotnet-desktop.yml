@@ -156,16 +156,114 @@ jobs:
         continue-on-error: true
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         run: dotnet build tests/PluginReauthorizationProbe/PluginReauthorizationProbe.csproj --configuration Release --no-restore
-      - name: Run core and desktop offline tests
+      - name: Run core and desktop offline test shards
         id: core_tests
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        # Windows was still passing tests at the former step deadline; hang guards remain unchanged.
+        # Eight disjoint project groups make a stuck test host diagnosable and keep
+        # the other projects running. Each shard has its own process-tree deadline;
+        # the outer step retains five minutes for all shard processes to clean up.
         timeout-minutes: 30
-        # Native worker suites retain their own concurrency tests and deadlines.
-        # Do not run ten independent test assemblies against the same runner at once.
-        run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          # Keep the two process-heavy projects alone. The worker/runtime projects
+          # are separate shards because their fixtures can start child processes;
+          # the final shard contains only small, in-process test projects.
+          shard_timeout=1500
+          light_shard_timeout=900
+          results_root=test-results/offline-shards
+          mkdir -p "$results_root"
+
+          shard_runner="$(mktemp)"
+          cat > "$shard_runner" <<'SHARD_RUNNER'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          shard="$1"
+          shift
+          results_root="$1"
+          shift
+          shard_results="$results_root/$shard"
+          shard_status=0
+          mkdir -p "$shard_results"
+          printf 'shard=%s runner=%s arch=%s\n' "$shard" "$RUNNER_OS" "$RUNNER_ARCH"
+          for project in "$@"; do
+            project_name="$(basename "$project" .csproj)"
+            project_results="$shard_results/$project_name"
+            mkdir -p "$project_results"
+            printf 'BEGIN project=%s\n' "$project"
+            dotnet test "$project" --configuration Release --no-build --no-restore -m:1 \
+              --logger "trx;LogFileName=${project_name}.trx" \
+              --logger "console;verbosity=normal" \
+              --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini \
+              --results-directory "$project_results"
+            project_status=$?
+            printf 'END project=%s status=%s\n' "$project" "$project_status"
+            if [[ "$project_status" -ne 0 ]]; then
+              shard_status=1
+            fi
+          done
+          printf 'END shard=%s status=%s\n' "$shard" "$shard_status"
+          exit "$shard_status"
+          SHARD_RUNNER
+          chmod +x "$shard_runner"
+          trap 'rm -f "$shard_runner"' EXIT
+
+          run_shard() {
+            local shard="$1"
+            shift
+            local shard_results="$results_root/$shard"
+            local log_file="$shard_results/shard.log"
+            local timeout_seconds="$shard_timeout"
+            mkdir -p "$shard_results"
+            case "$shard" in
+              shard-06|shard-07|shard-08) timeout_seconds="$light_shard_timeout" ;;
+            esac
+            printf 'Launching %s with %ss timeout\n' "$shard" "$timeout_seconds"
+            timeout --signal=TERM --kill-after=30s "${timeout_seconds}s" \
+              "$shard_runner" "$shard" "$results_root" "$@" 2>&1 | tee "$log_file"
+            return "${PIPESTATUS[0]}"
+          }
+
+          # Every test project from MeowChan.sln appears exactly once below.
+          # Launch all eight groups before waiting so independent test hosts run
+          # concurrently while each group retains its own TRX/log directory.
+          run_shard shard-01 tests/MeowChan.Tests/MeowChan.Tests.csproj &
+          pid_01=$!
+          run_shard shard-02 tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj &
+          pid_02=$!
+          run_shard shard-03 tests/MeowChan.PluginRuntime.Tests/MeowChan.PluginRuntime.Tests.csproj &
+          pid_03=$!
+          run_shard shard-04 tests/MeowChan.PluginFilters.Tests/MeowChan.PluginFilters.Tests.csproj &
+          pid_04=$!
+          run_shard shard-05 tests/MeowChan.SourceAdapter.Tests/MeowChan.SourceAdapter.Tests.csproj &
+          pid_05=$!
+          run_shard shard-06 tests/MeowChan.OfficialPlugins.Tests/MeowChan.OfficialPlugins.Tests.csproj tests/MeowChan.ExamplePlugins.Tests/MeowChan.ExamplePlugins.Tests.csproj &
+          pid_06=$!
+          run_shard shard-07 tests/MeowChan.PluginCompiler.Tests/MeowChan.PluginCompiler.Tests.csproj tests/MeowChan.PluginHost.Configuration.Tests/MeowChan.PluginHost.Configuration.Tests.csproj tests/MeowChan.PluginSdk.Tests/MeowChan.PluginSdk.Tests.csproj &
+          pid_07=$!
+          run_shard shard-08 tests/MeowChan.ImageHeader.Tests/MeowChan.ImageHeader.Tests.csproj tests/MeowChan.MetadataFilters.Tests/MeowChan.MetadataFilters.Tests.csproj tests/MeowChan.OriginalMediaHttp.Tests/MeowChan.OriginalMediaHttp.Tests.csproj &
+          pid_08=$!
+
+          overall_status=0
+          : > "$results_root/shard-status.tsv"
+          for shard_spec in \
+            "shard-01:$pid_01" "shard-02:$pid_02" "shard-03:$pid_03" "shard-04:$pid_04" \
+            "shard-05:$pid_05" "shard-06:$pid_06" "shard-07:$pid_07" "shard-08:$pid_08"; do
+            IFS=: read -r shard_name shard_pid <<< "$shard_spec"
+            if wait "$shard_pid"; then
+              shard_status=0
+            else
+              shard_status=$?
+              overall_status=1
+            fi
+            printf '%s\t%s\t%s\n' "$shard_name" "$shard_pid" "$shard_status" >> "$results_root/shard-status.tsv"
+          done
+          printf 'aggregate_status=%s\n' "$overall_status" | tee "$results_root/aggregate-status.txt"
+          # continue-on-error lets the later evidence and artifact steps run.
+          exit "$overall_status"
       - name: Run both complete macOS offline suites with bounded diagnostics
         id: mac_tests
         # Keep independent checks running so one failure yields a complete evidence set.
