@@ -39,7 +39,7 @@ internal static partial class MediaPageChecks
             await page.ActivateAsync().WaitAsync(Deadline);
             Require(page.Tiles.Count == 3, "The sort toolbar fixture must give three tiles: " + page.Tiles.Count);
             ComboBox sort = C<ComboBox>(page, "MediaSort");
-            Button direction = C<Button>(page, "MediaSortDirection"), refresh = C<Button>(page, "MediaRefresh"), more = C<Button>(page, "MediaMore");
+            Button direction = C<Button>(page, "MediaSortDirection"), refresh = C<Button>(page, "MediaRefresh"), layout = C<Button>(page, "MediaLayout"), more = C<Button>(page, "MediaMore");
             Control search = C<Control>(page, "MediaNameFilter"), filters = C<Control>(page, "MediaFilters");
             string[] Order() => page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).ToArray();
 
@@ -53,7 +53,7 @@ internal static partial class MediaPageChecks
                 foreach (Control tool in new Control[] { search, filters, sort, direction, more })
                     Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
                         "The " + stage + " toolbar must show " + tool.Name + " completely: right edge " + (X(tool) + tool.Bounds.Width) + " of " + page.ToolbarRow.Bounds.Width);
-                foreach (Control tool in new Control[] { C<ToggleButton>(page, "MediaBooruMode"), refresh })
+                foreach (Control tool in new Control[] { C<ToggleButton>(page, "MediaBooruMode"), layout, refresh })
                     Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
                         "The " + stage + " toolbar must show " + tool.Name + " completely.");
             }
@@ -133,7 +133,7 @@ internal static partial class MediaPageChecks
             RequireToolbarFits("compact (640)");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
-            await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+            await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
             sort.SelectedIndex = 0;
             window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is
@@ -147,6 +147,12 @@ internal static partial class MediaPageChecks
             window.Width = 1100;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
             Require(refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.export-all", "media.toolbar.manage-ratings"]), "A wide page must show Refresh again: " + string.Join(",", page.HeaderMoreIds));
+
+            // The stage constants are row widths, not window widths. Resize the real page until its measured toolbar row is just above/below
+            // each boundary; this proves the Layout button follows the same stage and cannot remain stranded on the row when it moves under More.
+            await ToolbarBoundariesAsync(page, window, layout, refresh);
+            window.Width = 1100;
+            await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Wide);
 
             // The tag count and rating keys are made with the presentation: from this many entries on, off the UI thread (here: always).
             MediaLibraryEntry two = page.Snapshot!.Entries.Single(entry => entry.Thread.Thread == "200"), one = page.Snapshot.Entries.Single(entry => entry.PostId == "100");
@@ -162,8 +168,64 @@ internal static partial class MediaPageChecks
             sort.SelectedIndex = (int)MediaLibrarySort.TagCount;
             await page.PresentTask.WaitAsync(Deadline);
             Require(Order().Length == 3, "Tag count without readable tags must still show every tile.");
-            Console.WriteLine("SMOKE media sort toolbar [en]: one row with search and filters left and the order, direction, refresh and More right (32 dip), export all and ratings under More, every criterion offered, no direction for the shuffle, reversed is the exact mirror, each choice is handed over for saving (random as the default order) and a restored order applies without a save, the missing-files switch is a filter field with a chip (DE/EN) and reset clears it, at 760/640 dip Refresh and Shuffle move under More while search, filters, order and direction stay, rating order is computed off the UI thread (best first, unrated last, reversed keeps unrated last).");
+            Console.WriteLine("SMOKE media sort toolbar [en]: one row with search and filters left and the order, direction, refresh and More right (32 dip), export all and ratings under More, every criterion offered, no direction for the shuffle, reversed is the exact mirror, each choice is handed over for saving (random as the default order) and a restored order applies without a save, the missing-files switch is a filter field with a chip (DE/EN) and reset clears it, at 640 and at measured +/-1 dip around the 920/740 row boundaries Refresh, Layout and Shuffle move under More while search, filters, order and direction stay, rating order is computed off the UI thread (best first, unrated last, reversed keeps unrated last).");
         }
         finally { Texts.SetLanguage(language); page.EndLifetime(); window.Close(); }
+    }
+
+    private static async Task ToolbarBoundariesAsync(MediaPage page, Window window, Button layout, Button refresh)
+    {
+        Control row = page.ToolbarRow;
+        double X(Control control) => control.TranslatePoint(default, row)!.Value.X;
+
+        async Task SetMeasuredRowWidthAsync(double target)
+        {
+            // The header margin and the native frame make a requested window width an unreliable proxy for the toolbar row.
+            // Correct the requested width from the row's actual DIP bounds until the target is measured by Avalonia.
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                page.UpdateLayout();
+                double delta = target - row.Bounds.Width;
+                if (Math.Abs(delta) <= 0.5) break;
+                double before = row.Bounds.Width;
+                window.Width += delta;
+                // Window bounds can settle to an adjacent whole DIP. Wait for the real row to move, then correct from its new measurement.
+                await UntilAsync(() => Math.Abs(row.Bounds.Width - before) > 0.5);
+            }
+            page.UpdateLayout();
+            Require(Math.Abs(row.Bounds.Width - target) <= 1,
+                "The smoke could not place the real toolbar row at " + target + " dip: measured " + row.Bounds.Width + ".");
+            await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.For(row.Bounds.Width));
+        }
+
+        async Task CheckBoundaryAsync(double target, MediaToolbarLayout.Level level, bool layoutOnRow, bool refreshOnRow)
+        {
+            await SetMeasuredRowWidthAsync(target);
+            double measured = row.Bounds.Width;
+            Require(page.ToolbarLevel == level && page.ToolbarLevel == MediaToolbarLayout.For(measured),
+                "At a measured toolbar row width of " + measured + " dip the stage must be " + level + ", not " + page.ToolbarLevel + ".");
+            Require(layout.IsEffectivelyVisible == layoutOnRow
+                && page.HeaderMoreIds.Contains("media.toolbar.layout") != layoutOnRow,
+                "At a measured row width of " + measured + " dip the Layout button must be "
+                + (layoutOnRow ? "on the row" : "under More") + ": visible=" + layout.IsEffectivelyVisible
+                + ", more=" + string.Join(",", page.HeaderMoreIds));
+            Require(refresh.IsEffectivelyVisible == refreshOnRow
+                && page.HeaderMoreIds.Contains("media.toolbar.refresh") != refreshOnRow,
+                "At a measured row width of " + measured + " dip Refresh must be "
+                + (refreshOnRow ? "on the row" : "under More") + ": visible=" + refresh.IsEffectivelyVisible
+                + ", more=" + string.Join(",", page.HeaderMoreIds));
+            if (layoutOnRow)
+                Require(X(layout) + layout.Bounds.Width <= row.Bounds.Width + 0.5,
+                    "The Layout button must fit the real toolbar row at " + measured + " dip.");
+            Console.WriteLine("SMOKE media toolbar boundary: target " + target + ", measured row " + measured.ToString("0.##")
+                + " dip => " + page.ToolbarLevel + "; Layout=" + (layoutOnRow ? "row" : "More")
+                + ", Refresh=" + (refreshOnRow ? "row" : "More") + ".");
+        }
+
+        // +/- 1 DIP gives an unambiguous real-layout probe for both sides of each strict '<' threshold.
+        await CheckBoundaryAsync(MediaToolbarLayout.ReducedWidth + 1, MediaToolbarLayout.Level.Wide, layoutOnRow: true, refreshOnRow: true);
+        await CheckBoundaryAsync(MediaToolbarLayout.ReducedWidth - 1, MediaToolbarLayout.Level.Reduced, layoutOnRow: true, refreshOnRow: false);
+        await CheckBoundaryAsync(MediaToolbarLayout.CompactWidth + 1, MediaToolbarLayout.Level.Reduced, layoutOnRow: true, refreshOnRow: false);
+        await CheckBoundaryAsync(MediaToolbarLayout.CompactWidth - 1, MediaToolbarLayout.Level.Compact, layoutOnRow: false, refreshOnRow: false);
     }
 }
