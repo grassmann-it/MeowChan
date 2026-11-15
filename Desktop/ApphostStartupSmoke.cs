@@ -108,8 +108,10 @@ internal sealed class ApphostStartupSmoke
                     if (!error.IsVisible || desktop.Windows.Any(w => w is MainWindow) ||
                         Directory.Exists(_errorProfile) || File.Exists(_errorProfile))
                         throw new InvalidOperationException("Startup failure opened a session/profile or has no visible error window.");
-                    var detail = error.GetVisualDescendants().OfType<SelectableTextBlock>().Single();
-                    var exit = error.GetVisualDescendants().OfType<Button>().Single();
+                    SelectableTextBlock detail = error.GetVisualDescendants().OfType<SelectableTextBlock>()
+                        .Single(text => text.Name == "StartupErrorMessage");
+                    Button exit = error.GetVisualDescendants().OfType<Button>()
+                        .Single(button => button.Name == "StartupErrorExit");
                     if (detail.Text != Texts.T(video.MessageKey) || string.IsNullOrWhiteSpace(detail.Text) ||
                         !detail.IsEffectivelyVisible || detail.Bounds.Width <= 0 || detail.Bounds.Height <= 0 ||
                         !exit.IsEffectivelyVisible || exit.Bounds.Width <= 0 || exit.Bounds.Height <= 0 ||

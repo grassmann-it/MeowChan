@@ -30,6 +30,7 @@ public sealed class StartupErrorWindow : Window
 
         SelectableTextBlock detail = new SelectableTextBlock
         {
+            Name = "StartupErrorMessage",
             Text = message,
             TextWrapping = TextWrapping.Wrap
         };
@@ -42,7 +43,7 @@ public sealed class StartupErrorWindow : Window
             Child = detail
         };
         _errorPanel.Classes.Add("workspace-section");
-        _exitButton = new Button();
+        _exitButton = new Button { Name = "StartupErrorExit" };
         _exitButton.Click += (_, _) => Close();
         // No owner: keeps minimize so the error stays reachable from the taskbar. The title stands in the title bar only.
         DialogWindow.Frame(this, DialogFrame.Build(header: null, _errorPanel, DialogFooter.Build(_exitButton)), modal: false);

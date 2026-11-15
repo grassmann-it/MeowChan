@@ -949,6 +949,13 @@ jobs:
         run: |
           dotnet restore MeowChan.csproj --artifacts-path artifacts/linux-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
           dotnet publish MeowChan.csproj --artifacts-path artifacts/linux-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/linux-publish
+          # Single-file bundles embed the .NET native runtime, but custom DllImport("System.Native")
+          # calls cannot resolve an embedded library. Deliver the exact RID runtime copy next to
+          # the apphost so profile safety checks stay available in the release package.
+          runtime_root="$(dirname "$(readlink -f "$(command -v dotnet)")")/shared/Microsoft.NETCore.App"
+          runtime_version="$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^10\./ { print $2 }' | sort -V | tail -1)"
+          test -n "$runtime_version" && test -f "$runtime_root/$runtime_version/libSystem.Native.so"
+          cp --no-clobber "$runtime_root/$runtime_version/libSystem.Native.so" artifacts/linux-publish/libSystem.Native.so
           python3 scripts/check-desktop-package.py artifacts/linux-publish ${{ matrix.runtime }}
           python3 scripts/package-plugins.py --verify artifacts/linux-publish --runtime ${{ matrix.runtime }}
       - name: Prepare the selected private VLC runtime and pinned AppImage tools
