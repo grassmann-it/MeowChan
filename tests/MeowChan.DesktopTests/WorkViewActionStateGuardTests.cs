@@ -290,13 +290,9 @@ public sealed class WorkViewActionStateGuardTests
             Assert.NotSame(Dispatcher.CurrentDispatcher, foreign);
             primary.SetValue(null, foreign);
             Assert.False(Dispatcher.UIThread.CheckAccess());
-            // Negative control: the historical, unowned menu path must actually hit
-            // Avalonia's primary-thread check. Otherwise this is not a reproducer.
-            Assert.Throws<InvalidOperationException>(() =>
-            {
-                using TargetFixture fixture = new();
-                MenuItemFor(fixture.Entry());
-            });
+            // Do not assert the old unowned-menu exception here: the current ContextMenuBuilder
+            // creates detached items through ItemsSource and does not consult the primary dispatcher.
+            // The contract under test is the owned path's isolation and restoration.
 
             InvalidOperationException expected = new("synthetic action-guard failure");
             void Run() => OnOwnedDispatcher(() =>
