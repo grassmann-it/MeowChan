@@ -4855,6 +4855,19 @@
     "settings.galleryStatusDwell": "Afficher les messages d’état pendant",
     "settings.galleryStatusDwellHint": "Durée d’affichage d’un état bref de la ligne d’informations de la galerie, par exemple « Prêt » pour le diaporama. Un diaporama en cours, les raisons d’une pause et les erreurs restent affichés. Par défaut {0} ms, de {1} à {2} ms.",
     "settings.galleryFilmstripTileGap": "Espace entre les miniatures de la bande",
-    "settings.galleryFilmstripTileGapHint": "L’espace entre deux miniatures de la bande de la galerie. Par défaut {0}, de {1} à {2}."
+    "settings.galleryFilmstripTileGapHint": "L’espace entre deux miniatures de la bande de la galerie. Par défaut {0}, de {1} à {2}.",
+    "settings.reader.navigation": "Navigation du lecteur",
+    "settings.reader.navigation.hint": "Flèches avec compteurs vers le fil et le message précédents et suivants, en bas à droite du grand lecteur. Les touches fonctionnent dans tous les cas ; le délai avant le masquage est « Masquer les commandes après ».",
+    "settings.reader.navigation.auto": "Masquer automatiquement",
+    "settings.reader.navigation.always": "Toujours afficher",
+    "settings.reader.navigation.off": "Désactivée (clavier uniquement)",
+    "settings.reader.navigationPosition": "Afficher la position dans la navigation du lecteur",
+    "settings.reader.navigationPosition.hint": "Affiche « 3 / 27 » (fil) et « 12 / 405 » (message) à côté des flèches. Désactivé, et dans un lecteur de moins de 700 dip de large, il ne reste que les quatre flèches.",
+    "settings.reader.mediaClick": "Clic sur un média",
+    "settings.reader.mediaClick.hint": "Ce que fait un clic sur une image ou une vidéo d’un message (et Entrée sur le message, pour son premier média). « Dans le panneau latéral » l’y affiche et y lit une vidéo ; la galerie s’ouvre tant que le panneau latéral est fermé. « Dans le message » lit une vidéo sur place et agrandit une image à la largeur du message ; un deuxième clic la remet en place. « Dans la galerie » ouvre la galerie. Un double clic ouvre toujours la galerie. Par défaut : dans le panneau latéral.",
+    "settings.reader.mediaClick.sidebar": "Afficher dans le panneau latéral",
+    "settings.reader.mediaClick.post": "Ouvrir dans le message",
+    "settings.reader.mediaClick.gallery": "Ouvrir dans la galerie",
+    "reader.media.collapseHint": "Un nouveau clic remet l’image à sa petite taille."
   }
 }

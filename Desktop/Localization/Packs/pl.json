@@ -4904,6 +4904,19 @@
     "settings.galleryStatusDwell": "Pokazuj komunikaty o stanie przez",
     "settings.galleryStatusDwellHint": "Jak długo na ekranie pozostaje krótki stan wiersza informacji galerii, na przykład „Gotowe” przy pokazie slajdów. Trwający pokaz, powody pauzy i błędy zostają. Domyślnie {0} ms, od {1} do {2} ms.",
     "settings.galleryFilmstripTileGap": "Odstęp między miniaturami na pasku miniatur",
-    "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami na pasku miniatur galerii. Domyślnie {0}, od {1} do {2}."
+    "settings.galleryFilmstripTileGapHint": "Odstęp między dwiema miniaturami na pasku miniatur galerii. Domyślnie {0}, od {1} do {2}.",
+    "settings.reader.navigation": "Nawigacja w czytniku",
+    "settings.reader.navigation.hint": "Strzałki z licznikami do poprzedniego i następnego wątku oraz posta, w prawym dolnym rogu dużego czytnika. Klawisze działają przy każdym ustawieniu; czas do ukrycia określa „Ukryj sterowanie po”.",
+    "settings.reader.navigation.auto": "Ukrywaj automatycznie",
+    "settings.reader.navigation.always": "Zawsze pokazuj",
+    "settings.reader.navigation.off": "Wyłączona (tylko klawiatura)",
+    "settings.reader.navigationPosition": "Pokazuj pozycję w nawigacji czytnika",
+    "settings.reader.navigationPosition.hint": "Pokazuje „3 / 27” (wątek) i „12 / 405” (post) obok strzałek. Po wyłączeniu oraz w czytniku węższym niż 700 dip zostają tylko cztery strzałki.",
+    "settings.reader.mediaClick": "Kliknięcie medium",
+    "settings.reader.mediaClick.hint": "Co robi kliknięcie obrazu lub wideo w poście (oraz Enter na poście — dla jego pierwszego medium). „W panelu bocznym” pokazuje je tam i tam odtwarza wideo; przy zamkniętym panelu otwiera się galeria. „W poście” odtwarza wideo na miejscu i powiększa obraz do szerokości posta; kolejne kliknięcie przywraca mały rozmiar. „W galerii” otwiera galerię. Dwukrotne kliknięcie zawsze otwiera galerię. Domyślnie: w panelu bocznym.",
+    "settings.reader.mediaClick.sidebar": "Pokaż w panelu bocznym",
+    "settings.reader.mediaClick.post": "Otwórz w poście",
+    "settings.reader.mediaClick.gallery": "Otwórz w galerii",
+    "reader.media.collapseHint": "Kolejne kliknięcie przywraca obrazowi mały rozmiar."
   }
 }

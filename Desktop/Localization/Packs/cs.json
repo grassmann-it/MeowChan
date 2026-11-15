@@ -4901,6 +4901,19 @@
     "settings.galleryStatusDwell": "Zobrazit stavové zprávy po dobu",
     "settings.galleryStatusDwellHint": "Jak dlouho zůstane na obrazovce krátký stav informačního řádku galerie, například „Připraveno“ u prezentace. Běžící prezentace, důvody pauzy a chyby zůstávají. Výchozí {0} ms, od {1} do {2} ms.",
     "settings.galleryFilmstripTileGap": "Mezera mezi náhledy v pásu náhledů",
-    "settings.galleryFilmstripTileGapHint": "Mezera mezi dvěma náhledy v pásu náhledů galerie. Výchozí {0}, od {1} do {2}."
+    "settings.galleryFilmstripTileGapHint": "Mezera mezi dvěma náhledy v pásu náhledů galerie. Výchozí {0}, od {1} do {2}.",
+    "settings.reader.navigation": "Navigace ve čtečce",
+    "settings.reader.navigation.hint": "Šipky s počítadly na předchozí a další vlákno a příspěvek, vpravo dole ve velké čtečce. Klávesy fungují při každém nastavení; dobu do skrytí určuje „Skrýt ovládání po“.",
+    "settings.reader.navigation.auto": "Skrývat automaticky",
+    "settings.reader.navigation.always": "Zobrazovat vždy",
+    "settings.reader.navigation.off": "Vypnuto (jen klávesnice)",
+    "settings.reader.navigationPosition": "Zobrazovat polohu v navigaci čtečky",
+    "settings.reader.navigationPosition.hint": "Zobrazuje „3 / 27“ (vlákno) a „12 / 405“ (příspěvek) vedle šipek. Při vypnutí a ve čtečce užší než 700 dip zůstanou jen čtyři šipky.",
+    "settings.reader.mediaClick": "Kliknutí na médium",
+    "settings.reader.mediaClick.hint": "Co udělá kliknutí na obrázek nebo video v příspěvku (a Enter na příspěvku, pro jeho první médium). „V postranním panelu“ ho tam zobrazí a video tam přehraje; při zavřeném panelu se otevře galerie. „V příspěvku“ přehraje video přímo na místě a zvětší obrázek na šířku příspěvku; další kliknutí ho vrátí zpět. „V galerii“ otevře galerii. Dvojklik vždy otevře galerii. Ve výchozím stavu: v postranním panelu.",
+    "settings.reader.mediaClick.sidebar": "Zobrazit v postranním panelu",
+    "settings.reader.mediaClick.post": "Otevřít v příspěvku",
+    "settings.reader.mediaClick.gallery": "Otevřít v galerii",
+    "reader.media.collapseHint": "Dalším kliknutím se obrázek vrátí na malou velikost."
   }
 }

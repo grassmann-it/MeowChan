@@ -4861,6 +4861,19 @@
     "settings.galleryStatusDwell": "Exibir mensagens de status por",
     "settings.galleryStatusDwellHint": "Por quanto tempo um status curto da linha de informações da galeria, como “Pronto” da apresentação, fica na tela. Uma apresentação em andamento, os motivos de uma pausa e os erros permanecem. Padrão {0} ms, de {1} a {2} ms.",
     "settings.galleryFilmstripTileGap": "Espaço entre as miniaturas da faixa",
-    "settings.galleryFilmstripTileGapHint": "O espaço entre duas miniaturas da faixa da galeria. Padrão {0}, de {1} a {2}."
+    "settings.galleryFilmstripTileGapHint": "O espaço entre duas miniaturas da faixa da galeria. Padrão {0}, de {1} a {2}.",
+    "settings.reader.navigation": "Navegação do leitor",
+    "settings.reader.navigation.hint": "Setas com contadores para o tópico e a postagem anteriores e seguintes, no canto inferior direito do leitor grande. As teclas funcionam em qualquer opção; o tempo até ocultar é “Ocultar controles após”.",
+    "settings.reader.navigation.auto": "Ocultar automaticamente",
+    "settings.reader.navigation.always": "Sempre mostrar",
+    "settings.reader.navigation.off": "Desativada (somente teclado)",
+    "settings.reader.navigationPosition": "Mostrar a posição na navegação do leitor",
+    "settings.reader.navigationPosition.hint": "Mostra “3 / 27” (tópico) e “12 / 405” (postagem) ao lado das setas. Desativado, e em um leitor com menos de 700 dip de largura, restam só as quatro setas.",
+    "settings.reader.mediaClick": "Clique em uma mídia",
+    "settings.reader.mediaClick.hint": "O que um clique em uma imagem ou vídeo de uma postagem faz (e Enter na postagem, para a primeira mídia dela). “Na barra lateral” mostra a mídia ali e reproduz ali um vídeo; com a barra lateral fechada, abre a galeria. “Na postagem” reproduz um vídeo no próprio lugar e amplia uma imagem até a largura da postagem; outro clique a devolve ao tamanho anterior. “Na galeria” abre a galeria. Um clique duplo sempre abre a galeria. Padrão: na barra lateral.",
+    "settings.reader.mediaClick.sidebar": "Mostrar na barra lateral",
+    "settings.reader.mediaClick.post": "Abrir na postagem",
+    "settings.reader.mediaClick.gallery": "Abrir na galeria",
+    "reader.media.collapseHint": "Outro clique devolve a imagem ao tamanho pequeno."
   }
 }

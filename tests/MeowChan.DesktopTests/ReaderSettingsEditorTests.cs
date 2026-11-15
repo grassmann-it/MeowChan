@@ -342,7 +342,7 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         saved.ReaderMediaSidebar = true;
         saved.ReaderMediaSidebarSide = Config.ReaderMediaSidebarSideRight;
         saved.ReaderMediaSidebarWidth = 760;
-        saved.ReaderInlineVideo = true;
+        saved.ReaderMediaClick = ReaderMediaClickRules.PostKey;
         saved.ReaderInlineVideoAutoplayMuted = false;
         editor.ReaderInlineVideoAutoplayMuted = true; // Confirmation must also propagate false.
         editor.ReaderPreviewDelayMs = 123;
@@ -351,13 +351,13 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         GetInput(editor, nameof(Config.ReaderFoldLines)).Text = "unfinished draft";
 
         editor.RefreshConfirmedSettings(new[] { SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarSide,
-            SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderInlineVideo, SettingsFieldId.ReaderInlineVideoAutoplayMuted });
+            SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaClick, SettingsFieldId.ReaderInlineVideoAutoplayMuted });
 
         Assert.True(editor.ReaderMediaSidebar);
         Assert.Equal(Config.ReaderMediaSidebarSideRight, editor.SelectedReaderMediaSidebarSide!.Value);
         Assert.Equal(760m, editor.ReaderMediaSidebarWidth);
         Assert.Equal("760", GetInput(editor, nameof(Config.ReaderMediaSidebarWidth)).Text);
-        Assert.True(editor.ReaderInlineVideo);
+        Assert.Equal(ReaderMediaClickRules.PostKey, editor.SelectedReaderMediaClick!.Value);
         Assert.False(editor.ReaderInlineVideoAutoplayMuted);
         Assert.Equal(123m, editor.ReaderPreviewDelayMs);
         Assert.Null(editor.ReaderFoldLines);

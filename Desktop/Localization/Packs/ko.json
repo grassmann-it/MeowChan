@@ -4766,6 +4766,19 @@
     "settings.galleryStatusDwell": "상태 메시지 표시 시간",
     "settings.galleryStatusDwellHint": "갤러리 정보 줄의 짧은 상태 표시(예: 슬라이드쇼 “준비됨”)가 화면에 남는 시간입니다. 실행 중인 슬라이드쇼, 일시 중지 이유, 오류는 계속 남습니다. 기본값 {0}ms, {1}~{2}ms.",
     "settings.galleryFilmstripTileGap": "필름스트립 미리보기 간격",
-    "settings.galleryFilmstripTileGapHint": "갤러리 필름스트립에서 두 미리보기 사이의 간격입니다. 기본값 {0}, 범위 {1}~{2}."
+    "settings.galleryFilmstripTileGapHint": "갤러리 필름스트립에서 두 미리보기 사이의 간격입니다. 기본값 {0}, 범위 {1}~{2}.",
+    "settings.reader.navigation": "리더 탐색",
+    "settings.reader.navigation.hint": "큰 리더의 오른쪽 아래에 이전·다음 스레드와 게시물로 이동하는 화살표를 카운터와 함께 표시합니다. 키는 어떤 설정에서도 작동하며, 숨기기까지의 시간은 “컨트롤 숨기기까지의 시간”입니다.",
+    "settings.reader.navigation.auto": "자동으로 숨기기",
+    "settings.reader.navigation.always": "항상 표시",
+    "settings.reader.navigation.off": "끔(키보드만)",
+    "settings.reader.navigationPosition": "리더 탐색에 위치 표시",
+    "settings.reader.navigationPosition.hint": "화살표 옆에 “3 / 27”(스레드)과 “12 / 405”(게시물)를 표시합니다. 끄거나 리더 너비가 700 dip 미만이면 화살표 네 개만 남습니다.",
+    "settings.reader.mediaClick": "미디어 클릭 시",
+    "settings.reader.mediaClick.hint": "게시물의 이미지나 동영상을 클릭할 때의 동작입니다(게시물에서 Enter 키를 누르면 첫 번째 미디어에 같은 동작이 적용됩니다). ‘사이드바에 표시’는 사이드바에 보여 주고 동영상도 그곳에서 재생하며, 사이드바가 닫혀 있으면 갤러리가 열립니다. ‘게시물에서 열기’는 동영상을 그 자리에서 재생하고 이미지를 게시물 너비로 확대하며, 다시 클릭하면 원래대로 돌아갑니다. ‘갤러리에서 열기’는 갤러리를 엽니다. 더블 클릭은 항상 갤러리를 엽니다. 기본값은 사이드바에 표시입니다.",
+    "settings.reader.mediaClick.sidebar": "사이드바에 표시",
+    "settings.reader.mediaClick.post": "게시물에서 열기",
+    "settings.reader.mediaClick.gallery": "갤러리에서 열기",
+    "reader.media.collapseHint": "다시 클릭하면 이미지가 원래의 작은 크기로 돌아갑니다."
   }
 }

@@ -4861,6 +4861,19 @@
     "settings.galleryStatusDwell": "Mostra i messaggi di stato per",
     "settings.galleryStatusDwellHint": "Per quanto tempo resta sullo schermo uno stato breve della riga informativa della galleria, ad esempio «Pronto» della presentazione. Una presentazione in corso, i motivi di una pausa e gli errori restano. Predefinito {0} ms, da {1} a {2} ms.",
     "settings.galleryFilmstripTileGap": "Spazio tra le miniature della striscia",
-    "settings.galleryFilmstripTileGapHint": "Lo spazio tra due miniature della striscia della galleria. Predefinito {0}, da {1} a {2}."
+    "settings.galleryFilmstripTileGapHint": "Lo spazio tra due miniature della striscia della galleria. Predefinito {0}, da {1} a {2}.",
+    "settings.reader.navigation": "Navigazione del lettore",
+    "settings.reader.navigation.hint": "Frecce con contatori verso il thread e il post precedenti e successivi, in basso a destra nel lettore grande. I tasti funzionano con qualsiasi impostazione; il tempo prima che scompaia è «Nascondi i controlli dopo».",
+    "settings.reader.navigation.auto": "Nascondi automaticamente",
+    "settings.reader.navigation.always": "Mostra sempre",
+    "settings.reader.navigation.off": "Disattivata (solo tastiera)",
+    "settings.reader.navigationPosition": "Mostra la posizione nella navigazione del lettore",
+    "settings.reader.navigationPosition.hint": "Mostra «3 / 27» (thread) e «12 / 405» (post) accanto alle frecce. Se disattivato, e in un lettore largo meno di 700 dip, restano solo le quattro frecce.",
+    "settings.reader.mediaClick": "Clic su un media",
+    "settings.reader.mediaClick.hint": "Cosa fa un clic su un’immagine o un video di un post (e Invio sul post, per il suo primo media). «Nella barra laterale» lo mostra lì e riproduce lì un video; con la barra laterale chiusa si apre la galleria. «Nel post» riproduce un video sul posto e ingrandisce un’immagine alla larghezza del post; un altro clic la riporta com’era. «Nella galleria» apre la galleria. Un doppio clic apre sempre la galleria. Predefinito: nella barra laterale.",
+    "settings.reader.mediaClick.sidebar": "Mostra nella barra laterale",
+    "settings.reader.mediaClick.post": "Apri nel post",
+    "settings.reader.mediaClick.gallery": "Apri nella galleria",
+    "reader.media.collapseHint": "Un altro clic riporta l’immagine alla dimensione ridotta."
   }
 }

@@ -4766,6 +4766,19 @@
     "settings.galleryStatusDwell": "ステータスメッセージの表示時間",
     "settings.galleryStatusDwellHint": "ギャラリーの情報行に出る短い状態表示（スライドショーの「準備完了」など）が画面に残る時間です。実行中のスライドショー、一時停止の理由、エラーは残り続けます。既定 {0} ミリ秒、{1}～{2} ミリ秒。",
     "settings.galleryFilmstripTileGap": "フィルムストリップのサムネイルの間隔",
-    "settings.galleryFilmstripTileGapHint": "ギャラリーのフィルムストリップで、2 つのサムネイルの間隔です。既定値は {0}、範囲は {1} から {2} です。"
+    "settings.galleryFilmstripTileGapHint": "ギャラリーのフィルムストリップで、2 つのサムネイルの間隔です。既定値は {0}、範囲は {1} から {2} です。",
+    "settings.reader.navigation": "リーダーのナビゲーション",
+    "settings.reader.navigation.hint": "大きいリーダーの右下に、前後のスレッドと投稿へ移る矢印をカウンター付きで表示します。キーはどの設定でも使えます。隠れるまでの時間は「コントロールを隠すまでの時間」で決まります。",
+    "settings.reader.navigation.auto": "自動的に隠す",
+    "settings.reader.navigation.always": "常に表示",
+    "settings.reader.navigation.off": "オフ（キーボードのみ）",
+    "settings.reader.navigationPosition": "リーダーのナビゲーションに位置を表示",
+    "settings.reader.navigationPosition.hint": "矢印の横に「3 / 27」（スレッド）と「12 / 405」（投稿）を表示します。オフのとき、およびリーダーの幅が 700 dip 未満のときは、4つの矢印だけになります。",
+    "settings.reader.mediaClick": "メディアのクリック時",
+    "settings.reader.mediaClick.hint": "投稿内の画像や動画をクリックしたときの動作です（投稿で Enter キーを押すと、最初のメディアに対して同じ動作をします）。「サイドバーで表示」はサイドバーに表示し、動画もそこで再生します。サイドバーを閉じているときはギャラリーが開きます。「投稿内で開く」は動画をその場で再生し、画像を投稿の幅まで拡大します。もう一度クリックすると元に戻ります。「ギャラリーで開く」はギャラリーを開きます。ダブルクリックは常にギャラリーを開きます。既定はサイドバーで表示です。",
+    "settings.reader.mediaClick.sidebar": "サイドバーで表示",
+    "settings.reader.mediaClick.post": "投稿内で開く",
+    "settings.reader.mediaClick.gallery": "ギャラリーで開く",
+    "reader.media.collapseHint": "もう一度クリックすると画像が元の小さいサイズに戻ります。"
   }
 }

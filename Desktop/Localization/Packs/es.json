@@ -4855,6 +4855,19 @@
     "settings.galleryStatusDwell": "Mostrar los mensajes de estado durante",
     "settings.galleryStatusDwellHint": "Cuánto tiempo permanece en pantalla un estado breve de la línea de información de la galería, por ejemplo «Listo» de la presentación. Una presentación en marcha, los motivos de una pausa y los errores permanecen. Predeterminado {0} ms, de {1} a {2} ms.",
     "settings.galleryFilmstripTileGap": "Espacio entre las miniaturas de la tira",
-    "settings.galleryFilmstripTileGapHint": "El espacio entre dos miniaturas de la tira de la galería. Valor predeterminado {0}, de {1} a {2}."
+    "settings.galleryFilmstripTileGapHint": "El espacio entre dos miniaturas de la tira de la galería. Valor predeterminado {0}, de {1} a {2}.",
+    "settings.reader.navigation": "Navegación del lector",
+    "settings.reader.navigation.hint": "Flechas con contadores hacia el hilo y la publicación anteriores y siguientes, abajo a la derecha del lector grande. Las teclas funcionan con cualquier opción; el tiempo hasta que se oculta es «Ocultar los controles tras».",
+    "settings.reader.navigation.auto": "Ocultar automáticamente",
+    "settings.reader.navigation.always": "Mostrar siempre",
+    "settings.reader.navigation.off": "Desactivada (solo teclado)",
+    "settings.reader.navigationPosition": "Mostrar la posición en la navegación del lector",
+    "settings.reader.navigationPosition.hint": "Muestra «3 / 27» (hilo) y «12 / 405» (publicación) junto a las flechas. Si está desactivado, y en un lector de menos de 700 dip de ancho, solo quedan las cuatro flechas.",
+    "settings.reader.mediaClick": "Clic en un medio",
+    "settings.reader.mediaClick.hint": "Qué hace un clic en una imagen o un vídeo de una publicación (e Intro sobre la publicación, para su primer medio). «En la barra lateral» lo muestra allí y reproduce allí un vídeo; con la barra lateral cerrada se abre la galería. «En la publicación» reproduce un vídeo en su sitio y amplía una imagen al ancho de la publicación; otro clic la devuelve a su tamaño. «En la galería» abre la galería. Un doble clic abre siempre la galería. Por defecto: en la barra lateral.",
+    "settings.reader.mediaClick.sidebar": "Mostrar en la barra lateral",
+    "settings.reader.mediaClick.post": "Abrir en la publicación",
+    "settings.reader.mediaClick.gallery": "Abrir en la galería",
+    "reader.media.collapseHint": "Otro clic devuelve la imagen a su tamaño pequeño."
   }
 }

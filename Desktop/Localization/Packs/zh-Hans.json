@@ -4766,6 +4766,19 @@
     "settings.galleryStatusDwell": "状态消息的显示时间",
     "settings.galleryStatusDwellHint": "图库信息行中的简短状态（例如幻灯片的“就绪”）在屏幕上停留多久。正在放映的幻灯片、暂停原因和错误会一直保留。默认 {0} 毫秒，范围 {1} 到 {2} 毫秒。",
     "settings.galleryFilmstripTileGap": "缩略图条中缩略图的间距",
-    "settings.galleryFilmstripTileGapHint": "图库缩略图条中相邻两张缩略图之间的间距。默认 {0}，范围 {1} 到 {2}。"
+    "settings.galleryFilmstripTileGapHint": "图库缩略图条中相邻两张缩略图之间的间距。默认 {0}，范围 {1} 到 {2}。",
+    "settings.reader.navigation": "阅读器导航",
+    "settings.reader.navigation.hint": "在大阅读器右下角显示带计数的箭头，可跳到上一个或下一个串和帖子。按键在任何设置下都有效；隐藏前的等待时间由“隐藏控件的等待时间”决定。",
+    "settings.reader.navigation.auto": "自动隐藏",
+    "settings.reader.navigation.always": "始终显示",
+    "settings.reader.navigation.off": "关闭（仅键盘）",
+    "settings.reader.navigationPosition": "在阅读器导航中显示位置",
+    "settings.reader.navigationPosition.hint": "在箭头旁显示“3 / 27”（串）和“12 / 405”（帖子）。关闭时，以及阅读器宽度小于 700 dip 时，只保留四个箭头。",
+    "settings.reader.mediaClick": "点击媒体时",
+    "settings.reader.mediaClick.hint": "点击帖子中的图片或视频时的行为（在帖子上按 Enter 键则作用于其第一个媒体）。“在侧栏中显示”会在侧栏里显示它并在那里播放视频；侧栏关闭时则打开图库。“在帖子中打开”会就地播放视频，并把图片放大到帖子的宽度；再次点击即可还原。“在图库中打开”会打开图库。双击始终打开图库。默认：在侧栏中显示。",
+    "settings.reader.mediaClick.sidebar": "在侧栏中显示",
+    "settings.reader.mediaClick.post": "在帖子中打开",
+    "settings.reader.mediaClick.gallery": "在图库中打开",
+    "reader.media.collapseHint": "再次点击可将图片恢复为小尺寸。"
   }
 }
