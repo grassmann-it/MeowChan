@@ -260,7 +260,7 @@
                     <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
                     <!-- RL1 (15.11.): the bar's visual order is its groups, with a thin line between them (ActionToolBar.Group): the thread mark and
-                         the returns of a state (0), the main actions Read, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
+                         the returns of a state (0), the main actions Large reader, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
                          settings gear (3), the history return (4). What a narrow window moves under More first is the policy's ReaderToolbarKeepVisibleOrder. -->
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
                     <Button x:Name="ReaderUnreadReturn" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />

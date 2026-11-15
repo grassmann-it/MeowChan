@@ -15,11 +15,11 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-// RL1 (15.11.2026): the reader toolbar in groups, "Read" as the eye, the gear "Settings" in place of "View", full screen last (under More when it does not fit). One detached
+// RL1 (15.11.2026): the reader toolbar in groups, "Large reader" (Tom 15.11., was "Read" as the eye), the gear "Settings" in place of "View", full screen last (under More when it does not fit). One detached
 // reader in a private profile; five checks, named like the spec's ids:
 //   reader-toolbar-order        the bar's order and groups at 1380 in all three work views, the lines between groups (and none for a group that moved
 //                               under More), full screen last on the bar or under More, the overflow following the policy
-//   reader-toolbar-read-icon    Read carries the eye (not the external-link of "Open source in browser"), the gear, tags and thread their icons
+//   reader-toolbar-read-icon    Large reader carries external-link (the catalog has no expand arrow), the gear, tags and thread their icons
 //   reader-settings-sections    the popover's four sections, its session rows, the media rows and a conditional row
 //   reader-settings-session-dot a view filter of the session puts the accent dot on the gear (and its tip and accessible name), switching off removes it
 //   reader-toolbar-760          Simple at 760: the gear and Thread under More, the gear opens the popover from there; Barebones the same at any width
@@ -62,7 +62,7 @@ internal static class ReaderToolbarChecks
             await CheckOrderAsync(page, window);
             Console.WriteLine("SMOKE reader-toolbar-order: Read, Gallery, Find | Tags, Export, Thread | gear in order and groups, lines only between bar-resident groups, full screen last on the bar or under More, overflow follows the policy in three views.");
             CheckReadIcon(page);
-            Console.WriteLine("SMOKE reader-toolbar-read-icon: Read carries the eye, not the external link; the gear, Tags and Thread carry their icons.");
+            Console.WriteLine("SMOKE reader-toolbar-read-icon: Large reader carries external-link; the gear, Tags and Thread carry their icons.");
             await CheckSectionsAsync(page, config);
             Console.WriteLine("SMOKE reader-settings-sections: four sections, session rows, media rows and the conditional side row passed.");
             await CheckSessionDotAsync(page, window);
@@ -154,8 +154,8 @@ internal static class ReaderToolbarChecks
 
     private static void CheckReadIcon(ArchivePage page)
     {
-        Require(IconButtons.KeyOf(Named(page, "ArchiveReadPosts")) == "eye", "Read does not carry the eye: " + IconButtons.KeyOf(Named(page, "ArchiveReadPosts")));
-        Require(Named(page, "ArchiveReadPosts").Content is StackPanel { Children.Count: 2 }, "Read does not show its icon before its text.");
+        Require(IconButtons.KeyOf(Named(page, "ArchiveReadPosts")) == "external-link", "Large reader does not carry the external-link icon: " + IconButtons.KeyOf(Named(page, "ArchiveReadPosts")));
+        Require(Named(page, "ArchiveReadPosts").Content is StackPanel { Children.Count: 2 }, "Large reader does not show its icon before its text.");
         Require(IconButtons.KeyOf(Named(page, "ReaderSettingsOpen")) == "settings", "The gear does not carry the settings icon.");
         Require(IconButtons.KeyOf(Named(page, "ReaderTagsOpen")) == "tag", "Tags do not carry the tag icon: " + IconButtons.KeyOf(Named(page, "ReaderTagsOpen")));
         ActionToolBar bar = Bar(page);

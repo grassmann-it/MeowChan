@@ -144,11 +144,11 @@ public sealed class CommandLabelLocalizationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Close", "Read", "Gallery", "Full screen")]
-    [InlineData("de", "Schließen", "Lesen", "Galerie", "Vollbild")]
-    [InlineData("es", "Cerrar", "Leer", "Galería", "Pantalla completa")]
-    [InlineData("fr", "Fermer", "Lire", "Galerie", "Plein écran")]
-    [InlineData("ru", "Закрыть", "Читать", "Галерея", "Полный экран")]
+    [InlineData("en", "Close", "Large reader", "Gallery", "Full screen")]
+    [InlineData("de", "Schließen", "Großer Reader", "Galerie", "Vollbild")]
+    [InlineData("es", "Cerrar", "Lector grande", "Galería", "Pantalla completa")]
+    [InlineData("fr", "Fermer", "Grand lecteur", "Galerie", "Plein écran")]
+    [InlineData("ru", "Закрыть", "Развёрнутая читалка", "Галерея", "Полный экран")]
     public void AllFourCompactLabelsAreLocalizedWithoutChangingTheFullTitles(string language,
         string close, string read, string gallery, string fullscreen)
     {

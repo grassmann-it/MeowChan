@@ -73,11 +73,13 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     }
 
     [Fact]
-    public void ReadIsTheEyeAndNoLongerTheIconOfOpenSourceInTheBrowser()
+    public void LargeReaderCarriesTheOpenElsewhereIconAndTheListsReadKeepsTheEye()
     {
-        Assert.Equal("eye", CommandCatalog.Get("reader.expand").Icon);
+        // Tom 15.11. (supersedes RL1 "Read as the eye"): the button that opens the large reader says so and shows that it opens the thread
+        // elsewhere. The icon catalog has no expand arrow ("maximize" is full screen's frame on the same bar), so it is external-link.
+        Assert.Equal("external-link", CommandCatalog.Get("reader.expand").Icon);
+        Assert.NotEqual(CommandCatalog.Get("window.fullscreen").Icon, CommandCatalog.Get("reader.expand").Icon);
         Assert.Equal("eye", CommandCatalog.Get("thread.read").Icon);
-        Assert.NotEqual(CommandCatalog.Get("reader.expand").Icon, CommandCatalog.Get("location.open-source").Icon);
         Assert.Equal("external-link", CommandCatalog.Get("location.open-source").Icon);
         Assert.Equal("tag", CommandCatalog.Get("thread.tags").Icon);
         Assert.Equal("settings", CommandCatalog.Get("reader.quick-settings").Icon);
@@ -85,24 +87,24 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         Assert.Contains("CommandBindings.ShowIconBeforeText(ReaderThreadOpen, \"file-text\");", source);
         Assert.Contains("CommandBindings.Apply(ArchiveReadPosts, \"reader.expand\", iconWithLabel: true);", source);
         Assert.Contains("const string icon = \"settings\";", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.QuickSettings.cs")));
-        // "file-text" now means Thread everywhere (it no longer stands for Read); the eye is Read's.
+        // "file-text" means Thread everywhere; the eye stays the list's "Read posts".
         string[] eye = CommandCatalog.All.Where(entry => entry.Icon == "eye").Select(entry => entry.Id).ToArray();
-        Assert.Contains("reader.expand", eye);
+        Assert.DoesNotContain("reader.expand", eye);
         Assert.Contains("thread.read", eye);
     }
 
     [Fact]
     public void ReadAndTheListsPostsReadAreOneThingInTheLabelsOfBothLanguages()
     {
-        Assert.Equal("Read in large reader", CommandCatalog.Label("reader.expand"));
-        Assert.Equal("Read", Texts.T("command.reader.expand.compact"));
+        Assert.Equal("Large reader", CommandCatalog.Label("reader.expand"));
+        Assert.Equal("Large reader", Texts.T("command.reader.expand.compact"));
         Assert.Equal("Thread tags…", CommandCatalog.Label("thread.tags"));
         Assert.Equal("Find", Texts.T("readerFind.open"));
         Assert.Equal("Settings", Texts.T("reader.settings.button"));
         Assert.Equal("A view filter is on", Texts.T("reader.settings.active"));
         Texts.SetLanguage("de");
-        Assert.Equal("Im großen Reader lesen", CommandCatalog.Label("reader.expand"));
-        Assert.Equal("Lesen", Texts.T("command.reader.expand.compact"));
+        Assert.Equal("Großer Reader", CommandCatalog.Label("reader.expand"));
+        Assert.Equal("Großer Reader", Texts.T("command.reader.expand.compact"));
         Assert.Equal("Thread-Tags…", CommandCatalog.Label("thread.tags"));
         Assert.Equal("Suchen", Texts.T("readerFind.open"));
         Assert.Equal("Einstellungen", Texts.T("reader.settings.button"));

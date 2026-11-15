@@ -153,7 +153,7 @@ public sealed class ReaderWorkViewTests
     private static readonly (string Name, string Id, double Width)[] AdvancedBar =
     [
         ("ArchiveCurrentThreadFavorite", "reader.toolbar.thread-favorite", 46),
-        ("ArchiveReadPosts", "reader.toolbar.read", 100), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
+        ("ArchiveReadPosts", "reader.toolbar.read", 150), ("ArchiveOpenGallery", "reader.toolbar.gallery", 158),
         ("ReaderFindOpen", "reader.toolbar.find", 100),
         ("ReaderTagsOpen", "reader.toolbar.tags", 92), ("ExportArchiveButton", "reader.toolbar.export", 172),
         ("ReaderThreadOpen", "reader.toolbar.thread", 104), ("ReaderSettingsOpen", "reader.toolbar.settings", 130),
@@ -188,7 +188,6 @@ public sealed class ReaderWorkViewTests
     public void TheWideAdvancedBarKeepsEveryToolOnceTheWayOutLeftIt()
     {
         Assert.Empty(MovedAt(1520 - 48));
-        Assert.Empty(MovedAt(1280 - 48));
         Assert.DoesNotContain(AdvancedBar, item => item.Name is "ArchiveCloseReader" or "ArchiveGalleryReturn" or "ArchiveMediaReturn" or "ArchiveBackButton");
     }
 
