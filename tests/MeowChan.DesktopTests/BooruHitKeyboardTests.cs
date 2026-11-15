@@ -1,6 +1,8 @@
 using System.Reflection;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
+using Avalonia;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
@@ -283,6 +285,153 @@ public sealed class BooruHitKeyboardTests
         Assert.Equal(0, harness.Watchers.Checks);
     });
 
+    // ---- dead-affordance review 15.11.: source-tag chips, "+N more", middle click, watcher keyboard ------------------------------
+
+    [Fact]
+    public void ASourceTagChipHasItsOwnMenuToAddExcludeAndCopyTheTag() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            List<Border> cards = await SearchAsync(harness, model, view);
+            SearchBox input = Field<SearchBox>(view, "_input");
+            input.Text = string.Empty;
+            model.Search.SetInput(string.Empty);
+
+            ContextMenuModel menu = TagMenu(view, "cat");
+            Assert.Equal(new[] { BooruWorkbenchView.MenuTagAdd, BooruWorkbenchView.MenuTagExclude, FilterChipMenu.CopyName }, menu.Entries.Select(entry => entry.Id));
+            Assert.All(menu.Entries, entry => Assert.True(entry.Available));
+            Assert.Equal("Add to search", Entries(menu)[0].Label);
+            Assert.Equal("Exclude from search", Entries(menu)[1].Label);
+
+            // Add, then exclude another tag: "-tag" is the provider's exclusion; nothing is requested.
+            int requests = harness.ProviderRequests;
+            Entries(menu)[0].Invoke!();
+            Assert.Equal("cat", input.Text);
+            Entries(TagMenu(view, "sky"))[1].Invoke!();
+            Assert.Equal("cat -sky", input.Text);
+            Assert.Equal("cat -sky", model.Search.View.Input);
+            // The same tag the other way round replaces its term (both together would match nothing), and an existing term is not added twice.
+            Entries(TagMenu(view, "cat"))[1].Invoke!();
+            Assert.Equal("-cat -sky", input.Text);
+            Entries(TagMenu(view, "sky"))[1].Invoke!();
+            Assert.Equal("-cat -sky", input.Text);
+            Assert.Equal(requests, harness.ProviderRequests);
+            Assert.DoesNotContain(harness.Search.Searches, search => search.Query.Contains('-'));
+
+            // The chip of a hit carries a menu host of its own, so a right click on it never opens the card's menu.
+            Button chip = Button(cards[0], BooruWorkbenchView.ResultTagPrefix + "101:cat");
+            KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, chip);
+            Raise(chip, apps);
+            Assert.True(apps.Handled);
+        }
+    });
+
+    [Fact]
+    public void MoreTagsIsAButtonThatListsEveryTagOfThatCardOnly() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            await SearchAsync(harness, model, view);
+            string[] names = Enumerable.Range(1, 30).Select(number => "tag_" + number).ToArray();
+            var post = BooruUiFixtures.Post("901", tags: names);
+            MethodInfo createTags = typeof(BooruWorkbenchView).GetMethod("CreateTags", Private)!;
+            StackPanel Tags() => (StackPanel)createTags.Invoke(view, new object[] { post })!;
+
+            StackPanel folded = Tags();
+            Assert.Equal(24, folded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
+            Avalonia.Controls.Button more = Assert.Single(folded.GetLogicalDescendants().OfType<Avalonia.Controls.Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
+            Assert.True(more.IsEnabled);
+            Assert.Equal("+6 more", more.Content);
+            Assert.Contains("tag_27", ToolTip.GetTip(more) as string);
+
+            more.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            StackPanel expanded = Tags();
+            Assert.Equal(30, expanded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
+            Assert.DoesNotContain(expanded.GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
+            // Another card keeps its limit.
+            post = BooruUiFixtures.Post("902", tags: names);
+            Assert.Contains(Tags().GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "902");
+        }
+    });
+
+    [Fact]
+    public void AMiddleClickOnAHitCardOpensThePostPageAndNeverLoadsAnything() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            List<Border> cards = await SearchAsync(harness, model, view);
+            Border card = cards[1];
+            TextBlock title = card.GetLogicalDescendants().OfType<TextBlock>().First();
+            Button load = Button(card, BooruWorkbenchView.LoadPrefix + "102");
+
+            // A press on one place and a release on a button of the card are a click on the button, not on the card.
+            Raise(title, MiddlePress(card, title));
+            Raise(load, MiddleRelease(load));
+            Assert.Empty(harness.Links.Opened);
+
+            // A middle press and release on the card's non-interactive part opens the post page.
+            Raise(title, MiddlePress(card, title));
+            PointerReleasedEventArgs release = MiddleRelease(title);
+            Raise(title, release);
+            Assert.True(release.Handled);
+            await BooruTestSupport.WaitAsync(() => harness.Links.Opened.Count == 1, "the opened post page");
+            Assert.Equal("https://danbooru.donmai.us/posts/102", harness.Links.Opened[0]);
+            Assert.Empty(harness.Queue.Loads);
+
+            // A release without its press does nothing.
+            PointerReleasedEventArgs stray = MiddleRelease(title);
+            Raise(title, stray);
+            Assert.False(stray.Handled);
+            await Task.Delay(20);
+            Assert.Single(harness.Links.Opened);
+        }
+    });
+
+    [Fact]
+    public void AWatcherCardIsAKeyboardStopWhoseEnterShowsItsQueryAndWhoseMenuKeyOpensItsMenu() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        harness.Previews.OnPreview = _ => null;
+        harness.Watchers.Seed(BooruUiFixtures.Watcher("w1", "cat blue_eyes", clock: harness.Clock), BooruUiFixtures.Watcher("w2", "sky", clock: harness.Clock));
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        await view.ActivateAsync();
+        StackPanel watchers = Field<StackPanel>(view, "_watchers");
+        await BooruTestSupport.WaitAsync(() => watchers.Children.Count == 2, "the watcher cards");
+        Border first = (Border)watchers.Children[0];
+        Assert.True(first.Focusable);
+        Assert.True(first.IsTabStop);
+        Assert.Contains("workspace-card-focusable", first.Classes);
+        Assert.Equal("cat blue_eyes", AutomationProperties.GetName(first));
+        Assert.Equal(new[] { 1, 2 }, watchers.Children.Select(AutomationProperties.GetPositionInSet));
+        Assert.Equal(AutomationControlType.List, AutomationProperties.GetControlTypeOverride(watchers));
+
+        // Down is handled on the card itself; a button inside it keeps its own keys.
+        KeyEventArgs down = Press(Avalonia.Input.Key.Down, first);
+        Raise(first, down);
+        Assert.True(down.Handled);
+        Button check = first.GetLogicalDescendants().OfType<Button>().First();
+        Assert.Equal(BooruHitKey.None, BooruHitKeys.Route(Press(Avalonia.Input.Key.Enter, check), first));
+
+        TabControl tabs = Field<TabControl>(view, "_tabs");
+        tabs.SelectedItem = Field<TabItem>(view, "_watchersTab");
+        int requests = harness.ProviderRequests;
+        KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, first);
+        Raise(first, enter);
+        Assert.True(enter.Handled);
+        Assert.Same(Field<TabItem>(view, "_searchTab"), tabs.SelectedItem);
+        Assert.Equal("cat blue_eyes", Field<SearchBox>(view, "_input").Text);
+        Assert.Equal(requests, harness.ProviderRequests);
+        Assert.Equal(0, harness.Watchers.Checks);
+
+        KeyEventArgs apps = Press(Avalonia.Input.Key.Apps, first);
+        Raise(first, apps);
+        Assert.True(apps.Handled);
+    });
+
     // ---- helpers ----------------------------------------------------------------------------------------------------
 
     private static BooruUiHarness Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view)
@@ -321,6 +470,19 @@ public sealed class BooruHitKeyboardTests
             .Invoke(view, new object[] { card, postId });
         return Assert.IsType<ContextMenuBuilder>(builder).ToModel();
     }
+
+    private static ContextMenuModel TagMenu(BooruWorkbenchView view, string tag) =>
+        Assert.IsType<ContextMenuBuilder>(view.ComposeTagMenu(tag)).ToModel();
+
+    private static ContextMenuEntry[] Entries(ContextMenuModel menu) => menu.Entries.ToArray();
+
+    private static PointerPressedEventArgs MiddlePress(Visual root, object source) => new(source, new Avalonia.Input.Pointer(1, PointerType.Mouse, true), root,
+        default, 0, new PointerPointProperties(RawInputModifiers.MiddleMouseButton, PointerUpdateKind.MiddleButtonPressed), KeyModifiers.None)
+        { RoutedEvent = InputElement.PointerPressedEvent, Source = source };
+
+    private static PointerReleasedEventArgs MiddleRelease(object source) => new(source, new Avalonia.Input.Pointer(1, PointerType.Mouse, true), (Visual)source,
+        default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.MiddleButtonReleased), KeyModifiers.None, MouseButton.Middle)
+        { RoutedEvent = InputElement.PointerReleasedEvent, Source = source };
 
     /// <summary>Raises the event on the control it comes from, so it bubbles up to the card as a real pointer or key event does (RaiseEvent sets the source to its target).</summary>
     private static void Raise(Interactive source, RoutedEventArgs e) => source.RaiseEvent(e);

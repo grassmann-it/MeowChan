@@ -178,14 +178,23 @@ public sealed class GalleryRatingPanelTests : IDisposable
     }
 
     [Fact]
-    public void ThePostTagsSectionListsTheTagsAsReadOnlyChipsWithOneLinkToTheTagsSegment()
+    public void ThePostTagsSectionListsTheTagsAsChipButtonsThatOpenTheTagsSegmentAndOneLinkForTheKeyboard()
     {
         Fixture h = new();
         SetField(h.Viewer, "_tagNames", new[] { "alpha", "beta", "gamma" });
         StackPanel section = (StackPanel)BuildTags(h.Viewer, out List<(string Name, string Text)> commands);
         WrapPanel chips = Assert.IsType<WrapPanel>(section.Children.OfType<WrapPanel>().Single());
         Assert.Equal(3, chips.Children.Count);
-        Assert.All(chips.Children, chip => Assert.False(chip.Focusable));
+        // Dead-affordance review 15.11.: a chip is a real, enabled button (it opens the Tags segment); the one link is the keyboard's way, so the
+        // chips stay out of the Tab order.
+        Assert.All(chips.Children, chip =>
+        {
+            Button button = Assert.IsType<Button>(chip);
+            Assert.True(button.IsEnabled);
+            Assert.False(button.Focusable);
+            Assert.Equal(Texts.T("gallery.post.tags.edit"), ToolTip.GetTip(button));
+            Click(button); // the viewer of this fixture has no open panel: nothing to open, nothing may throw
+        });
         Assert.Equal(new[] { ("GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit")) }, commands.Select(item => (item.Name, item.Text)).ToArray());
         Assert.Contains("alpha, beta, gamma", AutomationProperties.GetName(chips));
     }
@@ -200,6 +209,7 @@ public sealed class GalleryRatingPanelTests : IDisposable
         WrapPanel chips = section.Children.OfType<WrapPanel>().Single();
         Assert.Equal(GalleryViewer.PostTagChipLimit + 1, chips.Children.Count);
         Assert.Equal("GalleryPostTagsMore", ((Control)chips.Children[^1]).Name);
+        Assert.IsType<Button>(chips.Children[^1]);
         SetField(h.Viewer, "_tagNames", Array.Empty<string>());
         section = (StackPanel)BuildTags(h.Viewer, out _);
         Assert.Contains(section.Children, child => child.Name == "GalleryPostTagsEmpty");
@@ -216,6 +226,17 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Empty(commands);
         TextBlock reason = Assert.IsType<TextBlock>(section.Children.Single(child => child.Name == "GalleryPostTagsReason"));
         Assert.Equal("The tag store is damaged.", reason.Text);
+    }
+
+    [Fact]
+    public void AChipOrTheMoreChipOpensTheTagsSegmentLikeTheLink()
+    {
+        string post = Source("Desktop", "GalleryViewer.PostPanel.cs");
+        Assert.Single(post.Split("GallerySidePanelSegment.Tags, focusContent: true")[1..]); // one action, shared by the link and both kinds of chip
+        Assert.Contains("\"GalleryPostTagsEdit\", Texts.T(\"gallery.post.tags.edit\"), openTags)", post);
+        Assert.Contains("chip.Click += (_, _) => open();", post);
+        Assert.Contains("TagChip(name, more: false, openTags)", post);
+        Assert.Contains("more: true, openTags)", post);
     }
 
     // ---- R and the deletions ---------------------------------------------------------------------------------------------------

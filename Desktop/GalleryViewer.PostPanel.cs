@@ -19,7 +19,7 @@ namespace MeowChan.Desktop;
 // Review 15.11. (Tom's decision): the Post segment of the side panel carries what the toolbar's rating button and the rating dialog did.
 // Top to bottom, 12 dip between the sections, 8 inside a section, 4 from a caption to its content (the values the tag panel and the decision
 // row use): where the post is, favourite and stars (a second GalleryDecisionRow, created once and put back on every rebuild), the medium's tags
-// as read-only chips with a link to the Tags segment, a rule, then the post itself and the file. R (media.rating.edit) moves the focus to the
+// as chips (each a button that opens the Tags segment, like the link) with that link, a rule, then the post itself and the file. R (media.rating.edit) moves the focus to the
 // stars; only a panel that cannot take it opens the rating menu on the viewer.
 internal sealed partial class GalleryViewer
 {
@@ -97,6 +97,7 @@ internal sealed partial class GalleryViewer
                     TextWrapping = TextWrapping.Wrap });
             return section;
         }
+        Action openTags = () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true);
         if (count == 0)
             section.Children.Add(new TextBlock { Name = "GalleryPostTagsEmpty", Classes = { "workspace-help" }, Text = Texts.T("tags.quick.assigned.empty"),
                 TextWrapping = TextWrapping.Wrap });
@@ -106,24 +107,30 @@ internal sealed partial class GalleryViewer
             // The chips are decoration of one line: a screen reader reads "Tags: a, b, c" once, not every chip.
             AutomationProperties.SetName(chips, Texts.T("tags.rowLabel", string.Join(", ", names)));
             AutomationProperties.SetAccessibilityView(chips, AccessibilityView.Content);
-            foreach (string name in names.Take(PostTagChipLimit)) chips.Children.Add(TagChip(name, more: false));
-            if (count > PostTagChipLimit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - PostTagChipLimit), more: true));
+            // Dead-affordance review 15.11.: a chip (and "+N more") is a button that opens the Tags segment, as the link below does. The chips stay out
+            // of the Tab order (up to 30 stops) and out of the accessibility tree; the keyboard and a screen reader have the one link.
+            foreach (string name in names.Take(PostTagChipLimit)) chips.Children.Add(TagChip(name, more: false, openTags));
+            if (count > PostTagChipLimit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - PostTagChipLimit), more: true, openTags));
             section.Children.Add(chips);
         }
-        Button edit = command(section, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"), () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
+        Button edit = command(section, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"), openTags);
         edit.Classes.Add("link");
         edit.HorizontalAlignment = HorizontalAlignment.Left;
         return section;
     }
 
-    private static Border TagChip(string text, bool more)
+    private static Button TagChip(string text, bool more, Action open)
     {
-        Border chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Classes = { "chip", "chip-readonly" },
-            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Focusable = false,
-            Child = new TextBlock { Text = text, Classes = { "chip-label" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
-                VerticalAlignment = VerticalAlignment.Center } };
+        Button chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Content = new TextBlock { Text = text, MaxLines = 1,
+                TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center },
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
+        // An assigned tag rests on the accent tint like the reader's tag bar; "+N more" is the offered (outlined) form.
+        if (more) WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOffered(chip));
+        else WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
         if (more) chip.Classes.Add("chip-more");
+        ToolTip.SetTip(chip, Texts.T("gallery.post.tags.edit"));
         AutomationProperties.SetAccessibilityView(chip, AccessibilityView.Raw);
+        chip.Click += (_, _) => open();
         return chip;
     }
 
