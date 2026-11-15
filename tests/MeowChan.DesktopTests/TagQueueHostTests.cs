@@ -274,12 +274,12 @@ public sealed class TagQueueHostTests
     {
         using TempDirectory temp = new();
         string file = Path.Combine(await ProfileAsync(temp), TagQueueStore.FileName);
-        await File.WriteAllTextAsync(file, "{\"Version\":2}");
+        await File.WriteAllTextAsync(file, "{\"Version\":3}");
         await using DesktopSessionHost host = await StartAsync(temp.Path);
         TagQueueSnapshot snapshot = await host.LoadTagQueueAsync();
         Assert.Equal((TagQueueLoadState.NewerVersion, 0), (snapshot.State, snapshot.Count));
         Assert.Equal(Texts.T("queue.error.newer"), await TagQueueActions.AddAsync(host, Items(1, 1), 0));
-        Assert.Equal("{\"Version\":2}", await File.ReadAllTextAsync(file));
+        Assert.Equal("{\"Version\":3}", await File.ReadAllTextAsync(file));
     }
 
     [Fact]
