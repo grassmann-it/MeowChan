@@ -8,12 +8,18 @@ namespace MeowChan.Persistence;
 /// <summary>Single-writer atomic replacement within one filesystem directory.</summary>
 internal static class AtomicJsonFile
 {
+    // .NET's Windows PAL does not support File.Replace when the destination is a symbolic link.
+    // Do not fall back to delete/move: that would silently replace a user-controlled link.
+    internal static bool CanAtomicallyReplaceSymbolicLink => !OperatingSystem.IsWindows();
+
     public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string directory = Path.GetDirectoryName(filePath)
             ?? throw new ArgumentException("An absolute destination path is required.", nameof(filePath));
         Directory.CreateDirectory(directory);
+        if (IsReparsePoint(filePath) && !CanAtomicallyReplaceSymbolicLink)
+            throw new IOException("Atomic replacement of a symbolic-link destination is not supported on this platform.");
         string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
 
         try

@@ -138,11 +138,17 @@ public sealed class PrivateTagStoreV2CorruptionTests(ITestOutputHelper log) : Ba
         Assert.Equal(backup, File.ReadAllBytes(primary + ".bak"));
     }
 
-    [Theory]
-    [InlineData("directory")]
+    [Fact]
+    public void ADirectoryAtThePermanentV1NameIsLeftAloneByTheUpgrade() =>
+        PermanentV1NameIsLeftAlone("directory");
+
+    [SymbolicLinkTheory]
     [InlineData("symlink")]
     [InlineData("dangling-symlink")]
-    public void ADirectoryOrLinkAtThePermanentV1NameIsLeftAloneByTheUpgrade(string kind)
+    public void ALinkAtThePermanentV1NameIsLeftAloneByTheUpgrade(string kind) =>
+        PermanentV1NameIsLeftAlone(kind);
+
+    private void PermanentV1NameIsLeftAlone(string kind)
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);

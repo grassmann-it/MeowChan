@@ -95,27 +95,77 @@ internal abstract class StoreAdapter
     public override string ToString() => Name;
 }
 
+internal static class CorruptionSymlinkSupport
+{
+    internal static bool CanCreate { get; } = ProbeCreation();
+
+    private static bool ProbeCreation()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "meowchan-symlink-probe-" + Guid.NewGuid().ToString("N"));
+        string target = Path.Combine(directory, "target");
+        string link = Path.Combine(directory, "link");
+        try
+        {
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(target, "probe");
+            File.CreateSymbolicLink(link, target);
+            return new FileInfo(link).LinkTarget != null;
+        }
+        catch (IOException) { return false; }
+        catch (UnauthorizedAccessException) { return false; }
+        catch (PlatformNotSupportedException) { return false; }
+        catch (NotSupportedException) { return false; }
+        finally
+        {
+            try { Directory.Delete(directory, recursive: true); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+}
+
+/// <summary>Skips only link fixtures when the runner cannot create file symbolic links.</summary>
+public sealed class SymbolicLinkTheoryAttribute : TheoryAttribute
+{
+    public SymbolicLinkTheoryAttribute()
+    {
+        if (!CorruptionSymlinkSupport.CanCreate)
+            Skip = "This corruption contract uses a file symbolic link, which this runner cannot create.";
+    }
+}
+
 internal static class CorruptionScenarios
 {
     /// <summary>Length and digest of one file, streamed: an oversized file must not be read into the test's memory either.</summary>
-    private sealed record FileState(long Length, string Digest);
+    private sealed record FileState(long Length, string Digest, string? LinkTarget);
 
     private sealed record Files(string[] Names, FileState? Primary, FileState? Backup);
 
-    private static FileState StateOf(byte[] bytes) => new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
+    private static FileState StateOf(byte[] bytes) => new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)), null);
 
     /// <summary>Above this size only the head is digested: a deliberately huge file is never pulled through memory here either.</summary>
     private const int DigestedHead = 1024 * 1024;
 
     private static FileState? State(string path)
     {
-        if (!File.Exists(path)) return null;
+        FileInfo info = new(path);
+        string? linkTarget = info.LinkTarget;
+        if (linkTarget != null)
+        {
+            string target = Path.IsPathFullyQualified(linkTarget)
+                ? linkTarget
+                : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, linkTarget));
+            if (!File.Exists(target) && !Directory.Exists(target))
+                return new(0, string.Empty, linkTarget);
+        }
+        if (!File.Exists(path))
+            return linkTarget == null ? null : new(0, string.Empty, linkTarget);
         using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         long length = stream.Length;
-        if (length <= DigestedHead) return new(length, Convert.ToHexString(SHA256.HashData(stream)));
+        if (length <= DigestedHead) return new(length, Convert.ToHexString(SHA256.HashData(stream)), linkTarget);
         byte[] head = new byte[DigestedHead];
         stream.ReadExactly(head);
-        return new(length, Convert.ToHexString(SHA256.HashData(head)));
+        return new(length, Convert.ToHexString(SHA256.HashData(head)), linkTarget);
     }
 
     private static Files Capture(StoreAdapter adapter, string directory) => new(
@@ -381,8 +431,7 @@ internal static class CorruptionScenarios
                     break;
             }
             string context = $"{adapter.Name} [{kind}]";
-            string[] namesBefore = Directory.EnumerateFileSystemEntries(directory).Select(Path.GetFileName).OfType<string>().Order(StringComparer.Ordinal).ToArray();
-            byte[]? backupBefore = File.Exists(adapter.BackupPath(directory)) ? File.ReadAllBytes(adapter.BackupPath(directory)) : null;
+            Files before = Capture(adapter, directory);
 
             ReadResult read = adapter.Read(directory, setup.Lease);
             if (read.Error != null) AssertHygiene(adapter, directory, read.Error, context + " read");
@@ -395,6 +444,8 @@ internal static class CorruptionScenarios
                     $"{context}: the entry was read as data ({read.Fingerprint}).");
 
             Exception? outcome = Try(() => adapter.Mutate(directory, setup.Lease));
+            bool mayReplaceLink = kind != "directory" && read.Kind == ReadKind.Data && adapter.FollowsSymbolicLinks
+                && AtomicJsonFile.CanAtomicallyReplaceSymbolicLink;
             if (read.Kind == ReadKind.Recovery)
             {
                 // A recovery offer is not writable. In particular, do not implicitly replace a dangling primary and
@@ -402,11 +453,13 @@ internal static class CorruptionScenarios
                 Assert.NotNull(outcome);
                 AssertHygiene(adapter, directory, outcome!, context + " write");
             }
-            else if (read.Kind == ReadKind.Data && adapter.FollowsSymbolicLinks && kind != "directory")
+            else if (mayReplaceLink)
                 Assert.Null(outcome);
-            else if (outcome != null) AssertHygiene(adapter, directory, outcome, context + " write");
-            else Assert.True(adapter.Policy == StorePolicy.Rebuild,
-                $"{context}: a write succeeded with a {kind} in place of the file.");
+            else if (outcome != null)
+                AssertHygiene(adapter, directory, outcome, context + " write");
+            else
+                Assert.True(adapter.Policy == StorePolicy.Rebuild,
+                    $"{context}: a write succeeded with a {kind} in place of the file.");
 
             // Nothing behind the entry may change, whatever the store did with the entry itself.
             if (targetBytes != null) Assert.True(Same(targetBytes, File.ReadAllBytes(target)), $"{context}: the linked file was written through.");
@@ -415,13 +468,10 @@ internal static class CorruptionScenarios
                 Assert.True(Directory.Exists(primary) && File.Exists(marker), $"{context}: the directory was removed or emptied.");
                 Assert.Equal("keep me", File.ReadAllText(marker));
             }
-            // Only a failed write must leave the backup alone (a successful one may have rotated the link itself into it).
-            if (outcome != null)
-                Assert.True(Same(backupBefore, File.Exists(adapter.BackupPath(directory)) ? File.ReadAllBytes(adapter.BackupPath(directory)) : null),
-                    $"{context}: the backup changed although the write failed.");
+            // A refused write must leave every entry alone, including the link itself. Do not replace an unsupported
+            // link operation with a delete/move fallback that would silently discard the link.
+            if (outcome != null) AssertUnchanged(before, Capture(adapter, directory), context + ": a refused write changed files");
             Assert.Empty(Directory.EnumerateFileSystemEntries(directory, "*.tmp"));
-            Assert.True(namesBefore.All(name => Directory.EnumerateFileSystemEntries(directory).Select(Path.GetFileName).Contains(name)) || outcome == null,
-                $"{context}: an entry disappeared although the write failed.");
         }
         finally { Directory.Delete(outside, recursive: true); }
     }
@@ -452,8 +502,10 @@ internal static class CorruptionScenarios
             if (outcome != null)
             {
                 AssertHygiene(adapter, directory, outcome, context + " write");
-                Assert.True(before.Primary == State(adapter.PrimaryPath(directory)), $"{context}: a refused write changed the primary.");
+                AssertUnchanged(before, Capture(adapter, directory), context + ": a refused write changed files");
             }
+            else if (kind == "symlink" && !AtomicJsonFile.CanAtomicallyReplaceSymbolicLink)
+                Assert.Fail($"{context}: an unsupported symbolic-link replacement succeeded.");
             if (kind == "directory") Assert.True(Directory.Exists(backup) && File.Exists(marker), $"{context}: the directory was removed or emptied.");
             else Assert.True(Same(targetBytes, File.ReadAllBytes(target)), $"{context}: the linked file was written through.");
             Assert.Empty(Directory.EnumerateFileSystemEntries(directory, "*.tmp"));
@@ -472,11 +524,13 @@ public abstract class StoreCorruptionTests(ITestOutputHelper log)
     public void DamagedPrimaryIsHandled(string variant) => CorruptionScenarios.DamagedPrimary(Adapter, variant, null, "primary", log);
 
 
-    [Theory]
-    [InlineData("directory")]
+    [Fact]
+    public void DirectoryInPlaceOfThePrimaryIsHandled() => CorruptionScenarios.NotARegularFile(Adapter, "directory", log);
+
+    [SymbolicLinkTheory]
     [InlineData("symlink-to-good-copy")]
     [InlineData("dangling-symlink")]
-    public void DirectoryOrLinkInPlaceOfThePrimaryIsHandled(string kind) => CorruptionScenarios.NotARegularFile(Adapter, kind, log);
+    public void SymbolicLinkInPlaceOfThePrimaryIsHandled(string kind) => CorruptionScenarios.NotARegularFile(Adapter, kind, log);
 }
 
 /// <summary>The scenarios for a store that keeps a <c>.bak</c>.</summary>
@@ -498,10 +552,12 @@ public abstract class BackedStoreCorruptionTests(ITestOutputHelper log) : StoreC
     public void DamagedBackupNextToAGoodPrimaryIsHandled(string variant) => CorruptionScenarios.DamagedBackup(Adapter, variant, log);
 
 
-    [Theory]
-    [InlineData("directory")]
+    [Fact]
+    public void DirectoryInPlaceOfTheBackupIsHandled() => CorruptionScenarios.NotARegularBackup(Adapter, "directory", log);
+
+    [SymbolicLinkTheory]
     [InlineData("symlink")]
-    public void DirectoryOrLinkInPlaceOfTheBackupIsHandled(string kind) => CorruptionScenarios.NotARegularBackup(Adapter, kind, log);
+    public void SymbolicLinkInPlaceOfTheBackupIsHandled(string kind) => CorruptionScenarios.NotARegularBackup(Adapter, kind, log);
 }
 
 /// <summary>
