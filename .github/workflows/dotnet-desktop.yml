@@ -148,6 +148,14 @@ jobs:
         continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.sln --configuration Release --no-restore
+      - name: Build process-test probe in the test configuration
+        id: process_probe
+        # The probe is a non-solution project referenced without an assembly
+        # reference, so solution builds otherwise leave only its Debug output.
+        # Process tests require the matching Release artifact.
+        continue-on-error: true
+        if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        run: dotnet build tests/PluginReauthorizationProbe/PluginReauthorizationProbe.csproj --configuration Release --no-restore
       - name: Run core and desktop offline tests
         id: core_tests
         # Keep independent checks running so one failure yields a complete evidence set.
