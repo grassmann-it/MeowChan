@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.ExceptionServices;
 using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Skia;
@@ -16,6 +17,20 @@ internal static class BooruComponentDispatcher
 
     internal static void Run(Action test)
     {
+        ExceptionDispatchInfo? failure = null;
+        Thread ownerThread = new(() =>
+        {
+            try { RunOnOwnedDispatcher(test); }
+            catch (Exception exception) { failure = ExceptionDispatchInfo.Capture(exception); }
+        }) { IsBackground = true, Name = "Booru component dispatcher" };
+        ownerThread.Start();
+        if (!ownerThread.Join(TimeSpan.FromSeconds(30)))
+            throw new TimeoutException("The Booru component dispatcher did not settle.");
+        failure?.Throw();
+    }
+
+    private static void RunOnOwnedDispatcher(Action test)
+    {
         FieldInfo primary = Field(typeof(Dispatcher), "s_uiThread");
         FieldInfo languageHandlers = Field(typeof(Texts), "Changed");
         FieldInfo pruneCounter = Field(typeof(ShortcutService), "_observersUntilPrune");
@@ -31,8 +46,9 @@ internal static class BooruComponentDispatcher
         SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
         try
         {
-            // Suspend, do not discard, the pre-existing registrations. The controls under test
-            // still use the real localization and shortcut services, including their callbacks.
+            // A fresh dispatcher is intentional: another test may have left a language-change
+            // callback queued on the xunit worker's dispatcher. Running that stale callback here
+            // would mutate controls owned by its original thread during fixture cleanup.
             refreshers.Clear();
             languageHandlers.SetValue(null, null);
             primary.SetValue(null, owner);
@@ -47,8 +63,8 @@ internal static class BooruComponentDispatcher
         {
             try
             {
-                // Fixture disposal has ended the page lifetime. Drain work already posted by
-                // this scope before restoring language or switching away from its dispatcher.
+                // Fixture disposal has ended the page lifetime. Drain only work posted to this
+                // fresh scope; it cannot contain callbacks inherited from another test.
                 owner.RunJobs();
             }
             finally
