@@ -147,7 +147,7 @@ internal static class MediaInteractionChecks
                 await FreshVideoAsync();
                 Slider seek = Seek();
                 await SeekClickAsync(.20);
-                await native.MoveAsync(Named<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
+                await native.MoveAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
                 Require(!seek.IsPointerOver && seek.IsKeyboardFocusWithin, "Pointer-away repro lost actual timeline focus.");
                 await ProgressAsync("focus-remains-with-pointer-away");
                 await CheckVolumeAndPanelsAsync("Playing");
@@ -155,7 +155,7 @@ internal static class MediaInteractionChecks
             await StageAsync("paused-drag-key", async () =>
             {
                 await FreshVideoAsync();
-                await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
                 await SeekClickAsync(.25);
                 await DragAsync(.45, release: true);
@@ -306,6 +306,16 @@ internal static class MediaInteractionChecks
             if (matches.Length != 1)
                 throw new InvalidOperationException($"Expected exactly one {typeof(T).Name} named {name}; found {matches.Length} in the current gallery presentation.");
             return matches[0];
+        }
+        async Task<T> NativeTargetAsync<T>(string name) where T : Control
+        {
+            // macOS can expose the retained transport while GalleryControlTransfer is
+            // between visual roots. PointToScreen rejects that detached target; wait for
+            // the real hit-testable control instead of constructing a synthetic event.
+            T target = Named<T>(name);
+            await Program.WaitUntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(target),
+                () => $"The {name} control did not settle as a native hit target.");
+            return target;
         }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
         GalleryVideoPlayer Player()
@@ -579,7 +589,7 @@ internal static class MediaInteractionChecks
             await ReadyAsync();
             if (expected == "Paused")
             {
-                await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(await NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
             }
         }
