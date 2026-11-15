@@ -59,10 +59,13 @@ public sealed class Release102UpgradeTests
                 System.Text.Encoding.UTF8.GetString(immutableDigest).Trim(), ignoreCase: true);
             byte[] beforePreview = await File.ReadAllBytesAsync(statePath);
             var repairs = await store.PreviewBundledRepairsAsync();
+            IReadOnlySet<string> superseded = SupersededBundledPlugins.InProfile(baseline, ChanSourceFamilies.Successors);
+            Assert.DoesNotContain(repairs.Rows, row => superseded.Contains(row.PluginId));
             foreach (JsonElement entry in old.GetProperty("plugins").EnumerateArray())
             {
                 var now = Assert.Single(baseline.Plugins, p => p.PluginId == entry.GetProperty("PluginId").GetString());
-                if (entry.GetProperty("available").GetBoolean() && now.Active is null && now.Pinned is null)
+                if (entry.GetProperty("available").GetBoolean() && now.Active is null && now.Pinned is null &&
+                    !superseded.Contains(now.PluginId))
                 {
                     var row = Assert.Single(repairs.Rows, r => r.PluginId == now.PluginId);
                     Assert.False(row.CanConfirm);
@@ -71,6 +74,7 @@ public sealed class Release102UpgradeTests
             }
             var preview = await store.PreviewBundledReselectionsAsync();
             Assert.Equal(baseline.Revision, preview.ProfileRevision);
+            Assert.DoesNotContain(preview.Rows, row => superseded.Contains(row.PluginId));
             Assert.Equal(beforePreview, await File.ReadAllBytesAsync(statePath));
             Assert.Equal(preview.Rows.ToArray(), (await store.PreviewBundledReselectionsAsync()).Rows.ToArray());
             Assert.NotEmpty(preview.Rows);
@@ -127,7 +131,7 @@ public sealed class Release102UpgradeTests
                     (await File.ReadAllTextAsync(store.PreReselectionBackupPath + ".sha256")).Trim(), ignoreCase: true);
                 Assert.Equal(immutableBackup, await File.ReadAllBytesAsync(store.PreV2BackupPath));
                 Assert.Equal(immutableDigest, await File.ReadAllBytesAsync(store.PreV2BackupSha256Path));
-                AssertNoInventedHistory(beforePreview, await File.ReadAllBytesAsync(statePath));
+                AssertNoInventedHistory(originalV1, await File.ReadAllBytesAsync(statePath));
                 AssertPreserved(baseline, confirmed);
                 selected.Add(row.PluginId, row);
             }
@@ -195,7 +199,7 @@ public sealed class Release102UpgradeTests
                 Assert.DoesNotContain(proof.GetProperty("candidateId").GetString(), oldIds);
         if (currentPayload.RootElement.TryGetProperty("bindings", out var bindings))
             foreach (var binding in bindings.EnumerateArray())
-                Assert.DoesNotContain(binding.GetProperty("selectedCandidateId").GetString(), oldIds);
+                Assert.DoesNotContain(binding.GetProperty("targetCandidateId").GetString(), oldIds);
     }
 
     private static void AssertPreserved(PluginProfileSnapshot before, PluginProfileSnapshot after)
