@@ -27,14 +27,6 @@ namespace MeowChan.DesktopTests;
 public sealed class HelpDocumentationTests
 {
     private const string Help = "docs/Help.md";
-    // F1 (footer setting): Ctrl/Cmd+1, 2, 3 ... follow the visible footer buttons from the left (MainPageOrder.Numbering), so the code digits are pinned by
-    // FooterLayoutTests. docs/Help.md (Codex-owned) still documents the classic fixed digits of the earlier releases; these pins check the Help text against
-    // that documented snapshot until Codex rewrites the table and the sentences about slots 5, 6, 7 and 8 - then this snapshot goes away.
-    private static readonly IReadOnlyDictionary<string, int> HelpDocumentedDigits = new Dictionary<string, int>
-    {
-        ["navigation.downloads"] = 1, ["navigation.archive"] = 2, ["navigation.media"] = 3, ["navigation.booru"] = 6,
-        ["navigation.rules"] = 4, ["navigation.sources"] = 5, ["navigation.status"] = 7
-    };
     private const string DanbooruGuide = "docs/user-guide/danbooru.md";
     private const string SettingsLimitsGuide = "docs/user-guide/settings-export-and-limits.md";
 
@@ -363,7 +355,7 @@ public sealed class HelpDocumentationTests
             "Saving a smaller walk size does not remove queue entries" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
         Assert.Equal("Q", CommandCatalog.Get("media.queue.add").Shortcut);
-        // The page is a footer page behind Media without a digit; its ⋯ entry stays (MainWindow.axaml), only the owner changed.
+        // The page is a numbered footer page behind Media; its digit follows the applied footer layout.
         Assert.Contains("navigation.tagging", MainPageOrder.CommandIds);
         Assert.NotNull(MainPageOrder.Digit("navigation.tagging")); // numbered like every footer page since F1
         // The ⋯ menu holds no page entries since F1 (Help.md still says "⋯ menu"); the footer's More menu carries the tagging entry.
@@ -1217,8 +1209,8 @@ public sealed class HelpDocumentationTests
             @"(?m)^\| Shortcut \| Page \|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
         string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r')).ToArray();
-        // Help.md documents the classic digit rows (no Tagging row yet); see HelpDocumentedDigits.
-        string[] ids = MainPageOrder.CommandIds.Where(HelpDocumentedDigits.ContainsKey).ToArray();
+        // Help.md documents the current default numbering, including Tagging and the hidden-by-default Booru slot.
+        string[] ids = MainPageOrder.DefaultNumbering.ToArray();
         Assert.Equal(ids.Length, rows.Length);
         for (int i = 0; i < ids.Length; i++)
         {
@@ -1226,13 +1218,11 @@ public sealed class HelpDocumentationTests
             int digit = Number(row.Groups["digit"].Value);
             string expectedLabel = ids[i] == "navigation.sources" ? "Sources & Plugins" : CommandCatalog.Get(ids[i]).LabelEn;
             Assert.Equal(expectedLabel, row.Groups["label"].Value.Trim());
-            Assert.Equal(HelpDocumentedDigits[ids[i]], digit);
+            Assert.Equal(i + 1, digit);
         }
-        // Display order is not numeric sorting: Booru follows Media, while Sources=5 and Status=7 stay stable.
-        Assert.Equal(new[] { 1, 2, 3, 6, 4, 5, 7 }, ids.Select(id => HelpDocumentedDigits[id]));
-        Assert.Contains("Ctrl+8 (Command+8) is unassigned by default", section, StringComparison.Ordinal);
-        foreach (string germanSlot in new[] { "Strg+1 Downloads", "Strg+2 Archiv", "Strg+3 Medien", "Strg+6 Booru",
-            "Strg+4 Regeln", "Strg+5 Quellen & Plugins", "Strg+7 Status" })
+        Assert.Equal(Enumerable.Range(1, ids.Length), ids.Select((_, index) => index + 1));
+        foreach (string germanSlot in new[] { "Strg+1 Downloads", "Strg+2 Archiv", "Strg+3 Medien", "Strg+4 Taggen",
+            "Strg+5 Regeln", "Strg+6 Quellen & Plugins", "Strg+7 Status", "Strg+8 Booru" })
             Assert.Contains(germanSlot, section, StringComparison.Ordinal);
         Assert.Contains("table follows the main-page order, not numeric sorting", section, StringComparison.Ordinal);
         Assert.Contains("Hiding Booru does not give its default key back to Plugins or reassign the other pages", section, StringComparison.Ordinal);
@@ -1256,7 +1246,7 @@ public sealed class HelpDocumentationTests
         foreach (string file in new[] { Help, DanbooruGuide })
             Assert.Contains("Plugins-Belegung auf Primary+6 hat Vorrang vor dem neuen Booru-Standard", Plain(Read(file)), StringComparison.Ordinal);
 
-        // The Help sentence names the classic slot 6; in the default layout of F1 Booru's digit follows the footer, so the mechanics are checked on that digit.
+        // The Help sentence names the compatibility slot; the default layout assigns Booru from the footer order, so the mechanics are checked independently.
         ShortcutGesture six = ShortcutGesture.Parse("Primary+" + MainPageOrder.Digit("navigation.booru"));
         EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: platform);
         // Revision 15: the page's digit first, its fixed letter second (PageKeyScheme).
@@ -1641,16 +1631,16 @@ public sealed class HelpDocumentationTests
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
         string status = Plain(Section(Read(Help), "Status page"));
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
-        Assert.Equal(7, MainPageOrder.Digit("navigation.status")); // Status keeps 7 in the default layout
+        Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
-            "it uses slot 6, Plugins keeps slot 5 and Status keeps slot 7", "Slot 8 is unassigned by default",
+            "while unavailable it is numbered in slot 8, Plugins keeps slot 6 and Status keeps slot 7",
             "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
-            "Nur Strg/⌘+8 ist standardmäßig frei" })
+            "Booru belegt im Standardlayout ohne verfügbare Booru-Dienste Strg/⌘+8, Plugins bleibt auf Strg/⌘+6 und Status auf Strg/⌘+7" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
-        Assert.Equal(HelpDocumentedDigits["navigation.booru"], 6);   // the Help text above still documents the classic slots 5/6
-        Assert.Equal(HelpDocumentedDigits["navigation.sources"], 5);
+        Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
+        Assert.Equal(6, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 

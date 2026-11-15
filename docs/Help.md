@@ -92,9 +92,8 @@ Settings. Advanced shows all main destinations directly when there is enough roo
 a narrow window moves the extra destinations into More. The app menu uses the same
 page order and groups. Booru is offered only while the source is composed and
 **Show Booru** is on; it is under More in Barebones and directly available from
-Simple when there is room. **Tagging** (German: **Taggen**) is a footer page right
-after Media; it has no Ctrl+digit shortcut (you can assign one in the shortcut
-window) and is under More in Barebones. In German the destination order is
+Simple when there is room. **Tagging** (German: **Taggen**) is a numbered footer page right
+after Media; its Ctrl/Cmd+digit follows the current footer order and it is under More in Barebones. In German the destination order is
 **Downloads, Archiv, Medien, Taggen, Booru | Regeln, Plugins | Status**, followed by
 **Mehr** and **Einstellungen**. The display switch is described under
 [Booru page and display switch](#booru-page-and-display-switch).
@@ -312,8 +311,9 @@ previously saved active watchers still follow their schedule.
 window or a Status segment, and has no page-specific Back/Close button. The
 footer, app menu and context-sensitive F1 help follow that main-page order;
 width overflow and the current work view determine the visible footer buttons.
-The default is Ctrl+6 (Command+6 on macOS); Plugins keeps Ctrl+5 and
-Status keeps Ctrl+7. Only Ctrl+8 is unassigned by default. A saved Plugins binding
+When all main pages are available, the default is Ctrl+5 (Command+5 on macOS) for Booru,
+Ctrl+6 for Rules, Ctrl+7 for Sources & Plugins and Ctrl+8 for Status. The digits follow
+the current footer order, so hiding Booru or changing the footer layout renumbers the pages. A saved Plugins binding
 to Primary+6 takes precedence over the new Booru default and opens **All plugins**
 on the shared Plugins page instead; F1 and tooltips show effective
 bindings, not an extra default that overrides your saved choice. F1 can still list
@@ -614,17 +614,22 @@ page's local search field. The default page shortcuts are:
 | Ctrl+1 | Downloads |
 | Ctrl+2 | Archive |
 | Ctrl+3 | Media |
-| Ctrl+6 | Booru |
-| Ctrl+4 | Rules |
-| Ctrl+5 | Sources & Plugins |
+| Ctrl+4 | Tagging |
+| Ctrl+5 | Rules |
+| Ctrl+6 | Sources & Plugins |
 | Ctrl+7 | Status |
+| Ctrl+8 | Booru |
 
-The footer uses these same digit slots and order. Tagging is a footer page behind
-Media and has no default digit. In German the labels are **Strg+1 Downloads**,
-**Strg+2 Archiv**, **Strg+3 Medien**, **Strg+6 Booru**, **Strg+4 Regeln**,
-**Strg+5 Quellen & Plugins** and **Strg+7 Status**. Use Command instead of Ctrl on
-macOS. Ctrl+8 (Command+8) is unassigned by default.
-Sources & Plugins keeps slot 5, Booru uses slot 6 and Status keeps slot 7. The
+The footer uses these same digit slots and order. Booru is numbered after the other
+pages while it is unavailable; when it is available and shown, it is inserted after
+Tagging and the following pages move one slot. The digits follow the visible footer
+buttons from left to right; pages moved into More are numbered after the visible pages,
+and an unavailable Booru page is omitted. In German the default labels are
+**Strg+1 Downloads**, **Strg+2 Archiv**, **Strg+3 Medien**, **Strg+4 Taggen**,
+**Strg+5 Regeln**, **Strg+6 Quellen & Plugins**, **Strg+7 Status** and **Strg+8 Booru**;
+when Booru is available and shown, it is **Strg+5** and the following pages move one slot.
+Use Command instead of Ctrl on macOS. Changing the footer order or hiding a page changes
+its digit; every main page keeps a digit. The
 removed Plugins page does not shift the digits: a saved `navigation.plugins`
 binding to Primary+6 keeps priority over the new Booru default and opens All plugins
 on Sources & Plugins. Diagnostics and Statistics have no default digit shortcuts;
@@ -1103,13 +1108,13 @@ The shared status line counts active transfers, waiting transfers and current
 problems; while sampling is active it also shows download and disk-write rates.
 Without fresh sampling it omits the rates, rather than presenting stale numbers.
 The Diagnostics tab names the current problem count. The footer button and
-Ctrl+7 (Command+7 on macOS) open the last-used segment; the header graph and tray
+Ctrl+8 (Command+8 on macOS) open the last-used segment; the header graph and tray
 open Statistics. A source's Diagnostics action opens Status → Diagnostics with
 that source selected. Recovery failure opens Diagnostics; Statistics becomes
 available after session recovery. You can assign each segment a shortcut, and
 previously saved segment shortcuts keep working. Booru is a separate main page,
-not a Status segment: it uses slot 6, Plugins keeps slot 5 and Status
-keeps slot 7. Slot 8 is unassigned by default. For Booru visibility and the saved
+not a Status segment: while unavailable it is numbered in slot 8, Plugins keeps slot 6 and Status
+keeps slot 7. When Booru is available and shown, it moves to slot 5 and the following pages move one slot. For Booru visibility and the saved
 Plugins shortcut override, see [Booru page and display switch](#booru-page-and-display-switch).
 
 **Deutsch:** **Status** vereint **Statistik** und **Diagnose** auf einer Seite.
@@ -1122,16 +1127,16 @@ einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach eine
 fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
 Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
 früher gespeicherte Bereichskürzel funktionieren weiter. Booru ist eine eigene
-Hauptseite, kein Status-Bereich: Booru belegt Strg/⌘+6, Plugins bleibt
-auf Strg/⌘+5 und Status auf Strg/⌘+7. Nur Strg/⌘+8 ist standardmäßig frei. Der
+Hauptseite, kein Status-Bereich: Booru belegt im Standardlayout ohne verfügbare Booru-Dienste Strg/⌘+8, Plugins bleibt
+auf Strg/⌘+6 und Status auf Strg/⌘+7. Wenn Booru verfügbar und eingeblendet ist, belegt es Strg/⌘+5; die folgenden Seiten rücken weiter. Der
 [Booru-Anzeigeschalter und der gespeicherte Plugins-Kürzelvorrang](#booru-page-and-display-switch)
 sind davon getrennt; der Schalter pausiert keine Suchbeobachtungen.
 
 ### Statistics and disk traffic
 
 Open **Status → Statistics** from **More** or the app
-menu, or by clicking the header graph. Ctrl+7 (Command+7 on macOS) opens Status
-on its last-used segment; Ctrl+8 is no longer assigned by default. It shows measured Network I/O and Disk I/O,
+menu, or by clicking the header graph. Ctrl+8 (Command+8 on macOS) opens Status
+on its last-used segment; Ctrl+9 is unassigned by default. It shows measured Network I/O and Disk I/O,
 history and rows per source. These are MeowChan's own application-payload and
 media-I/O counters, not operating-system totals. **Network I/O** keeps
 Down and Up as separate directions; **Disk I/O** keeps Read and Write
