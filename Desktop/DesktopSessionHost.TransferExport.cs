@@ -144,6 +144,8 @@ internal sealed partial class DesktopSessionHost
         }
         catch (DesktopSessionBusyException) { return new(ArchiveTransferExportError.Busy); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { return new(ArchiveTransferExportError.Canceled); }
+        // Only the admission and the readiness check ahead of the core throw this to here: the profile is not (or no longer)
+        // available. The core maps everything its own work throws, so an unrelated failure never reads as "profile unavailable".
         catch (InvalidOperationException) { return new(ArchiveTransferExportError.ProfileUnavailable); }
     }
 
@@ -160,16 +162,24 @@ internal sealed partial class DesktopSessionHost
         ArchiveTransferExportResult Done(ArchiveTransferExportError error) => new(error, count,
             parts.Count > 0 ? parts[0].Path : null, parts.Count > 0 ? parts[0].Bytes : null, retained)
         { Parts = parts.ToArray(), WithoutMedia = withoutMedia.ToArray(), Skipped = skipped.ToArray() };
+        EnsureReady();
         try
         {
-            EnsureReady();
             linked.ThrowIfCancellationRequested();
             string? full = ArchiveTransferExportDestination.Normalize(destination);
             if (full == null) return new(ArchiveTransferExportError.InvalidDestination);
             // Early, advisory refusal so a long freeze is not wasted. The publisher repeats it atomically (no-clobber link/move).
             if (ArchiveTransferExportDestination.Exists(full)) return new(ArchiveTransferExportError.DestinationExists, Destination: full);
+            // The number of packages is unknown until every one is frozen (halving adds some, and a single package keeps the plain
+            // name), so Full export refuses up front when any numbered sibling of the chosen name exists, before anything is
+            // written. A name created after this check is still never overwritten: the publisher's no-clobber step refuses it and
+            // the packages already written stay listed.
+            if (request.Split && ArchiveTransferExportDestination.FirstExistingPart(full) is { } sibling)
+                return new(ArchiveTransferExportError.DestinationExists, Destination: sibling);
 
-            await using ArchiveReader reader = await _content.OpenReaderAsync(linked).ConfigureAwait(false);
+            // A profile without an archive catalog has nothing to export; the same exception later in the run is a read failure.
+            await using ArchiveReader? reader = await TryOpenArchiveReaderAsync(linked).ConfigureAwait(false);
+            if (reader == null) return new(ArchiveTransferExportError.EmptySelection);
             (ResourceId[] ids, count) = await CountArchiveTransferCoreAsync(reader, request.Threads, request.Media, progress,
                 estimate: false, linked).ConfigureAwait(false);
             // A selected thread that was deleted after the dialog counted it is never silently dropped from the package.
@@ -181,10 +191,6 @@ internal sealed partial class DesktopSessionHost
                 ? await PlanArchiveTransferPackagesAsync(reader, ids, request.Media, ArchiveTransferPackageBudgetForTests
                     ?? ArchiveTransferPackageBudget.Default, linked).ConfigureAwait(false)
                 : new[] { ids });
-            if (pending.Count > 1)
-                for (int part = 1; part <= pending.Count; part++)
-                    if (ArchiveTransferExportDestination.Exists(ArchiveTransferExportDestination.PartPath(full, part)))
-                        return new(ArchiveTransferExportError.DestinationExists, count, ArchiveTransferExportDestination.PartPath(full, part));
             DateTimeOffset exportedAt = DateTimeOffset.UtcNow;
             bool? numbered = null;
             while (pending.First is { } next)
@@ -244,10 +250,25 @@ internal sealed partial class DesktopSessionHost
         }
         catch (OperationCanceledException) when (linked.IsCancellationRequested)
         { return Done(ArchiveTransferExportError.Canceled); }
-        catch (FileNotFoundException) { return Done(ArchiveTransferExportError.EmptySelection); }
+        // Not-found, sharing and read errors midway (including a vanished file) are read failures; the parts already written stay listed.
         catch (Exception error) when (error is InvalidDataException or IOException or UnauthorizedAccessException
             or Microsoft.Data.Sqlite.SqliteException or FormatException)
         { return Done(ArchiveTransferExportError.ReadFailure); }
+        // A closed reader or connection is a failed read; only a session that is no longer ready is "profile unavailable".
+        catch (InvalidOperationException)
+        { return Done(IsReadyForExport() ? ArchiveTransferExportError.ReadFailure : ArchiveTransferExportError.ProfileUnavailable); }
+    }
+
+    private async Task<ArchiveReader?> TryOpenArchiveReaderAsync(CancellationToken token)
+    {
+        try { return await _content.OpenReaderAsync(token).ConfigureAwait(false); }
+        catch (FileNotFoundException) { return null; }
+    }
+
+    private bool IsReadyForExport()
+    {
+        try { EnsureReady(); return true; }
+        catch (InvalidOperationException) { return false; }
     }
 
     private Task<TransferArchiveFreezeResult> FreezeGroupAsync(ArchiveReader reader, ResourceId[] ids,
@@ -454,6 +475,28 @@ internal static class ArchiveTransferExportDestination
     }
 
     internal static bool Exists(string full) => File.Exists(full) || Directory.Exists(full);
+
+    /// <summary>The first existing file or folder named like a numbered package of <paramref name="full"/> (any number), or <c>null</c>.</summary>
+    internal static string? FirstExistingPart(string full)
+    {
+        string directory = Path.GetDirectoryName(full)!;
+        string prefix = Path.GetFileNameWithoutExtension(full) + "-part-";
+        string extension = Path.GetExtension(full);
+        try
+        {
+            return Directory.EnumerateFileSystemEntries(directory, "*" + extension)
+                .Where(path =>
+                {
+                    string name = Path.GetFileName(path);
+                    return name.Length > prefix.Length + extension.Length
+                        && name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                        && name.EndsWith(extension, StringComparison.OrdinalIgnoreCase)
+                        && name.AsSpan(prefix.Length, name.Length - prefix.Length - extension.Length).IndexOfAnyExceptInRange('0', '9') < 0;
+                })
+                .Order(StringComparer.Ordinal).FirstOrDefault();
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return null; }
+    }
 
     /// <summary>Full export's numbered name next to the chosen one: <c>name-part-01.zip</c>, <c>name-part-02.zip</c>, …</summary>
     internal static string PartPath(string full, int part)
