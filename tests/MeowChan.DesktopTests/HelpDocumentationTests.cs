@@ -173,19 +173,18 @@ public sealed class HelpDocumentationTests
         string defaults = Plain(Section(Read(Help), "Desktop view defaults"));
         // The footer gained Tagging behind Media (footer button of the tagging page). Help.md and the Danbooru guide belong to Codex and may
         // still spell the work group without it; both spellings are accepted until they list it (Ctrl+1…7 and everything else is pinned as before).
-        static string Spelling(IReadOnlyList<string> group, Func<CommandDefinition, string> label, bool withTagging, bool german) =>
-            string.Join(", ", group.Where(id => withTagging || id != "navigation.tagging").Select(id =>
-                id == "navigation.sources" ? (german ? "Quellen & Plugins" : "Sources & Plugins") : label(CommandCatalog.Get(id))));
-        static string Order(bool withTagging, Func<CommandDefinition, string> label, bool german) =>
-            string.Join(" | ", MainPageOrder.Groups.Select(group => Spelling(group, label, withTagging, german)));
+        static string Spelling(IReadOnlyList<string> group, Func<CommandDefinition, string> label, bool withTagging) =>
+            string.Join(", ", group.Where(id => withTagging || id != "navigation.tagging").Select(id => label(CommandCatalog.Get(id))));
+        static string Order(bool withTagging, Func<CommandDefinition, string> label) =>
+            string.Join(" | ", MainPageOrder.Groups.Select(group => Spelling(group, label, withTagging)));
         foreach (IReadOnlyList<string> group in MainPageOrder.Groups)
-            Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Spelling(group, c => c.LabelEn, withTagging, german: false), StringComparison.Ordinal)),
-                "Help.md does not list the footer group: " + Spelling(group, c => c.LabelEn, true, german: false));
+            Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Spelling(group, c => c.LabelEn, withTagging), StringComparison.Ordinal)),
+                "Help.md does not list the footer group: " + Spelling(group, c => c.LabelEn, true));
         string danbooru = Plain(Read(DanbooruGuide));
-        Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Order(withTagging, c => c.LabelDe, german: true), StringComparison.Ordinal)),
-            "Help.md does not list the German footer order: " + Order(true, c => c.LabelDe, german: true));
-        Assert.True(new[] { true, false }.Any(withTagging => danbooru.Contains(Order(withTagging, c => c.LabelDe, german: true), StringComparison.Ordinal)),
-            "The Danbooru guide does not list the German footer order: " + Order(true, c => c.LabelDe, german: true));
+        Assert.True(new[] { true, false }.Any(withTagging => defaults.Contains(Order(withTagging, c => c.LabelDe), StringComparison.Ordinal)),
+            "Help.md does not list the German footer order: " + Order(true, c => c.LabelDe));
+        Assert.True(new[] { true, false }.Any(withTagging => danbooru.Contains(Order(withTagging, c => c.LabelDe), StringComparison.Ordinal)),
+            "The Danbooru guide does not list the German footer order: " + Order(true, c => c.LabelDe));
         Assert.Contains("followed by More (German: Mehr) and Settings", defaults, StringComparison.Ordinal);
         Assert.Contains("More contains only destinations moved out of the footer", defaults, StringComparison.Ordinal);
         Assert.DoesNotContain("More contains Downloads", defaults, StringComparison.Ordinal);
@@ -268,7 +267,7 @@ public sealed class HelpDocumentationTests
         Assert.Equal("Primary+Z", CommandCatalog.Get(QuickTagCommands.Undo).Shortcut);
         Assert.Equal("Primary+Shift+T", CommandCatalog.Get("media.tags.edit").Shortcut);
         for (int number = 1; number <= QuickTagCommands.SuggestionCount; number++)
-            Assert.Equal("Alt+D" + number, CommandCatalog.Get(QuickTagCommands.Suggestion(number)).Shortcut);
+            Assert.Equal("Alt+" + number, CommandCatalog.Get(QuickTagCommands.Suggestion(number)).Shortcut);
         foreach (string phrase in new[]
         {
             "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 to Alt+9 (Command+1 to Command+9 on macOS)", "Page Down and Page Up",
@@ -1505,7 +1504,7 @@ public sealed class HelpDocumentationTests
             "normal protected Settings route", "without saving or discarding your existing settings draft",
             "session is restoring, closing or busy", "only the policy rows changed by that switch, across all pages",
             "active column follows the currently applied view", "Keyboard focus moves to Find an element",
-            "Page/text filters narrow the changed rows further", "Clear filters removes the difference restriction too",
+            "Page/text filters narrow the changed rows further", "Reset filters removes the difference restriction too",
             "entering Work views normally also clears the previous difference, page and text filters",
             "normalen geschützten Einstellungsweg", "ohne deinen vorhandenen Einstellungsentwurf zu speichern oder zu verwerfen",
             "aktive Spalte folgt der aktuell angewandten Ansicht", "Tastaturfokus geht zu Element suchen",

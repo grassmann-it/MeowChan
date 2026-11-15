@@ -151,8 +151,8 @@ on the page.
   details. Less common actions have a labelled **More** route. **Plugin details**
   (German: **Plugin-Details**) opens the second level; **Back to source**
   (**Zurück zur Quelle**) returns to the source without changing pages.
-  Older **Show plugin** (German: **Plugin anzeigen**) and **Show in Sources** (German:
-  **In Quellen anzeigen**) routes refer to this same shared page, not two footer destinations.
+  Older **Show plugin** (German: **Plugin anzeigen**) and **Show source** (German:
+  **Quelle anzeigen**) routes refer to this same shared page, not two footer destinations.
 - **Status (Diagnostics and Statistics):** Diagnostics starts with its filters
   collapsed in Barebones; a non-default filter opens the group. **Check now**,
   retrying the selection and showing it in Downloads stay directly available.
@@ -1045,7 +1045,7 @@ is restoring, closing or busy, the route cannot open. The overview shows only th
 policy rows changed by that switch, across all pages; its active column follows the
 currently applied view, not an unsaved view choice or a forced return to the old
 view. Keyboard focus moves to **Find an element** (or the table if the field is
-unavailable). Page/text filters narrow the changed rows further. **Clear filters**
+unavailable). Page/text filters narrow the changed rows further. **Reset filters**
 removes the difference restriction too; entering Work views normally also clears
 the previous difference, page and text filters for the full comparison. The one-time
 notice for older profiles is separate from this switch toast.
@@ -2083,7 +2083,7 @@ rating, including one whose original is no longer available.
 ### Saving a video frame
 
 In the gallery, **Save frame as image** (German: **Einzelbild speichern**,
-Shift+S) saves the displayed video frame as a PNG. On first use you choose a
+S) saves the displayed video frame as a PNG. On first use you choose a
 folder for saved video frames. MeowChan remembers this dedicated folder, not the
 archive export folder; if it no longer exists, or matches the remembered export
 folder, you are asked again. You may explicitly select the export folder for
