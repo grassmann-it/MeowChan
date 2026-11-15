@@ -668,6 +668,7 @@ public partial class ArchivePage : UserControl
         UpdateHashSearchAction();
         UpdateArchiveCleanupAction();
         UpdateTransferPreviewAction();
+        UpdateTransferExportAction();
         UpdateArchiveSelectionActions();
         UpdateReaderNavigation();
         bool ready = _available && !_busy && !_ended && !IsFilenameSearchOpen;
@@ -1171,6 +1172,7 @@ public partial class ArchivePage : UserControl
         CancelArchiveMediaCounts();
         EndArchiveCleanupLifetime();
         EndTransferPreviewLifetime();
+        EndTransferExportLifetime();
         EndUrlTextExportLifetime();
         ClearPaginationInput();
         _runningList = null; _retryList = null;

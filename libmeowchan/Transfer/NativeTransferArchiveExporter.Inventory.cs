@@ -59,7 +59,8 @@ internal static partial class NativeTransferArchiveExporter
             byte[] metadata = NativeTransferCatalogSerializer.Serialize(metadataCatalog, cancellationToken);
             if (!ValidateDescriptors(metadataCatalog)) return FreezeFail(TransferArchiveError.InvalidCatalog);
             string[] directories = views.SelectMany(v => v.MediaDirectories).Distinct(StringComparer.Ordinal).ToArray();
-            if (directories.Length > MaxDirectories) return FreezeFail(TransferArchiveError.SelectionLimit);
+            if (directories.Length > MaxSelectionDirectories || views.Any(v => v.MediaDirectories.Count > MaxThreadDirectories))
+                return FreezeFail(TransferArchiveError.SelectionLimit);
             var manifests = ImmutableArray.CreateBuilder<MediaAssetSnapshot>();
             Dictionary<string, MediaAssetSnapshot> byRoot = new(StringComparer.Ordinal);
             var registeredRoots = views.ToDictionary(v => v.Summary.Id,

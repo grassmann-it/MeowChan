@@ -142,8 +142,9 @@ public sealed class NativeTransferMultiThreadExportTests
         Assert.Equal(0, fixture.UnexpectedProviderCalls);
     }
 
+    // 1.1.0: the aggregate root bound is the thread ceiling, not the per-thread 32. Thirty-three single-root threads freeze.
     [Fact]
-    public async Task AggregateDirectoryLimitRejectsBeforeOpeningAnyManifest()
+    public async Task MoreThanThirtyTwoRootsInOneSelectionFreeze()
     {
         using TempDirectory profile = new(); using ProfileLease lease = ProfileLease.Acquire(profile.Path);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
@@ -152,12 +153,41 @@ public sealed class NativeTransferMultiThreadExportTests
         {
             ResourceId id = new("4chan", "b", (8000 + i).ToString()); ids.Add(id);
             string root = Path.Combine(profile.Path, i.ToString()); Directory.CreateDirectory(root);
-            await File.WriteAllTextAsync(Path.Combine(root, ".meowchan-manifest.json"), "corrupt");
             await catalog.CaptureAsync(Capture(id, root));
         }
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile.Path);
         var result = await NativeTransferArchiveExporter.FreezeAsync(reader, new NativeTransferArchiveSelection(ids), At, Package);
+        Assert.True(result.IsFrozen, result.Error.ToString());
+        Assert.Equal(33, result.Snapshot!.Views.Length);
+        Assert.Equal(33, result.Snapshot.Manifests.Length);
+    }
+
+    [Fact]
+    public async Task AggregateDirectoryLimitRejectsBeforeOpeningAnyManifest()
+    {
+        Assert.Equal(1000, NativeTransferArchiveExporter.MaxSelectionDirectories);
+        using TempDirectory profile = new(); using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile.Path, lease);
+        List<ResourceId> ids = [];
+        // 32 threads x 32 roots = 1024 distinct roots: every thread stays at its own bound, the selection is over 1000.
+        for (int i = 0; i < 32; i++)
+        {
+            ResourceId id = new("4chan", "b", (8000 + i).ToString()); ids.Add(id);
+            for (int r = 0; r < NativeTransferArchiveExporter.MaxThreadDirectories; r++)
+            {
+                string root = Path.Combine(profile.Path, i + "-" + r); Directory.CreateDirectory(root);
+                await File.WriteAllTextAsync(Path.Combine(root, ".meowchan-manifest.json"), "corrupt");
+                if (r == 0) await catalog.CaptureAsync(Capture(id, root));
+                else await catalog.RegisterThreadAsync(new(id, $"https://boards.4chan.org/b/thread/{id.Thread}", "synthetic", root, false));
+            }
+        }
+        await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile.Path);
+        Assert.Equal(32, (await reader.GetMediaDirectoriesAsync(ids[0])).Count);
+        var result = await NativeTransferArchiveExporter.FreezeAsync(reader, new NativeTransferArchiveSelection(ids), At, Package);
         Assert.Equal(TransferArchiveError.SelectionLimit, result.Error); Assert.Null(result.Snapshot);
+        var inventory = await NativeTransferArchiveExporter.FreezeAsync(reader, new NativeTransferArchiveSelection(ids), At, Package,
+            new NativeTransferArchiveMediaOptions(true, true, true));
+        Assert.Equal(TransferArchiveError.SelectionLimit, inventory.Error); Assert.Null(inventory.Snapshot);
     }
 
     [Fact]

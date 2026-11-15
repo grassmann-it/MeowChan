@@ -11,8 +11,9 @@ public static partial class WorkViewPolicy
 
     private static IEnumerable<WorkViewEntry> ArchiveEntries() =>
     [
-        // Page header: Refresh (F5) is a Simple-and-up tool; cleanup and the transfer check are maintenance. Under More in the same bar.
+        // Page header: Refresh (F5) is a Simple-and-up tool; cleanup and the transfer import/export are maintenance. Under More in the same bar.
         new("archive.header.transfer-preview", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Overflow, Direct, "archive.transfer-preview", OverflowOrder: 10),
+        new("archive.header.transfer-export", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Overflow, Direct, "archive.transfer-export", OverflowOrder: 15),
         new("archive.header.cleanup", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Overflow, Direct, "archive.cleanup", OverflowOrder: 20),
         new("archive.header.refresh", WorkViewPage.Archive, WorkViewKind.Action, Overflow, Direct, Direct, "archive.refresh", OverflowOrder: 30),
         // The search field is the core task; the scope chip is only needed once the scope is not Text (R6 shows it then).

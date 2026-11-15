@@ -71,8 +71,19 @@ internal sealed class NativeTransferArchiveMetadataLimits
 /// </summary>
 internal static partial class NativeTransferArchiveExporter
 {
-    private const int MaxDirectories = 32, MaxAssets = 100_000, MaxPayloads = 9998;
-    private const long MaxPayload = 1024L * 1024 * 1024, MaxTotal = 2L * 1024 * 1024 * 1024;
+    // Distinct registered media roots ONE selection may freeze. A root is not part of the package format (importers
+    // never see roots), so this is an export-side work bound only: each root costs one manifest read per freeze and per
+    // currency check, the read snapshots are bounded by the 100,000 asset/inventory budgets, and payloads are opened
+    // one at a time while writing. It was 32 (the per-thread bound below, carried over from the single-thread exporter)
+    // until 1.1.0 and now equals the thread ceiling, so a whole archive of up to 1000 single-root threads fits.
+    internal const int MaxSelectionDirectories = NativeTransferArchiveSelection.MaxThreads;
+    // Roots of ONE thread: the same bound as the transfer reader and the import/merge target (archive_media_directories).
+    internal const int MaxThreadDirectories = 32;
+    // Container bounds of the classic (non-ZIP64) package: 10,000 entries minus envelope and catalog, 1 GiB per payload,
+    // 2 GiB of payloads (TransferEnvelopeLimits.ContainerBytes). The validator rejects ZIP64, so these are format limits.
+    internal const int MaxPayloads = 9998;
+    internal const long MaxPayload = 1024L * 1024 * 1024, MaxTotal = 2L * 1024 * 1024 * 1024;
+    private const int MaxAssets = 100_000;
     private const long MaxLegacyComparisons = 1_000_000;
     private const int MaxBindingVisits = 100_000;
 
@@ -130,7 +141,7 @@ internal static partial class NativeTransferArchiveExporter
             if (!NativeTransferCatalogValidator.Inspect(metadata, metadataEnvelope, cancellationToken).IsCatalogValid)
                 return FreezeFail(TransferArchiveError.InvalidCatalog);
             string[] directories = views.SelectMany(v => v.MediaDirectories).Distinct(StringComparer.Ordinal).ToArray();
-            if (directories.Length > MaxDirectories || views.Any(v => v.MediaDirectories.Count > MaxDirectories))
+            if (directories.Length > MaxSelectionDirectories || views.Any(v => v.MediaDirectories.Count > MaxThreadDirectories))
                 return FreezeFail(TransferArchiveError.SelectionLimit);
             ImmutableArray<MediaAssetSnapshot>.Builder manifests = ImmutableArray.CreateBuilder<MediaAssetSnapshot>();
             Dictionary<string, MediaAssetSnapshot> manifestsByRoot = new(StringComparer.Ordinal);

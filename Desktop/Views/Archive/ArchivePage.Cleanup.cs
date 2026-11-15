@@ -36,7 +36,7 @@ public partial class ArchivePage
     }
     private void RouteArchiveCleanupCommand(object? sender, KeyEventArgs e) => _cleanupRouter?.Route(e);
     private bool CanOpenArchiveCleanup() => !_ended && _available && !_busy && _cleanupDialog == null && !_urlTextExportBusy
-        && _cleanupHost?.State == DesktopSessionState.Ready && !IsReaderDialogOpen && !_exportRunning
+        && _cleanupHost?.State == DesktopSessionState.Ready && !IsReaderDialogOpen && !_exportRunning && !IsTransferExportOpen
         && (_cleanupShellAvailable?.Invoke() ?? true);
     private void UpdateArchiveCleanupAction()
     {

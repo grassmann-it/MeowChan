@@ -16,6 +16,7 @@ public sealed class WorkViewArchiveTests
         { "archive.header.refresh", Presence.Overflow, Presence.Direct, Presence.Direct },
         { "archive.header.cleanup", Presence.Overflow, Presence.Overflow, Presence.Direct },
         { "archive.header.transfer-preview", Presence.Overflow, Presence.Overflow, Presence.Direct },
+        { "archive.header.transfer-export", Presence.Overflow, Presence.Overflow, Presence.Direct },
         { "archive.search.field", Presence.Required, Presence.Required, Presence.Required },
         { "archive.search.scope", Presence.Hidden, Presence.Direct, Presence.Direct },
         { "archive.filters.expander", Presence.Collapsed, Presence.Collapsed, Presence.Collapsed },
@@ -120,7 +121,7 @@ public sealed class WorkViewArchiveTests
         Assert.Equal(OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(P("archive.header.refresh", WorkView.Simple)));
         Assert.Equal(OverflowMode.Always, WorkViewPresenter.ToolBarMode(P("archive.header.cleanup", WorkView.Simple)));
         Assert.Equal(OverflowMode.AsNeeded, WorkViewPresenter.ToolBarMode(P("archive.header.cleanup", WorkView.Advanced)));
-        Assert.All(new[] { "refresh", "cleanup", "transfer-preview" }, name =>
+        Assert.All(new[] { "refresh", "cleanup", "transfer-preview", "transfer-export" }, name =>
             Assert.NotNull(WorkViewPolicy.Get("archive.header." + name).CommandId));
     }
 
