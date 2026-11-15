@@ -402,7 +402,7 @@ internal static class CorruptionScenarios
                 Assert.NotNull(outcome);
                 AssertHygiene(adapter, directory, outcome!, context + " write");
             }
-            else if (adapter.FollowsSymbolicLinks && kind != "directory")
+            else if (read.Kind == ReadKind.Data && adapter.FollowsSymbolicLinks && kind != "directory")
                 Assert.Null(outcome);
             else if (outcome != null) AssertHygiene(adapter, directory, outcome, context + " write");
             else Assert.True(adapter.Policy == StorePolicy.Rebuild,
