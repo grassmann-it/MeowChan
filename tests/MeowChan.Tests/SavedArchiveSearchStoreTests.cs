@@ -224,8 +224,8 @@ public sealed class SavedArchiveSearchStoreTests : IDisposable
     {
         Guid id = Guid.NewGuid();
         // Calibrate through a real small recovery, rather than duplicating the writer's formatting.
-        int smallRecoveryBytes = MeasureSmallRecovery(id);
-        int sourceLength = checked(SavedArchiveSearchStore.MaximumFileBytes - smallRecoveryBytes + 1 + bytesAboveLimit);
+        int recoveryOverheadBytes = MeasureRecoveryOverhead(id);
+        int sourceLength = checked(SavedArchiveSearchStore.MaximumFileBytes - recoveryOverheadBytes + bytesAboveLimit);
         string source = new('s', sourceLength);
         string backup = CompactRecoveryBackup(id, source);
         byte[] original = Encoding.UTF8.GetBytes("{damaged-primary");
@@ -292,16 +292,17 @@ public sealed class SavedArchiveSearchStoreTests : IDisposable
             Assert.Equal(sourceLength, Assert.Single(Assert.Single(loaded.Searches).Definition!.Sources).Length);
         }
     }
-    private int MeasureSmallRecovery(Guid id)
+    private int MeasureRecoveryOverhead(Guid id)
     {
+        const string calibrationSource = "s";
         string directory = Path.Combine(_directory, "recovery-size-calibration");
         using var lease = ProfileLease.Acquire(directory);
         string path = Path.Combine(directory, "archive-searches.json");
-        File.WriteAllText(path, "{damaged-primary"); File.WriteAllText(path + ".bak", CompactRecoveryBackup(id, "s"));
+        File.WriteAllText(path, "{damaged-primary"); File.WriteAllText(path + ".bak", CompactRecoveryBackup(id, calibrationSource));
         var store = new SavedArchiveSearchStore(directory, lease); var recovery = store.Load();
         Assert.Equal(SavedSearchStoreState.RecoveryAvailable, recovery.State);
         Assert.Equal(SavedSearchStoreState.Ready, store.Recover(recovery.Revision).State);
-        return checked((int)new FileInfo(path).Length);
+        return checked((int)new FileInfo(path).Length - Encoding.UTF8.GetByteCount(calibrationSource));
     }
     private static string CompactRecoveryBackup(Guid id, string source) => new JsonObject
     {
