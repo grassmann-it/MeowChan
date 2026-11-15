@@ -2,8 +2,10 @@
 """Run the offline .NET test shards with bounded, cross-platform cleanup.
 
 The runner deliberately owns process lifetime instead of relying on a shell
-``timeout`` implementation.  Each dotnet invocation gets its own process
-session/group, and all eight shard workers are allowed to finish independently.
+``timeout`` implementation. Each dotnet invocation gets its own process
+session/group. The default mode runs all eight shards, while the CI pilot can
+select one of four two-shard lanes so a four-CPU runner does not oversubscribe
+itself.
 """
 
 from __future__ import annotations
@@ -48,9 +50,20 @@ SHARDS: Mapping[str, tuple[str, ...]] = {
 }
 
 LIGHT_SHARDS = frozenset(("shard-06", "shard-07", "shard-08"))
-DEFAULT_SHARD_TIMEOUT_SECONDS = 1500.0
+
+# Keep the largest DesktopTests shard away from another process-heavy shard.
+# The remaining pairs are deliberately balanced by the historical shape of the
+# suites rather than by consecutive shard number. A lane still runs its two
+# shards concurrently; projects inside one shard remain sequential.
+LANE_SHARDS: Mapping[str, tuple[str, ...]] = {
+    "lane-a": ("shard-02", "shard-08"),
+    "lane-b": ("shard-01", "shard-06"),
+    "lane-c": ("shard-03", "shard-07"),
+    "lane-d": ("shard-04", "shard-05"),
+}
+DEFAULT_SHARD_TIMEOUT_SECONDS = 1800.0
 DEFAULT_LIGHT_SHARD_TIMEOUT_SECONDS = 900.0
-DEFAULT_PROJECT_TIMEOUT_SECONDS = 1500.0
+DEFAULT_PROJECT_TIMEOUT_SECONDS = 1800.0
 DEFAULT_LIGHT_PROJECT_TIMEOUT_SECONDS = 900.0
 DEFAULT_CLEANUP_GRACE_SECONDS = 30.0
 
@@ -542,19 +555,25 @@ def run_all(
     project_timeout_seconds: float,
     light_project_timeout_seconds: float,
     cleanup_grace_seconds: float,
+    lane: str | None = None,
     shard_runner: Callable[..., ShardResult] = run_shard,
     is_windows: bool | None = None,
 ) -> int:
-    """Launch all shards concurrently and aggregate every result."""
+    """Launch the selected shards concurrently and aggregate every result."""
+
+    if lane is not None and lane not in LANE_SHARDS:
+        raise ValueError(f"unknown lane: {lane}")
+    selected_names = LANE_SHARDS[lane] if lane is not None else tuple(SHARDS)
+    selected_shards = {name: SHARDS[name] for name in selected_names}
 
     results_root.mkdir(parents=True, exist_ok=True)
     started_at = utc_now()
     started = time.monotonic()
     shard_results: dict[str, ShardResult] = {}
 
-    with ThreadPoolExecutor(max_workers=len(SHARDS), thread_name_prefix="dotnet-shard") as pool:
+    with ThreadPoolExecutor(max_workers=len(selected_shards), thread_name_prefix="dotnet-shard") as pool:
         futures = {}
-        for shard, projects in SHARDS.items():
+        for shard, projects in selected_shards.items():
             light = shard in LIGHT_SHARDS
             futures[pool.submit(
                 shard_runner,
@@ -586,11 +605,12 @@ def run_all(
                 flush=True,
             )
 
-    ordered_results = [asdict(shard_results[shard]) for shard in SHARDS]
+    ordered_results = [asdict(shard_results[shard]) for shard in selected_shards]
     aggregate_status = "passed" if all(item["status"] == "passed" for item in ordered_results) else "failed"
     aggregate = {
         "schema_version": 1,
         "runner": "scripts/run-dotnet-shards.py",
+        "lane": lane,
         "started_at": started_at,
         "completed_at": utc_now(),
         "duration_seconds": round(time.monotonic() - started, 3),
@@ -610,7 +630,8 @@ def run_all(
     (results_root / "aggregate-status.txt").write_text(
         f"aggregate_status={aggregate_status}\n"
         f"exit_code={aggregate['exit_code']}\n"
-        f"shards={len(ordered_results)}\n",
+        f"shards={len(ordered_results)}\n"
+        f"lane={lane or 'all'}\n",
         encoding="utf-8",
     )
     with (results_root / "shard-status.tsv").open("w", encoding="utf-8") as stream:
@@ -634,6 +655,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--project-timeout", type=float, default=DEFAULT_PROJECT_TIMEOUT_SECONDS)
     parser.add_argument("--light-project-timeout", type=float, default=DEFAULT_LIGHT_PROJECT_TIMEOUT_SECONDS)
     parser.add_argument("--cleanup-grace", type=float, default=DEFAULT_CLEANUP_GRACE_SECONDS)
+    parser.add_argument("--lane", choices=tuple(LANE_SHARDS), help="Run one CI two-shard lane")
     return parser.parse_args(argv)
 
 
@@ -648,6 +670,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         project_timeout_seconds=args.project_timeout,
         light_project_timeout_seconds=args.light_project_timeout,
         cleanup_grace_seconds=args.cleanup_grace,
+        lane=args.lane,
     )
 
 

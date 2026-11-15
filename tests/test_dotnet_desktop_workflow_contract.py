@@ -37,8 +37,8 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
         end = workflow.index("      - name: Run both complete macOS offline suites", start)
         cls.step = workflow[start:end]
 
-    def test_non_macos_step_uses_eight_shard_runner(self):
-        self.assertIn("python scripts/run-dotnet-shards.py", self.step)
+    def test_non_macos_step_uses_selected_two_shard_lane_runner(self):
+        self.assertIn("python scripts/run-dotnet-shards.py --lane \"${{ matrix.lane }}\"", self.step)
         self.assertIn("--results-root test-results/offline-shards", self.step)
         self.assertEqual(self.step.count("python scripts/run-dotnet-shards.py"), 1)
         self.assertNotIn("dotnet test MeowChan.sln", self.step)
@@ -56,8 +56,18 @@ class DotnetDesktopWorkflowContractTests(unittest.TestCase):
 
     def test_each_project_has_private_trx_directory_and_deadline(self):
         self.assertIn("--results-root test-results/offline-shards", self.step)
-        self.assertIn("timeout-minutes: 30", self.step)
+        self.assertIn("timeout-minutes: 35", self.step)
         self.assertIn("scripts/run-dotnet-shards.py", self.step)
+
+    def test_matrix_has_four_non_macos_lanes_and_one_native_lane_per_macos(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('matrix: ${{ fromJSON(', workflow)
+        for os_name in ("ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"):
+            self.assertIn(f'"os":"{os_name}","lane":"lane-a"', workflow)
+            self.assertIn(f'"os":"{os_name}","lane":"lane-d"', workflow)
+        self.assertIn('"os":"macos-15","lane":"native"', workflow)
+        self.assertIn('"os":"macos-15-intel","lane":"native"', workflow)
+        self.assertIn('name: validation-${{ matrix.os }}-${{ matrix.lane }}-${{ runner.arch }}', workflow)
 
     def test_mac_step_is_outside_shard_step_and_non_macos_guard_remains(self):
         self.assertIn("if: runner.os != 'macOS'", self.step)

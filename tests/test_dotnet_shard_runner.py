@@ -66,6 +66,13 @@ class FakeProcess:
     def kill(self):
         self.killed = True
 
+EXPECTED_LANES = {
+    "lane-a": ["shard-02", "shard-08"],
+    "lane-b": ["shard-01", "shard-06"],
+    "lane-c": ["shard-03", "shard-07"],
+    "lane-d": ["shard-04", "shard-05"],
+}
+
 
 class DotnetShardRunnerTests(unittest.TestCase):
     def test_eight_shards_are_disjoint_and_cover_expected_projects(self):
@@ -73,6 +80,12 @@ class DotnetShardRunnerTests(unittest.TestCase):
         projects = [project for shard in runner.SHARDS.values() for project in shard]
         self.assertEqual(len(projects), len(set(projects)))
         self.assertEqual(len(runner.SHARDS), 8)
+
+    def test_four_lanes_cover_each_shard_once_and_keep_desktop_tests_alone(self):
+        self.assertEqual({key: list(value) for key, value in runner.LANE_SHARDS.items()}, EXPECTED_LANES)
+        self.assertEqual(sorted(shard for lane in runner.LANE_SHARDS.values() for shard in lane), sorted(runner.SHARDS))
+        self.assertEqual(len({shard for lane in runner.LANE_SHARDS.values() for shard in lane}), 8)
+        self.assertEqual(runner.LANE_SHARDS["lane-a"][0], "shard-02")
 
     def test_command_has_private_results_directory_and_hang_diagnostics(self):
         results = Path("test-results/offline-shards/shard-01/MeowChan.Tests")
@@ -168,6 +181,39 @@ class DotnetShardRunnerTests(unittest.TestCase):
             self.assertEqual(result.exit_code, 0)
             self.assertTrue((Path(temporary) / "shard-07" / "status.json").is_file())
 
+    def test_lane_aggregate_collects_only_its_two_shards(self):
+        called = []
+
+        def fake_shard(shard, projects, **kwargs):
+            called.append(shard)
+            return runner.ShardResult(
+                shard=shard,
+                status="passed",
+                exit_code=0,
+                duration_seconds=0.0,
+                timeout_seconds=kwargs["shard_timeout_seconds"],
+            )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            exit_code = runner.run_all(
+                results_root=Path(temporary),
+                repo_root=ROOT,
+                dotnet="dotnet",
+                shard_timeout_seconds=10,
+                light_shard_timeout_seconds=5,
+                project_timeout_seconds=10,
+                light_project_timeout_seconds=5,
+                cleanup_grace_seconds=0,
+                lane="lane-a",
+                shard_runner=fake_shard,
+                is_windows=False,
+            )
+            aggregate = json.loads((Path(temporary) / "aggregate-status.json").read_text())
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(set(called), set(EXPECTED_LANES["lane-a"]))
+        self.assertEqual(aggregate["lane"], "lane-a")
+        self.assertEqual([item["shard"] for item in aggregate["shards"]], EXPECTED_LANES["lane-a"])
+
     def test_aggregate_collects_other_shards_after_one_runner_error(self):
         called = []
 
@@ -208,16 +254,20 @@ class DotnetShardRunnerTests(unittest.TestCase):
             )
             self.assertIn("aggregate_status=failed", (root / "aggregate-status.txt").read_text())
 
-    def test_workflow_uses_python_runner_and_keeps_macos_watchdog_separate(self):
+    def test_workflow_uses_two_shard_lanes_and_keeps_macos_watchdog_separate(self):
         workflow = (ROOT / ".github" / "workflows" / "dotnet-desktop.yml").read_text()
         start = workflow.index("      - name: Run core and desktop offline test shards")
         end = workflow.index("      - name: Run both complete macOS offline suites", start)
         shard_step = workflow[start:end]
-        self.assertIn("python scripts/run-dotnet-shards.py", shard_step)
-        self.assertIn("timeout-minutes: 30", shard_step)
+        self.assertIn("python scripts/run-dotnet-shards.py --lane \"${{ matrix.lane }}\"", shard_step)
+        self.assertIn("timeout-minutes: 35", shard_step)
         self.assertNotIn("timeout --", shard_step)
         self.assertNotIn("dotnet test MeowChan.sln", shard_step)
         self.assertNotIn("macos-test-watchdog.py", shard_step)
+        self.assertIn('matrix.full &&', workflow)
+        self.assertIn('name: validation-${{ matrix.os }}-${{ matrix.lane }}-${{ runner.arch }}', workflow)
+        self.assertIn('lane-a', workflow)
+        self.assertIn('lane-d', workflow)
         mac_step = workflow[end : workflow.index("      - name: Check package layout fixtures", end)]
         self.assertIn("python3 scripts/macos-test-watchdog.py", mac_step)
         self.assertIn("--timeout 300 --desktop-timeout 600", mac_step)
