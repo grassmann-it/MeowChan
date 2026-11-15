@@ -309,7 +309,9 @@ internal sealed class SavedArchiveSearchStore
     }
     private static string SerializeForCommit(long revision, IReadOnlyList<SavedArchiveSearch> searches)
     {
-        string json = Serialize(revision, searches);
+        // AtomicJsonFile writes this platform-independent form. Check the exact bytes that will be published, so the
+        // admission boundary is identical on platforms whose text serializers produce CRLF.
+        string json = Serialize(revision, searches).Replace("\r\n", "\n", StringComparison.Ordinal);
         if (Encoding.UTF8.GetByteCount(json) > MaximumFileBytes)
             throw new InvalidDataException("Saved searches exceed 8 MiB.");
         return json;

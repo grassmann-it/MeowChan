@@ -377,7 +377,7 @@ public sealed class NativeTransferMultiThreadExportTests
 
     private static async Task SetThreadDateAsync(string profile, ResourceId id, string value)
     {
-        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db"));
+        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db") + ";Pooling=False");
         await connection.OpenAsync(); using SqliteCommand command = connection.CreateCommand();
         command.CommandText = "UPDATE archive_threads SET first_seen_at=$value WHERE source=$source AND board=$board AND thread=$thread";
         command.Parameters.AddWithValue("$value", value); command.Parameters.AddWithValue("$source", id.Source);
@@ -387,7 +387,7 @@ public sealed class NativeTransferMultiThreadExportTests
 
     private static async Task SetPlannedPathAsync(string profile, ResourceId id, string value)
     {
-        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db"));
+        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db") + ";Pooling=False");
         await connection.OpenAsync(); using SqliteCommand command = connection.CreateCommand();
         // Preserve the synthetic NUL suffix across the SQLite provider's string binder.
         // Store TEXT, not a blob column: the production preflight must count the whole value.
@@ -406,7 +406,7 @@ public sealed class NativeTransferMultiThreadExportTests
     // Current fixture schema has all optional fields.
     private static async Task<long> StoredTextBytesAsync(string profile)
     {
-        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db"));
+        await using SqliteConnection connection = new("Data Source=" + Path.Combine(profile, "archive.db") + ";Pooling=False");
         await connection.OpenAsync(); long bytes = 0;
         foreach ((string table, string columns) in new (string, string)[]
         {

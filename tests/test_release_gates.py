@@ -139,6 +139,7 @@ class WorkflowContractTests(unittest.TestCase):
             self.assertIn(marker, section)
         self.assertNotIn("upgrade-v1x", section)
         self.assertNotIn("OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts", section)
+        self.assertEqual(2, section.count("':(exclude)test-results'"))
         self.assertIn("matches = [item for item in rows if item.get('testName') == expected]", section)
         self.assertIn("assert len(matches) == 1 and matches[0].get('outcome') == 'Passed'", section)
         self.assertNotIn("assert len(rows) == 1", section)

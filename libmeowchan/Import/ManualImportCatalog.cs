@@ -333,9 +333,9 @@ internal sealed class ManualImportCatalogStore
             catch (Exception readError) when (readError is IOException or UnauthorizedAccessException or ManualImportException) { }
             throw;
         }
-        // The next read is answered from what was just written, as long as the file on disk has exactly its size.
-        if (RegularProfileFile.TryGetIdentity(_path) is { } written && written.Size == bytes.Length)
-            (_cached, _cachedIdentity, _cachedDigest) = (snapshot, written, SHA256.HashData(bytes));
+        // The atomic writer has just published exactly these bytes. Keep the snapshot even when a platform cannot
+        // report a complete identity or reports a stale size; a later read still reattests the bytes by digest.
+        (_cached, _cachedIdentity, _cachedDigest) = (snapshot, RegularProfileFile.TryGetIdentity(_path), SHA256.HashData(bytes));
         _validatedBackupDigest = replacedDigest;
     }
 

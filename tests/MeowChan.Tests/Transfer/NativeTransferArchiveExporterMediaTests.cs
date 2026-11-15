@@ -159,7 +159,7 @@ public sealed class NativeTransferArchiveExporterMediaTests
     {
         await using NativeTransferArchiveFixture fixture = await NativeTransferArchiveFixture.CreateAsync();
         using (ProfileLease lease = ProfileLease.Acquire(fixture.ProfilePath))
-        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db")))
+        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db") + ";Pooling=False"))
         {
             await connection.OpenAsync(); await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = table switch
@@ -194,7 +194,7 @@ public sealed class NativeTransferArchiveExporterMediaTests
         await using ArchiveReader reader = await ArchiveReader.OpenAsync(fixture.ProfilePath);
         NativeTransferArchiveSnapshot snapshot = (await NativeTransferArchiveExporter.FreezeAsync(reader, fixture.ThreadId, At, PackageId)).Snapshot!;
         using (ProfileLease lease = ProfileLease.Acquire(fixture.ProfilePath))
-        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db")))
+        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db") + ";Pooling=False"))
         {
             await connection.OpenAsync(); await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "UPDATE archive_source_contracts SET decimal_post_order=0 WHERE source='4chan' AND board='b' AND thread='7001'";
@@ -209,7 +209,7 @@ public sealed class NativeTransferArchiveExporterMediaTests
     {
         await using NativeTransferArchiveFixture fixture = await NativeTransferArchiveFixture.CreateAsync();
         using (ProfileLease lease = ProfileLease.Acquire(fixture.ProfilePath))
-        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db")))
+        await using (SqliteConnection connection = new("Data Source=" + Path.Combine(fixture.ProfilePath, "archive.db") + ";Pooling=False"))
         {
             await connection.OpenAsync(); await using SqliteCommand command = connection.CreateCommand();
             command.CommandText = "UPDATE archive_posts SET html=CAST(zeroblob(33554433) AS TEXT) WHERE source='4chan' AND board='b' AND thread='7001' AND post='7001'";

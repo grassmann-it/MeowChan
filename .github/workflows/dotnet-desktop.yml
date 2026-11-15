@@ -347,7 +347,11 @@ jobs:
           current_revision="$(git rev-parse HEAD)"
           released_revision=eec6c0169f8d52f7481ea0bf7febfd20981e97c3
           mkdir -p "$fixture"
-          git status --porcelain=v1 --untracked-files=all > "$fixture/status-before.txt"
+          # The earlier core_tests step deliberately writes TRX files to the
+          # untracked test-results/ evidence directory. Exclude that known
+          # report output while checking that this fixture does not mutate the
+          # source tree.
+          git status --porcelain=v1 --untracked-files=all -- . ':(exclude)test-results' > "$fixture/status-before.txt"
           test ! -s "$fixture/status-before.txt"
 
           # Keep the source/generator contracts in this gate as well as the runtime evidence.
@@ -395,7 +399,7 @@ jobs:
           assert len(matches) == 1 and matches[0].get('outcome') == 'Passed', 'the released 1.0.2 main upgrade test must execute exactly once and pass'
           PY
           test -f "$results/current-result.json"
-          git status --porcelain=v1 --untracked-files=all > "$fixture/status-after.txt"
+          git status --porcelain=v1 --untracked-files=all -- . ':(exclude)test-results' > "$fixture/status-after.txt"
           test ! -s "$fixture/status-after.txt"
           python tests/fixtures/upgrade-v1.0.2/check_migrated.py --profile "$profile" --results "$results" \
             --expect-revision "$current_revision" --status "$fixture/status-before.txt" --status "$fixture/status-after.txt" \
