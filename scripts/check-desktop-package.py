@@ -102,7 +102,16 @@ def _internal_payload_target(root: Path, path: Path, relative: Path | None = Non
         message = ('Nested desktop package symlink is not allowed: ' + relative.as_posix()
                    if nested else 'Invalid desktop package symlink target: ' + str(path))
         raise ValueError(message) from error
-    if not resolved.is_relative_to(root) or not resolved.is_file():
+    # When validating the Contents/MacOS alias view, generated first-level
+    # aliases are walked into the physical Resources/application tree. Nested
+    # native aliases (for example VLC's libvlccore alias) must stay confined to
+    # that physical payload, not to the alias-view directory itself.
+    payload_root = root
+    if root.name == 'MacOS' and root.parent.name == 'Contents':
+        resource_payload = root.parent / 'Resources' / 'application'
+        if resource_payload.is_dir() and not resource_payload.is_symlink():
+            payload_root = _ordinary_directory(resource_payload)
+    if not resolved.is_relative_to(payload_root) or not resolved.is_file():
         message = ('Nested desktop package symlink is not allowed: ' + relative.as_posix()
                    if nested else 'Desktop package symlink target escapes the payload: ' + str(path))
         raise ValueError(message)

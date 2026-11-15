@@ -398,12 +398,19 @@ int main(int argc, char **argv) {
 
     def test_signed_bundle_accepts_internal_file_aliases(self):
         self.symlink("libAvaloniaNative.dylib", self.publish / "native-alias.dylib")
+        nested = self.publish / "libvlc" / "osx-arm64" / "lib"
+        nested.mkdir(parents=True)
+        (nested / "libvlccore.dylib").write_bytes(b"native core")
+        self.symlink("libvlccore.dylib", nested / "libvlccore-alias.dylib")
         signer = mock.Mock()
         with mock.patch.object(packaging.sys, 'platform', 'darwin'), mock.patch.object(packaging.shutil, 'which', return_value=None), mock.patch.object(packaging, 'signing_module', return_value=signer):
             bundle, archive = self.package(runtime='osx-arm64', sign_adhoc=True,
                                            archive_path=self.output / "signed.tar.gz")
         self.assertTrue((bundle / "Contents/Resources/application/native-alias.dylib").is_symlink())
         self.assertEqual("libAvaloniaNative.dylib", os.readlink(bundle / "Contents/Resources/application/native-alias.dylib"))
+        nested_link = bundle / "Contents/Resources/application/libvlc/osx-arm64/lib/libvlccore-alias.dylib"
+        self.assertTrue(nested_link.is_symlink())
+        self.assertEqual("libvlccore.dylib", os.readlink(nested_link))
         self.assertIsNotNone(archive)
 
     def test_executable_must_not_be_a_symbolic_link(self):
