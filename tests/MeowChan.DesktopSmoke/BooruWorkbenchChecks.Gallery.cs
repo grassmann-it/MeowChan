@@ -43,6 +43,17 @@ internal static partial class BooruWorkbenchChecks
                 () => "cards=" + Cards(page, "BooruResult:").Count + " previews=" + Previews(page));
             await SettleAsync(owner);
             DialogGallery.Record(owner, "booru-workbench-results", "main window", "fake provider page, three result cards");
+
+            // C12: the dialog gallery also needs the hosted page's provider-error state, not only
+            // the idle/results surfaces. This is distinct from the shell toast/overlay scenes.
+            h.Search.OnSearch = (_, _, _) => Task.FromResult(
+                BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Offline, "gallery-offline"));
+            Find<TextBox>(page, BooruWorkbenchView.InputName).Text = "gallery offline";
+            Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
+            await Program.WaitUntilAsync(() => Text(page).Contains("Danbooru could not be reached"),
+                () => "Booru offline state was not shown: " + BooruText.SearchStatus(page.Model.Search.View, false));
+            await SettleAsync(owner);
+            DialogGallery.Record(owner, "booru-workbench-error", "main window", "hosted Danbooru provider error state");
         }
         finally
         {
