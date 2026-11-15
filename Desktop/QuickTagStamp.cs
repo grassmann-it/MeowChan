@@ -102,9 +102,8 @@ internal sealed class QuickTagStamp
     internal IReadOnlyList<PrivateTagDefinition> Resolve(PrivateTagStoreSnapshot? snapshot)
     {
         if (snapshot == null || _names.Count == 0) return Array.Empty<PrivateTagDefinition>();
-        Dictionary<string, PrivateTagDefinition> byKey = new(StringComparer.Ordinal);
-        foreach (PrivateTagDefinition tag in snapshot.Tags) byKey.TryAdd(tag.Name.Key, tag);
-        return _names.Select(name => byKey.GetValueOrDefault(name.Key)).OfType<PrivateTagDefinition>().ToArray();
+        // A merged-away name finds the tag it was merged into (its alias); two names of one tag count once.
+        return _names.Select(name => snapshot.Resolve(name, out _)).OfType<PrivateTagDefinition>().DistinctBy(tag => tag.Id).ToArray();
     }
 
     /// <summary>The valid, distinct names of <paramref name="names"/> in order, at most <paramref name="capacity"/>.</summary>

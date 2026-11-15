@@ -197,6 +197,43 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveWithAdmissionAsync(nameof(DeletePrivateTagAsync), tag.Value.ToString("N"),
             admission => MutatePrivateTagsAsync(store => store.DeleteAdmitted(tag, admission, expectedRevision, token), token));
 
+    /// <summary>
+    /// Merges tags into <paramref name="target"/> as ONE admitted write bound to the revision the caller looked at: assignments move,
+    /// duplicates collapse, the merged names become aliases. Runs on a worker like every command, so a large library never blocks the UI.
+    /// The returned undo is valid until the next tag write.
+    /// </summary>
+    internal async Task<PrivateTagMergeCommit> MergePrivateTagsAsync(TagId target, IReadOnlyList<TagId> merged, long expectedRevision,
+        CancellationToken token = default)
+    {
+        TagId[] frozen = (merged ?? throw new ArgumentNullException(nameof(merged))).ToArray();
+        PrivateTagMergeCommit? result = null;
+        await RunInteractiveWithAdmissionAsync(nameof(MergePrivateTagsAsync), target.Value.ToString("N") + " " + frozen.Length + " tags",
+            admission => MutatePrivateTagsAsync(store =>
+            {
+                result = store.MergeAdmitted(target, frozen, admission, expectedRevision, token);
+                return result.Commit;
+            }, token)).ConfigureAwait(false);
+        return result!;
+    }
+
+    /// <summary>Takes a merge back in one admitted write; refused as stale once anything else changed the tags.</summary>
+    internal Task<PrivateTagCommit> UndoPrivateTagMergeAsync(PrivateTagMergeUndo undo, CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(undo);
+        return RunInteractiveWithAdmissionAsync(nameof(UndoPrivateTagMergeAsync), undo.Target.Value.ToString("N"),
+            admission => MutatePrivateTagsAsync(store => store.UndoMergeAdmitted(undo, admission, token), token));
+    }
+
+    /// <summary>Gives a tag another name (alias), bound to the revision the caller looked at.</summary>
+    internal Task<PrivateTagCommit> AddPrivateTagAliasAsync(TagId tag, string name, long expectedRevision, CancellationToken token = default)
+        => RunInteractiveWithAdmissionAsync(nameof(AddPrivateTagAliasAsync), tag.Value.ToString("N"),
+            admission => MutatePrivateTagsAsync(store => store.AddAliasAdmitted(tag, name, admission, expectedRevision, token), token));
+
+    /// <summary>Removes an alias by name, bound to the revision the caller looked at.</summary>
+    internal Task<PrivateTagCommit> RemovePrivateTagAliasAsync(string name, long expectedRevision, CancellationToken token = default)
+        => RunInteractiveWithAdmissionAsync(nameof(RemovePrivateTagAliasAsync), "alias",
+            admission => MutatePrivateTagsAsync(store => store.RemoveAliasAdmitted(name, admission, expectedRevision, token), token));
+
     // Called by the deletion owner while _commands is held, only for actually deleted IDs.
     // The catalog deletions are already committed, so this is not cancelable. Removes thread, bound and local
     // assignments of those threads and their local registrations; tag definitions stay.
