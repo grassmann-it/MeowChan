@@ -4635,6 +4635,7 @@
     "media.filter.queueExcludeChip": "Не в очереди тегов",
     "media.filter.error.queue": "Фильтр использует очередь тегов, но её не удаётся прочитать.",
     "media.filter.error.sourceTags": "Фильтр использует теги Danbooru, но каталог Danbooru не удаётся прочитать.",
+    "media.filter.retry": "Повторить",
     "media.filter.sourceTagChip": "Тег Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Без тега Danbooru: {0}",
     "media.query.alias.queue": "очередь",

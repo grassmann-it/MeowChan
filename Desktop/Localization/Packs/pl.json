@@ -4661,6 +4661,7 @@
     "media.filter.queueExcludeChip": "Poza kolejką tagowania",
     "media.filter.error.queue": "Filtr korzysta z kolejki tagowania, ale nie można jej odczytać.",
     "media.filter.error.sourceTags": "Filtr korzysta z tagów Danbooru, ale nie można odczytać katalogu Danbooru.",
+    "media.filter.retry": "Spróbuj ponownie",
     "media.filter.sourceTagChip": "Tag Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Bez tagu Danbooru: {0}",
     "media.query.alias.queue": "kolejka",

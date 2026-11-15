@@ -4529,6 +4529,7 @@
     "media.filter.queueExcludeChip": "不在标签队列中",
     "media.filter.error.queue": "筛选使用了标签队列，但无法读取队列。",
     "media.filter.error.sourceTags": "筛选使用了 Danbooru 标签，但无法读取 Danbooru 目录。",
+    "media.filter.retry": "重试",
     "media.filter.sourceTagChip": "Danbooru 标签：{0}",
     "media.filter.sourceTagExcludeChip": "不含 Danbooru 标签：{0}",
     "media.query.alias.queue": "队列",

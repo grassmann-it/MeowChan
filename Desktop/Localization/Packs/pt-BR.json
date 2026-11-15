@@ -4621,6 +4621,7 @@
     "media.filter.queueExcludeChip": "Fora da fila de tags",
     "media.filter.error.queue": "O filtro usa a fila de tags, mas não é possível ler a fila.",
     "media.filter.error.sourceTags": "O filtro usa tags do Danbooru, mas não é possível ler o catálogo do Danbooru.",
+    "media.filter.retry": "Tentar novamente",
     "media.filter.sourceTagChip": "Tag do Danbooru: {0}",
     "media.filter.sourceTagExcludeChip": "Sem a tag do Danbooru: {0}",
     "media.query.alias.queue": "fila",

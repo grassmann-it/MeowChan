@@ -4529,6 +4529,7 @@
     "media.filter.queueExcludeChip": "태그 지정 대기열에 없음",
     "media.filter.error.queue": "필터가 태그 지정 대기열을 사용하지만 대기열을 읽을 수 없습니다.",
     "media.filter.error.sourceTags": "필터가 Danbooru 태그를 사용하지만 Danbooru 카탈로그를 읽을 수 없습니다.",
+    "media.filter.retry": "다시 시도",
     "media.filter.sourceTagChip": "Danbooru 태그: {0}",
     "media.filter.sourceTagExcludeChip": "Danbooru 태그 제외: {0}",
     "media.query.alias.queue": "대기열",

@@ -396,6 +396,16 @@ int main(int argc, char **argv) {
             self.assertTrue(entry.issym())
             self.assertEqual("libvlccore.dylib", entry.linkname)
 
+    def test_signed_bundle_accepts_internal_file_aliases(self):
+        self.symlink("libAvaloniaNative.dylib", self.publish / "native-alias.dylib")
+        signer = mock.Mock()
+        with mock.patch.object(packaging.sys, 'platform', 'darwin'), mock.patch.object(packaging.shutil, 'which', return_value=None), mock.patch.object(packaging, 'signing_module', return_value=signer):
+            bundle, archive = self.package(runtime='osx-arm64', sign_adhoc=True,
+                                           archive_path=self.output / "signed.tar.gz")
+        self.assertTrue((bundle / "Contents/Resources/application/native-alias.dylib").is_symlink())
+        self.assertEqual("libAvaloniaNative.dylib", os.readlink(bundle / "Contents/Resources/application/native-alias.dylib"))
+        self.assertIsNotNone(archive)
+
     def test_executable_must_not_be_a_symbolic_link(self):
         executable = self.publish / "MeowChan"
         executable.rename(self.publish / "real-apphost")

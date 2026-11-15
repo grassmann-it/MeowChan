@@ -212,10 +212,35 @@ public sealed partial class MediaPage
         }
         if (refusal != null)
         {
-            _filterError.Text = refusal;
-            _filterError.IsVisible = true;
+            ShowFilterError(refusal);
         }
         return refusal;
+    }
+
+    private void ShowFilterError(string text)
+    {
+        _filterErrorKey = null;
+        _filterError.Text = text;
+        _filterError.IsVisible = true;
+        _filterRetry.IsVisible = false;
+    }
+
+    /// <summary>Retries only the local data source used by queue:/booru:; other filter refusals stay explanatory only.</summary>
+    private void RetryFilterData()
+    {
+        if (_lifetime.IsCancellationRequested || _filterErrorKey is not ("media.filter.error.queue" or "media.filter.error.sourceTags")) return;
+        _filterRetry.IsEnabled = false;
+        if (_filterErrorKey == "media.filter.error.queue")
+        {
+            _queueLoadRequested = false;
+            _queueSignature = null;
+            RefreshTagQueue(load: true);
+            return;
+        }
+
+        _sourceTagCache.Clear();
+        _booruCatalogWarm = false;
+        Present();
     }
 
     // Source tags share the configured tags-per-list limit of the own tags (Settings, "Tags per filter list").
@@ -235,8 +260,7 @@ public sealed partial class MediaPage
         if (!IsValidFilter(next))
         {
             string refusal = Texts.T("media.filter.add.refused");
-            _filterError.Text = refusal;
-            _filterError.IsVisible = true;
+            ShowFilterError(refusal);
             return refusal;
         }
         EditTerms(_ => next);

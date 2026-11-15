@@ -189,7 +189,7 @@ public sealed partial class MediaPage : UserControl
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
         // what is applied stays in the header above it.
         Border filterSurface = BuildFilterSurface(BuildFilterRow());
-        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
+        _headerBody.Children.Add(BuildFilterChipRow()); _headerBody.Children.Add(_filterError); _headerBody.Children.Add(_filterRetry); _headerBody.Children.Add(BuildQueryHint()); _headerBody.Children.Add(BuildStatusRow(_status));
         _headerBody.Children.Add(filterSurface);
         _headerBody.Children.Add(BuildExportAllAsk()); _headerBody.Children.Add(BuildSelectionBar());
         _grid.ItemsPanel = new FuncTemplate<Panel?>(() => new MediaTilePanel { ItemHeight = _tileAppearance.CellHeight, ColumnWidth = _tileAppearance.CellWidth });
@@ -560,8 +560,13 @@ public sealed partial class MediaPage : UserControl
         _untagged = result.Untagged;
         _userOrder = result.UserOrder;
         _audioUnknown = result.AudioUnknown;
+        _filterErrorKey = result.ErrorKey;
         _filterError.Text = result.ErrorKey == null ? null : Texts.T(result.ErrorKey);
         _filterError.IsVisible = result.ErrorKey != null;
+        _filterRetry.Content = Texts.T("media.filter.retry");
+        _filterRetry.IsVisible = result.ErrorKey is "media.filter.error.queue" or "media.filter.error.sourceTags";
+        _filterRetry.IsEnabled = true;
+        AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
         UpdateAudioNote();
         // The selection may have changed while the rows were made; then it is carried over from what is selected now.
         // Ctrl+A pressed meanwhile (and nothing changed the selection after it) meant every tile of the new list, not of the old one.

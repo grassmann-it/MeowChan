@@ -4615,6 +4615,7 @@
     "media.filter.queueExcludeChip": "Hors de la file d’étiquetage",
     "media.filter.error.queue": "Le filtre utilise la file d’étiquetage, mais la file est illisible.",
     "media.filter.error.sourceTags": "Le filtre utilise des étiquettes Danbooru, mais le catalogue Danbooru est illisible.",
+    "media.filter.retry": "Réessayer",
     "media.filter.sourceTagChip": "Étiquette Danbooru : {0}",
     "media.filter.sourceTagExcludeChip": "Sans l’étiquette Danbooru : {0}",
     "media.query.alias.queue": "attente",

@@ -127,13 +127,23 @@ def _macos_alias_target(root: Path, path: Path) -> Path:
     if os.readlink(path) != str(relative):
         raise ValueError('Unexpected macOS desktop package symlink target: ' + str(path))
     target = Path(os.path.abspath(root / relative))
-    # Validate each physical parent too: an exact textual alias must not hide a
-    # redirected Resources/application directory or another target-side link.
+    # A signed bundle's MacOS aliases point into Resources/application. The
+    # publish tree may itself contain a relative file alias, so validate its
+    # resolved endpoint rather than rejecting the alias link outright.
+    if root.name == 'MacOS' and root.parent.name == 'Contents':
+        payload = _ordinary_directory(root.parent / 'Resources' / 'application')
+        try:
+            resolved = target.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise ValueError('Invalid macOS desktop package symlink target: ' + str(path)) from error
+        if not resolved.is_relative_to(payload) or not (resolved.is_file() or resolved.is_dir()):
+            raise ValueError('Invalid macOS desktop package symlink target: ' + str(path))
+        return resolved
+    # Validate each physical parent too: the apphost alias must not hide a
+    # redirected MacOS directory or a target-side link.
     _ordinary_directory(target.parent)
-    if target.is_symlink() or not (target.is_file() or target.is_dir()):
+    if target.is_symlink() or not target.is_file():
         raise ValueError('Invalid macOS desktop package symlink target: ' + str(path))
-    if path.name == 'MeowChan' and not target.is_file():
-        raise ValueError('Invalid macOS apphost symlink target: ' + str(path))
     return target
 
 

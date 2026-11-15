@@ -51,6 +51,8 @@ public sealed partial class MediaPage
     private readonly TwoWayToggle _tagMode = new() { Name = "MediaTagMode" };
     private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 8, LineSpacing = 8 };
     private readonly TextBlock _filterError = new() { Name = "MediaFilterError", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
+    private readonly Button _filterRetry = new() { Name = "MediaFilterRetry", Classes = { "link" }, IsVisible = false };
+    private string? _filterErrorKey;
     // M2: the term set is the one truth of the filter. The section's combos and check boxes show it (SyncFilterControls) and write
     // it (EditTerms); the chips and the "+ Filter" picker read and write it the same way. Two parts stay outside the set: the
     // file name lives in the search field (it filters live and debounced) and joins the set when the filter is read, and the tag
@@ -76,6 +78,7 @@ public sealed partial class MediaPage
     /// <summary>Reads the profile's own tags, favorites and ratings; null parts are unavailable.</summary>
     internal Func<MediaLibraryUserData>? ReadUserData { get; set; }
     internal string? FilterError => _filterError.IsVisible ? _filterError.Text : null;
+    internal Button FilterRetryButton => _filterRetry;
     internal WrapPanel FilterChips => _filterChips;
 
     /// <summary>The filter as terms, in chip order: the set plus the file name typed in the search field (tests and smokes).</summary>
@@ -117,6 +120,7 @@ public sealed partial class MediaPage
         Control row = BuildFilterFields(); // the grid of the fields (MediaPage.FilterGrid.cs)
         InstallFilterHandoffInterruption();
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
+        _filterRetry.Click += (_, _) => RetryFilterData();
         _tagAdd.Snapshot = () => _userData.TagSnapshot;
         _tagAdd.Used = UsedTags;
         _tagAdd.Picked = (id, exclude) => TryIncludeOrExclude(id, !exclude);
@@ -380,8 +384,7 @@ public sealed partial class MediaPage
     {
         string? refusal = TryIncludeOrExclude(id, include);
         if (refusal == null) return true;
-        _filterError.Text = refusal;
-        _filterError.IsVisible = true;
+        ShowFilterError(refusal);
         return false;
     }
 
@@ -424,8 +427,7 @@ public sealed partial class MediaPage
         }
         if (refusal != null)
         {
-            _filterError.Text = refusal;
-            _filterError.IsVisible = true;
+            ShowFilterError(refusal);
             return refusal;
         }
         EditTerms(terms => MediaFilterTermSet.Toggled(terms, held));
@@ -444,15 +446,13 @@ public sealed partial class MediaPage
         if (term.Field == MediaFilterField.SourceTag && _terms.FirstOrDefault(other => MediaFilterTermSet.Identity(other) == MediaFilterTermSet.Identity(term)) is { } held
             && SourceTagRefusal(held.Toggled()) is { } limit)
         {
-            _filterError.Text = limit;
-            _filterError.IsVisible = true;
+            ShowFilterError(limit);
             return limit;
         }
         if (!IsValidFilter(next))
         {
             string refusal = Texts.T("media.filter.add.refused");
-            _filterError.Text = refusal;
-            _filterError.IsVisible = true;
+            ShowFilterError(refusal);
             return refusal;
         }
         EditTerms(_ => next);
@@ -469,8 +469,7 @@ public sealed partial class MediaPage
         if (!IsValidFilter(next))
         {
             string refusal = Texts.T("media.filter.add.refused");
-            _filterError.Text = refusal;
-            _filterError.IsVisible = true;
+            ShowFilterError(refusal);
             return refusal;
         }
         EditTerms(_ => next);
@@ -633,6 +632,8 @@ public sealed partial class MediaPage
         }
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
+        _filterRetry.Content = Texts.T("media.filter.retry");
+        AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
         _queryAliases = null; // the aliases follow the language
         _searchScope.FieldHelpNote = Texts.T("media.query.tip").Replace("\n", " "); // the tooltip lists the syntax in lines; the help text reads as one sentence run
         ClearQueryHint();

@@ -80,6 +80,12 @@ internal sealed class MediaSourceTagIndexCache
         MediaSourceTagIndex made = MediaSourceTagIndex.From(catalog);
         lock (_sync) return _last = made;
     }
+
+    /// <summary>Forgets a failed read's derived view before an explicit page retry.</summary>
+    internal void Clear()
+    {
+        lock (_sync) _last = null;
+    }
 }
 
 /// <summary>Why the page-side terms could not be applied; the page then shows nothing instead of more (like the core filter's refusals).</summary>

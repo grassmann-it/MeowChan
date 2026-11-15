@@ -173,6 +173,7 @@ internal static class MediaLibraryCatalog
         ("media.filter.queueExcludeChip", "Not in tagging queue", "Nicht in der Tagging-Warteschlange"),
         ("media.filter.error.queue", "The filter uses the tagging queue, but the queue cannot be read.", "Der Filter nutzt die Tagging-Warteschlange, sie ist aber nicht lesbar."),
         ("media.filter.error.sourceTags", "The filter uses Danbooru tags, but the Danbooru catalog cannot be read.", "Der Filter nutzt Danbooru-Tags, der Danbooru-Katalog ist aber nicht lesbar."),
+        ("media.filter.retry", "Try again", "Erneut versuchen"),
         ("media.filter.sourceTagChip", "Danbooru tag: {0}", "Danbooru-Tag: {0}"),
         ("media.filter.sourceTagExcludeChip", "Without Danbooru tag: {0}", "Ohne Danbooru-Tag: {0}"),
         ("media.query.alias.queue", "tagqueue", "warteschlange"),

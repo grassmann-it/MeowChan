@@ -102,6 +102,8 @@ public sealed class MediaPageTermFilterTests : IDisposable
         MediaSourceTagIndexCache cache = new();
         MediaSourceTagIndex index = cache.For(catalog);
         Assert.Same(index, cache.For(catalog));
+        cache.Clear();
+        Assert.NotSame(index, cache.For(catalog));
         Assert.Same(MediaSourceTagIndex.Empty, cache.For(null));
         Assert.Equal(["cat_ears", "solo"], index.TagsOf(Entry(1, "10")));
         Assert.Empty(index.TagsOf(Entry(2, "11"))); // another provider's post is not a Danbooru medium of this index
@@ -116,7 +118,7 @@ public sealed class MediaPageTermFilterTests : IDisposable
         {
             Texts.SetLanguage(code);
             foreach (string key in new[] { "media.filter.queueChip", "media.filter.queueExcludeChip", "media.filter.sourceTagChip", "media.filter.sourceTagExcludeChip",
-                         "media.filter.error.queue", "media.filter.error.sourceTags", "media.query.alias.queue", "media.query.alias.booru" })
+                         "media.filter.error.queue", "media.filter.error.sourceTags", "media.filter.retry", "media.query.alias.queue", "media.query.alias.booru" })
                 Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, code + " lacks " + key);
             Assert.Contains("solo", Texts.T("media.filter.sourceTagChip", "solo"));
             IReadOnlyDictionary<string, MediaFilterField> aliases = MediaFilterQueryVocabulary.AliasesFrom(key => Texts.T(key));
