@@ -166,8 +166,8 @@ internal sealed class ManualImportCatalogStore
     private int _maximumTotalItems = DefaultMaximumTotalItems;
     private int _maximumBatches = DefaultMaximumBatches;
     private int _maximumTags = DefaultMaximumTags;
-    // The last catalog read or written, with the identity of the file it stands for: equal identity means equal bytes, so a
-    // read need not parse the file again (like the Danbooru catalog). Guarded by _sync.
+    // The last catalog read or written, with its identity and content digest. An equal identity is a fast path; when the
+    // identity is unavailable or changed by an atomic replacement, equal bytes still avoid parsing. Guarded by _sync.
     private ManualImportCatalogSnapshot? _cached;
     private RegularProfileFileIdentity? _cachedIdentity;
     private byte[]? _cachedDigest;
@@ -346,7 +346,18 @@ internal sealed class ManualImportCatalogStore
         // The atomic writer has just published exactly these bytes. Keep the snapshot even when a platform cannot
         // provide an identity; subsequent reads can still re-attest the content by digest.
         (_cached, _cachedIdentity, _cachedDigest) = (snapshot, RegularProfileFile.TryGetIdentity(_path), SHA256.HashData(bytes));
-        _validatedBackupDigest = replacedDigest;
+        // If the identity was unavailable while reading the current primary, the previous digest may be absent. The
+        // committed replace has nevertheless established the backup; record its bytes without parsing so the next
+        // write can still skip validation of the same backup. A post-commit probe must never turn a successful write
+        // into a reported failure.
+        byte[]? backupDigest = replacedDigest;
+        try
+        {
+            byte[]? backupBytes = ReadBytes(_path + ".bak");
+            if (backupBytes != null) backupDigest = SHA256.HashData(backupBytes);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ManualImportException) { }
+        _validatedBackupDigest = backupDigest;
     }
 
     /// <summary>

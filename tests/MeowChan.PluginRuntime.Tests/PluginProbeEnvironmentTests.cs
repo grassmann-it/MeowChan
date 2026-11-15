@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using MeowChan.TestSupport;
 
 namespace MeowChan.PluginRuntime.Tests;
 
@@ -162,13 +163,14 @@ public sealed class PluginProbeEnvironmentTests
     {
         var evidence = PluginProbeEvidenceRoot.Create(null, Path.GetTempPath());
         ProcessStartInfo start = new(PluginProbeEnvironment.ResolveDotnetHost()) { WorkingDirectory = evidence.RootPath };
-        start.ArgumentList.Add("--list-runtimes");
+        start.ArgumentList.Add(BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "MeowChan.PluginRuntime.Fixture")));
+        start.ArgumentList.Add("child");
         PluginProbeEnvironment.ApplyPrivateEnvironment(start, evidence.RootPath);
         int pid = 0;
-        // A zero timeout cannot be met by a freshly started host process: the runner must time out, then
-        // kill and reap the child before it throws. Nothing here sleeps or polls.
+        // The fixture's child mode is intentionally uncooperative. Use a real deadline rather than zero, whose
+        // outcome races with process startup when the child is already complete.
         await Assert.ThrowsAsync<TimeoutException>(() =>
-            PluginProbeEnvironment.RunChildAsync(start, TimeSpan.Zero, started => pid = started));
+            PluginProbeEnvironment.RunChildAsync(start, TimeSpan.FromMilliseconds(100), started => pid = started));
         Assert.NotEqual(0, pid);
         Assert.Throws<ArgumentException>(() => Process.GetProcessById(pid)); // Gone, not merely signalled.
         await evidence.DisposeAsync();
