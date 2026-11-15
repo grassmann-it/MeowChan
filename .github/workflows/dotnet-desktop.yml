@@ -75,6 +75,9 @@ jobs:
         with:
           fetch-depth: 0 # Genuine 1.0.0/1.0.1 replay uses the exact historical tags.
       - name: Require the complete current-source candidate matrix
+        id: candidate_matrix
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         shell: bash
         run: |
@@ -84,12 +87,18 @@ jobs:
         with:
           global-json-file: global.json
       - name: Record SDK and source commit
+        id: record_source
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: |
           mkdir -p artifacts/build-evidence
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
       - name: Prepare disposable native desktop for wide layout checks
+        id: prepare_desktop
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os == 'Windows' || runner.os == 'macOS'
         # The largest exact client scene is 1520x920; reserve 40 DIP for its
         # native frame. Other growth probes explicitly fit the usable work area.
@@ -97,6 +106,9 @@ jobs:
           python scripts/prepare-ci-desktop.py --allow-disposable-desktop --min-work-height 960 --report artifacts/build-evidence/native-desktop.json
           python scripts/prepare-ci-desktop.py --allow-disposable-desktop --verify-only --min-work-height 960 --report artifacts/build-evidence/native-desktop-lifetime.json
       - name: Check declared public APIs and require release review for candidates
+        id: public_api
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
@@ -106,12 +118,21 @@ jobs:
           fi
           python scripts/check-public-api.py "${api_args[@]}"
       - name: Check default development restore and build
+        id: dev_build
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.csproj -warnaserror:NU1900
       - name: Restore dependencies and require audit availability
+        id: restore_release
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact restored Release graphs
+        id: retain_release_assets
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
@@ -120,9 +141,15 @@ jobs:
           cp tests/MeowChan.Tests/obj/project.assets.json artifacts/build-evidence/core-tests-assets.json
           cp tests/MeowChan.DesktopTests/obj/project.assets.json artifacts/build-evidence/desktop-tests-assets.json
       - name: Build all production and test projects
+        id: build_all
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.sln --configuration Release --no-restore
       - name: Run core and desktop offline tests
+        id: core_tests
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         # Windows was still passing tests at the former step deadline; hang guards remain unchanged.
         timeout-minutes: 30
@@ -130,12 +157,18 @@ jobs:
         # Do not run ten independent test assemblies against the same runner at once.
         run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
       - name: Run both complete macOS offline suites with bounded diagnostics
+        id: mac_tests
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         timeout-minutes: 12
         # Native plugin integration cases can keep progressing beyond five minutes
         # on Intel runners. Keep the core budget and bounded cleanup unchanged.
         run: python3 scripts/macos-test-watchdog.py --timeout 300 --desktop-timeout 600
       - name: Check package layout fixtures
+        id: package_fixtures
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input'
         shell: bash
         run: |
@@ -149,19 +182,37 @@ jobs:
           python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
           python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
       - name: Check local library package contract fixtures
+        id: local_package
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_local_package.py -v
       - name: Check GUI runner isolation and cleanup fixtures
+        id: smoke_runner_contract
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
       - name: Restore graphical harness with reviewed dependencies
+        id: smoke_restore
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         run: dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact graphical harness dependency graph
+        id: smoke_assets
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: cp tests/MeowChan.DesktopSmoke/obj/project.assets.json artifacts/build-evidence/desktop-smoke-assets.json
       - name: Build graphical harness
+        id: smoke_build
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         run: dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
       - name: Verify plugin delivery in desktop and transitive harness outputs
+        id: plugin_delivery
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: |
           case "$RUNNER_OS/$RUNNER_ARCH" in
@@ -175,6 +226,9 @@ jobs:
           python scripts/package-plugins.py --verify bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/desktop-plugins.json
           python scripts/package-plugins.py --verify tests/MeowChan.DesktopSmoke/bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/smoke-plugins.json
       - name: Install Linux virtual display and private session bus
+        id: linux_setup
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os == 'Linux'
         run: |
           # The hosted x64 Azure mirror can make GUI setup exceed the job deadline.
@@ -198,6 +252,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils
       - name: Exercise native graphical startup and fallback paths
+        id: smoke_normal
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input')
         # The normal mode renders over 200 screenshots. Native macOS runners can
         # exceed three minutes while still making progress; per-check waits stay bounded.
@@ -209,6 +266,9 @@ jobs:
       # Native media/volume failures remain failures: these are not physical-audio
       # acceptance or a reason to silently skip unavailable hosted audio devices.
       - name: Exercise explicit bundled new-selection confirmation on the actual platform
+        id: smoke_plugins
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
         env:
@@ -216,6 +276,9 @@ jobs:
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
       - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
+        id: upgrade_replay
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
@@ -227,6 +290,9 @@ jobs:
           done
           python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
       - name: Exercise FirstRunSetup on the actual platform
+        id: first_run
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
         env:
@@ -234,6 +300,9 @@ jobs:
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-first-run-setup
       - name: Exercise PreferenceStartup on the actual platform
+        id: preference_startup
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
         env:
@@ -241,6 +310,9 @@ jobs:
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-preference-startup
       - name: Exercise compact status and scoped diagnostics retry on the actual platform
+        id: scoped_diagnostics
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
         env:
@@ -248,6 +320,9 @@ jobs:
         run: |
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-scoped-diagnostics
       - name: Exercise GIF playback and ownership on the actual platform
+        id: gif_playback
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gif-playback'
         shell: bash
         env:
@@ -257,6 +332,9 @@ jobs:
           export MEOWCHAN_MP4_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/release102/playback-h264-silent.mp4"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gif-playback
       - name: Exercise gallery error interaction on the actual platform
+        id: gallery_errors
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors'
         shell: bash
         env:
@@ -265,6 +343,9 @@ jobs:
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gallery-errors
       - name: Exercise reader media activation input on the actual platform
+        id: reader_media
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
         shell: bash
         env:
@@ -273,6 +354,9 @@ jobs:
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode reader-ux --timeout 300 --output artifacts/closure-reader-media-input
       - name: Exercise changed gallery features on the actual platform
+        id: gallery_features
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features'
         shell: bash
         env:
@@ -289,6 +373,9 @@ jobs:
             python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/gallery-features
           fi
       - name: Exercise real OS media input (not synthetic routed keys)
+        id: media_input
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input'
         shell: bash
         run: |
@@ -299,13 +386,22 @@ jobs:
             python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 240 --output artifacts/media-native-input
           fi
       - name: Exercise tray lifecycle separately on the disposable runner
+        id: tray_lifecycle
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Check native Linux tray host lifecycle on private DBus
+        id: tray_host
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
       - name: Capture bounded macOS native failure diagnostics
-        if: failure() && runner.os == 'macOS'
+        id: macos_diagnostics
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: always() && runner.os == 'macOS'
         shell: bash
         run: |
           python3 - <<'PY'
@@ -330,6 +426,48 @@ jobs:
                   length = output.tell()
                   output.seek(max(0, length - 256 * 1024))
                   (evidence / name).write_bytes(status.encode() + output.read(256 * 1024))
+          PY
+      - name: Summarize validation outcomes
+        id: validation_summary
+        if: always()
+        # The summary itself is best-effort; the final gate below remains authoritative.
+        continue-on-error: true
+        shell: bash
+        env:
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          steps = json.loads(os.environ.get("VALIDATION_STEPS", "{}"))
+          failures = {
+              key: value
+              for key, value in steps.items()
+              if value.get("outcome") == "failure"
+          }
+          payload = {
+              "runner": os.environ.get("RUNNER_OS"),
+              "architecture": os.environ.get("RUNNER_ARCH"),
+              "source": os.environ.get("GITHUB_SHA"),
+              "failedSteps": failures,
+              "stepOutcomes": steps,
+          }
+          evidence = Path("artifacts/build-evidence")
+          evidence.mkdir(parents=True, exist_ok=True)
+          (evidence / "validation-outcomes.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Validation outcome matrix\n\n")
+              if failures:
+                  summary.write("The job continued after failures to collect independent evidence.\n\n")
+                  for key, value in failures.items():
+                      summary.write(f"- **{key}**: `{value.get('outcome', 'failure')}`\n")
+              else:
+                  summary.write("All recorded validation steps completed successfully.\n")
+          print(json.dumps(payload, indent=2, sort_keys=True))
           PY
       - name: Upload regression and graphical evidence
         if: always()
@@ -360,9 +498,32 @@ jobs:
             artifacts/macos-test-diagnosis/**
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
+      - name: Fail validation after collecting all evidence
+        if: always()
+        shell: bash
+        env:
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          steps = json.loads(os.environ.get("VALIDATION_STEPS", "{}"))
+          failures = {
+              key: value
+              for key, value in steps.items()
+              if value.get("outcome") == "failure"
+          }
+          if failures:
+              print("Validation completed with independent failures:")
+              for key, value in failures.items():
+                  print(f" - {key}: {value.get('outcome', 'failure')}")
+              sys.exit(1)
+          print("All recorded validation steps passed.")
 
   library-package:
-    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')) }}
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -413,7 +574,7 @@ jobs:
           retention-days: 7
 
   package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all'))
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all'))) }}
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -821,7 +982,7 @@ jobs:
           retention-days: 7
 
   macos-source-candidate:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'))
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) }}
     needs: [macos-package, package-media, linux-distribution]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -975,7 +1136,7 @@ jobs:
   # Explicit opt-in: same-run full validation plus all five native package jobs.
   # Actions artifacts only. The retained v0.9 upload workflow is deliberately separate.
   current-source-inventory:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
     needs: [validate, library-package, macos-source-candidate]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
