@@ -201,7 +201,7 @@ internal sealed partial class GalleryViewer
     private void InitializeModeSwitch(StackPanel group)
     {
         _modeTools = group;
-        _modeTools.Spacing = 4;
+        _modeTools.Spacing = 8; // toolbar UX review 15.11.: the bar gap (Workspace.Space.BarGap), as on every toolbar
         _modeTools.Children.Add(_modeView);
         _modeTools.Children.Add(_modeTag);
         _modeView.Click += (_, _) => RequestGalleryMode(tag: false);

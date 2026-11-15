@@ -47,18 +47,21 @@
                     </StackPanel>
                     <!-- 8-dip rhythm: the gaps are margins of what is shown (the empty rows between cost nothing), so the view
                          toggle sits 8 below "Filters and sorting" and 8 above the first card. -->
+                    <!-- Toolbar UX review 15.11.: the panel owns the gaps (8 between items, 16 with a line between groups); the List/Table toggle
+                         is the bar's one joined, outlined element (segments, no gap between them). Groups: the view | what to look at | what to
+                         take away or open, with saved searches beside Export. -->
                     <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
-                        <ToggleButton x:Name="ArchiveLayoutList" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="media-control" Padding="12,4" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveResultsGallery" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveThreadColumnsButton" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <Button x:Name="ArchiveFavoritesOverview" wv:WorkViewElement.Id="archive.results.favorites" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveResultsExport" wv:WorkViewElement.Id="archive.results.export" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveReaderGroups" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
+                        <ToggleButton x:Name="ArchiveLayoutList" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
+                        <Button x:Name="ArchiveFavoritesOverview" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.favorites" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsExport" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.export" ursa:ToolBar.OverflowMode="AsNeeded" />
                         <!-- AP2: saving and opening saved searches are one split button; the arrow holds "Save applied search…". -->
-                        <SplitButton x:Name="ArchiveSavedSearches" wv:WorkViewElement.Id="archive.results.saved-searches" Click="OnSavedSearchesClick" ursa:ToolBar.OverflowMode="AsNeeded">
+                        <SplitButton x:Name="ArchiveSavedSearches" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.saved-searches" Click="OnSavedSearchesClick" ursa:ToolBar.OverflowMode="AsNeeded">
                             <SplitButton.Flyout><MenuFlyout Placement="BottomEdgeAlignedLeft" /></SplitButton.Flyout>
                         </SplitButton>
+                        <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
@@ -258,7 +261,7 @@
                     <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
                          policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
                     <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
-                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
+                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /></Style></desktop:ActionToolBar.Styles>
                     <!-- RL1 (15.11.): the bar's visual order is its groups, with a thin line between them (ActionToolBar.Group): the thread mark and
                          the returns of a state (0), the main actions Large reader, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
                          settings gear (3), the history return (4). What a narrow window moves under More first is the policy's ReaderToolbarKeepVisibleOrder. -->
@@ -629,7 +632,6 @@
                                     <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
                                          An active favourites/rating filter or all versions stays on the bar (R6). -->
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
-                                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="Margin" Value="0,0,8,0" /></Style><Style Selector="ComboBox"><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
                                         <Button x:Name="ArchiveMediaMode" wv:WorkViewElement.Id="reader.media.layout" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
                                         <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
                                         <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
@@ -664,7 +666,7 @@
                                             <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
                                             <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
                                             <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
-                                        </WrapPanel><desktop:ActionToolBar x:Name="ReaderMediaActions" HorizontalAlignment="Right" PrioritizedOverflow="True"><desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="Margin" Value="8,0,0,0" /></Style></desktop:ActionToolBar.Styles><Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" /></desktop:ActionToolBar></StackPanel>
+                                        </WrapPanel><desktop:ActionToolBar x:Name="ReaderMediaActions" HorizontalAlignment="Right" PrioritizedOverflow="True"><Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" /></desktop:ActionToolBar></StackPanel>
                                 </Grid>
                             </TabItem>
                             <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->

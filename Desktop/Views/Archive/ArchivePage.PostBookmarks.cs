@@ -32,6 +32,7 @@ public partial class ArchivePage
             () => !_ended && !IsFilenameSearchOpen && _available && OpenPostBookmarks != null, iconWithLabel: true);
         manager.Name = "ArchivePostBookmarks";
         WorkViewElement.SetId(manager, "archive.results.bookmarks");
+        ActionToolBar.SetGroup(manager, 2); // the "take away or open" group, after Reader groups (toolbar UX review 15.11.)
         ArchiveResultActions.Items.Add(manager);
         // Installed on the pane itself: the same handler survives reader detach/reattach.
         ArchiveReaderPane.AddHandler(ContextRequestedEvent, OnPostBookmarkContext,
