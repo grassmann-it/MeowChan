@@ -55,9 +55,20 @@ public partial class MainWindow
     private void ShowStoreLimitWarning()
     {
         (string Text, string Tooltip)? warning = StoreLimitUsage.Present(_storeUsage);
+        WorkspaceStoreWarningButton.IsVisible = warning != null;
         WorkspaceStoreWarning.IsVisible = warning != null;
         WorkspaceStoreWarning.Text = warning?.Text;
-        Avalonia.Controls.ToolTip.SetTip(WorkspaceStoreWarning, warning?.Tooltip);
-        AutomationProperties.SetName(WorkspaceStoreWarning, warning?.Tooltip);
+        Avalonia.Controls.ToolTip.SetTip(WorkspaceStoreWarningButton, warning?.Tooltip);
+        AutomationProperties.SetName(WorkspaceStoreWarningButton, warning?.Tooltip);
     }
+
+    // The settings that raise the two limits the warning measures (the names of their inputs without the suffix: Storage and limits).
+    private const string FavoriteEntryLimitField = "FavoriteEntryLimit", FavoriteFileLimitField = "FavoriteFileLimitMiB";
+
+    /// <summary>The setting the warning names: the entries limit for a full list, the file limit for a full file (the fullest warning first).</summary>
+    internal static string StoreWarningSettingField(IReadOnlyList<StoreLimitUsage.Item> near) =>
+        near.Count > 0 && near[0].Kind == MeowChan.Persistence.PrivateStoreLimitKind.FavoriteFile ? FavoriteFileLimitField : FavoriteEntryLimitField;
+
+    // Dead-affordance audit: the warning names a setting, so a click opens it (Settings, Storage and limits, the limit that is nearly reached).
+    private void OnStoreWarningClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e) => ShowSettingsAt(StoreWarningSettingField(_storeUsage));
 }

@@ -79,6 +79,8 @@ internal static class PluginCatalog
         ("plugins.author", "By {0}", "Von {0}"),
         ("plugins.fileVersion", "File version {0}", "Dateiversion {0}"),
         ("plugins.pluginIdCompact", "Plugin ID: {0}", "Plugin-ID: {0}"),
+        ("plugins.copyPluginId", "Copy plugin ID", "Plugin-ID kopieren"),
+        ("plugins.pluginIdCopied", "Plugin ID copied.", "Plugin-ID kopiert."),
         ("plugins.candidatePosition", "File {0} of {1}", "Datei {0} von {1}"),
         ("plugins.type.source", "Source", "Quelle"),
         ("plugins.type.filter", "Image filter", "Bildfilter"),

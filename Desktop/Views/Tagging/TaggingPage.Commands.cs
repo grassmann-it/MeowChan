@@ -89,6 +89,36 @@ public sealed partial class TaggingPage
                 OpenActions.Start(() => ExecuteRowCommandAsync("tagging.continue-here"), "tagging.list.doubleClick");
         };
         _list.SelectionChanged += OnSelectionChanged;
+        InstallMiddleClick(_list);
+    }
+
+    // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
+    // entry that was clicked (the selection stays as it is), with the menu entry's own rules.
+    private readonly MiddleClickTracker _middleClick = new();
+
+    private void InstallMiddleClick(ListBox surface)
+    {
+        surface.AddHandler(PointerPressedEvent, (_, e) =>
+        {
+            if (!MiddleClickTracker.IsPress(e, surface)) { _middleClick.Cancel(); return; }
+            _middleClick.Pressed(MiddleClickTracker.RowAt<TaggingQueueRow>(e.Source, surface));
+        }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        surface.AddHandler(PointerReleasedEvent, (_, e) =>
+        {
+            if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+            TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(e.Source, surface);
+            if (!_middleClick.Released(row) || row == null) return;
+            e.Handled = true;
+            OpenActions.Start(() => ShowInFolderOfAsync(row), "tagging.middleClick");
+        }, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>"Show in folder" for one entry, with the rules of the menu entry for a selection of just that entry; refused silently when it does not apply.</summary>
+    internal Task ShowInFolderOfAsync(TaggingQueueRow row)
+    {
+        if (_queueWork.Ended) return Task.CompletedTask;
+        TaggingCommandContext context = new(_queueWork.Queue, Filter, new[] { row }, row, Capabilities, EffectiveScope);
+        return TaggingRowCommands.Evaluate(TaggingCommands.ShowInFolder, context).Available ? Leaving(ShowInFolder, row.Item) : Task.CompletedTask;
     }
 
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>

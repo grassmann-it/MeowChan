@@ -39,6 +39,12 @@ internal static class WorkspaceChips
     internal const string Compact = "chip-compact";
     /// <summary>A static fact (provider, rating, version); not interactive.</summary>
     internal const string Badge = "chip-badge";
+    /// <summary>
+    /// The explicit mark of a control that wears a chip, link or button look on purpose but does nothing when clicked (a decorative chip). The
+    /// headless guard of the dead-affordance audit (DeadAffordanceGuardTests) accepts nothing that looks clickable unless it acts, or is a
+    /// <see cref="Badge"/>, or carries this mark.
+    /// </summary>
+    internal const string ReadOnly = "read-only";
     /// <summary>A selectable list item whose content is a chip: the chip itself shows the selection.</summary>
     internal const string Item = "chip-item";
     internal const string CategoryMark = "chip-category-mark";
@@ -76,6 +82,8 @@ internal static class WorkspaceChips
     internal static string? RemovableName(object? content) =>
         (content as StackPanel)?.Children.OfType<TextBlock>().FirstOrDefault()?.Text;
 
+    /// <summary>Marks a chip-looking control as decorative on purpose (see <see cref="ReadOnly"/>).</summary>
+    internal static T MarkReadOnly<T>(T control) where T : Control => Add(control, ReadOnly);
     internal static T MarkOwn<T>(T control, bool compact = false) where T : Control => Add(control, Chip, Own, compact ? Compact : null);
     internal static T MarkOffered<T>(T control) where T : Control => Add(control, Chip, Available);
     /// <summary>Gives a chip button (or a source-tag outline) the tag pill look; <paramref name="state"/> is <see cref="TagPillAssigned"/>, <see cref="TagPillPartial"/> or null.</summary>

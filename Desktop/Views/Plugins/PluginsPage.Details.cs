@@ -160,6 +160,7 @@ public partial class PluginsPage
             RenderPluginProbeResult();
             RenderDiagnostics(state.Diagnostics, entry);
             C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
+            ShowPluginIdCopyStatus(null);
         }
         finally { _restoringPluginTools = false; }
     }
@@ -215,6 +216,32 @@ public partial class PluginsPage
         {
             if (!_ended && Selected?.Key == key)
                 C<TextBlock>("PluginTechnicalCopyStatus").Text = Texts.T("plugins.technicalDetailsCopyFailed", exception.Message);
+        }
+    }
+
+    private string? _copyablePluginId;
+
+    private void ShowPluginIdCopyStatus(string? text)
+    {
+        C<TextBlock>("PluginIdCopyStatus").Text = text ?? string.Empty;
+        C<TextBlock>("PluginIdCopyStatus").IsVisible = !string.IsNullOrEmpty(text);
+    }
+
+    // Dead-affordance audit: the ID chip copies the full plugin ID, like the technical details button copies its block; the status says what happened.
+    private async void OnCopyPluginIdClick(object? sender, RoutedEventArgs args)
+    {
+        if (_ended || Selected is not { } entry || _copyablePluginId is not { } pluginId) return;
+        string key = entry.Key;
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard
+                ?? throw new InvalidOperationException(Texts.T("plugins.clipboardUnavailable"));
+            await clipboard.SetTextAsync(pluginId);
+            if (!_ended && Selected?.Key == key) ShowPluginIdCopyStatus(Texts.T("plugins.pluginIdCopied"));
+        }
+        catch (Exception exception)
+        {
+            if (!_ended && Selected?.Key == key) ShowPluginIdCopyStatus(Texts.T("plugins.technicalDetailsCopyFailed", exception.Message));
         }
     }
 

@@ -172,6 +172,7 @@ public partial class PluginsPage : UserControl
             // a copied-status or discard confirmation in the previous language while the
             // selected plugin/draft itself is retained.
             C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
+            ShowPluginIdCopyStatus(null);
             CancelDiscardConfirmation();
             // Texts.Changed also reloads catalogs without changing Texts.Language.
             // The menu contains materialized labels/reasons, so its language-code
@@ -465,8 +466,12 @@ public partial class PluginsPage : UserControl
         C<TextBlock>("PluginVersion").Text = presentation.CandidateVersion is { } version ? Texts.T("plugins.fileVersion", version) : string.Empty;
         string? pluginId = presentation.PluginId ?? presentation.DescriptionMetadata?.PluginId;
         C<TextBlock>("PluginCompactId").Text = pluginId == null ? string.Empty : Texts.T("plugins.pluginIdCompact", pluginId);
-        C<Border>("PluginIdChip").IsVisible = pluginId != null;
-        ToolTip.SetTip(C<TextBlock>("PluginCompactId"), C<TextBlock>("PluginCompactId").Text);
+        _copyablePluginId = pluginId;
+        C<Button>("PluginIdChip").IsVisible = pluginId != null;
+        // The chip copies the full ID (its text may be trimmed); the tooltip and the accessible name say so and show the ID.
+        string copyName = pluginId == null ? string.Empty : Texts.T("plugins.copyPluginId") + ": " + pluginId;
+        ToolTip.SetTip(C<Button>("PluginIdChip"), copyName);
+        AutomationProperties.SetName(C<Button>("PluginIdChip"), copyName);
         SourceCapabilities capabilities = presentation.Sources.Aggregate(SourceCapabilities.None, (flags, source) => flags | source.Capabilities);
         string functions = string.Join(" · ", new[] { presentation.Sources.Count > 0 ? PluginContentPresentation.DescribeCapabilities(capabilities) : string.Empty,
             string.Join(" · ", presentation.Filters.Select(filter => filter.Name)) }.Where(value => !string.IsNullOrEmpty(value)));

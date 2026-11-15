@@ -14,6 +14,17 @@ public partial class MainWindow
 
     partial void ApplyFrozenUserPriority(ThreadRow[] rows, bool high) => _ = SetFrozenUserPriorityAsync(rows, high);
 
+    // Dead-affordance audit: the arrow on a high-priority row is a button; a click is the row menu's "Normal priority" for that one thread, with the
+    // menu's own rules (the host projection stays the authority, nothing is changed optimistically).
+    private void OnPriorityArrowClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (sender is not Avalonia.Controls.Control { DataContext: ThreadRow row }) return;
+        e.Handled = true;
+        if (RowCommandBusy || _selectionCommandRunning || !_restoreCompleted || !UserPriorityAvailable()
+            || !IsUserPriorityTarget(row, high: false, IsCurrentUserPriorityRow)) return;
+        ApplyFrozenUserPriority([row], false);
+    }
+
     private async Task SetFrozenUserPriorityAsync(ThreadRow[] rows, bool high)
     {
         int accepted = 0;

@@ -157,9 +157,10 @@ public sealed partial class TaggingPage
 
     private Control StampChip(string name)
     {
-        Button chip = new() { Content = new TextBlock { Text = name, Classes = { WorkspaceChips.Label } }, IsHitTestVisible = false, Focusable = false };
-        WorkspaceChips.MarkTagPill(WorkspaceChips.MarkOwn(chip), WorkspaceChips.TagPillAssigned);
-        AutomationProperties.SetName(chip, name);
+        // Dead-affordance audit: the name is a static fact (a read-only badge); the cross beside it is what removes it. It used to be a pressable
+        // pill with its hit test switched off, which looked like a button and did nothing.
+        Border chip = WorkspaceChips.MarkReadOnly(WorkspaceChips.CreateBadge("TaggingStampChip", name));
+        chip.VerticalAlignment = VerticalAlignment.Center;
         string removeName = Texts.T("tagging.page.stamp.remove", name);
         Button remove = new() { Content = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall), IsEnabled = CanChange };
         remove.Classes.Add(WorkspaceIcons.SquareClass);

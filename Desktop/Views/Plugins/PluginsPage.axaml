@@ -81,8 +81,10 @@
                 <Border x:Name="PluginTypeChip" Classes="chip chip-badge chip-neutral"><TextBlock x:Name="PluginType" Classes="chip-label" /></Border>
                 <Border x:Name="PluginExperimentalChip" Classes="chip chip-badge" IsVisible="False"><TextBlock x:Name="PluginExperimental" Classes="chip-label" TextWrapping="Wrap" /></Border>
                 <Border x:Name="PluginVersionChip" Classes="chip chip-badge chip-neutral" IsVisible="False"><TextBlock x:Name="PluginVersion" Classes="chip-label" TextWrapping="Wrap" /></Border>
-                <Border x:Name="PluginIdChip" Classes="chip chip-badge chip-neutral" MaxWidth="260" IsVisible="False"><TextBlock x:Name="PluginCompactId" Classes="chip-label" TextTrimming="CharacterEllipsis" MaxLines="1" /></Border>
+                <!-- The one chip that acts (dead-affordance audit): a click copies the full plugin ID; the other chips state facts. -->
+                <Button x:Name="PluginIdChip" Classes="chip" MaxWidth="260" IsVisible="False" Click="OnCopyPluginIdClick"><TextBlock x:Name="PluginCompactId" Classes="chip-label" TextTrimming="CharacterEllipsis" MaxLines="1" /></Button>
               </WrapPanel>
+              <TextBlock x:Name="PluginIdCopyStatus" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" IsVisible="False" />
               <TextBlock x:Name="PluginStatus" FontWeight="SemiBold" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
               <!-- Installed → Enabled → Active: three chips built in code, then the one next action as a sentence. -->
               <WrapPanel x:Name="PluginStepChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" />
