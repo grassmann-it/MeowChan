@@ -45,7 +45,6 @@ public sealed partial class TaggingPage
 
     private void InitializeGroups()
     {
-        WorkViewElement.SetId(_groupPanel, "tagging.group");
         _group.ItemTemplate = new FuncDataTemplate<TaggingGroupChoice>((choice, _) => new TextBlock { Text = choice.Label, TextTrimming = TextTrimming.CharacterEllipsis });
         _group.SelectionChanged += (_, _) =>
         {
