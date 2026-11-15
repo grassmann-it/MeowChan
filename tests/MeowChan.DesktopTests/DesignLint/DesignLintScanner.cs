@@ -84,6 +84,7 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/Controls/GalleryFilmstrip.cs", "Colors.Black", "Opacity-mask gradient of the faded strip ends (GL5e), not a visible colour."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
+        new(DesignRules.GlyphIcon, "Desktop/Localization/PlatformKeyNames.cs", "", "The macOS Option key symbol (⌥) as the modifier name inside running texts, the same glyph as the shortcut labels."),
     };
 
     // The compact header now uses normal 4/8-DIP spacing. It needs no off-grid waiver.
