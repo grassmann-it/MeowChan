@@ -27,6 +27,16 @@ public sealed class BooruSearchService
 
     private readonly BooruHostServices _services;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
+    private readonly object _workerCallsSync = new();
+    private readonly HashSet<Task> _workerCalls = [];
+    private TaskCompletionSource _workerCallsIdle = CompletedSignal();
+
+    private static TaskCompletionSource CompletedSignal()
+    {
+        TaskCompletionSource signal = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
+    }
 
     public BooruSearchService(BooruHostServices services)
     {
@@ -114,8 +124,9 @@ public sealed class BooruSearchService
         try
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            BooruSearchResult result = await worker.SearchBooruPostsAsync(request, job.Operation, lifetime.Token)
-                .WaitAsync(lifetime.Token).ConfigureAwait(false);
+            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request, job.Operation, lifetime.Token);
+            TrackWorkerCall(workerCall);
+            BooruSearchResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (SearchJobEnd(job, sourceId) is BooruSearchResult stopped) return stopped;
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruSearchResult(request, result, source!);
@@ -174,8 +185,9 @@ public sealed class BooruSearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             lifetime.Token.ThrowIfCancellationRequested();
-            BooruPostResult result = await worker.ReadBooruPostAsync(request, job.Operation, lifetime.Token)
-                .WaitAsync(lifetime.Token).ConfigureAwait(false);
+            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation, lifetime.Token);
+            TrackWorkerCall(workerCall);
+            BooruPostResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             if (PostJobEnd(job, post) is BooruPostResult stopped) return stopped;
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruPostResult(request, result, source!);
@@ -210,6 +222,37 @@ public sealed class BooruSearchService
         {
             _services.CloseJob(job);
         }
+    }
+
+    /// <summary>
+    /// Returns only after worker calls that outlived their host-side result wait have finished. The host may return a
+    /// cancellation result before an uncooperative worker has consumed its token, but a watcher generation must not
+    /// be reopened while that worker can still publish a late page.
+    /// </summary>
+    internal Task DrainWorkerCallsAsync()
+    {
+        lock (_workerCallsSync) return _workerCallsIdle.Task;
+    }
+
+    private void TrackWorkerCall(Task workerCall)
+    {
+        if (workerCall.IsCompleted) return;
+        lock (_workerCallsSync)
+        {
+            if (workerCall.IsCompleted) return;
+            if (_workerCalls.Count == 0)
+                _workerCallsIdle = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _workerCalls.Add(workerCall);
+        }
+        _ = workerCall.ContinueWith(completed =>
+        {
+            _ = completed.Exception; // Drain observes completion without creating an unobserved late-worker fault.
+            lock (_workerCallsSync)
+            {
+                _workerCalls.Remove(completed);
+                if (_workerCalls.Count == 0) _workerCallsIdle.TrySetResult();
+            }
+        }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     private static FailureDetail? JobFailure(BooruJob job)

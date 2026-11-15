@@ -65,6 +65,9 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
 
     IDanbooruWatcherSearchSession IDanbooruWatcherSearchPort.OpenCheck() => new CheckSession(this, _search.OpenScope());
 
+    /// <summary>Waits for worker calls that escaped the host result wait before a watcher generation is reopened.</summary>
+    internal Task DrainWorkerCallsAsync() => _search.DrainWorkerCallsAsync();
+
     private sealed class CheckSession(BooruWatcherSearchPort port, BooruSearchScope scope) : IDanbooruWatcherSearchSession
     {
         public void Dispose() => scope.Dispose();

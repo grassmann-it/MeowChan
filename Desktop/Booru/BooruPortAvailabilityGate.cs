@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Booru;
+using MeowChan.PluginHost.Sources.Booru;
 using Serilog;
 
 namespace MeowChan.Desktop.Booru;
@@ -138,6 +139,11 @@ internal sealed class BooruAvailabilityWatcherSearchPort(IDanbooruWatcherSearchP
     public TimeSpan GetProviderCooldownMaximum() => inner.GetProviderCooldownMaximum();
 
     public IDanbooruWatcherSearchSession OpenCheck() => new Session(inner, gate.TryEnter(CancellationToken.None));
+
+    /// <summary>Completes the host-side drain for worker calls whose result wait was cancelled.</summary>
+    internal Task DrainWorkerCallsAsync() => inner is BooruWatcherSearchPort watcher
+        ? watcher.DrainWorkerCallsAsync()
+        : Task.CompletedTask;
 
     private sealed class Session(IDanbooruWatcherSearchPort inner, BooruPortAvailabilityGate.Lease? lease)
         : IDanbooruWatcherSearchSession

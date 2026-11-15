@@ -79,6 +79,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     private readonly BooruProducerLifecycle _producers;
     private readonly object _sessionPauseSync = new();
     private DanbooruWatcherHost _watcherHost = null!;
+    private BooruAvailabilityWatcherSearchPort _watcherSearch = null!;
     private BooruPreviewHttp _previewHttp;
     private readonly BooruOriginalQueuePort _queuePort;
     private readonly BooruSchedulerWatcherPort _watcherPort;
@@ -179,8 +180,8 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     private DanbooruWatcherHost CreateWatcherHost()
     {
         // SyncSessionPause is called before either the first Start or an F4 replacement can start its loop.
-        return new DanbooruWatcherHost(Catalog, Originals,
-            new BooruAvailabilityWatcherSearchPort(SearchPort, _availability), _clock, _options, _producers);
+        _watcherSearch = new BooruAvailabilityWatcherSearchPort(SearchPort, _availability);
+        return new DanbooruWatcherHost(Catalog, Originals, _watcherSearch, _clock, _options, _producers);
     }
 
     /// <summary>Read the confirmed shared queue state afresh, including during a concurrent F4 host replacement.</summary>
@@ -220,7 +221,9 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             if (Volatile.Read(ref _stopped) != 0 || _availability.IsStopped || _availability.IsAvailable) return;
             if (!_watcherStopped)
             {
+                BooruAvailabilityWatcherSearchPort oldSearch = _watcherSearch;
                 await WatcherHost.StopAsync().ConfigureAwait(false);
+                await oldSearch.DrainWorkerCallsAsync().ConfigureAwait(false);
                 _watcherStopped = true;
             }
             await _availability.DrainAsync().ConfigureAwait(false);
@@ -275,7 +278,9 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             await _lifecycle.WaitAsync().ConfigureAwait(false);
             try
             {
+                BooruAvailabilityWatcherSearchPort oldSearch = _watcherSearch;
                 await WatcherHost.StopAsync().ConfigureAwait(false);
+                await oldSearch.DrainWorkerCallsAsync().ConfigureAwait(false);
                 await _availability.DrainAsync().ConfigureAwait(false);
             }
             finally
