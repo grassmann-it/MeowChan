@@ -97,16 +97,15 @@ internal static class CommandButtonContrastChecks
                 toggle.IsChecked = selected;
                 favorite.Configure(() => true, () => selected, () => Task.CompletedTask);
                 await InspectStatesAsync(owner, toggle, theme, mouse, failures, selected ? "checked" : "unchecked");
-                // This icon-only custom content is not the Semi command template:
-                // its non-hit-testable vector centre is not a pointer acceptance fixture.
-                // Keep real normal/disabled rendering checks, without manufacturing a
-                // template/background/hit target just to exercise hover on the star.
+                // The star's pointer acceptance (its favorite-star hit surface, hover fill and
+                // real clicks) is the reader-post-star smoke's; here only the vector content's
+                // normal/disabled rendering is checked.
                 await InspectStatesAsync(owner, favorite, theme, mouse, failures, selected ? "checked" : "unchecked",
                     pointerStates: false);
             }
         }
         finally { root.Children.Remove(fixture); }
-        Console.WriteLine("SMOKE archive-favorite contrast: checked/unchecked vector content in normal/disabled states; native hover/press NOT covered by this content fixture.");
+        Console.WriteLine("SMOKE archive-favorite contrast: checked/unchecked vector content in normal/disabled states; native hover/press is the reader-post-star smoke's.");
     }
 
     private static async Task InspectStatesAsync(Window window, Button button, ThemeVariant theme, MediaNativeInput mouse,
