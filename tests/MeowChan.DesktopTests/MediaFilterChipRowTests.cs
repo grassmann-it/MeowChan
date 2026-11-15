@@ -43,7 +43,7 @@ public sealed class MediaFilterChipRowTests : IDisposable
         Assert.Contains("4", Texts.T("media.filter.ratingChip", 4));
         foreach (string key in new[] { "media.filter.resetAll", "media.filter.resetAllHint" })
             Assert.False(string.IsNullOrWhiteSpace(Texts.T(key)) || Texts.T(key) == key, key);
-        if (language == "de") Assert.Equal("Alle zurücksetzen", Texts.T("media.filter.resetAll"));
+        if (language == "de") Assert.Equal("Filter zurücksetzen", Texts.T("media.filter.resetAll"));
         if (language == "es") Assert.Equal("Filtros, 1 activo", Texts.Count("media.filters.countName", 1));
         if (language == "de") Assert.Equal("Filter (3)", Texts.T("media.filters.count", 3));
     }

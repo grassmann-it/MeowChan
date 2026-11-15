@@ -140,8 +140,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
         false, ReaderDisplayPreferences.FocusedMediaScaleDefault, false, ReaderDisplayPreferences.HoverEnlargeSizeDefault,
         ReaderDisplayPreferences.HoverEnlargeDelayDefault);
 
-    /// <summary>The media sidebar of the large reader (R8) presents the focused post's media in its own column; off by default.</summary>
-    internal bool Sidebar { get; init; }
+    /// <summary>The media sidebar of the large reader (R8) presents the focused post's media in its own column; on by default.</summary>
+    internal bool Sidebar { get; init; } = true;
     /// <summary>The sidebar sits right of the posts instead of left.</summary>
     internal bool SidebarRight { get; init; }
     internal int SidebarWidth { get; init; } = ReaderDisplayPreferences.MediaSidebarWidthDefault;
@@ -153,8 +153,8 @@ internal readonly record struct ReaderMediaPreferences(bool TextlessLarge, int T
     internal bool MediaGrid { get; init; } = true;
     /// <summary>"Little text": at most this many characters.</summary>
     internal int GridTextLimit { get; init; } = ReaderDisplayPreferences.MediaGridTextLimitDefault;
-    /// <summary>Inline video (R10): off by default; acts live (no post is rebuilt).</summary>
-    internal ReaderInlineVideoOptions Video { get; init; } = ReaderInlineVideoOptions.Default;
+    /// <summary>Videos in the reader and "Clicking a medium" (R10): sidebar by default; acts live (no post is rebuilt).</summary>
+    internal ReaderInlineVideoOptions Video { get; init; } = ReaderInlineVideoOptions.Default with { Enabled = true };
 
     internal static ReaderMediaPreferences From(Config config) => new(config.ReaderTextlessLargeImages, config.ReaderTextlessMediaWidth,
         config.ReaderFocusedMediaEnlarge, config.ReaderFocusedMediaScalePercent, config.ReaderHoverEnlarge, config.ReaderHoverEnlargeSize,

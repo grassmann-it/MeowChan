@@ -33,8 +33,9 @@ internal static class ThemeColorsCatalog
         ("theme.colors.choose", "Choose color for {0} (now {1})", "Farbe für {0} wählen (jetzt {1})"),
         ("theme.colors.hex", "Color code for {0}", "Farbwert für {0}"),
         ("theme.colors.hexInvalid", "Enter a color as #RRGGBB, for example {0}.", "Farbe als #RRGGBB eingeben, zum Beispiel {0}."),
-        ("theme.colors.reset", "Reset {0} to the default", "{0} auf Standard zurücksetzen"),
-        ("theme.colors.resetAll", "Reset all", "Alles zurücksetzen"),
+        ("theme.colors.reset", "Reset {0}", "{0} zurücksetzen"),
+        ("theme.colors.resetAll", "Reset colors", "Farben zurücksetzen"),
+        ("theme.colors.resetAll.hint", "Sets every color back to the built-in colors.", "Setzt alle Farben auf die eingebauten Farben zurück."),
         // TH5: "Try in window" (the draft on the live window while the dialog is open) and its explanation.
         ("theme.colors.try", "Try in window", "Im Fenster ausprobieren"),
         ("theme.colors.tryHint", "Shows your unsaved colors in the whole window while this dialog is open. Cancel, Esc or closing puts the saved colors back.", "Zeigt deine noch nicht übernommenen Farben im ganzen Fenster, solange dieser Dialog offen ist. Abbrechen, Esc oder Schließen bringt die gespeicherten Farben zurück."),

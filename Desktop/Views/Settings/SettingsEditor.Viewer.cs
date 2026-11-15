@@ -12,7 +12,7 @@ namespace MeowChan;
 /// <summary>
 /// Viewer rows of the "Reading and media" page: "Repeat video" (split out of the playback mode), what a running slideshow
 /// does with a video (once, at least X seconds, N passes; X and N with default/minimum/maximum) and "Hide controls after"
-/// (the idle time of the gallery's overlay controls and the reader's arrow cross). The video values travel in the gallery
+/// (the idle time of the gallery's overlay controls and the reader's navigation bar). The video values travel in the gallery
 /// playback draft (<see cref="GalleryPlaybackPreferences"/>) like the other slideshow choices; the idle time is a plain setting.
 /// </summary>
 public partial class SettingsEditor
@@ -22,6 +22,8 @@ public partial class SettingsEditor
     private decimal? _gallerySlideshowVideoSeconds = Config.GallerySlideshowVideoSecondsDefault;
     private decimal? _gallerySlideshowVideoRepeats = Config.GallerySlideshowVideoRepeatsDefault;
     private decimal? _controlsIdleHideMs = Config.ControlsIdleHideMsDefault;
+    private SettingsChoice? _selectedReaderNavigationMode;
+    private bool _readerNavigationShowPosition = true;
     private bool _galleryFilmstrip = true;
     private bool _mediaFocusHidesHeader = true;
     private decimal? _galleryFilmstripHeight = Config.GalleryFilmstripHeightDefault;
@@ -39,6 +41,8 @@ public partial class SettingsEditor
 
     public IReadOnlyList<SettingsChoice> GallerySlideshowVideoRuleChoices { get; private set; } = Array.Empty<SettingsChoice>();
 
+    public IReadOnlyList<SettingsChoice> ReaderNavigationModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+
     public bool GalleryVideoRepeat { get => _galleryVideoRepeat; set => SetField(ref _galleryVideoRepeat, value, nameof(GalleryVideoRepeat)); }
 
     public SettingsChoice? SelectedGallerySlideshowVideoRule
@@ -55,6 +59,8 @@ public partial class SettingsEditor
     public decimal? GallerySlideshowVideoSeconds { get => _gallerySlideshowVideoSeconds; set => SetField(ref _gallerySlideshowVideoSeconds, value, nameof(GallerySlideshowVideoSeconds)); }
     public decimal? GallerySlideshowVideoRepeats { get => _gallerySlideshowVideoRepeats; set => SetField(ref _gallerySlideshowVideoRepeats, value, nameof(GallerySlideshowVideoRepeats)); }
     public decimal? ControlsIdleHideMs { get => _controlsIdleHideMs; set => SetField(ref _controlsIdleHideMs, value, nameof(ControlsIdleHideMs)); }
+    public SettingsChoice? SelectedReaderNavigationMode { get => _selectedReaderNavigationMode; set => SetField(ref _selectedReaderNavigationMode, value, nameof(SelectedReaderNavigationMode)); }
+    public bool ReaderNavigationShowPosition { get => _readerNavigationShowPosition; set => SetField(ref _readerNavigationShowPosition, value, nameof(ReaderNavigationShowPosition)); }
     public bool GalleryFilmstrip { get => _galleryFilmstrip; set => SetField(ref _galleryFilmstrip, value, nameof(GalleryFilmstrip)); }
     public bool MediaFocusHidesHeader { get => _mediaFocusHidesHeader; set => SetField(ref _mediaFocusHidesHeader, value, nameof(MediaFocusHidesHeader)); }
     public decimal? GalleryFilmstripHeight { get => _galleryFilmstripHeight; set => SetField(ref _galleryFilmstripHeight, value, nameof(GalleryFilmstripHeight)); }
@@ -102,6 +108,10 @@ public partial class SettingsEditor
     public string ControlsIdleHideMsLabel => Texts.T("settings.controlsIdleHide");
     public string ControlsIdleHideMsHint => Texts.T("settings.controlsIdleHideHint",
         Config.ControlsIdleHideMsDefault, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+    public string ReaderNavigationModeLabel => Texts.T("settings.reader.navigation");
+    public string ReaderNavigationModeHint => Texts.T("settings.reader.navigation.hint");
+    public string ReaderNavigationShowPositionLabel => Texts.T("settings.reader.navigationPosition");
+    public string ReaderNavigationShowPositionHint => Texts.T("settings.reader.navigationPosition.hint");
     public string MediaFocusHidesHeaderLabel => Texts.T("settings.mediaFocusHidesHeader");
     public string MediaFocusHidesHeaderHint => Texts.T("settings.mediaFocusHidesHeaderHint");
     public string GalleryFilmstripLabel => Texts.T("settings.galleryFilmstrip");
@@ -166,6 +176,7 @@ public partial class SettingsEditor
         nameof(GalleryVideoRepeatLabel), nameof(GalleryVideoRepeatHint), nameof(GallerySlideshowVideoRuleLabel), nameof(GallerySlideshowVideoRuleHint),
         nameof(GallerySlideshowVideoSecondsLabel), nameof(GallerySlideshowVideoSecondsHint), nameof(GallerySlideshowVideoRepeatsLabel),
         nameof(GallerySlideshowVideoRepeatsHint), nameof(ControlsIdleHideMsLabel), nameof(ControlsIdleHideMsHint),
+        nameof(ReaderNavigationModeLabel), nameof(ReaderNavigationModeHint), nameof(ReaderNavigationShowPositionLabel), nameof(ReaderNavigationShowPositionHint),
         nameof(GalleryFilmstripLabel), nameof(GalleryFilmstripHint), nameof(GalleryFilmstripHeightLabel), nameof(GalleryFilmstripHeightHint),
         nameof(GalleryFilmstripPreloadLabel), nameof(GalleryFilmstripPreloadHint), nameof(MediaFocusHidesHeaderLabel), nameof(MediaFocusHidesHeaderHint),
         nameof(GalleryLayoutResetLabel), nameof(GalleryLayoutResetHint), nameof(GalleryVideoSeekStepSecondsLabel), nameof(GalleryVideoSeekStepSecondsHint),
@@ -193,7 +204,21 @@ public partial class SettingsEditor
         };
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowVideoRuleChoices)));
         SelectedGallerySlideshowVideoRule = GallerySlideshowVideoRuleChoices.FirstOrDefault(item => item.Value == rule) ?? GallerySlideshowVideoRuleChoices[0];
+        RefreshReaderNavigationModeChoices(SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode);
         if (_refreshingLanguageLabels) RaiseViewerVisibilityChanged();
+    }
+
+    /// <summary>Rebuilds the localized mode choices (Auto / Always / Off) and selects <paramref name="mode"/>.</summary>
+    private void RefreshReaderNavigationModeChoices(string mode)
+    {
+        ReaderNavigationModeChoices = new SettingsChoice[]
+        {
+            new(Config.ReaderNavigationModeAuto, Texts.T("settings.reader.navigation.auto")),
+            new(Config.ReaderNavigationModeAlways, Texts.T("settings.reader.navigation.always")),
+            new(Config.ReaderNavigationModeOff, Texts.T("settings.reader.navigation.off")),
+        };
+        Raise(new[] { nameof(ReaderNavigationModeChoices) });
+        SelectedReaderNavigationMode = ReaderNavigationModeChoices.FirstOrDefault(item => item.Value == mode) ?? ReaderNavigationModeChoices[0];
     }
 
     /// <summary>The video choices from the playback baseline (start, discard, after a save).</summary>
@@ -222,6 +247,8 @@ public partial class SettingsEditor
         GalleryLayoutResetPending = layoutReset;
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
+        RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
+        ReaderNavigationShowPosition = config.ReaderNavigationShowPosition;
         GalleryFilmstrip = config.GalleryFilmstrip;
         if (!layoutReset) _initialGalleryFilmstrip = config.GalleryFilmstrip; // the section reset is an edit of this draft, not a new load
         MediaFocusHidesHeader = config.MediaFocusHidesHeader;
@@ -246,6 +273,8 @@ public partial class SettingsEditor
     private void ApplyViewerDraft(Config candidate)
     {
         candidate.ControlsIdleHideMs = GetInteger(ControlsIdleHideMs, ControlsIdleHideMsLabel, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum);
+        candidate.ReaderNavigationMode = SelectedReaderNavigationMode?.Value ?? _config.ReaderNavigationMode;
+        candidate.ReaderNavigationShowPosition = ReaderNavigationShowPosition;
         candidate.GalleryFilmstrip = GalleryFilmstrip;
         candidate.SettingsBaselineGalleryFilmstrip = _initialGalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;

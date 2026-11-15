@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
@@ -24,6 +25,11 @@ namespace MeowChan.Desktop.Controls;
 /// surface keeps no value of its own. Every edit goes to a <see cref="QuickSettingsApplier"/> that saves it live through the
 /// host, and what the configuration holds afterwards (clamped, normalised, or the old value after a failure) is shown again.
 /// Tab cycles inside, Escape closes (an open drop-down closes first). The host frames it (<see cref="QuickSettingsPopover"/>).
+/// <para>
+/// RL1: a spec with a layout also has section headings, rows that exist only while the setting they depend on is on (indented under it,
+/// the pattern of the settings page), the key of a setting's command at the right end of its row, and session rows: a switch or an
+/// action of the open view (<see cref="QuickSettingsSession"/>), read again whenever the popover opens or the page says its state changed.
+/// </para>
 /// </summary>
 internal sealed class QuickSettingsSurface : UserControl, IDisposable
 {
@@ -34,18 +40,31 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     private readonly QuickSettingsSpec _spec;
     private readonly QuickSettingsHost _host;
     private readonly QuickSettingsApplier _applier;
+    private readonly QuickSettingsSession? _session;
     private readonly string _name;
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
     private readonly Button _all = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _status = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly StackPanel _rows = new() { Spacing = 12 };
+    // The right margin keeps the editors clear of the vertical scroll bar (typography pass: no field ran under it any more).
+    private readonly StackPanel _rows = new() { Spacing = 12, Margin = new Thickness(0, 0, 12, 0) };
     private readonly ScrollViewer _scroll;
     private readonly List<Row> _editors = new();
+    // RL1: what the layout adds to the plain list of fields.
+    private readonly List<(Control Container, string WhenFieldId)> _conditionals = new();
+    private readonly List<SessionRow> _sessionRows = new();
+    private readonly List<(TextBlock Text, string CommandId)> _shortcuts = new();
+    private readonly List<SectionRow> _sections = new();
+    private readonly List<Control> _focusOrder = new();
+    private readonly Dictionary<string, Control> _containers = new(StringComparer.Ordinal);
+    // Read out by the screen reader when a row appears under its parent (no new text: the row's own label).
+    private readonly TextBlock _announcement = new() { Classes = { "visually-hidden" }, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
     private string? _lastChanged;
     private bool _syncing, _keyboard, _disposed;
 
     private sealed record Row(QuickSettingField Field, Control Editor, TextBlock? Label);
+    private sealed record SessionRow(string CommandId, bool IsAction, Control Container, Control Control);
+    private sealed record SectionRow(TextBlock Heading, List<Control> Rows);
 
     /// <summary>An option of a combo box: its value in the configuration and the text shown (the default item template shows <see cref="ToString"/>).</summary>
     internal sealed record ChoiceItem(string Value, string Label)
@@ -53,10 +72,12 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         public override string ToString() => Label;
     }
 
-    internal QuickSettingsSurface(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings", QuickSettingsApplier? applier = null)
+    internal QuickSettingsSurface(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings", QuickSettingsApplier? applier = null,
+        QuickSettingsSession? session = null)
     {
         _spec = spec ?? throw new ArgumentNullException(nameof(spec));
         _host = host ?? throw new ArgumentNullException(nameof(host));
+        _session = session;
         _name = string.IsNullOrWhiteSpace(name) ? "QuickSettings" : name;
         _applier = applier ?? new QuickSettingsApplier(host.SaveAsync, host.Debounce);
         _applier.Applied += OnApplied;
@@ -68,12 +89,21 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         // The flyout's logical parent is its anchor, so the styles of the toolbar it opens from reach these buttons too (ReaderToolbar:
         // ":is(Button)" with an 8-dip right margin pulled the close cross 8 dip off the right edge). The surface spaces its own buttons.
         Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(MarginProperty, new Thickness(0)) } });
+        // The same toolbar style (":is(Button)" with Height 32 and MinWidth 32) also reached the up and down buttons inside the number
+        // fields: each became 32 high, so every number field stood 64 dip tall beside 32 dip combo boxes. Give them back their own size.
+        Styles.Add(new Style(selector => selector.OfType<NumericUpDown>().Template().OfType<ButtonSpinner>().Template().Is<Button>())
+        {
+            Setters = { new Setter(HeightProperty, double.NaN), new Setter(MinWidthProperty, 0d), new Setter(MarginProperty, new Thickness(0)) }
+        });
         _title.Name = _name + "Title"; _close.Name = _name + "Close"; _all.Name = _name + "All"; _status.Name = _name + "Status";
         _rows.Name = _name + "Rows";
 
         // Header: the title left, the close button alone at the right edge (owner rule 14.11.), 24 dip apart at least.
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,24,Auto"), Name = _name + "Header" };
         header.Children.Add(_title);
+        header.Children.Add(_announcement);
+        _announcement.Name = _name + "Announcement";
+        AutomationProperties.SetLiveSetting(_announcement, AutomationLiveSetting.Polite);
         header.Children.Add(_close); Grid.SetColumn(_close, 2);
         _close.VerticalAlignment = VerticalAlignment.Center;
         Header = header;
@@ -100,10 +130,14 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         AddHandler(PointerPressedEvent, OnPointer, RoutingStrategies.Tunnel);
         Build();
         Texts.Changed += OnTextsChanged;
+        SettingsConditional.RowAppeared += OnConditionalRowAppeared;
+        if (_session != null) _session.Changed += RefreshSession;
     }
 
     /// <summary>The surface asks its host to close it (close button, Escape).</summary>
     internal event Action? CloseRequested;
+    /// <summary>An action row was chosen: the host closes the popover (the focus goes to what the action opens) and then runs it; without a host handler it runs at once.</summary>
+    internal event Action<Action>? ActionRequested;
     /// <summary>"All settings": the id of the setting to reveal on the settings page (the last one changed, else the first one).</summary>
     internal event Action<string?>? AllSettingsRequested;
 
@@ -121,6 +155,17 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     internal bool KeyboardInteraction => _keyboard;
 
     internal Control? EditorOf(string fieldId) => _editors.FirstOrDefault(row => row.Field.Id == fieldId)?.Editor;
+    /// <summary>The control of the session row of <paramref name="commandId"/> (a check box, or a button for an action); null without such a row.</summary>
+    internal Control? SessionControlOf(string commandId) => _sessionRows.FirstOrDefault(row => row.CommandId == commandId)?.Control;
+    /// <summary>Whether the row of the setting <paramref name="fieldId"/> is shown now (a conditional row only while its setting is on).</summary>
+    internal bool IsRowShown(string fieldId) => _containers.TryGetValue(fieldId, out Control? container) && container.IsVisible;
+    /// <summary>The section headings in order (tests and smokes).</summary>
+    internal IReadOnlyList<TextBlock> SectionHeadings => _sections.Select(section => section.Heading).ToArray();
+    /// <summary>The command ids of the session rows in order, shown or not (tests).</summary>
+    internal IReadOnlyList<string> SessionCommandIds => _sessionRows.Select(row => row.CommandId).ToArray();
+    /// <summary>The key text shown at the right end of the row of <paramref name="commandId"/> (empty without a key).</summary>
+    internal string ShortcutTextOf(string commandId) => _shortcuts.FirstOrDefault(item => item.CommandId == commandId).Text?.Text ?? string.Empty;
+
 
     /// <summary>Saves what is waiting at once (the popover closed).</summary>
     internal Task FlushAsync() => _applier.FlushAsync();
@@ -128,7 +173,7 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
     /// <summary>Puts the keyboard focus into the first editor.</summary>
     internal bool FocusFirst()
     {
-        Control? first = _editors.Select(row => row.Editor).FirstOrDefault(editor => editor.IsEffectivelyVisible && editor.IsEffectivelyEnabled);
+        Control? first = _focusOrder.FirstOrDefault(editor => editor.IsEffectivelyVisible && editor.IsEffectivelyEnabled);
         return first?.Focus(NavigationMethod.Tab) == true;
     }
 
@@ -140,14 +185,78 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         try
         {
             foreach (Row row in _editors) Show(row, config);
+            foreach ((Control container, string whenFieldId) in _conditionals)
+                SettingsConditional.SetWhen(container, _editors.FirstOrDefault(row => row.Field.Id == whenFieldId) is { } parent
+                    && bool.TryParse(parent.Field.Read(config), out bool on) && on);
         }
         finally { _syncing = false; }
+        RefreshShortcuts();
+        RefreshSession();
+    }
+
+    /// <summary>Reads the session rows again: shown (the page offers the command), on or off, enabled, with the reason in the tip while it cannot run.</summary>
+    internal void RefreshSession()
+    {
+        if (_disposed) return;
+        IReadOnlyList<QuickSettingsSessionItem> items = _session?.Items() ?? Array.Empty<QuickSettingsSessionItem>();
+        bool syncing = _syncing;
+        _syncing = true;
+        try
+        {
+            foreach (SessionRow row in _sessionRows)
+            {
+                QuickSettingsSessionItem? item = items.FirstOrDefault(candidate => candidate.CommandId == row.CommandId);
+                row.Container.IsVisible = item != null;
+                if (item == null) continue;
+                bool enabled = item.IsEnabled();
+                string tip = CommandBindings.Tooltip(row.CommandId, enabled ? null : item.Note?.Invoke());
+                if (row.Control is CheckBox box)
+                {
+                    bool on = item.IsChecked?.Invoke() == true;
+                    if (box.IsChecked != on) box.IsChecked = on;
+                }
+                row.Control.IsEnabled = enabled;
+                ToolTip.SetTip(row.Control, tip);
+                ToolTip.SetShowOnDisabled(row.Control, true);
+                AutomationProperties.SetHelpText(row.Control, tip);
+            }
+        }
+        finally { _syncing = syncing; }
+        RefreshShortcuts();
+        UpdateSections();
+    }
+
+    // The key of a row's command at its right end; read again with every look, so a rebound key shows.
+    private void RefreshShortcuts()
+    {
+        foreach ((TextBlock text, string commandId) in _shortcuts)
+        {
+            string? shortcut = CommandCatalog.ShortcutDisplay(commandId);
+            string value = shortcut ?? string.Empty;
+            if (text.Text != value) text.Text = value;
+            text.IsVisible = value.Length > 0;
+        }
+    }
+
+    // A heading stands only over rows that are shown.
+    private void UpdateSections()
+    {
+        foreach (SectionRow section in _sections)
+            section.Heading.IsVisible = section.Rows.Any(row => row.IsVisible);
+    }
+
+    private void OnConditionalRowAppeared(Control row)
+    {
+        if (_disposed || !_conditionals.Any(item => ReferenceEquals(item.Container, row))) return;
+        _announcement.Text = SettingsConditional.LabelOf(row);
     }
 
     private void Build()
     {
         _rows.Children.Clear();
         _editors.Clear();
+        _conditionals.Clear(); _sessionRows.Clear(); _shortcuts.Clear(); _sections.Clear(); _focusOrder.Clear(); _containers.Clear();
+        _announcement.Text = string.Empty;
         _title.Text = Texts.T(_spec.TitleKey);
         string close = Texts.T("quicksettings.close");
         WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, close, Texts.T("quicksettings.close.tip"));
@@ -156,14 +265,113 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         ToolTip.SetTip(_all, allTip);
         AutomationProperties.SetHelpText(_all, allTip);
         AutomationProperties.SetName(this, _title.Text);
-        foreach (QuickSettingField field in _spec.Fields)
+        SectionRow? section = null;
+        foreach (QuickSettingsEntry entry in _spec.Layout ?? _spec.Fields.Select(field => (QuickSettingsEntry)new QuickSettingsFieldEntry(field)).ToArray())
         {
-            Row row = BuildRow(field);
-            _editors.Add(row);
-            _rows.Children.Add(RowLayout(row));
+            Control container;
+            switch (entry)
+            {
+                case QuickSettingsSection heading:
+                {
+                    TextBlock text = new()
+                    {
+                        Text = Texts.T(heading.TitleKey), Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold,
+                        Margin = new Thickness(0, _rows.Children.Count == 0 ? 0 : 4, 0, 0), Name = _name + "Section" + _sections.Count
+                    };
+                    AutomationProperties.SetHeadingLevel(text, 2);
+                    section = new SectionRow(text, new List<Control>());
+                    _sections.Add(section);
+                    _rows.Children.Add(text);
+                    continue;
+                }
+                case QuickSettingsFieldEntry setting:
+                {
+                    Row row = BuildRow(setting.Field);
+                    _editors.Add(row);
+                    _focusOrder.Add(row.Editor);
+                    container = RowLayout(row, setting.ShortcutCommandId);
+                    _containers[setting.Field.Id] = container;
+                    if (setting.WhenFieldId != null)
+                    {
+                        container.Classes.Add(SettingsConditional.RowClass);
+                        container.Margin = new Thickness(24, 0, 0, 0); // the settings page indents a conditional row by 24 too
+                        _conditionals.Add((container, setting.WhenFieldId));
+                    }
+                    break;
+                }
+                case QuickSettingsSessionEntry session:
+                {
+                    (container, SessionRow sessionRow) = BuildSessionRow(session);
+                    _sessionRows.Add(sessionRow);
+                    _focusOrder.Add(sessionRow.Control);
+                    break;
+                }
+                default: throw new NotSupportedException("Quick settings entry " + entry.GetType().Name + " has no row.");
+            }
+            section?.Rows.Add(container);
+            _rows.Children.Add(container);
         }
         SyncFromConfig();
     }
+
+    private (Control Container, SessionRow Row) BuildSessionRow(QuickSettingsSessionEntry entry)
+    {
+        string label = CommandCatalog.Label(entry.CommandId);
+        string name = _name + "Session" + PascalCase(entry.CommandId);
+        Control control;
+        if (entry.IsAction)
+        {
+            Button button = new() { Content = label, Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
+            button.Click += (_, _) => RunSessionAction(entry.CommandId);
+            control = button;
+        }
+        else
+        {
+            CheckBox box = new() { Content = label, VerticalAlignment = VerticalAlignment.Center };
+            box.IsCheckedChanged += (_, _) =>
+            {
+                if (_syncing || _disposed) return;
+                QuickSettingsSessionItem? item = _session?.Items().FirstOrDefault(candidate => candidate.CommandId == entry.CommandId);
+                if (item != null && item.IsEnabled()) item.Invoke();
+                // What the page made of it (a refused switch, a state that follows later) shows once its turn is over.
+                RefreshSession();
+                Dispatcher.UIThread.Post(RefreshSession, DispatcherPriority.Background);
+            };
+            control = box;
+        }
+        control.Name = name;
+        AutomationProperties.SetName(control, label);
+        Control container = control;
+        if (!entry.IsAction)
+        {
+            Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 16 };
+            grid.Children.Add(control);
+            TextBlock shortcut = ShortcutText(entry.CommandId, name + "Shortcut");
+            grid.Children.Add(shortcut); Grid.SetColumn(shortcut, 1);
+            container = grid;
+        }
+        return (container, new SessionRow(entry.CommandId, entry.IsAction, container, control));
+    }
+
+    private void RunSessionAction(string commandId)
+    {
+        QuickSettingsSessionItem? item = _session?.Items().FirstOrDefault(candidate => candidate.CommandId == commandId);
+        if (item == null || !item.IsEnabled()) return;
+        if (ActionRequested is { } handler) handler(item.Invoke);
+        else item.Invoke();
+    }
+
+    private TextBlock ShortcutText(string commandId, string name)
+    {
+        TextBlock text = new() { Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Center, Name = name, TextWrapping = TextWrapping.NoWrap };
+        // The key is part of the row's accessible description (tip), not read twice as its own text.
+        AutomationProperties.SetAccessibilityView(text, AccessibilityView.Raw);
+        _shortcuts.Add((text, commandId));
+        return text;
+    }
+
+    private static string PascalCase(string commandId) =>
+        string.Concat(commandId.Split('.', '-').Where(part => part.Length > 0).Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
 
     private Row BuildRow(QuickSettingField field)
     {
@@ -227,9 +435,18 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         return new Row(field, editor, caption);
     }
 
-    private static Control RowLayout(Row row)
+    private Control RowLayout(Row row, string? shortcutCommandId = null)
     {
-        if (row.Label == null) return row.Editor;
+        if (row.Label == null)
+        {
+            if (shortcutCommandId == null) return row.Editor;
+            // A switch with the key of its command at the right end of the row.
+            Grid line = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 16 };
+            line.Children.Add(row.Editor);
+            TextBlock shortcut = ShortcutText(shortcutCommandId, _name + row.Field.Id + "Shortcut");
+            line.Children.Add(shortcut); Grid.SetColumn(shortcut, 1);
+            return line;
+        }
         Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("*," + EditorWidth.ToString(CultureInfo.InvariantCulture)), ColumnSpacing = 16 };
         grid.Children.Add(row.Label);
         grid.Children.Add(row.Editor); Grid.SetColumn(row.Editor, 1);
@@ -307,17 +524,20 @@ internal sealed class QuickSettingsSurface : UserControl, IDisposable
         if (_disposed) return;
         _disposed = true;
         Texts.Changed -= OnTextsChanged;
+        SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+        if (_session != null) _session.Changed -= RefreshSession;
         _applier.Applied -= OnApplied;
         _applier.Failed -= OnFailed;
         _close.Click -= OnCloseClick;
         _all.Click -= OnAllClick;
         CloseRequested = null;
+        ActionRequested = null;
         AllSettingsRequested = null;
     }
 }
 
 /// <summary>
-/// The popover of a quick settings surface: a flyout under its opener (the "View" button of the reader), 360 dip wide in the
+/// The popover of a quick settings surface: a flyout under its opener (the settings gear of the reader), 360 dip wide in the
 /// in-window overlay look, focus in its first editor, Escape or the close button closing it, the focus returning to the opener,
 /// and anything still waiting saved when it closes. It is the reusable frame: the gallery and the media page get theirs from
 /// another <see cref="QuickSettingsSpec"/>, nothing else.
@@ -329,12 +549,18 @@ internal sealed class QuickSettingsPopover : IDisposable
     private Control? _anchor;
     private bool _hadFocus, _restoreFocus = true, _disposed;
 
-    internal QuickSettingsPopover(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings")
+    internal QuickSettingsPopover(QuickSettingsSpec spec, QuickSettingsHost host, string name = "QuickSettings", QuickSettingsSession? session = null)
     {
-        _surface = new QuickSettingsSurface(spec, host, name);
+        _surface = new QuickSettingsSurface(spec, host, name, session: session);
         _flyout.FlyoutPresenterClasses.Add("quick-settings");
         _flyout.Content = _surface;
         _surface.CloseRequested += Hide;
+        _surface.ActionRequested += invoke =>
+        {
+            _restoreFocus = false; // what the action opens takes the focus
+            Hide();
+            invoke();
+        };
         _surface.AllSettingsRequested += id =>
         {
             _restoreFocus = false; // the settings page takes the focus

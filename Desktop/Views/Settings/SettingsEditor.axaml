@@ -102,7 +102,7 @@
                 <StackPanel x:Name="SettingsInterfacePage" Spacing="0" IsEnabled="{Binding IsEditable}">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsInterfaceHeading" Text="{Binding InterfaceTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetInterfaceButton" Tag="settings.interface" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetInterfaceLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetInterfaceButton" Tag="settings.interface" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetInterfaceLabel}" ToolTip.Tip="{Binding ResetInterfaceLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
@@ -227,7 +227,7 @@
                 <StackPanel x:Name="SettingsReadingMediaPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsReadingMediaHeading" Text="{Binding ReadingMediaTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetReadingMediaButton" Tag="settings.reading-media" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetReadingMediaLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetReadingMediaButton" Tag="settings.reading-media" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetReadingMediaLabel}" ToolTip.Tip="{Binding ResetReadingMediaLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <Expander x:Name="SettingsReadingMediaGroup" wv:WorkViewElement.Id="settings.group.reading-media" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsReadingMediaBody" Spacing="0" Margin="0,8,0,0">
@@ -494,11 +494,13 @@
                             </Border>
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <TextBlock x:Name="ReaderInlineVideoFieldLabel" Text="{Binding ReaderInlineVideoLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding ReaderInlineVideoHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                                    <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                        <TextBlock x:Name="ReaderMediaClickFieldLabel" Text="{Binding ReaderMediaClickLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReaderMediaClickHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>
-                                    <ToggleSwitch x:Name="ReaderInlineVideoInput" IsChecked="{Binding ReaderInlineVideo, Mode=TwoWay}" AutomationProperties.HelpText="{Binding ReaderInlineVideoHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderInlineVideoFieldLabel}" AutomationProperties.Name="{Binding ReaderInlineVideoLabel}" />
+                                    <ComboBox x:Name="ReaderMediaClickInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderMediaClickChoices}" SelectedItem="{Binding SelectedReaderMediaClick, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderMediaClickFieldLabel}" AutomationProperties.Name="{Binding ReaderMediaClickLabel}" AutomationProperties.HelpText="{Binding ReaderMediaClickHint}">
+                                    <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                                </ComboBox>
                                 </Grid>
                             </Border>
                             <Border Classes="settings-divider">
@@ -740,7 +742,7 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                    <!-- One idle time for the gallery's overlay controls and the reader's arrow cross. -->
+                    <!-- One idle time for the gallery's overlay controls and the reader's navigation bar. -->
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
@@ -751,6 +753,27 @@
                             <desktop:SettingsNumberInput x:Name="ControlsIdleHideMsInput" Value="{Binding ControlsIdleHideMs, Mode=TwoWay}" Minimum="500" Maximum="30000" Increment="100" AutomationProperties.LabeledBy="{Binding ElementName=ControlsIdleHideMsFieldLabel}" AutomationProperties.Name="{Binding ControlsIdleHideMsLabel}" AutomationProperties.HelpText="{Binding ControlsIdleHideMsHelp}" />
                             <TextBlock x:Name="ControlsIdleHideMsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         </StackPanel>
+                        </Grid>
+                    </Border>
+                    <!-- Reader navigation bar: when it is shown (auto-hide with the idle time above, always, or off) and whether it carries the counters. -->
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                <TextBlock x:Name="ReaderNavigationModeFieldLabel" Text="{Binding ReaderNavigationModeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderNavigationModeHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="ReaderNavigationModeInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding ReaderNavigationModeChoices}" SelectedItem="{Binding SelectedReaderNavigationMode, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderNavigationModeFieldLabel}" AutomationProperties.Name="{Binding ReaderNavigationModeLabel}" AutomationProperties.HelpText="{Binding ReaderNavigationModeHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" TextWrapping="Wrap" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="ReaderNavigationShowPositionFieldLabel" Text="{Binding ReaderNavigationShowPositionLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ReaderNavigationShowPositionHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="ReaderNavigationShowPositionInput" IsChecked="{Binding ReaderNavigationShowPosition, Mode=TwoWay}" AutomationProperties.Name="{Binding ReaderNavigationShowPositionLabel}" AutomationProperties.HelpText="{Binding ReaderNavigationShowPositionHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=ReaderNavigationShowPositionFieldLabel}" />
                         </Grid>
                     </Border>
                     <!-- Gallery filmstrip (V3): on/off, thumbnail size and how many thumbnails are decoded ahead of scrolling. -->
@@ -1053,7 +1076,7 @@
                 <StackPanel x:Name="SettingsDownloadsPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsDownloadsHeading" Text="{Binding DownloadsTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetDownloadsButton" Tag="settings.downloads" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetDownloadsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetDownloadsButton" Tag="settings.downloads" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetDownloadsLabel}" ToolTip.Tip="{Binding ResetDownloadsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <StackPanel Classes="workspace-field settings-wide" Margin="0,0,0,12">
                         <TextBlock x:Name="DownloadPathFieldLabel" Text="{Binding DownloadPathLabel}" Classes="workspace-field-label" />
@@ -1128,7 +1151,7 @@
                             <TextBlock x:Name="SettingsWorkerBudgetsPageTitle" Text="{Binding StorageLimitsLabel}" Classes="section-title" TextWrapping="Wrap" />
                             <controls:HelpButton x:Name="StorageLimitsHelpButton" HelpKey="help.limits" />
                         </controls:LabelHelpPanel>
-                        <Button x:Name="ResetWorkerBudgetsButton" Tag="settings.worker-budgets" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetWorkerBudgetsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetWorkerBudgetsButton" Tag="settings.worker-budgets" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetWorkerBudgetsLabel}" ToolTip.Tip="{Binding ResetWorkerBudgetsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <TextBlock x:Name="StorageLimitsIntroText" Text="{Binding StorageLimitsIntro}" Classes="workspace-help" TextWrapping="Wrap" />
                     <StackPanel x:Name="ProfileFolderRow" Classes="workspace-field settings-wide" Spacing="{StaticResource Workspace.Space.4}">
@@ -1959,7 +1982,7 @@
                 <StackPanel x:Name="SettingsUpdatesPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsUpdatesHeading" Text="{Binding UpdatesTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetUpdatesButton" Tag="settings.updates" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetUpdatesLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetUpdatesButton" Tag="settings.updates" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetUpdatesLabel}" ToolTip.Tip="{Binding ResetUpdatesLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
@@ -1983,7 +2006,7 @@
                 <StackPanel x:Name="SettingsNotificationsSection" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsNotificationsHeading" Text="{Binding NotificationsTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetNotificationsButton" Tag="settings.notifications" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetNotificationsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetNotificationsButton" Tag="settings.notifications" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetNotificationsLabel}" ToolTip.Tip="{Binding ResetNotificationsLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <TextBlock Text="{Binding NotificationsHint}" Classes="workspace-help" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
@@ -2026,7 +2049,7 @@
                 <StackPanel x:Name="SettingsBehaviorPage" Spacing="0" IsEnabled="{Binding IsEditable}" IsVisible="False">
                     <Grid Classes="settings-section-header" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
                         <TextBlock x:Name="SettingsBehaviorHeading" Text="{Binding BehaviorTitle}" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
-                        <Button x:Name="ResetBehaviorButton" Tag="settings.behavior" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetBehaviorLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
+                        <Button x:Name="ResetBehaviorButton" Tag="settings.behavior" Classes="subtle" Content="{Binding ResetLabel}" AutomationProperties.Name="{Binding ResetBehaviorLabel}" ToolTip.Tip="{Binding ResetBehaviorLabel}" Click="OnResetCategoryClick" IsEnabled="{Binding IsEditable}" VerticalAlignment="Center" Grid.Column="1" />
                     </Grid>
                     <Expander x:Name="SettingsBehaviorGroup" wv:WorkViewElement.Id="settings.group.behavior" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel x:Name="SettingsBehaviorBody" Spacing="0" Margin="0,8,0,0">

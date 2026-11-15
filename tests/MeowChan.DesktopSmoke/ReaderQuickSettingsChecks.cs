@@ -13,9 +13,9 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-// R7: the reader's quick settings popover (View menu, "Reader settings…") in a private profile with a detached reader. The host
+// R7/RL1: the reader's settings popover (the gear "Settings") in a private profile with a detached reader. The host
 // stands in for the shell: it keeps a Config, saves a change into it and applies it to the page the way the shell does. Checked:
-// the menu entry, the popover under the View button with its fields, an edit applied to the reader within the live budget and
+// the gear, the popover under it with its fields, an edit applied to the reader within the live budget and
 // shown on the page, Escape closing only the popover with the focus back on the button, "All reader settings" naming a setting,
 // and a failed save keeping the confirmed value. A capture of the open popover in both themes is wanted from the central run.
 internal static class ReaderQuickSettingsChecks
@@ -56,7 +56,7 @@ internal static class ReaderQuickSettingsChecks
             lease.Dispose();
             Directory.Delete(profile, recursive: true);
         }
-        Console.WriteLine("SMOKE reader quick settings: View menu entry, popover under the View button, live edit of width, image width, font size and spoilers, Escape and focus return, all-settings request and failed save passed.");
+        Console.WriteLine("SMOKE reader quick settings: settings gear, popover under the gear, live edit of width, image width, font size and spoilers, Escape and focus return, all-settings request and failed save passed.");
     }
 
     private static async Task CheckAsync(ArchivePage page, Window window)
@@ -81,16 +81,18 @@ internal static class ReaderQuickSettingsChecks
             ShowAllSettings = allSettings.Add
         };
 
-        // The entry is the last option of the View menu, a plain item that opens the popover.
-        Require(page.ReaderViewOptionIds.Last() == "reader.quick-settings", "The View menu does not end with the reader settings entry: " + string.Join(", ", page.ReaderViewOptionIds));
-        MenuItem entry = page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "reader.quick-settings"));
-        Require(entry.ToggleType == MenuItemToggleType.None && entry.IsEnabled, "The reader settings entry is not a plain, enabled item.");
-        Button view = page.FindControl<Button>("ReaderViewOpen")!;
+        // RL1: the gear "Settings" is the entry; it carries the popover, and "Reader settings…" stays reachable as a command (shortcut, "More").
+        Button view = page.FindControl<Button>("ReaderSettingsOpen")!;
+        Require(view.IsEffectivelyVisible && view.Content as string == Texts.T("reader.settings.button"), "The settings gear is missing or unlabeled.");
+        Require(page.ReaderViewOptionIds.Last() == "reader.quick-settings", "The option list does not end with the reader settings entry: " + string.Join(", ", page.ReaderViewOptionIds));
+        view.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => page.IsQuickSettingsOpen, () => "the popover did not open from the gear");
+        await ReaderSettingsProbe.CloseAsync(page);
         Require(page.ToggleReaderViewOption("reader.quick-settings"), "The entry is not reachable like the other view options.");
         await Program.WaitUntilAsync(() => page.IsQuickSettingsOpen, () => "the popover did not open");
         QuickSettingsSurface surface = page.ReaderQuickSettings!.Surface;
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        // One editor per registered field (R7 started with six; R5/R6, R8 and R10 added theirs to ReaderQuickSettings.Fields).
+        // One editor per registered field (R7 started with six; the layout's rows are ReaderQuickSettings.Fields).
         Require(surface.Width == 360 && surface.Editors.Count == ReaderQuickSettings.Fields.Count
             && ReaderQuickSettings.Fields.All(field => surface.EditorOf(field.Id) != null),
             "The popover is not 360 wide with one editor per registered field: " + surface.Width + ", " + surface.Editors.Count + " of " + ReaderQuickSettings.Fields.Count);
@@ -136,11 +138,11 @@ internal static class ReaderQuickSettingsChecks
         }
         fail = null;
 
-        // Escape closes only the popover; the focus is back on the View button. The surface is still the open popover's.
+        // Escape closes only the popover; the focus is back on the settings gear. The surface is still the open popover's.
         surface.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
         await Program.WaitUntilAsync(() => !page.IsQuickSettingsOpen, () => "Escape did not close the popover");
         Require(page.IsReaderDialogOpen == false, "Escape closed more than the popover.");
-        await Program.WaitUntilAsync(() => view.IsFocused || !view.IsEffectivelyVisible, () => "the focus did not return to the View button");
+        await Program.WaitUntilAsync(() => view.IsFocused || !view.IsEffectivelyVisible, () => "the focus did not return to the settings gear");
 
         // "All reader settings" asks the shell for the last changed setting, and the popover is gone afterwards. The page keeps its one
         // popover (ArchivePage.OpenReaderQuickSettings), so the last edit is still the date style whose save failed above: the

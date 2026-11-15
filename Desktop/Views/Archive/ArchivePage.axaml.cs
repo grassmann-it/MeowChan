@@ -1151,6 +1151,7 @@ public partial class ArchivePage : UserControl
         finally { _localizingMediaChoices = false; }
         LocalizeMediaRatings();
         LocalizeMediaSelection();
+        UpdateReaderNavigation();
         DataGrid media = ArchiveMediaGrid;
         media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();

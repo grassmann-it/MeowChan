@@ -4,9 +4,7 @@ internal static class SourcesCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("nav.sources", "Sources", "Quellen"),
         ("sources.title", "Sources", "Quellen"),
-        ("sources.subtitle", "Websites and what you watch there; each source is provided by a plugin.", "Websites und was du dort beobachtest; jede Quelle stellt ein Plugin bereit."),
         ("sources.experimental", "Experimental", "Experimentell"),
         ("sources.tier.meowchanExperimental", "MeowChan · experimental", "MeowChan · experimentell"),
         ("sources.tierClassification.meowchanExperimental", "Product tier: MeowChan · experimental. This is not website-operator approval, and it does not relax integrity or activation checks.", "Produktstufe: MeowChan · experimentell. Keine Zustimmung des Websitebetreibers; Integritäts- oder Aktivierungsprüfungen werden nicht gelockert."),
@@ -68,6 +66,12 @@ internal static class SourcesCatalog
         ("sources.stopped", "Session stopped or stopping", "Sitzung gestoppt oder wird beendet"),
         ("sources.watchCounts", "Threads: {0} · Boards: {1} · Queued: {2} · Active: {3}", "Threads: {0} · Boards: {1} · Wartend: {2} · Aktiv: {3}"),
         ("sources.mediaCounts", "{0} queued · {1} active", "{0} wartend · {1} aktiv"),
+        // Short labels of the stat footer on a Sources card (icon, label and value); the tip is the tooltip and accessible name of one segment.
+        ("sources.stat.threads", "Threads", "Threads"),
+        ("sources.stat.boards", "Boards", "Boards"),
+        ("sources.stat.queued", "Queued", "Wartend"),
+        ("sources.stat.active", "Active", "Aktiv"),
+        ("stats.footer.tip", "{0}: {1}", "{0}: {1}"),
         ("sources.watches", "Watched threads and boards", "Beobachtete Threads und Boards"),
         ("sources.showAll", "Show all {0} in Downloads", "Alle {0} unter Downloads zeigen"),
         ("sources.reachabilityNote", "This view does not check whether a website is reachable.", "Ob eine Website erreichbar ist, wird hier nicht geprüft."),

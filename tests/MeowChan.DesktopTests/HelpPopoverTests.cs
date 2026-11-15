@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -62,7 +63,7 @@ public sealed class HelpPopoverTests : IDisposable
         int closed = 0;
         StackPanel body = HelpPopover.Build(content, () => closed++);
         Assert.True(body.Focusable);
-        Assert.Equal(360, HelpPopover.MaxContentWidth);
+        Assert.Equal(400, HelpPopover.MaxContentWidth);
         Assert.Equal(HelpPopover.MaxContentWidth, body.MaxWidth);
         Assert.Equal("Title", AutomationProperties.GetName(body));
         Assert.Equal(5, body.Children.Count);
@@ -163,8 +164,116 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Equal("{StaticResource Workspace.Size.Control}", Setter(styles, "Button.help-round", "Height"));
         Assert.Equal("16", Setter(styles, "Button.help-round", "CornerRadius"));
         Assert.Equal("32", Assert.Single(styles.Descendants(X + "Double"), e => (string?)e.Attribute(X + "Key") == "Workspace.Size.Control").Value.Trim());
-        Assert.Equal("12", Setter(styles, "FlyoutPresenter.help-popover", "Padding"));
+        Assert.Equal("{StaticResource Workspace.Inset.Popover}", Setter(styles, "FlyoutPresenter.help-popover", "Padding"));
         Assert.Equal("{DynamicResource Workspace.ControlBorder}", Setter(styles, "FlyoutPresenter.help-popover", "BorderBrush"));
+    }
+
+    [Fact]
+    public void TheHelpTextLayoutNamesItsPartsByClassAndEveryTextWrapsInsideTheReadingColumn()
+    {
+        StackPanel body = HelpPopover.Build(new HelpContent("Title", ["First", "Second"], ["One", "Two"]), () => { });
+        Assert.Contains(HelpPopover.BodyClass, body.Classes);
+        Assert.Contains(HelpPopover.TitleClass, body.Children[0].Classes);
+        Assert.All(body.Children.Skip(1).Take(2), paragraph => Assert.Contains(HelpPopover.ParagraphClass, paragraph.Classes));
+        StackPanel list = Assert.IsType<StackPanel>(body.Children[3]);
+        Assert.Contains(HelpPopover.ListClass, list.Classes);
+        foreach (Grid row in list.Children.Cast<Grid>())
+        {
+            Assert.Contains(HelpPopover.BulletRowClass, row.Classes);
+            // Hanging indent: the dot alone in an Auto column, the text in the star column, so wrapped lines start under the text.
+            Assert.Equal(2, row.ColumnDefinitions.Count);
+            Assert.True(row.ColumnDefinitions[0].Width.IsAuto);
+            Assert.True(row.ColumnDefinitions[1].Width.IsStar);
+            Assert.Equal(0, Grid.GetColumn(row.Children[0]));
+            Assert.Contains(HelpPopover.DotClass, row.Children[0].Classes);
+            Assert.Equal(1, Grid.GetColumn(row.Children[1]));
+            Assert.Contains(HelpPopover.BulletClass, row.Children[1].Classes);
+        }
+        // Every text of the popover wraps; the column is the reading width of the style file.
+        Assert.All(body.GetLogicalDescendants().OfType<TextBlock>(), text => Assert.Equal(Avalonia.Media.TextWrapping.Wrap, text.TextWrapping));
+        XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        Assert.Equal(HelpPopover.MaxContentWidth.ToString(System.Globalization.CultureInfo.InvariantCulture), Token(styles, "Workspace.Size.ReadingWidth"));
+    }
+
+    [Fact]
+    public void TheHelpTextStylesUseTheSpacingTokensOnTheEightDipGridAndAReadingLineHeight()
+    {
+        XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        Assert.Equal("{StaticResource Workspace.Space.8}", Setter(styles, "StackPanel.help-popover-body", "Spacing"));
+        Assert.Equal("{StaticResource Workspace.Space.4}", Setter(styles, "StackPanel.help-text-list", "Spacing"));
+        Assert.Equal("{StaticResource Workspace.Space.8}", Setter(styles, "Grid.help-text-bullet-row", "ColumnSpacing"));
+        Assert.Equal("{StaticResource Workspace.LineHeight.Body}", Setter(styles, "TextBlock.help-text-paragraph, TextBlock.help-text-bullet", "LineHeight"));
+        Assert.Equal("Wrap", Setter(styles, "TextBlock.help-text-paragraph, TextBlock.help-text-bullet", "TextWrapping"));
+        // About 1.4 x the body size, and the dot sits in the middle of the first line.
+        double body = double.Parse(Token(styles, "Workspace.Text.Body"), System.Globalization.CultureInfo.InvariantCulture);
+        double line = double.Parse(Token(styles, "Workspace.LineHeight.Body"), System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(line / body, 1.35, 1.45);
+        double dot = double.Parse(Setter(styles, "Border.help-popover-dot", "Height")!, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal("0," + ((line - dot) / 2).ToString(System.Globalization.CultureInfo.InvariantCulture) + ",0,0", Setter(styles, "Border.help-popover-dot", "Margin"));
+        // Text never sits closer than 16 dip to the popover edge, and the presenter is exactly column + inset + border wide.
+        Assert.Equal("16", Assert.Single(styles.Descendants(A + "Thickness"), e => (string?)e.Attribute(X + "Key") == "Workspace.Inset.Popover").Value.Trim());
+        Assert.Equal((HelpPopover.MaxContentWidth + 2 * 16 + 2).ToString(System.Globalization.CultureInfo.InvariantCulture), Setter(styles, "FlyoutPresenter.help-popover", "MaxWidth"));
+        // Tooltips: 12 at the sides and 8 above and below, 2 dip between wrapped lines.
+        Assert.Equal("12,8", Assert.Single(styles.Descendants(A + "Thickness"), e => (string?)e.Attribute(X + "Key") == "ToolTipPadding").Value.Trim());
+        Assert.Equal("{StaticResource Workspace.Space.2}", Setter(styles, "ToolTip TextBlock", "LineSpacing"));
+    }
+
+    [Fact]
+    public void EveryHelpPopoverIsTheSharedOneBuiltByTheHelpButton()
+    {
+        // The help-text layout is used by every help popover: only HelpButton creates a HelpPopover, and no other flyout borrows its class.
+        foreach (string file in Directory.EnumerateFiles(Root("Desktop"), "*.*", SearchOption.AllDirectories)
+            .Where(file => (file.EndsWith(".axaml", StringComparison.Ordinal) || file.EndsWith(".cs", StringComparison.Ordinal))
+                && !file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)))
+        {
+            string name = Path.GetFileName(file);
+            string text = File.ReadAllText(file);
+            if (name != "HelpButton.cs" && name != "HelpPopover.cs")
+                Assert.False(text.Contains("new HelpPopover(", StringComparison.Ordinal)
+                    || System.Text.RegularExpressions.Regex.IsMatch(text, @"HelpPopover\s+\w+\s*=\s*new\(\)"), name + " builds its own help popover");
+            if (name != "HelpPopover.cs" && name != "WorkspaceStyles.axaml")
+                Assert.DoesNotContain("\"help-popover", text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void TheRoundHelpButtonHasARoundFocusRingConcentricWithItsCircle()
+    {
+        XElement styles = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
+        Assert.Equal("{StaticResource Workspace.FocusAdorner.Round}", Setter(styles, "Button.help-round", "FocusAdorner"));
+        // Inside a toolbar (Tagging page) Ursa's borderless theme took the ring away; the help button keeps the standard button theme.
+        Assert.Equal("{DynamicResource {x:Type Button}}", Setter(styles, "Button.help-round", "Theme"));
+        XElement template = Assert.Single(styles.Descendants(A + "Template"), e => (string?)e.Attribute(X + "Key") == "Workspace.FocusAdorner.Round");
+        XElement outer = Assert.Single(template.Elements(A + "Border"));
+        XElement inner = Assert.Single(outer.Elements(A + "Border"));
+        // Button radius 16 + the 4 dip offset; the inner ring 2 less (the outer ring's width).
+        Assert.Equal(("20", "-4", "2", "False"), ((string?)outer.Attribute("CornerRadius"), (string?)outer.Attribute("Margin"), (string?)outer.Attribute("BorderThickness"), (string?)outer.Attribute("AdornerLayer.IsClipEnabled")));
+        Assert.Equal(("18", "1"), ((string?)inner.Attribute("CornerRadius"), (string?)inner.Attribute("BorderThickness")));
+        Assert.Equal("{DynamicResource Workspace.Accent}", (string?)outer.Attribute("BorderBrush"));
+        Assert.Equal("{DynamicResource Workspace.Background}", (string?)inner.Attribute("BorderBrush"));
+    }
+
+    [Fact]
+    public void TheQuestionMarkStaysOneOpenCurlOnTheMiddleAxisOfTheIconGrid()
+    {
+        string data = WorkspaceIcons.DataOf(WorkspaceIcons.Help);
+        // Single ring rule: one arc, nothing closed, and the arc is the small curl (radius 3), never a ring around the 16 dip grid.
+        Assert.DoesNotContain("Z", data, StringComparison.OrdinalIgnoreCase);
+        System.Text.RegularExpressions.Match arc = Assert.Single(System.Text.RegularExpressions.Regex.Matches(data,
+            @"A([\d.]+),([\d.]+) 0 0 1 ([\d.]+),([\d.]+)"));
+        double radius = double.Parse(arc.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.InRange(radius, 2, 4);
+        // The arc ends at the curl's rightmost point (its circle centre + radius): that centre and the dot share the axis x = 8.
+        double end = double.Parse(arc.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Equal(8, end - radius, 3);
+        System.Text.RegularExpressions.Match dot = System.Text.RegularExpressions.Regex.Match(data, @"M([\d.]+),([\d.]+) L([\d.]+),([\d.]+)$");
+        Assert.True(dot.Success, data);
+        Assert.Equal("8", dot.Groups[1].Value);
+        Assert.Equal("8", dot.Groups[3].Value);
+        // Vertically the glyph (curl top to dot bottom, with the 1.5 stroke) sits in the middle of the grid or at most half a dip below it.
+        double top = double.Parse(arc.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture) - radius - 0.75;
+        double bottom = double.Parse(dot.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture) + 0.75;
+        Assert.InRange((top + bottom) / 2, 8, 8.5);
     }
 
     [Fact]
@@ -205,6 +314,9 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Equal(plainHeadline, CommandBindings.TooltipHeadline(plain));
         Assert.DoesNotContain('\n', CommandBindings.Tooltip(plain, "  "));
     }
+
+    private static string Token(XElement styles, string key) =>
+        Assert.Single(styles.Descendants(), e => (string?)e.Attribute(X + "Key") == key).Value.Trim();
 
     private static string? Setter(XElement styles, string selector, string property) =>
         (string?)Assert.Single(Assert.Single(styles.Elements(A + "Style"), style => (string?)style.Attribute("Selector") == selector)

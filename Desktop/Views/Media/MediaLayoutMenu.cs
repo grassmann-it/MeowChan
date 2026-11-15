@@ -79,7 +79,7 @@ internal static class MediaLayoutMenu
         MediaLayoutPreset? matching = now.MatchingPreset;
         foreach ((string id, string key, MediaLayoutPreset preset) in Presets) Choice(PresetGroup, id, Texts.T(key), matching == preset);
         Separator();
-        rows.Add(new(LayoutMenuRowKind.Action, ResetId, Texts.T("media.layout.reset")));
+        rows.Add(new(LayoutMenuRowKind.Action, ResetId, Texts.T("media.layout.reset")) { Hint = Texts.T("media.layout.resetHelp") });
         return new LayoutMenuModel(string.Empty, rows);
     }
 

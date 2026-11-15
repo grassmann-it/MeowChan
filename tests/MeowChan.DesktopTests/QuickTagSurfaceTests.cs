@@ -609,7 +609,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Button[] buttons = { surface.UndoButton, surface.StampButton, surface.AdvancedButton };
             string[] icons = { "corner-up-left", "check-square", "external-link" };
-            string[] texts = { "Undo", "Stamp", "Open tag editor" };
+            string[] texts = { "Undo", "Stamp", "Edit tags…" };
             void AssertLabels()
             {
                 for (int index = 0; index < buttons.Length; index++)
@@ -748,18 +748,18 @@ public sealed class QuickTagSurfaceTests : IDisposable
     // The footer labels never wrap and are trimmed only as a fallback, so every language keeps them short: a weighted length
     // (a full-width CJK character counts twice) of at most 14 for undo and stamp (the row), 24 for the editor (a 280 dip panel).
     [Theory]
-    [InlineData("en", "Undo", "Stamp", "Open tag editor")]
-    [InlineData("de", "Rückgängig", "Stempel", "Tagdialog öffnen")]
-    [InlineData("es", "Deshacer", "Sello", "Editor de etiquetas")]
-    [InlineData("fr", "Annuler", "Tampon", "Éditeur d’étiquettes")]
-    [InlineData("ru", "Отменить", "Штамп", "Редактор тегов")]
-    [InlineData("zh-Hans", "撤销", "印章", "打开标签编辑器")]
-    [InlineData("ja", "元に戻す", "スタンプ", "タグエディターを開く")]
-    [InlineData("ko", "실행 취소", "스탬프", "태그 편집기 열기")]
-    [InlineData("pt-BR", "Desfazer", "Carimbo", "Abrir editor de tags")]
-    [InlineData("cs", "Zpět", "Razítko", "Otevřít editor štítků")]
-    [InlineData("it", "Annulla", "Timbro", "Apri editor dei tag")]
-    [InlineData("pl", "Cofnij", "Stempel", "Otwórz edytor tagów")]
+    [InlineData("en", "Undo", "Stamp", "Edit tags…")]
+    [InlineData("de", "Rückgängig", "Stempel", "Tags bearbeiten…")]
+    [InlineData("es", "Deshacer", "Sello", "Editar etiquetas…")]
+    [InlineData("fr", "Annuler", "Tampon", "Modifier les étiquettes…")]
+    [InlineData("ru", "Отменить", "Штамп", "Изменить теги…")]
+    [InlineData("zh-Hans", "撤销", "印章", "编辑标签…")]
+    [InlineData("ja", "元に戻す", "スタンプ", "タグを編集…")]
+    [InlineData("ko", "실행 취소", "스탬프", "태그 편집…")]
+    [InlineData("pt-BR", "Desfazer", "Carimbo", "Editar tags…")]
+    [InlineData("cs", "Vrátit zpět", "Razítko", "Upravit štítky…")]
+    [InlineData("it", "Annulla", "Timbro", "Modifica tag…")]
+    [InlineData("pl", "Cofnij", "Stempel", "Edytuj tagi…")]
     public void TheFooterLabelsAreRealTranslationsThatFitOnOneLineInEveryLanguage(string code, string undo, string stamp, string editor)
     {
         Texts.SetLanguage(code);
@@ -770,8 +770,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.InRange(WeightedLength(stamp), 1, 14);
         Assert.InRange(WeightedLength(editor), 1, 24);
         // Not the English text in another pack, no ellipsis left over from the old "Advanced…", and a sentence for the tooltip.
-        if (code != "en") Assert.NotEqual("Open tag editor", editor);
-        Assert.DoesNotContain("…", editor);
+        if (code != "en") Assert.NotEqual("Edit tags…", editor);
+        Assert.EndsWith("…", editor); // opens a dialog
         Assert.Contains("X", Texts.T("tags.quick.undoTip", "X"));
         Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.advancedHelp")));
         Assert.False(string.IsNullOrWhiteSpace(Texts.T("tags.quick.undoHelp", "X")));
@@ -791,12 +791,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Assert.Equal(("corner-up-left", "Rückgängig"), surface.FooterLabelOf(surface.UndoButton));
             Assert.Equal(("check-square", "Stempel"), surface.FooterLabelOf(surface.StampButton));
-            Assert.Equal(("external-link", "Tagdialog öffnen"), surface.FooterLabelOf(surface.AdvancedButton));
+            Assert.Equal(("external-link", "Tags bearbeiten…"), surface.FooterLabelOf(surface.AdvancedButton));
             Assert.Equal("Letzte Tagänderung rückgängig machen · Strg+Z", ToolTip.GetTip(surface.UndoButton));
             Assert.Equal("Den vollständigen Tagdialog öffnen, um Fundstellen zu wählen, zu sortieren und lange Listen zu durchsuchen", ToolTip.GetTip(surface.AdvancedButton));
             Assert.StartsWith("Öffnet den vollständigen Tagdialog", AutomationProperties.GetHelpText(surface.AdvancedButton));
             Assert.Equal("Nimmt die letzte hier gemachte Änderung zurück, Schritt für Schritt. Tastenkürzel: Strg+Z.", AutomationProperties.GetHelpText(surface.UndoButton));
-            Assert.InRange(WeightedLength("Tagdialog öffnen"), 1, 24);
+            Assert.InRange(WeightedLength("Tags bearbeiten…"), 1, 24);
         }
     }
 

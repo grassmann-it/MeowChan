@@ -25,6 +25,21 @@ public partial class MainWindow
         if (!_isClosing) ApplyGalleryPreferences();
     }
 
+    /// <summary>
+    /// "Link folder…" of the empty Media page: the settings page at the media folders group (Storage and limits), with the dialog of "Add folder…"
+    /// opened. The folder flow itself is the group's own; this only takes the person there and starts it.
+    /// </summary>
+    private void ShowLinkFolderFlow()
+    {
+        if (!NavigateWorkspace(WorkspacePage.Settings)) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosing || _settingsEditor is not { } editor) return;
+            editor.RevealSetting(SettingsFieldId.MediaFolders);
+            editor.BeginAddFolderSource();
+        }, DispatcherPriority.Loaded);
+    }
+
     /// <summary>"All settings" of a popover: the settings page, with the control of the setting <paramref name="fieldId"/> revealed.</summary>
     private void ShowSettingsAt(string? fieldId)
     {

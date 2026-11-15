@@ -11,9 +11,9 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// R2 (plan PLAN-READER-MEDIEN-UND-LEISTE, 14.11.2026): the "Thread" menu next to "View" holds what concerns the open thread as
-// a download and as a file on disk: post capture, check now, retry media, media rules, details, folder, source, link and
-// removing the watch. "View" stays the reader's own look. Every entry is the same command and the same shell callback the archive
+// R2 (plan PLAN-READER-MEDIEN-UND-LEISTE, 14.11.2026): the "Thread" menu next to the settings gear holds what concerns the open thread as
+// a download and as a file on disk: post capture, check now, retry media, media rules, post bookmarks, details, folder, source, link and
+// removing the watch. The gear (RL1, formerly "View") stays the reader's own look. Every entry is the same command and the same shell callback the archive
 // list's context menu uses (target: the open thread), so the reader needs no download logic of its own. An entry that cannot run
 // is disabled with its reason in the tip. Deleting a thread permanently stays in the lists.
 public partial class ArchivePage
@@ -22,7 +22,7 @@ public partial class ArchivePage
     internal static readonly string[] ReaderThreadMenuIds =
     {
         "archive.capture-toggle", "watch.check", "watch.retry-media", "rules.edit-scope",
-        "thread.details", "location.open-folder", "location.open-source", "selection.copy-links",
+        "post-bookmarks.open-manager", "thread.details", "thread.show-in-media", "location.open-folder", "location.open-source", "selection.copy-links",
         "watch.remove"
     };
 
@@ -67,7 +67,14 @@ public partial class ArchivePage
         // The first builder section is the first native separator.
         builder.Section();
 
+        // RL1: the post bookmarks manager (the archive list's button and the app menu open the same dialog); not from the large reader,
+        // where the shell does not open it.
+        // QW-A #10 (glue wave8): one entry for RL1 and QW-A; RL1's place and large-reader guard, QW-A's menu label.
+        Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(), () => OpenPostBookmarks != null && !_largeReader,
+            () => Texts.T("reader.thread.bookmarksUnavailable"), () => Texts.T("reader.thread.postBookmarks"));
         Add("thread.details", () => { if (row != null) _ = ShowArchiveDetailsAsync(row); });
+        // QW-A #7: the thread's media on the Media page (the thread: chip).
+        Add("thread.show-in-media", () => { if (id != null) ShowThreadInMediaRequested?.Invoke(id, summary?.Title); }, () => ShowThreadInMediaRequested != null && id?.Thread != null);
         Add("location.open-folder", () => { if (row != null) RunArchiveLeadAction(row, "folder"); },
             () => SelectionLeadAction != null && !string.IsNullOrWhiteSpace(summary?.MediaDirectory), () => Texts.T("archive.command.noFolder"));
         Add("location.open-source", () => { if (row != null) RunArchiveLeadAction(row, "browser"); },

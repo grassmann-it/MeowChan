@@ -20,8 +20,8 @@ internal static class BrandNavigationChecks
             bool labeledIcon = button.Content is StackPanel { Children.Count: 2 } panel
                 && panel.Children[0] is Border { OpacityMask: not null }
                 && panel.Children[1] is TextBlock { Text.Length: > 0 };
-            bool compactIcon = name is "Downloads" or "Settings" or "Tools"
-                && button.Content is Border { OpacityMask: not null };
+            // QW-A: a narrow footer shows every page as its icon (tooltip and accessible name stay), not only Downloads, Settings and More.
+            bool compactIcon = button.Content is Border { OpacityMask: not null };
             if ((!labeledIcon && !compactIcon) || string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)))
                 throw new InvalidOperationException(name + " navigation lacks an icon, visible label or accessible name.");
         }

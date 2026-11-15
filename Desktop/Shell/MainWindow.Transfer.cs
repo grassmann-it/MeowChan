@@ -131,13 +131,15 @@ public partial class MainWindow
     internal const double HeaderMonitorMinimumWidth = 760;
     /// <summary>The room one optional header icon takes: the 30-dip icon and the 6-dip spacing of the utility row.</summary>
     internal const double HeaderIconRoom = 36;
+    /// <summary>The room of the arrow beside the book icon (its 20 dip button, 8 dip spacing less the 6 dip it is pulled toward the book).</summary>
+    internal const double HeaderArrowRoom = 22;
 
     /// <summary>
     /// Whether the header display is shown at this window width. Each optional icon in the utility row ("Continue reading", shown
     /// with a saved position) takes room the display would otherwise have, so the display goes earlier; without that the row ran
     /// past the header into the window controls at the Simple minimum width (760 DIPs).
     /// </summary>
-    internal static bool HeaderMonitorShown(bool hiddenBySetting, double windowWidth, int optionalIcons) =>
+    internal static bool HeaderMonitorShown(bool hiddenBySetting, double windowWidth, double optionalIcons) =>
         !hiddenBySetting && (windowWidth <= 0 || windowWidth >= HeaderMonitorMinimumWidth + optionalIcons * HeaderIconRoom);
 
     /// <summary>
@@ -147,7 +149,7 @@ public partial class MainWindow
     /// </summary>
     private void ApplyHeaderMonitorVisibility()
     {
-        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 : 0);
+        bool show = HeaderMonitorShown(_headerLayout.Hidden, Bounds.Width, ContinueReadingButton.IsVisible ? 1 + HeaderArrowRoom / HeaderIconRoom : 0);
         if (TransferSpeed.IsVisible == show) return;
         TransferSpeed.IsVisible = show;
         UpdateSpeedSamplingState();

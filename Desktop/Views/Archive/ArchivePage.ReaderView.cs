@@ -20,7 +20,7 @@ using Serilog;
 namespace MeowChan;
 
 // Reader foundation (plan P0): the projection "thread -> shown order" that pages, navigation, the reading mark and every
-// explicit jump work against, the "View" menu and the media switches as its first users. With nothing switched on the
+// explicit jump work against, the view switches of the settings popover (formerly the "View" menu) and the media switches as its first users. With nothing switched on the
 // projection is the identity: built synchronously, the same rows and the same allocations as before.
 public partial class ArchivePage
 {
@@ -40,7 +40,8 @@ public partial class ArchivePage
     private readonly List<ReaderViewOption> _viewOptions = new();
     private sealed record ReaderViewOption(string CommandId, Func<bool>? IsChecked, Action Toggle,
         Func<bool>? IsEnabled = null, Func<string?>? Note = null, bool ShortcutViaRouter = false);
-    // Fixed menu order; options registered later (P2, P4) slot in here, unknown ones go last. R3: "Show new posts automatically"
+    // Fixed option order (the key handler's and the session list's; the popover's own order is ReaderQuickSettings.Layout); options registered later
+    // (P2, P4) slot in here, unknown ones go last. R3: "Show new posts automatically"
     // (the command keeps its id watch.follow-live) stands before the post filters.
     private static readonly string[] ReaderViewOptionOrder =
         { "reader.view.hide-media", "reader.view.media-only", "reader.view.conversation", "reader.view.textless-large",
@@ -64,7 +65,7 @@ public partial class ArchivePage
     private ResourceId? _revealedThread;
     private int _readerPageSize = ReaderPageSizeDefault;
 
-    /// <summary>The "View" switches; global for every thread, for this session only.</summary>
+    /// <summary>The view switches of the session; global for every thread, for this session only.</summary>
     internal ReaderViewState ReaderView => _readerView;
     /// <summary>The shown order of the open thread; null while a new one is still being prepared.</summary>
     internal ReaderPostProjection? Projection => _projection != null && _projection.Matches(_thread) ? _projection : null;
@@ -90,8 +91,10 @@ public partial class ArchivePage
         RegisterPostClassifier(new ReaderMediaOnlyClassifier(_readerView));
         RegisterViewOption("reader.view.hide-media", () => _readerView.HideMedia, () => _readerView.HideMedia = !_readerView.HideMedia);
         RegisterViewOption("reader.view.media-only", () => _readerView.MediaOnly, () => _readerView.MediaOnly = !_readerView.MediaOnly);
+        // The popover of the toolbar's gear; the command stays so that a key bound to it opens the popover too.
         RegisterViewOption("reader.quick-settings", null, OpenReaderQuickSettings);
         _readerView.Changed += (_, _) => RequestProjectionRebuild();
+        _readerView.Changed += (_, _) => RefreshReaderSettings();
         // On the pane itself, so the shortcuts work in the embedded and in the detached reader.
         ArchiveReaderPane.AddHandler(KeyDownEvent, OnReaderViewKeyDown, RoutingStrategies.Bubble);
         LocalizeReaderView();
@@ -99,11 +102,12 @@ public partial class ArchivePage
 
     private void LocalizeReaderView()
     {
-        string label = Texts.T("reader.view.menu");
-        Button open = ReaderViewOpen;
-        open.Content = label;
-        ToolTip.SetTip(open, label);
-        Avalonia.Automation.AutomationProperties.SetName(open, label);
+        // RL1: the gear's text, tip and accessible name (with the note while a view filter is on).
+        UpdateReaderSettingsButton();
+        _readerQuickSettings?.Surface.RefreshSession();
+        // The short word "Find" on the bar; the tip and the accessible name say what it finds (the command's own label and key).
+        ToolTip.SetTip(ReaderFindOpen, CommandBindings.Tooltip("reader.find"));
+        Avalonia.Automation.AutomationProperties.SetName(ReaderFindOpen, CommandCatalog.Label("reader.find"));
         string threadLabel = Texts.T("reader.thread.menu");
         Button thread = ReaderThreadOpen;
         thread.Content = threadLabel;
@@ -128,8 +132,8 @@ public partial class ArchivePage
         RequestProjectionRebuild();
     }
 
-    /// <summary>One entry of the "View" menu, as a check item (or a plain item when <paramref name="isChecked"/> is
-    /// null, like "Post filters…"). The command needs no default gesture; a user shortcut toggles it too, unless the shell
+    /// <summary>One view option: a switch (or an action when <paramref name="isChecked"/> is null, like "Post filters…"). The settings popover
+    /// shows the ones its layout names; the others are reached by their key. The command needs no default gesture; a user shortcut toggles it too, unless the shell
     /// routes the shortcut itself (<paramref name="shortcutViaRouter"/>). <paramref name="isEnabled"/> and <paramref name="note"/>
     /// let an entry be disabled with its reason in the tip (shown on the disabled entry too).</summary>
     internal void RegisterViewOption(string commandId, Func<bool>? isChecked, Action toggle,
@@ -147,37 +151,6 @@ public partial class ArchivePage
         .Select((option, index) => (option, index))
         .OrderBy(item => Array.IndexOf(ReaderViewOptionOrder, item.option.CommandId) is var rank and >= 0 ? rank : ReaderViewOptionOrder.Length)
         .ThenBy(item => item.index).Select(item => item.option);
-
-    private void OnReaderViewMenuClick(object? sender, RoutedEventArgs e)
-    {
-        if (_ended || sender is not Control origin) return;
-        ContextMenu menu = BuildReaderViewMenu();
-        origin.ContextMenu = menu;
-        menu.Open(origin);
-    }
-
-    internal ContextMenu BuildReaderViewMenu()
-    {
-        // Reader settings keeps its marked empty slot after the view options; it is installed by the settings handoff.
-        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("reader.view.menu"));
-        foreach (ReaderViewOption option in OrderedViewOptions())
-        {
-            ReaderViewOption frozen = option;
-            bool CanExecute() => !_ended && !IsFilenameSearchOpen && (frozen.IsEnabled?.Invoke() ?? true);
-            string? Reason() => CanExecute() ? null : frozen.Note?.Invoke();
-            builder.Command(frozen.CommandId, () => { if (!_ended) frozen.Toggle(); }, CanExecute(), Reason(),
-                availableWhen: CanExecute, reasonWhen: Reason);
-        }
-        ContextMenu menu = builder.Build()!;
-        foreach (ReaderViewOption option in OrderedViewOptions())
-        {
-            if (option.IsChecked == null) continue;
-            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, option.CommandId)) is not { } item) continue;
-            item.ToggleType = MenuItemToggleType.CheckBox;
-            item.IsChecked = option.IsChecked();
-        }
-        return menu;
-    }
 
     /// <summary>The open thread can have its own media rules: it is watched, and the shell can open the Rules page.</summary>
     internal bool CanEditThreadRules => !_ended && !IsFilenameSearchOpen && _thread != null && SelectionLeadAction != null

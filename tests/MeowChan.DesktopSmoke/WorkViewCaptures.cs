@@ -584,8 +584,8 @@ internal static class WorkViewCaptures
         // MP3/MP4: the way into the tag queue walk, the way to the tagging page and the Booru launcher are under More in every view, but only
         // while the page's own state wants them (a shell that wires the walk and the page, a Booru workbench that can open): their state flag says so.
         string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
-            "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
-        string[] stateGated = ["media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page"];
+            "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
+        string[] stateGated = ["media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders"];
         bool StateWants(string id) => !stateGated.Contains(id)
             || controls.FirstOrDefault(control => WorkViewElement.GetId(control) == id) is { } owner && WorkViewElement.GetStateVisible(owner);
         string[] expectedMore = header.Where(id => (WorkViewPolicy.Resolve(id, workView) == Presence.Overflow || MediaToolbarLayout.IsMovedUnderMore(page.ToolbarLevel, id))

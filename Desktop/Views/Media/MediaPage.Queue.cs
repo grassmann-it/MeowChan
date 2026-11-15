@@ -55,6 +55,8 @@ public sealed partial class MediaPage
     internal Func<bool>? OpenTaggingPage { get; set; }
     private readonly Button _queueWalk = new() { Name = "MediaQueueWalk", IsVisible = false };
     private readonly Button _taggingPageOpen = new() { Name = "MediaTaggingPageOpen", IsVisible = false };
+    // QW-A #10: "Add all shown to the tagging queue…" under More; the executor is the chip menu's (AddAllShownToQueueAsync), which asks above the limit.
+    private readonly Button _queueAll = new() { Name = "MediaQueueAll", IsVisible = false };
     private TagQueueSnapshot? _queueSnapshot;
     // The keys of the queue (every state) for the badges and the queue term; null while the queue is unreadable.
     private IReadOnlySet<TagQueueKey>? _queueKeys = new HashSet<TagQueueKey>();
@@ -127,6 +129,12 @@ public sealed partial class MediaPage
         _queueWalk.Content = walk;
         Avalonia.Automation.AutomationProperties.SetName(_queueWalk, walk);
         _taggingPageOpen.Content = page;
+        string all = Texts.T("media.queue.all");
+        _queueAll.Content = all;
+        Avalonia.Automation.AutomationProperties.SetName(_queueAll, all);
+        string folders = Texts.T("command.media.folders");
+        _mediaFolders.Content = folders;
+        Avalonia.Automation.AutomationProperties.SetName(_mediaFolders, folders);
         Avalonia.Automation.AutomationProperties.SetName(_taggingPageOpen, page);
     }
 
@@ -139,6 +147,7 @@ public sealed partial class MediaPage
             catch (Exception error) when (UnhandledErrors.TryRecover(error, "media.queue.walk")) { /* Logged and shown. */ }
         };
         _taggingPageOpen.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) OpenTaggingPage?.Invoke(); };
+        _queueAll.Click += async (_, _) => await AddAllShownToQueueAsync();
     }
 
     private Control BuildQueueAsk()
@@ -164,6 +173,9 @@ public sealed partial class MediaPage
     {
         bool wired = AddToTagQueue != null;
         SetAction(_selQueue, ready && wired, reason, wired, "media.selection.queue.hint");
+        // The page-wide entry does not depend on the selection: it needs shown tiles and an index that is not being built.
+        string? allReason = _building != null ? Texts.T("media.selection.reason.building") : _tiles.Count == 0 ? Texts.T("media.queueAll.reason.none") : null;
+        SetAction(_queueAll, allReason == null && wired && !_selectionBusy && !_lifetime.IsCancellationRequested, allReason, wired, "media.queueAll.hint");
     }
 
     private void DismissQueueAsk()

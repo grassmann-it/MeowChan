@@ -143,8 +143,9 @@ public sealed class ShortcutTableModelTests : IDisposable
     [Fact]
     public void ConflictPairsAreSymmetricAndCounted()
     {
-        var draft = new ShortcutBindingsSection().Set("navigation.archive", new[] { ShortcutGesture.Parse("Primary+Shift+K") })
-            .Set("navigation.rules", new[] { ShortcutGesture.Parse("Primary+Shift+K") });
+        // Primary+Shift+Y: a key no page letter (revision 15) or other default uses, so only the two saved bindings meet.
+        var draft = new ShortcutBindingsSection().Set("navigation.archive", new[] { ShortcutGesture.Parse("Primary+Shift+Y") })
+            .Set("navigation.rules", new[] { ShortcutGesture.Parse("Primary+Shift+Y") });
         ShortcutTableModel model = ShortcutTableModel.Build(draft, ShortcutPlatform.Linux);
         ShortcutTableRow archive = model.Rows.Single(r => r.CommandId == "navigation.archive");
         ShortcutTableRow rules = model.Rows.Single(r => r.CommandId == "navigation.rules");
@@ -153,7 +154,7 @@ public sealed class ShortcutTableModelTests : IDisposable
         Assert.Single(archive.Conflicts);
         Assert.Equal(2, model.BlockingCount);
         // The table still shows the requested (rejected) gesture so the user sees what conflicts.
-        Assert.Equal("Ctrl+Shift+K", Assert.Single(archive.GestureTexts));
+        Assert.Equal("Ctrl+Shift+Y", Assert.Single(archive.GestureTexts));
         string[] onlyConflicts = model.Query(new ShortcutTableQuery(ConflictsOnly: true)).SelectMany(g => g.Rows).Select(r => r.CommandId).ToArray();
         Assert.Equal(new[] { "navigation.archive", "navigation.rules" }, onlyConflicts.Order());
         Assert.Equal(0, ShortcutTableModel.Build(new ShortcutBindingsSection(), ShortcutPlatform.Linux).BlockingCount);

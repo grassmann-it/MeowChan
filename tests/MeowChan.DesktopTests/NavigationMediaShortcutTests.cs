@@ -22,27 +22,27 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     public void Dispose() { SetBindings(_original); Texts.Initialize(); Texts.SetLanguage("en"); }
 
     [Theory]
-    [InlineData(ShortcutPlatform.Linux, "Ctrl+3")]
-    [InlineData(ShortcutPlatform.Windows, "Ctrl+3")]
-    [InlineData(ShortcutPlatform.MacOS, "⌘3")]
+    [InlineData(ShortcutPlatform.Linux, "Ctrl+3 / Ctrl+Shift+E")]
+    [InlineData(ShortcutPlatform.Windows, "Ctrl+3 / Ctrl+Shift+E")]
+    [InlineData(ShortcutPlatform.MacOS, "⌘3 / ⇧⌘E")]
     public void MediaJoinsTheOtherMainPagesWithItsOwnDefaultAndNoConflict(ShortcutPlatform platform, string display)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Equal(display, bindings.Display("navigation.media"));
         Assert.Empty(bindings.Issues);
-        // Every main page has its own digit; none of the others, and no other command, owns Ctrl+3.
-        foreach (string page in Pages) Assert.Single(bindings.For(page));
+        // Every main page has its own digit and (revision 15) its own fixed letter behind it; none of the others, and no other command, owns Ctrl+3.
+        foreach (string page in Pages) Assert.Equal(2, bindings.For(page).Count);
         Assert.Equal(Pages.Length, Pages.Select(page => bindings.Display(page)).Distinct().Count());
-        ShortcutGesture media = Assert.Single(bindings.For("navigation.media"));
-        foreach (var command in CommandCatalog.All.Where(command => command.Id != "navigation.media"))
-            Assert.DoesNotContain(bindings.For(command.Id), gesture => EffectiveShortcutBindings.Equivalent(media, gesture, platform));
-        // The n-th main page from the left is Primary+n.
+        foreach (ShortcutGesture media in bindings.For("navigation.media"))
+            foreach (var command in CommandCatalog.All.Where(command => command.Id != "navigation.media"))
+                Assert.DoesNotContain(bindings.For(command.Id), gesture => EffectiveShortcutBindings.Equivalent(media, gesture, platform));
+        // The n-th main page from the left is Primary+n (the first gesture).
         for (int index = 0; index < Pages.Length; index++)
-            Assert.Equal(MainPageOrder.Digit(Pages[index])!.Value.ToString(), bindings.Display(Pages[index])![^1..]);
+            Assert.Equal("D" + MainPageOrder.Digit(Pages[index])!.Value, bindings.For(Pages[index])[0].Key);
         // Default layout: Tagging owns 4 behind Media, so Rules and Sources take 5 and 6 and Status keeps 7 (Booru is hidden and numbered last).
-        Assert.Equal("6", bindings.Display("navigation.sources")![^1..]);
+        Assert.Equal("D6", bindings.For("navigation.sources")[0].Key);
         Assert.Null(bindings.Display("navigation.plugins"));
-        Assert.Equal("7", bindings.Display("navigation.status")![^1..]);
+        Assert.Equal("D7", bindings.For("navigation.status")[0].Key);
     }
 
     [Theory]
@@ -54,7 +54,8 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         string before = section.Raw.GetRawText();
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Equal("Ctrl+" + digit, bindings.Display(owner));
-        Assert.Empty(bindings.For(page));
+        // The yielding digit goes; the page keeps its fixed letter (revision 15), which is nobody's saved key here.
+        Assert.Equal(new[] { PageKeyScheme.Letter(page) }, bindings.For(page).Select(g => g.Key));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == page && issue.OtherCommandId == owner);
         Assert.Equal(before, section.Raw.GetRawText());
@@ -71,8 +72,8 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Equal("Ctrl+3 / Ctrl+9", bindings.Display("navigation.rules"));
         Assert.Equal("Ctrl+5", bindings.Display("navigation.diagnostics"));
-        Assert.Empty(bindings.For("navigation.media"));   // Ctrl+3 stays with Rules
-        Assert.Equal("Ctrl+6", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
+        Assert.Equal(new[] { PageKeyScheme.Letter("navigation.media") }, bindings.For("navigation.media").Select(g => g.Key));   // Ctrl+3 stays with Rules; Media keeps its letter
+        Assert.Equal("Ctrl+6 / Ctrl+Shift+X", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
     }

@@ -94,6 +94,8 @@ public partial class MainWindow
         _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
         _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
+        _archivePage.ReaderNavigationMode = _config.ReaderNavigationMode;
+        _archivePage.ReaderNavigationShowPosition = _config.ReaderNavigationShowPosition;
         _archivePage.SaveExportDirectory = path => _session.SaveViewPreferencesAsync(current => current.LastExportDirectory = path);
         _archivePage.ArchiveColumnModePreference = _config.WorkspaceMode;
         _archivePage.ArchiveColumnWidthsPreference = _config.ColumnWidths;
@@ -449,18 +451,19 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>Follows the profile's footer layout: the digits (Ctrl/Cmd+1, 2, 3 ... follow the buttons from left to right), the button order and visibility.</summary>
+    /// <summary>Follows the profile's footer layout: the digits (Ctrl/Cmd+1, 2, 3 ... follow the buttons shown in the work view from left to right), the button order and visibility.</summary>
     private void ApplyFooterLayout()
     {
-        ApplyFooterNumbering(_config.FooterLayout);
+        ApplyFooterNumbering(_config.FooterLayout, ConfiguredWorkView, CanOpenBooru);
         UpdatePageNavigation();
     }
 
     // The digits follow the layout. Publishing the unchanged bindings again rebuilds their snapshot with the new numbering, so tooltips, menus,
     // the shortcuts window and the router all see it at once.
-    private static void ApplyFooterNumbering(FooterLayout layout)
+    // The digits follow the layout AND the work view (the buttons effectively shown, FooterLayout.NumberingFor), never the window width.
+    private static void ApplyFooterNumbering(FooterLayout layout, WorkView view, bool booruAvailable)
     {
-        if (MainPageOrder.SetNumbering(layout.Numbering)) ShortcutService.Publish(ShortcutService.CurrentSection);
+        if (MainPageOrder.SetNumbering(layout.NumberingFor(view, id => id != "navigation.booru" || booruAvailable))) ShortcutService.Publish(ShortcutService.CurrentSection);
     }
 
     private Dictionary<string, Border> FooterSeparators()
@@ -524,7 +527,7 @@ public partial class MainWindow
     {
         if (_measuringPageNavigation) return;
         FooterLayout layout = _config.FooterLayout;
-        ApplyFooterNumbering(layout);
+        ApplyFooterNumbering(layout, ConfiguredWorkView, CanOpenBooru);
         _booruNavigationAvailable = CanOpenBooru; // what this refresh builds the Booru button and More entry from (SyncBooruNavigation compares)
         _measuringPageNavigation = true;
         try
@@ -570,6 +573,9 @@ public partial class MainWindow
             CommandBindings.Apply(downloads, "navigation.downloads", iconWithLabel: true);
             CommandBindings.Apply(settings, "navigation.settings", iconWithLabel: true);
             CommandBindings.Apply(tools, "navigation.tools-menu", iconWithLabel: true);
+            // Every page button starts each pass with icon and text (an earlier narrow pass may have left icons only).
+            foreach (var destination in destinations.Where(destination => !destination.IsDownloads))
+                CommandBindings.Apply(destination.Button, destination.Id, iconWithLabel: true);
             Size unconstrained = new(double.PositiveInfinity, double.PositiveInfinity);
             double Measure(Button button)
             {
@@ -619,39 +625,25 @@ public partial class MainWindow
             double available = width - footer.Padding.Left - footer.Padding.Right - fixedFooterWidth;
             // A page the layout or work view moved to More needs the More button; one that is unavailable does not.
             bool NeedsMore() => destinations.Where((destination, index) => destination.Available && !direct[index]).Any();
-            double RequiredWidth()
-            {
-                bool overflow = NeedsMore();
-                int visibleSeparators = SeparatorFlags(direct).Count(flag => flag);
-                int count = 1 + direct.Count(visible => visible) + (overflow ? 1 : 0) + visibleSeparators;
-                double buttons = 0;
-                for (int index = 0; index < destinations.Length; index++)
-                    if (direct[index]) buttons += destinations[index].IsDownloads ? downloadsWidth : destinationWidths[index];
-                return settingsWidth + buttons
-                    + (overflow ? toolsWidth : 0) + visibleSeparators * separatorWidth + Math.Max(0, count - 1) * panel.Spacing;
-            }
-            // The rightmost button leaves first, so the buttons the person put at the front stay longest (with the default layout this is the
-            // order Status, Plugins, Rules, Booru, Tagging, Media, Archive: MainPageOrder.OverflowOrder). Downloads never leaves.
-            foreach (string id in layout.Order.Reverse())
-            {
-                if (RequiredWidth() <= available) break;
-                int index = Array.FindIndex(destinations, destination => destination.Id == id);
-                if (index >= 0 && !destinations[index].IsDownloads) direct[index] = false;
-            }
-            // A small screen can shrink even below the usual workspace minimum.
-            // Compact familiar icons only when the actual localized destinations do not fit.
-            if (RequiredWidth() > available)
-            {
-                CommandBindings.Apply(settings, "navigation.settings", iconOnly: true);
-                settingsWidth = Measure(settings);
-            }
-            if (RequiredWidth() > available)
-            {
-                CommandBindings.Apply(downloads, "navigation.downloads", iconOnly: true);
-                downloadsWidth = Measure(downloads);
-            }
-            if (RequiredWidth() > available)
-                CommandBindings.Apply(tools, "navigation.tools-menu", iconOnly: true);
+            // QW-A (review 15.11.2026, item 6): every page button is icon and text; when that does not fit the page buttons become icons (tooltip
+            // and accessible name stay the command's) before a page moves to More, then Settings, Downloads and More lose their text, in this
+            // order (FooterFitPlanner). The rightmost page leaves first, so the buttons the person put at the front stay longest (with the
+            // default layout this is the order Status, Plugins, Rules, Booru, Tagging, Media, Archive: MainPageOrder.OverflowOrder).
+            static double IconOnlyWidth(Button button) => Math.Max(button.MinWidth, 16 + button.Padding.Left + button.Padding.Right
+                + button.BorderThickness.Left + button.BorderThickness.Right);
+            FooterFitButton[] fitPages = destinations.Select((destination, index) => new FooterFitButton(destination.Id,
+                destination.IsDownloads ? downloadsWidth : destinationWidths[index], IconOnlyWidth(destination.Button), direct[index], destination.Available)).ToArray();
+            FooterFitResult fit = FooterFitPlanner.Plan(available, panel.Spacing, separatorWidth, fitPages, "navigation.downloads",
+                new FooterFitButton("navigation.settings", settingsWidth, IconOnlyWidth(settings)),
+                new FooterFitButton("navigation.tools-menu", toolsWidth, IconOnlyWidth(tools)),
+                flags => SeparatorFlags(flags).Count(flag => flag));
+            for (int index = 0; index < destinations.Length; index++)
+                if (fit.MovedToMore.Contains(destinations[index].Id)) direct[index] = false;
+            foreach (var destination in destinations.Where(destination => !destination.IsDownloads))
+                CommandBindings.Apply(destination.Button, destination.Id, iconOnly: fit.PagesIconOnly, iconWithLabel: !fit.PagesIconOnly);
+            if (fit.SettingsIconOnly) CommandBindings.Apply(settings, "navigation.settings", iconOnly: true);
+            if (fit.DownloadsIconOnly) CommandBindings.Apply(downloads, "navigation.downloads", iconOnly: true);
+            if (fit.ToolsIconOnly) CommandBindings.Apply(tools, "navigation.tools-menu", iconOnly: true);
 
             bool hasOverflow = NeedsMore();
             tools.IsVisible = hasOverflow;

@@ -14,9 +14,9 @@ using MeowChan.Storage;
 
 namespace MeowChan.DesktopSmoke;
 
-// R10: inline video in the reader, in an isolated page and profile. Always: off by default a click on a video opens the gallery path
-// and creates no player; with the setting on, a broken video shows its error under the frame (never hidden) and announces nothing
-// as playing. With the real fixture (MEOWCHAN_VIDEO_FIXTURE): click plays in the post, a second video pauses the first (one plays),
+// R10: inline video in the reader, in an isolated page and profile. Always: with the default choice "Show in the sidebar" and no sidebar on
+// screen a click on a video opens the gallery path and creates no player; with "Open in the post" a broken video shows its error under the
+// frame (never hidden) and announces nothing as playing. With the real fixture (MEOWCHAN_VIDEO_FIXTURE): click plays in the post, a second video pauses the first (one plays),
 // the bound of live players holds, scrolling out pauses (software surface) or releases (native), the media sidebar plays the
 // selected post's video and gives its player back on another medium, and a thread switch releases every player.
 internal static class ReaderInlineVideoChecks
@@ -84,13 +84,15 @@ internal static class ReaderInlineVideoChecks
                 .First(view => view.DataContext is ArchiveAttachmentRow row && row.Attachment.OriginalFileName == file);
             await Program.WaitUntilAsync(() => { host.UpdateLayout(); return list.GetVisualDescendants().OfType<ArchiveAttachmentView>().Count() >= 3; });
 
-            // Off by default: a click is the old path (gallery), no player exists.
-            Require(!page.ReaderMedia.Video.Enabled && !page.ReaderMedia.Video.AutoplayMuted, "Inline video or its autoplay is not off by default.");
+            // The default choice is the sidebar (autoplay off); with no sidebar on screen a click is the old path (gallery), no player exists in the post.
+            Require(page.ReaderMedia.Video.Mode == ReaderMediaClickMode.Sidebar && !page.ReaderMedia.Video.InPost && !page.ReaderMedia.Video.AutoplayMuted,
+                "The click choice is not the sidebar by default, or autoplay is not off.");
             Click(View("first.webm").PreviewButton);
             await Flush();
             Require(page.InlineVideo.Created == 0 && View("first.webm").InlineVideo?.IsLive != true, "A player was created with the setting off.");
 
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { Video = page.ReaderMedia.Video with { Enabled = true } });
+            // "Open in the post": videos play inline (the minimal control), images expand there.
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { Video = page.ReaderMedia.Video with { Enabled = true, InPost = true } });
             int opensBefore = galleryOpens;
 
             // The broken video: its error stays visible under the frame (in every work view: it is post content, never reduced).
@@ -106,7 +108,7 @@ internal static class ReaderInlineVideoChecks
 
             if (real == null)
             {
-                Console.WriteLine("SMOKE reader inline video: off by default (no player), on: click plays here, a broken video shows its error; real playback needs MEOWCHAN_VIDEO_FIXTURE.");
+                Console.WriteLine("SMOKE reader inline video: sidebar choice by default (no player in the post), in the post: click plays here, a broken video shows its error; real playback needs MEOWCHAN_VIDEO_FIXTURE.");
                 return;
             }
 
@@ -119,6 +121,14 @@ internal static class ReaderInlineVideoChecks
             Require(AutomationProperties.GetName(first.Activator).Contains("first.webm", StringComparison.Ordinal), "The video control has no name.");
             Require(first.LiveText == Texts.T("reader.video.playing", "first.webm"), "Play was not announced.");
             Require(first.Below.IsEffectivelyVisible && first.Player?.TransportControl.IsEffectivelyVisible == true, "The current video shows no transport.");
+            // The minimal control: exactly play, timeline, time, mute (here no "Open in gallery" icon is missing: the post offers it), as wide as the picture.
+            GalleryVideoPlayer firstPlayer = first.Player!;
+            Require(firstPlayer.HasMinimalTransport && firstPlayer.MinimalBar != null, "The post's video does not use the minimal control.");
+            Require(firstPlayer.MinimalBar!.Children.All(child => child.Name != null && InlineVideoBarLayout.ControlNames.Contains(child.Name)),
+                "The minimal control holds something besides play, timeline, time, mute and open.");
+            Require(Math.Abs(firstPlayer.TransportControl.Bounds.Width - firstView.PreviewButton.Bounds.Width) <= 2.5,
+                "The video's control is not as wide as its picture: " + firstPlayer.TransportControl.Bounds.Width + " vs " + firstView.PreviewButton.Bounds.Width);
+            Require(first.Activator.Classes.Contains("video-activator"), "The play control over the poster lost its transparent style (hover would hide the poster).");
 
             // One at a time: the second pauses the first, whose transport gives way (one set of video controls in the reader).
             Click(secondView.PreviewButton);
@@ -159,6 +169,21 @@ internal static class ReaderInlineVideoChecks
             Program.CaptureWindow(host, "smoke-reader-inline-video-sidebar.png");
             list.SelectedIndex = 4; // a post without media
             await Program.WaitUntilAsync(() => !sidebar.IsLive);
+
+            // "Show in the sidebar": a click on a tile of a post shows it there and plays it there; the post's own player stays unused.
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { Video = page.ReaderMedia.Video with { InPost = false } });
+            await page.InlineVideo.ReleaseAllAsync();
+            Click(View("second.webm").PreviewButton);
+            await Program.WaitUntilAsync(() => page.SidebarInlineVideo?.IsPlaying == true);
+            Require(View("second.webm").InlineVideo?.IsLive != true && page.InlineVideo.LiveCount == 1, "A tile click with the sidebar choice played in the post, not in the sidebar.");
+            // "Open in the gallery": the click opens the gallery and plays nothing.
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { Video = page.ReaderMedia.Video with { Enabled = false } });
+            await page.InlineVideo.ReleaseAllAsync();
+            int opensBeforeGallery = galleryOpens;
+            Click(View("second.webm").PreviewButton);
+            await Flush();
+            Require(galleryOpens == opensBeforeGallery + 1 && page.InlineVideo.LiveCount == 0, "A click with the gallery choice did not open the gallery or played a video.");
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { Video = page.ReaderMedia.Video with { Enabled = true, InPost = true } });
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { Sidebar = false });
             page.AttachReader(frame);
             readerHost.Content = null; readerHost.IsVisible = false; page.IsVisible = true;
@@ -174,7 +199,7 @@ internal static class ReaderInlineVideoChecks
             await page.LoadThreadAsync(other);
             await page.InlineVideo.WhenReleasedAsync();
             Require(page.InlineVideo.LiveCount == 0 && page.InlineVideo.Created == page.InlineVideo.Released, "A thread switch kept a player.");
-            Console.WriteLine("SMOKE reader inline video: off by default, click plays here, named control, announced play/pause, one plays, bound, scroll-out pause, sidebar play and give-back, reader close and thread switch release, broken video error visible.");
+            Console.WriteLine("SMOKE reader inline video: sidebar choice by default, in the post click plays here with the minimal control at picture width, named control, announced play/pause, one plays, bound, scroll-out pause, sidebar play and give-back, reader close and thread switch release, broken video error visible.");
         }
         finally
         {

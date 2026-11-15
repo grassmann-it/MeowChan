@@ -1,9 +1,14 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 
@@ -27,6 +32,8 @@ public partial class ArchivePage
     private void InitializeInlineVideo()
     {
         ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);
+        ArchivePosts.SetValue(ArchiveAttachmentView.TileActivationProperty, (Func<ArchiveAttachmentRow, bool>)ShowTileInMediaSidebar);
+        _inlineVideo.NavigationKeys = TryNavigateReaderByKey;
         AttachedToVisualTree += (_, _) => WatchInlineVideoWindow(TopLevel.GetTopLevel(this) as Window);
         DetachedFromVisualTree += (_, _) => { WatchInlineVideoWindow(null); ReleaseInlineVideos(); };
     }
@@ -35,7 +42,7 @@ public partial class ArchivePage
     private void ApplyInlineVideoLive(ReaderMediaPreferences media)
     {
         _ = _inlineVideo.ConfigureAsync(media.Video);
-        _inlineVideo.AutoplayInPosts = media.Video.Enabled && media.Video.AutoplayMuted && !_mediaSidebarShown;
+        _inlineVideo.AutoplayInPosts = media.Video.InPost && media.Video.AutoplayMuted && !_mediaSidebarShown;
         if (_mediaSidebarShown) OfferSidebarVideo(ArchivePosts.SelectedItem as ArchivePostRow, CurrentSidebarAttachment());
     }
 
@@ -67,6 +74,82 @@ public partial class ArchivePage
         if (e.Property == Window.WindowStateProperty && e.NewValue is WindowState.Minimized) _ = PauseInlineVideos();
     }
 
+    // ---- the reader's video keys --------------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The video the reader's keys act on for the selected post: the media sidebar's when it is shown and presents a video; otherwise the first
+    /// video of the post that can play in it (one that already plays first). Null when nothing can play inline, so the keys keep their old meaning
+    /// (Enter and Space open the gallery). The sidebar goes first because it is what the person looks at, and so no second player of the
+    /// same file is created beside it.
+    /// </summary>
+    private ReaderInlineVideoSlot? ReaderVideoTarget(ArchivePostRow post)
+    {
+        if (!_inlineVideo.Options.Enabled) return null;
+        if (_mediaSidebarShown && _sidebarVideo is { IsOffered: true } sidebar) return sidebar;
+        if (ArchivePosts.ContainerFromItem(post) is not Control container) return null;
+        List<ArchiveAttachmentView> views = container.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+            .Where(view => ReaderInlineVideoRules.CanOfferInPost(_inlineVideo.Options, view.DataContext as ArchiveAttachmentRow)).ToList();
+        ArchiveAttachmentView? chosen = views.FirstOrDefault(view => view.InlineVideo?.IsLive == true) ?? views.FirstOrDefault();
+        return chosen?.InlineVideoForKeys();
+    }
+
+    /// <summary>
+    /// Enter plays or pauses the selected post's video; the gallery's video keys (play / pause, mute, repeat, seek step, speed, next frame)
+    /// act on it too. They are only taken where the focus is on the post's content (never in a text field, a button or a list of its own, which
+    /// keep their keys), so Space is the video's only where it cannot be anything else; elsewhere in the reader the keys are what they were.
+    /// </summary>
+    private bool TryRouteReaderVideoKey(KeyEventArgs e)
+    {
+        if (e.Handled || !_largeReader || e.Source is not Control source || ArchivePosts.SelectedItem is not ArchivePostRow post) return false;
+        if (e.Source is ReaderBodyTextBlock { HasHiddenSpoilers: true }) return false;
+        if (!ReaderMediaContextIsCurrent(source, post, needsGallery: false)) return false;
+        // Enter follows the choice "Clicking a medium" for the post's first medium (a click on it, from the keyboard).
+        if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) && IsReaderMediaGesture(e, ShortcutService.Current)) return TryActivateFirstMedium(e, post);
+        ReaderVideoAction action = ReaderVideoKeys.Classify(id => ShortcutService.Current.Matches(e, id));
+        if (action == ReaderVideoAction.None || ReaderVideoTarget(post) is not { } slot) return false;
+        e.Handled = true;
+        _ = slot.ExecuteAsync(action);
+        return true;
+    }
+
+    /// <summary>
+    /// Enter on the selected post: what a click on its first medium does by the choice "Clicking a medium". In the sidebar it shows that medium there
+    /// and plays a video (Enter again, while that video is shown, plays or pauses it); in the post it plays a video or expands an image (again: pauses,
+    /// or puts the image back). With the gallery as the choice, or the sidebar closed, it returns false and Enter opens the gallery as it always did.
+    /// </summary>
+    private bool TryActivateFirstMedium(KeyEventArgs e, ArchivePostRow post)
+    {
+        if (!post.ShowsMedia || post.Attachments.Count == 0) return false;
+        ReaderMediaClickMode target = ReaderMediaClickRules.Resolve(_inlineVideo.Options.Mode, _mediaSidebarShown);
+        ArchiveAttachmentRow first = post.Attachments[0];
+        if (target == ReaderMediaClickMode.Sidebar)
+        {
+            e.Handled = true;
+            if (ReferenceEquals(CurrentSidebarAttachment(), first) && _sidebarVideo is { IsOffered: true } shown) _ = shown.ToggleAsync();
+            else ShowTileInMediaSidebar(first);
+            return true;
+        }
+        if (target == ReaderMediaClickMode.Post && ArchivePosts.ContainerFromItem(post) is Control container
+            && container.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault(view => ReferenceEquals(view.DataContext, first)) is { } view)
+        {
+            e.Handled = true;
+            view.ActivateMedium();
+            return true;
+        }
+        return false;
+    }
+
+    // The sidebar's own focus (its strip, its header buttons): the video keys act on the video it presents.
+    private bool TryRouteSidebarVideoKey(KeyEventArgs e)
+    {
+        if (e.Handled || !_mediaSidebarShown || _sidebarVideo is not { IsOffered: true } slot || e.Source is Button) return false;
+        ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
+        if (action == ReaderVideoAction.None) return false;
+        e.Handled = true;
+        _ = slot.ExecuteAsync(action);
+        return true;
+    }
+
     // ---- media sidebar ---------------------------------------------------------------------------------------------------------
 
     private void CreateSidebarVideo(ReaderMediaSidebar sidebar)
@@ -82,8 +165,11 @@ public partial class ArchivePage
         if (_sidebarVideo is not { } slot) return;
         bool offered = _mediaSidebarShown && post != null && ReaderInlineVideoRules.CanOffer(_inlineVideo.Options, row);
         string? key = offered ? _thread?.Summary.Id + "\n" + post!.Id + "\n" + ReaderInlineVideoSlot.KeyOf(row!.Attachment) : null;
-        slot.Offer(offered ? _inlineVideo : null, key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty);
+        slot.Offer(offered ? _inlineVideo : null, key, row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty,
+            row?.OpenPreview);
         if (!offered) { _sidebarVideoAutoplay?.Stop(); _sidebarVideoAutoplayKey = null; }
+        // A click on a video tile of the post asked for it to play here (the sidebar presents it now).
+        if (_sidebarPlayRequested) { _sidebarPlayRequested = false; if (offered) _ = slot.PlayAsync(); }
     }
 
     /// <summary>A click on the sidebar's picture: plays or pauses an inline video; anything else opens the gallery as before.</summary>

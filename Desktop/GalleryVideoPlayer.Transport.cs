@@ -497,7 +497,7 @@ internal sealed partial class GalleryVideoPlayer
         string menu = Texts.T("viewer.video.menu");
         AutomationProperties.SetName(_playerMenuButton, menu);
         ToolTip.SetTip(_playerMenuButton, menu);
-        if (_volumeAsPopup && ToolTip.GetTip(_mute) is string muteTip)
+        if (_volumeAsPopup && _minimalBar == null && ToolTip.GetTip(_mute) is string muteTip)
         {
             muteTip += " · " + Texts.T("viewer.video.volumeHelp");
             AutomationProperties.SetHelpText(_mute, muteTip);

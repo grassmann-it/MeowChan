@@ -79,17 +79,19 @@ public sealed class StatusNavigationTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ShortcutPlatform.Linux, "Ctrl+7")]
-    [InlineData(ShortcutPlatform.Windows, "Ctrl+7")]
-    [InlineData(ShortcutPlatform.MacOS, "⌘7")]
+    [InlineData(ShortcutPlatform.Linux, "Ctrl+7 / Ctrl+Shift+S")]
+    [InlineData(ShortcutPlatform.Windows, "Ctrl+7 / Ctrl+Shift+S")]
+    [InlineData(ShortcutPlatform.MacOS, "⌘7 / ⇧⌘S")]
     public void TheShortcutIsPrimaryPlusSevenWithoutAConflict(ShortcutPlatform platform, string display)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Equal(display, bindings.Display("navigation.status"));
         Assert.Empty(bindings.Issues);
-        ShortcutGesture gesture = Assert.Single(bindings.For("navigation.status"));
-        foreach (var command in CommandCatalog.All.Where(command => command.Id != "navigation.status"))
-            Assert.DoesNotContain(bindings.For(command.Id), other => EffectiveShortcutBindings.Equivalent(gesture, other, platform));
+        // The digit and (revision 15) the fixed letter S: neither is owned by another command.
+        Assert.Equal(2, bindings.For("navigation.status").Count);
+        foreach (ShortcutGesture gesture in bindings.For("navigation.status"))
+            foreach (var command in CommandCatalog.All.Where(command => command.Id != "navigation.status"))
+                Assert.DoesNotContain(bindings.For(command.Id), other => EffectiveShortcutBindings.Equivalent(gesture, other, platform));
     }
 
     [Fact]
@@ -99,7 +101,7 @@ public sealed class StatusNavigationTests : IDisposable
         Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 7);
         var section = new ShortcutBindingsSection().Set("thread.read", [ShortcutGesture.Parse("Primary+7")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-        Assert.Empty(bindings.For("navigation.status"));
+        Assert.Equal(new[] { "S" }, bindings.For("navigation.status").Select(g => g.Key)); // the digit yields, the fixed letter stays
         Assert.Equal(1, bindings.For("thread.read").Count);
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
     }
@@ -116,7 +118,7 @@ public sealed class StatusNavigationTests : IDisposable
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Equal("Ctrl+7", bindings.Display("navigation.diagnostics"));
         Assert.Equal("Ctrl+8", bindings.Display("navigation.statistics"));
-        Assert.Empty(bindings.For("navigation.status"));
+        Assert.Equal("Ctrl+Shift+S", bindings.Display("navigation.status")); // only the digit yields; the fixed letter stays
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "navigation.status" && issue.OtherCommandId == "navigation.diagnostics"
             && issue.Reason?.Code == "defaultYields");

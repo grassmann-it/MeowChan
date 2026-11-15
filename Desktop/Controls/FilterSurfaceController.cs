@@ -77,10 +77,10 @@ internal sealed class FilterSurfaceController
         Dispatcher.UIThread.Post(() =>
         {
             if (_isEnded() || !IsOpen || !surface.IsEffectivelyVisible) return;
-            // The surface's own cross (a HeaderBar back slot child, first in tab order) is never the first field: focus starts on content.
+            // The surface's own cross (a HeaderBar end slot child, the right edge of its header) is never the first field: focus starts on content.
             surface.GetVisualDescendants().OfType<InputElement>()
                 .FirstOrDefault(element => element.Focusable && element.IsEffectivelyEnabled && element.IsEffectivelyVisible
-                    && !(element is Control control && HeaderBar.GetIsBack(control)))
+                    && !(element is Control control && HeaderBar.GetIsEnd(control)))
                 ?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }

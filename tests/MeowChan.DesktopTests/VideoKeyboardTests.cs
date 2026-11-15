@@ -70,7 +70,9 @@ public sealed class VideoKeyboardTests : IDisposable
         CommandDefinition command = CommandCatalog.Get(id);
         Assert.Equal(shortcut, command.Shortcut);
         Assert.True(command.IsImplemented);
-        Assert.Equal(new[] { "gallery" }, EffectiveShortcutBindings.ExecutionContexts(id));
+        // The video keys run in the reader too (on the selected post's video, 15.11.2026); the filmstrip belongs to the gallery alone.
+        Assert.Equal(id.StartsWith("video.", StringComparison.Ordinal) ? new[] { "reader", "gallery" } : new[] { "gallery" },
+            EffectiveShortcutBindings.ExecutionContexts(id).OrderBy(context => context == "gallery" ? 1 : 0));
         Assert.Contains(id, EffectiveShortcutBindings.YieldingDefaultCommandIds);
         Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 12);
         foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())

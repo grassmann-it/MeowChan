@@ -20,7 +20,7 @@ public sealed class SettingsRowMenuTests : IDisposable
         List<string> log = [];
         ContextMenuModel model = Model(SettingsRowMenu.ResetState.Resettable, log: log);
         Assert.Equal(new[] { "settings.reset-default", "settings.copy-id" }, model.Entries.Select(entry => entry.CommandId));
-        Assert.Equal(new[] { "Reset to default", "Copy setting id" }, model.Entries.Select(entry => entry.Label));
+        Assert.Equal(new[] { "Reset setting", "Copy setting id" }, model.Entries.Select(entry => entry.Label));
         Assert.All(model.Entries, entry => { Assert.True(entry.Available); Assert.Null(entry.Reason); });
         Assert.All(model.Entries, entry => Assert.True(CommandCatalog.TryGet(entry.CommandId!, out _)));
         foreach (ContextMenuEntry entry in model.Entries) entry.Invoke!();

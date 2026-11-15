@@ -25,15 +25,21 @@ internal static class MediaMenuBuilder
     /// <param name="run">Runs a handler with the surface's own error reporting.</param>
     /// <param name="contextItems">Context-specific items, shown after a separator below the common section.</param>
     /// <param name="explain">Shows the summary of unavailable actions; null keeps the summary item out of the menu.</param>
+    /// <param name="leadingItems">A group on top of the common section (the playback group of a video in the reader), followed by a separator.</param>
     internal static ContextMenu Build(MediaMenuSession session, MediaMenuModel model,
         IReadOnlyDictionary<MediaMenuAction, Func<Task>> handlers, Func<Func<Task>, Task> run,
-        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null)
+        IReadOnlyList<Control>? contextItems = null, Action<string>? explain = null, IReadOnlyList<Control>? leadingItems = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(model);
         ArgumentNullException.ThrowIfNull(handlers);
         ArgumentNullException.ThrowIfNull(run);
         List<Control> items = new();
+        if (leadingItems is { Count: > 0 })
+        {
+            items.AddRange(leadingItems);
+            items.Add(new Separator());
+        }
         int group = -1;
         foreach (MediaMenuItemModel entry in model.Items)
         {
@@ -182,6 +188,29 @@ internal static class MediaMenuBuilder
         ToolTip.SetShowOnDisabled(item, true);
         return item;
     }
+
+    /// <summary>
+    /// The playback group on top of a video's media menu (reader and gallery): one catalog-command item per entry, each running its action
+    /// only while the session is current. Null when there are no entries.
+    /// </summary>
+    internal static List<Control>? PlaybackGroup(MediaMenuSession session, IReadOnlyList<ReaderPlaybackMenu.Entry> entries,
+        Func<ReaderVideoAction, Task> execute, Func<Func<Task>, Task> run)
+    {
+        if (entries.Count == 0) return null;
+        List<Control> items = new();
+        foreach (ReaderPlaybackMenu.Entry entry in entries)
+        {
+            ReaderVideoAction action = entry.Action;
+            items.Add(ContextCommandItem(session, entry.CommandId, () => execute(action), () => entry.Available, run,
+                MediaMenuReasons.Unavailable, entry.Label));
+        }
+        return items;
+    }
+
+    /// <summary>The post bookmark entry ("Add / edit post bookmark…") of the media menu, with the catalog command's icon and shortcut.</summary>
+    internal static MenuItem PostBookmarkItem(MediaMenuSession session, Func<Task> action, Func<bool> available, Func<Func<Task>, Task> run)
+        => ContextCommandItem(session, ReaderPlaybackMenu.GalleryExtras.PostBookmarkCommandId, action, available, run,
+            MediaMenuReasons.Unavailable, CommandCatalog.Label(ReaderPlaybackMenu.GalleryExtras.PostBookmarkCommandId));
 
     /// <summary>A disabled note inside the menu (for example which items the single-target actions apply to).</summary>
     internal static MenuItem Note(string text)

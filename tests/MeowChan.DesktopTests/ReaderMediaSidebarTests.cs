@@ -17,18 +17,22 @@ public sealed class ReaderMediaSidebarTests : IDisposable
         ReaderMediaPreferences.Default with { Sidebar = true, SidebarMinimumReaderWidth = minimum, SidebarWidth = width, SidebarRight = right };
 
     [Fact]
-    public void TheSidebarIsOffByDefaultOnTheLeftWithItsDefaultWidths()
+    public void TheSidebarIsOnByDefaultOnTheLeftWithItsDefaultWidths()
     {
         Config config = new();
-        Assert.False(config.ReaderMediaSidebar);
+        Assert.True(config.ReaderMediaSidebar);
         Assert.Equal("Left", config.ReaderMediaSidebarSide);
         Assert.Equal(480, config.ReaderMediaSidebarWidth);
         Assert.Equal(1280, config.ReaderMediaSidebarMinimumWidth);
         ReaderMediaPreferences media = ReaderMediaPreferences.From(config);
-        Assert.False(media.Sidebar);
+        Assert.True(media.Sidebar);
         Assert.False(media.SidebarRight);
+        Assert.Equal(ReaderMediaPreferences.Default.Video, media.Video);
         Assert.Equal(ReaderMediaPreferences.Default, media);
-        Assert.False(ReaderMediaSidebarRules.IsShown(media, largeReader: true, 1920));
+        Assert.True(ReaderMediaSidebarRules.IsShown(media, largeReader: true, 1920));
+        // A saved choice stays: a config that stored "off" (or "on") keeps it.
+        Assert.False(JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebar\":false}")!.ReaderMediaSidebar);
+        Assert.True(JsonSerializer.Deserialize<Config>("{\"ReaderMediaSidebar\":true}")!.ReaderMediaSidebar);
     }
 
     [Fact]
@@ -90,7 +94,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [InlineData(true, true, 0, true)]        // not laid out yet: no second layout pass on opening
     public void ItIsShownOnlyWhenChosenInTheLargeReaderAndWideEnough(bool chosen, bool large, double width, bool shown)
     {
-        ReaderMediaPreferences media = chosen ? On() : ReaderMediaPreferences.Default;
+        ReaderMediaPreferences media = chosen ? On() : ReaderMediaPreferences.Default with { Sidebar = false };
         Assert.Equal(shown, ReaderMediaSidebarRules.IsShown(media, large, width));
         Assert.Equal(chosen && width is > 0 and < 1280, ReaderMediaSidebarRules.IsCollapsedByWidth(media, width));
     }
@@ -189,6 +193,6 @@ public sealed class ReaderMediaSidebarTests : IDisposable
             foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
                 Assert.NotEmpty(EffectiveShortcutBindings.Build(null, platform).For(id));
         }
-        Assert.Contains("reader-view-menu", CommandCatalog.Get("reader.sidebar.toggle").Contexts);
+        Assert.Contains("reader-settings", CommandCatalog.Get("reader.sidebar.toggle").Contexts);
     }
 }

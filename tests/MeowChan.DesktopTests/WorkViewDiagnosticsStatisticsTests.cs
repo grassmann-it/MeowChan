@@ -112,7 +112,7 @@ public sealed class WorkViewDiagnosticsStatisticsTests
         Assert.Equal(["status.segments", "status.strip"], Rows(WorkViewPage.Status).Select(entry => entry.Id).Order().ToArray());
         Assert.All(Rows(WorkViewPage.Status), entry => Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Required, entry.For(view))));
         Assert.True(WorkViewPolicy.Get("status.segments").Safety);
-        Assert.Equal([Presence.Overflow, Presence.Overflow, Presence.Direct], PresenceOf("shell.footer.status"));
+        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct], PresenceOf("shell.footer.status"));
         Assert.Null(WorkViewPolicy.Find("shell.footer.diagnostics"));
         Assert.Null(WorkViewPolicy.Find("shell.footer.statistics"));
         Assert.Equal("shell.footer.status", WorkViewPolicy.Get("shell.header.disk-graph").Alternative);

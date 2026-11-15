@@ -51,7 +51,11 @@ public sealed partial class MediaPage : UserControl
     private readonly ListBox _grid = new() { Name = "MediaGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" } };
     private readonly TextBlock _empty = new() { Name = "MediaEmpty", IsVisible = false };
     // An empty library points back to where media comes from; a filter that matches nothing offers its reset (MediaPage.FilterChips.cs).
-    private readonly Button _goDownloads = new() { Name = "MediaGoDownloads", Classes = { "primary" } };
+    private readonly Button _goDownloads = new() { Name = "MediaGoDownloads" };
+    // QW-A #1: the empty library also offers the two ways to bring a collection in: copy files (the import dialog) or link a folder (read-only).
+    private readonly Button _importFiles = new() { Name = "MediaImportFiles", Classes = { "primary" } };
+    private readonly Button _linkFolder = new() { Name = "MediaLinkFolder" };
+    private readonly TextBlock _emptyHelp = new() { Name = "MediaEmptyHelp", TextWrapping = Avalonia.Media.TextWrapping.Wrap, TextAlignment = Avalonia.Media.TextAlignment.Center, MaxWidth = 520 };
     private readonly WrapPanel _emptyActions = new() { Name = "MediaEmptyActions", ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
     // The shared empty state (centered, one sentence, one primary action); its sentence and actions are added in the constructor.
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "MediaEmptyState", IsVisible = false };
@@ -84,6 +88,12 @@ public sealed partial class MediaPage : UserControl
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
     /// <summary>Set by the shell: the footer destinations offered by the empty state.</summary>
     internal Action? GoToDownloadsRequested { get; set; }
+    /// <summary>Set by the shell: "Import files…" of the empty state (the same dialog as the header's More and the shortcut). Null hides the button.</summary>
+    internal Action? ImportFilesRequested { get; set; }
+    /// <summary>Set by the shell: "Link folder…" of the empty state (the folder flow of Settings, Storage and limits, Media folders). Null hides the button.</summary>
+    internal Action? LinkFolderRequested { get; set; }
+    /// <summary>Set by the shell: "Media folders…" under More (the settings group). Null hides the entry.</summary>
+    internal Action? OpenMediaFoldersRequested { get; set; }
     internal Func<MediaLibraryEntry, Task>? ShowInThread { get; set; }
     /// <summary>Opens the Rules page on the thread of an archived medium (the shell supplies it; catalog media have no thread).</summary>
     internal Action<MediaLibraryEntry>? EditThreadRules { get; set; }
@@ -189,9 +199,10 @@ public sealed partial class MediaPage : UserControl
             CanToggleFavorite = () => ExecuteMediaMenuActionAsync != null, InTagQueue = IsInTagQueue, Appearance = _tileAppearance });
         ScrollViewer.SetHorizontalScrollBarVisibility(_grid, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         Panel body = new();
-        _emptyActions.Children.Add(_goDownloads);
+        _emptyActions.Children.Add(_importFiles); _emptyActions.Children.Add(_linkFolder); _emptyActions.Children.Add(_goDownloads);
         _empty.Classes.Add(WorkspaceEmptyState.TextClass);
-        _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyActions);
+        _emptyHelp.Classes.Add("muted");
+        _emptyState.Children.Add(_empty); _emptyState.Children.Add(_emptyHelp); _emptyState.Children.Add(_emptyActions);
         body.Children.Add(_grid); body.Children.Add(_emptyState);
         InstallFocus(body); // M4: the rows the focus mode hides are grouped, its row takes their place (MediaPage.Focus.cs)
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
@@ -209,7 +220,9 @@ public sealed partial class MediaPage : UserControl
         _refresh.Click += (_, _) => BuildTask = BuildAsync(force: true);
         _manageRatings.Click += async (_, _) => await ManageRatingsAsync();
         _goDownloads.Click += (_, _) => GoToDownloadsRequested?.Invoke();
-        _grid.DoubleTapped += (_, _) => _ = OpenSelectedAsync();
+        _importFiles.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) ImportFilesRequested?.Invoke(); };
+        _linkFolder.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) LinkFolderRequested?.Invoke(); };
+        InstallTileInteraction(); // double click on a tile, Ctrl+wheel and Ctrl+Plus/Minus for the tile size (MediaPage.Interaction.cs)
         _grid.KeyDown += OnGridKeyDown;
         _grid.AddHandler(KeyDownEvent, OnSelectAllWhilePresenting, RoutingStrategies.Tunnel);
         _grid.SelectionChanged += (_, _) => { if (_restoring) return; _selectionStamp++; ShowSelectionNote(null); UpdateSelectionBar(); };
@@ -586,6 +599,9 @@ public sealed partial class MediaPage : UserControl
         // An empty library points to Downloads and Archive; a filter that matches nothing offers to reset it (C3).
         _emptyActions.IsVisible = showEmpty;
         _goDownloads.IsVisible = !_filterActive;
+        _importFiles.IsVisible = !_filterActive && ImportFilesRequested != null;
+        _linkFolder.IsVisible = !_filterActive && LinkFolderRequested != null;
+        _emptyHelp.IsVisible = showEmpty && !_filterActive && (ImportFilesRequested != null || LinkFolderRequested != null);
         // An empty library shows the sentence and its action only; with a filter the filters stay, since they are the way out.
         _headerBody.IsVisible = !(showEmpty && !_filterActive);
         _emptyReset.IsVisible = _filterActive;
@@ -1145,6 +1161,9 @@ public sealed partial class MediaPage : UserControl
         CommandBindings.Apply(_manageRatings, "media.rating.manage");
         _manageRatings.IsEnabled = !_lifetime.IsCancellationRequested && ManageMediaRatingsAsync != null;
         CommandBindings.ApplyLabeled(_goDownloads, "navigation.downloads", Texts.T("nav.goDownloads"));
+        CommandBindings.Apply(_importFiles, "import.open", iconWithLabel: true);
+        CommandBindings.Apply(_linkFolder, "media.link-folder", iconWithLabel: true);
+        _emptyHelp.Text = Texts.T("media.empty.copyOrLink");
         AutomationProperties.SetName(_grid, Texts.T("media.title"));
         LocalizeFilters();
         LocalizeFilterSurface();

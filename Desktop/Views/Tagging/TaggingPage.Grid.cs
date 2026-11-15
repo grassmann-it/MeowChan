@@ -69,7 +69,7 @@ public sealed partial class TaggingPage
         _grid.DoubleTapped += (_, e) =>
         {
             if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand(TaggingCommands.ContinueHere))
-                _ = ExecuteRowCommandAsync(TaggingCommands.ContinueHere);
+                OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere), "tagging.grid.doubleClick");
         };
         _grid.SelectionChanged += OnSelectionChanged;
         _viewToggle.SelectionChanged += (_, _) =>

@@ -21,7 +21,7 @@ internal static class ContextMenuTexts
         ("command.tags.filter-only", "Show only this", "Nur diesen anzeigen"),
         ("command.feedback.copy-text", "Copy message text", "Meldungstext kopieren"),
         ("command.feedback.dismiss-all", "Close all notifications", "Alle Benachrichtigungen schließen"),
-        ("command.settings.reset-default", "Reset to default", "Auf Standard zurücksetzen"),
+        ("command.settings.reset-default", "Reset setting", "Einstellung zurücksetzen"),
         ("command.settings.copy-id", "Copy setting id", "Einstellungs-ID kopieren"),
         ("ctxmenu.copyFailed", "The text could not be copied.", "Der Text konnte nicht kopiert werden."),
         ("ctxmenu.setting.noDefault", "No default is known for this setting.", "Für diese Einstellung ist kein Standardwert hinterlegt."),

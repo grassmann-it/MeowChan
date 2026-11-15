@@ -190,7 +190,7 @@ internal static class LogoThemeChecks
         Require(logoBounds.Right <= brand.Left + 0.5 && brand.Right <= versionBounds.Left + 0.5,
             $"{name}: the logo overlaps the brand text ({logoBounds} / {brand} / {versionBounds}).");
         Require(version.IsEffectivelyVisible && versionBounds.Right <= window.Bounds.Width + 0.5, name + ": the version is clipped.");
-        double rightEdge = new[] { "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton", "ThemeToggleButton" }
+        double rightEdge = new[] { "TransferSpeed", "ContinueReadingButton", "ContinueReadingHistoryButton", "PauseButton", "FullscreenButton", "ThemeToggleButton" }
             .Select(id => window.FindControl<Control>(id)!).Where(control => control.IsEffectivelyVisible)
             .Min(control => BoundsIn(control, window).Left);
         Require(versionBounds.Right <= rightEdge + 0.5,

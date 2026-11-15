@@ -30,6 +30,11 @@ public static partial class WorkViewPolicy
         // MP3: the two ways from the media page to tagging, side by side under More in every view.
         new("media.toolbar.queue-walk", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 32),
         new("media.toolbar.tagging-page", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 34),
+        // QW-A #10: the mass action of the tagging way was only in the chip menu and the context menus; it is an entry under More as well.
+        // It confirms above the queue limit of Settings (Storage and limits), like the chip menu entry.
+        new("media.toolbar.queue-all", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, "media.queue.all", OverflowOrder: 36),
+        // QW-A #1: the way to the folder sources (Settings, Storage and limits, Media folders) from the page they feed.
+        new("media.toolbar.folders", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, "media.folders", OverflowOrder: 60),
         // The existing Booru workbench is optional; when available its launcher is appended to this same More surface.
         new("media.toolbar.booru", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 30),
         // Since S3 the header holds search, filter toggle, order and refresh; exporting every match is under More in every view

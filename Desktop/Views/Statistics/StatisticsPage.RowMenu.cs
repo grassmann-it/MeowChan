@@ -22,6 +22,19 @@ public partial class StatisticsPage
         ContextMenuTarget compactTarget = new(StatisticsCompactList);
         _compactMenu = new ContextMenuHost(StatisticsCompactList, () => ComposeRowMenu(StatisticsCompactList,
             compactTarget.Find<Expander>()?.DataContext as StatisticsRow), () => StatisticsCompactList.Focus());
+        // Interaction audit 1.1.0: Ctrl/Cmd+C on the selected row is the menu's "Copy row" (tunnel: before the table copies its cell texts).
+        StatisticsGrid.AddHandler(KeyDownEvent, OnStatisticsCopyKey, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+    }
+
+    private void OnStatisticsCopyKey(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        if (e.Handled || _ended || MeowChan.Desktop.Commands.ShortcutService.IsCapturing
+            || !MainWindow.IsListCommandSource(e.Source, StatisticsGrid)
+            || !MeowChan.Desktop.Commands.CommandBindings.Matches(e, StatisticsRowMenu.CopyRow)
+            || StatisticsGrid.SelectedItem is not StatisticsRow row) return;
+        e.Handled = true;
+        int retention = _last?.RetentionDays ?? Config.StatsRetentionDaysDefault;
+        _ = CopyMenuTextAsync(StatisticsGrid, StatisticsRowMenu.RowText(row, retention));
     }
 
     /// <summary>The menu hosts of the table and of the compact list; read by the smokes.</summary>

@@ -88,6 +88,11 @@
                             </Grid>
                         </Button>
                         <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False" />
+                        <!-- QW-A (review 15.11.2026, item 10): the arrow beside the book opens the reading history list (the same list as right-click
+                             and the menu key), so it does not hide behind a right click. It follows the book button's visibility (code). -->
+                        <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False" Width="20" Padding="0">
+                            <Path x:Name="ContinueReadingHistoryIcon" Classes="header-icon" Data="M 4,6 L 8,10 L 12,6" />
+                        </Button>
                         <Button x:Name="PauseButton" Classes="subtle header-icon" Click="OnPauseClick">
                             <Path x:Name="PauseIcon" Classes="header-icon" Data="M 5,3 L 5,13 M 11,3 L 11,13" />
                         </Button>
@@ -569,12 +574,12 @@
         <Border x:Name="ShellHelpOverlay" Grid.RowSpan="4" IsVisible="False" ZIndex="200"
                 Classes="workspace-overlay" Margin="16" MaxWidth="620"
                 HorizontalAlignment="Stretch" VerticalAlignment="Center">
-            <!-- Modal header bar: the close cross at the far left, then the title (HeaderBar back slot). The footer held
+            <!-- Modal header bar: the title, then the close cross at the right edge like a dialog (HeaderBar end slot). The footer held
                  only this Close, so it is gone; Escape still dismisses the help (OnShellKeyDown). -->
             <Grid RowDefinitions="Auto,*">
                 <controls:HeaderBar x:Name="ShellHelpHeader" Margin="16,16,16,12">
-                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" />
                     <TextBlock x:Name="ShellHelpTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                    <Button x:Name="ShellHelpClose" Classes="subtle icon-square" controls:HeaderBar.IsEnd="True" VerticalAlignment="Top" />
                 </controls:HeaderBar>
                 <ScrollViewer Grid.Row="1" Margin="16,0,16,16" Classes="InsetContent"
                               HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">

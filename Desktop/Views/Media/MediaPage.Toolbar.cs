@@ -8,8 +8,9 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// S3: the media toolbar is one row in two groups (the shop pattern). Left: the file name search and the filter toggle. Right: the order
-// (criterion and direction), "Shuffle again" in front of it while the order is random, then "Refresh" and "More" (⋯). M1: the shuffle and
+// S3: the media toolbar is one row in two groups (the shop pattern). Left: the file name search, which fills the free width of the row
+// (MediaToolbarLayout: at least 240, at most 900 dip). Right: the filter toggle, then the order (criterion and direction) with "Shuffle again"
+// between them while the order is random, then "Refresh" and "More" (⋯). M1: the shuffle and
 // the refresh are drawn icons in square buttons (name as tooltip and accessible name), so the only text in the group is the criterion;
 // the focus mode (M4, MediaPage.Focus.cs) is one more square between "Refresh" and "More". Export all and the
 // saved-ratings manager always sit under More; "show missing files" is a filter (a field of the filter section and a chip of the active
@@ -21,6 +22,8 @@ public sealed partial class MediaPage
     private Func<bool>? _canOpenBooru;
     private Action? _openBooru;
     private readonly Button _booruOpen = new() { Name = "MediaBooruOpen", IsVisible = false };
+    // QW-A #1: "Media folders…" under More (the settings group of the read-only folder sources); an entry like the queue walk, never a header button.
+    private readonly Button _mediaFolders = new() { Name = "MediaFolders", IsVisible = false };
 
     /// <summary>The width class the toolbar row is laid out for (tests and smokes).</summary>
     internal MediaToolbarLayout.Level ToolbarLevel => _toolbarLevel;
@@ -56,33 +59,35 @@ public sealed partial class MediaPage
     private Grid BuildToolbar()
     {
         _nameFilter.ScopeChip = _searchScope; // inside the field, as in Archive and the reader (S5)
-        // Search (grows up to its maximum) | filter toggle | free space | the right group. The search column takes the free width
-        // first, so the space left over beyond its maximum stays between the groups.
-        Grid tools = new() { Name = "MediaToolbar", ColumnSpacing = 8, ColumnDefinitions = new ColumnDefinitions("100*,Auto,*,Auto") };
+        // Search (fills the free width between its minimum and maximum) | free space beyond the maximum | the right group. The search column
+        // takes the free width first (1000* against 1*: no visible gap until the maximum is reached), so a very wide window leaves its space between the search and the right group.
+        // The gap between the two is the 8 dip margin of the right group (no ColumnSpacing: the free-space column would double it).
+        Grid tools = new() { Name = "MediaToolbar", ColumnDefinitions = new ColumnDefinitions("1000*,*,Auto") };
         tools.ColumnDefinitions[0].MaxWidth = MediaToolbarLayout.SearchMaxWidth;
+        _toolbar = tools;
         _nameFilter.HorizontalAlignment = HorizontalAlignment.Stretch;
         tools.Children.Add(_nameFilter);
-        tools.Children.Add(_filters); Avalonia.Controls.Grid.SetColumn(_filters, 1);
         // The tools under More stay in the tree (hidden): their handlers, names and shortcuts keep working, the menu entries forward to them.
-        StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        // The filter toggle is the first tool of the right group, directly in front of the order (the criterion), and never moves.
+        StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
         // MP4: the Booru mode switch (MP5: "Tag list") sits before the focus mode, MP5's "Layout" button after the switch; MP3: the queue walk and the Tagging page are entries under More only.
-        foreach (Control control in new Control[] { _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,
-            _queueWalk, _taggingPageOpen, _more })
+        foreach (Control control in new Control[] { _filters, _shuffle, _sortLabel, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,
+            _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
             if (control is Button) control.MinHeight = 32;
             right.Children.Add(control);
         }
-        _nameFilter.VerticalAlignment = _filters.VerticalAlignment = VerticalAlignment.Center;
-        tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 3);
+        _nameFilter.VerticalAlignment = VerticalAlignment.Center;
+        tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 2);
         // The label follows the criterion box, and goes with the Compact stage (N6).
         _sort.PropertyChanged += (_, e) => { if (e.Property == Visual.IsVisibleProperty) SyncSortLabel(); };
         SyncSortLabel();
         AutomationProperties.SetAccessibilityView(_sortLabel, AccessibilityView.Raw);
         ApplyToolbarMinWidths();
         tools.SizeChanged += (_, e) => ApplyToolbarWidth(e.NewSize.Width);
-        return _toolbar = tools;
+        return tools;
     }
 
     /// <summary>Lays the row out for a page width: moves the less important tools under More and narrows the fields (when it changed the class).</summary>
@@ -100,6 +105,7 @@ public sealed partial class MediaPage
     private void ApplyToolbarMinWidths()
     {
         _nameFilter.MinWidth = MediaToolbarLayout.SearchMin(_toolbarLevel);
+        if (_toolbar is { } row) row.ColumnDefinitions[0].MinWidth = _nameFilter.MinWidth;
         _sort.MinWidth = MediaToolbarLayout.SortMin(_toolbarLevel);
         SyncSortLabel();
     }

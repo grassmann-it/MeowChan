@@ -78,14 +78,14 @@ public sealed partial class TaggingPage
         _list.DoubleTapped += (_, e) =>
         {
             if (e.Source is Visual visual && visual.FindAncestorOfType<ListBoxItem>(includeSelf: true) != null && CanRowCommand("tagging.continue-here"))
-                _ = ExecuteRowCommandAsync("tagging.continue-here");
+                OpenActions.Start(() => ExecuteRowCommandAsync("tagging.continue-here"), "tagging.list.doubleClick");
         };
         _list.SelectionChanged += OnSelectionChanged;
     }
 
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
     private ContextMenuBuilder? ComposeRowMenu() =>
-        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => _ = ExecuteRowCommandAsync(id));
+        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
 
     /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();
@@ -220,7 +220,8 @@ public sealed partial class TaggingPage
             if (!ShortcutService.Current.Matches(e, id)) continue;
             e.Handled = true;
             // The Tag key over several entries is "Tag together…" (the entry of one medium is off for a selection).
-            _ = ExecuteRowCommandAsync(id == TaggingCommands.Tag && Selected.Count > 1 ? TaggingCommands.TagTogether : id);
+            string command = id == TaggingCommands.Tag && Selected.Count > 1 ? TaggingCommands.TagTogether : id;
+            OpenActions.Start(() => ExecuteRowCommandAsync(command), "tagging.list.key");
             return;
         }
     }

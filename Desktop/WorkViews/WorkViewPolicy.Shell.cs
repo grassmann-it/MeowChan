@@ -26,8 +26,8 @@ public static partial class WorkViewPolicy
         Same("shell.header.graph", WorkViewPage.Shell, WorkViewKind.Element, Required),
         Same("shell.header.fullscreen", WorkViewPage.Shell, WorkViewKind.Action, Direct, "window.fullscreen"),
         Same("shell.header.theme", WorkViewPage.Shell, WorkViewKind.Action, Direct, "appearance.theme"),
-        // "Continue reading" shows only while a reading position exists (state); the view does not reduce it. The plan's
-        // "K in Barebones" is not applied: the AP13 header-book smokes require the action in every view.
+        // "Continue reading" shows whenever the reading history has an entry, in every view (ReadingResumeRouting.Visible); the view does not
+        // reduce it. The plan's "K in Barebones" is not applied: the AP13 header-book smokes require the action in every view.
         Same("shell.header.continue-reading", WorkViewPage.Shell, WorkViewKind.Action, Direct, "navigation.continue-reading"),
         // R3/R8: the app menu is complete in every view; the view radio group, the cycle command, theme and fullscreen live there.
         Same("shell.appmenu.view-group", WorkViewPage.Shell, WorkViewKind.Element, Required, safety: true),
@@ -38,15 +38,17 @@ public static partial class WorkViewPolicy
         Same("shell.footer.downloads", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.downloads"),
         Same("shell.footer.settings", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.settings"),
         Same("shell.footer.tools-menu", WorkViewPage.Shell, WorkViewKind.Destination, Required, "navigation.tools-menu"),
-        Footer("archive", Overflow, Direct, Direct),
-        Footer("media", Overflow, Direct, Direct),
-        // Tagging follows Media's rule: a reading-side tool, so Barebones keeps it under More and Simple and Advanced show it.
+        // Archive and Media are direct in every view, Barebones included (Tom 15.11.): the person's footer setting (F1) can still hide them,
+        // and the shell moves them under More when the window is too narrow.
+        Footer("archive", Direct, Direct, Direct),
+        Footer("media", Direct, Direct, Direct),
+        // Tagging is a reading-side tool of its own: Barebones keeps it under More, Simple and Advanced show it.
         Footer("tagging", Overflow, Direct, Direct),
         Footer("booru", Overflow, Direct, Direct),
         Footer("rules", Overflow, Overflow, Direct),
         Footer("sources", Overflow, Overflow, Direct),
         // One Status page with the segments Statistics and Diagnostics (status.segments); the segments are no footer destinations.
-        Footer("status", Overflow, Overflow, Direct),
+        Footer("status", Overflow, Direct, Direct),
     ];
 
     private static WorkViewEntry Footer(string page, Presence barebones, Presence simple, Presence advanced) =>

@@ -111,6 +111,15 @@ public sealed class ShortcutBindingsEditor : UserControl
             _selected = (_actions.SelectedItem as ListBoxItem)?.Tag as string; RefreshDetail();
         };
         _actions.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Bubble);
+        // Interaction audit 1.1.0: a double click on a command row records its new shortcut, like Enter (group rows fold on a single click).
+        _actions.DoubleTapped += (_, e) =>
+        {
+            if (ShortcutService.IsCapturing || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, _actions)
+                || MeowChan.Desktop.Controls.ItemActivation.ContainerAt(e.Source, _actions) is not ListBoxItem { Tag: string id }
+                || id != _selected || !_detail.IsEnabled) return;
+            e.Handled = true;
+            StartRecording(replace: true);
+        };
         AddHandler(KeyDownEvent, OnEditorKeyDown, RoutingStrategies.Bubble);
         _capture.AcceptableKeys = Enum.GetValues<Key>().Where(k => k is not Key.Tab and not Key.Escape).ToList();
         _capture.AddHandler(KeyDownEvent, CaptureKey, RoutingStrategies.Tunnel);

@@ -21,29 +21,18 @@ public partial class MainWindow
     /// <summary>How many open entries one walk opens at once (the setting <c>TagQueueWalkWindow</c>); the next walk continues behind them.</summary>
     internal int TagQueueWalkWindow => TaggingSettings.WalkWindow(_config);
 
-    private MenuItem? _tagQueueMenu;
     private System.IDisposable? _tagQueueRegistration;
     private bool _tagQueueOpening;
 
     private bool CanOpenTagQueue => !_isClosing && !_tagQueueOpening && _session.State == DesktopSessionState.Ready && !_largeReaderOpen && _gallery == null;
 
-    private void InitializeTagQueue()
-    {
-        _tagQueueMenu = CommandBindings.CreateMenuItem("media.queue.open", () => _ = OpenTagQueueGalleryAsync(), () => CanOpenTagQueue);
-        int anchor = _postBookmarksMenu is null ? -1 : WorkspaceMenuItem.Items.IndexOf(_postBookmarksMenu);
-        if (anchor < 0) anchor = MenuToolsAnchor;
-        WorkspaceMenuItem.Items.Insert(anchor + 1, _tagQueueMenu);
-        Closed += (_, _) => _tagQueueRegistration?.Dispose();
-    }
+    // Review of 15.11.2026, item 13: the header menu no longer has a "Go through the tagging queue" entry (the Media page, the Tagging page
+    // and the shortcut open it); the command stays registered below.
+    private void InitializeTagQueue() => Closed += (_, _) => _tagQueueRegistration?.Dispose();
 
     private void RegisterTagQueueCommands() =>
         _tagQueueRegistration = _shortcutRouter!.Register(new CommandRegistration("media.queue.open", this,
             () => !_isClosing && !_largeReaderOpen && _gallery == null, () => CanOpenTagQueue, () => _ = OpenTagQueueGalleryAsync()));
-
-    private void RefreshTagQueueLabels()
-    {
-        if (_tagQueueMenu != null) { CommandBindings.Apply(_tagQueueMenu, "media.queue.open"); CommandBindings.Refresh(_tagQueueMenu); }
-    }
 
     private async Task AddGalleryEntryToTagQueueAsync(GalleryEntry entry)
     {

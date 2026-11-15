@@ -218,10 +218,11 @@ public partial class MainWindow
         _gallery.LayoutResetPerformed += (mode, previous) => OnGalleryLayoutReset(preferenceOwner, mode, previous);
         _gallery.CloseRequested += () => CloseGallery();
         _gallery.TaggingModeRequested += tag => { if (ReferenceEquals(_gallery, preferenceOwner)) SwitchGalleryTagging(tag); };
-        _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
-        _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
-        _gallery.ReadPostRequested += entry => _ = ReadGalleryPostAsync(entry);
-        _gallery.QuoteRequested += quote => _ = ReadGalleryQuoteAsync(quote);
+        // Open actions nobody awaits (interaction audit): a failure is logged and shown, never an unobserved task (OpenActions).
+        _gallery.ReadPostsRequested += () => OpenActions.Start(ReadEmptyGalleryPostsAsync, "gallery.readPosts");
+        _gallery.MoveRequested += delta => OpenActions.Start(() => MoveGalleryAsync(delta), "gallery.move");
+        _gallery.ReadPostRequested += entry => OpenActions.Start(() => ReadGalleryPostAsync(entry), "gallery.readPost");
+        _gallery.QuoteRequested += quote => OpenActions.Start(() => ReadGalleryQuoteAsync(quote), "gallery.readQuote");
         _gallery.AssociationRequested += entry =>
         {
             int position = _galleryEntries.FindIndex(item => item.EntryKey == entry.EntryKey);

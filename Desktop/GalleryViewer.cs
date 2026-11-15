@@ -1555,6 +1555,7 @@ internal sealed partial class GalleryViewer : UserControl
         else if (CommandBindings.Matches(e, "media.open-external")) { if (_entry != null) OpenExternalRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "media.details")) { if (_entry != null) DetailsRequested?.Invoke(_entry); }
         else if (CommandBindings.Matches(e, "gallery.show-in-thread")) { if (_entry?.Post != null) { PauseSlideshow(); ReadPostRequested?.Invoke(_entry); } }
+        else if (CommandBindings.Matches(e, ReaderPlaybackMenu.GalleryExtras.PostBookmarkCommandId)) { if (_entry != null && PostBookmarkRequested != null) RequestPostBookmark(_entry); }
         else { CommandBindings.RouteVisibleActions(this, e); return; }
         e.Handled = true;
     }

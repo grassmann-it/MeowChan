@@ -28,6 +28,9 @@ internal sealed class FooterLayoutEditor : UserControl
     private readonly TextBlock _status = new() { Name = "FooterLayoutStatus", TextWrapping = TextWrapping.Wrap };
     private readonly Button _reset = new() { Name = "FooterLayoutReset" };
     private FooterLayout _layout = FooterLayout.Default;
+    // What the digits are counted in: the work view the draft would have and whether Booru can be shown at all (the draft of the other settings).
+    private MeowChan.Desktop.WorkViews.WorkView _view = MeowChan.Desktop.WorkViews.WorkView.Barebones;
+    private bool _booruAvailable = true;
 
     /// <summary>Raised after the person changed the draft (not by <see cref="Load"/>).</summary>
     internal event EventHandler? LayoutChanged;
@@ -64,6 +67,21 @@ internal sealed class FooterLayoutEditor : UserControl
         Render(null, null);
     }
 
+    /// <summary>
+    /// The digits of the rows follow the buttons the work view effectively shows (<see cref="FooterLayout.NumberingFor"/>): the settings page passes the work
+    /// view of its draft and its "Show Booru actions" draft, so the hints change live with them. Rebuilds the rows only when something changed.
+    /// </summary>
+    internal void SetNumberingContext(MeowChan.Desktop.WorkViews.WorkView view, bool booruAvailable)
+    {
+        if (view == _view && booruAvailable == _booruAvailable) return;
+        _view = view;
+        _booruAvailable = booruAvailable;
+        Render(null, null);
+    }
+
+    /// <summary>The digit order the rows show, for tests and smokes.</summary>
+    internal IReadOnlyList<string> ShownNumbering => _layout.NumberingFor(_view, id => id != "navigation.booru" || _booruAvailable);
+
     /// <summary>The "show in the footer" switch of a page, for tests and smokes.</summary>
     internal ToggleSwitch? SwitchOf(string commandId) => _rows.Children.OfType<Grid>().FirstOrDefault(row => row.Tag as string == commandId)?.Children.OfType<ToggleSwitch>().FirstOrDefault();
     internal Button? MoveButtonOf(string commandId, bool up) => _rows.Children.OfType<Grid>().FirstOrDefault(row => row.Tag as string == commandId)
@@ -90,7 +108,7 @@ internal sealed class FooterLayoutEditor : UserControl
     private void Render(string? focusPage, bool? focusUp)
     {
         _rows.Children.Clear();
-        IReadOnlyList<string> numbering = _layout.Numbering;
+        IReadOnlyList<string> numbering = ShownNumbering;
         Control? focusTarget = null;
         IReadOnlyList<string> order = _layout.Order;
         for (int index = 0; index < order.Count; index++)
@@ -124,9 +142,8 @@ internal sealed class FooterLayoutEditor : UserControl
             row.Children.Add(check);
 
             int digit = numbering.ToList().IndexOf(id) + 1;
-            var shortcut = new TextBlock { Name = "FooterShortcut" + MainPageOrder.ControlStem(id), VerticalAlignment = VerticalAlignment.Center, MinWidth = 56 };
-            if (digit is >= 1 and <= MainPageOrder.MaximumDigit)
-                shortcut.Text = ShortcutGesture.Parse("Primary+" + digit).Display(EffectiveShortcutBindings.CurrentPlatform);
+            var shortcut = new TextBlock { Name = "FooterShortcut" + MainPageOrder.ControlStem(id), VerticalAlignment = VerticalAlignment.Center, MinWidth = 168, TextWrapping = TextWrapping.Wrap };
+            shortcut.Text = ShortcutText(id, digit);
             shortcut.Classes.Add("workspace-meta");
             AutomationProperties.SetAccessibilityView(shortcut, AccessibilityView.Content);
             AutomationProperties.SetName(shortcut, Texts.T("settings.footer.shortcut", label, shortcut.Text));
@@ -148,8 +165,23 @@ internal sealed class FooterLayoutEditor : UserControl
         }
         _reset.Content = Texts.T("settings.footer.reset");
         AutomationProperties.SetName(_reset, Texts.T("settings.footer.reset"));
+        ToolTip.SetTip(_reset, Texts.T("settings.footer.reset.hint"));
+        AutomationProperties.SetHelpText(_reset, Texts.T("settings.footer.reset.hint"));
         FocusTarget = focusTarget;
         if (focusTarget != null) FocusLater(focusTarget);
+    }
+
+    /// <summary>
+    /// The page's keys as the editor shows them: the digit of its draft position, then its fixed letter (revision 15, <see cref="PageKeyScheme"/>),
+    /// "Ctrl+3 / Ctrl+Shift+E". The digit moves with the footer, the letter never does; a page beyond the ninth button shows the letter alone.
+    /// </summary>
+    internal static string ShortcutText(string commandId, int digit)
+    {
+        ShortcutPlatform platform = EffectiveShortcutBindings.CurrentPlatform;
+        List<string> keys = new(2);
+        if (digit is >= 1 and <= MainPageOrder.MaximumDigit) keys.Add(ShortcutGesture.Parse("Primary+" + digit).Display(platform));
+        if (PageKeyScheme.Gesture(commandId) is { } letter) keys.Add(letter.Display(platform));
+        return string.Join(" / ", keys);
     }
 
     private static Button MoveButton(string name, string icon, string label, bool enabled)

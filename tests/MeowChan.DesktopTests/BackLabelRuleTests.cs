@@ -62,8 +62,8 @@ public sealed class BackLabelRuleTests : IDisposable
         Assert.Equal("Back to media", CommandCatalog.Get("media.return").LabelEn);
         Assert.Equal("Back to gallery", CommandCatalog.Get("gallery.return").LabelEn);
         Assert.Equal("Back to last read", CommandCatalog.Get("reader.history-back").LabelEn);
-        Assert.Equal("Back to sources", CommandCatalog.Get("sources.back").LabelEn);
-        Assert.Equal("Zurück zu Quellen", CommandCatalog.Get("sources.back").LabelDe);
+        Assert.Equal("Back to Plugins", CommandCatalog.Get("sources.back").LabelEn);
+        Assert.Equal("Zurück zu Plugins", CommandCatalog.Get("sources.back").LabelDe);
         Assert.Equal("Back to image", CommandCatalog.Get("gallery.context-close").LabelEn);
     }
 

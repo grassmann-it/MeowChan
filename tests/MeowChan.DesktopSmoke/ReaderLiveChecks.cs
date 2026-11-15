@@ -3,6 +3,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using Texts = MeowChan.Desktop.Localization.Texts;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -43,11 +44,18 @@ internal static class ReaderLiveChecks
             TextBlock liveState = page.FindControl<TextBlock>("ReaderLiveState")!;
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
             await page.CheckReaderUpdatesAsync();
-            // R3: following live is the View menu's "Show new posts automatically" (a check item), its state a text in the status line.
+            // R3/RL1: following live is the settings popover's "Show new posts automatically" (a switch in the Thread section), its state a text in the status line.
             Require(page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible, "Watched reader must offer explicit, initially disabled live following.");
-            MenuItem followItem() => page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "watch.follow-live"));
-            Require(followItem().IsEnabled && followItem().IsChecked != true && followItem().ToggleType == MenuItemToggleType.CheckBox
-                && followItem().Header as string == Texts.T("command.watch.follow-live"), "The View menu has no unchecked, enabled live entry.");
+            async Task<(bool Enabled, bool? Checked, string? Label, string? Tip)> followItemAsync()
+            {
+                QuickSettingsSurface surface = await ReaderSettingsProbe.OpenAsync(page);
+                CheckBox box = ReaderSettingsProbe.Switch(surface, "watch.follow-live");
+                (bool, bool?, string?, string?) state = (box.IsEnabled && box.IsEffectivelyVisible, box.IsChecked, box.Content as string, ToolTip.GetTip(box) as string);
+                await ReaderSettingsProbe.CloseAsync(page);
+                return state;
+            }
+            var follow0 = await followItemAsync();
+            Require(follow0.Enabled && follow0.Checked != true && follow0.Label == Texts.T("command.watch.follow-live"), "The settings popover has no unchecked, enabled live switch.");
             object originalRows = posts.ItemsSource!;
             await catalog.CaptureAsync(Snapshot(2));
             await page.CheckReaderUpdatesAsync();
@@ -66,7 +74,7 @@ internal static class ReaderLiveChecks
             Require(consciousMoves > 0, "Manual new-post action did not publish a conscious reading position.");
             consciousMoves = 0; // Equivalent to discarding all pre-forget captures.
             await page.SetFollowLiveAsync(true);
-            Require(page.FollowLive && liveState.IsVisible && liveState.Text == Texts.T("reader.live.stateOn") && followItem().IsChecked == true,
+            Require(page.FollowLive && liveState.IsVisible && liveState.Text == Texts.T("reader.live.stateOn") && (await followItemAsync()).Checked == true,
                 "Switching live following on did not show its state text and check mark.");
             mayRefresh = false;
             await catalog.CaptureAsync(Snapshot(5));
@@ -80,10 +88,11 @@ internal static class ReaderLiveChecks
             Program.CaptureWindow(window, "smoke-reader-follow-live.png");
             watched = false;
             await page.CheckReaderUpdatesAsync();
-            Require(!page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible && !followItem().IsEnabled
-                && followItem().IsChecked != true, "Watch removal left live following active.");
-            Require(ToolTip.GetTip(followItem()) is string reasonTip && reasonTip.Contains(Texts.T("reader.live.reason.notWatched")),
-                "The disabled live entry does not name its missing cause.");
+            var follow1 = await followItemAsync();
+            Require(!page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible && !follow1.Enabled
+                && follow1.Checked != true, "Watch removal left live following active.");
+            Require(follow1.Tip is string reasonTip && reasonTip.Contains(Texts.T("reader.live.reason.notWatched")),
+                "The disabled live switch does not name its missing cause.");
             await catalog.CaptureAsync(Snapshot(6));
             await page.CheckReaderUpdatesAsync();
             Require(page.CurrentThread!.PostCount == 5, "An unobserved archive thread auto-followed new content: " + page.CurrentThread.PostCount + " posts.");

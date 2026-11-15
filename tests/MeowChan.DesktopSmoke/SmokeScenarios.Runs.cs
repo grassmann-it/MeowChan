@@ -216,6 +216,10 @@ internal static partial class SmokeScenarios
         {
             Configure = config => { config.WorkspaceMode = "Advanced"; config.StatsHeaderGraph = "Auto"; }
         },
+        ["context-menu-layout"] = new(SmokeStage.AfterCommandRefresh, mainWindow => ContextMenuLayoutChecks.RunAsync(mainWindow))
+        {
+            Configure = config => config.WorkspaceMode = "Advanced"
+        },
         ["picker-lifetime"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPickerLifetimeChecks.RunAsync(mainWindow)),
         ["settings-category"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsCategoryChecks.RunAsync(mainWindow)),
         ["settings-search"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsSearchChecks.RunAsync(mainWindow)),
@@ -260,6 +264,7 @@ internal static partial class SmokeScenarios
             await DiagnosticsChecks.RunAsync(mainWindow);
             await SourcesChecks.RunAsync(mainWindow);
         }),
+        ["stat-footer"] = new(SmokeStage.AfterCommandRefresh, mainWindow => StatFooterChecks.RunAsync(mainWindow)),
         ["post-bookmark-transitions"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkTransitionChecks.RunAsync(mainWindow)),
         ["post-bookmark-locale"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkLocaleChecks.RunAsync(mainWindow)),
         ["post-bookmark-comparison"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PostBookmarkComparisonChecks.RunAsync(mainWindow)),

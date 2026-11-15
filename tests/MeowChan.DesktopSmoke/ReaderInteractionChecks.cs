@@ -24,9 +24,15 @@ internal static class ReaderInteractionChecks
 {
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
-        await CheckReaderMediaActivationAsync(window, page);
-        await CheckPendingReaderMediaLifetimeAsync(window);
-        await CheckNativeMediaKeysAsync(page);
+        // Enter on a post follows "Clicking a medium" (sidebar by default); these checks are about the gallery path, so they choose it.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
+        try
+        {
+            await CheckReaderMediaActivationAsync(window, page);
+            await CheckPendingReaderMediaLifetimeAsync(window);
+            await CheckNativeMediaKeysAsync(page);
+        }
+        finally { ReaderSmokeSetup.Restore(page, mediaBefore); }
         Console.WriteLine("SMOKE reader native controls and media Enter passed.");
         await CheckReaderShortcutsAsync(page);
         Console.WriteLine("SMOKE current-thread reader shortcuts and dialog input protection passed.");
@@ -187,6 +193,7 @@ internal static class ReaderInteractionChecks
                     await release.Task;
                     return await MediaAssetReader.OpenAsync(directory, CancellationToken.None);
                 }) { IsAvailable = true, ReaderRefreshAllowed = () => false };
+            ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery); // a private page: not restored
             Control pane = page.DetachReader();
             var window = new Window { Width = 1000, Height = 800, Content = pane, Title = "Private Reader media lifetime " + change };
             page.OpenGallery = (_, key, _) => { opens++; opened = key; return Task.CompletedTask; };
@@ -222,6 +229,14 @@ internal static class ReaderInteractionChecks
     // Opt-in real-input entry point for R0's serialized private-desktop runner.
     // Seed ReaderUxChecks first. No synthetic-key fallback is used in this path.
     internal static async Task RunMediaActivationInputAsync(MainWindow window)
+    {
+        // Enter on a post follows "Clicking a medium"; the real-input flow is about the gallery path, so it chooses it for its run.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(window.ArchivePage, ReaderMediaClickMode.Gallery);
+        try { await RunMediaActivationInputCoreAsync(window); }
+        finally { ReaderSmokeSetup.Restore(window.ArchivePage, mediaBefore); }
+    }
+
+    private static async Task RunMediaActivationInputCoreAsync(MainWindow window)
     {
         const ulong enter = MediaNativeInput.Enter, up = MediaNativeInput.Up, down = MediaNativeInput.Down;
         SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);

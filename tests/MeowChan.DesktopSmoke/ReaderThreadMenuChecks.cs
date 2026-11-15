@@ -7,7 +7,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopSmoke;
 
-// R2 (14.11.2026): the reader's "Thread" menu in a private profile with a detached reader. The toolbar has the menu button after "View"
+// R2 (14.11.2026): the reader's "Thread" menu in a private profile with a detached reader. The toolbar has the menu button before the settings gear (RL1)
 // and no capture button; the menu lists the thread actions in their order; an unwatched thread keeps the entries that need a watch
 // disabled with the reason in the tip, a watched one runs every entry through the shell callbacks with the open thread as target.
 // The "Show new posts automatically" entry and its status-line text are covered by the reader live smoke.
@@ -39,7 +39,8 @@ internal static class ReaderThreadMenuChecks
                 CopySelectedUrls = urls => { calls.Add("copy:" + string.Join(",", urls)); return Task.CompletedTask; },
                 RemoveSelectedWatches = ids => { calls.Add("remove:" + string.Join(",", ids.Select(item => item.Thread))); return Task.CompletedTask; },
                 SelectionLeadAction = (target, action) => calls.Add(action + ":" + target.Thread),
-                SelectionDetailsRequested = target => calls.Add("details:" + target.Thread)
+                SelectionDetailsRequested = target => calls.Add("details:" + target.Thread),
+                OpenPostBookmarks = () => calls.Add("bookmarks")
             };
             Control pane = page.DetachReader();
             window = new Window { Width = 1440, Height = 820, Content = pane, Title = "Private reader thread menu" };
@@ -51,8 +52,8 @@ internal static class ReaderThreadMenuChecks
             Button open = page.FindControl<Button>("ReaderThreadOpen")!;
             Require(page.FindControl<Button>("CapturePostsButton") == null, "The capture button is still on the reader bar.");
             Require(open.Content as string == Texts.T("reader.thread.menu") && open.IsEffectivelyVisible, "The Thread button is missing or unlabeled.");
-            Button view = page.FindControl<Button>("ReaderViewOpen")!;
-            Require(open.Bounds.Left > view.Bounds.Left && open.Bounds.Top == view.Bounds.Top, "The Thread button does not stand next to View.");
+            Button gear = page.FindControl<Button>("ReaderSettingsOpen")!;
+            Require(gear.Bounds.Left > open.Bounds.Left && gear.Bounds.Top == open.Bounds.Top, "The settings gear does not stand right of the Thread button.");
             Program.CaptureWindow(window, "smoke-reader-thread-menu-bar.png");
 
             MenuItem[] Items() => page!.BuildReaderThreadMenu().Items.OfType<MenuItem>().ToArray();
@@ -66,7 +67,7 @@ internal static class ReaderThreadMenuChecks
             foreach (string command in new[] { "watch.check", "watch.retry-media", "rules.edit-scope", "watch.remove" })
                 Require(!Item(command).IsEnabled && ToolTip.GetTip(Item(command)) is string tip && tip.Contains(Texts.T("archive.command.noWatch"), StringComparison.Ordinal),
                     command + " is enabled without a watch or does not name the reason.");
-            foreach (string command in new[] { "archive.capture-toggle", "thread.details", "location.open-source", "selection.copy-links" })
+            foreach (string command in new[] { "archive.capture-toggle", "post-bookmarks.open-manager", "thread.details", "location.open-source", "selection.copy-links" })
                 Require(Item(command).IsEnabled, command + " is disabled although it needs no watch.");
 
             // Watched: every entry runs with the open thread as its target.
@@ -76,7 +77,7 @@ internal static class ReaderThreadMenuChecks
             Dictionary<string, string> expected = new()
             {
                 ["archive.capture-toggle"] = "capture:7300:" + !captureBefore, ["watch.check"] = "check:7300", ["watch.retry-media"] = "retry:7300",
-                ["rules.edit-scope"] = "rules:7300", ["thread.details"] = "details:7300", ["location.open-folder"] = "folder:7300",
+                ["rules.edit-scope"] = "rules:7300", ["post-bookmarks.open-manager"] = "bookmarks", ["thread.details"] = "details:7300", ["location.open-folder"] = "folder:7300",
                 ["location.open-source"] = "browser:7300", ["selection.copy-links"] = "copy:" + url, ["watch.remove"] = "remove:7300"
             };
             foreach (string command in ArchivePage.ReaderThreadMenuIds)
@@ -95,7 +96,7 @@ internal static class ReaderThreadMenuChecks
                 Require(Item("watch.check").Header as string == Texts.T("command.watch.check"), "The Thread menu was not localized.");
             }
             finally { Texts.SetLanguage("en"); }
-            Console.WriteLine("SMOKE reader thread menu: button after View, no capture button, entry order, unwatched reasons, watched callbacks and German labels passed.");
+            Console.WriteLine("SMOKE reader thread menu: button before the settings gear, no capture button, entry order, unwatched reasons, watched callbacks and German labels passed.");
         }
         finally
         {

@@ -89,6 +89,41 @@ internal static partial class UiCatalogChecks
         await Help("statistics", "StatisticsHelpButton", "help-popover-stats", x => x);
         await Help("rules", "RulesHelpButton", "help-popover-rules", x => x);
         await Help("plugins", "PluginsHelpButton", "help-popover-plugins", x => x);
+        // The Downloads results note (paragraph plus two long bullets: the hanging indent and the list rhythm). Its panel only shows
+        // after an admission, so the step shows it for the capture and hides it again.
+        await StepAsync("help-popover-admission-results", async () =>
+        {
+            await Enter(w, "downloads");
+            Border panel = Need<Border>(w, "AdmissionResultsPanel");
+            bool shown = panel.IsVisible;
+            panel.IsVisible = true;
+            try
+            {
+                await Settle(w, 200);
+                HelpButton help = w.FindControl<HelpButton>("AdmissionResultsHelpButton") ?? throw new InvalidOperationException("No help button AdmissionResultsHelpButton");
+                await FlyoutAsync(w, help.Flyout!, help, () => ((Flyout)help.Flyout!).Content as Control, "help-popover-admission-results", "popover", "Help popover AdmissionResultsHelpButton");
+            }
+            finally { panel.IsVisible = shown; }
+        });
+        // The round "?" itself, four times enlarged beside its neighbours: rest, hover and pressed (pseudo classes set for the capture),
+        // then keyboard focus as a window image (the focus ring lives in the adorner layer, not in the button).
+        await StepAsync("help-button-states", async () =>
+        {
+            await Enter(w, "statistics");
+            HelpButton help = Need<HelpButton>(w, "StatisticsHelpButton");
+            Control row = help.Parent as Control ?? help;
+            IPseudoClasses pseudo = help.Classes;
+            UiCatalog.RecordSurface(row, "help-button-states", "rest x4", "Statistics header row with the help button, at rest", 4);
+            foreach (string state in new[] { ":pointerover", ":pressed" })
+            {
+                pseudo.Set(state, true);
+                try { await Settle(w, 120); UiCatalog.RecordSurface(row, "help-button-states", state.TrimStart(':') + " x4", "Help button " + state, 4); }
+                finally { pseudo.Set(state, false); }
+            }
+            help.Focus(NavigationMethod.Tab);
+            await Settle(w, 200);
+            UiCatalog.Record(w, "help-button-states", "focus window", "Help button with keyboard focus (crop around the header)");
+        });
     }
 
     // The legacy right-click menus of the data grids, opened the keyboard way (Shift+F10 / Menu key, no pointer position).

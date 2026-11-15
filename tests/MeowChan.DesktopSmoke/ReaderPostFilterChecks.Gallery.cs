@@ -3,6 +3,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -64,7 +65,11 @@ internal static partial class ReaderPostFilterChecks
 
             ArchivePostRow target = Rows().First(row => row.Id == "706");
             await DialogGalleryChecks.RecordMenuAsync(page.BuildPostMenu(target, list), list, "post-context-menu");
-            await DialogGalleryChecks.RecordMenuAsync(page.BuildReaderViewMenu(), list, "reader-view-menu");
+            // RL1: the former View menu is the settings popover; its capture keeps the gallery slot, now as a popover.
+            QuickSettingsSurface settings = await ReaderSettingsProbe.OpenAsync(page);
+            DialogGallery.RecordSurface(settings, "reader-settings-popover", "popover", "the gear's settings popover with the session rows and the post filter action");
+            await ReaderSettingsProbe.CloseAsync(page);
+            await DialogFrameChecks.Settle();
 
             ArchivePostRow quoting = Rows().First(row => row.Id == "705");
             page.RequestQuotePreview(quoting.Quotes.Single(), list, default, immediate: true);

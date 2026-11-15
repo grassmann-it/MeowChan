@@ -142,7 +142,7 @@ public partial class ArchivePage
             Child = new ScrollViewer { Content = error, MaxHeight = 120, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled } }, "ArchiveExportErrorBanner");
         TextBlock fixedScope = ExportName(new TextBlock { FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap }, "ArchiveExportFixedScope");
         StackPanel header = new() { Spacing = 8 };
-        // MD4 overlay header: the cross alone at the far left (back slot), then the title. The cross is the footer Close's twin: it
+        // MD4 overlay header: the title, then the cross alone at the right edge (end slot) like a dialog's. The cross is the footer Close's twin: it
         // runs the same OnExportClose, so while an export runs it cancels it, exactly as the footer button and Escape do.
         Button headerClose = ExportName(new Button(), "ArchiveExportHeaderClose"); headerClose.Click += OnExportClose;
         header.Children.Add(MeowChan.Desktop.Controls.OverlayFrame.Header(title, headerClose, Texts.T("action.close")));

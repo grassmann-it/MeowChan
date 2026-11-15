@@ -120,7 +120,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     public void TheOrderBoxHasAVisibleMutedLabelBeforeItWithTheSameAccessibleName()
     {
         string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs"), sorting = Source("Desktop/Views/Media/MediaPage.Sorting.cs"), page = Source("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("{ _shuffle, _sortLabel, _sort, _sortDirection,", toolbar);
+        Assert.Contains("{ _filters, _shuffle, _sortLabel, _sort, _sortDirection,", toolbar);
         Assert.Contains("Name = \"MediaSortLabel\", Classes = { \"muted\" }", sorting);
         Assert.Contains("_sortLabel.Text = Texts.T(\"media.sort\");", sorting);
         Assert.Contains("AutomationProperties.SetName(_sort, _sortLabel.Text);", sorting);

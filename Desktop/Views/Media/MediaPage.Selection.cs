@@ -59,7 +59,7 @@ public sealed partial class MediaPage
         foreach (Control control in new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear })
         { control.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center; _selectionRow.Children.Add(control); }
         _selTag.Click += async (_, _) => await TagSelectionAsync();
-        _selGallery.Click += async (_, _) => await OpenSelectionGalleryAsync();
+        _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();
         _selClear.Click += (_, _) => ClearSelection();
         return new StackPanel { Spacing = 2, Children = { _selectionRow, _selectionNote, BuildQueueAsk() } };

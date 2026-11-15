@@ -59,7 +59,7 @@ internal sealed partial class GalleryViewer
     private long? _revealPointerId;
     private bool _applyingOverlayPlacement;
     private int _controlsIdleHideMs = Config.ControlsIdleHideMsDefault;
-    /// <summary>Idle time before the overlay controls hide ("Hide controls after"; the reader's arrow cross uses the same value).</summary>
+    /// <summary>Idle time before the overlay controls hide ("Hide controls after"; the reader's navigation bar uses the same value).</summary>
     internal int ControlsIdleHideMs
     {
         get => _controlsIdleHideMs;

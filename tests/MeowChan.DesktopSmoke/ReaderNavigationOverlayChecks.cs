@@ -44,6 +44,8 @@ internal static class ReaderNavigationOverlayChecks
                 && (page.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id == "1003");
             await CaptureEvidenceAsync(window, page, tabs);
             await CheckAutoHideAsync(window, page);
+            await CheckCountersAsync(window, page);
+            await CheckModesAsync(window, page);
             foreach (var size in new[] { (Mode: "Simple", Width: 1440d, Height: 920d),
                 (Mode: "Simple", Width: 760d, Height: 500d), (Mode: "Advanced", Width: 760d, Height: 500d),
                 (Mode: "Barebones", Width: 640d, Height: 480d),
@@ -159,14 +161,14 @@ internal static class ReaderNavigationOverlayChecks
                 window.UpdateLayout();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
-        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, centered arrow cross and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
+        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off) and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
     }
 
-    // Idle auto-hide: any pointer movement over the reader, the pointer over or near the cross, keyboard focus in it and a
+    // Idle auto-hide (mode Auto): any pointer movement over the reader, the pointer over or near the bar, keyboard focus in it and a
     // navigation shortcut show it; without them it fades out after the idle delay and stops taking clicks.
     private static async Task CheckAutoHideAsync(MainWindow window, ArchivePage page)
     {
-        WrapPanel cross = page.FindControl<WrapPanel>("ReaderNavigation")!;
+        WrapPanel bar = page.FindControl<WrapPanel>("ReaderNavigation")!;
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         tabs.SelectedIndex = 0;
         int configured = page.ReaderNavigationIdleDelayMs;
@@ -178,43 +180,43 @@ internal static class ReaderNavigationOverlayChecks
             Require(page.ReaderNavigationIdleDelayMs == ReaderNavigationLayout.IdleHideDelayMsMaximum, "The idle delay was not clamped to its maximum.");
             page.ReaderNavigationIdleDelayMs = 600;
             Point far = new(60, 60);
-            Point onCross = Bounds(cross, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
-            Point crossInSurface = cross.Bounds.Center;
-            async Task WaitHiddenAsync() => await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && cross.Opacity == 0 && !cross.IsHitTestVisible,
-                () => $"The cross did not hide after the idle delay: shown={page.ReaderNavigationShown} opacity={cross.Opacity} hit={cross.IsHitTestVisible}");
-            async Task WaitShownAsync() => await Program.WaitUntilAsync(() => page.ReaderNavigationShown && cross.Opacity == 1 && cross.IsHitTestVisible,
-                () => $"The cross did not show: shown={page.ReaderNavigationShown} opacity={cross.Opacity} hit={cross.IsHitTestVisible}");
+            Point onBar = Bounds(bar, window) is Rect box ? new Point(box.Center.X, box.Center.Y) : default;
+            Point barInSurface = bar.Bounds.Center;
+            async Task WaitHiddenAsync() => await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && bar.Opacity == 0 && !bar.IsHitTestVisible,
+                () => $"The bar did not hide after the idle delay: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible}");
+            async Task WaitShownAsync() => await Program.WaitUntilAsync(() => page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                () => $"The bar did not show: shown={page.ReaderNavigationShown} opacity={bar.Opacity} hit={bar.IsHitTestVisible}");
             if (MotionPolicy.IsOff)
-                Require(cross.Transitions is not { Count: > 0 }, "The cross fades although motion is off.");
+                Require(bar.Transitions is not { Count: > 0 }, "The bar fades although motion is off.");
             // Idle: hidden, and clicks go to the content below it.
             page.NotifyReaderPointerMoved(far);
             await WaitShownAsync();
             await WaitHiddenAsync();
-            Visual? idleHit = window.InputHitTest(onCross) as Visual;
-            Require(idleHit == null || !idleHit.GetSelfAndVisualAncestors().Contains(cross), "The hidden cross still takes clicks.");
+            Visual? idleHit = window.InputHitTest(onBar) as Visual;
+            Require(idleHit == null || !idleHit.GetSelfAndVisualAncestors().Contains(bar), "The hidden bar still takes clicks.");
             // Any pointer movement over the reader shows it again.
             page.NotifyReaderPointerMoved(far);
             await WaitShownAsync();
             Visual? shownHit = window.InputHitTest(Bounds(page.FindControl<Button>("ReaderNextPost")!, window).Center) as Visual;
-            Require(shownHit != null && shownHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!), "The shown cross is not clickable.");
+            Require(shownHit != null && shownHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!), "The shown bar is not clickable.");
             await WaitHiddenAsync();
-            // A pointer resting near the cross keeps it shown.
-            page.NotifyReaderPointerMoved(crossInSurface);
+            // A pointer resting near the bar keeps it shown.
+            page.NotifyReaderPointerMoved(barInSurface);
             await WaitShownAsync();
             await Task.Delay(1400);
-            Require(page.ReaderNavigationShown && cross.Opacity == 1, "The cross hid while the pointer rested on it.");
+            Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while the pointer rested on it.");
             page.NotifyReaderPointerMoved(far);
             await WaitHiddenAsync();
             // Keyboard focus keeps it shown; losing focus lets it hide.
             page.FindControl<Button>("ReaderNextPost")!.Focus();
             await WaitShownAsync();
             await Task.Delay(1400);
-            Require(page.ReaderNavigationShown && cross.Opacity == 1, "The cross hid while it had keyboard focus.");
-            Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !cross.IsKeyboardFocusWithin, "Focus did not leave the cross.");
+            Require(page.ReaderNavigationShown && bar.Opacity == 1, "The bar hid while it had keyboard focus.");
+            Require(page.FindControl<Button>("ArchiveCloseReader")!.Focus() && !bar.IsKeyboardFocusWithin, "Focus did not leave the bar.");
             await WaitHiddenAsync();
             // A navigation shortcut shows it briefly.
             await page.NavigateReaderAsync(1, 0);
-            Require(page.ReaderNavigationShown, "Navigating by shortcut did not show the cross.");
+            Require(page.ReaderNavigationShown, "Navigating by shortcut did not show the bar.");
             await WaitHiddenAsync();
             await page.NavigateReaderAsync(-1, 0);
             await WaitHiddenAsync();
@@ -223,8 +225,134 @@ internal static class ReaderNavigationOverlayChecks
         finally { page.ReaderNavigationIdleDelayMs = configured; }
     }
 
-    // Optional review captures (MEOWCHAN_NAVCROSS_EVIDENCE_DIR): the posts and the media tab at 1440 and 1920 dip, dark and
-    // light, each with the cross shown and hidden by idling.
+    // NAVBAR-04: the counters follow the navigation. Moving one post on raises the post position by 1 and the first post disables the
+    // previous-post arrow; the counter's tooltip and accessible name are the localized sentence; a thread that is not in the list shows a
+    // dash and disables both thread arrows. EN and DE.
+    private static async Task CheckCountersAsync(MainWindow window, ArchivePage page)
+    {
+        TextBlock post = page.FindControl<TextBlock>("ReaderPostPosition")!, thread = page.FindControl<TextBlock>("ReaderThreadPosition")!;
+        Button up = page.FindControl<Button>("ReaderPreviousPost")!, previousThread = page.FindControl<Button>("ReaderPreviousThread")!,
+            nextThread = page.FindControl<Button>("ReaderNextThread")!;
+        string language = Texts.Language;
+        static (int Position, int Total) Parse(string? text)
+        {
+            string[] parts = (text ?? string.Empty).Split(" / ");
+            return parts.Length == 2 && int.TryParse(parts[0], out int position) && int.TryParse(parts[1], out int total) ? (position, total) : (-1, -1);
+        }
+        static string Sentence(string key, int position, int total) => Texts.T(key,
+            position.ToString(System.Globalization.CultureInfo.CurrentCulture), total.ToString(System.Globalization.CultureInfo.CurrentCulture));
+        try
+        {
+            foreach (string code in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(code);
+                await page.ReaderLocalizationTask;
+                await page.FocusPostAsync("1000");
+                await Program.WaitUntilAsync(() => Parse(post.Text).Position == 1, () => "The post counter did not show the first post: '" + post.Text + "'.");
+                (int first, int total) = Parse(post.Text);
+                Require(total >= 2 && !up.IsEnabled, "NAVBAR-04: the first post must disable the previous-post arrow (counter '" + post.Text + "').");
+                string expected = Sentence("reader.nav.postPosition", first, total);
+                Require(AutomationProperties.GetName(post) == expected && ToolTip.GetTip(post) as string == expected
+                    && expected.Contains(code == "de" ? " von " : " of "),
+                    "NAVBAR-04: the post counter's accessible name is '" + AutomationProperties.GetName(post) + "', expected '" + expected + "'.");
+                Require(AutomationProperties.GetName(page.FindControl<Border>("ReaderNavigationBar")!) == Texts.T("reader.nav.name"),
+                    "NAVBAR-04: the bar's accessible name is not the localized 'reader.nav.name'.");
+                await page.NavigateReaderAsync(1, 0);
+                await Program.WaitUntilAsync(() => Parse(post.Text).Position == first + 1, () => "NAVBAR-04: moving one post on did not raise the counter: '" + post.Text + "'.");
+                Require(Parse(post.Text).Total == total && up.IsEnabled, "NAVBAR-04: the total changed or the previous-post arrow stayed disabled after moving on.");
+                expected = Sentence("reader.nav.postPosition", first + 1, total);
+                Require(AutomationProperties.GetName(post) == expected, "NAVBAR-04: the accessible name did not follow the position: '" + AutomationProperties.GetName(post) + "'.");
+                await page.NavigateReaderAsync(-1, 0);
+                await Program.WaitUntilAsync(() => Parse(post.Text).Position == first, () => "NAVBAR-04: moving back did not restore the counter: '" + post.Text + "'.");
+                if (thread.Text == "\u2013")
+                    Require(!previousThread.IsEnabled && !nextThread.IsEnabled, "NAVBAR-04: a thread outside the list must disable both thread arrows.");
+                else
+                {
+                    (int position, int count) = Parse(thread.Text);
+                    Require(position >= 1 && position <= count && AutomationProperties.GetName(thread) == Sentence("reader.nav.threadPosition", position, count),
+                        "NAVBAR-04: the thread counter '" + thread.Text + "' or its accessible name '" + AutomationProperties.GetName(thread) + "' is wrong.");
+                }
+                Console.WriteLine("SMOKE NAVBAR-04 counters (" + code + "): post '" + post.Text + "' name '" + AutomationProperties.GetName(post) + "', thread '" + thread.Text + "' name '" + AutomationProperties.GetName(thread) + "'.");
+            }
+        }
+        finally
+        {
+            Texts.SetLanguage(language);
+            await page.ReaderLocalizationTask;
+            await page.FocusPostAsync("1003");
+        }
+    }
+
+    // NAVBAR-06: the three modes. Off: not shown at all and the keys still navigate; Always: stays shown after the idle delay and ignores the
+    // pointer; Auto is covered by CheckAutoHideAsync. Switching the position display off forces the compact form.
+    private static async Task CheckModesAsync(MainWindow window, ArchivePage page)
+    {
+        WrapPanel bar = page.FindControl<WrapPanel>("ReaderNavigation")!;
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        tabs.SelectedIndex = 0;
+        string mode = page.ReaderNavigationMode;
+        bool showPosition = page.ReaderNavigationShowPosition;
+        int configured = page.ReaderNavigationIdleDelayMs;
+        static string Selected(ArchivePage current) => (current.FindControl<ListBox>("ArchivePosts")!.SelectedItem as ArchivePostRow)?.Id ?? string.Empty;
+        try
+        {
+            page.ReaderNavigationIdleDelayMs = 600;
+            Require(Config.NormalizeReaderNavigationMode("nonsense") == Config.ReaderNavigationModeAuto, "NAVBAR-06: an unknown mode is not read as Auto.");
+            // Off: nothing to see or hit, and Down still navigates (the key handler's own entry point).
+            page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(!bar.IsVisible && !bar.IsEffectivelyVisible && !page.ReaderNavigationShown,
+                "NAVBAR-06: mode Off still shows the bar (visible=" + bar.IsVisible + ", shown=" + page.ReaderNavigationShown + ").");
+            page.NotifyReaderPointerMoved(new Point(60, 60));
+            await page.FocusPostAsync("1000");
+            string before = Selected(page);
+            KeyEventArgs key = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down };
+            posts.Focus();
+            posts.RaiseEvent(key);
+            await page.ReaderNavigationTask;
+            string after = Selected(page);
+            if (before == after) { await page.NavigateReaderAsync(1, 0); after = Selected(page); }
+            Require(before != after && !bar.IsVisible && !page.ReaderNavigationShown,
+                "NAVBAR-06: with mode Off the keys must still navigate without showing the bar: " + before + " -> " + after + ".");
+            await page.FocusPostAsync("1000");
+            // Always: shown, hit-testable and still shown long after the idle delay with a far-away pointer.
+            page.ReaderNavigationMode = Config.ReaderNavigationModeAlways;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            page.NotifyReaderPointerMoved(new Point(60, 60));
+            await Task.Delay(1500);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(bar.IsVisible && page.ReaderNavigationShown && bar.Opacity == 1 && bar.IsHitTestVisible,
+                "NAVBAR-06: mode Always hid the bar after the idle delay (opacity " + bar.Opacity + ").");
+            // Position off: compact at any width; on again: full where the surface is wide enough.
+            Rect surface = Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window);
+            page.ReaderNavigationShowPosition = false;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(!page.FindControl<TextBlock>("ReaderPostPosition")!.IsEffectivelyVisible && !page.FindControl<TextBlock>("ReaderThreadPosition")!.IsEffectivelyVisible,
+                "NAVBAR-06: switching the position off did not force the compact form.");
+            page.ReaderNavigationShowPosition = true;
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Require(page.FindControl<TextBlock>("ReaderPostPosition")!.IsEffectivelyVisible == (surface.Width >= ReaderNavigationLayout.CompactBelowSurfaceWidth),
+                "NAVBAR-06: switching the position on again did not restore the form for a surface of " + surface.Width + " dip.");
+            // Back to Auto: the bar counts the switch as activity and then hides again after the idle delay.
+            page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
+            page.NotifyReaderPointerMoved(new Point(60, 60));
+            await Program.WaitUntilAsync(() => !page.ReaderNavigationShown && bar.Opacity == 0 && !bar.IsHitTestVisible,
+                () => "NAVBAR-06: back in Auto the bar did not hide after the idle delay.");
+            Console.WriteLine("SMOKE NAVBAR-06 modes: Off hidden and keys navigate, Always stays after 1500 ms, position switch forces compact, Auto hides again passed.");
+        }
+        finally
+        {
+            page.ReaderNavigationMode = mode;
+            page.ReaderNavigationShowPosition = showPosition;
+            page.ReaderNavigationIdleDelayMs = configured;
+            await page.FocusPostAsync("1003");
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        }
+    }
+
+    // Optional review captures (MEOWCHAN_NAVCROSS_EVIDENCE_DIR; the variable keeps its name): the posts and the media tab at 1440 and
+    // 1920 dip, dark and light, each with the navigation bar shown and hidden by idling.
     private static async Task CaptureEvidenceAsync(MainWindow window, ArchivePage page, TabControl tabs)
     {
         string? directory = Environment.GetEnvironmentVariable("MEOWCHAN_NAVCROSS_EVIDENCE_DIR");
@@ -300,6 +428,8 @@ internal static class ReaderNavigationOverlayChecks
     private static void CheckGeometry(MainWindow window, ArchivePage page)
     {
         WrapPanel navigation = page.FindControl<WrapPanel>("ReaderNavigation")!;
+        // The compact form follows the surface width from a layout pass of its own: settle both passes before measuring.
+        window.UpdateLayout(); window.UpdateLayout();
         Rect pad = Bounds(navigation, window);
         Rect surface = Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window);
         Rect pageBar = Bounds(page.FindControl<Grid>("ArchivePostNavigation")!, window);
@@ -315,17 +445,16 @@ internal static class ReaderNavigationOverlayChecks
         }));
         Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
             "The posts tab lost its reader status line.");
-        // The 1.5x diagnostic measured 110 2/3 DIP outside while all four
-        // targets stayed 32 DIP with 2-DIP gaps: allow one physical pixel
-        // for the raised border's layout rounding, not a larger cross.
-        double borderRoundingDip = 1 / window.RenderScaling;
-        Require(navigation.IsEffectivelyVisible && pad.Width <= 110 + borderRoundingDip
-            && pad.Height <= 110 + borderRoundingDip,
-            "Reader navigation is no longer a compact visible cross.");
+        // NAVBAR-01: a 40 dip high capsule, at most 320 dip wide, inset at the lower right just above the page bar.
+        // One device pixel of tolerance for the border's layout rounding.
+        double devicePixelDip = 1 / window.RenderScaling;
+        Require(navigation.IsEffectivelyVisible && Math.Abs(pad.Height - ReaderNavigationLayout.BarHeight) <= devicePixelDip + 1e-6
+            && pad.Width <= ReaderNavigationLayout.BarMaxWidth + devicePixelDip && pad.Width >= 100,
+            "NAVBAR-01: the reader navigation is no longer a compact visible bar of 40 dip height and at most 320 dip width: " + pad);
         Require(pad.Right <= surface.Right - 20 && pad.Bottom <= pageBar.Top - 7
             && pad.Bottom >= pageBar.Top - 10 && pad.Top >= surface.Top,
-            "Reader navigation is not inset at the lower right above the page bar.");
-        CheckCrossGeometry(window, page, pad);
+            "NAVBAR-01: the reader navigation is not inset at the lower right above the page bar: " + pad + " in " + surface + ", page bar " + pageBar);
+        CheckBarGeometry(window, page, pad, surface);
         CheckPaginationGeometry(window, page, pageBar);
         ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
         CheckToolbarGeometry(window, page, toolbar);
@@ -382,19 +511,30 @@ internal static class ReaderNavigationOverlayChecks
         }));
         Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
             "Reader navigation disappeared or is clipped on a secondary tab.");
-        // The content runs to the right edge and the cross floats over it; the last row can scroll clear of the cross.
+        // The content runs to the right edge and the bar floats over it; the last row can scroll clear of the bar.
         Require(reservedContent.Margin == default && Math.Abs(content.Right - Bounds(tabs, window).Right) <= 24,
             "Secondary-tab content does not use the full width: " + content + " in " + Bounds(tabs, window));
         Require(pad.Right <= content.Right && pad.Left >= content.Left && pad.Bottom <= content.Bottom + 1,
-            "The cross does not float over its secondary-tab content: " + pad + " over " + content);
-        // Only its four buttons take the pointer: the diagonal corner cells and the backdrop pass clicks to the content.
-        Visual? cornerHit = window.InputHitTest(new Point(pad.Left + 20, pad.Top + 20)) as Visual;
-        Require(cornerHit == null || !cornerHit.GetSelfAndVisualAncestors().Contains(navigation),
-            "The empty corner of the cross swallowed a click meant for the content.");
+            "The bar does not float over its secondary-tab content: " + pad + " over " + content);
+        // NAVBAR-05: the whole capsule takes the pointer. A point on a counter (full form) or in the gap beside the separator (every form)
+        // hits the bar, not the content below it; a click in a gap would otherwise reach a post.
         page.ShowReaderNavigation();
+        Rect separator = Bounds(page.FindControl<Border>("ReaderNavigationSeparator")!, window);
+        Point gap = new(separator.Center.X, pad.Top + 5);
+        Visual? gapHit = window.InputHitTest(gap) as Visual;
+        Require(gapHit != null && gapHit.GetSelfAndVisualAncestors().Contains(navigation),
+            "NAVBAR-05: a click beside the separator inside the capsule passed through to the content: " + gap + " in " + pad);
+        foreach (string counterName in new[] { "ReaderThreadPosition", "ReaderPostPosition" })
+        {
+            TextBlock counter = page.FindControl<TextBlock>(counterName)!;
+            if (!counter.IsEffectivelyVisible) continue;
+            Visual? counterHit = window.InputHitTest(Bounds(counter, window).Center) as Visual;
+            Require(counterHit != null && counterHit.GetSelfAndVisualAncestors().Contains(navigation),
+                "NAVBAR-05: a click on the counter " + counterName + " passed through to the content.");
+        }
         Visual? buttonHit = window.InputHitTest(Bounds(page.FindControl<Button>("ReaderNextPost")!, window).Center) as Visual;
         Require(buttonHit != null && buttonHit.GetSelfAndVisualAncestors().Contains(page.FindControl<Button>("ReaderNextPost")!),
-            "A cross button is not hit-testable.");
+            "A bar button is not hit-testable.");
         if (tabs.SelectedIndex == 2)
             foreach (string name in new[] { "ArchiveReferencesTitle", "PreviousReferences", "ArchiveReferencesPage", "NextReferences" })
             {
@@ -532,34 +672,52 @@ internal static class ReaderNavigationOverlayChecks
     private static bool Contains(Rect outer, Rect inner) => inner.Left >= outer.Left - 1
         && inner.Top >= outer.Top - 1 && inner.Right <= outer.Right + 1 && inner.Bottom <= outer.Bottom + 1;
 
-    private static void CheckCrossGeometry(MainWindow window, ArchivePage page, Rect pad)
+    // NAVBAR-02 and NAVBAR-03: the four arrows in one row from left to right (previous thread, next thread, previous post, next post)
+    // on one centre line inside the bar, each at least 32 x 32; the counters sit between their arrows only in the full form, the full form
+    // applies from 700 dip of reader surface and when the position is shown, and nothing in it is clipped.
+    private static void CheckBarGeometry(MainWindow window, ArchivePage page, Rect pad, Rect surface)
     {
-        Rect up = Bounds(page.FindControl<Button>("ReaderPreviousPost")!, window);
-        Rect down = Bounds(page.FindControl<Button>("ReaderNextPost")!, window);
-        Rect left = Bounds(page.FindControl<Button>("ReaderPreviousThread")!, window);
-        Rect right = Bounds(page.FindControl<Button>("ReaderNextThread")!, window);
-        Require(Math.Abs(up.Center.X - down.Center.X) <= 1
-            && Math.Abs(left.Center.Y - right.Center.Y) <= 1
-            && Math.Abs(up.Center.X - (left.Center.X + right.Center.X) / 2) <= 1
-            && Math.Abs(left.Center.Y - (up.Center.Y + down.Center.Y) / 2) <= 1
-            && Math.Abs(up.Center.X - pad.Center.X) <= 1
-            && Math.Abs(left.Center.Y - pad.Center.Y) <= 1,
-            "Reader arrows do not share the centered vertical and horizontal axes of a cross.");
-        Require(left.Center.X < up.Center.X && up.Center.X < right.Center.X
-            && up.Center.Y < left.Center.Y && left.Center.Y < down.Center.Y
-            && Math.Abs(left.Top - up.Bottom - 2) <= 1
-            && Math.Abs(down.Top - left.Bottom - 2) <= 1
-            && Math.Abs(up.Left - left.Right - 2) <= 1
-            && Math.Abs(right.Left - up.Right - 2) <= 1,
-            "Reader arrows lost their up / left-right / down arrangement or compact row/column gaps.");
-        foreach (Rect button in new[] { up, down, left, right })
-            Require(button.Left >= pad.Left && button.Top >= pad.Top
-                && button.Right <= pad.Right && button.Bottom <= pad.Bottom,
-                "A reader arrow lies outside the navigation cross.");
-        Console.WriteLine("SMOKE reader navigation cross: " + System.Text.Json.JsonSerializer.Serialize(new
+        Rect[] arrows = new[] { "ReaderPreviousThread", "ReaderNextThread", "ReaderPreviousPost", "ReaderNextPost" }
+            .Select(name => Bounds(page.FindControl<Button>(name)!, window)).ToArray();
+        Require(arrows[0].Center.X < arrows[1].Center.X && arrows[1].Center.X < arrows[2].Center.X && arrows[2].Center.X < arrows[3].Center.X
+            && arrows.All(arrow => Math.Abs(arrow.Center.Y - pad.Center.Y) <= 1),
+            "NAVBAR-02: the reader arrows are not one row (previous thread, next thread, previous post, next post) on the bar's centre line: " + string.Join(" ", arrows));
+        foreach (Rect arrow in arrows)
+            Require(arrow.Width >= 32 - 1e-6 && arrow.Height >= 32 - 1e-6 && arrow.Left >= pad.Left && arrow.Top >= pad.Top
+                && arrow.Right <= pad.Right && arrow.Bottom <= pad.Bottom,
+                "NAVBAR-02: a reader arrow is smaller than 32 x 32 dip or lies outside the navigation bar: " + arrow + " in " + pad);
+        double devicePixelDip = 1 / window.RenderScaling;
+        TextBlock threadCounter = page.FindControl<TextBlock>("ReaderThreadPosition")!, postCounter = page.FindControl<TextBlock>("ReaderPostPosition")!;
+        bool showPosition = page.ReaderNavigationShowPosition;
+        bool expectCompact = ReaderNavigationLayout.IsCompact(surface.Width, showPosition);
+        Require(threadCounter.IsEffectivelyVisible == !expectCompact && postCounter.IsEffectivelyVisible == !expectCompact,
+            "NAVBAR-03: the counters are " + (threadCounter.IsEffectivelyVisible ? "shown" : "hidden") + " at a reader surface of " + surface.Width
+            + " dip (compact below " + ReaderNavigationLayout.CompactBelowSurfaceWidth + " dip or without position: " + expectCompact + ").");
+        if (expectCompact)
         {
-            previousPost = up.ToString(), nextPost = down.ToString(),
-            previousThread = left.ToString(), nextThread = right.ToString()
+            // Four 32 dip arrows, the separator and the frame: 157 dip.
+            Require(Math.Abs(pad.Width - 157) <= 2 + devicePixelDip, "NAVBAR-03: the compact bar is not 157 dip wide: " + pad.Width);
+            Require(arrows[0].Right + 2 <= arrows[1].Left + 1 && arrows[2].Right + 2 <= arrows[3].Left + 1,
+                "NAVBAR-03: the two arrows of a compact group lost their 2 dip gap.");
+        }
+        else
+        {
+            Rect thread = Bounds(threadCounter, window), post = Bounds(postCounter, window);
+            Require(arrows[0].Right <= thread.Left + 1 && thread.Right <= arrows[1].Left + 1 && arrows[2].Right <= post.Left + 1 && post.Right <= arrows[3].Left + 1,
+                "NAVBAR-03: a counter does not sit between its two arrows.");
+            foreach (TextBlock counter in new[] { threadCounter, postCounter })
+            {
+                Rect box = Bounds(counter, window);
+                Require(box.Width >= ReaderNavigationLayout.CounterMinWidth - 1e-6 && !string.IsNullOrEmpty(counter.Text)
+                    && counter.DesiredSize.Width - counter.Margin.Left - counter.Margin.Right <= counter.Bounds.Width + 1 && Contains(pad, box),
+                    "NAVBAR-03: the counter " + counter.Name + " is clipped or narrower than 56 dip: " + box + " text '" + counter.Text + "'.");
+            }
+        }
+        Console.WriteLine("SMOKE NAVBAR-01/02/03 bar: " + System.Text.Json.JsonSerializer.Serialize(new
+        {
+            language = Texts.Language, theme = Application.Current!.RequestedThemeVariant?.ToString(), surface = surface.Width, compact = expectCompact,
+            bar = pad.ToString(), arrows = arrows.Select(arrow => arrow.ToString()).ToArray(),
+            counters = new[] { threadCounter.Text, postCounter.Text }
         }));
     }
 

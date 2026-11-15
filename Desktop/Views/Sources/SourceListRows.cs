@@ -18,7 +18,20 @@ internal sealed record SourceListRow(SourceRow Source, PluginCatalogEntry? Plugi
     internal string Name => Source.Name;
     internal string Address => Source.Address;
     internal string Summary => Source.Summary;
+    internal SourceWatchStats? Stats => Source.Stats;
     internal IReadOnlyList<SourceWatchRow> Watches => Source.Watches;
+}
+
+/// <summary>The four stats of a Sources card footer, in display order. Priority 0 is the most important: a narrow card keeps Threads, then Active, then Queued, and drops Boards first.</summary>
+internal static class SourceStatFooter
+{
+    internal static IReadOnlyList<Desktop.Controls.StatFooterItem> Items(SourceWatchStats stats) =>
+    [
+        new("threads", "message-square", Desktop.Localization.Texts.T("sources.stat.threads"), stats.Threads, 0),
+        new("boards", "grid", Desktop.Localization.Texts.T("sources.stat.boards"), stats.Boards, 3),
+        new("queued", "list", Desktop.Localization.Texts.T("sources.stat.queued"), stats.Queued, 2),
+        new("active", "download", Desktop.Localization.Texts.T("sources.stat.active"), stats.Active, 1)
+    ];
 }
 
 internal static class SourceListRows

@@ -236,8 +236,8 @@ public sealed class QuickTagStampSourceTests : IDisposable
         Assert.Equal(0, await session.ApplyStampAsync());
         Assert.Equal(undoSteps, session.UndoSteps.Count);
         Assert.Equal(QuickTagStatusKind.StampComplete, session.Status.Kind);
-        Assert.Equal("All stamp tags are already set.", session.Status.Text);
-        Assert.Equal("Alle Stempel-Tags sind schon gesetzt.", BuiltInCatalog.German["tags.quick.stamp.complete"]);
+        Assert.Equal("Every tag of the stamp is already set.", session.Status.Text);
+        Assert.Equal("Alle Tags des Stempels sind schon gesetzt.", BuiltInCatalog.German["tags.quick.stamp.complete"]);
     }
 
     [Fact]
@@ -644,7 +644,7 @@ public sealed class QuickTagStampSourceTests : IDisposable
             stamp.Replace(new[] { "a", "b" });
             surface.Refresh();
             Assert.True(surface.StampButton.IsEnabled);
-            Assert.Equal("Set all stamp tags (a, b) · Ctrl+Shift+Enter", AutomationProperties.GetName(surface.StampButton));
+            Assert.Equal("Apply stamp (a, b) · Ctrl+Shift+Enter", AutomationProperties.GetName(surface.StampButton));
             Assert.Equal("Ctrl+Shift+Enter", AutomationProperties.GetAcceleratorKey(surface.StampButton));
             Assert.Equal(new[] { "a", "b" }, surface.Shown.Select(item => item.Name.Display));
 

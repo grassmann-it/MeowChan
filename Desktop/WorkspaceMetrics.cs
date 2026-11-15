@@ -23,6 +23,8 @@ public static class WorkspaceMetrics
 {
     public const double NormalRowHeight = 44;
     public const double CompactRowHeight = 32;
+    /// <summary>A list row with a title and a meta line (16 dip padding above and below them together, on the 8 dip grid).</summary>
+    public const double TwoLineRowHeight = 56;
 
     /// <summary>Height of the app-owned title bar in every window. Code mirror of the Workspace.Size.TitleBar
     /// resource; a test keeps both equal.</summary>

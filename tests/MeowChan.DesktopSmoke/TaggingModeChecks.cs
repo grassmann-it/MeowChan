@@ -48,7 +48,7 @@ internal static class TaggingModeChecks
             TaggingWalk walk = window.GalleryTagging ?? throw new InvalidOperationException("The walk-through did not start the tagging mode.");
             await UntilAsync(() => viewer.IsTaggingMode && viewer.IsTagPanelOpen && viewer.TaggingStrip.IsEffectivelyVisible, "The strip or the tag panel is missing.");
             Require(viewer.PositionText == "Queue 1 of 3", "The header does not name the queue position: " + viewer.PositionText);
-            Require(viewer.TaggingProgressText.Text == "Done: 0 · Skipped: 0 · Open: 3", "Wrong progress: " + viewer.TaggingProgressText.Text);
+            Require(viewer.TaggingProgressText.Text == "Open: 3 · Done: 0 · Skipped: 0", "Wrong progress: " + viewer.TaggingProgressText.Text);
             Require(AutomationProperties.GetName(viewer.TaggingDoneButton) == Texts.T("tagging.done")
                 && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == "Enter", "The Done button has no name or key.");
             Require(viewer.TagSurface!.Session.Stamp.Count == 1, "The panel does not share the window's stamp.");
@@ -98,7 +98,7 @@ internal static class TaggingModeChecks
             // The strip follows a language switch.
             Texts.SetLanguage("de");
             await UntilAsync(() => AutomationProperties.GetName(viewer.TaggingDoneButton) == "Fertig & weiter", "The strip did not follow the language.");
-            Require(viewer.TaggingProgressText.Text == "Fertig: 1 · Übersprungen: 0 · Offen: 2", "Wrong German progress: " + viewer.TaggingProgressText.Text);
+            Require(viewer.TaggingProgressText.Text == "Offen: 2 · Erledigt: 1 · Übersprungen: 0", "Wrong German progress: " + viewer.TaggingProgressText.Text);
             Program.CaptureWindow(window, "smoke-tagging-mode-de.png");
             Texts.SetLanguage("en");
 

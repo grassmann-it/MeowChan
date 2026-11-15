@@ -67,6 +67,9 @@ public sealed partial class MediaPage
         WorkViewElement.SetId(_layoutButton, "media.toolbar.layout"); // MP5
         WorkViewElement.SetId(_queueWalk, "media.toolbar.queue-walk"); // MP3
         WorkViewElement.SetId(_taggingPageOpen, "media.toolbar.tagging-page");
+        WorkViewElement.SetId(_queueAll, "media.toolbar.queue-all"); // QW-A #10: "Add all shown to the tagging queue…" was only in the chip menu and the context menus
+        WorkViewElement.SetId(_mediaFolders, "media.toolbar.folders"); // QW-A #1
+        _mediaFolders.Click += (_, _) => { if (!_lifetime.IsCancellationRequested) OpenMediaFoldersRequested?.Invoke(); };
         WireQueueTools();
         WorkViewElement.SetId(_kindFilter, "media.filter.kind");
         WorkViewElement.SetId(_favoritesOnly, "media.filter.favorites");
@@ -153,6 +156,8 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_layoutButton, view);
         WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
         WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
+        WorkViewGate.Apply(_queueAll, view, stateVisible: AddToTagQueue != null);
+        WorkViewGate.Apply(_mediaFolders, view, stateVisible: OpenMediaFoldersRequested != null);
         ApplyToolbarLevel(); // what the page width moves under More as well (MediaPage.Toolbar.cs)
         UpdateMore(_more, HeaderOverflow());
         // Filter fields.
@@ -175,7 +180,7 @@ public sealed partial class MediaPage
     }
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
-    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen);
+    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders);
 
     private List<Control> SelectionOverflow() => Overflowed(_selTag, _selQueue, _selExport);
 

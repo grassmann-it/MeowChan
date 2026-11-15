@@ -226,6 +226,9 @@ internal sealed class FolderSourcesPanel : UserControl
         _error.IsVisible = true;
     }
 
+    /// <summary>Starts the add flow as the button does (the Media page's "Link folder…"); a busy or blocked group ignores it.</summary>
+    internal void BeginAdd() { if (_add.IsEnabled) _ = AddAsync(); }
+
     private async Task AddAsync()
     {
         if (_busy) return;

@@ -409,11 +409,11 @@ internal static class TaggingModeText
     internal static string? Position(TaggingWalk walk, int index) => walk.QueuePosition(index) is { } position
         ? Texts.T("tagging.position", position.Number.ToString(Texts.Culture), position.Count.ToString(Texts.Culture)) : null;
 
-    /// <summary>"Done: 5 · Skipped: 1 · Open: 194" (numbers in fixed phrases: no plural forms needed).</summary>
+    /// <summary>"Open: 194 · Done: 5 · Skipped: 1", the same order and words as the Tagging page (numbers in fixed phrases: no plural forms needed).</summary>
     internal static string Progress(TaggingWalk walk)
     {
         (int done, int skipped, int open) = walk.Progress();
-        return Texts.T("tagging.progress", done.ToString(Texts.Culture), skipped.ToString(Texts.Culture), open.ToString(Texts.Culture));
+        return Texts.T("tagging.progress", open.ToString(Texts.Culture), done.ToString(Texts.Culture), skipped.ToString(Texts.Culture));
     }
 
     /// <summary>What the status line says after a decision: what happened, and the next medium or that the walk is through.</summary>

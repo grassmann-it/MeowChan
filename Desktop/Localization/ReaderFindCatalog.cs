@@ -4,7 +4,7 @@ internal static class ReaderFindCatalog
 {
     public static readonly (string Key, string English, string German)[] Entries =
     {
-        ("readerFind.open", "Find in saved thread", "Im gespeicherten Thread suchen"),
+        ("readerFind.open", "Find", "Suchen"),
         ("readerFind.query", "Find text (up to 512 characters)", "Text suchen (bis 512 Zeichen)"),
         ("readerFind.previous", "Previous hit", "Voriger Treffer"),
         ("readerFind.next", "Next hit", "Nächster Treffer"),

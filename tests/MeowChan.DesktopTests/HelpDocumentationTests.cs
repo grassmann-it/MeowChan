@@ -386,12 +386,13 @@ public sealed class HelpDocumentationTests
     {
         string text = Plain(Section(Read(Help), "Reader media sidebar and inline video"));
         foreach (string phrase in new[] { "Changes are saved and apply immediately", "full Settings page still uses Save/Discard",
-            "Media sidebar in the large reader is off by default", "Play videos in the reader is a separate opt-in, off by default",
+            // The sidebar is on by default and "Play videos in the reader" became the choice "Clicking a medium" (15.11.2026): Help.md
+            // (owned by Codex) states the new defaults; its two old phrases are no longer pinned here.
             "Only one inline video plays at a time", "On Windows, a video not wholly inside the post viewport is released",
             "Autoplay videos muted is another opt-in, also off by default", "Neither option fetches video from a source" })
             Assert.Contains(phrase, text, StringComparison.Ordinal);
-        Assert.False(new Config().ReaderMediaSidebar);
-        Assert.False(new Config().ReaderInlineVideo);
+        Assert.True(new Config().ReaderMediaSidebar);
+        Assert.Equal(ReaderMediaClickMode.Sidebar, new Config().EffectiveReaderMediaClick);
         Assert.False(new Config().ReaderInlineVideoAutoplayMuted);
         // Only read the actual hosts; no player, decoder, settings window or session is constructed.
         Assert.Contains("_archivePage.QuickSettingsHost = CreateQuickSettingsHost();", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
@@ -1257,7 +1258,8 @@ public sealed class HelpDocumentationTests
         // The Help sentence names the classic slot 6; in the default layout of F1 Booru's digit follows the footer, so the mechanics are checked on that digit.
         ShortcutGesture six = ShortcutGesture.Parse("Primary+" + MainPageOrder.Digit("navigation.booru"));
         EffectiveShortcutBindings defaults = EffectiveShortcutBindings.Build(platform: platform);
-        Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(defaults.For("navigation.booru")), platform));
+        // Revision 15: the page's digit first, its fixed letter second (PageKeyScheme).
+        Assert.True(EffectiveShortcutBindings.Equivalent(six, defaults.For("navigation.booru").First(), platform));
         Assert.Empty(defaults.For("navigation.plugins"));
         // Saved historical bindings remain byte-for-byte unchanged; the new default, not the user's override, yields.
         ShortcutBindingsSection section = new ShortcutBindingsSection().Set("navigation.plugins", [six]);
@@ -1267,12 +1269,13 @@ public sealed class HelpDocumentationTests
         EffectiveShortcutBindings saved = EffectiveShortcutBindings.Build(section, platform);
         Assert.Equal(before, section.Raw.GetRawText());
         Assert.True(EffectiveShortcutBindings.Equivalent(six, Assert.Single(saved.For("navigation.plugins")), platform));
-        Assert.Empty(saved.For("navigation.booru"));
+        // The yielding digit is gone; Booru keeps its fixed letter, which the saved binding does not touch.
+        Assert.Equal(new[] { PageKeyScheme.Letter("navigation.booru") }, saved.For("navigation.booru").Select(g => g.Key));
         Assert.DoesNotContain(saved.Issues, issue => issue.BlocksSave);
         Assert.Contains(saved.Issues, issue => issue.CommandId == "navigation.booru"
             && issue.OtherCommandId == "navigation.plugins" && issue.Reason?.Code == "defaultYields");
         foreach (string id in MainPageOrder.NumberedCommandIds.Where(id => id != "navigation.booru"))
-            Assert.True(EffectiveShortcutBindings.Equivalent(Assert.Single(defaults.For(id)), Assert.Single(saved.For(id)), platform));
+            Assert.True(EffectiveShortcutBindings.Equivalent(defaults.For(id).First(), saved.For(id).First(), platform));
         foreach (string id in MainPageOrder.StatusSegmentCommandIds)
             Assert.True(EffectiveShortcutBindings.Equivalent(
                 ShortcutGesture.Parse(id == "navigation.statistics" ? "Primary+9" : "Primary+Shift+7"), Assert.Single(saved.For(id)), platform));

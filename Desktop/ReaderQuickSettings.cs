@@ -1,21 +1,28 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using static MeowChan.Desktop.QuickSetting;
 
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The reader's quick settings popover (View menu, "Reader settings…"): the display options readers reach for most often. Each
-/// field is the same setting as on the settings page, under the same id, label and limits; the popover only offers it closer.
+/// The reader's settings popover (the gear "Settings" of the reader toolbar, RL1): the display options readers reach for most often, in
+/// four sections: the view of this session (switches of the open view, not saved), media, text and layout, and the thread. Each setting
+/// is the same setting as on the settings page, under the same id, label and limits; the popover only offers it closer.
 /// <para>
-/// A setting joins the popover with one more line in <see cref="Fields"/>: its <see cref="SettingsFieldId"/> (the name of its input
-/// on the settings page without "Input"), the label and hint keys the page already uses, and how to read and write it in
-/// <see cref="Config"/>. Order below is display order. The settings search finds the field through the page, as before.
+/// A setting joins the popover in two steps: its line in <see cref="Catalog"/> (its <see cref="SettingsFieldId"/>, the name of its input
+/// on the settings page without "Input"; the label and hint keys the page already uses; how to read and write it in <see cref="Config"/>),
+/// and its place in <see cref="Layout"/> (section, a condition on another on/off setting, the key of its command). Whatever is only in the
+/// catalog is reached on the settings page (the popover's last line goes there). The settings search finds every field through the page.
 /// </para>
 /// </summary>
 internal static class ReaderQuickSettings
 {
-    internal static readonly IReadOnlyList<QuickSettingField> Fields = new[]
+    // Every setting the popover can hold (the display order is Layout's).
+    private static readonly IReadOnlyList<QuickSettingField> Catalog = new[]
     {
+        // The choice behind a click on a medium (merged with the old inline video switch), first because it is the one readers reach for.
+        Choice(SettingsFieldId.ReaderMediaClick, "settings.reader.mediaClick", "settings.reader.mediaClick.hint", Options((ReaderMediaClickRules.SidebarKey, "settings.reader.mediaClick.sidebar"), (ReaderMediaClickRules.PostKey, "settings.reader.mediaClick.post"), (ReaderMediaClickRules.GalleryKey, "settings.reader.mediaClick.gallery")), c => ReaderMediaClickRules.ToKey(c.EffectiveReaderMediaClick), (c, v) => c.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(v))),
         Choice(SettingsFieldId.ReaderPostWidth, "reader.postWidth", "reader.postWidth.hint", Options((Config.ReaderPostWidthFit, "reader.postWidth.fit"), (Config.ReaderPostWidthFull, "reader.postWidth.full"), (Config.ReaderPostWidthColumn, "reader.postWidth.column")), c => c.ReaderPostWidth, (c, v) => c.ReaderPostWidth = v),
         Integer(SettingsFieldId.ReaderThumbnailWidth, "settings.reader.thumbnailWidth", "settings.reader.thumbnailWidth.hint", Config.ReaderThumbnailWidthMinimum, Config.ReaderThumbnailWidthMaximum, 10, c => c.ReaderThumbnailWidth, (c, v) => c.ReaderThumbnailWidth = v),
         Choice(SettingsFieldId.ReadingFontSize, "r08d.settings.readingFontSize", null, Options(("Small", "r08d.settings.fontSmall"), ("Normal", "r08d.settings.fontNormal"), ("Large", "r08d.settings.fontLarge")), c => c.ReadingFontSize, (c, v) => c.ReadingFontSize = v),
@@ -37,8 +44,7 @@ internal static class ReaderQuickSettings
         Choice(SettingsFieldId.ReaderMediaSidebarSide, "settings.reader.mediaSidebarSide", "settings.reader.mediaSidebarSide.hint", Options((Config.ReaderMediaSidebarSideLeft, "settings.reader.mediaSidebarSide.left"), (Config.ReaderMediaSidebarSideRight, "settings.reader.mediaSidebarSide.right")), c => c.ReaderMediaSidebarSide, (c, v) => c.ReaderMediaSidebarSide = v),
         Integer(SettingsFieldId.ReaderMediaSidebarWidth, "settings.reader.mediaSidebarWidth", "settings.reader.mediaSidebarWidth.hint", Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum, 40, c => c.ReaderMediaSidebarWidth, (c, v) => c.ReaderMediaSidebarWidth = v),
         Integer(SettingsFieldId.ReaderMediaSidebarMinimumWidth, "settings.reader.mediaSidebarMinimumWidth", "settings.reader.mediaSidebarMinimumWidth.hint", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum, 80, c => c.ReaderMediaSidebarMinimumWidth, (c, v) => c.ReaderMediaSidebarMinimumWidth = v),
-        // R10: inline video in reader posts and the media sidebar.
-        Toggle(SettingsFieldId.ReaderInlineVideo, "settings.reader.inlineVideo", "settings.reader.inlineVideo.hint", c => c.ReaderInlineVideo, (c, v) => c.ReaderInlineVideo = v),
+        // R10: the players of the reader (in the sidebar and in posts).
         Toggle(SettingsFieldId.ReaderInlineVideoAutoplayMuted, "settings.reader.inlineVideoAutoplay", "settings.reader.inlineVideoAutoplay.hint", c => c.ReaderInlineVideoAutoplayMuted, (c, v) => c.ReaderInlineVideoAutoplayMuted = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxPlayers, "settings.reader.inlineVideoPlayers", "settings.reader.inlineVideoPlayers.hint", Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum, 1, c => c.ReaderInlineVideoMaxPlayers, (c, v) => c.ReaderInlineVideoMaxPlayers = v),
         Integer(SettingsFieldId.ReaderInlineVideoMaxFileMiB, "settings.reader.inlineVideoMaxFile", "settings.reader.inlineVideoMaxFile.hint", Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum, 64, c => c.ReaderInlineVideoMaxFileMiB, (c, v) => c.ReaderInlineVideoMaxFileMiB = v),
@@ -48,5 +54,43 @@ internal static class ReaderQuickSettings
         Integer(SettingsFieldId.ReaderMediaGridTextLimit, "settings.reader.mediaGridText", "settings.reader.mediaGridText.hint", Config.ReaderMediaGridTextLimitMinimum, Config.ReaderMediaGridTextLimitMaximum, 20, c => c.ReaderMediaGridTextLimit, (c, v) => c.ReaderMediaGridTextLimit = v),
     };
 
-    internal static readonly QuickSettingsSpec Spec = new(QuickSettingsSurfaces.Reader, "quicksettings.reader.title", "quicksettings.reader.all", Fields);
+    /// <summary>The field of "Clicking a medium" (Config.ReaderMediaClick: Sidebar / Post / Gallery), the first row of the popover's Media section.</summary>
+    internal const string MediaClickFieldId = SettingsFieldId.ReaderMediaClick;
+
+    private static QuickSettingField Setting(string id) => Catalog.Single(field => string.Equals(field.Id, id, StringComparison.Ordinal));
+    private static QuickSettingsFieldEntry Row(string id, string? when = null, string? shortcut = null) => new(Setting(id), when, shortcut);
+
+    /// <summary>The popover's lines in order. Session rows are the commands of the open view (the former View menu); the rest are settings.</summary>
+    internal static readonly IReadOnlyList<QuickSettingsEntry> Layout = new QuickSettingsEntry[]
+    {
+        new QuickSettingsSection("quicksettings.reader.section.view"),
+        new QuickSettingsSessionEntry("reader.view.media-only"),
+        new QuickSettingsSessionEntry("reader.view.hide-media"),
+        new QuickSettingsSessionEntry("reader.view.conversation"),
+        new QuickSettingsSessionEntry("reader.post-filters", IsAction: true),
+        new QuickSettingsSection("quicksettings.reader.section.media"),
+        // "Clicking a medium" (Config.ReaderMediaClick; Sidebar / Post / Gallery, feature/reader-inline-video-minimal) replaces the old inline video switch here.
+        Row(MediaClickFieldId),
+        Row(SettingsFieldId.ReaderMediaSidebar, shortcut: "reader.sidebar.toggle"),
+        Row(SettingsFieldId.ReaderMediaSidebarSide, when: SettingsFieldId.ReaderMediaSidebar),
+        Row(SettingsFieldId.ReaderTextlessLargeImages, shortcut: "reader.view.textless-large"),
+        Row(SettingsFieldId.ReaderTextlessMediaWidth, when: SettingsFieldId.ReaderTextlessLargeImages),
+        Row(SettingsFieldId.ReaderFocusedMediaEnlarge, shortcut: "reader.view.focused-enlarge"),
+        Row(SettingsFieldId.ReaderFocusedMediaScalePercent, when: SettingsFieldId.ReaderFocusedMediaEnlarge),
+        Row(SettingsFieldId.ReaderHoverEnlarge, shortcut: "reader.view.hover-enlarge"),
+        Row(SettingsFieldId.ReaderThumbnailWidth),
+        new QuickSettingsSection("quicksettings.reader.section.text"),
+        Row(SettingsFieldId.ReaderPostWidth),
+        Row(SettingsFieldId.ReadingFontSize),
+        Row(SettingsFieldId.ReaderDateStyle),
+        Row(SettingsFieldId.ReaderSpoilers),
+        Row(SettingsFieldId.ReaderPageSize),
+        new QuickSettingsSection("quicksettings.reader.section.thread"),
+        new QuickSettingsSessionEntry("watch.follow-live"),
+    };
+
+    /// <summary>The settings in the popover, in its order.</summary>
+    internal static readonly IReadOnlyList<QuickSettingField> Fields = Layout.OfType<QuickSettingsFieldEntry>().Select(entry => entry.Field).ToArray();
+
+    internal static readonly QuickSettingsSpec Spec = QuickSettingsSpec.WithLayout(QuickSettingsSurfaces.Reader, "quicksettings.reader.title", "quicksettings.reader.all", Layout);
 }

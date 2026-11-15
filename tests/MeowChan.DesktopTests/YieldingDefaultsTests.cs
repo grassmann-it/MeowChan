@@ -131,18 +131,19 @@ public sealed class YieldingDefaultsTests
         // "Add another shortcut" stored the whole list, old default included, as an explicit Replace.
         // Entries are never removed from the yielding list, so it also names commands whose default was taken away later
         // (Diagnostics and Statistics became segments of Status without a digit); they have no new default to yield.
+        // Since revision 15 a page has two defaults (the footer digit and its fixed letter, PageKeyScheme), so every default of every page is tried.
         foreach (string id in EffectiveShortcutBindings.YieldingDefaultCommandIds.Where(id => id.StartsWith("navigation.", StringComparison.Ordinal)
-            && EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Count == 1))
-        {
-            // Every main page yields since the footer digits (revision 11), so the saved binding sits on an application command outside the pages.
-            var other = CommandCatalog.Get("session.pause");
-            var yieldingGesture = EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Single();
-            var section = new ShortcutBindingsSection().Set(other.Id, [ShortcutGesture.Parse("Primary+9"), yieldingGesture]);
-            var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
-            Assert.Equal(2, bindings.For(other.Id).Count);
-            Assert.Empty(bindings.For(id));
-            Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
-        }
+            && EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)).Count >= 1))
+            foreach (var yieldingGesture in EffectiveShortcutBindings.Defaults(CommandCatalog.Get(id)))
+            {
+                // Every main page yields since the footer digits (revision 11), so the saved binding sits on an application command outside the pages.
+                var other = CommandCatalog.Get("session.pause");
+                var section = new ShortcutBindingsSection().Set(other.Id, [ShortcutGesture.Parse("Primary+9"), yieldingGesture]);
+                var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
+                Assert.Equal(2, bindings.For(other.Id).Count);
+                Assert.DoesNotContain(bindings.For(id), g => EffectiveShortcutBindings.Equivalent(g, yieldingGesture, ShortcutPlatform.Linux));
+                Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
+            }
     }
 
     [Fact]
@@ -165,7 +166,8 @@ public sealed class YieldingDefaultsTests
         string before = section.Raw.GetRawText();
         var yields = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Contains(yields.Issues, issue => issue.CommandId == "navigation.media" && issue.OtherCommandId == "navigation.archive");
-        Assert.Empty(yields.For("navigation.media"));
+        // Media's digit yields; its fixed letter (revision 15) is not the saved key and stays.
+        Assert.Equal(new[] { PageKeyScheme.Letter("navigation.media") }, yields.For("navigation.media").Select(g => g.Key));
         Assert.Single(yields.For("navigation.archive"));
         Assert.Equal(before, section.Raw.GetRawText());
         Assert.DoesNotContain(yields.Issues, EffectiveShortcutBindings.NeedsStartupWarning);

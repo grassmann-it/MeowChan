@@ -26,7 +26,8 @@ public partial class SourcesPage : UserControl
     private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
     private IReadOnlyList<SourceListRow> _rows = Array.Empty<SourceListRow>();
-    private sealed record SourceCard(SelectionListItem Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation)
+    private sealed record SourceCard(SelectionListItem Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation,
+        Desktop.Controls.StatFooterRow Footer)
     {
         internal string ChipSignature { get; set; } = string.Empty;
     }
@@ -109,7 +110,9 @@ public partial class SourcesPage : UserControl
                     TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
                     WrapPanel chips = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, IsVisible = false };
                     StackPanel labels = new StackPanel { Spacing = 4 };
-                    labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation);
+                    // The counts close the card as a footer row (fixed slots, tabular figures); the sentence is only for "no observation", "stopped" and "not active".
+                    Desktop.Controls.StatFooterRow footer = new() { IsVisible = false };
+                    labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation); labels.Children.Add(footer);
                     SelectionListItem select = new PluginSelectionItem { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                         HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
                     select.Classes.Add("workspace-list-card");
@@ -125,13 +128,16 @@ public partial class SourcesPage : UserControl
                     };
                     select.Content = labels;
                     AttachSourceContextMenu(select, sourceId);
-                    card = new SourceCard(select, name, chips, address, observation);
+                    card = new SourceCard(select, name, chips, address, observation, footer);
                     _sourceCards.Add(row.Id, card); cards.Items.Add(select);
                 }
                 card.Name.Text = row.Name;
                 RenderChips(card, row);
                 card.Address.Text = row.Address;
                 card.Observation.Text = row.Summary;
+                card.Observation.IsVisible = row.Stats == null;
+                card.Footer.IsVisible = row.Stats != null;
+                if (row.Stats is { } stats) card.Footer.Update(SourceStatFooter.Items(stats));
                 card.Control.IsEnabled = !IsBusy;
                 AutomationProperties.SetName(card.Control, row.Name + ". " + SourceWording.DescribeMeta(row.Badges) + ". " + row.Summary);
             }
@@ -377,7 +383,12 @@ public partial class SourcesPage : UserControl
     private void RefreshWatchSelection() =>
         this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !IsBusy && SelectedWatch != null;
     // Double click and Enter on a selected row are the same action as the button below the list.
-    private void OnWatchDoubleTapped(object? sender, TappedEventArgs e) { if (SelectedWatch != null) OnOpenWatchClick(sender, e); }
+    // Interaction audit: only a double click on a row counts (not on empty list space below the rows).
+    private void OnWatchDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Avalonia.Visual list && MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, list) && SelectedWatch != null)
+        { e.Handled = true; OnOpenWatchClick(sender, e); }
+    }
     private void OnWatchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter || SelectedWatch == null) return;

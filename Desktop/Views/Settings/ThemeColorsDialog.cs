@@ -235,6 +235,8 @@ internal sealed class ThemeColorsDialog : Window
         AutomationProperties.SetHelpText(_try, Texts.T("theme.colors.tryHint"));
         _resetAll.Content = Texts.T("theme.colors.resetAll");
         AutomationProperties.SetName(_resetAll, _resetAll.Content.ToString());
+        ToolTip.SetTip(_resetAll, Texts.T("theme.colors.resetAll.hint"));
+        AutomationProperties.SetHelpText(_resetAll, Texts.T("theme.colors.resetAll.hint"));
     }
 
     /// <summary>Shows the model: the rows and the preview of the chosen variant, the presets, and the footer.</summary>

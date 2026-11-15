@@ -574,11 +574,21 @@
         <!-- D6: one radius (8, Workspace.Radius.Group) for every overlay Semi draws: menu, flyout, tooltip, toast, drop-down and
              suggestion popups. Menu items keep Semi's own item radius. -->
         <CornerRadius x:Key="MenuFlyoutCornerRadius">8</CornerRadius>
+        <!-- Menu layout (CM1): a popup menu is as wide as its widest row between 224 and 416 dip (28 and 52 steps of 8); MenuLayout (code) reads
+             both keys and the label column gives way to the maximum with an ellipsis and a tooltip, never the shortcut column. The shortcut is
+             one right-aligned column for all rows, set off from the label by at least 24 dip (MenuItemInputGestureTextMargin, the room in front of
+             it). A row is Workspace.Size.Control (32) high and 16 dip in from the edge: Workspace.Inset.MenuItem 15,6 plus the 1-px row edge. -->
+        <x:Double x:Key="MenuFlyoutMinWidth">224</x:Double>
+        <x:Double x:Key="MenuFlyoutMaxWidth">416</x:Double>
+        <Thickness x:Key="MenuItemInputGestureTextMargin">24,0,0,0</Thickness>
+        <Thickness x:Key="Workspace.Inset.MenuItem">15,6</Thickness>
         <CornerRadius x:Key="FlyoutCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ToolTipCornerRadius">8</CornerRadius>
-        <!-- HB1: no tooltip is wider than 360 dip (HelpPopover.MaxContentWidth): longer text wraps (style "ToolTip TextBlock" below). -->
+        <!-- HB1: no tooltip is wider than 360 dip: longer text wraps (style "ToolTip TextBlock" below). Help popovers have their own,
+             wider reading column (Workspace.Size.ReadingWidth). -->
         <x:Double x:Key="ToolTipMaxWidth">360</x:Double>
-        <Thickness x:Key="ToolTipPadding">8,6</Thickness>
+        <!-- Typography pass: 12 at the sides, 8 above and below, so a two-line tooltip does not touch its outline. -->
+        <Thickness x:Key="ToolTipPadding">12,8</Thickness>
         <CornerRadius x:Key="NotificationCardCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="ComboBoxPopupBoxCornerRadius">8</CornerRadius>
         <CornerRadius x:Key="AutoCompleteBoxPopupCornerRadius">8</CornerRadius>
@@ -631,6 +641,11 @@
         <x:Double x:Key="Workspace.Text.Section">14</x:Double>
         <x:Double x:Key="Workspace.Text.Subtitle">16</x:Double>
         <x:Double x:Key="Workspace.Text.Title">20</x:Double>
+        <!-- Typography pass (15.11.): the reading line height, 1.4 x the body size, for running text of several lines (help popovers).
+             Not a Workspace.Text.* key: those are the type scale. Single-line labels and table cells keep the font's own line height. -->
+        <x:Double x:Key="Workspace.LineHeight.Body">18</x:Double>
+        <!-- The widest a column of running text gets (HelpPopover.MaxContentWidth): about 60 to 65 characters of body text. -->
+        <x:Double x:Key="Workspace.Size.ReadingWidth">400</x:Double>
         <CornerRadius x:Key="Workspace.Radius.None">0</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Badge">3</CornerRadius>
         <CornerRadius x:Key="Workspace.Radius.Control">5</CornerRadius>
@@ -657,12 +672,15 @@
         <Thickness x:Key="Workspace.Inset.Section">16</Thickness>
         <Thickness x:Key="Workspace.Inset.Message">12</Thickness>
         <Thickness x:Key="Workspace.Inset.EmptyState">28</Thickness>
-        <x:Double x:Key="Workspace.Size.EmptyStateWidth">360</x:Double>
+        <!-- Typography pass: the reading width (400, about 60 to 65 characters) instead of 360, which left one-word last lines. -->
+        <x:Double x:Key="Workspace.Size.EmptyStateWidth">400</x:Double>
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.Card">12,10,12,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Overlay">12</Thickness>
+        <!-- Inset of a popover that carries running text (help popover): text never sits closer than 16 dip to the edge. -->
+        <Thickness x:Key="Workspace.Inset.Popover">16</Thickness>
         <!-- Page margin of every work view (Downloads, Sources, Plugins, Diagnostics, Statistics, Media, Archive). -->
         <Thickness x:Key="Workspace.Inset.Page">12</Thickness>
         <!-- List cards (Sources list, Plugins list): inner spacing (on the 12 dip grid, one value for both lists) and the start-edge selection bar (LW-06). -->
@@ -682,6 +700,14 @@
                         CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
             </Border>
         </Template>
+        <!-- The same two shells for the round help button (Button.help-round, 32 dip): the outer ring is the button radius 16 plus the
+             4 dip offset, the inner ring 2 less, so both rings stay concentric with the circle. -->
+        <Template x:Key="Workspace.FocusAdorner.Round">
+            <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2" CornerRadius="20" Margin="-4"
+                    AdornerLayer.IsClipEnabled="False" IsHitTestVisible="False">
+                <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1" CornerRadius="18" IsHitTestVisible="False" />
+            </Border>
+        </Template>
     </Styles.Resources>
     <Style Selector="Window">
         <Setter Property="Background" Value="{DynamicResource Workspace.Background}" />
@@ -698,8 +724,10 @@
         <Setter Property="Margin" Value="{StaticResource Workspace.Inset.EmptyState}" />
         <Setter Property="Spacing" Value="{StaticResource Workspace.Space.12}" />
     </Style>
+    <!-- Typography pass: running text that wraps (empty states, hints under labels) gets 2 dip between its lines (about 1.4 x the
+         size); LineSpacing only adds between lines, so a one-line hint keeps its height and its row does not move. -->
     <Style Selector="TextBlock.workspace-empty-text, SelectableTextBlock.workspace-empty-text">
-        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" />
         <Setter Property="HorizontalAlignment" Value="Center" /><Setter Property="TextAlignment" Value="Center" /><Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.brand"><Setter Property="FontSize" Value="19" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
@@ -875,10 +903,18 @@
          selection-bar lists above) keep it. The list selectors use the child combinator (a row's logical parent is its ListBox): a row of an inner
          list never matches through an outer list, and rows do not collect one class activator per ListBox ancestor. Template parts checked against Semi 12.1.0.1: MenuItem Border#PART_LayoutRoot, ComboBoxItem and
          ListBoxItem ContentPresenter#PART_ContentPresenter, each binding BorderBrush, BorderThickness and Padding from the row. -->
-    <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="15,7" /></Style>
+    <Style Selector="MenuItem"><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="{StaticResource Workspace.Inset.MenuItem}" /></Style>
+    <Style Selector="ContextMenu MenuItem, MenuFlyoutPresenter MenuItem, Menu MenuItem MenuItem"><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" /></Style>
+    <!-- CM1: every popup menu measures to its widest row (MenuLayout); both kinds of popup menu, from code and from XAML, take part. -->
+    <Style Selector="ContextMenu, MenuFlyoutPresenter"><Setter Property="controls:MenuLayout.IsManaged" Value="True" /></Style>
     <Style Selector="Menu > MenuItem"><Setter Property="Padding" Value="15,0" /></Style>
     <Style Selector="MenuItem:selected"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /></Style>
     <Style Selector="MenuItem:pressed"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <!-- Group labels of the header menu (Reading, Collection, App): a small disabled line, not focusable, that names the entries below it. -->
+    <Style Selector="MenuItem.menu-group-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" /><Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="15,6,15,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="Focusable" Value="False" />
+    </Style>
     <Style Selector="ComboBoxItem, ListBox:not(.workspace-selection-bar):not(.reader-fit-width):not(.reader-column-width) > ListBoxItem:not(.chip-item)">
         <Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="11,7" />
     </Style>
@@ -913,6 +949,8 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <!-- Typography pass: a hint under a label (several lines in Settings) reads with 2 dip between its lines; see workspace-empty-text. -->
+    <Style Selector="TextBlock.workspace-help, SelectableTextBlock.workspace-help"><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <Style Selector="TextBlock.workspace-error, SelectableTextBlock.workspace-error">
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
         <Setter Property="TextWrapping" Value="Wrap" />
@@ -1063,6 +1101,13 @@
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
         <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="300" /><Setter Property="MaxWidth" Value="440" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <!-- Reading history list under the header book button (ReadingHistoryFlyout): wide enough for a thread title (320 to 520), the panel limits
+         the height and scrolls; rows are the gallery-overflow-item buttons. -->
+    <Style Selector="FlyoutPresenter.reading-history">
+        <Setter Property="Padding" Value="4" /><Setter Property="MinWidth" Value="320" /><Setter Property="MaxWidth" Value="520" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Overlay}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
@@ -1325,6 +1370,24 @@
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
         <Setter Property="Padding" Value="0,12,0,0" />
     </Style>
+    <!-- StatFooterRow (Sources list card): a few counts as the closing line of a card. The rule above and the space (8 + the card's 4)
+         set it apart; the segments are laid out by the control, with the same slot width and tabular figures, so changing numbers
+         never move anything. Icon and label are muted, the value is body text on the card. -->
+    <Style Selector="controls|StatFooterRow">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" />
+        <Setter Property="Padding" Value="0,8,0,0" /><Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <Style Selector="controls|StatSegmentView">
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="controls|StatSegmentView TextBlock.stat-value">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="controls|StatSegmentView TextBlock.stat-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Caption}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <!-- icon-square (P6): the one icon-only button. Input height in both directions, the icon centred, no text; every use gives it a
          tooltip and an accessible name. Menus ("more"; Plugins list and detail), close buttons in a surface, the remove
          cross of a row and a refresh beside a field use it. -->
@@ -1344,7 +1407,7 @@
     <!-- HB1 tooltips: a long text wraps inside the 360 dip tooltip (ToolTipMaxWidth above) instead of running off as one line; a text
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
-    <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /></Style>
+    <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <!-- HB1 help-round: the one help button (controls:HelpButton) - a 32 dip circle with the plain drawn "?" (WorkspaceIcons.Help, no ring of its own: the
          button outline is the one circle) centred, the subtle outline and the shared focus ring. Never text, never a font glyph; its name is "Help: <section>" and it opens a HelpPopover. -->
     <Style Selector="Button.help-round">
@@ -1353,13 +1416,28 @@
         <Setter Property="CornerRadius" Value="16" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="VerticalAlignment" Value="Center" />
+        <!-- Its outline is the circle, also inside a toolbar: Ursa's ToolBar gives its buttons the borderless theme, which took the ring
+             away from the Tagging page's help button (a bare "?" in the toolbar). The help button keeps the standard button theme. -->
+        <Setter Property="Theme" Value="{DynamicResource {x:Type Button}}" />
+        <!-- The focus ring follows the circle (the shared ring is a rounded square that sat around the circle like a frame). -->
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner.Round}" />
     </Style>
-    <!-- HB1 HelpPopover: a flyout with 12 dip inset, the control outline and the overlay radius; the column inside is 360 dip at most. -->
+    <!-- HB1 HelpPopover: a flyout with the popover inset (16), the control outline and the overlay radius; the column inside is
+         Workspace.Size.ReadingWidth (400) at most, so MaxWidth here is 400 + 2 x 16 inset + 2 x 1 border. -->
     <Style Selector="FlyoutPresenter.help-popover">
-        <Setter Property="Padding" Value="12" /><Setter Property="MaxWidth" Value="384" />
+        <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Popover}" /><Setter Property="MaxWidth" Value="434" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Group}" />
     </Style>
+    <!-- The help-text layout (HelpPopover.Build), typography pass 15.11.: 8 between title, paragraphs, list and link; 4 between bullets;
+         paragraph and bullet lines at the reading line height; the dot in its own column, 8 before the text (hanging indent). -->
+    <Style Selector="StackPanel.help-popover-body"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" /></Style>
+    <Style Selector="StackPanel.help-text-list"><Setter Property="Spacing" Value="{StaticResource Workspace.Space.4}" /></Style>
+    <Style Selector="Grid.help-text-bullet-row"><Setter Property="ColumnSpacing" Value="{StaticResource Workspace.Space.8}" /></Style>
+    <Style Selector="TextBlock.help-text-paragraph, TextBlock.help-text-bullet">
+        <Setter Property="LineHeight" Value="{StaticResource Workspace.LineHeight.Body}" /><Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- The dot is centred on the first line: (LineHeight.Body 18 - 4) / 2 = 7 from the top. -->
     <Style Selector="Border.help-popover-dot">
         <Setter Property="Width" Value="4" /><Setter Property="Height" Value="4" /><Setter Property="CornerRadius" Value="2" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Muted}" /><Setter Property="VerticalAlignment" Value="Top" />
@@ -1458,6 +1536,30 @@
         <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
         <Setter Property="Stroke" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
     </Style>
+    <!-- The invisible "Play video here" button over a video's picture (reader post, media sidebar): Semi's hover/pressed fill of the presenter
+         would paint the whole frame flat and hide the poster, so every state is transparent; hover and focus show a thin accent ring. -->
+    <Style Selector="Button.video-activator">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="2" /><Setter Property="Padding" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Button.video-activator /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /></Style>
+    <Style Selector="Button.video-activator:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="Button.video-activator:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="Button.video-activator:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="Transparent" /></Style>
+    <!-- Overlay arrows of the media sidebar: dark round buttons with white glyphs in both themes (they lie over a picture). -->
+    <Style Selector="Button.overlay-nav">
+        <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" /><Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="4" />
+        <Setter Property="CornerRadius" Value="16" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="#A6000000" />
+    </Style>
+    <Style Selector="Button.overlay-nav /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#A6000000" /><Setter Property="Foreground" Value="White" /></Style>
+    <Style Selector="Button.overlay-nav:pointerover /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#D9000000" /><Setter Property="Foreground" Value="White" /></Style>
+    <Style Selector="Button.overlay-nav:pressed /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#F2000000" /><Setter Property="Foreground" Value="White" /></Style>
+    <Style Selector="Button.overlay-nav:disabled /template/ ContentPresenter#PART_ContentPresenter"><Setter Property="Background" Value="#66000000" /><Setter Property="Foreground" Value="#80FFFFFF" /></Style>
+    <!-- The media sidebar's counter over the picture ("2 / 3"): dark and theme-independent like the overlay arrows. -->
+    <Style Selector="Border.overlay-counter"><Setter Property="Background" Value="#B3000000" /></Style>
+    <Style Selector="TextBlock.overlay-counter-text"><Setter Property="Foreground" Value="White" /></Style>
     <!-- I7 tile corners: static chip badges and marks; the favourite star appears by opacity only (set, hover, keyboard focus),
          so nothing moves and the tile keeps its height. -->
     <Style Selector="Border.tile-mark"><Setter Property="Padding" Value="3" /></Style>
@@ -1622,7 +1724,7 @@
             </Transitions>
         </Setter>
     </Style>
-    <!-- The reader arrow cross fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
+    <!-- The reader navigation bar fades in and out with the pointer's idle state (Fade 120 ms); under reduced motion it switches at once. -->
     <Style Selector=":is(TopLevel):not(.motion-off) WrapPanel.reader-cross">
         <Setter Property="Transitions"><Transitions><DoubleTransition Property="Opacity" Duration="0:0:0.12" /></Transitions></Setter>
     </Style>

@@ -175,6 +175,8 @@ internal static class ReaderShortcutContextChecks
         int opens = 0;
         GalleryEntryKey? target = null;
         page.OpenGallery = (_, key, _) => { opens++; target = key; return Task.CompletedTask; };
+        // Enter on a post follows "Clicking a medium" (sidebar by default); this check is about the gallery path.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
         ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single(body =>
             body.GetVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, posts.SelectedItem)));
         try
@@ -202,7 +204,7 @@ internal static class ReaderShortcutContextChecks
                 check(opens == before, "text-only-selected-post-" + key, null);
             }
         }
-        finally { page.OpenGallery = previous; }
+        finally { page.OpenGallery = previous; ReaderSmokeSetup.Restore(page, mediaBefore); }
     }
 
     private static KeyEventArgs Press(Control source, Key key)

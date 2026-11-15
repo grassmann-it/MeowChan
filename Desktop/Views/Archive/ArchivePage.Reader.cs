@@ -7,6 +7,7 @@ using MeowChan.Gallery;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Presenters;
@@ -221,12 +222,12 @@ public partial class ArchivePage
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         ReaderContentSurface.LayoutUpdated += (_, _) => UpdateReaderNavigationLayout();
-        // The cross floats over the content and hides while the pointer is idle (see ReaderNavigationLayout).
+        // The navigation bar floats over the content and (mode "Auto") hides while the pointer is idle (see ReaderNavigationLayout).
         ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
         ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationShown(); };
         ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationShown(); };
         ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationShown();
-        // Leaving the cross counts as activity: it stays for one more idle delay and then hides (the focus flag is still set inside this event).
+        // Leaving the bar counts as activity: it stays for one more idle delay and then hides (the focus flag is still set inside this event).
         ReaderNavigation.LostFocus += (_, _) => ShowReaderNavigation();
         ReaderNavigation.DetachedFromVisualTree += (_, _) => _readerNavigationIdleTimer?.Stop();
         ListBox posts = ArchivePosts;
@@ -482,10 +483,34 @@ public partial class ArchivePage
         ReaderPreviousThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread > 0 && (!_readerGroupScope || ReaderGroupTargetIndex(-1) >= 0);
         ReaderNextThread.IsEnabled = !_busy && !IsFilenameSearchOpen && thread >= 0 && thread + 1 < _readerThreads.Count
             && (!_readerGroupScope || ReaderGroupTargetIndex(1) < _readerThreads.Count);
-        bool crossWasVisible = ReaderNavigation.IsVisible;
-        ReaderNavigation.IsVisible = _largeReader;
-        if (_largeReader && !crossWasVisible) ShowReaderNavigation();
+        UpdateReaderNavigationTexts(post, thread);
+        bool barWasVisible = ReaderNavigation.IsVisible;
+        ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;
+        if (ReaderNavigation.IsVisible && !barWasVisible) ShowReaderNavigation();
         UpdateReaderNavigationLayout();
+    }
+
+    // The counters ("3 / 27" threads, "12 / 405" posts) and their tooltips / accessible names; rebuilt only when a number or the language changed.
+    private (int Post, int PostCount, int Thread, int ThreadCount, string Language) _readerNavigationTextKey = (-2, -2, -2, -2, string.Empty);
+
+    private void UpdateReaderNavigationTexts(int post, int thread)
+    {
+        (int, int, int, int, string) key = (post, ShownPostCount, thread, _readerThreads.Count, Texts.Language);
+        if (key == _readerNavigationTextKey) return;
+        _readerNavigationTextKey = key;
+        AutomationProperties.SetName(ReaderNavigationBar, Texts.T("reader.nav.name"));
+        SetReaderCounter(ReaderThreadPosition, post: false, thread, _readerThreads.Count);
+        SetReaderCounter(ReaderPostPosition, post: true, post, key.Item2);
+    }
+
+    private static void SetReaderCounter(TextBlock counter, bool post, int index, int count)
+    {
+        counter.Text = ReaderNavigationLayout.CounterText(index, count);
+        string sentence = Texts.T(post ? "reader.nav.postPosition" : "reader.nav.threadPosition",
+            index >= 0 && index < count ? (index + 1).ToString(System.Globalization.CultureInfo.CurrentCulture) : "\u2013",
+            count.ToString(System.Globalization.CultureInfo.CurrentCulture));
+        ToolTip.SetTip(counter, sentence);
+        AutomationProperties.SetName(counter, sentence);
     }
 
     private void UpdateReaderNavigationLayout()
@@ -494,13 +519,17 @@ public partial class ArchivePage
         ReaderStatusLine.IsVisible = !_largeReader || tabs.SelectedIndex == 0;
         Grid surface = ReaderContentSurface;
         ListBox posts = ArchivePosts;
-        // Content always uses the full width and height; the cross is an overlay that hides itself while idle.
+        // Content always uses the full width and height; the navigation bar is an overlay that hides itself while idle.
         posts.Margin = default;
         UpdateReaderNavigationShown();
         tabs.Margin = default;
         ArchiveMediaSurface.Margin = default;
         ArchiveReferences.Margin = default;
         if (!_largeReader) return;
+        // Compact form: arrows only. Below the layout break of the reader surface, or with the position display switched off.
+        bool compact = ReaderNavigationLayout.IsCompact(surface.Bounds.Width, _readerNavigationShowPosition);
+        ReaderThreadPosition.IsVisible = ReaderPostPosition.IsVisible = !compact;
+        ReaderThreadGroup.Spacing = ReaderPostGroup.Spacing = compact ? 2 : 0;
         Control footer = tabs.SelectedIndex switch
         {
             1 => ArchiveMediaFooter,
@@ -514,20 +543,51 @@ public partial class ArchivePage
     }
 
     private bool _readerNavigationPointerOver, _readerNavigationActive;
+    private string _readerNavigationMode = Config.ReaderNavigationModeAuto;
+    private bool _readerNavigationShowPosition = true;
     private Point? _readerSurfacePointer;
     private long _readerNavigationLastActivity;
     private DispatcherTimer? _readerNavigationIdleTimer;
     private int _readerNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsDefault;
 
-    /// <summary>Idle time before the cross fades out; clamped to its minimum and maximum.</summary>
+    /// <summary>Idle time before the bar fades out; clamped to its minimum and maximum.</summary>
     internal int ReaderNavigationIdleDelayMs
     {
         get => _readerNavigationIdleDelayMs;
         set => _readerNavigationIdleDelayMs = ReaderNavigationLayout.ClampIdleHideDelayMs(value);
     }
 
-    /// <summary>True while the cross is shown: recent pointer movement, pointer over or near it, keyboard focus in it.</summary>
-    internal bool ReaderNavigationShown => _largeReader && (_readerNavigationActive || _readerNavigationPointerOver
+    /// <summary>"Auto" (hides while idle), "Always" or "Off" (<see cref="Config.ReaderNavigationMode"/>); anything else reads as "Auto".</summary>
+    internal string ReaderNavigationMode
+    {
+        get => _readerNavigationMode;
+        set
+        {
+            string mode = Config.NormalizeReaderNavigationMode(value);
+            if (mode == _readerNavigationMode) return;
+            _readerNavigationMode = mode;
+            if (mode != Config.ReaderNavigationModeAuto) _readerNavigationIdleTimer?.Stop();
+            UpdateReaderNavigation();
+            // Back to "Auto": the bar counts the change as activity and hides after one idle delay.
+            if (mode == Config.ReaderNavigationModeAuto) ShowReaderNavigation();
+        }
+    }
+
+    /// <summary>Whether the counters are shown (<see cref="Config.ReaderNavigationShowPosition"/>); off forces the compact form.</summary>
+    internal bool ReaderNavigationShowPosition
+    {
+        get => _readerNavigationShowPosition;
+        set
+        {
+            if (value == _readerNavigationShowPosition) return;
+            _readerNavigationShowPosition = value;
+            UpdateReaderNavigationLayout();
+        }
+    }
+
+    /// <summary>True while the bar is shown: always in "Always", never in "Off"; in "Auto" with recent pointer movement, pointer over or near it, keyboard focus in it.</summary>
+    internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff
+        && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
         || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation());
 
     private bool PointerNearReaderNavigation() => _readerSurfacePointer is Point pointer
@@ -542,11 +602,11 @@ public partial class ArchivePage
         ShowReaderNavigation();
     }
 
-    // Pointer activity (or a navigation shortcut) shows the cross and (re)arms the idle timer; the timer only re-checks the
-    // elapsed time, so a stream of pointer moves costs one timestamp each.
+    // Pointer activity (or a navigation shortcut) shows the bar and (re)arms the idle timer; the timer only re-checks the
+    // elapsed time, so a stream of pointer moves costs one timestamp each. "Always" and "Off" need no timer.
     internal void ShowReaderNavigation()
     {
-        if (!_largeReader) return;
+        if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
         _readerNavigationLastActivity = Environment.TickCount64;
         bool wasActive = _readerNavigationActive;
         _readerNavigationActive = true;
@@ -577,7 +637,7 @@ public partial class ArchivePage
     }
 
     // Hidden means transparent and not hit-tested (the fade comes from the reader-cross style and is skipped under reduced
-    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the cross.
+    // motion); the buttons stay in the visual tree, so keyboard focus and automation still reach them and show the bar.
     private void UpdateReaderNavigationShown()
     {
         bool shown = ReaderNavigationShown;
@@ -649,6 +709,8 @@ public partial class ArchivePage
             await OpenThreadGalleryAsync(_thread.Summary.Id, null, e.Source as Control);
             return;
         }
+        // The selected post's video: Enter and the gallery's video keys (from the bindings) act on it before Enter or Space would open the gallery.
+        if (TryRouteReaderVideoKey(e)) return;
         if (TryActivateReaderMedia(e))
         {
             await ReaderMediaActivationTask;
@@ -670,6 +732,21 @@ public partial class ArchivePage
         if (post == 0 && thread == 0) return;
         e.Handled = true;
         await (ReaderNavigationTask = NavigateReaderAsync(post, thread));
+    }
+
+    /// <summary>
+    /// The reader's navigation keys as the bindings give them (Up and Down between posts, Left and Right between threads), for a key pressed in
+    /// a video's controls: the timeline slider would keep the arrows, so the video hands them over. True when the key moved the reader.
+    /// </summary>
+    internal bool TryNavigateReaderByKey(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || !_largeReader || _busy || _ended || IsReaderDialogOpen) return false;
+        int post = ShortcutService.Current.Matches(e, "reader.previous-post") ? -1 : ShortcutService.Current.Matches(e, "reader.next-post") ? 1 : 0;
+        int thread = ShortcutService.Current.Matches(e, "reader.previous-thread") ? -1 : ShortcutService.Current.Matches(e, "reader.next-thread") ? 1 : 0;
+        if (post == 0 && thread == 0) return false;
+        e.Handled = true;
+        ReaderNavigationTask = NavigateReaderAsync(post, thread);
+        return true;
     }
 
     // F3 / Ctrl+G (⌘G) and Shift+F3 / Ctrl+Shift+G (⇧⌘G): next and previous hit while the find bar is open,
@@ -743,7 +820,7 @@ public partial class ArchivePage
     // Reader/shell commands keep their meaning, including Enter/Space remaps.
     internal static bool IsReaderMediaGesture(KeyEventArgs e, EffectiveShortcutBindings bindings) =>
         e.Key is Key.Enter or Key.Space && e.KeyModifiers == KeyModifiers.None
-        && !bindings.Gestures.Keys.Any(id => bindings.Matches(e, id)
+        && !bindings.Gestures.Keys.Any(id => bindings.Matches(e, id) && !ReaderVideoKeys.IsVideoCommand(id)
             && EffectiveShortcutBindings.ExecutionContexts(id).Any(context => context is "reader" or "shell"));
 
     internal static bool ReaderMediaBelongsToNativeControl(Visual source, ListBox posts)
@@ -761,13 +838,13 @@ public partial class ArchivePage
         return true; // Neither another tab nor the reader toolbar is post content.
     }
 
-    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post)
+    private bool ReaderMediaContextIsCurrent(Control source, ArchivePostRow post, bool needsGallery = true)
     {
         ListBox posts = ArchivePosts;
         Control pane = ArchiveReaderPane;
         return !_ended && !_lifetime.IsCancellationRequested && !_busy && _available && _largeReader
             && ReaderShowsPosts && !_obscuredByGallery && !ArchiveAttachmentView.GetLoadingSuspended(this)
-            && !IsReaderDialogOpen && !ShortcutService.IsCapturing && OpenGallery != null
+            && !IsReaderDialogOpen && !ShortcutService.IsCapturing && (!needsGallery || OpenGallery != null)
             && pane.IsEffectivelyVisible && pane.IsEffectivelyEnabled
             && source.IsEffectivelyVisible && source.IsEffectivelyEnabled
             && CommandRouter.IsRoutingContextActive(pane, source)

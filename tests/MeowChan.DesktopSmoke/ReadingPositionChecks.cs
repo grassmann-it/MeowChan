@@ -68,11 +68,12 @@ internal static class ReadingPositionChecks
         Require(window.FindControl<Button>("ContinueReadingButton")!.Focus(), "Cannot focus the available top-bar reading action.");
         Click(window.FindControl<Button>("ContinueReadingButton")!);
         await WaitForResumeAsync(window, "1022");
-        Require(!window.FindControl<Button>("ContinueReadingButton")!.IsVisible,
-            "Continue reading remains visible over the open reader.");
-        Require(window.FocusManager?.GetFocusedElement() is Control focused && focused.IsEffectivelyVisible
-            && focused.IsEffectivelyEnabled && !ReferenceEquals(focused, window.FindControl<Button>("ContinueReadingButton")),
-            "Opening the reader retained focus on a hidden top-bar action.");
+        // QW-A: the book stays visible with a thread open (the history has an entry); a click there opens the history list.
+        Require(window.FindControl<Button>("ContinueReadingButton")!.IsVisible
+            && window.FindControl<Button>("ContinueReadingHistoryButton")!.IsVisible,
+            "Continue reading hides while a thread is open.");
+        Require(window.FocusManager?.GetFocusedElement() is Control focused && focused.IsEffectivelyVisible && focused.IsEffectivelyEnabled,
+            "Opening the reader left the focus on an unusable control.");
         Require(await ReadPositionAsync(window) == captured,
             "Explicit top-bar resume changed the saved reading position.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
@@ -206,7 +207,8 @@ internal static class ReadingPositionChecks
         Click(window.ArchivePage.FindControl<Button>("ArchiveOpenGallery")!);
         ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
         await Program.WaitUntilAsync(() => host.IsEffectivelyVisible && host.Content is Control);
-        Require(!book.IsVisible, "Continue reading remains visible over the active gallery.");
+        // QW-A: shown, but disabled while the gallery overlay owns the reader (ReadingResumeRouting.PlacesOpenable).
+        Require(book.IsVisible && !book.IsEnabled, "Continue reading is hidden or still usable over the active gallery.");
         Program.CaptureWindow(window, "smoke-reading-topbar-gallery-hidden.png");
         Click(((Control)host.Content!).GetVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose"));
         await Program.WaitUntilAsync(() => !host.IsVisible && book.IsEffectivelyVisible);

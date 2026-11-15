@@ -11,7 +11,7 @@ namespace MeowChan.DesktopTests;
 /// <summary>
 /// Modals plan MD4: the in-window scrim overlays (the reader's link confirmation, the HTML export, the archive filter surface and
 /// the statistics reset question) follow the dialog language: a header bar with the title on the left and the cross alone at the
-/// top right, one Escape policy, a Tab cycle and focus return. Layout and key handling run without an Avalonia application (plain
+/// right edge like a dialog's (Tom, 15.11.2026; only a page's own "← Back to …" stands at the left), one Escape policy, a Tab cycle and focus return. Layout and key handling run without an Avalonia application (plain
 /// controls); the shown overlays are DesktopSmoke's dialog-gallery, html-export, reader-ux and settings-statistics runs.
 /// </summary>
 public sealed class OverlayFrameTests
@@ -22,18 +22,35 @@ public sealed class OverlayFrameTests
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Handled = handled };
 
     [Fact]
-    public void TheHeaderHoldsTheCrossAloneAtTheFarLeftFirstInTabOrderThenTheTitle()
+    public void TheHeaderHoldsTheTitleThenTheCrossAloneAtTheRightEdgeAsTheLastChildWithoutABackSlot()
     {
         TextBlock title = new() { Text = "Export" };
         Button close = new();
         HeaderBar bar = OverlayFrame.Header(title, close, "Close");
         Assert.Equal(OverlayFrame.HeaderName, bar.Name);
-        Assert.Equal(new Control[] { close, title }, bar.Children);
-        Assert.Equal(new Control[] { close }, bar.BackChildren);
-        Assert.Empty(bar.EndChildren);
+        Assert.Equal(new Control[] { title, close }, bar.Children);
+        Assert.Empty(bar.BackChildren);
+        Assert.Equal(new Control[] { close }, bar.EndChildren);
         Assert.True(bar.BackSlotIsFirst);
-        // Placement at the far left, the 24 dip gap and the separator are HeaderBar's contract (HeaderBarContractTests); text needs a font backend.
+        Assert.True(bar.EndSlotIsLast);
+        Assert.DoesNotContain(HeaderBar.BackClass, close.Classes);
+        // Placement at the right edge, the 16 dip gap and the absence of a separator are HeaderBar's contract (HeaderBarContractTests); text needs a font backend.
         Assert.Contains("section-title", title.Classes);
+    }
+
+    [Fact]
+    public void TheCrossStandsAtTheRightEdgeWithoutAGapOrASeparatorOnTheLeft()
+    {
+        Border cross = new() { Width = 32, Height = 32 };
+        HeaderBar bar = new();
+        bar.Children.Add(new Border { Height = 32 });
+        HeaderBar.SetIsEnd(cross, true);
+        bar.Children.Add(cross);
+        bar.Measure(new Size(480, 40));
+        bar.Arrange(new Rect(0, 0, 480, 40));
+        Assert.Equal(480, cross.Bounds.Right, 3);
+        Assert.Equal(0, bar.Children[0].Bounds.Left, 3); // the title starts at the card's inset, no back gap
+        Assert.Null(bar.SeparatorX);
     }
 
     [Fact]
@@ -150,7 +167,7 @@ public sealed class OverlayFrameTests
         Assert.Null(scope.ReturnTo); // the next opening names its own origin
     }
 
-    // The overlays in markup: a header bar whose back slot holds the cross, before the title, first in their card.
+    // The overlays in markup: a header bar with the title first and the cross, an end-slot child, last (the right edge of their card).
     public static TheoryData<string, string, string, string> Headers => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderLinkHeader", "ReaderLinkTitle", "ReaderLinkClose" },
@@ -160,13 +177,14 @@ public sealed class OverlayFrameTests
 
     [Theory]
     [MemberData(nameof(Headers))]
-    public void EveryXamlOverlayHasACrossInAHeaderBarBackSlotBeforeItsTitle(string file, string header, string title, string close)
+    public void EveryXamlOverlayHasACrossInAHeaderBarEndSlotAfterItsTitleAndNoBackSlot(string file, string header, string title, string close)
     {
         XElement bar = Named(file, header);
         Assert.Equal("HeaderBar", bar.Name.LocalName);
-        Assert.Equal(new[] { close, title }, bar.Elements().Select(element => (string?)element.Attribute(X + "Name")));
+        Assert.Equal(new[] { title, close }, bar.Elements().Select(element => (string?)element.Attribute(X + "Name")));
         XElement cross = Named(file, close);
-        Assert.Equal("True", cross.Attributes().Single(attribute => attribute.Name.LocalName == "HeaderBar.IsBack").Value);
+        Assert.Equal("True", cross.Attributes().Single(attribute => attribute.Name.LocalName == "HeaderBar.IsEnd").Value);
+        Assert.DoesNotContain(cross.Attributes(), attribute => attribute.Name.LocalName == "HeaderBar.IsBack");
         Assert.Equal("Button", cross.Name.LocalName);
         // The cross is an icon named in code, so it carries no text of its own.
         Assert.DoesNotContain(cross.Attributes(), attribute => attribute.Name.LocalName is "Content" or "Tag");
@@ -199,6 +217,8 @@ public sealed class OverlayFrameTests
     {
         string dialog = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Export.Dialog.cs"));
         Assert.Contains("OverlayFrame.Header(title, headerClose,", dialog);
+        // The cross is built as the right-edge child, so no back slot exists in the export header.
+        Assert.DoesNotContain("SetIsBack", dialog);
         Assert.Contains("\"ArchiveExportHeaderClose\"); headerClose.Click += OnExportClose;", dialog);
         // While an export runs the footer Close is Cancel; the cross takes the same name.
         Assert.Contains("OverlayFrame.MakeClose(Control<Button>(\"ArchiveExportHeaderClose\"), Texts.T(_exportRunning ? \"archive.exportCancel\" : \"action.close\"))", dialog);
@@ -227,7 +247,27 @@ public sealed class OverlayFrameTests
     public void TheFilterSurfaceFocusesContentFirstNeverItsOwnCross()
     {
         string surface = File.ReadAllText(Root("Desktop/Controls/FilterSurfaceController.cs"));
-        Assert.Contains("HeaderBar.GetIsBack(control)", surface);
+        // The cross is an end-slot child now (right edge); the first-focus search still skips it.
+        Assert.Contains("HeaderBar.GetIsEnd(control)", surface);
+        Assert.DoesNotContain("HeaderBar.GetIsBack(control)", surface);
+    }
+
+    [Fact]
+    public void NoOverlayCardPutsItsCrossInTheBackSlotOnlyPagesDo()
+    {
+        foreach ((string file, string close) in new[]
+        {
+            ("Desktop/Views/Archive/ArchivePage.axaml", "ReaderLinkClose"), ("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveFilterSurfaceClose"),
+            ("Desktop/Views/Statistics/StatisticsPage.axaml", "ResetConfirmClose"), ("Desktop/Shell/MainWindow.axaml", "ShellHelpClose"),
+        })
+            Assert.DoesNotContain(Named(file, close).Attributes(), attribute => attribute.Name.LocalName == "HeaderBar.IsBack");
+        // The pages' own ways back keep the back slot (the reader, the rule assistant, the plugin and source details).
+        foreach ((string file, string back) in new[]
+        {
+            ("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveBackButton"), ("Desktop/Views/Rules/RulesPage.axaml", "RuleWizardCloseButton"),
+            ("Desktop/Views/Plugins/PluginsPage.axaml", "PluginBack"), ("Desktop/Views/Sources/SourcesPage.axaml", "SourceBackButton"),
+        })
+            Assert.Contains(Named(file, back).Attributes(), attribute => attribute.Name.LocalName == "HeaderBar.IsBack");
     }
 
     private static XElement Named(string file, string name) =>

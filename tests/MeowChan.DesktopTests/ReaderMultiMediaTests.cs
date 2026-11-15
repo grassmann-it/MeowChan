@@ -27,6 +27,7 @@ public sealed class ReaderMultiMediaTests : IDisposable
         Assert.Equal(12, media.StripLimit);
         Assert.True(media.MediaGrid);
         Assert.Equal(280, media.GridTextLimit);
+        Assert.Equal(ReaderMediaPreferences.Default.Video, media.Video);
         Assert.Equal(ReaderMediaPreferences.Default, media);
     }
 
@@ -74,12 +75,13 @@ public sealed class ReaderMultiMediaTests : IDisposable
     }
 
     [Fact]
-    public void TheSettingsAreInTheReaderQuickSettings()
+    public void TheMultiFileSettingsAreOnTheSettingsPageOnlyNotInThePopover()
     {
+        // RL1: the gear's popover keeps the display options readers reach for most; these three are set on the settings page (it is one click away).
         string[] ids = ReaderQuickSettings.Fields.Select(field => field.Id).ToArray();
-        Assert.Contains(SettingsFieldId.ReaderMediaStripLimit, ids);
-        Assert.Contains(SettingsFieldId.ReaderMediaGrid, ids);
-        Assert.Contains(SettingsFieldId.ReaderMediaGridTextLimit, ids);
+        Assert.DoesNotContain(SettingsFieldId.ReaderMediaStripLimit, ids);
+        Assert.DoesNotContain(SettingsFieldId.ReaderMediaGrid, ids);
+        Assert.DoesNotContain(SettingsFieldId.ReaderMediaGridTextLimit, ids);
     }
 
     // ---- the grid --------------------------------------------------------------------------------------------------------------------
@@ -233,7 +235,7 @@ public sealed class ReaderMultiMediaTests : IDisposable
     [Fact]
     public void WhileTheSidebarIsOffAndTheReaderWideEnoughTheViewEntryNamesTheShortcut()
     {
-        ReaderMediaPreferences off = ReaderMediaPreferences.Default;
+        ReaderMediaPreferences off = ReaderMediaPreferences.Default with { Sidebar = false };
         string? hint = ReaderMediaMultiRules.DiscoveryHint(off, largeReader: true, readerWidth: 1600, "Ctrl+Shift+M");
         Assert.NotNull(hint);
         Assert.Contains("Ctrl+Shift+M", hint);
@@ -248,13 +250,13 @@ public sealed class ReaderMultiMediaTests : IDisposable
     [Fact]
     public void NoHintWhenTheSidebarIsOnTheReaderIsNarrowOrNotTheLargeReaderAndNothingTurnsOnByItself()
     {
-        ReaderMediaPreferences off = ReaderMediaPreferences.Default;
+        ReaderMediaPreferences off = ReaderMediaPreferences.Default with { Sidebar = false };
         Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off with { Sidebar = true }, true, 1600, "Ctrl+Shift+M"));
         Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, largeReader: false, 1600, "Ctrl+Shift+M"));
         Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, true, 1279, "Ctrl+Shift+M"));
         Assert.NotNull(ReaderMediaMultiRules.DiscoveryHint(off, true, 1280, "Ctrl+Shift+M"));
-        // The default stays off and the hint never changes a preference.
-        Assert.False(new Config().ReaderMediaSidebar);
+        // The sidebar is on by default (15.11.2026), so the hint only matters to someone who switched it off; it never changes a preference.
+        Assert.True(new Config().ReaderMediaSidebar);
         Assert.False(ReaderMediaSidebarRules.IsShown(off, true, 1920));
     }
 

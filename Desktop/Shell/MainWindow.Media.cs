@@ -79,6 +79,10 @@ public partial class MainWindow
             // MP4: the top-N of the Booru mode's tag groups (Settings, Storage and limits).
             TagListTopSource = () => _session.Config.MediaTagListTop,
             GoToDownloadsRequested = GoToDownloads,
+            // QW-A #1: the empty page's ways to bring a collection in, and the header More's way to the folder group of the settings.
+            ImportFilesRequested = () => OpenManualImportDialog(Array.Empty<string>()),
+            LinkFolderRequested = ShowLinkFolderFlow,
+            OpenMediaFoldersRequested = () => ShowSettingsAt(SettingsFieldId.MediaFolders),
             // AP2 search carry-over: Media file name search -> the archive field's File name scope.
             SearchInArchiveRequested = query =>
             {

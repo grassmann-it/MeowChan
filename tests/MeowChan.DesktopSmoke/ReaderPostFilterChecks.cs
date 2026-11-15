@@ -4,6 +4,7 @@ using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -88,10 +89,12 @@ internal static partial class ReaderPostFilterChecks
             await Program.WaitUntilAsync(() => !page.IsBusy && Rows().Length == 30, () => "rows " + Rows().Length);
             Require(page.Projection is { IsIdentity: true }, "An empty filter store changed the view.");
 
-            // "Post filters…" is a plain entry of the View menu.
-            Require(page.ReaderViewOptionIds.Contains("reader.post-filters"), "Post filters… is not in the View menu.");
-            MenuItem entry = page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "reader.post-filters"));
-            Require(entry.ToggleType == MenuItemToggleType.None, "Post filters… is a check item.");
+            // "Post filters…" is a plain action row of the settings popover (RL1; formerly an entry of the View menu).
+            Require(page.ReaderViewOptionIds.Contains("reader.post-filters"), "Post filters… is not a view option.");
+            QuickSettingsSurface popover = await ReaderSettingsProbe.OpenAsync(page);
+            Require(ReaderSettingsProbe.Row(popover, "reader.post-filters") is Button { IsEffectivelyVisible: true, IsEnabled: true },
+                "Post filters… is not an enabled action row of the settings popover.");
+            await ReaderSettingsProbe.CloseAsync(page);
 
             async Task SettleAsync()
             {

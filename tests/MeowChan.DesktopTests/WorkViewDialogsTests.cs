@@ -155,8 +155,11 @@ public sealed class WorkViewDialogsTests : IDisposable
         Assert.False(WorkViewHelp.UnderMore("watch.copy-all-links", WorkView.Advanced, downloads));
         Assert.False(WorkViewHelp.UnderMore("watch.copy-all-links", WorkView.Barebones, WorkViewHelp.HelpPages("Archive", false)));
         // Footer destinations are in the shell's Tools menu where the view reduces them.
-        Assert.True(WorkViewHelp.UnderMore("navigation.archive", WorkView.Barebones, downloads));
-        Assert.False(WorkViewHelp.UnderMore("navigation.archive", WorkView.Simple, downloads));
+        Assert.False(WorkViewHelp.UnderMore("navigation.archive", WorkView.Barebones, downloads)); // Barebones shows Archive and Media directly (Tom 15.11.)
+        Assert.False(WorkViewHelp.UnderMore("navigation.media", WorkView.Barebones, downloads));
+        Assert.True(WorkViewHelp.UnderMore("navigation.tagging", WorkView.Barebones, downloads));
+        Assert.False(WorkViewHelp.UnderMore("navigation.status", WorkView.Simple, downloads)); // Simple adds Status
+        Assert.True(WorkViewHelp.UnderMore("navigation.status", WorkView.Barebones, downloads));
         Assert.True(WorkViewHelp.UnderMore("navigation.rules", WorkView.Simple, downloads));
         Assert.False(WorkViewHelp.UnderMore("navigation.rules", WorkView.Advanced, downloads));
         Assert.False(WorkViewHelp.UnderMore("session.pause", WorkView.Barebones, downloads));
@@ -180,9 +183,9 @@ public sealed class WorkViewDialogsTests : IDisposable
     [Fact]
     public void TheViewDescriptionsSayWhatIsMissingAndTheOldTextsAreGone()
     {
-        Assert.Equal("Downloads first; the other tools are under More.", Texts.T("workview.description.barebones"));
+        Assert.Equal("Downloads, Archive and Media are in the footer; the other tools are under More.", Texts.T("workview.description.barebones"));
         Texts.SetLanguage("de");
-        Assert.Equal("Downloads im Vordergrund; Werkzeuge stehen unter Mehr.", Texts.T("workview.description.barebones"));
+        Assert.Equal("Downloads, Archiv und Medien stehen in der Fußleiste; die übrigen Werkzeuge stehen unter Mehr.", Texts.T("workview.description.barebones"));
         Assert.DoesNotContain("mode.barebonesDescription", BuiltInCatalog.English.Keys);
         Assert.DoesNotContain("downloads.more", BuiltInCatalog.English.Keys);
         Assert.Contains("workview.moreOptions", BuiltInCatalog.English.Keys);

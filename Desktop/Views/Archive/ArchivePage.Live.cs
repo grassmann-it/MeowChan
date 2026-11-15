@@ -34,7 +34,7 @@ public partial class ArchivePage
         _readerUpdateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _readerUpdateTimer.Tick += async (_, _) => await CheckReaderUpdatesAsync();
         _readerUpdateTimer.Start();
-        // R3: following live is the View menu's "Show new posts automatically" (the command keeps its id and its Ctrl+Shift+L,
+        // R3: following live is "Show new posts automatically" of the settings popover (the command keeps its id and its Ctrl+Shift+L,
         // which the shell routes to ToggleFollowLiveByShortcut); the shortcut must not also toggle through the menu's key handler.
         RegisterViewOption("watch.follow-live", () => _followReader, () => _ = SetFollowLiveAsync(!_followReader),
             isEnabled: () => CanChangeFollowLive, note: FollowLiveNote, shortcutViaRouter: true);
@@ -84,7 +84,8 @@ public partial class ArchivePage
     {
         ArchiveThreadSummary? summary = _latestReaderSummary;
         if (!MayFollow(summary)) _followReader = false;
-        // The status line says whether the new posts are shown automatically (the switch itself is in the View menu).
+        // The status line says whether the new posts are shown automatically (the switch itself is in the settings popover, section Thread).
+        RefreshReaderSettings();
         TextBlock liveState = ReaderLiveState;
         liveState.Text = Texts.T("reader.live.stateOn");
         WorkViewGate.Apply(liveState, ArchiveWorkView, _followReader);

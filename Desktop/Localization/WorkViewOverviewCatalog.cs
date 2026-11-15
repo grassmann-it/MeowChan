@@ -39,7 +39,7 @@ internal static class WorkViewOverviewCatalog
         ("workview.overview.page.gallery", "Gallery", "Galerie"),
         ("workview.overview.page.media", "Media", "Medien"),
         ("workview.overview.page.rules", "Rules", "Regeln"),
-        ("workview.overview.page.sources", "Sources", "Quellen"),
+        ("workview.overview.page.sources", "Plugins", "Plugins"),
         ("workview.overview.page.plugins", "Plugins", "Plugins"),
         ("workview.overview.page.diagnostics", "Diagnostics", "Diagnose"),
         ("workview.overview.page.statistics", "Statistics", "Statistik"),

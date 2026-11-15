@@ -65,6 +65,14 @@ public partial class ArchivePage
         ApplyReaderMediaLive();
         // The focused card grows or shrinks with the selection; keep its top where it was so the list does not jump under the eyes.
         ArchivePosts.SelectionChanged += (_, _) => AnchorFocusedCard();
+        // The enlarged media is capped by the list's visible height and kept whole in view (ReaderMediaFit).
+        ArchivePosts.SizeChanged += (_, _) => UpdateReaderVisibleHeight();
+        ArchivePosts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
+        {
+            if (e is ScrollChangedEventArgs { ViewportDelta.Y: not 0 }) UpdateReaderVisibleHeight();
+        }, Avalonia.Interactivity.RoutingStrategies.Bubble);
+        ArchivePosts.AddHandler(ArchiveAttachmentView.FocusedFrameChangedEvent, OnFocusedFrameChanged, Avalonia.Interactivity.RoutingStrategies.Bubble);
+        UpdateReaderVisibleHeight();
         ArchivePosts.AddHandler(PointerWheelChangedEvent, (_, _) => _hoverEnlarge?.Close(), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
         ArchivePosts.DetachedFromVisualTree += (_, _) => _hoverEnlarge?.Close();
         RegisterMediaSwitch("reader.view.textless-large", media => media.TextlessLarge,
@@ -96,22 +104,68 @@ public partial class ArchivePage
         catch (Exception error) { if (!_ended) Message(Texts.T("reader.view.saveFailed", error.Message), true); }
     }
 
+    // The list's scroll viewport (rounded, so a fractional resize does not re-layout every enlarged picture); NaN while it has no size.
+    private void UpdateReaderVisibleHeight()
+    {
+        ScrollViewer? scroll = ArchivePosts.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        double height = scroll is { Viewport.Height: > 0 } ? scroll.Viewport.Height : ArchivePosts.Bounds.Height;
+        height = height > 0 ? Math.Round(height) : double.NaN;
+        if (ArchivePosts.GetValue(ReaderPostLayout.VisibleHeightProperty).Equals(height)) return;
+        ArchivePosts.SetValue(ReaderPostLayout.VisibleHeightProperty, height);
+    }
+
+    // After a selection the focused picture may still change its height (the decoded aspect replaces the reserved one); within this
+    // window that re-fits the view once more. Later size changes never move the list under a reader who scrolled on.
+    private const int FocusFitWindowMilliseconds = 1500;
+    private long _focusFitUntil;
+    private bool _focusFitScheduled;
+
+    private void OnFocusedFrameChanged(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (Environment.TickCount64 > _focusFitUntil || _focusFitScheduled || e.Source is not Visual source
+            || ArchivePosts.SelectedItem is not { } item || ArchivePosts.ContainerFromItem(item) is not Visual container
+            || !container.IsVisualAncestorOf(source)) return;
+        _focusFitScheduled = true;
+        Dispatcher.UIThread.Post(() => { _focusFitScheduled = false; EnsureFocusedMediaVisible(); }, DispatcherPriority.Loaded);
+    }
+
+    // The whole enlarged medium of the focused post is scrolled into view; one taller than the viewport (it should not be after the
+    // cap) gets its top edge aligned. The intent is ReaderMediaFit.ScrollDelta; this only measures and applies it.
+    private void EnsureFocusedMediaVisible()
+    {
+        ListBox list = ArchivePosts;
+        if (_ended || list.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || list.SelectedItem is not { } item
+            || list.ContainerFromItem(item) is not Control container) return;
+        ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
+        ArchiveAttachmentView? view = container.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+        if (scroll == null || view?.FrameBoundsIn(scroll) is not { } frame) return;
+        double delta = ReaderMediaFit.ScrollDelta(frame.Top, frame.Bottom, scroll.Viewport.Height);
+        if (Math.Abs(delta) >= 1)
+            scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + delta));
+    }
+
     // Selection changes the focused card's size. Its top edge keeps its place in the viewport: measured before the change is laid out and
-    // again once it was, the scroll offset takes up the difference. Only while the enlargement is in effect.
+    // again once it was, the scroll offset takes up the difference. Only while the enlargement is in effect. Then the whole medium is
+    // brought into view (EnsureFocusedMediaVisible), once right after the layout and once after other pending scroll requests.
     private void AnchorFocusedCard()
     {
         if (ArchivePosts.GetValue(ReaderPostLayout.FocusScalePercentProperty) <= 100 || ArchivePosts.SelectedItem is not { } item) return;
         ListBox list = ArchivePosts;
-        if (list.ContainerFromItem(item) is not Control container || container.TranslatePoint(default, list) is not Point before) return;
+        _focusFitUntil = Environment.TickCount64 + FocusFitWindowMilliseconds;
+        Point? before = list.ContainerFromItem(item) is Control container ? container.TranslatePoint(default, list) : null;
         Dispatcher.UIThread.Post(() =>
         {
             if (_ended || !ReferenceEquals(list.SelectedItem, item)) return;
             list.UpdateLayout();
             ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            if (scroll == null || list.ContainerFromItem(item) is not Control current || current.TranslatePoint(default, list) is not Point after) return;
-            double shift = after.Y - before.Y;
-            if (Math.Abs(shift) >= 1)
-                scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + shift));
+            if (before is { } start && scroll != null && list.ContainerFromItem(item) is Control current && current.TranslatePoint(default, list) is Point after)
+            {
+                double shift = after.Y - start.Y;
+                if (Math.Abs(shift) >= 1)
+                    scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + shift));
+            }
+            EnsureFocusedMediaVisible();
+            Dispatcher.UIThread.Post(EnsureFocusedMediaVisible, DispatcherPriority.Background);
         }, DispatcherPriority.Loaded);
     }
 }

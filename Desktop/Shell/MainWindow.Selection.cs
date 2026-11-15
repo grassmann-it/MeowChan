@@ -146,6 +146,7 @@ public partial class MainWindow
                     _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
             }
         };
+        ArchivePage.ShowThreadInMediaRequested = ShowThreadInMedia; // QW-A #7: the archive list's and the reader's thread menus
         ArchivePage.SelectionDetailsRequested = id =>
         {
             if (_sessionRowsApplying) return;
@@ -265,8 +266,9 @@ public partial class MainWindow
             if (boards) OpenWorkspaceDetails();
             else if (LeadThread is ThreadRow row)
             {
-                if (CommandBindings.Matches(e, "gallery.open")) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
-                else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
+                if (CommandBindings.Matches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
+                else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1)
+                    await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, grid), "downloads.list.read");
             }
             return;
         }

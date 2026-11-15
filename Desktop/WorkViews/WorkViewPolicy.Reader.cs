@@ -11,8 +11,9 @@ public static partial class WorkViewPolicy
     /// <summary>
     /// The reader toolbar's one keep-visible order (OverflowOrder, lower stays on the bar longer). The toolbar has
     /// PrioritizedOverflow, so this list, not the visual order of the bar, decides what a narrow window moves into "More"
-    /// first: the tail of this list. HTML export ranks before full screen, View and Thread (owner, 14.11.); the rarely used
-    /// history return goes first. The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
+    /// first: the tail of this list. RL1 (15.11.): gallery, read, find, tags, export, settings (the gear that replaced "View"),
+    /// thread; the rarely used history return goes before full screen, which left the bar in every view (it is under More
+    /// always) and so ends the list. The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
     /// Required items (way back, favourite star, state returns) never move.
     /// </summary>
     public static IReadOnlyList<string> ReaderToolbarKeepVisibleOrder => ReaderKeepVisible();
@@ -21,7 +22,7 @@ public static partial class WorkViewPolicy
     private static string[] ReaderKeepVisible() =>
     [
         "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-        "reader.toolbar.fullscreen", "reader.toolbar.view", "reader.toolbar.thread", "reader.toolbar.history-back"
+        "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"
     ];
 
     private static int ReaderOrder(string id) => 10 * (System.Array.IndexOf(ReaderKeepVisible(), id) + 1);
@@ -48,17 +49,20 @@ public static partial class WorkViewPolicy
         ReaderTool("reader.toolbar.find", Overflow, Direct, Direct, "reader.find"),
         ReaderTool("reader.toolbar.tags", Overflow, Direct, Direct, "thread.tags"),
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
-        ReaderTool("reader.toolbar.fullscreen", Overflow, Overflow, Direct, "window.fullscreen"),
-        ReaderTool("reader.toolbar.view", Overflow, Direct, Direct, null),
+        // RL1: the gear "Settings" is the former View menu and the quick settings popover in one (a popover, not a menu); under More
+        // it opens the same popover, anchored at More. Full screen is on the bar in no view any more: the header button, F11 and
+        // More carry it (the row stays so its shortcut command keeps its reduced-control route).
+        ReaderTool("reader.toolbar.settings", Overflow, Direct, Direct, null),
         // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
-        // a menu button like View, so Barebones moves it under More, where it opens the same menu.
+        // a menu button, so Barebones moves it under More, where it opens the same menu.
         ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
         // Shown only with a history (state); as a navigation it stays on the bar in every view while it fits.
         ReaderTool("reader.toolbar.history-back", Direct, Direct, Direct, "reader.history-back"),
+        ReaderTool("reader.toolbar.fullscreen", Overflow, Overflow, Overflow, "window.fullscreen"),
 
         // ---- Status line and messages: state and safety, Required in every view (R5). ----
         Same("reader.status.capture", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),
-        // R3: the text that says new posts are shown automatically; the switch is the View menu's "Show new posts automatically".
+        // R3: the text that says new posts are shown automatically; the switch is "Show new posts automatically" in the settings popover (section Thread).
         Same("reader.status.follow-live", WorkViewPage.Reader, WorkViewKind.Element, Required, "watch.follow-live", safety: true),
         Same("reader.status.new-posts", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),
         Same("reader.status.show-new-posts", WorkViewPage.Reader, WorkViewKind.Element, Required, "reader.show-new-posts", safety: true),

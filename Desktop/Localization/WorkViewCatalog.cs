@@ -24,8 +24,8 @@ internal static class WorkViewCatalog
         ("workview.viewCycle", "Switch work view", "Arbeitsansicht wechseln"),
         // R9: F1 marks shortcuts whose button this view keeps under More.
         ("workview.underMore", "In this view under More", "In dieser Ansicht unter Mehr"),
-        ("workview.description.barebones", "Downloads first; the other tools are under More.", "Downloads im Vordergrund; Werkzeuge stehen unter Mehr."),
-        ("workview.description.simple", "Adds reading and browsing; technical tools are under More.", "Ergänzt Lesen und Stöbern; technische Werkzeuge stehen unter Mehr."),
+        ("workview.description.barebones", "Downloads, Archive and Media are in the footer; the other tools are under More.", "Downloads, Archiv und Medien stehen in der Fußleiste; die übrigen Werkzeuge stehen unter Mehr."),
+        ("workview.description.simple", "Adds Tagging and Status to the footer; technical tools are under More.", "Ergänzt Taggen und Status in der Fußleiste; technische Werkzeuge stehen unter Mehr."),
         ("workview.description.advanced", "Shows everything directly, including technical columns and maintenance tools.", "Zeigt alles direkt, auch technische Spalten und Wartungswerkzeuge."),
         // One-time notice for profiles that used Barebones or Simple before the views reduced every page.
         ("workview.notice.text", "This view now shows fewer tools; everything is under More.", "Diese Ansicht zeigt jetzt weniger Werkzeuge; alles steht unter Mehr."),

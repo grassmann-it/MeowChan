@@ -238,7 +238,7 @@ public partial class ArchivePage
         if (row == null || OpenGallery == null || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
         OpenReaderRequested?.Invoke(e.Source as Control);
-        await LoadThreadAsync(row.Summary.Id);
+        await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.list.doubleClick");
     }
 
     private void OnThreadTableSelected(object? sender, SelectionChangedEventArgs e) => ArchiveSelectionChanged(sender);
@@ -253,14 +253,14 @@ public partial class ArchivePage
             || FrozenArchiveSelection().Length != 1) return;
         e.Handled = true;
         OpenReaderRequested?.Invoke(target);
-        await LoadThreadAsync(row.Summary.Id);
+        await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.table.doubleClick");
     }
 
     private async void OnThreadGalleryMenu(object? sender, RoutedEventArgs e)
     {
         if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen) return;
         if (EventThread(sender, e.Source) is ArchiveThreadRow row && OpenGallery != null)
-            await OpenThreadGalleryAsync(row.Summary.Id, null, ThreadOrigin(row));
+            await OpenActions.RunAsync(() => OpenThreadGalleryAsync(row.Summary.Id, null, ThreadOrigin(row)), "archive.menu.gallery");
     }
 
     private async void OnThreadReadMenu(object? sender, RoutedEventArgs e)
@@ -269,7 +269,7 @@ public partial class ArchivePage
         if (EventThread(sender, e.Source) is ArchiveThreadRow row)
         {
             OpenReaderRequested?.Invoke(ThreadOrigin(row));
-            await LoadThreadAsync(row.Summary.Id);
+            await OpenActions.RunAsync(() => LoadThreadAsync(row.Summary.Id), "archive.menu.read");
         }
     }
 
@@ -287,13 +287,13 @@ public partial class ArchivePage
     private async void OnCurrentGalleryClick(object? sender, RoutedEventArgs e)
     {
         if (!_available || _ended || _lifetime.IsCancellationRequested || _busy || IsFilenameSearchOpen) return;
-        if (_selectedThread != null && OpenGallery != null)
-            await OpenThreadGalleryAsync(_selectedThread, null, sender as Control);
+        if (_selectedThread is { } selected && OpenGallery != null)
+            await OpenActions.RunAsync(() => OpenThreadGalleryAsync(selected, null, sender as Control), "archive.current.gallery");
     }
 
     private async void OnResultsGalleryClick(object? sender, RoutedEventArgs e)
     {
-        await OpenResultsGalleryAsync(sender as Control);
+        await OpenActions.RunAsync(() => OpenResultsGalleryAsync(sender as Control), "archive.results.gallery");
     }
 
     private async Task OpenResultsGalleryAsync(Control? origin)
@@ -329,7 +329,7 @@ public partial class ArchivePage
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault();
         if (row == null) return;
         e.Handled = true;
-        await OpenAssetGalleryAsync(row, e.Source as Control);
+        await OpenActions.RunAsync(() => OpenAssetGalleryAsync(row, e.Source as Control), "archive.media.open");
     }
 
     private async void OnMediaKeyDown(object? sender, KeyEventArgs e)
@@ -341,7 +341,7 @@ public partial class ArchivePage
             .Select(control => control.DataContext).OfType<ArchiveAssetRow>().FirstOrDefault() ?? SelectedMediaRow();
         if (row == null) return;
         e.Handled = true;
-        await OpenAssetGalleryAsync(row, e.Source as Control);
+        await OpenActions.RunAsync(() => OpenAssetGalleryAsync(row, e.Source as Control), "archive.media.open");
     }
 
     private async void OnReadPostsClick(object? sender, RoutedEventArgs e)
@@ -349,7 +349,8 @@ public partial class ArchivePage
         if (IsFilenameSearchOpen) return;
         if (_selectedThread == null || FrozenArchiveSelection().Length != 1) return;
         OpenReaderRequested?.Invoke(sender as Control);
-        await LoadThreadAsync(_selectedThread);
+        ResourceId selectedThread = _selectedThread;
+        await OpenActions.RunAsync(() => LoadThreadAsync(selectedThread), "archive.readPosts");
         ArchiveContentTabs.SelectedIndex = 0;
         ReaderPositionChanged(deliberate: true);
     }

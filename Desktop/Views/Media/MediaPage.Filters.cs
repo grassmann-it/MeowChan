@@ -330,6 +330,13 @@ public sealed partial class MediaPage
         EditTerms(terms => MediaFilterTermSet.With(terms, MediaFilterTerm.InThread(thread)));
     }
 
+    /// <summary>"Show in Media" of a thread menu: the thread: chip becomes the only filter (a clean view of this thread's media).</summary>
+    internal void ShowOnlyThread(ResourceId thread, string title)
+    {
+        ResetFilters();
+        FilterToThread(thread, title);
+    }
+
     internal void FilterToThread(MediaLibraryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -627,7 +634,7 @@ public sealed partial class MediaPage
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
         _queryAliases = null; // the aliases follow the language
-        _searchScope.FieldHelpNote = Texts.T("media.query.tip");
+        _searchScope.FieldHelpNote = Texts.T("media.query.tip").Replace("\n", " "); // the tooltip lists the syntax in lines; the help text reads as one sentence run
         ClearQueryHint();
         _searchCarryOffer.Localize();
         UpdateSearchTip();

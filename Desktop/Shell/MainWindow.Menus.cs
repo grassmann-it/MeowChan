@@ -72,9 +72,11 @@ public partial class MainWindow
         }
         if (!frozen.Boards)
         {
-            Add("thread.read", async () => await OpenFrozenReaderAsync(frozen, grid),
+            Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
                 frozen.Threads.Length == 1 && grid.SelectedItems.Count == 1);
-            Add("gallery.open", async () => await OpenGalleryAsync(frozen.Lead, origin: grid));
+            Add("gallery.open", () => OpenActions.Start(() => OpenGalleryAsync(frozen.Lead, origin: grid), "downloads.menu.gallery"));
+            Add("thread.show-in-media", () => ShowThreadInMedia(frozen.Lead,
+                _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? leadRow) ? leadRow.Title : null));
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });

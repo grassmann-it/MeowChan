@@ -201,7 +201,13 @@ public partial class ArchivePage
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
             () => _ = ResetArchiveColumnsAsync(grid));
-        return builder.Build()!;
+        ContextMenu menu = builder.Build()!;
+        if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "archive.columnsReset")) is { } reset)
+        {
+            ToolTip.SetTip(reset, Texts.T("archive.columnsReset.hint"));
+            Avalonia.Automation.AutomationProperties.SetHelpText(reset, Texts.T("archive.columnsReset.hint"));
+        }
+        return menu;
     }
 
     private async Task ToggleArchiveColumnAsync(DataGrid grid, string key, bool visible)

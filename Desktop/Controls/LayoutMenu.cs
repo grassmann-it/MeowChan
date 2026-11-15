@@ -127,7 +127,9 @@ internal sealed class LayoutMenuPanel : StackPanel
     {
         Name = name;
         Spacing = 2;
+        // Menu width rules (CM1): at least 280 and at most 416 dip (the MenuFlyoutMaxWidth token); a longer label is trimmed, the shortcut stays whole.
         MinWidth = 280;
+        MaxWidth = MenuLayout.DefaultMaximumWidth;
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _invoke = invoke ?? throw new ArgumentNullException(nameof(invoke));
         _rowClass = rowClass;
@@ -290,7 +292,10 @@ internal sealed class LayoutMenuPanel : StackPanel
         view.Button.IsEnabled = row.Enabled;
         view.Reason!.Text = row.DisabledReason ?? string.Empty;
         view.Reason.IsVisible = row.DisabledReason != null;
-        view.Gesture!.Text = row.CommandId == null ? string.Empty : CommandCatalog.ShortcutDisplay(row.CommandId) ?? string.Empty;
+        string shortcut = row.CommandId == null ? string.Empty : CommandCatalog.ShortcutDisplay(row.CommandId) ?? string.Empty;
+        view.Gesture!.Text = shortcut;
+        // The room in front of a shortcut is 24 dip (the column spacing 8 plus 16), none for a row without one.
+        view.Gesture.Margin = shortcut.Length == 0 ? default : new Thickness(MenuLayout.MinimumShortcutGap - 8, 0, 0, 0);
         string tip = row.DisabledReason ?? row.Hint ?? string.Empty;
         string tooltip = tip.Length == 0 ? row.Label : row.Label + " · " + tip;
         AutomationProperties.SetName(view.Button, row.Label);

@@ -29,18 +29,22 @@ public sealed class QuickSettingsTests : IDisposable
     [Fact]
     public void TheReaderPopoverOffersTheMostNeededDisplayOptionsUnderUniqueIds()
     {
+        // RL1: the popover is the gear's, in the order of its sections (media, then text and layout); the history limits, the hover size and delay,
+        // the sidebar widths, the video players and the multi-file settings are on the settings page only.
         Assert.Equal(new[]
         {
-            SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReaderThumbnailWidth, SettingsFieldId.ReadingFontSize,
-            SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers, SettingsFieldId.ReaderPageSize,
-            SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
+            ReaderQuickSettings.MediaClickFieldId, SettingsFieldId.ReaderMediaSidebar, SettingsFieldId.ReaderMediaSidebarSide,
+            SettingsFieldId.ReaderTextlessLargeImages, SettingsFieldId.ReaderTextlessMediaWidth,
             SettingsFieldId.ReaderFocusedMediaEnlarge, SettingsFieldId.ReaderFocusedMediaScalePercent, SettingsFieldId.ReaderHoverEnlarge,
-            SettingsFieldId.ReaderHoverEnlargeSize, SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebar,
-            SettingsFieldId.ReaderMediaSidebarSide, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,
-            SettingsFieldId.ReaderInlineVideo, SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.ReaderInlineVideoMaxPlayers,
-            SettingsFieldId.ReaderInlineVideoMaxFileMiB, SettingsFieldId.ReaderMediaStripLimit, SettingsFieldId.ReaderMediaGrid,
-            SettingsFieldId.ReaderMediaGridTextLimit
+            SettingsFieldId.ReaderThumbnailWidth,
+            SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReadingFontSize, SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers,
+            SettingsFieldId.ReaderPageSize
         }, Reader.Fields.Select(field => field.Id));
+        foreach (string moved in new[] { SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderHoverEnlargeSize,
+            SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,
+            SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.ReaderInlineVideoMaxPlayers, SettingsFieldId.ReaderInlineVideoMaxFileMiB,
+            SettingsFieldId.ReaderMediaStripLimit, SettingsFieldId.ReaderMediaGrid, SettingsFieldId.ReaderMediaGridTextLimit })
+            Assert.False(QuickSettingsSurfaces.Contains(moved), moved);
         Assert.Equal(Reader.Fields.Count, Reader.Fields.Select(field => field.Id).Distinct(StringComparer.Ordinal).Count());
         Assert.True(QuickSettingsSurfaces.Contains(SettingsFieldId.ReaderPostWidth));
         Assert.False(QuickSettingsSurfaces.Contains("DownloadPath"));
@@ -284,6 +288,21 @@ public sealed class QuickSettingsTests : IDisposable
             surface[constructor..build]);
     }
 
+    [Fact]
+    public void TheToolbarButtonHeightDoesNotReachTheSpinnerButtonsOfTheNumberFieldsAndTheRowsClearTheScrollBar()
+    {
+        // Typography pass 15.11.: the same ":is(Button)" style (Height 32, MinWidth 32) made each up/down button 32 high, so a number
+        // field stood 64 dip tall beside the 32 dip combo boxes; the surface gives the spinner buttons back their own size.
+        string surface = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/Controls/QuickSettingsPopover.cs"));
+        int constructor = surface.IndexOf("internal QuickSettingsSurface(", StringComparison.Ordinal);
+        int build = surface.IndexOf("Build();", constructor, StringComparison.Ordinal);
+        string body = surface[constructor..build];
+        Assert.Contains("selector.OfType<NumericUpDown>().Template().OfType<ButtonSpinner>().Template().Is<Button>()", body);
+        Assert.Contains("new Setter(HeightProperty, double.NaN)", body);
+        Assert.Contains("new Setter(MinWidthProperty, 0d)", body);
+        Assert.Contains("_rows = new() { Spacing = 12, Margin = new Thickness(0, 0, 12, 0) };", surface);
+    }
+
     // ---- languages ---------------------------------------------------------------------------------------------------
 
     [Fact]
@@ -312,18 +331,21 @@ public sealed class QuickSettingsTests : IDisposable
                 string text = value.GetString()!;
                 Assert.False(string.IsNullOrWhiteSpace(text));
                 Assert.Equal(Placeholders(english), Placeholders(text));
-                // A translation that is the English text word for word has not been translated (the "Esc" key cap aside).
-                if (key != "quicksettings.close.tip") Assert.NotEqual(english, text);
+                // A translation that is the English text word for word has not been translated (the "Esc" key cap aside; "Media" and "Thread"
+                // are the loan words the Italian and Polish packs use for the media and thread sections everywhere else too).
+                bool loanWord = (code is "it" or "pl" && key == "quicksettings.reader.section.media") || (code == "it" && key == "quicksettings.reader.section.thread");
+                if (key != "quicksettings.close.tip" && !loanWord) Assert.NotEqual(english, text);
             }
         }
     }
 
     [Fact]
-    public void TheCommandIsInTheViewMenuAndLabelledInEveryLanguage()
+    public void TheCommandIsInTheReaderSettingsAndLabelledInEveryLanguage()
     {
         MeowChan.Desktop.Commands.CommandDefinition command = MeowChan.Desktop.Commands.CommandCatalog.Get("reader.quick-settings");
         Assert.Equal("command.reader.quick-settings", command.LabelKey);
-        Assert.Contains("reader-view-menu", command.Contexts);
+        Assert.Contains("reader-settings", command.Contexts);
+        Assert.Equal("settings", command.Icon);
         Assert.Equal("Reader settings…", MeowChan.Desktop.Commands.CommandCatalog.Label("reader.quick-settings"));
         Texts.SetLanguage("fr");
         Assert.Equal("Paramètres du lecteur…", MeowChan.Desktop.Commands.CommandCatalog.Label("reader.quick-settings"));

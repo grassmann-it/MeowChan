@@ -66,11 +66,11 @@
                 <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="{StaticResource Workspace.Inset.Overlay}"
                         VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
                         KeyboardNavigation.TabNavigation="Cycle">
-                    <!-- MD4 overlay header: the cross stands at the far left, before the surface's name (HeaderBar back slot, OverlayFrame), apart from it by a gap and a separator. -->
+                    <!-- MD4 overlay header: an overlay card looks like a dialog, so its cross stands at the right edge after the surface's name (HeaderBar end slot, OverlayFrame); no back slot, no separator. -->
                     <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                         <controls:HeaderBar x:Name="ArchiveFilterSurfaceHeader">
-                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsBack="True" Click="OnFilterCloseClick" />
                             <TextBlock x:Name="ArchiveFilterSurfaceTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsEnd="True" Click="OnFilterCloseClick" />
                         </controls:HeaderBar>
                         <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
                             <StackPanel x:Name="ArchiveFilterFields" Spacing="{StaticResource Workspace.Space.8}" Margin="0,0,12,0">
@@ -259,22 +259,26 @@
                          policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
                     <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Margin" Value="0,0,8,0" /></Style></desktop:ActionToolBar.Styles>
+                    <!-- RL1 (15.11.): the bar's visual order is its groups, with a thin line between them (ActionToolBar.Group): the thread mark and
+                         the returns of a state (0), the main actions Read, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
+                         settings gear (3), the history return (4). What a narrow window moves under More first is the policy's ReaderToolbarKeepVisibleOrder. -->
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
-                    <Button x:Name="ReaderTagsOpen" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
-                    <Button x:Name="ArchiveOpenGallery" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
                     <Button x:Name="ReaderUnreadReturn" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />
-                    <Button x:Name="ReaderFindOpen" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
-                    <!-- Reader view switches (hide media, only posts with media, and what later packages register). -->
-                    <Button x:Name="ReaderViewOpen" wv:WorkViewElement.Id="reader.toolbar.view" Click="OnReaderViewMenuClick" />
-                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
-                         remove watch) in one menu next to "View"; "View" stays the reader's own look, the bar's "More" stays "More". -->
-                    <Button x:Name="ReaderThreadOpen" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
-                    <Button x:Name="ArchiveReadPosts" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
-                    <Button x:Name="ExportArchiveButton" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <Button x:Name="ArchiveReaderFullscreen" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <Button x:Name="ArchiveHistoryBack" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
+                    <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
+                    <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
+                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
+                    <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
+                    <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
+                    <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <!-- Full screen is under More in every view (RL1): the header button and F11 carry it. -->
+                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
@@ -315,7 +319,7 @@
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
-                        <!-- R3: following live is "Show new posts automatically" in the View menu; this line only says whether it is on. -->
+                        <!-- R3: following live is "Show new posts automatically" in the settings popover (section Thread); this line only says whether it is on. -->
                         <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
                         <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
@@ -596,10 +600,10 @@
                                             <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
                                                     CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
                                                 <StackPanel Spacing="{StaticResource Workspace.Space.12}">
-                                                    <!-- MD4 overlay header: the cross (cancel) at the far left, then the question (HeaderBar back slot, OverlayFrame). -->
+                                                    <!-- MD4 overlay header: the question, then the cross (cancel) at the right edge like a dialog (HeaderBar end slot, OverlayFrame). -->
                                                     <controls:HeaderBar x:Name="ReaderLinkHeader">
-                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsBack="True" Click="OnReaderLinkCancel" />
                                                         <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsEnd="True" Click="OnReaderLinkCancel" />
                                                     </controls:HeaderBar>
                                                     <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
                                                     <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />
@@ -684,23 +688,32 @@
                         </TabControl>
                         <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" IsVisible="False" HorizontalAlignment="Right"
                                    VerticalAlignment="Bottom" Margin="0,0,24,32" ZIndex="1">
-                            <!-- The cross is an overlay above the content: the overlay backdrop is only painted (not hit-tested), and the
-                                 button grid has no background, so a click anywhere but on one of the four buttons reaches the content below. -->
-                            <Grid>
-                                <Border Classes="workspace-overlay" IsHitTestVisible="False" />
-                                <Grid Margin="4" RowDefinitions="32,32,32" ColumnDefinitions="32,32,32" RowSpacing="{StaticResource Workspace.Space.2}" ColumnSpacing="{StaticResource Workspace.Space.2}">
-                                    <Grid.Styles>
+                            <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
+                                 counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
+                                 ReaderNavigationLayout.CompactBelowSurfaceWidth (or with the position switched off) the two counters are hidden. MaxWidth and
+                                 the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
+                            <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel.Styles>
                                         <Style Selector="Button">
                                             <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
-                                            <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Padding" Value="4" />
+                                            <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" />
+                                            <Setter Property="Padding" Value="4" /><Setter Property="VerticalAlignment" Value="Center" />
                                         </Style>
-                                    </Grid.Styles>
-                                    <Button x:Name="ReaderPreviousPost" Grid.Column="1" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderNextPost" Grid.Row="2" Grid.Column="1" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderPreviousThread" Grid.Row="1" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderNextThread" Grid.Row="1" Grid.Column="2" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
-                                </Grid>
-                            </Grid>
+                                    </StackPanel.Styles>
+                                    <StackPanel x:Name="ReaderThreadGroup" Orientation="Horizontal">
+                                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <TextBlock x:Name="ReaderThreadPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                        <Button x:Name="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                    </StackPanel>
+                                    <Border x:Name="ReaderNavigationSeparator" Width="1" Height="24" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource Workspace.ControlBorder}" />
+                                    <StackPanel x:Name="ReaderPostGroup" Orientation="Horizontal">
+                                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <TextBlock x:Name="ReaderPostPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                        <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </WrapPanel>
                     </Grid>
                 </Border>

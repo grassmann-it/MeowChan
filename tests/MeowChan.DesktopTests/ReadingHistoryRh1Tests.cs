@@ -231,30 +231,19 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Enumerable.Range(1, count).Select(index => Entry(index, -index, (index * 10).ToString())).ToArray();
 
     [Fact]
-    public void TheMenuListsTheNewestThreadsThenTheFullHistoryEntry()
+    public void TheListHasTheNewestThreadsAsRowsWithTitleAndDetailLines()
     {
-        List<LocalReadingPosition> opened = new();
-        int all = 0;
-        ContextMenuModel model = ReadingHistoryMenu.Compose(Entries(25), 10, 50, T0, true, opened.Add, () => all++).ToModel();
+        IReadOnlyList<ReadingHistoryRow> rows = ReadingHistoryMenu.Rows(Entries(25), 10, 50, T0);
 
-        ContextMenuEntry[] places = model.Sections[0].ToArray();
-        Assert.Equal(10, places.Length);
-        Assert.All(places, entry => Assert.Equal(ReadingHistoryMenu.ContinueCommandId, entry.CommandId));
-        Assert.Equal(places.Length, places.Select(entry => entry.Id).Distinct().Count());
-        Assert.Equal(Enumerable.Range(1, 10).Select(index => "reading.place:4chan/g/" + index), places.Select(entry => entry.Id));
-        Assert.Contains("Thread 1", places[0].Label); Assert.Contains("No. 10", places[0].Label);
-        Assert.Contains("Thread 10", places[9].Label); Assert.Contains("No. 100", places[9].Label);
-        ContextMenuEntry last = Assert.Single(model.Sections[1]);
-        Assert.Equal(ReadingHistoryMenu.HistoryCommandId, last.CommandId);
-        Assert.Equal("Show full history…", CommandCatalog.Label(last.CommandId));
-        Assert.True(last.Available);
-
-        places[3].Invoke!();
-        last.Invoke!();
-        Assert.Equal("4", Assert.Single(opened).Thread);
-        Assert.Equal("40", opened[0].PostId);
-        Assert.Equal(1, all);
-        Assert.Equal(new[] { 0 }, model.OversizedSections); // the history is data bounded by its setting, not a command group (documented)
+        Assert.Equal(10, rows.Count);
+        Assert.Equal(rows.Count, rows.Select(row => row.Id).Distinct().Count());
+        Assert.Equal(Enumerable.Range(1, 10).Select(index => "reading.place:4chan/g/" + index), rows.Select(row => row.Id));
+        Assert.Equal("Thread 1", rows[0].Title); Assert.Contains("No. 10", rows[0].Detail); Assert.Contains("4chan /g/", rows[0].Detail);
+        Assert.Equal("Thread 10", rows[9].Title); Assert.Contains("No. 100", rows[9].Detail);
+        Assert.Equal("1", rows[0].Place.Thread);
+        Assert.Equal("100", rows[9].Place.PostId);
+        Assert.Contains("Thread 1", rows[0].Text); Assert.Contains("No. 10", rows[0].Text);
+        Assert.Equal("Show full history…", CommandCatalog.Label(ReadingHistoryMenu.HistoryCommandId));
     }
 
     [Theory]
@@ -268,50 +257,31 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
     public void TheNumberOfListedThreadsIsTheSettingClampedAndCappedByTheHistorySize(int menuEntries, int historyLimit, int expected)
     {
         Assert.Equal(expected, ReadingHistoryMenu.Shown(menuEntries, historyLimit));
-        int listed = ReadingHistoryMenu.Compose(Entries(60), menuEntries, historyLimit, T0, true, _ => { }, () => { }).ToModel().Sections[0].Count;
-        Assert.Equal(expected, listed);
+        Assert.Equal(expected, ReadingHistoryMenu.Rows(Entries(60), menuEntries, historyLimit, T0).Count);
     }
 
     [Fact]
-    public void OnlyTheNewestEntryShowsTheShortcutBecauseTheShortcutOpensTheNewestPlace()
+    public void TheShortcutOpensTheNewestPlaceSoItStaysTheCommandsOneShortcut()
     {
-        ContextMenuEntry[] places = ReadingHistoryMenu.Compose(Entries(4), 10, 25, T0, true, _ => { }, () => { }).ToModel().Sections[0].ToArray();
-        Assert.True(places[0].ShowShortcut);
-        Assert.All(places.Skip(1), entry => Assert.False(entry.ShowShortcut));
         Assert.Equal("Primary+Shift+R", CommandCatalog.Get(ReadingHistoryMenu.ContinueCommandId).Shortcut);
+        Assert.Null(CommandCatalog.Get(ReadingHistoryMenu.HistoryCommandId).Shortcut);
     }
 
     [Fact]
-    public void AnEmptyHistoryShowsANoteAndNoFullHistoryEntry()
+    public void AnEmptyHistoryHasNoRows()
     {
-        ContextMenuModel model = ReadingHistoryMenu.Compose(Array.Empty<LocalReadingHistoryEntry>(), 10, 25, T0, true, _ => { }, () => { }).ToModel();
-        Assert.Equal(ContextMenuEntryKind.Note, model.Sections[0].Single().Kind);
-        Assert.Equal(Texts.T("resume.history.empty"), model.Sections[0].Single().Label);
-        ContextMenuEntry all = Assert.Single(model.Sections[1]);
-        Assert.False(all.Available);
-        Assert.Equal(Texts.T("resume.history.empty"), all.Reason);
-    }
-
-    [Fact]
-    public void WhileAnotherActionOwnsTheReaderTheEntriesStayDisabledWithAReason()
-    {
-        ContextMenuModel model = ReadingHistoryMenu.Compose(Entries(3), 10, 25, T0, false, _ => { }, () => { }).ToModel();
-        Assert.All(model.Sections[0], entry =>
-        {
-            Assert.False(entry.Available);
-            Assert.False(string.IsNullOrWhiteSpace(entry.Reason));
-        });
-        Assert.True(Assert.Single(model.Sections[1]).Available); // the window is still reachable
+        Assert.Empty(ReadingHistoryMenu.Rows(Array.Empty<LocalReadingHistoryEntry>(), 10, 25, T0));
     }
 
     [Fact]
     public void TitlesKeepTheirUnderscoresAndBothTextsNameThreadAndPost()
     {
         LocalReadingHistoryEntry entry = Entry(3, 0, "77", "my_cat_thread");
-        ContextMenuEntry shown = ReadingHistoryMenu.Compose(new[] { entry }, 10, 25, T0, true, _ => { }, () => { }).ToModel().Sections[0].Single();
-        Assert.Contains("my__cat__thread", shown.Label); // doubled: an access-key marker otherwise
+        ReadingHistoryRow shown = ReadingHistoryMenu.Rows(new[] { entry }, 10, 25, T0).Single();
+        Assert.Equal("my_cat_thread", shown.Title); // a button, not a menu header: no access-key markers to double
         Assert.Equal("Continue reading “my_cat_thread” at post No. 77", ReadingHistoryMenu.EntryTip(entry.Position));
         Assert.Equal("Continue reading “/g/ thread 3” at post No. 9", ReadingHistoryMenu.EntryTip(Place(3, "9") with { Title = null }));
+        Assert.Equal(ReadingHistoryMenu.EntryTip(entry.Position), shown.Tip);
         (string title, string detail) = ReadingHistoryMenu.Row(entry, T0.AddHours(2));
         Assert.Equal("my_cat_thread", title);
         Assert.Contains("4chan /g/", detail); Assert.Contains("No. 77", detail);
@@ -348,10 +318,12 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Assert.Matches(@"CommandBindings\.Apply\(_resumeReadingMenu,\s*""navigation\.continue-reading""", resume);
         // The history submenu's header, the menu's entries and the window's rows: the same command's icon.
         Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId)", resume);
-        Assert.Contains("ContextMenuHost(ContinueReadingButton", resume);
-        string menu = File.ReadAllText(Root("Desktop/Shell/ReadingHistoryMenu.cs"));
-        Assert.Contains("menu.Command(ContinueCommandId", menu);
-        Assert.Contains("Command(HistoryCommandId", menu);
+        Assert.Contains("AddTrigger(ContinueReadingButton)", resume); // right-click and the menu key open the list on the book button
+        Assert.Contains("AddTrigger(ContinueReadingHistoryButton)", resume);
+        string flyout = File.ReadAllText(Root("Desktop/Shell/ReadingHistoryFlyout.cs"));
+        // The list's rows carry the continue command's icon and its last row the history command's.
+        Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId)", flyout);
+        Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.HistoryCommandId)", flyout);
         string window = File.ReadAllText(Root("Desktop/Shell/ReadingHistoryWindow.cs"));
         Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId)", window);
         // The archive list's thread menu entry and the macOS menu bar.
@@ -387,7 +359,8 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Assert.Equal(7, copy.ReadingHistoryMenuEntries);
         Config fields = new(); fields.CopySettingsFieldsFrom(set);
         Assert.Equal(7, fields.ReadingHistoryMenuEntries);
-        Assert.Contains(ReaderQuickSettings.Fields, field => field.Id == SettingsFieldId.ReadingHistoryMenuEntries);
+        // RL1: the history limits are on the settings page only; the popover keeps the display options.
+        Assert.DoesNotContain(ReaderQuickSettings.Fields, field => field.Id == SettingsFieldId.ReadingHistoryMenuEntries);
     }
 
     // ---- language packs: the new texts are real translations in all twelve languages ----

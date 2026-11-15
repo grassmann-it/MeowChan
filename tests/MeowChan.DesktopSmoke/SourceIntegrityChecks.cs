@@ -237,11 +237,11 @@ internal static class SourceIntegrityChecks
                 Program.CaptureWindow(window, CaptureName("plugin-badge-" + cell));
                 Button manage = C<Button>(plugins, "PluginWatches");
                 await RevealAsync(window, manage);
-                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Show in Sources link could not receive focus.");
+                Require(manage.IsEffectivelyEnabled && manage.Focus(NavigationMethod.Tab), "The real Show source link could not receive focus.");
                 await Settle();
                 Require(manage.IsFocused && InViewport(window, manage)
                     && Avalonia.Automation.AutomationProperties.GetName(manage) == Texts.T("plugins.watches"),
-                    "The Show in Sources link was not translated or keyboard reachable.");
+                    "The Show source link was not translated or keyboard reachable.");
                 Program.CaptureWindow(window, CaptureName("plugin-link-" + cell));
                 await NativeFeatureCheckpoint.HoldAsync("source-plugin-link", plugins, manage, manage);
                 navigatedSource = null;

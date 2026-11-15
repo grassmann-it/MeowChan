@@ -11,15 +11,18 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The real inline player: the gallery's <see cref="GalleryVideoPlayer"/> (same engine, verified local stream, same transport row)
-/// wrapped, not changed. The picture goes into the owner's media frame, the transport into the owner's row below it through the
-/// player's existing external transport host. Disposal goes through the player's own lifetime; only once its native cleanup
+/// The real inline player: the gallery's <see cref="GalleryVideoPlayer"/> (same engine, verified local stream) wrapped, not changed. The
+/// picture goes into the owner's media frame, the transport into the owner's row below it through the player's existing external
+/// transport host. The transport is the reader's minimal bar (play or pause, timeline, time, mute, optionally "Open in gallery"), one row
+/// exactly as wide as the picture's frame: under the picture rather than over it, because a native video surface (Windows) is always
+/// drawn above any overlay, and so that nothing of the picture is covered. Disposal goes through the player's own lifetime; only once its native cleanup
 /// returned is the player taken out of the frame (the gallery's contract: the drawable stays owned until then).
 /// </summary>
 internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
@@ -33,14 +36,18 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
     internal event Action<string>? Failed;
     internal event Action<bool>? UserPlayback;
     internal event Action? Clicked;
+    internal event Action<bool>? MuteChosen;
 
-    internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool muted, string name)
+    internal GalleryInlineVideoPlayer(Panel area, Control below, Panel transportHost, GalleryEntry entry, ReaderInlineVideoOptions options, bool startMuted,
+        string name, Action? openGallery = null)
     {
         _area = area;
         _entry = entry;
         AutomationProperties.SetName(Player, name);
         // An inline player is created to play: the activation is the user's Play (or the opted-in muted autoplay).
-        Player.Configure(autoplay: true, startMuted: muted || options.StartMuted, options.Volume);
+        Player.Configure(autoplay: true, startMuted, options.Volume);
+        Player.ConfigureSeekStep(options.SeekStepSeconds);
+        Player.MuteChosen += muted => MuteChosen?.Invoke(muted);
         Player.PlaybackFailed += () => { _failed = true; Failed?.Invoke(Texts.T("reader.video.failed", Texts.T("gallery.mediaUnavailable"))); };
         Player.DiagnosticNotice += message => { if (!string.IsNullOrWhiteSpace(message)) Failed?.Invoke(Texts.T("reader.video.failed", message)); };
         Player.CleanupDiagnostic += message => Failed?.Invoke(message);
@@ -55,6 +62,14 @@ internal sealed class GalleryInlineVideoPlayer : IReaderInlineVideoPlayer
         // Under the slot's activator, which covers a paused older video so a click or Enter continues it.
         int index = area.Children.IndexOf(below);
         if (index >= 0) area.Children.Insert(index, Player); else area.Children.Add(Player);
+        Button? open = null;
+        if (openGallery != null)
+        {
+            open = new Button { Name = "ReaderInlineVideoOpen", Classes = { "media-control" } };
+            CommandBindings.Apply(open, "gallery.open", iconOnly: true, iconSize: 18);
+            open.Click += (_, e) => { e.Handled = true; openGallery(); };
+        }
+        Player.UseMinimalTransport(open);
         Player.SetExternalTransportHost(transportHost);
     }
 
@@ -118,7 +133,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
 {
     private readonly Panel _area;
     private readonly bool _activatorWhenIdle;
-    private readonly Panel _transportHost = new() { Name = "ReaderInlineVideoTransport" };
+    // "in-dock": the bar's own strip style of the gallery's dock (no side inset, 4 dip above and below its 32 dip controls).
+    private readonly Panel _transportHost = new() { Name = "ReaderInlineVideoTransport", Classes = { "in-dock" } };
     private readonly TextBlock _error = new() { Name = "ReaderInlineVideoError", TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly TextBlock _live = new() { Name = "ReaderInlineVideoLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private ReaderInlineVideoController? _controller;
@@ -127,10 +143,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private string? _key;
     private Func<CancellationToken, Task<GalleryEntry?>>? _resolve;
     private string _name = string.Empty;
+    private Action? _openGallery;
     private bool _current;
-
-    /// <summary>The video row keeps this width under a small picture, so the transport's two compact rows fit (layout constant).</summary>
-    internal const double MinimumRowWidth = 288;
 
     /// <summary>The identity of an attachment for the slot: the same file at the same place of a rebuilt row keeps its player.</summary>
     internal static string KeyOf(MeowChan.Archive.CapturedAttachment attachment) => string.Join("\n", attachment.Position,
@@ -140,9 +154,11 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     {
         _area = area;
         _activatorWhenIdle = activatorWhenIdle;
+        // Over the poster, so it never paints a surface of its own: the class (WorkspaceStyles) keeps every state of the button transparent
+        // (Semi's hover tint would otherwise turn the whole picture into a flat grey rectangle) and shows a thin ring on hover.
         Activator = new Button
         {
-            Name = "ReaderInlineVideoPlay", Background = Brushes.Transparent, BorderThickness = new Thickness(0), Padding = new Thickness(0),
+            Name = "ReaderInlineVideoPlay", Classes = { "video-activator" },
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, IsVisible = false,
             Cursor = new Cursor(StandardCursorType.Hand)
         };
@@ -151,16 +167,23 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         _error.Classes.Add("workspace-error");
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
-        Below = new StackPanel { Name = "ReaderInlineVideoRow", Spacing = 4, IsVisible = false, Children = { _transportHost, _error, _live } };
-        // Keys on the video's own surface (not its buttons, which handle Enter and Space themselves): Enter plays, Space toggles.
-        foreach (Control target in new Control[] { area, Below })
+        Row = new ReaderInlineVideoRow(_transportHost, _error, _live) { IsVisible = false };
+        // Keys on the video's own surface (not its buttons, which handle Enter and Space themselves): Enter and Space play or pause, the
+        // reader's video keys act on it (bubble). The reader's navigation keys come first (tunnel): the timeline never keeps the arrows.
+        foreach (Control target in new Control[] { area, Row })
+        {
             target.AddHandler(InputElement.KeyDownEvent, (_, e) => OnKeyDown(e), RoutingStrategies.Bubble);
+            target.AddHandler(InputElement.KeyDownEvent, (_, e) => OnNavigationKey(e), RoutingStrategies.Tunnel);
+        }
     }
+
+    /// <summary>The row under the frame as its type (the owner gives it the frame's width).</summary>
+    internal ReaderInlineVideoRow Row { get; }
 
     /// <summary>The focusable "Play video here" button over the poster (keyboard path; also over a paused older video).</summary>
     internal Button Activator { get; }
     /// <summary>The row the owner places under the media frame: transport (current video only), error line, live region.</summary>
-    internal Control Below { get; }
+    internal Control Below => Row;
     internal bool IsLive => _player != null;
     internal bool IsOffered => _key != null && _controller?.Options.Enabled == true;
     internal bool IsPlaying => _player?.IsPlaying == true;
@@ -173,7 +196,8 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     /// The video this slot can play now (a key per attachment, so a rebuilt row keeps a running player), or none. A different video
     /// or none gives the player back. <paramref name="controller"/> null or switched off offers nothing.
     /// </summary>
-    internal void Offer(ReaderInlineVideoController? controller, string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name)
+    internal void Offer(ReaderInlineVideoController? controller, string? key, Func<CancellationToken, Task<GalleryEntry?>>? resolve, string name,
+        Action? openGallery = null)
     {
         bool usable = controller is { Options.Enabled: true } && key != null && resolve != null;
         if (!usable) { key = null; resolve = null; name = string.Empty; }
@@ -182,6 +206,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         _key = key;
         _resolve = resolve;
         _name = name;
+        _openGallery = usable ? openGallery : null;
         string label = Texts.T("reader.video.play", name.Length > 0 ? name : Texts.T("reader.video.unnamed"));
         AutomationProperties.SetName(Activator, label);
         AutomationProperties.SetHelpText(Activator, Texts.T("reader.video.playHint"));
@@ -222,8 +247,10 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             ReaderInlineVideoOptions options = controller.Options;
             await controller.PlayAsync(this, () =>
             {
-                GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options, muted,
-                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"));
+                GalleryInlineVideoPlayer player = new(_area, Activator, _transportHost, entry, options,
+                    ReaderInlineVideoRules.StartMuted(options, controller.SessionMuted, autoplay: muted),
+                    _name.Length > 0 ? _name : Texts.T("reader.video.unnamed"), _openGallery);
+                player.MuteChosen += muted => controller.SessionMuted = muted;
                 player.Failed += message => Dispatcher.UIThread.Post(() => { if (ReferenceEquals(_player, player)) ShowError(message); });
                 player.UserPlayback += playing => { if (ReferenceEquals(_player, player)) controller.OnUserPlayback(this, playing); };
                 player.Clicked += () => { if (ReferenceEquals(_player, player)) _ = controller.ToggleAsync(this); };
@@ -269,20 +296,62 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         }
     }
 
+    // Tunnel: an arrow (or Home, End, Page) pressed in the video's controls moves the reader when the reader's bindings say so; the timeline
+    // slider would otherwise keep it. A key the reader does not bind stays with the control (a rebinding never costs the keyboard a function).
+    private void OnNavigationKey(KeyEventArgs e)
+    {
+        if (e.Handled || !IsOffered || !ReaderVideoKeys.IsNavigationKey(e.Key) || _controller?.NavigationKeys is not { } route) return;
+        if (route(e)) e.Handled = true;
+    }
+
     private void OnKeyDown(KeyEventArgs e)
     {
-        if (e.Handled || !IsOffered || e.Source is Button) return;
-        switch (ReaderInlineVideoRules.Classify(e.Key, e.KeyModifiers))
+        if (e.Handled || !IsOffered) return;
+        // Enter and Space on the video's own surface (never on one of its buttons, which handle both themselves).
+        if (e.Source is not Button)
         {
-            case ReaderInlineVideoRules.KeyAction.Play:
-                e.Handled = true;
-                _ = PlayAsync();
-                break;
-            case ReaderInlineVideoRules.KeyAction.Toggle:
-                e.Handled = true;
-                _ = ToggleAsync();
-                break;
+            switch (ReaderInlineVideoRules.Classify(e.Key, e.KeyModifiers))
+            {
+                case ReaderInlineVideoRules.KeyAction.Play:
+                    e.Handled = true;
+                    _ = PlayAsync();
+                    return;
+                case ReaderInlineVideoRules.KeyAction.Toggle:
+                    // Space only when it is the toggle's binding (a person may have moved it); Enter is a fixed content key.
+                    if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) || CommandBindings.Matches(e, "video.play-pause"))
+                    {
+                        e.Handled = true;
+                        _ = ToggleAsync();
+                        return;
+                    }
+                    break;
+            }
         }
+        // The other video keys: the gallery's commands from the bindings (the text-input guard is the binding match's own).
+        ReaderVideoAction action = ReaderVideoKeys.Classify(id => CommandBindings.Matches(e, id));
+        if (action == ReaderVideoAction.None || action == ReaderVideoAction.PlayPause) return;
+        e.Handled = true;
+        _ = ExecuteAsync(action);
+    }
+
+    /// <summary>One of the reader's video keys on this video. Without a live player only play or pause (which creates it) does anything.</summary>
+    internal Task ExecuteAsync(ReaderVideoAction action)
+    {
+        if (!IsOffered) return Task.CompletedTask;
+        if (action == ReaderVideoAction.PlayPause) return ToggleAsync();
+        if (_player?.Player is not { } player) return Task.CompletedTask;
+        switch (action)
+        {
+            case ReaderVideoAction.Mute: return player.ToggleMuteAsync();
+            case ReaderVideoAction.Loop: player.ToggleLoopByKey(); break;
+            case ReaderVideoAction.StepBack: player.SeekByStep(forward: false); break;
+            case ReaderVideoAction.StepForward: player.SeekByStep(forward: true); break;
+            case ReaderVideoAction.Slower: player.StepRate(-1); break;
+            case ReaderVideoAction.Faster: player.StepRate(1); break;
+            case ReaderVideoAction.NormalSpeed: player.StepRate(0); break;
+            case ReaderVideoAction.NextFrame: return player.StepFrameAsync();
+        }
+        return Task.CompletedTask;
     }
 
     private void FocusTransport()
@@ -304,7 +373,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
         bool live = _player != null;
         _transportHost.IsVisible = live && _current;
         Activator.IsVisible = IsOffered && (live ? !_current : _activatorWhenIdle);
-        Below.IsVisible = _transportHost.IsVisible || _error.IsVisible || !string.IsNullOrEmpty(_live.Text);
+        Row.IsVisible = _transportHost.IsVisible || _error.IsVisible || !string.IsNullOrEmpty(_live.Text);
     }
 
     void IReaderInlineVideoOwner.PlayerReleased()

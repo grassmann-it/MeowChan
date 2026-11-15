@@ -32,7 +32,8 @@ internal static class PostBookmarkGalleryReturnChecks
         Exception? failureBeforeCleanup = null;
         try
         {
-            new Config { DownloadsPaused = true, SaveUrlsOnExit = false,
+            // The media sidebar (on by default) would take a column from the reader: the exact anchor is measured without it, in a private profile.
+            new Config { DownloadsPaused = true, SaveUrlsOnExit = false, ReaderMediaSidebar = false,
                 CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced" }.SaveConfig(profile);
             await SeedAsync(profile, thread);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")

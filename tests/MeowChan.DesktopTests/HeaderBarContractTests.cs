@@ -9,11 +9,13 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Tom's rule (14.11.2026 evening, reversing the right-edge rule of the same day, narrowed by his item 35): the way back of a page or
-/// overlay (back, "Back to …", an overlay's ×) stands at the far left of its header row, before the title, first in the row's tab order and
-/// set apart from the title by a gap and a thin separator; the remaining buttons are right-aligned. Inline tool rows (find bar, tag row,
-/// preview, Downloads search, details panel) keep their × at the right edge, without back slot, gap or separator. All through the one shared <see cref="HeaderBar"/>. Layout runs
-/// without an Avalonia application (plain borders); the page rows are checked in their XAML. The × of window dialogs (caption) stays at the right.
+/// Tom's rules (14.11.2026 evening, reversing the right-edge rule of the same day, narrowed by his item 35 and by his decision of 15.11.2026):
+/// the way back of a PAGE (back, "Back to …" of the reader, a detail view, the rule assistant) stands at the far left of its header row, before
+/// the title, first in the row's tab order and set apart from the title by a gap and a thin separator; the remaining buttons are right-aligned.
+/// Overlay cards (export, link confirmation, filter surface, reset question, shell help) look like dialogs, so their × stands at the right edge
+/// like the inline tool rows' (find bar, tag row, preview, Downloads search, details panel): without back slot, gap or separator. All through
+/// the one shared <see cref="HeaderBar"/>. Layout runs without an Avalonia application (plain borders); the page rows are checked in their
+/// XAML. The × of window dialogs (caption) stays at the right.
 /// </summary>
 public sealed class HeaderBarContractTests
 {
@@ -170,19 +172,24 @@ public sealed class HeaderBarContractTests
         Assert.Equal("Suche schließen · Esc", ToolTip.GetTip(close));
     }
 
-    // Inventory (14.11. evening, item 35): pages and overlays have a back slot at the far left; the inline tool rows keep their × at the right
-    // (end slot). The gallery viewer keeps its own overlay placement (GL3), the popovers and the quick-tag surface their own headers; window
-    // modals have the caption's × at the right (OS convention).
+    // Inventory (15.11.): PAGES have a back slot at the far left; the inline tool rows and the overlay cards keep their × at the right (end slot).
+    // The gallery viewer keeps its own overlay placement (GL3), the popovers and the quick-tag surface their own headers; window modals have
+    // the caption's × at the right (OS convention).
     public static TheoryData<string, string> WaysBack => new()
     {
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveGalleryReturn" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveMediaReturn" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveBackButton" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveCloseReader" },
-        { "Desktop/Shell/MainWindow.axaml", "ShellHelpClose" },
         { "Desktop/Views/Sources/SourcesPage.axaml", "SourceBackButton" },
         { "Desktop/Views/Plugins/PluginsPage.axaml", "PluginBack" },
         { "Desktop/Views/Rules/RulesPage.axaml", "RuleWizardCloseButton" },
+    };
+
+    // The × of the overlay cards: the right edge of the card's header row, after the title (the export overlay builds its row in code, OverlayFrameTests).
+    public static TheoryData<string, string> OverlayCloses => new()
+    {
+        { "Desktop/Shell/MainWindow.axaml", "ShellHelpClose" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ArchiveFilterSurfaceClose" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderLinkClose" },
         { "Desktop/Views/Statistics/StatisticsPage.axaml", "ResetConfirmClose" },
@@ -208,6 +215,23 @@ public sealed class HeaderBarContractTests
         Assert.True(control.Parent.Elements().First() == control || BackAttribute(control.Parent.Elements().First()) == "True",
             name + " is not in the leading run of its row.");
         // Text content would come back with the localizer: the closes take their names in code, the returns from their command.
+        Assert.DoesNotContain(control.Attributes(), attribute => attribute.Name.LocalName == "Grid.Column");
+    }
+
+    [Theory]
+    [MemberData(nameof(OverlayCloses))]
+    public void EveryOverlayCardHasItsCrossAtTheRightEdgeAfterTheTitleLikeADialogAndNoBackSlot(string file, string name)
+    {
+        XElement control = Named(file, name);
+        Assert.Equal("True", EndAttribute(control));
+        Assert.Null(BackAttribute(control));
+        XElement row = control.Parent!;
+        Assert.Equal("HeaderBar", row.Name.LocalName);
+        Assert.DoesNotContain(row.Elements(), child => BackAttribute(child) == "True"); // no back gap, no separator
+        Assert.Same(control, row.Elements().Last());
+        Assert.Equal(2, row.Elements().Count()); // the title, then the cross
+        Assert.Equal("TextBlock", row.Elements().First().Name.LocalName);
+        Assert.Equal("Button", control.Name.LocalName);
         Assert.DoesNotContain(control.Attributes(), attribute => attribute.Name.LocalName == "Grid.Column");
     }
 
@@ -254,8 +278,9 @@ public sealed class HeaderBarContractTests
                     Assert.All(children.Skip(firstEnd), child => Assert.Contains(child.Name.LocalName, new[] { "Button", "ToggleButton" }));
                 }
             }
-        Assert.True(withBack >= 7, "Expected the reader, filter surface, link, help, reset, plugin, source and rule rows: " + withBack);
-        Assert.True(inline >= 5, "Expected the find, tag, preview, search and details rows: " + inline);
+        Assert.True(withBack >= 4, "Expected the reader, plugin, source and rule rows: " + withBack);
+        // The five inline tool rows and the four XAML overlay cards (filter surface, link, reset, help) have only end buttons.
+        Assert.True(inline >= 9, "Expected the find, tag, preview, search and details rows and the overlay cards: " + inline);
         Assert.Equal(bars, withBack + inline);
     }
 
@@ -298,7 +323,11 @@ public sealed class HeaderBarContractTests
         Assert.Contains("far left", bar);
         Assert.DoesNotContain("far right edge", bar);
         Assert.DoesNotContain("alone at the top right", overlay);
-        Assert.Contains("HeaderBar.Create(close, title)", overlay);
+        // Overlay cards close on the right like dialogs (15.11.): the cross is the end child, never the back slot.
+        Assert.Contains("HeaderBar.Create(null, title, close)", overlay);
+        Assert.DoesNotContain("HeaderBar.Create(close, title)", overlay);
+        Assert.DoesNotContain("back slot, first in the row's tab order", overlay);
+        Assert.Contains("right edge", overlay);
     }
 
     // Work views never reduce a way out: a back-slot control with a work-view id is Required in every view.

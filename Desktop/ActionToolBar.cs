@@ -10,6 +10,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Ursa.Controls;
 
@@ -63,6 +64,16 @@ public sealed class ActionToolBar : ToolBar
     public static int GetOverflowPriority(Control item) => item.GetValue(OverflowPriorityProperty);
     public static void SetOverflowPriority(Control item, int priority) => item.SetValue(OverflowPriorityProperty, priority);
 
+    /// <summary>
+    /// RL1: the group an item belongs to (default 0). On the bar itself, a thin line stands in the gap between two neighbouring
+    /// items of different groups; items under "More" and hidden items take no part, so a group that moved away leaves no line
+    /// behind. A bar whose items all keep the default group draws none.
+    /// </summary>
+    public static readonly AttachedProperty<int> GroupProperty =
+        AvaloniaProperty.RegisterAttached<ActionToolBar, Control, int>("Group");
+    public static int GetGroup(Control item) => item.GetValue(GroupProperty);
+    public static void SetGroup(Control item, int group) => item.SetValue(GroupProperty, group);
+
     /// <summary>The Control items in item order, kept in step with <see cref="ItemsControl.Items"/> (no per-pass LINQ in the panel).</summary>
     internal Control[] GeneratedItems => _generatedItems;
 
@@ -85,6 +96,7 @@ public sealed class ActionToolBar : ToolBar
         // Items keep the toolbar as their logical parent wherever their panel is. The overflow mode counts too: a work-view switch
         // that only turns an item from Always into AsNeeded (Simple → Advanced: full screen) must re-run the bar's measure, else the
         // item stays under More at an unchanged width.
+        GroupProperty.Changed.AddClassHandler<Control>((item, _) => (item.Parent as Panel)?.InvalidateArrange());
         foreach (AvaloniaProperty property in new AvaloniaProperty[] { OmittedProperty, OverflowPriorityProperty, ToolBar.OverflowModeProperty })
             property.Changed.AddClassHandler<Control>((item, _) =>
             {
@@ -314,7 +326,18 @@ public sealed class ActionToolBarPanel : StackPanel
     // must use that same axis, otherwise only the first action fits the clip.
     static ActionToolBarPanel() => OrientationProperty.OverrideDefaultValue<ActionToolBarPanel>(Orientation.Horizontal);
 
+    /// <summary>The width of the line between two groups (device-independent pixels).</summary>
+    public const double GroupSeparatorThickness = 1;
+    private const double GroupSeparatorHeight = 20;
+
+    public ActionToolBarPanel() =>
+        MeowChan.Desktop.Theming.ThemeRuntime.FollowApplied(this, RefreshSeparatorBrush);
+
     private ActionToolBar? Owner => TemplatedParent as ActionToolBar;
+    private readonly List<Rect> _separators = new();
+    // The lines are visual children after the items (Panel seals Render, so each line is a small control of its own). Panel keeps its
+    // items and their visuals in step by index, so the marks always stand behind the last item and are never part of Children.
+    private readonly List<GroupSeparatorMark> _marks = new();
     private readonly HashSet<Control> _overflow = new();
     private readonly HashSet<Control> _omitted = new();
     // Scratch buffers of one measure pass, reused so a pass allocates nothing.
@@ -395,7 +418,90 @@ public sealed class ActionToolBarPanel : StackPanel
                 destination.Children.Insert(Math.Min(index, destination.Children.Count), item);
             }
         }
-        return base.ArrangeOverride(finalSize);
+        Size arranged = base.ArrangeOverride(finalSize);
+        UpdateGroupSeparators();
+        return arranged;
+    }
+
+    /// <summary>Whether a line stands between two neighbouring shown items of these groups (the one rule of the bar's separators).</summary>
+    public static bool StartsNewGroup(int previousGroup, int group) => previousGroup != group;
+
+    /// <summary>The indexes of the items in <paramref name="groups"/> in front of which a line stands, given which of them are <paramref name="shown"/> on the bar itself.</summary>
+    public static IReadOnlyList<int> GroupStarts(IReadOnlyList<int> groups, IReadOnlyList<bool> shown)
+    {
+        List<int> starts = new();
+        int previous = -1;
+        for (int index = 0; index < groups.Count; index++)
+        {
+            if (!shown[index]) continue;
+            if (previous >= 0 && StartsNewGroup(groups[previous], groups[index])) starts.Add(index);
+            previous = index;
+        }
+        return starts;
+    }
+
+    /// <summary>The lines between groups on the bar now (left edge x, top, width, height in the panel), in order (tests and smokes).</summary>
+    internal IReadOnlyList<Rect> GroupSeparators => _separators;
+
+    // The line stands in the middle of the margin gap that precedes the first item of the next group (the items keep their own
+    // spacing), centred on the row; only visible items of the bar itself count.
+    private void UpdateGroupSeparators()
+    {
+        List<Rect> lines = new();
+        Control? previous = null;
+        foreach (Control child in Children)
+        {
+            if (!child.IsVisible || child.Bounds.Width <= 0) continue;
+            if (previous != null && StartsNewGroup(ActionToolBar.GetGroup(previous), ActionToolBar.GetGroup(child)))
+            {
+                double gap = child.Bounds.X - previous.Bounds.Right;
+                double x = Math.Round(previous.Bounds.Right + (gap - GroupSeparatorThickness) / 2);
+                double height = Math.Min(GroupSeparatorHeight, Math.Max(child.Bounds.Height, previous.Bounds.Height));
+                double top = child.Bounds.Y + (Math.Max(child.Bounds.Height, previous.Bounds.Height) - height) / 2;
+                lines.Add(new Rect(x, top, GroupSeparatorThickness, height));
+            }
+            previous = child;
+        }
+        if (!lines.SequenceEqual(_separators))
+        {
+            _separators.Clear();
+            _separators.AddRange(lines);
+        }
+        while (_marks.Count > lines.Count) { VisualChildren.Remove(_marks[^1]); _marks.RemoveAt(_marks.Count - 1); }
+        while (_marks.Count < lines.Count)
+        {
+            GroupSeparatorMark mark = new() { Fill = SeparatorBrush() };
+            _marks.Add(mark);
+            VisualChildren.Add(mark);
+        }
+        for (int index = 0; index < lines.Count; index++)
+        {
+            _marks[index].Measure(lines[index].Size);
+            _marks[index].Arrange(lines[index]);
+        }
+    }
+
+    // The token of the app's decorative lines (as the header row's); without the application resources (unit tests) nothing is drawn.
+    private IBrush? SeparatorBrush() =>
+        this.TryFindResource("Workspace.Border", ActualThemeVariant, out object? found) ? found as IBrush : null;
+
+    private void RefreshSeparatorBrush()
+    {
+        IBrush? brush = SeparatorBrush();
+        foreach (GroupSeparatorMark mark in _marks) mark.Fill = brush;
+    }
+
+    /// <summary>One line between two groups: a filled rectangle that is never hit, focused or announced.</summary>
+    private sealed class GroupSeparatorMark : Control
+    {
+        public static readonly StyledProperty<IBrush?> FillProperty = AvaloniaProperty.Register<GroupSeparatorMark, IBrush?>(nameof(Fill));
+        static GroupSeparatorMark() => AffectsRender<GroupSeparatorMark>(FillProperty);
+        public GroupSeparatorMark() { IsHitTestVisible = false; Focusable = false; }
+        public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
+        public override void Render(DrawingContext context)
+        {
+            if (Fill is { } brush) context.FillRectangle(brush, new Rect(Bounds.Size));
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

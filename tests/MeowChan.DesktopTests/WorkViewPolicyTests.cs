@@ -181,8 +181,15 @@ public sealed class WorkViewPolicyTests
             // WV2: the List/Table choice is no longer fixed on the bar in Barebones (plan §1.4); WorkViewArchiveTests covers the archive rows.
             Assert.Equal(!barebones, WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("downloads.header.heading", view)));
             Assert.Equal(advanced, WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("downloads.intake.url-hint", view)));
+            // Footer (Tom 15.11.): Archive and Media are direct in every view, Barebones included; Tagging, Booru and Status from Simple on;
+            // Rules and Plugins only in Advanced.
             foreach (string page in MainPageOrder.CommandIds.Skip(1))
-                Assert.Equal(page is "navigation.archive" or "navigation.media" or "navigation.tagging" or "navigation.booru" ? !barebones : advanced, WorkViewPolicy.FooterDirect(page, view));
+                Assert.Equal(page switch
+                {
+                    "navigation.archive" or "navigation.media" => true,
+                    "navigation.tagging" or "navigation.booru" or "navigation.status" => !barebones,
+                    _ => advanced
+                }, WorkViewPolicy.FooterDirect(page, view));
             // The directional I/O header (Codex base) draws both graphs in every work view when there is room; the policy row
             // shell.header.disk-graph is no longer read by the header (see IoStatsDisplay.ResolveHeaderLayout).
             Assert.True(IoStatsDisplay.HeaderShowsDisk(IoStatsDisplay.HeaderGraphAuto));

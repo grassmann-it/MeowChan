@@ -51,11 +51,20 @@ internal sealed record HelpContent(string Title, IReadOnlyList<string> Paragraph
 /// heading for assistive technology), the paragraphs, the bullet points with a small dot, and the optional "More" link as a button.
 /// The flyout takes focus when it opens (the column is focusable, named by the title), Esc closes it, and focus returns to the
 /// control that opened it. Inset, outline and radius come from the <c>help-popover</c> class in WorkspaceStyles.axaml.
+/// <para>Typography pass (15.11.): <see cref="Build"/> is the one help-text layout of the app. It only names its parts by class
+/// (<see cref="BodyClass"/>, <see cref="ParagraphClass"/>, <see cref="ListClass"/>, <see cref="BulletRowClass"/>, <see cref="BulletClass"/>);
+/// spacing, line height and the hanging indent of the bullets live in WorkspaceStyles.axaml on the 8 dip grid: 8 between title,
+/// paragraphs and list, 4 between bullets, body lines 1.4 × the body size, the dot in its own column so a wrapped bullet line starts
+/// under the text, not under the dot.</para>
 /// </summary>
 internal sealed class HelpPopover : Flyout
 {
-    /// <summary>The widest the content column gets (the same limit as a tooltip).</summary>
-    internal const double MaxContentWidth = 360;
+    /// <summary>The widest the content column gets: Workspace.Size.ReadingWidth (about 60 to 65 characters of body text per line).</summary>
+    internal const double MaxContentWidth = 400;
+
+    /// <summary>Style classes of the help-text layout (WorkspaceStyles.axaml).</summary>
+    internal const string BodyClass = "help-popover-body", TitleClass = "help-text-title", ParagraphClass = "help-text-paragraph",
+        ListClass = "help-text-list", BulletRowClass = "help-text-bullet-row", BulletClass = "help-text-bullet", DotClass = "help-popover-dot";
 
     private StackPanel? _body;
     private Func<HelpContent?>? _provider;
@@ -88,22 +97,23 @@ internal sealed class HelpPopover : Flyout
     /// <summary>The column of a popover (a seam for tests: no flyout, no window).</summary>
     internal static StackPanel Build(HelpContent content, Action close)
     {
-        StackPanel body = new() { Classes = { "help-popover-body" }, Spacing = 8, MaxWidth = MaxContentWidth, Focusable = true };
+        StackPanel body = new() { Classes = { BodyClass }, MaxWidth = MaxContentWidth, Focusable = true };
         AutomationProperties.SetName(body, content.Title);
-        TextBlock title = new() { Text = content.Title, Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap };
+        TextBlock title = new() { Text = content.Title, Classes = { "card-title", TitleClass }, TextWrapping = TextWrapping.Wrap };
         AutomationProperties.SetHeadingLevel(title, 2);
         body.Children.Add(title);
         foreach (string paragraph in content.Paragraphs)
-            body.Children.Add(new TextBlock { Text = paragraph, TextWrapping = TextWrapping.Wrap });
+            body.Children.Add(new TextBlock { Text = paragraph, Classes = { ParagraphClass }, TextWrapping = TextWrapping.Wrap });
         if (content.Bullets.Count > 0)
         {
-            StackPanel list = new() { Spacing = 4 };
+            StackPanel list = new() { Classes = { ListClass } };
             foreach (string bullet in content.Bullets)
             {
-                Grid row = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
-                Border dot = new() { Classes = { "help-popover-dot" } };
+                // Two columns: the dot alone in the first, the text in the second, so every wrapped line aligns with the text (hanging indent).
+                Grid row = new() { Classes = { BulletRowClass }, ColumnDefinitions = new ColumnDefinitions("Auto,*") };
+                Border dot = new() { Classes = { DotClass } };
                 AutomationProperties.SetAccessibilityView(dot, AccessibilityView.Raw);
-                TextBlock text = new() { Text = bullet, TextWrapping = TextWrapping.Wrap };
+                TextBlock text = new() { Text = bullet, Classes = { BulletClass }, TextWrapping = TextWrapping.Wrap };
                 Grid.SetColumn(text, 1);
                 row.Children.Add(dot);
                 row.Children.Add(text);

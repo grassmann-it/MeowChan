@@ -28,6 +28,8 @@ public partial class ArchivePage
     internal Func<IReadOnlyList<ResourceId>, bool, Task>? CheckSelectedWatches { get; set; }
     internal Func<System.Collections.Generic.IEnumerable<string>, Task>? CopySelectedUrls { get; set; }
     internal Action<ResourceId>? SelectionDetailsRequested { get; set; }
+    /// <summary>"Show in Media" of the archive list's and the reader's thread menus: the shell opens the Media page with the thread: chip (id, title).</summary>
+    internal Action<ResourceId, string?>? ShowThreadInMediaRequested { get; set; }
     internal Action<ResourceId, string>? SelectionLeadAction { get; set; }
 
     private ArchiveThreadRow[] ArchiveVisibleRows => ArchiveThreadTable.ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
@@ -304,9 +306,9 @@ public partial class ArchivePage
             e.Handled = true;
             if (ArchiveLead is not ArchiveThreadRow row) return;
             ResourceId id = row.Summary.Id;
-            if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery != null) await OpenGallery(id, null, list); }
+            if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery is { } open) await OpenActions.RunAsync(() => open(id, null, list), "archive.list.gallery"); }
             else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
-            else { OpenReaderRequested?.Invoke(list); await LoadThreadAsync(id); }
+            else { OpenReaderRequested?.Invoke(list); await OpenActions.RunAsync(() => LoadThreadAsync(id), "archive.list.read"); }
             return;
         }
         string? action = MatchesArchiveCommand(e, "rules.edit-scope") ? "rules"

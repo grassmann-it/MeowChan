@@ -125,13 +125,15 @@ public partial class ArchivePage
         sidebar.Next.Click += (_, e) => { e.Handled = true; StepMediaSidebar(1); };
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
+        sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
+        sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the pane's View-menu shortcuts too (the toggle, the reader's other switches).
         frame.AddHandler(KeyDownEvent, (_, e) =>
         {
-            if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(sidebar)) OnReaderViewKeyDown(sidebar, e);
+            if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(sidebar) && !TryRouteSidebarVideoKey(e)) OnReaderViewKeyDown(sidebar, e);
         }, RoutingStrategies.Bubble);
         return frame;
     }
@@ -292,6 +294,24 @@ public partial class ArchivePage
         RefreshMediaSidebar();
     }
 
+    // A click on a tile of the focused post (or of another post, which it then focuses) shows that medium here; a video plays here.
+    private int? _sidebarPendingIndex;
+    private bool _sidebarPlayRequested;
+
+    private bool ShowTileInMediaSidebar(ArchiveAttachmentRow row)
+    {
+        if (!_mediaSidebarShown || _ended || IsReaderDialogOpen || _mediaSidebar == null) return false;
+        ArchivePostRow? post = ArchivePosts.SelectedItem is ArchivePostRow selected && selected.Attachments.Contains(row)
+            ? selected : ArchivePosts.Items.OfType<ArchivePostRow>().FirstOrDefault(candidate => candidate.Attachments.Contains(row));
+        if (post == null || !post.ShowsMedia) return false;
+        int index = -1;
+        for (int i = 0; i < post.Attachments.Count; i++) if (ReferenceEquals(post.Attachments[i], row)) { index = i; break; }
+        _sidebarPlayRequested = ReaderInlineVideoRules.CanOffer(_inlineVideo.Options, row);
+        if (ReferenceEquals(ArchivePosts.SelectedItem, post)) { _sidebarIndex = index; RefreshMediaSidebar(); }
+        else { _sidebarPendingIndex = index; ArchivePosts.SelectedItem = post; }
+        return true;
+    }
+
     /// <summary>"Open in gallery" (and a click on the picture): the gallery at this medium, the same path as Enter on a post.</summary>
     internal void OpenMediaSidebarMedia()
     {
@@ -367,7 +387,7 @@ public partial class ArchivePage
         ArchivePostRow? post = ArchivePosts.SelectedItem as ArchivePostRow;
         string? key = post == null ? null : _thread?.Summary.Id + "\n" + post.Id;
         bool samePost = string.Equals(key, _sidebarPostKey, StringComparison.Ordinal);
-        if (!samePost) { _sidebarIndex = 0; _sidebarPostKey = key; }
+        if (!samePost) { _sidebarIndex = _sidebarPendingIndex ?? 0; _sidebarPendingIndex = null; _sidebarPostKey = key; }
         if (post == null || post.IsStub)
         {
             CancelSidebarStripLoad();
@@ -392,10 +412,11 @@ public partial class ArchivePage
         _sidebarIndex = ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, count);
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
         CapturedAttachmentText file = CapturedAttachmentText.Of(row);
-        string postLine = count > 1 ? post.NumberLabel + " · " + Texts.T("reader.sidebar.position", _sidebarIndex + 1, count) : post.NumberLabel;
+        // The position of the medium in its post is the counter over the medium; the header line names the post, the file and its size.
+        string postLine = post.NumberLabel;
         string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         sidebar.Describe(postLine, file.Name, size, ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, -1),
-            ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, 1), row.OpenPreview != null);
+            ReaderMediaSidebarRules.CanStep(_sidebarIndex, count, 1), row.OpenPreview != null, count, _sidebarIndex);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);

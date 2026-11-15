@@ -109,9 +109,9 @@ public sealed class MainPageOrderTests
     {
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         foreach (string id in MainPageOrder.NumberedCommandIds)
-            Assert.Equal("Ctrl+" + MainPageOrder.Digit(id), bindings.Display(id));
+            Assert.StartsWith("Ctrl+" + MainPageOrder.Digit(id), bindings.Display(id), StringComparison.Ordinal);   // the digit first, then the fixed page letter
         Assert.Equal(OrderedIds.Length, MainPageOrder.NumberedCommandIds.Count);
-        Assert.Equal("Ctrl+4", bindings.Display("navigation.tagging"));
+        Assert.Equal("Ctrl+4 / Ctrl+Shift+K", bindings.Display("navigation.tagging"));
         Assert.Empty(bindings.Issues);
     }
 }

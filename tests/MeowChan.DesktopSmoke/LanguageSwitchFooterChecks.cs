@@ -139,7 +139,7 @@ internal static class LanguageSwitchFooterChecks
         CommandDefinition compatibility = CommandCatalog.Get("navigation.plugins");
         Require(CommandLabel("navigation.plugins", "command.navigation.plugins").Length > 0
             && !compatibility.Contexts.Any(context => context is "footer" or "app-menu" or "tools-menu") && compatibility.DefaultGestures.Count == 0
-            && MainPageOrder.Digit("navigation.plugins") == null && MainPageOrder.Digit("navigation.status") == 7
+            && MainPageOrder.Digit("navigation.plugins") == null && MainPageOrder.Digit("navigation.status") == FooterNavigationChecks.ExpectedDigit(window, "navigation.status")
             && window.FindControl<Button>("PluginsNavigationButton") == null
             && window.FindControl<MenuItem>("PluginsMenuItem") == null
             && window.FindControl<ContentControl>("PluginsPageHost") == null,

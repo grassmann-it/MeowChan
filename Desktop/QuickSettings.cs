@@ -153,11 +153,66 @@ internal static class QuickSetting
         options.Select(option => new QuickSettingChoice(option.Value, option.LabelKey)).ToArray();
 }
 
+/// <summary>One line of a popover's layout (RL1): a section heading, a setting, or a switch or action of the session.</summary>
+internal abstract record QuickSettingsEntry;
+
+/// <summary>A heading over the rows that follow, up to the next heading.</summary>
+internal sealed record QuickSettingsSection(string TitleKey) : QuickSettingsEntry;
+
+/// <summary>
+/// A setting row. <paramref name="WhenFieldId"/> names an earlier on/off setting of the same popover: the row exists only while that one
+/// is on and stands indented under it (the pattern of the settings page's conditional rows). <paramref name="ShortcutCommandId"/> names the
+/// command whose key is shown at the right end of the row, for a setting that also has a command with a key.
+/// </summary>
+internal sealed record QuickSettingsFieldEntry(QuickSettingField Field, string? WhenFieldId = null, string? ShortcutCommandId = null) : QuickSettingsEntry;
+
+/// <summary>
+/// A row that is not a saved setting but a switch (<see cref="QuickSettingsSessionItem.IsChecked"/> given) or an action of the open view:
+/// the page supplies it by command id through <see cref="QuickSettingsSession"/>; the label and the key shown are the command's.
+/// A command the page does not offer (no post filters in a bare page) leaves no row.
+/// </summary>
+internal sealed record QuickSettingsSessionEntry(string CommandId, bool IsAction = false) : QuickSettingsEntry;
+
+/// <summary>What the page offers for one session row: whether it is on (null for an action), what it does, whether it can run, and the note shown while it cannot.</summary>
+internal sealed record QuickSettingsSessionItem(string CommandId, Func<bool>? IsChecked, Action Invoke, Func<bool> IsEnabled, Func<string?>? Note = null);
+
+/// <summary>How a popover meets the open view for its session rows (the page fills it in; the popover knows no page).</summary>
+internal sealed class QuickSettingsSession
+{
+    /// <summary>The rows the page offers right now (read again whenever the popover looks).</summary>
+    internal required Func<IReadOnlyList<QuickSettingsSessionItem>> Items { get; init; }
+    /// <summary>The page's session state changed (a switch, a thread change): open popovers read their rows again.</summary>
+    internal event Action? Changed;
+    internal void RaiseChanged() => Changed?.Invoke();
+}
+
 /// <summary>
 /// What a quick settings popover shows: the surface it belongs to ("reader", later "gallery" and "media"), the keys of its
-/// title and of its "all settings" link, and its fields in display order.
+/// title and of its "all settings" link, and its fields in display order. A popover with a <paramref name="Layout"/> shows that,
+/// with headings, conditional rows and session rows, and <paramref name="Fields"/> are its settings in that order (<see cref="WithLayout"/>);
+/// without one it is the plain list of its fields.
 /// </summary>
-internal sealed record QuickSettingsSpec(string Surface, string TitleKey, string AllSettingsKey, IReadOnlyList<QuickSettingField> Fields);
+internal sealed record QuickSettingsSpec(string Surface, string TitleKey, string AllSettingsKey, IReadOnlyList<QuickSettingField> Fields,
+    IReadOnlyList<QuickSettingsEntry>? Layout = null)
+{
+    internal static QuickSettingsSpec WithLayout(string surface, string titleKey, string allSettingsKey, IReadOnlyList<QuickSettingsEntry> layout)
+    {
+        QuickSettingField[] fields = layout.OfType<QuickSettingsFieldEntry>().Select(entry => entry.Field).ToArray();
+        string[] seen = new string[fields.Length];
+        for (int i = 0; i < fields.Length; i++)
+        {
+            if (seen.Contains(fields[i].Id, StringComparer.Ordinal)) throw new ArgumentException("A setting is in the layout once: " + fields[i].Id, nameof(layout));
+            seen[i] = fields[i].Id;
+        }
+        foreach (QuickSettingsFieldEntry entry in layout.OfType<QuickSettingsFieldEntry>().Where(entry => entry.WhenFieldId != null))
+        {
+            int parent = Array.IndexOf(seen, entry.WhenFieldId), self = Array.IndexOf(seen, entry.Field.Id);
+            if (parent < 0 || parent >= self || fields[parent].Kind != QuickSettingKind.Toggle)
+                throw new ArgumentException("A conditional row follows the on/off setting it depends on: " + entry.Field.Id, nameof(layout));
+        }
+        return new QuickSettingsSpec(surface, titleKey, allSettingsKey, fields, layout);
+    }
+}
 
 /// <summary>
 /// The registry of the surfaces that have a quick settings popover. A new surface is one entry here and one file like

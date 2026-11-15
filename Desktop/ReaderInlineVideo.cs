@@ -9,8 +9,9 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// Inline video in the reader (R10) as one value: off unless chosen, then a click or Enter plays a video in its post or in the media
-/// sidebar. Autoplay (always muted) is a second opt-in. The number of live players and the largest file played in the reader are
+/// Inline video in the reader (R10) as one value. <see cref="Enabled"/>: videos play in the reader (in the media sidebar, or in the post
+/// as well when <see cref="InPost"/>, the choice "Open in the post"); off with the choice "Open in the gallery". Autoplay (always muted)
+/// is a second opt-in. The number of live players and the largest file played in the reader are
 /// settings with default, minimum and maximum. Volume and "start muted" are the gallery's own preferences (one choice for both).
 /// </summary>
 internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool AutoplayMuted, int MaxPlayers, int MaxFileMiB)
@@ -24,27 +25,39 @@ internal readonly record struct ReaderInlineVideoOptions(bool Enabled, bool Auto
     internal const int MaxFileMiBMinimum = 1;
     internal const int MaxFileMiBMaximum = 4096;
 
+    /// <summary>What exists before the page applied the user's choice: nothing plays in the reader. The configured default is <see cref="From"/> of a new config (sidebar).</summary>
     internal static ReaderInlineVideoOptions Default { get; } = new(false, false, MaxPlayersDefault, MaxFileMiBDefault);
+
+    /// <summary>The choice behind the two flags: gallery only, in the post, or (the default) the sidebar.</summary>
+    internal ReaderMediaClickMode Mode => !Enabled ? ReaderMediaClickMode.Gallery : InPost ? ReaderMediaClickMode.Post : ReaderMediaClickMode.Sidebar;
+
+    /// <summary>The choice "Open in the post": a video plays in its post, an image expands there (a second click puts it back).</summary>
+    internal bool InPost { get; init; }
 
     /// <summary>The gallery's volume (0 to 100), reused so a video sounds the same in both places.</summary>
     internal int Volume { get; init; } = 70;
     /// <summary>The gallery's "start muted"; autoplay is muted in any case.</summary>
     internal bool StartMuted { get; init; }
+    /// <summary>The gallery's seek step (seconds of one "," or "." key), also used by the reader's video keys.</summary>
+    internal int SeekStepSeconds { get; init; } = Config.GalleryVideoSeekStepSecondsDefault;
 
     internal long MaxFileBytes => (long)Math.Clamp(MaxFileMiB, MaxFileMiBMinimum, MaxFileMiBMaximum) * 1024 * 1024;
 
-    internal static ReaderInlineVideoOptions From(Config config) => new(config.ReaderInlineVideo, config.ReaderInlineVideoAutoplayMuted,
-        config.ReaderInlineVideoMaxPlayers, config.ReaderInlineVideoMaxFileMiB)
+    internal static ReaderInlineVideoOptions From(Config config) => new(config.EffectiveReaderMediaClick != ReaderMediaClickMode.Gallery,
+        config.ReaderInlineVideoAutoplayMuted, config.ReaderInlineVideoMaxPlayers, config.ReaderInlineVideoMaxFileMiB)
     {
+        InPost = config.EffectiveReaderMediaClick == ReaderMediaClickMode.Post,
         Volume = config.VideoVolume,
-        StartMuted = config.VideoStartMuted
+        StartMuted = config.VideoStartMuted,
+        SeekStepSeconds = config.GalleryVideoSeekStepSeconds
     };
 
     internal ReaderInlineVideoOptions Clamped() => this with
     {
         MaxPlayers = Math.Clamp(MaxPlayers, MaxPlayersMinimum, MaxPlayersMaximum),
         MaxFileMiB = Math.Clamp(MaxFileMiB, MaxFileMiBMinimum, MaxFileMiBMaximum),
-        Volume = Math.Clamp(Volume, 0, 100)
+        Volume = Math.Clamp(Volume, 0, 100),
+        SeekStepSeconds = VideoKeyboardSteps.ClampSeconds(SeekStepSeconds)
     };
 }
 
@@ -62,9 +75,17 @@ internal static class ReaderInlineVideoRules
 
     internal static bool IsVideo(string? fileName) => SavedMediaTypes.Classify(fileName ?? string.Empty) == SavedMediaKind.Video;
 
-    /// <summary>A video attachment of the reader that can play in place: inline video is on, the file is a video and the reader can find its saved bytes.</summary>
+    /// <summary>A video attachment of the reader that can play in the reader: videos are not sent to the gallery, the file is a video and the reader can find its saved bytes.</summary>
     internal static bool CanOffer(ReaderInlineVideoOptions options, ArchiveAttachmentRow? row) =>
         options.Enabled && row is { ResolveEntry: not null, Attachment.IsDeleted: false } && IsVideo(row.Attachment.OriginalFileName ?? row.Attachment.MediaId);
+
+    /// <summary>Such a video that plays in its own post (the choice "Open in the post").</summary>
+    internal static bool CanOfferInPost(ReaderInlineVideoOptions options, ArchiveAttachmentRow? row) => options.InPost && CanOffer(options, row);
+
+    /// <summary>An image of a post that expands there (the choice "Open in the post"): a saved, not deleted image the reader can decode.</summary>
+    internal static bool CanExpand(ReaderInlineVideoOptions options, ArchiveAttachmentRow? row) =>
+        options.InPost && row is { LoadSized: not null, Attachment.IsDeleted: false }
+        && SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? row.Attachment.MediaId ?? string.Empty) == SavedMediaKind.Image;
 
     /// <summary>Why a saved video does not play in the reader (it is larger than the limit), or null when it may.</summary>
     internal static string? LimitReason(ReaderInlineVideoOptions options, long length, string name) => length > options.MaxFileBytes
@@ -87,9 +108,51 @@ internal static class ReaderInlineVideoRules
 
     internal enum KeyAction { None, Play, Toggle }
 
-    /// <summary>On the video (not on one of its buttons, which handle their own keys): Enter plays, Space plays or pauses.</summary>
+    /// <summary>On the video (not on one of its buttons, which handle their own keys): Enter and Space play it or pause it.</summary>
     internal static KeyAction Classify(Key key, KeyModifiers modifiers) => modifiers != KeyModifiers.None ? KeyAction.None
-        : key == Key.Enter ? KeyAction.Play : key == Key.Space ? KeyAction.Toggle : KeyAction.None;
+        : key is Key.Enter or Key.Space ? KeyAction.Toggle : KeyAction.None;
+
+    /// <summary>
+    /// Whether a new inline player starts muted. Autoplay is always muted; otherwise the choice the person made with a speaker in this
+    /// session wins, then the gallery's "start muted" setting (one preference for both places, never a second one).
+    /// </summary>
+    internal static bool StartMuted(ReaderInlineVideoOptions options, bool? sessionChoice, bool autoplay) =>
+        autoplay || (sessionChoice ?? options.StartMuted);
+}
+
+/// <summary>What a key does to the selected post's video (the gallery's commands, used in the reader).</summary>
+internal enum ReaderVideoAction { None, PlayPause, Mute, Loop, StepBack, StepForward, Slower, Faster, NormalSpeed, NextFrame }
+
+/// <summary>
+/// The reader's video keys. They are the gallery's own command ids (play / pause, mute, repeat, "," and "." seek step, X and C or [ ] speed,
+/// Backspace normal speed, Shift+. next frame), read from the effective bindings, never hard-coded: a changed or removed binding follows.
+/// Seeking by Ctrl+arrows is not among them (the arrows move between posts and threads). Enter, which is no command, plays or pauses too.
+/// </summary>
+internal static class ReaderVideoKeys
+{
+    internal static readonly (string Id, ReaderVideoAction Action)[] Commands =
+    {
+        ("video.play-pause", ReaderVideoAction.PlayPause), ("video.mute", ReaderVideoAction.Mute), ("video.loop", ReaderVideoAction.Loop),
+        ("video.step-back", ReaderVideoAction.StepBack), ("video.step-forward", ReaderVideoAction.StepForward),
+        ("video.speed-down", ReaderVideoAction.Slower), ("video.speed-up", ReaderVideoAction.Faster),
+        ("video.speed-reset", ReaderVideoAction.NormalSpeed), ("video.frame-step", ReaderVideoAction.NextFrame)
+    };
+
+    internal static bool IsVideoCommand(string id) => Array.Exists(Commands, command => command.Id == id);
+
+    /// <summary>The action of the key the bindings give: <paramref name="matches"/> says whether the key is a command's gesture.</summary>
+    internal static ReaderVideoAction Classify(Func<string, bool> matches)
+    {
+        foreach ((string id, ReaderVideoAction action) in Commands)
+            if (matches(id)) return action;
+        return ReaderVideoAction.None;
+    }
+
+    /// <summary>Enter on the selected post's video: a fixed content key (no command) that plays or pauses.</summary>
+    internal static bool IsEnterToggle(Key key, KeyModifiers modifiers) => key == Key.Enter && modifiers == KeyModifiers.None;
+
+    /// <summary>Keys that move between posts and threads (the reader's navigation): a bar's timeline must not keep them for itself.</summary>
+    internal static bool IsNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown;
 }
 
 /// <summary>One live inline player as the controller sees it (the real one wraps <see cref="GalleryVideoPlayer"/>).</summary>
@@ -137,6 +200,13 @@ internal sealed class ReaderInlineVideoController
     internal ReaderInlineVideoOptions Options { get; private set; } = ReaderInlineVideoOptions.Default;
     /// <summary>The focused card's video may autoplay (autoplay chosen and the media sidebar is not presenting the focused media).</summary>
     internal bool AutoplayInPosts { get; set; }
+    /// <summary>Mute or unmute as the person chose it with a speaker in this reader session (null: not chosen, the gallery's setting decides).</summary>
+    internal bool? SessionMuted { get; set; }
+    /// <summary>
+    /// The reader's navigation keys (arrows between posts and threads): called for a navigation key pressed anywhere in a video's controls,
+    /// before its timeline gets it. True when the key moved the reader; a timeline never keeps the arrows for itself.
+    /// </summary>
+    internal Func<KeyEventArgs, bool>? NavigationKeys { get; set; }
     /// <summary>The video whose controls are shown (the one started last); null without one.</summary>
     internal IReaderInlineVideoOwner? Current { get; private set; }
     internal int LiveCount => _live.Count;
@@ -162,11 +232,17 @@ internal sealed class ReaderInlineVideoController
     /// <summary>New settings: off releases every player; a lower bound releases the least recently used ones.</summary>
     internal Task ConfigureAsync(ReaderInlineVideoOptions options)
     {
+        ReaderInlineVideoOptions previous = Options;
         Options = options.Clamped();
-        if (!Options.Enabled) return ReleaseAllAsync();
+        if (previous.InPost != Options.InPost || previous.Enabled != Options.Enabled) OptionsChanged?.Invoke();
+        // Gallery only, or leaving "in the post": the players of the posts go (the sidebar's slot offers again when it shows a video).
+        if (!Options.Enabled || previous.InPost && !Options.InPost) return ReleaseAllAsync();
         Trim(Options.MaxPlayers, keep: null);
         return WhenReleasedAsync();
     }
+
+    /// <summary>The choice between sidebar, post and gallery changed: a post puts an expanded image back.</summary>
+    internal event Action? OptionsChanged;
 
     /// <summary>
     /// Plays this owner's video: an existing player resumes; otherwise (only while the setting is on) one is created with

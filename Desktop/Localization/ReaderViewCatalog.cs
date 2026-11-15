@@ -6,10 +6,13 @@ internal static class ReaderViewCatalog
 {
     public static readonly (string Key, string English, string German)[] Entries =
     {
-        ("reader.view.menu", "View", "Ansicht"),
+        // RL1: the gear next to "Thread" (the former "View" menu and the quick settings in one popover; a dot says a session filter is on).
+        ("reader.settings.button", "Settings", "Einstellungen"),
+        ("reader.settings.active", "A view filter is on", "Ein Ansichtsfilter ist aktiv"),
         // R2: the "Thread" menu next to "View" (capture, check now, retry media, media rules, details, folder, source, link, watch).
         ("reader.thread.menu", "Thread", "Thread"),
         ("reader.thread.copyLink", "Copy link", "Link kopieren"),
+        ("reader.thread.bookmarksUnavailable", "Not available in the large reader.", "Im großen Reader nicht verfügbar."),
         ("command.reader.view.hide-media", "Hide media", "Medien ausblenden"),
         ("command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien"),
         ("command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen"),

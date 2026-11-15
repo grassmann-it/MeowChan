@@ -134,7 +134,7 @@ public partial class ArchivePage
         Add("thread.favorite-toggle", async () => await ToggleThreadFavoriteAsync(lead.Summary.Id),
             () => CanToggleThreadFavorite(lead.Summary.Id), _threadFavoriteLoadError ?? Texts.T("archive.command.busy"),
             leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
-        Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
+        Add("thread.read", () => { OpenReaderRequested?.Invoke(origin); OpenActions.Start(() => LoadThreadAsync(lead.Summary.Id), "archive.menu.read"); },
             () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
         // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
         string? continueTip = null;
@@ -146,8 +146,12 @@ public partial class ArchivePage
                 showShortcut: false, availableWhen: Ready, reasonWhen: ContinueReason, labelWhen: ContinueLabel);
             continueTip = ReadingHistoryMenu.EntryTip(readingPlace);
         }
-        Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
+        Add("gallery.open", () => { if (OpenGallery is { } open) OpenActions.Start(() => open(lead.Summary.Id, null, origin), "archive.menu.gallery"); }, leadAction: true);
         Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
+        // QW-A #7: from a thread to its media (the thread: chip of the Media page).
+        if (ids.Length == 1)
+            Add("thread.show-in-media", () => ShowThreadInMediaRequested?.Invoke(lead.Summary.Id, lead.Summary.Title),
+                () => ShowThreadInMediaRequested != null, null, leadAction: true);
         if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id), leadAction: true);
         builder.Section();
         Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin, offerResults: true), count: () => ids.Length);

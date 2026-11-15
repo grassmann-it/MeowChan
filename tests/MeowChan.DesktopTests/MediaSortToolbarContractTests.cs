@@ -178,16 +178,61 @@ public sealed class MediaSortToolbarContractTests
     }
 
     [Fact]
-    public void OnlyTheCompactRowShrinksTheSearchFieldAndTheCriterionAndTheyNeverGetNarrowerThanTheirMinimum()
+    public void OnlyTheCompactRowShrinksTheCriterionAndTheSearchNeverGetsNarrowerThanItsMinimum()
     {
-        Assert.Equal(MediaToolbarLayout.SearchMinWidth, MediaToolbarLayout.SearchMin(MediaToolbarLayout.Level.Wide));
-        Assert.Equal(MediaToolbarLayout.SearchMinWidth, MediaToolbarLayout.SearchMin(MediaToolbarLayout.Level.Reduced));
-        Assert.Equal(MediaToolbarLayout.NarrowSearchMinWidth, MediaToolbarLayout.SearchMin(MediaToolbarLayout.Level.Compact));
+        // The search keeps its minimum in every stage (the tools leave the row instead); only the criterion has a narrow minimum.
+        foreach (MediaToolbarLayout.Level level in Enum.GetValues<MediaToolbarLayout.Level>())
+            Assert.Equal(MediaToolbarLayout.SearchMinWidth, MediaToolbarLayout.SearchMin(level));
+        Assert.Equal(MediaToolbarLayout.SortMinWidth, MediaToolbarLayout.SortMin(MediaToolbarLayout.Level.Wide));
         Assert.Equal(MediaToolbarLayout.SortMinWidth, MediaToolbarLayout.SortMin(MediaToolbarLayout.Level.Reduced));
         Assert.Equal(MediaToolbarLayout.NarrowSortMinWidth, MediaToolbarLayout.SortMin(MediaToolbarLayout.Level.Compact));
-        Assert.True(MediaToolbarLayout.NarrowSearchMinWidth > 0 && MediaToolbarLayout.NarrowSortMinWidth > 0);
+        Assert.True(MediaToolbarLayout.NarrowSortMinWidth > 0 && MediaToolbarLayout.NarrowSortMinWidth < MediaToolbarLayout.SortMinWidth);
         Assert.True(MediaToolbarLayout.CompactWidth < MediaToolbarLayout.ReducedWidth);
         Assert.True(MediaToolbarLayout.SearchMaxWidth >= MediaToolbarLayout.SearchMinWidth);
+    }
+
+    // Tom (15.11.2026): the search used to stop at 480 dip and left a hole between "Filters" and the order on a wide window. It now fills the free
+    // width from 240 to 900 dip, and the filter toggle moved into the right group, directly in front of the order.
+    [Fact]
+    public void TheSearchFillsTheFreeWidthFrom240To900DipAndTheFilterToggleOpensTheRightGroupInFrontOfTheOrder()
+    {
+        Assert.Equal(240, MediaToolbarLayout.SearchMinWidth);
+        Assert.Equal(900, MediaToolbarLayout.SearchMaxWidth);
+        string toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs");
+        // Search column (star, capped at the maximum) | free space | right group; no fixed width for the search.
+        Assert.Matches("ColumnDefinitions\\(\"\\d+\\*,\\*,Auto\"\\)", toolbar);
+        Assert.Contains("tools.ColumnDefinitions[0].MaxWidth = MediaToolbarLayout.SearchMaxWidth;", toolbar);
+        Assert.Contains("ColumnDefinitions[0].MinWidth = _nameFilter.MinWidth", toolbar);
+        // The right group: the filter toggle first, then the shuffle, the Sort label and the criterion, the direction, and More last.
+        var group = System.Text.RegularExpressions.Regex.Match(toolbar, "foreach \\(Control control in new Control\\[\\] \\{([^}]*)\\}\\)");
+        Assert.True(group.Success, "BuildToolbar changed shape.");
+        string[] order = group.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("_filters", order[0]);
+        Assert.Equal(["_filters", "_shuffle", "_sortLabel", "_sort", "_sortDirection", "_refresh"], order[..6]);
+        Assert.Equal("_more", order[^1]);
+        Assert.DoesNotContain("tools.Children.Add(_filters)", toolbar);
+        // The gap in front of the right group is one 8 dip step; there is no column spacing that the free-space column would double.
+        Assert.DoesNotMatch("ColumnSpacing\\s*=", toolbar);
+    }
+
+    // The stage ladder in the order the tools leave the row, with the search and the filter toggle on neither list (the new layout keeps both).
+    [Fact]
+    public void TheStagesKeepTheSearchAndTheFilterToggleAndMoveTheToolsOutInTheDocumentedOrder()
+    {
+        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
+        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout"],
+            MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+        foreach (MediaToolbarLayout.Level level in Enum.GetValues<MediaToolbarLayout.Level>())
+        {
+            Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, "media.search"));
+            Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, "media.filter.toggle"));
+            Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, "media.sort"));
+            Assert.False(MediaToolbarLayout.IsMovedUnderMore(level, "media.toolbar.more"));
+        }
+        // The thresholds are measured widths of the row (smoke): the ladder is ordered and leaves the stages room (the Compact stage fits the narrowest row).
+        Assert.True(MediaToolbarLayout.NarrowestRowWidth < MediaToolbarLayout.CompactWidth);
+        Assert.True(MediaToolbarLayout.CompactWidth < MediaToolbarLayout.ReducedWidth);
+        Assert.Equal(MediaToolbarLayout.Level.Compact, MediaToolbarLayout.For(MediaToolbarLayout.NarrowestRowWidth));
     }
 
     [Fact]
@@ -204,6 +249,33 @@ public sealed class MediaSortToolbarContractTests
             Assert.False(string.IsNullOrWhiteSpace(text), code);
             Assert.NotEqual(english, text);
         }
+    }
+
+    // The search tooltip was one 240 character run that wrapped to six or more lines at the 360 dip tooltip width (WorkspaceStyles: ToolTip MaxWidth,
+    // wrapping TextBlock) and reached into the selection bar. Now the heading, the syntax in three short lines and one closing sentence: five lines.
+    [Fact]
+    public void TheSearchTooltipListsTheFilterSyntaxInThreeShortLinesInEveryLanguage()
+    {
+        Dictionary<string, string> tips = new() { ["en"] = BuiltInCatalog.English["media.query.tip"], ["de"] = BuiltInCatalog.German["media.query.tip"] };
+        foreach (string code in new[] { "es", "fr", "ru", "zh-Hans", "ja", "ko", "pt-BR", "cs", "it", "pl" })
+        {
+            using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream("MeowChan.Desktop.Localization.Packs." + code + ".json")!;
+            using JsonDocument document = JsonDocument.Parse(stream);
+            tips[code] = document.RootElement.GetProperty("strings").GetProperty("media.query.tip").GetString()!;
+        }
+        foreach ((string code, string tip) in tips)
+        {
+            string[] lines = tip.Split('\n');
+            Assert.True(lines.Length == 5, code + ": heading, three syntax lines, closing sentence: " + lines.Length);
+            Assert.All(lines[1..4], line => Assert.True(line.Length <= 40, code + ": a syntax line must fit the 360 dip tooltip without wrapping: " + line));
+            string syntax = string.Join(" ", lines[1..4]);
+            foreach (string token in new[] { "type:video", "sound:none", "source:4chan", "board:g", "rating:>=3", "fav", "missing", "untagged", "thread:1234" })
+                Assert.Contains(token, syntax);
+            Assert.True(tip.Length <= 205, code + ": the tooltip must stay short: " + tip.Length);
+            Assert.DoesNotContain("  ", tip);
+        }
+        string styles = Source("Desktop/WorkspaceStyles.axaml");
+        Assert.Contains("<Style Selector=\"ToolTip\"><Setter Property=\"MaxWidth\" Value=\"360\" /></Style>", styles); // the global tooltip width this one reuses
     }
 
     private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>

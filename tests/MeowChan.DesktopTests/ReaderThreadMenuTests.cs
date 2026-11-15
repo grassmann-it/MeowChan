@@ -9,7 +9,7 @@ namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// R2 and R3 (14.11.2026): the reader's "Thread" menu holds the open thread's downloader-side actions (the post-capture switch left
-/// the toolbar), "Follow live" is the View menu's "Show new posts automatically" with a state text in the status line. The page needs
+/// the toolbar), "Follow live" is "Show new posts automatically" (the settings popover's Thread section) with a state text in the status line. The page needs
 /// an Avalonia application, so the contract is checked on its catalog entries, its XAML and the menu builders' source; the
 /// behaviour (enabled states, check marks, the shell callbacks) is the reader-thread-menu smoke.
 /// </summary>
@@ -47,7 +47,7 @@ public sealed class ReaderThreadMenuTests : IDisposable
         string[] expected =
         [
             "archive.capture-toggle", "watch.check", "watch.retry-media", "rules.edit-scope",
-            "thread.details", "location.open-folder", "location.open-source", "selection.copy-links", "watch.remove"
+            "post-bookmarks.open-manager", "thread.details", "thread.show-in-media", "location.open-folder", "location.open-source", "selection.copy-links", "watch.remove"
         ];
         Assert.Equal(expected, ArchivePage.ReaderThreadMenuIds);
         // The builder adds exactly those entries, in that order (separators after the media rules and before the watch).
@@ -84,19 +84,20 @@ public sealed class ReaderThreadMenuTests : IDisposable
     }
 
     [Fact]
-    public void TheToolbarHasAThreadMenuButtonNextToViewAndNoCaptureButton()
+    public void TheToolbarHasAThreadMenuButtonRightBeforeTheSettingsGearAndNoCaptureButton()
     {
         XDocument page = XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml"));
         XElement[] items = page.Descendants().Where(element => element.Name.LocalName == "ActionToolBar").Single(bar => (string?)bar.Attribute(X + "Name") == "ReaderToolbar")
             .Elements().ToArray();
         string?[] names = items.Select(item => (string?)item.Attribute(X + "Name")).ToArray();
         Assert.DoesNotContain("CapturePostsButton", names);
-        int view = Array.IndexOf(names, "ReaderViewOpen"), thread = Array.IndexOf(names, "ReaderThreadOpen");
-        Assert.True(view >= 0 && thread == view + 1, "Thread ▾ stands right after View ▾.");
+        int gear = Array.IndexOf(names, "ReaderSettingsOpen"), thread = Array.IndexOf(names, "ReaderThreadOpen");
+        Assert.True(gear >= 0 && gear == thread + 1, "The settings gear stands right after Thread ▾.");
+        Assert.DoesNotContain("ReaderViewOpen", names);
         Assert.Contains("OnReaderThreadMenuClick", (string?)items[thread].Attribute("Click"));
         // Work-view id of the menu button (the policy row of the same id decides bar or More).
         Assert.Contains(items[thread].Attributes(), attribute => attribute.Name.LocalName == "WorkViewElement.Id" && attribute.Value == "reader.toolbar.thread");
-        // The export button stands before full screen (owner: HTML export outranks it) and both are on the bar.
+        // The export button stands before full screen, which is the last item and under More in every view (RL1).
         Assert.True(Array.IndexOf(names, "ExportArchiveButton") < Array.IndexOf(names, "ArchiveReaderFullscreen"));
     }
 
@@ -107,19 +108,18 @@ public sealed class ReaderThreadMenuTests : IDisposable
     }
 
     [Fact]
-    public void TheViewMenuLostTheMediaRulesAndKeepsAnEmptySlotAfterItsOptions()
+    public void TheViewMenuIsGoneItsOptionsAreRowsOfTheSettingsPopoverAndTheMediaRulesStayInTheThreadMenu()
     {
         string source = Source("Desktop/Views/Archive/ArchivePage.ReaderView.cs");
-        int build = source.IndexOf("internal ContextMenu BuildReaderViewMenu()", StringComparison.Ordinal);
-        int end = source.IndexOf("internal bool CanEditThreadRules", StringComparison.Ordinal);
-        string builder = source[build..end];
-        Assert.DoesNotContain("rules.edit-scope", builder);
-        Assert.DoesNotContain("new Separator()", builder);
-        Assert.Contains("Reader settings", builder); // the marked slot for the reader-settings entry
+        Assert.DoesNotContain("BuildReaderViewMenu", source);
+        Assert.DoesNotContain("OnReaderViewMenuClick", source);
+        Assert.DoesNotContain("ReaderViewOpen", Source("Desktop/Views/Archive/ArchivePage.axaml"));
+        Assert.DoesNotContain(MeowChan.Desktop.ReaderQuickSettings.Layout, entry => entry is MeowChan.Desktop.QuickSettingsSessionEntry { CommandId: "rules.edit-scope" });
+        Assert.Contains("rules.edit-scope", ArchivePage.ReaderThreadMenuIds);
     }
 
     [Fact]
-    public void ShowNewPostsAutomaticallyStandsBetweenTheConversationAndThePostFiltersInViewAndIsTheOldFollowLiveCommand()
+    public void ShowNewPostsAutomaticallyKeepsItsPlaceInTheOptionOrderAndIsTheOldFollowLiveCommand()
     {
         FieldInfo order = typeof(ArchivePage).GetField("ReaderViewOptionOrder", BindingFlags.NonPublic | BindingFlags.Static)!;
         string[] ids = (string[])order.GetValue(null)!;
@@ -133,7 +133,7 @@ public sealed class ReaderThreadMenuTests : IDisposable
         // The command keeps its id, so saved user shortcuts stay valid; its label and place changed.
         CommandDefinition command = CommandCatalog.Get("watch.follow-live");
         Assert.Equal("Show new posts automatically", command.LabelEn);
-        Assert.Contains("reader-view-menu", command.Contexts);
+        Assert.Contains("reader-settings", command.Contexts);
         Assert.Equal("Primary+Shift+L", command.Shortcut);
         Texts.SetLanguage("de");
         try { Assert.Equal("Neue Posts automatisch anzeigen", CommandCatalog.Label("watch.follow-live")); }
@@ -156,7 +156,7 @@ public sealed class ReaderThreadMenuTests : IDisposable
     [Fact]
     public void TheShortcutToggleAndTheMenuEntryDoNotBothHandleTheKey()
     {
-        // The shell routes Ctrl+Shift+L itself (ToggleFollowLiveByShortcut); the View menu's key handler must skip that entry,
+        // The shell routes Ctrl+Shift+L itself (ToggleFollowLiveByShortcut); the view options' key handler must skip that entry,
         // otherwise one key press would switch it on and off again.
         string live = Source("Desktop/Views/Archive/ArchivePage.Live.cs");
         Assert.Contains("shortcutViaRouter: true", live);

@@ -44,7 +44,8 @@ public sealed class MacMenuModelTests
         Assert.Equal("window.fullscreen", view[^1].CommandId);
         var digits = view.Take(MainPageOrder.CommandIds.Count).Select(node => MacMenuModel.Shortcut(Mac, node)).ToArray();
         // Default layout: Booru is hidden and takes the digit behind the visible buttons; Rules/Sources take 5/6 behind Tagging; Status keeps Primary+7.
-        Assert.Equal(new[] { "⌘1", "⌘2", "⌘3", "⌘4", "⌘8", "⌘5", "⌘6", "⌘7" }, digits);
+        // Revision 15: each page also shows its fixed letter (⇧⌘ + letter) behind the digit.
+        Assert.Equal(new[] { "⌘1 / ⇧⌘D", "⌘2 / ⇧⌘A", "⌘3 / ⇧⌘E", "⌘4 / ⇧⌘K", "⌘8 / ⇧⌘B", "⌘5 / ⇧⌘U", "⌘6 / ⇧⌘X", "⌘7 / ⇧⌘S" }, digits);
         Assert.DoesNotContain(AllEntries(), node => node.Commands.Contains("navigation.plugins"));
     }
 

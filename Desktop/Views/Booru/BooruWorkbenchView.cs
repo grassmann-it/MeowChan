@@ -815,6 +815,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Grid.SetColumn(load, 2);
         grid.Children.Add(load);
         card.Child = grid;
+        // Interaction audit 1.1.0: a double click on the card (not on a button, a tag or selectable text) is its primary action: "Show in
+        // Media" once the original is saved locally, else "Load original" while that button is enabled. Nothing else is opened or loaded.
+        Button? showInMedia = info.Children.OfType<Button>().FirstOrDefault(button => button.Name == ShowInMediaPrefix + post.PostId);
+        card.DoubleTapped += (_, e) =>
+        {
+            if (_closed || !MeowChan.Desktop.Controls.ItemActivation.IsCardDoubleClick(e, card)) return;
+            Button? primary = showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : load.IsEffectivelyEnabled ? load : null;
+            if (primary == null) return;
+            e.Handled = true;
+            primary.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        };
         return card;
     }
 

@@ -68,7 +68,7 @@ internal static class IoStatsPageTexts
         ("stats.errors.openAll", "Show all errors in Diagnostics", "Alle Fehler in der Diagnose zeigen"),
         ("stats.total", "Total", "Gesamt"),
         ("stats.sources.empty", "No traffic counted yet.", "Noch kein Datenverkehr gezählt."),
-        ("stats.reset", "Reset", "Zurücksetzen"),
+        ("stats.reset", "Reset statistics", "Statistik zurücksetzen"),
         ("stats.reset.question", "Reset the statistics? Counters and history will be deleted. This cannot be undone.", "Statistik zurücksetzen? Zähler und Verlauf werden gelöscht. Das lässt sich nicht rückgängig machen."),
         ("stats.reset.confirm", "Reset now", "Jetzt zurücksetzen"),
         ("stats.reset.cancel", "Cancel", "Abbrechen"),

@@ -284,7 +284,7 @@ internal static class SourcesChecks
                 && page.PluginManagement.Filter == SourcesPluginsFilter.AllPlugins);
             Require(compatibility.Handled && ReferenceEquals(window.FindControl<ContentControl>("SourcesPageHost")!.Content, page),
                 "The saved navigation.plugins shortcut did not reach All plugins in the real merged host.");
-            Require(MainPageOrder.Digit("navigation.status") == 7 && MainPageOrder.Digit("navigation.plugins") == null,
+            Require(MainPageOrder.Digit("navigation.status") == FooterNavigationChecks.ExpectedDigit(window, "navigation.status") && MainPageOrder.Digit("navigation.plugins") == null,
                 "Removing Plugins displaced Status+7 or gave the compatibility route a digit slot.");
             // Default main-page digits come only from MainPageOrder, not from the page's ordinal position.
             ShortcutPlatform platform = OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS

@@ -49,6 +49,8 @@ public partial class MainWindow
             _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
             ReaderSettingsPreferences.Apply(_archivePage, _config);
             _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
+            _archivePage.ReaderNavigationMode = _config.ReaderNavigationMode;
+            _archivePage.ReaderNavigationShowPosition = _config.ReaderNavigationShowPosition;
         }
     }
 

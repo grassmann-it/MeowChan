@@ -90,7 +90,8 @@ public sealed class BooruPageNavigationContractTests
 
             var saved = EffectiveShortcutBindings.Build(
                 new ShortcutBindingsSection().Set("navigation.plugins", [six]), platform);
-            Assert.Empty(saved.For("navigation.booru"));
+            // The digit yields; the fixed letter (revision 15) is not the saved binding's key and stays.
+            Assert.Equal(new[] { PageKeyScheme.Letter("navigation.booru") }, saved.For("navigation.booru").Select(gesture => gesture.Key));
             Assert.Single(saved.For("navigation.plugins"));
             Assert.Contains(saved.Issues, issue => issue.CommandId == "navigation.booru"
                 && issue.OtherCommandId == "navigation.plugins"

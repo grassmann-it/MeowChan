@@ -2,6 +2,7 @@ using System;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -27,8 +28,12 @@ public partial class SettingsEditor
     public bool ShowBooruActions
     {
         get => _showBooruActions;
-        set => SetField(ref _showBooruActions, value, nameof(ShowBooruActions));
+        set { SetField(ref _showBooruActions, value, nameof(ShowBooruActions)); UpdateFooterNumberingContext(); }
     }
+
+    // The footer list counts the digits in the work view of the draft with the draft's Booru switch (the Ctrl/Cmd+digit hints follow both live).
+    internal void UpdateFooterNumberingContext() =>
+        _footerEditor?.SetNumberingContext(WorkViewSetting.Parse(SelectedWorkspaceMode?.Value ?? _config?.WorkspaceMode), _showBooruActions);
 
     /// <summary>The footer list (built with the page).</summary>
     internal FooterLayoutEditor FooterEditor => _footerEditor ??= CreateFooterEditor();
@@ -48,9 +53,10 @@ public partial class SettingsEditor
     private void LoadFooterDraft(Config config)
     {
         _footerBaseline = config.FooterLayout;
-        FooterEditor.Load(_footerBaseline);
         _showBooruActionsBaseline = config.ShowBooruTools;
         ShowBooruActions = config.ShowBooruTools;
+        FooterEditor.SetNumberingContext(WorkViewSetting.Parse(SelectedWorkspaceMode?.Value ?? config.WorkspaceMode), config.ShowBooruTools);
+        FooterEditor.Load(_footerBaseline);
     }
 
     /// <summary>The saved layout changed outside this page (a hint switched Booru on): show it unless the person has unsaved footer edits.</summary>

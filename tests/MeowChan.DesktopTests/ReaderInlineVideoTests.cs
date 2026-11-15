@@ -58,16 +58,19 @@ public sealed class ReaderInlineVideoTests : IDisposable
     // ---- settings ----------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void InlineVideoAndItsAutoplayAreOffByDefaultWithTheirDefaultLimits()
+    public void ReadersPlayInTheSidebarByDefaultWithAutoplayOffAndTheirDefaultLimits()
     {
         Config config = new();
-        Assert.False(config.ReaderInlineVideo);
+        Assert.False(config.ReaderInlineVideo); // the old flag: "open media in the post" is not chosen
+        Assert.Equal(ReaderMediaClickMode.Sidebar, config.EffectiveReaderMediaClick);
         Assert.False(config.ReaderInlineVideoAutoplayMuted);
         Assert.Equal(2, config.ReaderInlineVideoMaxPlayers);
         Assert.Equal(256, config.ReaderInlineVideoMaxFileMiB);
         ReaderInlineVideoOptions options = ReaderInlineVideoOptions.From(config);
-        Assert.Equal(ReaderInlineVideoOptions.Default, options);
-        Assert.Equal(ReaderInlineVideoOptions.Default, ReaderMediaPreferences.From(config).Video);
+        Assert.True(options.Enabled);
+        Assert.False(options.InPost);
+        Assert.False(options.AutoplayMuted);
+        Assert.Equal(options, ReaderMediaPreferences.From(config).Video);
         // The gallery's volume and "start muted" are reused, not a second preference.
         Config gallery = new() { VideoVolume = 35, VideoStartMuted = true };
         Assert.Equal(35, ReaderInlineVideoOptions.From(gallery).Volume);
@@ -110,7 +113,7 @@ public sealed class ReaderInlineVideoTests : IDisposable
         copy.CopyFrom(source);
         settings.CopySettingsFieldsFrom(source);
         foreach (Config config in new[] { clone, copy, settings })
-            Assert.Equal(new ReaderInlineVideoOptions(true, true, 3, 64), ReaderInlineVideoOptions.From(config));
+            Assert.Equal(new ReaderInlineVideoOptions(true, true, 3, 64) { InPost = true }, ReaderInlineVideoOptions.From(config));
     }
 
     [Fact]
@@ -227,7 +230,7 @@ public sealed class ReaderInlineVideoTests : IDisposable
         Assert.True(controller.IsPlaying(video.Owner));
         Assert.Single(video.Players);
 
-        Assert.Equal(ReaderInlineVideoRules.KeyAction.Play, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
+        Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Space, KeyModifiers.None));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Space, KeyModifiers.Shift));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.Control));

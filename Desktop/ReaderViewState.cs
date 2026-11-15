@@ -19,6 +19,9 @@ internal sealed class ReaderViewState
     /// <summary>Owned by the conversation view (P4); P0 only stores it.</summary>
     public bool Conversation { get => _conversation; set => Set(ref _conversation, value); }
 
+    /// <summary>No switch of the session's view is on (nothing hidden, no filter, no conversation).</summary>
+    public bool IsDefault => !_hideMedia && !_mediaOnly && !_conversation;
+
     public event EventHandler? Changed;
 
     private void Set(ref bool field, bool value)

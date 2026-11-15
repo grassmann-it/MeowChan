@@ -10,13 +10,14 @@ using Avalonia.VisualTree;
 namespace MeowChan.Desktop.Controls;
 
 /// <summary>
-/// The dialog language for in-window scrim overlays (modals plan MD4): a header bar with the way out at the far left, before the
-/// title (Tom's rule 14.11. evening: the way back stands left, apart from the title by a gap and a thin separator; the close cross
-/// in the <see cref="HeaderBar"/> back slot, <see cref="HeaderBar.MakeClose"/>), one central Escape policy
-/// and the keyboard trap with focus return. The window dialogs get the same from <see cref="DialogWindow"/> and the caption's ×,
-/// which stays at the right by OS convention;
+/// The dialog language for in-window scrim overlays (modals plan MD4): a header bar with the title and the cross at the right edge,
+/// like <see cref="DialogWindow"/> (Tom's decision 15.11.2026: an overlay card looks like a dialog, so its × stands where a dialog's
+/// stands; the cross is the <see cref="HeaderBar"/> end slot, <see cref="HeaderBar.MakeClose"/>), one central Escape policy
+/// and the keyboard trap with focus return. Only the genuine way back of a PAGE ("← Back to …" of the reader, the rule assistant, the
+/// plugin and source details) stays at the far left (<see cref="HeaderBar.IsBackProperty"/>); an overlay never has a back slot, so it has no
+/// back gap and no separator either. The window dialogs get the same from <see cref="DialogWindow"/> and the caption's ×;
 /// this is the counterpart for what opens inside a window: the reader's link confirmation, the HTML export, the archive filter
-/// surface and the statistics reset question.
+/// surface, the statistics reset question and the shell help.
 /// </summary>
 /// <remarks>
 /// <para>The cross always cancels or closes and never confirms. An overlay whose footer Close doubles as Cancel while work runs (the
@@ -44,8 +45,8 @@ internal static class OverlayFrame
     internal static void MakeClose(Button close, string name) => HeaderBar.MakeClose(close, name, CloseTip(name));
 
     /// <summary>
-    /// The header row built in code: <paramref name="close"/> stands alone at the far left (back slot, first in the row's tab order),
-    /// then the bar's 24 dip gap with its separator, then <paramref name="title"/>, which wraps.
+    /// The header row built in code: <paramref name="title"/>, which wraps, then <paramref name="close"/> alone at the right edge (end slot,
+    /// last in the row's tab order, the bar's 16 dip gap between them), like the × of a dialog's caption.
     /// </summary>
     internal static HeaderBar Header(TextBlock title, Button close, string closeName)
     {
@@ -55,7 +56,7 @@ internal static class OverlayFrame
         title.VerticalAlignment = VerticalAlignment.Center;
         if (!title.Classes.Contains("page-title") && !title.Classes.Contains("section-title")) title.Classes.Add("section-title");
         MakeClose(close, closeName);
-        HeaderBar bar = HeaderBar.Create(close, title);
+        HeaderBar bar = HeaderBar.Create(null, title, close);
         bar.Name = HeaderName;
         return bar;
     }

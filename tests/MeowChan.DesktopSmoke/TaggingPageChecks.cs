@@ -52,7 +52,7 @@ internal static class TaggingPageChecks
                 && page.Rows.Count == 3, () => "page " + window.SelectedPage + ", rows " + window.TaggingPage?.Rows.Count);
             TaggingPage tagging = window.TaggingPage!;
             await SettleAsync(window);
-            Require(tagging.ProgressText.Text == "Open: 3 · Finished: 0 · Skipped: 0", "Progress: " + tagging.ProgressText.Text);
+            Require(tagging.ProgressText.Text == "Open: 3 · Done: 0 · Skipped: 0", "Progress: " + tagging.ProgressText.Text);
             Require(tagging.StartButton.IsEffectivelyEnabled && Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) == "Start tagging",
                 "The start button is not offered for a fresh queue.");
             Program.CaptureWindow(window, "smoke-tagging-page-light-en.png");
@@ -79,7 +79,7 @@ internal static class TaggingPageChecks
             // says why it is off; for one selected entry "Tag together…" and the order of "Tag…" are as the spec lists them.
             MeowChan.Desktop.Controls.ContextMenuModel model = tagging.ListMenuModel() ?? throw new InvalidOperationException("No menu model for a selected entry.");
             string[] labels = model.Entries.Select(item => item.Label).ToArray();
-            Require(labels.SequenceEqual(new[] { "Continue here", "Tag…", "Tag together…", "Apply tag stamp", "Mark as finished", "Mark as open",
+            Require(labels.SequenceEqual(new[] { "Continue tagging", "Edit tags…", "Tag together…", "Apply stamp", "Mark as done", "Mark as open",
                 "Mark as skipped", "Open in gallery", "Show in thread", "Show in Media", "Show in folder", "Copy file path", "Move up", "Move down",
                 "Move to the start", "Move to the end", "Remove from queue" }), "Context menu: " + string.Join(" | ", labels));
             Require(model.OversizedSections.Count == 0 && model.Entries.Where(item => !item.Available).All(item => !string.IsNullOrEmpty(item.Reason)),
@@ -98,14 +98,14 @@ internal static class TaggingPageChecks
             Require(!tagging.SelectionBar.IsVisible, "The selection bar shows without a selection.");
             tagging.List.SelectedItems.Add(tagging.Rows[0]);
             await SettleAsync(window);
-            Require(tagging.SelectionBar.IsVisible && tagging.SelectionText.Text == "1 selected" && (string?)tagging.SelectionTagButton.Content == "Tag…"
+            Require(tagging.SelectionBar.IsVisible && tagging.SelectionText.Text == "1 selected" && (string?)tagging.SelectionTagButton.Content == "Edit tags…"
                 && tagging.SelectionTagButton.IsEnabled, "Selection bar for one entry: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
             tagging.List.SelectedItems.Add(tagging.Rows[1]);
             await SettleAsync(window);
             Require(tagging.SelectionText.Text == "2 selected" && (string?)tagging.SelectionTagButton.Content == "Tag together…",
                 "Selection bar for two entries: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
             MeowChan.Desktop.Controls.ContextMenuModel stateMenu = tagging.StateMenuModel() ?? throw new InvalidOperationException("No state menu for a selection.");
-            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[] { "Mark as finished", "Mark as open", "Mark as skipped" }),
+            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[] { "Mark as done", "Mark as open", "Mark as skipped" }),
                 "State menu: " + string.Join(" | ", stateMenu.Entries.Select(item => item.Label)));
             // "Set state" (tagging.selection.state) sits on the bar in Advanced only; Barebones and Simple keep it under More, so the menu has no
             // button to open under there. Open it in Advanced and return to the work view the run started in.
@@ -179,7 +179,7 @@ internal static class TaggingPageChecks
             // Mark one finished, filter by state, then the work views.
             SelectOnly(tagging, tagging.Rows[0]);
             await tagging.ExecuteRowCommandAsync("tagging.mark-done");
-            Require(tagging.ProgressText.Text == "Open: 1 · Finished: 1 · Skipped: 0", "Progress after a decision: " + tagging.ProgressText.Text);
+            Require(tagging.ProgressText.Text == "Open: 1 · Done: 1 · Skipped: 0", "Progress after a decision: " + tagging.ProgressText.Text);
             tagging.Filter = TaggingQueueFilter.Skipped;
             await SettleAsync(window);
             Require(tagging.Rows.Count == 0, "The Skipped filter still lists entries.");

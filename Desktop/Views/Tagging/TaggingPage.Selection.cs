@@ -53,8 +53,8 @@ public sealed partial class TaggingPage
             _selectionActions.Items.Add(button);
         }
         _selTag.Click += (_, _) => _ = ExecuteSelectionAsync(Selected.Count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag, _selTag);
-        _selStamp.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.ApplyStamp);
-        _selRemove.Click += (_, _) => _ = ExecuteRowCommandAsync(TaggingCommands.Remove);
+        _selStamp.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ApplyStamp), "tagging.selection.stamp");
+        _selRemove.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.Remove), "tagging.selection.remove");
         _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
         _selGroup.Click += (_, _) => _groupMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
@@ -113,7 +113,7 @@ public sealed partial class TaggingPage
         {
             string commandId = id;
             TaggingCommandState state = TaggingRowCommands.Evaluate(commandId, context);
-            menu.Command(commandId, () => _ = ExecuteRowCommandAsync(commandId), state.Available, state.Reason);
+            menu.Command(commandId, () => OpenActions.Start(() => ExecuteRowCommandAsync(commandId), "tagging.selection.state"), state.Available, state.Reason);
         }
         return menu;
     }

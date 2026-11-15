@@ -192,11 +192,17 @@ public partial class SettingsEditor
     public string ReaderMediaSidebarMinimumWidthLabel => Texts.T("settings.reader.mediaSidebarMinimumWidth");
     public string ReaderMediaSidebarMinimumWidthHint => Texts.T("settings.reader.mediaSidebarMinimumWidth.hint") + " " + Texts.T("settings.reader.range", Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
     public string ReaderMediaSidebarMinimumWidthHelp => FieldHelp(nameof(ReaderMediaSidebarMinimumWidthInput), ReaderMediaSidebarMinimumWidthHint);
-    // Inline video in the reader (R10): the opt-in, the muted autoplay (a second opt-in) and the two limits.
-    private bool _readerInlineVideo;
-    public bool ReaderInlineVideo { get => _readerInlineVideo; set => SetField(ref _readerInlineVideo, value, nameof(ReaderInlineVideo)); }
-    public string ReaderInlineVideoLabel => Texts.T("settings.reader.inlineVideo");
-    public string ReaderInlineVideoHint => Texts.T("settings.reader.inlineVideo.hint");
+    // "Clicking a medium" (R10, merged with the old inline video switch): the sidebar, the post (videos play, images expand) or the gallery.
+    private SettingsChoice? _selectedReaderMediaClick;
+    public SettingsChoice? SelectedReaderMediaClick
+    {
+        get => _selectedReaderMediaClick;
+        set => SetField(ref _selectedReaderMediaClick, value, nameof(SelectedReaderMediaClick));
+    }
+    public IReadOnlyList<SettingsChoice> ReaderMediaClickChoices { get; private set; } = Array.Empty<SettingsChoice>();
+    public string ReaderMediaClickLabel => Texts.T("settings.reader.mediaClick");
+    public string ReaderMediaClickHint => Texts.T("settings.reader.mediaClick.hint");
+    // Muted autoplay (a second opt-in) and the two limits of the players in the reader.
     private bool _readerInlineVideoAutoplayMuted;
     public bool ReaderInlineVideoAutoplayMuted { get => _readerInlineVideoAutoplayMuted; set => SetField(ref _readerInlineVideoAutoplayMuted, value, nameof(ReaderInlineVideoAutoplayMuted)); }
     public string ReaderInlineVideoAutoplayMutedLabel => Texts.T("settings.reader.inlineVideoAutoplay");
@@ -237,6 +243,18 @@ public partial class SettingsEditor
     public string ReaderPreviewSizeMemoryLabel => Texts.T("settings.reader.previewSizeMemory");
     public string ReaderPreviewSizeMemoryHint => Texts.T("settings.reader.previewSizeMemory.hint") + " " + Texts.T("settings.reader.range", Config.ReaderPreviewSizeMemoryMinimum, Config.ReaderPreviewSizeMemoryMaximum);
     public string ReaderPreviewSizeMemoryHelp => FieldHelp(nameof(ReaderPreviewSizeMemoryInput), ReaderPreviewSizeMemoryHint);
+
+    private void RefreshMediaClickChoices(string click)
+    {
+        ReaderMediaClickChoices = new SettingsChoice[]
+        {
+            new(ReaderMediaClickRules.SidebarKey, Texts.T("settings.reader.mediaClick.sidebar")),
+            new(ReaderMediaClickRules.PostKey, Texts.T("settings.reader.mediaClick.post")),
+            new(ReaderMediaClickRules.GalleryKey, Texts.T("settings.reader.mediaClick.gallery"))
+        };
+        Raise(new[] { nameof(ReaderMediaClickChoices) });
+        SelectedReaderMediaClick = ReaderMediaClickChoices.FirstOrDefault(item => item.Value == click) ?? ReaderMediaClickChoices[0];
+    }
 
     private void RefreshMediaSidebarSideChoices(string side)
     {
@@ -310,6 +328,7 @@ public partial class SettingsEditor
         string upscale = SelectedGalleryFitUpscale?.Value ?? (_config.GalleryFitUpscaleLimited ? "Limited" : "Unlimited");
         RefreshReaderChoices(date, spoilers, upscale);
         RefreshMediaSidebarSideChoices(SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide);
+        RefreshMediaClickChoices(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick));
     }
 
     private void LoadReaderDraft(Config config)
@@ -358,7 +377,7 @@ public partial class SettingsEditor
         ResetNumber(ReaderMediaSidebarWidthInput, ReaderMediaSidebarWidth.Value);
         ReaderMediaSidebarMinimumWidth = config.ReaderMediaSidebarMinimumWidth;
         ResetNumber(ReaderMediaSidebarMinimumWidthInput, ReaderMediaSidebarMinimumWidth.Value);
-        ReaderInlineVideo = config.ReaderInlineVideo;
+        RefreshMediaClickChoices(ReaderMediaClickRules.ToKey(config.EffectiveReaderMediaClick));
         ReaderInlineVideoAutoplayMuted = config.ReaderInlineVideoAutoplayMuted;
         ReaderInlineVideoMaxPlayers = config.ReaderInlineVideoMaxPlayers;
         ResetNumber(ReaderInlineVideoMaxPlayersInput, ReaderInlineVideoMaxPlayers.Value);
@@ -423,7 +442,7 @@ public partial class SettingsEditor
         candidate.ReaderMediaSidebarSide = SelectedReaderMediaSidebarSide?.Value ?? _config.ReaderMediaSidebarSide;
         candidate.ReaderMediaSidebarWidth = GetInteger(ReaderMediaSidebarWidth, ReaderMediaSidebarWidthLabel, Config.ReaderMediaSidebarWidthMinimum, Config.ReaderMediaSidebarWidthMaximum);
         candidate.ReaderMediaSidebarMinimumWidth = GetInteger(ReaderMediaSidebarMinimumWidth, ReaderMediaSidebarMinimumWidthLabel, Config.ReaderMediaSidebarMinimumWidthMinimum, Config.ReaderMediaSidebarMinimumWidthMaximum);
-        candidate.ReaderInlineVideo = ReaderInlineVideo;
+        candidate.ChooseReaderMediaClick(ReaderMediaClickRules.FromKey(SelectedReaderMediaClick?.Value ?? ReaderMediaClickRules.ToKey(_config.EffectiveReaderMediaClick)));
         candidate.ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted;
         candidate.ReaderInlineVideoMaxPlayers = GetInteger(ReaderInlineVideoMaxPlayers, ReaderInlineVideoMaxPlayersLabel, Config.ReaderInlineVideoMaxPlayersMinimum, Config.ReaderInlineVideoMaxPlayersMaximum);
         candidate.ReaderInlineVideoMaxFileMiB = GetInteger(ReaderInlineVideoMaxFileMiB, ReaderInlineVideoMaxFileMiBLabel, Config.ReaderInlineVideoMaxFileMiBMinimum, Config.ReaderInlineVideoMaxFileMiBMaximum);
@@ -621,7 +640,7 @@ public partial class SettingsEditor
         nameof(ReaderMediaSidebarSideLabel), nameof(ReaderMediaSidebarSideHint),
         nameof(ReaderMediaSidebarWidthLabel), nameof(ReaderMediaSidebarWidthHint), nameof(ReaderMediaSidebarWidthHelp),
         nameof(ReaderMediaSidebarMinimumWidthLabel), nameof(ReaderMediaSidebarMinimumWidthHint), nameof(ReaderMediaSidebarMinimumWidthHelp),
-        nameof(ReaderInlineVideoLabel), nameof(ReaderInlineVideoHint),
+        nameof(ReaderMediaClickLabel), nameof(ReaderMediaClickHint),
         nameof(ReaderInlineVideoAutoplayMutedLabel), nameof(ReaderInlineVideoAutoplayMutedHint),
         nameof(ReaderInlineVideoMaxPlayersLabel), nameof(ReaderInlineVideoMaxPlayersHint), nameof(ReaderInlineVideoMaxPlayersHelp),
         nameof(ReaderInlineVideoMaxFileMiBLabel), nameof(ReaderInlineVideoMaxFileMiBHint), nameof(ReaderInlineVideoMaxFileMiBHelp),

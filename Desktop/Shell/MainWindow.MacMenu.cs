@@ -98,7 +98,7 @@ public partial class MainWindow
         {
             case "navigation.about": WorkspaceControl<MenuItem>("AboutMenuItem").RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent)); return;
             case "app.quit": _ = CloseApplicationAsync(); return;
-            case "navigation.continue-reading": _ = ResumeLastReadingAsync(); return;
+            case "navigation.continue-reading": ActivateReadingResume(keyboard: true); return;
             // No default gesture: runs directly, like the app-menu entry (a gesture the user assigns reaches the router).
             case "workspace.view-cycle": _ = CycleWorkViewAsync(); return;
             // Help opens the shortcuts window directly, also when the user removed its gesture (KS2).

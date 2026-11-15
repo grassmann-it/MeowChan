@@ -365,7 +365,8 @@ public partial class ArchivePage
 
     private void LocalizePrivateTags()
     {
-        ToolTip.SetTip(ReaderTagsOpen, Texts.T("tags.openHint"));
+        // RL1: "Thread tags… · Ctrl+T", then what the button shows.
+        ToolTip.SetTip(ReaderTagsOpen, CommandBindings.Tooltip("thread.tags") + Environment.NewLine + Texts.T("tags.openHint"));
         TagSuggestionInput.Localize(ReaderTagInput);
         ReaderTagAdd.Content = Texts.T("tags.add");
         MeowChan.Desktop.Controls.HeaderBar.MakeClose(ReaderTagClose, Texts.T("tags.close"));

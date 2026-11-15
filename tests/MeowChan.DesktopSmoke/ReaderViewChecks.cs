@@ -6,6 +6,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Testing;
@@ -13,7 +14,7 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-// Reader foundation (plan P0) in a private profile with a detached reader: the "View" menu, "Hide media" and "Only posts
+// Reader foundation (plan P0) in a private profile with a detached reader: the settings popover (formerly the "View" menu), "Hide media" and "Only posts
 // with media" over a 120-post thread, paging and Up/Down in the shown order, a find hit in a hidden post that reveals it,
 // the reading mark and new posts, and a test classifier/ordering for the placeholder and the indentation.
 internal static class ReaderViewChecks
@@ -64,7 +65,7 @@ internal static class ReaderViewChecks
             await CheckPlaceholderAndIndentAsync(owner);
         }
         finally { Application.Current!.RequestedThemeVariant = theme; }
-        Console.WriteLine("SMOKE reader view: View menu, hide media, only posts with media, paging, Up/Down, revealing find hit, reading mark, new posts, placeholder and indentation passed; ReaderPostLayout.MeasurePasses (b10) is not in this source and was not compared.");
+        Console.WriteLine("SMOKE reader view: settings popover, hide media, only posts with media, paging, Up/Down, revealing find hit, reading mark, new posts, placeholder and indentation passed; ReaderPostLayout.MeasurePasses (b10) is not in this source and was not compared.");
     }
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, int count, bool staircase = false)
@@ -129,19 +130,22 @@ internal static class ReaderViewChecks
                 "reader.view.textless-large", "reader.view.focused-enlarge", "reader.view.hover-enlarge", "reader.sidebar.toggle", "watch.follow-live",
                 "reader.quick-settings" }),
             "The View menu lists other options: " + string.Join(", ", page.ReaderViewOptionIds));
-        Button open = page.FindControl<Button>("ReaderViewOpen")!;
-        Require(open.Content as string == Texts.T("reader.view.menu"), "The View button has no label.");
-        ContextMenu menu = page.BuildReaderViewMenu();
-        MenuItem[] viewItems = menu.Items.OfType<MenuItem>().ToArray();
-        // Every option but the reader settings entry is a check item; only "Larger images for posts without text" is on by default
-        // (Config.ReaderTextlessLargeImages, R6), every session switch starts off.
-        Require(viewItems.Where(item => item.ToggleType == MenuItemToggleType.CheckBox).All(item => item.IsChecked == Equals(item.Tag, "reader.view.textless-large"))
-            && viewItems.Where(item => item.ToggleType != MenuItemToggleType.CheckBox).Select(item => item.Tag).SequenceEqual(new object[] { "reader.quick-settings" })
-            && viewItems.Count(item => item.ToggleType == MenuItemToggleType.CheckBox) == page.ReaderViewOptionIds.Count - 1,
-            "View options are not check items in their default state: " + string.Join(", ", viewItems.Select(item => item.Tag + "=" + item.ToggleType + "/" + item.IsChecked)));
-        // R2: the media rules moved to the Thread menu; View holds only the reader's own look (options as check items, no separator yet).
-        Require(viewItems.All(item => !Equals(item.Tag, "rules.edit-scope")) && !menu.Items.OfType<Separator>().Any(),
-            "The View menu still carries the media rules or a stray separator.");
+        Button open = page.FindControl<Button>("ReaderSettingsOpen")!;
+        Require(open.Content as string == Texts.T("reader.settings.button"), "The settings button has no label.");
+        // RL1: the former View menu is the settings popover. Its session rows are the three view switches (the post filters action and the
+        // live switch follow when the page offers them); the display options are the popover's setting rows, "Larger images for posts
+        // without text" on by default (Config.ReaderTextlessLargeImages, R6), every session switch off.
+        QuickSettingsSurface popover = await ReaderSettingsProbe.OpenAsync(page);
+        Require(popover.SessionCommandIds.Take(3).SequenceEqual(new[] { "reader.view.media-only", "reader.view.hide-media", "reader.view.conversation" }),
+            "The popover lists other session rows: " + string.Join(", ", popover.SessionCommandIds));
+        Require(new[] { "reader.view.media-only", "reader.view.hide-media", "reader.view.conversation" }
+                .All(command => ReaderSettingsProbe.Switch(popover, command) is { IsChecked: not true, IsEnabled: true, IsEffectivelyVisible: true }),
+            "The session switches are not off and enabled by default.");
+        Require(popover.EditorOf(SettingsFieldId.ReaderTextlessLargeImages) is CheckBox { IsChecked: true }
+                && popover.EditorOf(SettingsFieldId.ReaderFocusedMediaEnlarge) is CheckBox { IsChecked: not true },
+            "The display options are not in their default state in the popover.");
+        await ReaderSettingsProbe.CloseAsync(page);
+        // R2: the media rules are in the Thread menu, not among the view options.
         MenuItem[] threadItems = page.BuildReaderThreadMenu().Items.OfType<MenuItem>().ToArray();
         Require(threadItems.Select(item => item.Tag).SequenceEqual(ArchivePage.ReaderThreadMenuIds.Cast<object>())
             && threadItems.Single(item => Equals(item.Tag, "rules.edit-scope")).Header as string == Texts.T("rules.thisThread"),
@@ -157,7 +161,9 @@ internal static class ReaderViewChecks
         string hiddenLine = Texts.Count("reader.view.mediaHidden", 1, 1);
         Require(Containers(fixture).Any(item => item.GetVisualDescendants().OfType<TextBlock>().Any(text => text.IsEffectivelyVisible && text.Text == hiddenLine)),
             "No visible 'Media hidden' line: " + hiddenLine);
-        Require(page.BuildReaderViewMenu().Items.OfType<MenuItem>().First().IsChecked == true, "The menu did not check Hide media.");
+        Require(ReaderSettingsProbe.Switch(await ReaderSettingsProbe.OpenAsync(page), "reader.view.hide-media").IsChecked == true, "The popover did not check Hide media.");
+        Require(page.IsReaderSettingsMarked, "The gear carries no dot while Hide media is on.");
+        await ReaderSettingsProbe.CloseAsync(page);
         await CaptureThemesAsync(fixture, "media-hidden");
         await ToggleAsync(fixture, "reader.view.hide-media");
         Require(fixture.Rows.Where(row => row.HasAttachments).All(row => row.ShowsMedia), "Hide media did not switch off.");

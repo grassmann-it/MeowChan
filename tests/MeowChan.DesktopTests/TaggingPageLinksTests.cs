@@ -95,7 +95,7 @@ public sealed class TaggingPageLinksTests : IDisposable
         Assert.Equal("tagging.start", row.Alternative);
         Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.start", WorkView.Barebones));
         string page = Source("Desktop/Views/Tagging/TaggingPage.cs");
-        Assert.Contains("_lastShown.Click += (_, _) => _ = StartAsync(null);", page);
+        Assert.Contains("_lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), \"tagging.start\");", page);
         string view = Source("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
         Assert.Contains("WorkViewElement.SetId(_lastShown, \"tagging.last-shown\");", view);
         Assert.Contains("WorkViewGate.Apply(_lastShown, _workView,", view);
@@ -106,7 +106,7 @@ public sealed class TaggingPageLinksTests : IDisposable
     {
         string commands = Source("Desktop/Views/Tagging/TaggingPage.Commands.cs");
         Assert.Contains("_list.DoubleTapped += (_, e) =>", commands);
-        Assert.Contains("_ = ExecuteRowCommandAsync(\"tagging.continue-here\");", commands);
+        Assert.Contains("OpenActions.Start(() => ExecuteRowCommandAsync(\"tagging.continue-here\"), \"tagging.list.doubleClick\");", commands);
         Assert.Contains("TaggingCommands.ContinueHere => StartAsync(lead.Index),", commands);
         Assert.Contains("ShowStatus(Texts.T(\"tagging.page.continue.notOpen\"));", commands);
         Assert.Equal("Enter", MeowChan.Desktop.Commands.CommandCatalog.Get("tagging.continue-here").Shortcut);

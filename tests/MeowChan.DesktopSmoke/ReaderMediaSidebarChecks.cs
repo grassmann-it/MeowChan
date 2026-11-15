@@ -5,6 +5,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -25,23 +26,28 @@ internal static class ReaderMediaSidebarChecks
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread != null);
         Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
         int embeddedColumn = Grid.GetColumn(pane);
-        Require(!page.ReaderMedia.Sidebar, "The media sidebar is not off by default.");
-        Require(page.ReaderViewOptionIds.Contains("reader.sidebar.toggle"), "The View menu has no media sidebar switch.");
+        Require(page.ReaderMedia.Sidebar, "The media sidebar is not on by default.");
+        Require(page.ReaderViewOptionIds.Contains("reader.sidebar.toggle"), "The reader has no media sidebar switch.");
 
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl host = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => host.IsVisible && !page.IsBusy);
         await page.MediaLoadTask;
         Require(host.Content is Grid { Name: "ReaderLargeFrame" } && pane.Parent == host.Content, "The large reader is not framed for the sidebar.");
+        // On by default: the large reader shows the sidebar at once. It is switched off once for the plain-pane checks and back on below.
+        await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.MediaSidebar!.IsEffectivelyVisible);
+        page.ToggleMediaSidebar();
+        await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
         Require(!page.IsMediaSidebarShown && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle,
             "Without the sidebar the pane lost its own Tab cycle.");
 
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
-        // R11: while the sidebar is off and the reader wide enough, its View-menu entry names the shortcut (and nothing turned it on).
-        MenuItem viewEntry = page.BuildReaderViewMenu().Items.OfType<MenuItem>().Single(item => (string?)item.Tag == "reader.sidebar.toggle");
+        // R11/RL1: while the sidebar is off and the reader wide enough, its row in the settings popover names the shortcut (and nothing turned it on).
+        QuickSettingsSurface settings = await ReaderSettingsProbe.OpenAsync(page);
         string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("reader.sidebar.toggle");
-        Require(shortcut == null || ToolTip.GetTip(viewEntry) is string entryTip && entryTip.Contains(shortcut, StringComparison.Ordinal),
-            "The View entry of the sidebar does not show its shortcut while the sidebar is off.");
+        Require(shortcut == null || settings.ShortcutTextOf("reader.sidebar.toggle").Contains(shortcut, StringComparison.Ordinal),
+            "The settings row of the sidebar does not show its shortcut while the sidebar is off: '" + settings.ShortcutTextOf("reader.sidebar.toggle") + "'.");
+        await ReaderSettingsProbe.CloseAsync(page);
         Require(!page.ReaderMedia.Sidebar && !page.IsMediaSidebarShown, "The discovery hint turned the sidebar on.");
         try
         {
@@ -68,6 +74,10 @@ internal static class ReaderMediaSidebarChecks
             await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
             await page.MediaSidebarTask;
             Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
+            // The header is one compact row (post, file, size; the star, "Open in gallery" and the cross beside it); it replaces the old title and info box.
+            Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
+                "The sidebar header is not one line naming the post.");
+            Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
             await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
 
             // Held ↓: many selection changes, at most one decode start per interval; the sidebar ends on the last selected post.
@@ -94,6 +104,9 @@ internal static class ReaderMediaSidebarChecks
                 int shownFiles = Math.Min(count, page.ReaderMedia.Clamped().StripLimit);
                 Require(sidebar.StripVisible && sidebar.StripIndexes.Count == shownFiles, "The strip does not show the files of a post with several media.");
                 Require(sidebar.StripCurrent == page.MediaSidebarIndex && sidebar.Strip.SelectedIndex >= 0, "The strip does not mark the current file.");
+                // The overlay arrows and the "2 / 3" counter exist only for a post with more than one medium.
+                Require(sidebar.NavigationVisible && sidebar.CounterLine == ReaderMediaSidebarRules.CounterText(page.MediaSidebarIndex, count),
+                    "The overlay arrows or the counter of a post with several media are missing or wrong.");
                 Require(sidebar.StripCounterText == ReaderMediaMultiRules.CounterText(page.MediaSidebarIndex, count), "The strip counter is wrong.");
                 int next = Math.Min(count - 1, page.MediaSidebarIndex + 1);
                 sidebar.Strip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, Source = sidebar.Strip });
@@ -120,6 +133,7 @@ internal static class ReaderMediaSidebarChecks
                 await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
                 await page.MediaSidebarTask;
                 Require(!sidebar.StripVisible && sidebar.StripCounterText.Length == 0, "A post with one file shows a strip.");
+                Require(!sidebar.NavigationVisible && sidebar.CounterLine.Length == 0, "A post with one file shows overlay arrows or a counter.");
             }
 
             // Right side.
@@ -153,7 +167,7 @@ internal static class ReaderMediaSidebarChecks
         await Program.WaitUntilAsync(() => !host.IsVisible);
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
-        Console.WriteLine("SMOKE reader media sidebar: off by default, framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
+        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, overlay arrows and counter only for several media, framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return passed.");
     }
 
     private static async Task Flush() => await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);

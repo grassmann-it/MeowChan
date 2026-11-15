@@ -131,6 +131,7 @@ public partial class MainWindow : Window
             RegisterReadingResumeCommand();
             RegisterManualImportCommand();
             InitializeProfileMenu();
+            ArrangeHeaderMenu(); // every part has inserted its entry by now: group them (Reading, Collection, App)
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
             RegisterTagQueueCommands();
@@ -1236,9 +1237,15 @@ public partial class MainWindow : Window
         DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
         if (target?.DataContext is not ThreadRow row || SelectedThreads().Length != 1) return;
         e.Handled = true;
-        await OpenDownloadReaderAsync(row.Snapshot.Id, target);
+        await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, target), "downloads.list.doubleClick");
     }
-    private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
+    // Interaction audit: a double click on a board row (not on the header, a button or empty space) opens its details, like Enter.
+    private void OnBoardDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_sessionRowsApplying || sender is not Visual grid || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, grid)) return;
+        e.Handled = true;
+        OpenWorkspaceDetails();
+    }
 
     private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(WorkspacePage.Settings);
 

@@ -4,12 +4,12 @@ internal static class NativeTransferImportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("transfer.import.title", "Import transfer package", "Transferpaket importieren"),
+        ("transfer.import.title", "Import archive", "Archiv importieren"),
         // Obsolete since modals MD2: the title stands in the title bar only (E1); kept so the language packs keep one key set.
-        ("transfer.import.heading", "Import transfer package", "Transferpaket importieren"),
-        ("transfer.import.choose", "Choose transfer package…", "Transferpaket wählen…"),
-        ("transfer.import.fileType", "Transfer package (ZIP)", "Transferpaket (ZIP)"),
-        ("transfer.import.apply", "Import and merge", "Importieren und zusammenführen"),
+        ("transfer.import.heading", "Import archive", "Archiv importieren"),
+        ("transfer.import.choose", "Choose archive…", "Archiv wählen…"),
+        ("transfer.import.fileType", "MeowChan archive (ZIP)", "MeowChan-Archiv (ZIP)"),
+        ("transfer.import.apply", "Import", "Importieren"),
         ("transfer.import.recheck", "Check again", "Erneut prüfen"),
         ("transfer.import.cancel", "Cancel", "Abbrechen"),
         // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
@@ -30,7 +30,7 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.failed", "Import failed", "Import fehlgeschlagen"),
         ("transfer.import.recoveryRequired", "Recovery is required before more profile writes", "Vor weiteren Profilschreibvorgängen ist eine Wiederherstellung nötig"),
         ("transfer.import.closed", "Import closed", "Import geschlossen"),
-        ("transfer.import.idle", "Choose a package to inspect and import.", "Ein Paket zum Prüfen und Importieren wählen."),
+        ("transfer.import.idle", "Choose an exported MeowChan archive (transfer package) to inspect and import.", "Ein exportiertes MeowChan-Archiv (Transferpaket) prüfen und übernehmen."),
         ("transfer.import.inventory", "The package is staged and verified before any archive write. Apply is enabled only for the exact ready plan.", "Das Paket wird vor jedem Archivschreibvorgang geprüft und zwischengespeichert. Übernehmen ist nur für den exakt bereiten Plan möglich."),
         ("transfer.import.privacy", "Private metadata is never imported silently. This package must be explicitly supported before it can be applied.", "Private Metadaten werden niemals still importiert. Dieses Paket muss ausdrücklich unterstützt werden, bevor es übernommen werden kann."),
         ("transfer.import.cleanupRetained", "Cleanup did not finish; temporary import files may remain. Check the profile before retrying.", "Die Bereinigung wurde nicht abgeschlossen; temporäre Importdateien können zurückbleiben. Prüfe das Profil vor einem neuen Versuch."),
@@ -47,9 +47,9 @@ internal static class NativeTransferImportCatalog
         ("transfer.import.replay", "This import was already applied; no duplicate writes were made.", "Dieser Import wurde bereits übernommen; es wurden keine doppelten Schreibvorgänge ausgeführt."),
         ("transfer.import.error.source", "The selected package source is invalid or unreadable.", "Die ausgewählte Paketquelle ist ungültig oder nicht lesbar."),
         ("transfer.import.error.workDirectory", "The temporary import directory is invalid or cannot be used safely.", "Der temporäre Importordner ist ungültig oder kann nicht sicher verwendet werden."),
-        ("transfer.import.error.package", "The transfer package is invalid or unsupported.", "Das Transferpaket ist ungültig oder wird nicht unterstützt."),
+        ("transfer.import.error.package", "The archive file is invalid or unsupported.", "Die Archivdatei ist ungültig oder wird nicht unterstützt."),
         ("transfer.import.error.private", "Private transfer metadata is not yet supported. Nothing was changed.", "Private Transfermetadaten werden noch nicht unterstützt. Es wurde nichts geändert."),
-        ("transfer.import.error.limit", "The transfer package exceeds a safety limit. Nothing was changed.", "Das Transferpaket überschreitet ein Sicherheitslimit. Es wurde nichts geändert."),
+        ("transfer.import.error.limit", "The archive file exceeds a safety limit. Nothing was changed.", "Die Archivdatei überschreitet ein Sicherheitslimit. Es wurde nichts geändert."),
         ("transfer.import.error.target", "The existing archive target could not be admitted safely. Nothing was changed.", "Das bestehende Archivziel konnte nicht sicher zugelassen werden. Es wurde nichts geändert."),
         ("transfer.import.error.scope", "The selected New/Merge scope does not match the local archive target. Choose the other scope and select the package again. Nothing was changed.", "Der gewählte Umfang Neu/Zusammenführen passt nicht zum lokalen Archivziel. Wähle den anderen Umfang und das Paket erneut. Es wurde nichts geändert."),
         ("transfer.import.error.profile", "The profile is not ready for import. Nothing was changed.", "Das Profil ist für den Import nicht bereit. Es wurde nichts geändert."),
@@ -84,6 +84,6 @@ internal static class NativeTransferImportCatalog
         ("transfer.conflicts.status.promoted", "promoted", "übernommen"),
         ("transfer.conflicts.error.read", "The conflict list could not be read.", "Die Konfliktliste konnte nicht gelesen werden."),
         ("transfer.conflicts.error.action", "The decision could not be recorded. Nothing was changed.", "Die Entscheidung konnte nicht gespeichert werden. Es wurde nichts geändert."),
-        ("transfer.import.error.read", "The transfer package could not be read.", "Das Transferpaket konnte nicht gelesen werden.")
+        ("transfer.import.error.read", "The archive file could not be read.", "Die Archivdatei konnte nicht gelesen werden.")
     };
 }

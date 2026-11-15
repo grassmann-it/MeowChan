@@ -84,6 +84,8 @@ public static class ShortcutGroups
         IReadOnlyList<string> contexts = command.ExecutionContexts;
         if (contexts.Contains("shell", StringComparer.Ordinal)) return Application;
         if (contexts.Count > 0 && contexts.All(c => c.StartsWith("dialog:", StringComparison.Ordinal))) return Dialogs;
+        // The video keys belong to the gallery's table; they also list under the reader (and show first there) because they run on its video.
+        if (command.Id.StartsWith("video.", StringComparison.Ordinal) && Areas(command).Contains(Gallery, StringComparer.Ordinal)) return Gallery;
         return Areas(command).FirstOrDefault(area => area != Dialogs) ?? Areas(command).FirstOrDefault() ?? Application;
     }
 

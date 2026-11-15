@@ -54,16 +54,17 @@ internal static class UiCatalog
     }
 
     /// <summary>Renders a popup, flyout, menu or other separate surface by itself (these are no part of the window image).</summary>
-    internal static void RecordSurface(Control surface, string key, string variant, string note = "") =>
-        RenderTo(surface, key, variant, note, surface);
+    internal static void RecordSurface(Control surface, string key, string variant, string note = "", double zoom = 1) =>
+        RenderTo(surface, key, variant, note, surface, zoom);
 
     internal static void Skip(string key, string reason) => Gaps.Add(new Gap(key, Theme, Language, reason));
 
-    private static void RenderTo(Visual visual, string key, string variant, string note, Control measured)
+    // zoom > 1 renders a small control (an icon button and its states) enlarged, so optical details can be judged.
+    private static void RenderTo(Visual visual, string key, string variant, string note, Control measured, double zoom = 1)
     {
         if (visual is Control control) control.UpdateLayout();
         TopLevel? top = TopLevel.GetTopLevel(visual as Control);
-        double scale = top?.RenderScaling ?? 1;
+        double scale = (top?.RenderScaling ?? 1) * zoom;
         double width = visual.Bounds.Width, height = visual.Bounds.Height;
         if (width < 1 || height < 1) throw new InvalidOperationException("Capture target has no size: " + key);
         string stem = Slug(key) + "__" + Slug(variant) + "__" + Theme + "-" + Language;

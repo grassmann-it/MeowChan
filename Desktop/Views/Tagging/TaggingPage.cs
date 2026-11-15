@@ -79,8 +79,8 @@ public sealed partial class TaggingPage : UserControl
         _thumbnails = new TaggingThumbnails(_lifetime.Token);
         Name = "TaggingPage";
         Content = BuildLayout();
-        _start.Click += (_, _) => _ = StartAsync(null);
-        _lastShown.Click += (_, _) => _ = StartAsync(null);
+        _start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
+        _lastShown.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
         InitializeCommands();

@@ -26,6 +26,8 @@ internal sealed partial class GalleryViewer
     internal event Action<GalleryEntry>? ProviderPostCopyRequested;
     /// <summary>The summary of actions the menu could not offer, shown by the shell when the menu's summary item is chosen.</summary>
     internal event Action<string>? MenuExplanationRequested;
+    /// <summary>The post bookmark entry of the menu (and its key): the shell opens the add / edit dialog for the post the medium belongs to.</summary>
+    internal event Action<GalleryEntry>? PostBookmarkRequested;
 
     private void OnMediaContextRequested(object? sender, ContextRequestedEventArgs e)
     {
@@ -96,12 +98,43 @@ internal sealed partial class GalleryViewer
             [MediaMenuAction.OpenProviderPost] = Sync(() => ProviderPostOpenRequested?.Invoke(entry)),
             [MediaMenuAction.CopyProviderPost] = Sync(() => ProviderPostCopyRequested?.Invoke(entry))
         };
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, action => action(), null,
-            text => MenuExplanationRequested?.Invoke(text));
+        Func<Func<Task>, Task> run = action => action();
+        // The same groups as the reader's menu: the playback group of a shown video on top, the post bookmark entry below the common section.
+        GalleryVideoPlayer? video = _entry?.Kind == SavedMediaKind.Video ? _video : null;
+        IReadOnlyList<Control>? playback = video == null ? null : MediaMenuBuilder.PlaybackGroup(session,
+            ReaderPlaybackMenu.GalleryExtras.Playback(true, CanUseVideoTransport, video.IsPlaybackRequested, video.Muted, video.LoopEnabled,
+                video.HasAudio, video.CanToggleLoopNow),
+            action => ExecuteVideoMenuAction(video, action), run);
+        List<Control>? context = null;
+        if (ReaderPlaybackMenu.GalleryExtras.OffersPostBookmark(entry.Post != null))
+            context = new() { MediaMenuBuilder.PostBookmarkItem(session, Sync(() => RequestPostBookmark(entry)),
+                () => !_terminalRetirement && PostBookmarkRequested != null, run) };
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, run, context,
+            text => MenuExplanationRequested?.Invoke(text), playback);
         Control owner = _nativeOverlayActive ? _nativeVideoOverlay : _viewport;
         menu.Opened += (_, _) => RefreshPlaybackControls();
         menu.Closed += (_, _) => RefreshPlaybackControls();
         _mediaMenuPresenter.Show(menu, session, owner, attachToOrigin: true, fallbackFocus: FocusGallerySurface);
+    }
+
+    private void RequestPostBookmark(GalleryEntry entry)
+    {
+        if (entry.Post == null) return;
+        PauseSlideshow();
+        PostBookmarkRequested?.Invoke(entry);
+    }
+
+    // The playback group acts on the video that was shown when the menu opened, through the gallery's own commands (the same as its keys).
+    private Task ExecuteVideoMenuAction(GalleryVideoPlayer video, ReaderVideoAction action)
+    {
+        if (!ReferenceEquals(video, _video) || !CanUseVideoTransport) return Task.CompletedTask;
+        switch (action)
+        {
+            case ReaderVideoAction.PlayPause: return video.TogglePlaybackAsync();
+            case ReaderVideoAction.Mute: return video.ToggleMuteAsync();
+            case ReaderVideoAction.Loop: ToggleVideoLoopByKey(); break;
+        }
+        return Task.CompletedTask;
     }
 
     private static Func<Task> Sync(Action action) => () => { action(); return Task.CompletedTask; };

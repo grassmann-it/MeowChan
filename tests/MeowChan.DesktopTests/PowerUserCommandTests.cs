@@ -29,9 +29,11 @@ public sealed class PowerUserCommandTests
             Assert.False(CommandBindings.Matches(new KeyEventArgs { Key = Key.D6, KeyModifiers = KeyModifiers.Meta }, id));
             return;
         }
-        Assert.Equal("Ctrl+" + suffix, CommandCatalog.ShortcutDisplay(id, false));
+        // A main page shows its footer digit and, since revision 15, its fixed letter next to it ("Ctrl+3 / Ctrl+Shift+E"); the digit stays the first gesture.
+        string? letter = MeowChan.Desktop.Commands.PageKeyScheme.Letter(id);
+        Assert.Equal("Ctrl+" + suffix + (letter == null ? "" : " / Ctrl+Shift+" + letter), CommandCatalog.ShortcutDisplay(id, false));
         // macOS shows Apple glyphs in Apple's order without "+": ⌘3, ⇧⌘P.
-        Assert.Equal(suffix == "Shift+P" ? "⇧⌘P" : "⌘" + suffix, CommandCatalog.ShortcutDisplay(id, true));
+        Assert.Equal((suffix == "Shift+P" ? "⇧⌘P" : "⌘" + suffix) + (letter == null ? "" : " / ⇧⌘" + letter), CommandCatalog.ShortcutDisplay(id, true));
         KeyGesture gesture = CommandBindings.Gesture(id)!;
         Assert.Equal(suffix switch { "1" => Key.D1, "2" => Key.D2, "3" => Key.D3, "4" => Key.D4, "5" => Key.D5, "6" => Key.D6, "7" => Key.D7, "8" => Key.D8, _ => Key.P }, gesture.Key);
         Assert.True(CommandBindings.Matches(new KeyEventArgs { Key = gesture.Key, KeyModifiers = gesture.KeyModifiers }, id));

@@ -42,6 +42,18 @@ public sealed class FooterLayout : IEquatable<FooterLayout>
     public IReadOnlyList<string> HiddenOrder => _order.Where(_hidden.Contains).ToArray();
     /// <summary>The digit order of the main pages: the visible footer buttons from left to right take Ctrl/Cmd+1, 2, 3 ..., then the hidden pages.</summary>
     public IReadOnlyList<string> Numbering => VisibleOrder.Concat(HiddenOrder).ToArray();
+    /// <summary>
+    /// The digit order in a work view (Tom 15.11.): Ctrl/Cmd+1, 2, 3 ... count the footer buttons that are effectively shown - the person's choice AND the work
+    /// view's allowance (<see cref="DirectOrder"/>) - from the left; then the pages the work view moved under More (the setting shows them), then the pages the
+    /// setting hides, each group in footer order. The width never enters, so a page that only a narrow window pushed under More keeps its digit.
+    /// <paramref name="isAvailable"/> removes a page that cannot be shown at all (Booru without its master setting) from the shown group.
+    /// </summary>
+    public IReadOnlyList<string> NumberingFor(MeowChan.Desktop.WorkViews.WorkView view, Func<string, bool>? isAvailable = null)
+    {
+        string[] shown = _order.Where(id => ShowsDirectly(id, view) && (isAvailable?.Invoke(id) ?? true)).ToArray();
+        string[] reduced = _order.Where(id => !shown.Contains(id, StringComparer.Ordinal) && !_hidden.Contains(id)).ToArray();
+        return shown.Concat(reduced).Concat(_order.Where(_hidden.Contains)).ToArray();
+    }
     public bool IsVisible(string commandId) => Array.IndexOf(_order, commandId) >= 0 && !_hidden.Contains(commandId);
     /// <summary>
     /// Whether the page may have a button of its own in this work view: the person's choice AND the work view's allowance. The work view is the upper

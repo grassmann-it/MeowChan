@@ -210,6 +210,13 @@ public partial class RulesPage
         card.Classes.Add("workspace-card");
         AutomationProperties.SetName(card, FormatScope(row.Scope) + ": " + string.Join(", ", row.Chips.Select(chip => chip.Text)));
         _overviewMenus[(scope, draftRow)] = AttachOverviewRowMenu(card, row, draftRow, removeOrDiscard);
+        // Interaction audit 1.1.0: a double click on the card (not on one of its buttons) is its first button, Edit or Continue.
+        card.DoubleTapped += (_, e) =>
+        {
+            if (!MeowChan.Desktop.Controls.ItemActivation.IsCardDoubleClick(e, card) || !IsEditable || _wizard.IsOpen) return;
+            e.Handled = true;
+            OpenRuleFromOverview(scope);
+        };
         return card;
     }
 

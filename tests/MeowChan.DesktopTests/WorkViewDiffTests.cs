@@ -176,7 +176,7 @@ public sealed class WorkViewDiffTests
         WorkViewDiffChange action = Change(diff, "downloads.toolbar.search");
         Assert.Equal(WorkViewDiffPlacement.Overflow, action.ToPlacement);
         Assert.Equal("input.focus-download-search", action.Entry.CommandId);
-        Assert.Equal(WorkViewKind.Destination, Change(diff, "shell.footer.archive").Entry.Kind);
+        Assert.Equal(WorkViewKind.Destination, Change(diff, "shell.footer.tagging").Entry.Kind);
         WorkViewDiffChange section = Change(diff, "settings.group.interface-more");
         Assert.Equal(WorkViewKind.Section, section.Entry.Kind);
         Assert.Equal(WorkViewDiffPlacement.Collapsed, section.ToPlacement);

@@ -320,7 +320,7 @@ public static class CommandBindings
         if (button.ContentTemplate == null) ShowIconBeforeText(button, icon, size);
     }
 
-    private static Control ButtonIcon(string id, int size, TextBlock? label = null, bool byKey = false)
+    internal static Control ButtonIcon(string id, int size, TextBlock? label = null, bool byKey = false)
     {
         Border icon = (Border)(byKey ? IconFromKey(id, size) : Icon(id, size));
         // Follow the rendered label, including Semi's TextBlock-specific disabled

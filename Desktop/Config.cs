@@ -513,8 +513,8 @@ namespace MeowChan
         public bool ReaderTextlessLargeImages { get; set; } = true;
         public bool ReaderHoverEnlarge { get; set; } = false;
         public bool ReaderFocusedMediaEnlarge { get; set; } = false;
-        // The media sidebar of the large reader (R8): off unless chosen (View menu or Settings), on the left unless set to the right.
-        public bool ReaderMediaSidebar { get; set; } = false;
+        // The media sidebar of the large reader (R8): on by default (Tom, 15.11.2026; a saved choice stays), switched in the View menu or Settings, on the left unless set to the right.
+        public bool ReaderMediaSidebar { get; set; } = true;
         private string _readerMediaSidebarSide = ReaderMediaSidebarSideLeft;
         internal const string ReaderMediaSidebarSideLeft = "Left", ReaderMediaSidebarSideRight = "Right";
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -534,7 +534,25 @@ namespace MeowChan
         internal const int ReaderMediaSidebarMinimumWidthMaximum = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum;
         // Inline video in the reader (R10): off unless chosen; then a click or Enter plays a video in its post or in the media sidebar.
         // Autoplay (muted) is a second opt-in. The number of live players and the largest file played inline are limits.
+        // Since 15.11.2026 this is the merged setting "Open media in the post" (videos play, images expand there): the choice "Post" of
+        // ReaderMediaClick. It keeps its stored name so that a saved "on" carries over; ReaderMediaClick wins when it was chosen.
         public bool ReaderInlineVideo { get; set; } = false;
+        // "Clicking a medium" in the reader: Sidebar (default; the gallery while the sidebar is closed), Post (play or expand in the
+        // post) or Gallery. Empty = not chosen yet: the old ReaderInlineVideo decides (true: Post, else Sidebar).
+        private string _readerMediaClick = string.Empty;
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderMediaClick
+        {
+            get => _readerMediaClick;
+            set => _readerMediaClick = ReaderMediaClickRules.Normalize(value);
+        }
+        internal ReaderMediaClickMode EffectiveReaderMediaClick => ReaderMediaClickRules.Effective(_readerMediaClick, ReaderInlineVideo);
+        /// <summary>Chooses how a click on a medium works and keeps the old inline video flag in step with it (older builds read that one).</summary>
+        internal void ChooseReaderMediaClick(ReaderMediaClickMode mode)
+        {
+            _readerMediaClick = ReaderMediaClickRules.ToKey(mode);
+            ReaderInlineVideo = mode == ReaderMediaClickMode.Post;
+        }
         public bool ReaderInlineVideoAutoplayMuted { get; set; } = false;
         public int ReaderInlineVideoMaxPlayers { get; set; } = ReaderInlineVideoMaxPlayersDefault;
         internal const int ReaderInlineVideoMaxPlayersDefault = ReaderInlineVideoOptions.MaxPlayersDefault;
@@ -1042,10 +1060,27 @@ namespace MeowChan
         /// On: it waits until MeowChan is back and then shows the current medium for a full period.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool GalleryPauseOnFocusLoss { get; set; }
-        /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's arrow cross hide.</summary>
+        /// <summary>Idle time without pointer movement before the gallery's overlay controls and the reader's navigation bar hide.</summary>
         [JsonConverter(typeof(DesktopPreferenceControlsIdleHideMsConverter))]
         public int ControlsIdleHideMs { get; set; } = ControlsIdleHideMsDefault;
         internal const int ControlsIdleHideMsDefault = 2000, ControlsIdleHideMsMinimum = 500, ControlsIdleHideMsMaximum = 30_000;
+        // Reader navigation bar (thread and post arrows with counters, floating at the lower right of the large reader): "Auto" (default)
+        // hides it while the pointer is idle (after ControlsIdleHideMs), "Always" keeps it shown, "Off" removes it (keys only). Any other
+        // stored value reads as "Auto".
+        private string _readerNavigationMode = ReaderNavigationModeAuto;
+        public const string ReaderNavigationModeAuto = "Auto", ReaderNavigationModeAlways = "Always", ReaderNavigationModeOff = "Off";
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string ReaderNavigationMode
+        {
+            get => _readerNavigationMode;
+            set => _readerNavigationMode = NormalizeReaderNavigationMode(value);
+        }
+        internal static string NormalizeReaderNavigationMode(string? value) =>
+            string.Equals(value?.Trim(), ReaderNavigationModeAlways, StringComparison.OrdinalIgnoreCase) ? ReaderNavigationModeAlways
+            : string.Equals(value?.Trim(), ReaderNavigationModeOff, StringComparison.OrdinalIgnoreCase) ? ReaderNavigationModeOff : ReaderNavigationModeAuto;
+        /// <summary>Whether the reader navigation bar shows the "3 / 27" and "12 / 405" counters (default on); off forces its compact form.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool ReaderNavigationShowPosition { get; set; } = true;
         /// <summary>GL5c: how long a transient status of the gallery's info line (the slideshow's "ready", a confirmation) stays before it fades out; a running slideshow and every error stay.</summary>
         [JsonConverter(typeof(DesktopPreferenceGalleryStatusDwellMsConverter))]
         public int GalleryStatusDwellMs { get; set; } = GalleryStatusDwellMsDefault;
@@ -1716,6 +1751,8 @@ namespace MeowChan
                 ClipboardTextLimitKiB = ClipboardTextLimitKiB,
                 StatsSampleIntervalMs = StatsSampleIntervalMs,
                 ControlsIdleHideMs = ControlsIdleHideMs,
+                ReaderNavigationMode = ReaderNavigationMode,
+                ReaderNavigationShowPosition = ReaderNavigationShowPosition,
                 GalleryStatusDwellMs = GalleryStatusDwellMs,
                 GalleryFilmstrip = GalleryFilmstrip,
                 GalleryLayout = GalleryLayout,
@@ -1781,6 +1818,7 @@ namespace MeowChan
                 ReaderMediaSidebarWidth = ReaderMediaSidebarWidth,
                 ReaderMediaSidebarMinimumWidth = ReaderMediaSidebarMinimumWidth,
                 ReaderInlineVideo = ReaderInlineVideo,
+                ReaderMediaClick = ReaderMediaClick,
                 ReaderInlineVideoAutoplayMuted = ReaderInlineVideoAutoplayMuted,
                 ReaderInlineVideoMaxPlayers = ReaderInlineVideoMaxPlayers,
                 ReaderInlineVideoMaxFileMiB = ReaderInlineVideoMaxFileMiB,
@@ -1964,6 +2002,8 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            ReaderNavigationMode = source.ReaderNavigationMode;
+            ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             GalleryFilmstrip = source.GalleryFilmstrip;
             GalleryLayout = source.GalleryLayoutResetRequested ? null : source.GalleryLayout; // (a draft that asked for the reset: nothing chosen)
@@ -2029,6 +2069,7 @@ namespace MeowChan
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;
@@ -2172,6 +2213,8 @@ namespace MeowChan
             ClipboardTextLimitKiB = source.ClipboardTextLimitKiB;
             StatsSampleIntervalMs = source.StatsSampleIntervalMs;
             ControlsIdleHideMs = source.ControlsIdleHideMs;
+            ReaderNavigationMode = source.ReaderNavigationMode;
+            ReaderNavigationShowPosition = source.ReaderNavigationShowPosition;
             GalleryStatusDwellMs = source.GalleryStatusDwellMs;
             // GL4: the layout is a direct preference of the gallery and is not taken from a draft, except its reset. The filmstrip box of the
             // settings page is the old setting: only a box the person changed sets the filmstrip choice of both modes. Changed means against
@@ -2250,6 +2293,7 @@ namespace MeowChan
             ReaderMediaSidebarWidth = source.ReaderMediaSidebarWidth;
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth;
             ReaderInlineVideo = source.ReaderInlineVideo;
+            ReaderMediaClick = source.ReaderMediaClick;
             ReaderInlineVideoAutoplayMuted = source.ReaderInlineVideoAutoplayMuted;
             ReaderInlineVideoMaxPlayers = source.ReaderInlineVideoMaxPlayers;
             ReaderInlineVideoMaxFileMiB = source.ReaderInlineVideoMaxFileMiB;

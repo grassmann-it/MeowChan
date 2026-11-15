@@ -63,6 +63,8 @@ internal static class ReaderPostWidthChecks
         PixelPoint position = window.Position;
         ThemeVariant? theme = Application.Current!.RequestedThemeVariant;
         Exception? failureBeforeCleanup = null;
+        // The media sidebar is on by default and takes its column from the posts: these widths are measured without it.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(window.ArchivePage, sidebar: false);
         try { await RunCoreAsync(window); }
         catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
@@ -71,6 +73,7 @@ internal static class ReaderPostWidthChecks
             {
                 Application.Current!.RequestedThemeVariant = theme;
                 window.ArchivePage.ReaderPostWidthPreference = window.SessionHost.Config.ReaderPostWidth;
+                ReaderSmokeSetup.Restore(window.ArchivePage, mediaBefore);
                 window.Width = width; window.Height = height;
                 window.Position = position;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));

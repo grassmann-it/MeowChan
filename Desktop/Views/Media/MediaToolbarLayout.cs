@@ -4,24 +4,29 @@ using System.Collections.Generic;
 namespace MeowChan;
 
 /// <summary>
-/// How the media toolbar adapts to the width of its page (pure rules; <see cref="MediaPage"/> applies them). The order of the row is fixed:
-/// search and filters on the left, the order (criterion and direction) on the right, with the less important tools in front of or behind it.
+/// How the media toolbar adapts to the width of its row (pure rules; <see cref="MediaPage"/> applies them). The order of the row is fixed:
+/// the search field on the left, which fills the free width (<see cref="SearchMinWidth"/> to <see cref="SearchMaxWidth"/>); on the right the
+/// filter toggle, then the order (criterion and direction), with the less important tools between and behind them.
 /// The stages: Wide shows everything; Reduced moves the focus mode, "Refresh" and "Shuffle again" under "More" (⋯); Compact moves the
-/// Booru mode switch under More as well, drops the "Sort" label in front of the criterion, and lets the search field and the criterion shrink
-/// to their narrow minimum. The order itself, the search and the filter toggle never move. The widths are layout measures of this row in
-/// dip (the Booru mode switch and the "Sort" label added about 80 dip to the old fit points of 840 and 660), not limits of the user's data;
-/// the media sort toolbar smoke check measures that the last tool of the row still fits at each stage.
+/// tag list switch and the Layout menu under More as well, drops the "Sort" label in front of the criterion, and lets the criterion shrink to
+/// its narrow minimum. The search keeps its minimum in every stage; the order, the search and the filter toggle never move. The widths are
+/// layout measures of the row in dip (the width of the row, not of the window), not limits of the user's data: each stage starts at the width
+/// its group of tools needs next to the search minimum, measured in the media sort toolbar smoke check over all 12 languages and every work
+/// view (it fails when a stage needs more than the width that starts it, and checks that the last tool of the row fits at 640 to 1920).
 /// </summary>
 internal static class MediaToolbarLayout
 {
     /// <summary>Below this width "Refresh" and "Shuffle again" move under More.</summary>
-    internal const double ReducedWidth = 920;
-    /// <summary>Below this width the Booru mode switch moves under More too, the "Sort" label goes, and the search field and the criterion shrink to <see cref="NarrowSearchMinWidth"/> and <see cref="NarrowSortMinWidth"/>.</summary>
-    internal const double CompactWidth = 740;
-    internal const double SearchMinWidth = 180, NarrowSearchMinWidth = 120;
+    internal const double ReducedWidth = 950;
+    /// <summary>Below this width the Booru mode switch moves under More too, the "Sort" label goes, and the criterion shrinks to <see cref="NarrowSortMinWidth"/>.</summary>
+    internal const double CompactWidth = 870;
+    internal const double SearchMinWidth = 240;
     internal const double SortMinWidth = 160, NarrowSortMinWidth = 120;
-    /// <summary>The longest the search field grows in the row; the free space beyond it stays empty between the two groups.</summary>
-    internal const double SearchMaxWidth = 480;
+    /// <summary>The longest the search field grows in the row; on a very wide window the free space beyond it stays empty between the search and the right group.</summary>
+    internal const double SearchMaxWidth = 900;
+
+    /// <summary>The narrowest row the page gives the toolbar: the 640 dip window minimum less the 2 x 12 dip page margin. The Compact stage must fit it.</summary>
+    internal const double NarrowestRowWidth = 616;
 
     internal enum Level { Wide, Reduced, Compact }
 
@@ -49,7 +54,8 @@ internal static class MediaToolbarLayout
     /// <summary>Whether the "Sort" label in front of the criterion is shown (it goes with the Compact stage; the criterion keeps its own name).</summary>
     internal static bool ShowsSortLabel(Level level) => level != Level.Compact;
 
-    internal static double SearchMin(Level level) => level == Level.Compact ? NarrowSearchMinWidth : SearchMinWidth;
+    /// <summary>The search never gets narrower than <see cref="SearchMinWidth"/> in any stage: the tools leave the row instead.</summary>
+    internal static double SearchMin(Level level) => SearchMinWidth;
 
     internal static double SortMin(Level level) => level == Level.Compact ? NarrowSortMinWidth : SortMinWidth;
 }

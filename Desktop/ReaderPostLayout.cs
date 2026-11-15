@@ -27,6 +27,13 @@ public sealed class ReaderPostLayout : Panel
     public static readonly AttachedProperty<bool> FocusedProperty =
         AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, bool>("Focused", false, inherits: true);
 
+    /// <summary>
+    /// The visible height of the reader list (its scroll viewport), NaN while unknown; set on the list (inherited). The focused card's
+    /// enlarged media is capped by it so the whole medium fits (<see cref="ReaderMediaFit"/>). Not a measure input of the post layout itself.
+    /// </summary>
+    public static readonly AttachedProperty<double> VisibleHeightProperty =
+        AvaloniaProperty.RegisterAttached<ReaderPostLayout, Control, double>("VisibleHeight", double.NaN, inherits: true);
+
     static ReaderPostLayout() => AffectsMeasure<ReaderPostLayout>(LargeReaderProperty, ThumbnailWidthProperty, MediaWidthProperty,
         FocusScalePercentProperty, FocusedProperty);
 

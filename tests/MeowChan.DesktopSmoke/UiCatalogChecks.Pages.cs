@@ -126,7 +126,7 @@ internal static partial class UiCatalogChecks
         })
             await StepAsync(key, async () =>
             {
-                if (!a.ReaderViewOptionIds.Contains(option)) throw new InvalidOperationException("The View menu has no " + option);
+                if (!a.ReaderViewOptionIds.Contains(option)) throw new InvalidOperationException("The reader has no view option " + option);
                 a.ToggleReaderViewOption(option);
                 try { await a.WaitForReaderViewAsync(); await Settle(w, 450); UiCatalog.Record(w, key, Standard, note); }
                 finally { a.ToggleReaderViewOption(option); await a.WaitForReaderViewAsync(); await Settle(w, 150); }

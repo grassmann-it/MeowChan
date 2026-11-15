@@ -1,20 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// The menu of "Continue reading" (right-click or the menu key on the header button, and the same entries under the app menu): the
+/// The list of "Continue reading" (the arrow next to the header button, right-click or the menu key on it, and the app menu entry): the
 /// last threads, newest first, each one the command <see cref="ContinueCommandId"/> with the text of its place, then "Show full
-/// history…" (<see cref="HistoryCommandId"/>). Every entry therefore carries the command's one icon. Pure composition: the window
-/// supplies the saved places and what choosing one and the last entry do.
+/// history…" (<see cref="HistoryCommandId"/>). Every row therefore carries the command's one icon. Pure composition of the rows
+/// (<see cref="Rows"/>); <see cref="ReadingHistoryFlyout"/> shows them.
 /// <para>
 /// The list is user data, bounded by the setting "Threads in the Continue reading menu" (3 to 25, ten by default) and never longer than
-/// the history keeps, so it is the one menu whose entry section may pass <see cref="ContextMenuModel.MaxEntriesPerSection"/>: the
-/// "Show full history…" window is its answer for more.
+/// the history keeps; the "Show full history…" window is the answer for more.
 /// </para>
 /// </summary>
 internal static class ReadingHistoryMenu
@@ -59,30 +57,30 @@ internal static class ReadingHistoryMenu
     internal static string EntryTip(LocalReadingPosition place) =>
         Texts.T("resume.history.entryTip", place.Title ?? Texts.T("resume.history.untitled", place.Board, place.Thread), place.PostId);
 
+    /// <summary>
+    /// The places the history list shows: the setting (<see cref="Shown"/>) many, newest first. Each row carries the thread's title on
+    /// the first line, where and when on the second and the sentence of its tooltip; its text for a screen reader is the one-line
+    /// <see cref="EntryText"/>.
+    /// </summary>
     /// <param name="entries">The saved places, newest first (the history as the host reads it).</param>
     /// <param name="menuEntries">The setting <c>ReadingHistoryMenuEntries</c>.</param>
     /// <param name="historyLimit">The setting <c>ReadingHistoryLimit</c>.</param>
-    /// <param name="canJump">False while another action owns the reader: the entries stay, disabled, with the reason.</param>
-    /// <param name="jump">Opens one place.</param>
-    /// <param name="showAll">Opens the window with every remembered thread.</param>
-    internal static ContextMenuBuilder Compose(IReadOnlyList<LocalReadingHistoryEntry> entries, int menuEntries, int historyLimit,
-        DateTimeOffset now, bool canJump, Action<LocalReadingPosition> jump, Action showAll)
+    internal static IReadOnlyList<ReadingHistoryRow> Rows(IReadOnlyList<LocalReadingHistoryEntry> entries, int menuEntries, int historyLimit, DateTimeOffset now)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        ArgumentNullException.ThrowIfNull(jump);
-        ArgumentNullException.ThrowIfNull(showAll);
-        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("resume.history.menu"));
-        LocalReadingHistoryEntry[] shown = entries.Take(Shown(menuEntries, historyLimit)).ToArray();
-        string? busy = canJump ? null : Texts.T("archive.command.busy");
-        if (shown.Length == 0) menu.Note(Texts.T("resume.history.empty"));
-        for (int index = 0; index < shown.Length; index++)
+        return entries.Take(Shown(menuEntries, historyLimit)).Select(entry =>
         {
-            LocalReadingPosition place = shown[index].Position;
-            // Underscores in a thread title are access-key markers in a menu header: doubled they stay literal.
-            menu.Command(ContinueCommandId, () => jump(place), canJump, busy, EntryText(shown[index], now).Replace("_", "__"),
-                EntryId(place), showShortcut: index == 0);
-        }
-        // The last entry is the window for everything the menu cut off; it needs at least one remembered thread.
-        return menu.Section().Command(HistoryCommandId, showAll, entries.Count > 0, entries.Count > 0 ? null : Texts.T("resume.history.empty"));
+            (string title, string detail) = Row(entry, now);
+            return new ReadingHistoryRow(EntryId(entry.Position), entry.Position, title, detail, EntryTip(entry.Position), EntryText(entry, now));
+        }).ToArray();
     }
 }
+
+/// <summary>One place of the history list (see <see cref="ReadingHistoryMenu.Rows"/>).</summary>
+/// <param name="Id">The stable id of the row (one per thread).</param>
+/// <param name="Place">What opening the row continues at.</param>
+/// <param name="Title">First line: the thread's title, or its board and number.</param>
+/// <param name="Detail">Second line: source, board, thread, post number and how long ago.</param>
+/// <param name="Tip">The tooltip sentence: the thread and the post it continues at.</param>
+/// <param name="Text">The one-line text ("title · No. n · time").</param>
+internal sealed record ReadingHistoryRow(string Id, LocalReadingPosition Place, string Title, string Detail, string Tip, string Text);

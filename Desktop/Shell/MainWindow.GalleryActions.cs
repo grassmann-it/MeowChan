@@ -54,6 +54,13 @@ public partial class MainWindow
         _gallery.ProviderPostCopyRequested += entry => _ = RunGalleryActionAsync(() => CopyGalleryProviderPostAsync(entry), entry.Key.ToString());
         _gallery.MenuExplanationRequested += text => ShowNotification(Texts.T("archive.command.unavailable"), text,
             NotificationType.Information, operation: "gallery.menu");
+        // The post bookmark entry of the gallery menu: the same add / edit dialog as the reader's, for the post the medium belongs to.
+        _gallery.PostBookmarkRequested += entry =>
+        {
+            Control? origin = _gallery;
+            if (entry.Post is { } post) _ = RunGalleryActionAsync(() => EditPostBookmarkAsync(new MeowChan.Persistence.PostBookmarkKey(entry.Key.Thread, post.PostId), origin),
+                entry.Key.ToString());
+        };
         _gallery.SaveFrameRequested += entry => _ = RunGalleryActionAsync(SaveGalleryFrameAsync, entry.Key.ToString());
         // L repeats the shown video: a short status says what the key did ("Repeat on / off", or that a running slideshow decides).
         _gallery.VideoLoopKeyed += (result, reason) => ShowNotification(

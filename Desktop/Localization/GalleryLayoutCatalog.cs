@@ -6,8 +6,8 @@ internal static class GalleryLayoutCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("settings.galleryLayoutReset", "Reset gallery layout", "Galerie-Layout zurücksetzen"),
-        ("settings.galleryLayoutResetHint", "Blocks and filmstrip position, for each mode. View and Tag both return to the defaults of the work view.", "Blöcke und Filmstreifen-Position, je Modus. Ansehen und Taggen kehren zum Standard der Ansicht zurück."),
-        ("settings.galleryLayoutResetDone", "The gallery layout of both modes returns to the defaults of the work view when you save.", "Das Galerie-Layout beider Modi kehrt beim Speichern zum Standard der Ansicht zurück."),
+        ("settings.galleryLayoutResetHint", "Blocks and filmstrip position, for each mode. View and Tag both return to the defaults of the work view.", "Blöcke und Filmstreifen-Position, je Modus. Ansehen und Taggen kehren zum Standard der Arbeitsansicht zurück."),
+        ("settings.galleryLayoutResetDone", "The gallery layout of both modes returns to the defaults of the work view when you save.", "Das Galerie-Layout beider Modi kehrt beim Speichern zum Standard der Arbeitsansicht zurück."),
         // GL5c: how long a transient status of the info line stays.
         ("settings.galleryStatusDwell", "Show status messages for", "Statusmeldungen anzeigen für"),
         ("settings.galleryStatusDwellHint", "How long a short status of the gallery's info line, such as “ready” of the slideshow, stays on the screen. A running slideshow, reasons for a pause and errors stay. Default {0} ms, from {1} to {2} ms.", "Wie lange ein kurzer Status der Infozeile der Galerie, etwa „Bereit“ der Diashow, sichtbar bleibt. Eine laufende Diashow, Pausengründe und Fehler bleiben stehen. Standard {0} ms, von {1} bis {2} ms."),

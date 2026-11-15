@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -89,6 +90,19 @@ internal static class ReaderMediaSidebarRules
     internal static int Step(int index, int count, int delta) => ClampIndex(ClampIndex(index, count) + Math.Sign(delta), count);
 
     internal static bool CanStep(int index, int count, int delta) => count > 1 && Step(index, count, delta) != ClampIndex(index, count);
+
+    /// <summary>
+    /// The sidebar's one header line: "No. 75 · 1745622964284451.mp4 · 880 KiB". Parts that are not known are left out; with none of them the
+    /// line is empty and the view shows the plain title.
+    /// </summary>
+    internal static string HeaderText(string postLine, string fileName, string detail) =>
+        string.Join(" · ", new[] { postLine, fileName, detail }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    /// <summary>The counter over a post's media ("2 / 3"); empty for a post with one medium or none, which has no counter and no arrows.</summary>
+    internal static string CounterText(int index, int count) => count > 1 ? ClampIndex(index, count) + 1 + " / " + count : string.Empty;
+
+    /// <summary>The overlay arrows and the counter exist only for a post with more than one medium.</summary>
+    internal static bool ShowsNavigation(int count) => count > 1;
 
     /// <summary>"cat.jpg, 1.2 MiB": the file name and, when the capture knows it, the size (binary units).</summary>
     internal static string FileText(CapturedAttachmentText attachment)
@@ -195,7 +209,14 @@ internal sealed class ReaderMediaFollowThrottle
 /// </summary>
 internal sealed class ReaderMediaSidebar : Border
 {
-    private readonly TextBlock _title = new() { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    // The header line: "No. 75 · file name · 880 KiB", trimmed with an ellipsis (the full text is its tip).
+    private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
+    // Over the medium, only for a post with several media: the counter ("2 / 3"), dark and theme-independent like the play mark.
+    private readonly TextBlock _counterText = new() { Name = "ReaderMediaSidebarCounterText", Classes = { "overlay-counter-text" }, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Border _counter = new() { Name = "ReaderMediaSidebarCounter", IsVisible = false, IsHitTestVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Bottom, Margin = new Thickness(0, 0, 0, 8),
+        Padding = new Thickness(8, 2), CornerRadius = new CornerRadius(12), Classes = { "overlay-counter" } }; // dark in both themes (WorkspaceStyles)
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent, Cursor = new Cursor(StandardCursorType.Hand) };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
@@ -213,8 +234,6 @@ internal sealed class ReaderMediaSidebar : Border
     private readonly Border _edge = ReaderFocusedMedia.CreateFrameEdge();
     // R10: the row under the picture for an inline video's transport, error line and live region (empty unless a video plays here).
     private readonly Panel _videoRow = new() { Name = "ReaderMediaSidebarVideoRow" };
-    private readonly TextBlock _fileLine = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap };
-    private readonly TextBlock _detailLine = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis }.MetaText();
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -246,9 +265,13 @@ internal sealed class ReaderMediaSidebar : Border
         internal required Border Placeholder;
     }
 
-    internal Button Previous { get; } = new() { Name = "ReaderMediaSidebarPrevious", Classes = { "icon-square" } };
-    internal Button Next { get; } = new() { Name = "ReaderMediaSidebarNext", Classes = { "icon-square" } };
-    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen" };
+    // The arrows over the medium (a post with several media only): round, dark, theme-independent (the overlay rule of the play mark).
+    internal Button Previous { get; } = new() { Name = "ReaderMediaSidebarPrevious", Classes = { "overlay-nav" }, IsVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+    internal Button Next { get; } = new() { Name = "ReaderMediaSidebarNext", Classes = { "overlay-nav" }, IsVisible = false,
+        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+    // In the header row, icon only: the words are its tooltip and name.
+    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen", Classes = { "icon-square", "ghost" } };
     internal Button Close { get; } = new() { Name = "ReaderMediaSidebarClose", Classes = { "icon-square", "ghost" } };
 
     /// <summary>The picture frame: its size is the decode target (smoke and page seam).</summary>
@@ -265,6 +288,8 @@ internal sealed class ReaderMediaSidebar : Border
 
     /// <summary>Raised by a click on the picture (the page opens the gallery, as "Open").</summary>
     internal event EventHandler? PictureActivated;
+    /// <summary>A double click on the picture: the gallery opens, whatever "Clicking a medium" is set to.</summary>
+    internal event EventHandler? GalleryRequested;
 
     /// <summary>The strip is on screen (a post with several shown files).</summary>
     internal bool StripVisible => _stripRow.IsVisible;
@@ -280,6 +305,8 @@ internal sealed class ReaderMediaSidebar : Border
 
     /// <summary>A thumbnail was chosen (click, Enter, Space or an arrow key): the file's index within the post.</summary>
     internal event EventHandler<int>? StripSelected;
+    /// <summary>A thumbnail was opened by a double click (interaction audit 1.1.0): the page shows it and opens it in the gallery.</summary>
+    internal event EventHandler<int>? StripActivated;
 
     internal ReaderMediaSidebar()
     {
@@ -303,46 +330,57 @@ internal sealed class ReaderMediaSidebar : Border
             PictureActivated?.Invoke(this, EventArgs.Empty);
         };
 
+        _frame.DoubleTapped += (_, e) =>
+        {
+            if (_bitmap == null && !_status.IsVisible) return;
+            e.Handled = true;
+            GalleryRequested?.Invoke(this, EventArgs.Empty);
+        };
+
         // The catalog applies the labels, icons and shortcuts of the two steps itself and follows language and binding changes.
         CommandBindings.Apply(Previous, "reader.sidebar.previous-media", iconOnly: true);
         CommandBindings.Apply(Next, "reader.sidebar.next-media", iconOnly: true);
+        // Icon only: the command's label is the name and the tooltip (with its shortcut); the catalog follows language and bindings.
+        CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
         Close.Content = CommandBindings.NamedIcon("x");
         Close.Opacity = 0; // shown on hover and keyboard focus, like the reader's navigation cross (edge rule: top right)
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        _title.Classes.Add("section-title");
+        // One compact row: the info line, the favourite star, "Open in gallery" and the cross. It replaces the title and the info box.
+        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
         header.Children.Add(_title);
-        Grid.SetColumn(Close, 1);
-        header.Children.Add(Close);
-
-        Border meta = new() { Padding = new Thickness(8), BorderThickness = new Thickness(1) };
-        meta[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
-        meta[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
-        meta[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");
-        meta.Child = new StackPanel { Spacing = 4, Children = { _fileLine, _detailLine } };
+        Grid.SetColumn(_favorite, 1); header.Children.Add(_favorite);
+        Grid.SetColumn(Open, 2); header.Children.Add(Open);
+        Grid.SetColumn(Close, 3); header.Children.Add(Close);
+        _counter.Child = _counterText;
+        _frame.Children.Add(Previous);
+        _frame.Children.Add(Next);
+        _frame.Children.Add(_counter);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         KeyboardNavigation.SetTabNavigation(_strip, KeyboardNavigationMode.Once);
         _strip.SelectionChanged += OnStripSelectionChanged;
         _strip.AddHandler(KeyDownEvent, OnStripKeyDown, RoutingStrategies.Tunnel);
+        _strip.DoubleTapped += (_, e) =>
+        {
+            if (!_stripRow.IsVisible || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, _strip)
+                || MeowChan.Desktop.Controls.ItemActivation.ContainerAt(e.Source, _strip) is not ListBoxItem { Tag: int index }) return;
+            e.Handled = true;
+            StripActivated?.Invoke(this, index);
+        };
         _stripRow.Children.Add(_strip);
         Grid.SetColumn(_stripCounter, 1);
+        // The counter over the medium says it ("2 / 3"); the strip keeps its text for readers (name and tooltip) without a second visible one.
+        _stripCounter.IsVisible = false;
         _stripRow.Children.Add(_stripCounter);
 
-        Grid actions = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*,Auto,Auto"), ColumnSpacing = 8 };
-        actions.Children.Add(Previous);
-        Grid.SetColumn(Next, 1); actions.Children.Add(Next);
-        Grid.SetColumn(_favorite, 3); actions.Children.Add(_favorite);
-        Grid.SetColumn(Open, 4); actions.Children.Add(Open);
-
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 8 };
+        // Header, the medium, the strip of a post with several files, and under the medium the video's controls (empty for an image).
+        // No row that is not needed takes space (an empty row has no height).
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto,Auto"), RowSpacing = 8 };
         layout.Children.Add(header);
         Grid.SetRow(_frame, 1); layout.Children.Add(_frame);
         Grid.SetRow(_stripRow, 2); layout.Children.Add(_stripRow);
         Grid.SetRow(_videoRow, 3); layout.Children.Add(_videoRow);
-        Grid.SetRow(meta, 4); layout.Children.Add(meta);
-        Grid.SetRow(actions, 5); layout.Children.Add(actions);
-        Grid.SetRow(_live, 6); layout.Children.Add(_live);
+        Grid.SetRow(_live, 4); layout.Children.Add(_live);
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -365,12 +403,8 @@ internal sealed class ReaderMediaSidebar : Border
     internal void Localize()
     {
         string title = Texts.T("reader.sidebar.title");
-        _title.Text = title;
         AutomationProperties.SetName(this, title);
-        string open = Texts.T("reader.sidebar.open");
-        Open.Content = open;
-        ToolTip.SetTip(Open, open);
-        AutomationProperties.SetName(Open, open);
+        RefreshHeader();
         string stripName = Texts.T("reader.sidebar.strip");
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
@@ -381,17 +415,37 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void UpdateClose() => Close.Opacity = _hover || IsKeyboardFocusWithin ? 1 : 0;
 
-    /// <summary>The file line and the position of the medium in its post; shown at once, before the picture is ready.</summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canPrevious, bool canNext, bool canOpen)
+    /// <summary>
+    /// The header line and the controls of the medium in its post; shown at once, before the picture is ready. <paramref name="count"/> and
+    /// <paramref name="index"/> are the post's media and the shown one: with more than one the arrows and the counter appear over the medium.
+    /// </summary>
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canPrevious, bool canNext, bool canOpen, int count = 1, int index = 0)
     {
-        _fileLine.Text = postLine.Length > 0 && fileLine.Length > 0 ? postLine + " · " + fileLine : postLine + fileLine;
-        ToolTip.SetTip(_fileLine, _fileLine.Text);
-        _detailLine.Text = detailLine;
-        _detailLine.IsVisible = detailLine.Length > 0;
+        _postLine = postLine; _fileName = fileLine; _detail = detailLine;
+        RefreshHeader();
+        bool navigation = ReaderMediaSidebarRules.ShowsNavigation(count);
+        Previous.IsVisible = Next.IsVisible = navigation;
         Previous.IsEnabled = canPrevious;
         Next.IsEnabled = canNext;
+        _counter.IsVisible = navigation;
+        _counterText.Text = ReaderMediaSidebarRules.CounterText(index, count);
         Open.IsEnabled = canOpen;
+        Open.IsVisible = true;
         AutomationProperties.SetName(_image, fileLine);
+    }
+
+    /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>
+    internal string HeaderLine => _title.Text ?? string.Empty;
+    /// <summary>The counter over the medium; empty without one.</summary>
+    internal string CounterLine => _counter.IsVisible ? _counterText.Text ?? string.Empty : string.Empty;
+    /// <summary>Whether the arrows over the medium are shown (a post with several media).</summary>
+    internal bool NavigationVisible => Previous.IsVisible && Next.IsVisible;
+
+    private void RefreshHeader()
+    {
+        string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
+        _title.Text = text.Length > 0 ? text : Texts.T("reader.sidebar.title");
+        ToolTip.SetTip(_title, _title.Text);
     }
 
     internal void ConfigureFavorite(ArchiveAttachmentRow? row)
@@ -415,8 +469,8 @@ internal sealed class ReaderMediaSidebar : Border
 
     internal void SetDetail(string detailLine)
     {
-        _detailLine.Text = detailLine;
-        _detailLine.IsVisible = detailLine.Length > 0;
+        _detail = detailLine;
+        RefreshHeader();
     }
 
     /// <summary>Shows a decoded picture; the previous one is given back. <paramref name="release"/> gives this one back later.</summary>

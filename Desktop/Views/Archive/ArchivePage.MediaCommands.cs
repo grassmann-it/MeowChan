@@ -105,8 +105,9 @@ public partial class ArchivePage
     private void OnArchiveMediaContextKey(object? sender, KeyEventArgs e)
     {
         if (_ended || !_available || IsReaderDialogOpen || e.Source is not Control source || !MediaMenuPresenter.IsContextKey(e)) return;
-        if (!source.GetSelfAndVisualAncestors().OfType<Control>().Any(control => control is ArchiveAttachmentView
-            || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")) return;
+        Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (!path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
+            && SidebarMediaContext(path) == null) return;
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
@@ -131,12 +132,18 @@ public partial class ArchivePage
             origin = list;
         }
         string? postId = ancestors.Select(control => control.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
+        // The medium of the media sidebar: the same menu as the attachment it shows in its post (right-click, Menu key, Shift+F10).
+        ReaderInlineVideoSlot? playback = attachmentView?.InlineVideoForKeys();
+        if (attachment == null && asset == null && SidebarMediaContext(ancestors) is { } shown)
+        {
+            attachment = shown.Attachment; postId = shown.PostId; origin = shown.Origin; playback = _sidebarVideo;
+        }
         if (attachment != null) asset = _selectedThread == null || postId == null ? null : FindMatchingAsset(_selectedThread, postId, attachment.Attachment, _assets);
         if (asset == null && attachment == null) return;
         if (_selectedThread == null || _thread == null || origin == null) return;
         e.Handled = true;
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
-            SeveralSelectedWith(asset, attachment));
+            SeveralSelectedWith(asset, attachment), playback);
         _mediaMenuPresenter.Show(menu, session, origin);
     }
 
@@ -175,8 +182,26 @@ public partial class ArchivePage
         return CommandBindings.RouteMenuAction(BuildArchiveMediaMenu(asset, attachment, origin, postId, surface, SeveralSelectedWith(asset, attachment)).Menu, e);
     }
 
+    // The sidebar's picture and video row (not its header buttons) stand for the medium it shows: its attachment, post and menu origin.
+    private (ArchiveAttachmentRow Attachment, string PostId, Control Origin)? SidebarMediaContext(Control[] ancestors)
+    {
+        if (_mediaSidebar == null || !_mediaSidebarShown || !ancestors.Any(control => ReferenceEquals(control, _mediaSidebar.FrameArea)
+                || ReferenceEquals(control, _mediaSidebar.VideoRow))) return null;
+        return ArchivePosts.SelectedItem is ArchivePostRow post && CurrentSidebarAttachment() is { } current
+            ? (current, post.Id, _mediaSidebar.FrameArea) : null;
+    }
+
+    // The playback group of a video that plays in the reader: Play / Pause, Mute / Unmute, Repeat on / off, with the bindings' shortcuts.
+    private static List<Control>? PlaybackMenuItems(ReaderInlineVideoSlot? slot, MediaMenuSession session, Func<Func<Task>, Task> run)
+    {
+        if (slot is not { IsOffered: true }) return null;
+        return MediaMenuBuilder.PlaybackGroup(session,
+            ReaderPlaybackMenu.Entries(slot.IsLive, slot.IsPlaying, slot.Player?.Muted == true, slot.Player?.LoopEnabled == true),
+            action => slot.ExecuteAsync(action), run);
+    }
+
     private (ContextMenu Menu, MediaMenuSession Session) BuildArchiveMediaMenu(ArchiveAssetRow? asset, ArchiveAttachmentRow? attachment,
-        Control origin, string? postId, MediaMenuSurface surface, ArchiveAssetRow[]? selection = null)
+        Control origin, string? postId, MediaMenuSurface surface, ArchiveAssetRow[]? selection = null, ReaderInlineVideoSlot? playback = null)
     {
         Action<string> reportError = CaptureActionErrorReporter();
         // Freeze the current manifest references and post association together. Neither
@@ -313,7 +338,7 @@ public partial class ArchivePage
             context.Add(MediaMenuBuilder.ContextItem(session, "media.selection.clear", () => { ClearMediaSelection(); return Task.CompletedTask; },
                 () => true, Run));
         }
-        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text));
+        ContextMenu menu = MediaMenuBuilder.Build(session, model, handlers, Run, context, text => Message(text), PlaybackMenuItems(playback, session, Run));
         return (menu, session);
     }
 

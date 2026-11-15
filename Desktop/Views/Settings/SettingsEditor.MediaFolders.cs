@@ -34,6 +34,9 @@ public partial class SettingsEditor
         get { EnsureMediaFolders(); return _mediaFolders; }
     }
 
+    /// <summary>Opens the dialog of "Add folder…" (the empty Media page's "Link folder…"); nothing happens while the group has no list yet.</summary>
+    internal void BeginAddFolderSource() => FolderSourcesSection?.BeginAdd();
+
     /// <summary>Shows the folder sources again (after a change the host announced).</summary>
     internal void RefreshFolderSources() => _mediaFolders?.Refresh();
 

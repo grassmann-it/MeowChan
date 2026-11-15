@@ -582,6 +582,8 @@ internal static partial class MediaPageChecks
             grid.SelectedIndex = 0;
             await page.OpenSelectedAsync();
             Require(opened.Count == 1 && opened[0].Window.Count == 2, "Gallery window must hold one entry per tile.");
+            // Interaction audit: double click and Enter on a tile open the same gallery window (MediaPageChecks.TileActivation.cs).
+            await TileActivationParityAsync(page, window, opened);
         }
         finally { page.EndLifetime(); window.Close(); }
     }

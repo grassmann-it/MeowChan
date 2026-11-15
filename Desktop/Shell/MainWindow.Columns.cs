@@ -72,6 +72,7 @@ public partial class MainWindow
         }
         builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
             () => _ = ResetDownloadColumnsAsync(gridName, mode));
+        help.Add(("archive.columnsReset", Texts.T("archive.columnsReset.hint")));
         ContextMenu menu = builder.Build()!;
         foreach ((string key, string? text) in help)
         {

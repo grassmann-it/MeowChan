@@ -84,6 +84,8 @@ internal static class DesignLintScanner
         new(DesignRules.ColorCode, "Desktop/Controls/GalleryFilmstrip.cs", "Colors.Black", "Opacity-mask gradient of the faded strip ends (GL5e), not a visible colour."),
         // Key-cap symbols of shortcut gestures are text of the shortcut label, not icons.
         new(DesignRules.GlyphIcon, "Desktop/Commands/EffectiveShortcutBindings.cs", "", "Modifier and navigation key symbols (⌘ ⌥ ⇧ ← ↑ ...) in shortcut gesture text."),
+        // Reader navigation capsule (reader-navigation-bar): 32 dip buttons + 2 x 3 padding + 2 x 1 border = ReaderNavigationLayout.BarHeight 40.
+        new(DesignRules.SpacingOffGrid, "Desktop/Views/Archive/ArchivePage.axaml", "Padding=\"3\"", "Reader navigation capsule inset: keeps the pinned 40 dip bar height (ReaderNavigationBarTests)."),
         new(DesignRules.GlyphIcon, "Desktop/Localization/PlatformKeyNames.cs", "", "The macOS Option key symbol (⌥) as the modifier name inside running texts, the same glyph as the shortcut labels."),
     };
 

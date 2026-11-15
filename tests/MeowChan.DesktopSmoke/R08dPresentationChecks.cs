@@ -205,18 +205,26 @@ internal static class R08dPresentationChecks
                 await Program.WaitUntilAsync(() => read.IsEffectivelyEnabled);
                 Click(read);
                 await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id
-                    && fixture.FindControl<Button>("ArchiveReaderFullscreen")!.IsEffectivelyVisible);
+                    && fixture.FindControl<ActionToolBar>("ReaderToolbar")!.More?.IsEffectivelyVisible == true);
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
+                ActionToolBar readerBar = fixture.FindControl<ActionToolBar>("ReaderToolbar")!;
+                // RL1: full screen is under More in every work view (the header button and F11 carry it on the bar's behalf); the
+                // action is checked where the user finds it, in the opened More popup.
+                Require(readerBar.OverflowHost?.Children.Contains(full) == true, "Full screen is not under More in the reader toolbar.");
+                readerBar.More!.IsChecked = true;
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return full.IsAttachedToVisualTree() && full.Bounds.Width > 0; },
+                    () => "Full screen is not shown in the opened More popup.");
                 Require(full.IsEnabled && full.Bounds.Width > 0
                     && full.Content is StackPanel fullPanel && fullPanel.Children.Count == 2
                     && fullPanel.Children[0] is Control
                     && fullPanel.Children[1] is TextBlock fullLabel && !string.IsNullOrWhiteSpace(fullLabel.Text)
                     && !string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(full)),
                     "The reader's visible OS full-screen action is missing.");
+                readerBar.More.IsChecked = false;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
                     wide.Client.Width, wide.Client.Height));
                 Button back = fixture.FindControl<Button>("ArchiveBackButton")!;
-                Require(FitsWindow(window, full) && (!back.IsVisible || FitsWindow(window, back)),
+                Require(FitsWindow(window, readerBar.More!) && (!back.IsVisible || FitsWindow(window, back)),
                     "The reader's native full-screen or back action overflows the fitted wide viewport.");
                 Console.WriteLine($"SMOKE archive native viewport: requested={wide.Client}; actual={window.Bounds.Size}; "
                     + $"workingArea={screen.WorkingArea}; scale={window.RenderScaling}; "
@@ -229,7 +237,7 @@ internal static class R08dPresentationChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, 760, 500)
-                        && FitsWindow(window, full) && FitsWindow(window, back);
+                        && FitsWindow(window, readerBar.More!) && FitsWindow(window, back);
                 });
                 Program.CaptureWindow(window, "smoke-r08d-reader-narrow.png");
                 Click(fixture.FindControl<Button>("ArchiveBackButton")!);

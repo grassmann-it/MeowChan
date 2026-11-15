@@ -29,16 +29,21 @@ public sealed class ArchiveAttachmentView : UserControl
         internal Control Lead = null!, Frame = null!, Trail = null!;
         /// <summary>Compact list rows: the picture is centred in the slot the owner gives (a uniform slot for portrait and landscape).</summary>
         internal bool CenterFrame;
-        /// <summary>The inline video's row (R10: transport, error, live region) under the frame; null until a video plays here.</summary>
-        internal Control? Video;
+        /// <summary>The inline video's row (R10: transport at the frame's width, error, live region) under the frame; null until a video plays here.</summary>
+        internal ReaderInlineVideoRow? Video;
+
+        /// <summary>The height of everything but the frame (file line, video row, provenance and the gaps between): what a picture's height shares with.</summary>
+        internal double NonFrameHeight =>
+            Lead.DesiredSize.Height + Spacing + (Video?.IsVisible == true ? Spacing + Video.DesiredSize.Height : 0)
+            + (Trail.IsVisible ? Spacing + Trail.DesiredSize.Height : 0);
 
         protected override Size MeasureOverride(Size availableSize)
         {
             Frame.Measure(new Size(availableSize.Width, double.PositiveInfinity));
             double width = MediaSlotGeometry.BlockWidth(Frame.DesiredSize.Width, availableSize.Width);
             bool video = Video?.IsVisible == true;
-            // The video's controls keep a usable width under a small picture (never wider than the owner gives).
-            if (video) width = Math.Max(width, Math.Min(ReaderInlineVideoSlot.MinimumRowWidth, double.IsFinite(availableSize.Width) ? availableSize.Width : width));
+            // The video's bar is exactly as wide as the picture's frame (never wider); its error line may use the block's width.
+            if (video) Video!.FrameWidth = Frame.DesiredSize.Width;
             Size line = new(width, double.PositiveInfinity);
             Lead.Measure(line); Trail.Measure(line);
             double height = Lead.DesiredSize.Height + Spacing + Frame.DesiredSize.Height;
@@ -53,7 +58,12 @@ public sealed class ArchiveAttachmentView : UserControl
             Lead.Arrange(new Rect(0, y, width, Lead.DesiredSize.Height)); y += Lead.DesiredSize.Height + Spacing;
             double frameWidth = Math.Min(width, Frame.DesiredSize.Width);
             Frame.Arrange(new Rect(CenterFrame ? Math.Max(0, (width - frameWidth) / 2) : 0, y, frameWidth, Frame.DesiredSize.Height)); y += Frame.DesiredSize.Height + Spacing;
-            if (Video?.IsVisible == true) { Video.Arrange(new Rect(0, y, width, Video.DesiredSize.Height)); y += Video.DesiredSize.Height + Spacing; }
+            if (Video?.IsVisible == true)
+            {
+                Video.FrameWidth = Frame.DesiredSize.Width;
+                Video.Arrange(new Rect(CenterFrame ? Math.Max(0, (width - frameWidth) / 2) : 0, y, CenterFrame ? frameWidth : width, Video.DesiredSize.Height));
+                y += Video.DesiredSize.Height + Spacing;
+            }
             if (Trail.IsVisible) Trail.Arrange(new Rect(0, y, width, Trail.DesiredSize.Height));
             return finalSize;
         }
@@ -129,9 +139,28 @@ public sealed class ArchiveAttachmentView : UserControl
         // The focused card (the list's selected item) and the enlargement percentage arrive by inheritance from the post list.
         if (change.Property == ReaderPostLayout.FocusedProperty || change.Property == ReaderPostLayout.FocusScalePercentProperty)
             RefreshFocus();
+        // The reader's visible height caps the enlarged picture; it only matters while this card is enlarged or the picture is expanded in its post.
+        if (change.Property == ReaderPostLayout.VisibleHeightProperty && _column != null && (FocusFactor() > 1 || _expanded))
+        {
+            ApplyFrameLimits(DataContext as ArchiveAttachmentRow, (DataContext as ArchiveAttachmentRow)?.LargePreview == true);
+            _slot.InvalidateMeasure();
+        }
         // (Inherited values arrive once attached; the guard only covers a property set before the constructor finished.)
-        if (change.Property == InlineVideoProperty && _column != null) { RefreshInlineVideo(); UpdateButtonName(DataContext as ArchiveAttachmentRow); }
+        if (change.Property == InlineVideoProperty && _column != null)
+        {
+            if (change.OldValue is ReaderInlineVideoController old) old.OptionsChanged -= OnInlineOptionsChanged;
+            if (change.NewValue is ReaderInlineVideoController current) current.OptionsChanged += OnInlineOptionsChanged;
+            RefreshInlineVideo(); UpdateButtonName(DataContext as ArchiveAttachmentRow);
+        }
         if (change.Property == ReaderPostLayout.FocusedProperty && _column != null) ScheduleInlineAutoplay();
+    }
+
+    // The choice "Clicking a medium" changed: a post that no longer opens media in place puts its image back and offers no video.
+    private void OnInlineOptionsChanged()
+    {
+        if (_expanded && GetValue(InlineVideoProperty)?.Options.InPost != true) SetExpanded(false);
+        RefreshInlineVideo();
+        UpdateButtonName(DataContext as ArchiveAttachmentRow);
     }
 
     private double FocusFactor() =>
@@ -141,21 +170,112 @@ public sealed class ArchiveAttachmentView : UserControl
     // Without either the legacy limits stay exactly as they were (no height override).
     private void ApplyFrameLimits(ArchiveAttachmentRow? row, bool large)
     {
+        if (_expanded && row != null)
+        {
+            // "Open in the post": the picture takes the post column's width (the frame never exceeds what the owner gives), as high as the
+            // reader shows at once, so a tall picture is narrower rather than longer than the window.
+            _slot.MaximumWidthOverride = ExpandedMaximumWidth;
+            _slot.MaximumHeightOverride = ExpandedMaximumHeight;
+            _edge.IsVisible = false;
+            return;
+        }
         double factor = FocusFactor();
         double width = row?.ThumbnailWidth > 0 ? row.ThumbnailWidth : MediaFramePanel.MaximumWidth(large);
         _slot.MaximumWidthOverride = width * factor;
         double height = row?.ThumbnailMaxHeight > 0 ? row.ThumbnailMaxHeight : MediaFramePanel.MaximumHeight(large);
-        _slot.MaximumHeightOverride = row?.ThumbnailMaxHeight > 0 || factor > 1 ? height * factor : double.NaN;
+        double cap = row?.ThumbnailMaxHeight > 0 || factor > 1 ? height * factor : double.NaN;
+        // An enlarged picture is shown whole: its height is capped by what the visible reader leaves under the post header (ReaderMediaFit).
+        if (factor > 1 && VisibleFrameHeight() is var visible && double.IsFinite(visible))
+            cap = ReaderMediaFit.HeightCap(height, factor, visible, MediaSlotGeometry.Fit(_slot.Aspect, double.PositiveInfinity, width, height).Height);
+        _slot.MaximumHeightOverride = cap;
         _edge.IsVisible = factor > 1 && row != null;
     }
+
+    // ---- "Open in the post": an image expands in its post --------------------------------------------------------------------------
+
+    private bool _expanded;
+    private const double ExpandedMaximumWidth = 8192, ExpandedFallbackHeight = 720, ExpandedMinimumHeight = 240;
+
+    // As high as the visible reader leaves under the post's chrome (the shared ReaderMediaFit helper of the focus enlargement, glue wave8),
+    // at least 240 dip; 720 dip while the reader's visible height is not known yet.
+    private double ExpandedMaximumHeight =>
+        VisibleFrameHeight() is var visible && double.IsFinite(visible) && visible > 0 ? Math.Max(ExpandedMinimumHeight, visible) : ExpandedFallbackHeight;
+
+    /// <summary>Whether the picture is expanded in its post (the choice "Open in the post"; a second click puts it back).</summary>
+    internal bool IsExpanded => _expanded;
+
+    /// <summary>The picture expands to the post column's width, or goes back to its thumbnail size.</summary>
+    internal void SetExpanded(bool expanded)
+    {
+        ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
+        if (expanded && !ReaderInlineVideoRules.CanExpand(GetValue(InlineVideoProperty)?.Options ?? default, row)) expanded = false;
+        if (_expanded == expanded) return;
+        _expanded = expanded;
+        GetValue(HoverEnlargeProperty)?.Leave(this);
+        RefreshFocus();
+        _column.InvalidateMeasure();
+        Avalonia.Automation.AutomationProperties.SetHelpText(_button, expanded ? Texts.T("reader.media.collapseHint") : null);
+    }
+
+    private bool WantsEnlarged => _expanded || FocusFactor() > 1;
+
+    /// <summary>
+    /// The height around this picture inside the reader card: the post header above the media row, the file line (and a video row or
+    /// provenance line), this view's margins and the card's bottom padding. Estimated for the header until the tree can measure it.
+    /// </summary>
+    internal double ChromeHeight()
+    {
+        double above = ReaderMediaFit.HeaderEstimate;
+        if (this.FindAncestorOfType<ReaderPostLayout>() is { } layout && layout.FindAncestorOfType<ListBoxItem>() is { } card
+            && layout.TranslatePoint(default, card) is { } at)
+            above = at.Y;
+        return above + Margin.Top + Margin.Bottom + _column.NonFrameHeight + ReaderMediaFit.CardBottomPadding;
+    }
+
+    /// <summary>The height a picture's frame may use in the visible reader (viewport minus <see cref="ChromeHeight"/>); NaN while the viewport is unknown.</summary>
+    internal double VisibleFrameHeight() => ReaderMediaFit.VisibleHeight(GetValue(ReaderPostLayout.VisibleHeightProperty), ChromeHeight());
+
+    /// <summary>Raised (bubbling) when the frame of an enlarged picture changed size, so the reader can keep the whole picture in view.</summary>
+    internal static readonly Avalonia.Interactivity.RoutedEvent<Avalonia.Interactivity.RoutedEventArgs> FocusedFrameChangedEvent =
+        Avalonia.Interactivity.RoutedEvent.Register<ArchiveAttachmentView, Avalonia.Interactivity.RoutedEventArgs>(nameof(FocusedFrameChangedEvent), Avalonia.Interactivity.RoutingStrategies.Bubble);
+
+    /// <summary>The frame's rectangle in the coordinates of <paramref name="ancestor"/>; null while it cannot be placed.</summary>
+    internal Rect? FrameBoundsIn(Visual ancestor) =>
+        _slot.TranslatePoint(default, ancestor) is { } at ? new Rect(at, _slot.Bounds.Size) : null;
 
     private void RefreshFocus()
     {
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
         ApplyFrameLimits(row, row?.LargePreview == true);
         _slot.InvalidateMeasure();
-        if (FocusFactor() > 1) _ = EnlargeAsync();
+        if (WantsEnlarged) _ = EnlargeAsync();
         else DropEnlarged();
+    }
+
+    /// <summary>
+    /// What a click (or Enter on the post) does with this medium, by the choice "Clicking a medium": "Open in the post" plays a video or
+    /// expands an image here (a second time puts it back); "In the sidebar" shows it there (the gallery while the sidebar is closed); "In the
+    /// gallery" opens the gallery. A double click always opens the gallery.
+    /// </summary>
+    internal void ActivateMedium()
+    {
+        if (DataContext is not ArchiveAttachmentRow row) return;
+        ReaderInlineVideoOptions options = GetValue(InlineVideoProperty)?.Options ?? default;
+        // The sidebar is assumed to be shown here; whether it took the tile is answered by the page (TileActivation), else the gallery opens.
+        switch (ReaderMediaClickRules.Click(options, InlineVideoOffered, ReaderInlineVideoRules.CanExpand(options, row), sidebarShown: true))
+        {
+            case ReaderMediaClickRules.Outcome.PlayInPost:
+                GetValue(HoverEnlargeProperty)?.Leave(this);
+                ReaderInlineVideoSlot slot = EnsureInlineVideo();
+                _ = slot.IsLive ? slot.ToggleAsync() : slot.PlayAsync();
+                return;
+            case ReaderMediaClickRules.Outcome.ExpandInPost:
+                SetExpanded(!_expanded);
+                return;
+            case ReaderMediaClickRules.Outcome.ShowInSidebar when GetValue(TileActivationProperty)?.Invoke(row) == true:
+                return;
+        }
+        row.OpenPreview?.Invoke();
     }
 
     // The focused card's picture is decoded again at its larger size, only for this card and only when the ordinary decode is smaller.
@@ -163,9 +283,11 @@ public sealed class ArchiveAttachmentView : UserControl
     private async Task EnlargeAsync()
     {
         double factor = FocusFactor();
-        if (factor <= 1 || !_visible || _bitmap == null || GetLoadingSuspended(this)
+        if (!WantsEnlarged || !_visible || _bitmap == null || GetLoadingSuspended(this)
             || DataContext is not ArchiveAttachmentRow { LoadSized: { } load } row) return;
-        int target = (int)Math.Ceiling(Math.Max(1, row.ThumbnailWidth) * factor);
+        // Expanded: the post column's width (what the frame can get), else the focus factor times the thumbnail width.
+        int target = _expanded ? (int)Math.Ceiling(Math.Max(row.ThumbnailWidth, Math.Min(ExpandedMaximumWidth, Bounds.Width > 1 ? Bounds.Width : row.ThumbnailWidth)))
+            : (int)Math.Ceiling(Math.Max(1, row.ThumbnailWidth) * factor);
         ReaderDisplayPreferences.ThumbnailDecodeBounds bounds = ReaderDisplayPreferences.DecodeBoundsForWidth(target, row.LargePreview);
         if (ReaderDisplayPreferences.DecodeBoundsForWidth(row.ThumbnailWidth, row.LargePreview).MaximumWidth >= bounds.MaximumWidth
             || _enlarged != null && _enlargedWidth >= bounds.MaximumWidth) return;
@@ -178,7 +300,7 @@ public sealed class ArchiveAttachmentView : UserControl
         {
             pending = load(bounds.MaximumWidth, bounds.MaximumHeight, enlarging.Token);
             Bitmap? bitmap = await pending.WaitAsync(LoadTimeout, enlarging.Token);
-            if (request != _enlargeRequest || enlarging.IsCancellationRequested || !_visible || FocusFactor() <= 1)
+            if (request != _enlargeRequest || enlarging.IsCancellationRequested || !_visible || !WantsEnlarged)
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             if (bitmap == null) return;
             Bitmap? previous = _enlarged;
@@ -235,18 +357,25 @@ public sealed class ArchiveAttachmentView : UserControl
         _button = new Button { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
-        _button.Click += (_, _) =>
+        _button.Click += (_, _) => ActivateMedium();
+        // A double click always opens the gallery, whatever "Clicking a medium" is set to.
+        _button.DoubleTapped += (_, e) =>
         {
-            // R10: with inline video on, a video plays here (click or Enter on it); everything else opens the gallery as before.
-            if (InlineVideoOffered) { GetValue(HoverEnlargeProperty)?.Leave(this); _ = EnsureInlineVideo().PlayAsync(); return; }
-            (DataContext as ArchiveAttachmentRow)?.OpenPreview?.Invoke();
+            if (DataContext is not ArchiveAttachmentRow { OpenPreview: { } open }) return;
+            e.Handled = true;
+            if (_expanded) SetExpanded(false);
+            open();
         };
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
         _slot.Children.Add(_button); _slot.Children.Add(_badges); _slot.Children.Add(_edge);
+        _slot.SizeChanged += (_, e) =>
+        {
+            if (e.HeightChanged && FocusFactor() > 1) RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(FocusedFrameChangedEvent));
+        };
         // The hover preview of the reader (off unless the option is on; the owner supplies it through HoverEnlargeProperty).
         _button.PointerEntered += (_, _) =>
         {
-            if (DataContext is ArchiveAttachmentRow row && FocusFactor() <= 1) GetValue(HoverEnlargeProperty)?.Enter(this, row, _button);
+            if (DataContext is ArchiveAttachmentRow row && FocusFactor() <= 1 && !_expanded) GetValue(HoverEnlargeProperty)?.Enter(this, row, _button);
         };
         _button.PointerExited += (_, _) => GetValue(HoverEnlargeProperty)?.Leave(this);
         _button.AddHandler(PointerPressedEvent, (_, _) => GetValue(HoverEnlargeProperty)?.Leave(this), Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -259,7 +388,7 @@ public sealed class ArchiveAttachmentView : UserControl
         _column = new AttachmentColumn { Lead = fileLine, Frame = _slot, Trail = _provenance,
             Children = { fileLine, _slot, _provenance } };
         Content = _column;
-        DataContextChanged += (_, _) => { _missing = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
+        DataContextChanged += (_, _) => { _missing = false; _expanded = false; WatchAspect(DataContext as ArchiveAttachmentRow); Reset(); UpdateLabel(); RefreshInlineVideo(); if (_visible) _ = LoadAsync(); };
         EffectiveViewportChanged += (_, e) =>
         {
             Rect bounds = new(Bounds.Size);
@@ -301,7 +430,7 @@ public sealed class ArchiveAttachmentView : UserControl
     /// <summary>The inline video of this attachment (smoke seam); null until it was offered once.</summary>
     internal ReaderInlineVideoSlot? InlineVideo => _inlineVideo;
 
-    private bool InlineVideoOffered => ReaderInlineVideoRules.CanOffer(GetValue(InlineVideoProperty)?.Options ?? default, DataContext as ArchiveAttachmentRow);
+    private bool InlineVideoOffered => ReaderInlineVideoRules.CanOfferInPost(GetValue(InlineVideoProperty)?.Options ?? default, DataContext as ArchiveAttachmentRow);
 
     private ReaderInlineVideoSlot EnsureInlineVideo()
     {
@@ -309,9 +438,9 @@ public sealed class ArchiveAttachmentView : UserControl
         // Posts keep their own thumbnail button as the idle click target (hover preview, media menu); the slot's activator appears
         // only over a paused older video, whose picture covers that button.
         ReaderInlineVideoSlot slot = _inlineVideo = new ReaderInlineVideoSlot(_slot, activatorWhenIdle: false);
-        _column.Video = slot.Below;
-        _column.Children.Add(slot.Below);
-        slot.Below.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) _column.InvalidateMeasure(); };
+        _column.Video = slot.Row;
+        _column.Children.Add(slot.Row);
+        slot.Row.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) _column.InvalidateMeasure(); };
         RefreshInlineVideo();
         return slot;
     }
@@ -324,8 +453,18 @@ public sealed class ArchiveAttachmentView : UserControl
         ArchiveAttachmentRow? row = DataContext as ArchiveAttachmentRow;
         bool offered = InlineVideoOffered;
         slot.Offer(offered ? GetValue(InlineVideoProperty) : null, offered ? ReaderInlineVideoSlot.KeyOf(row!.Attachment) : null,
-            row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty);
+            row?.ResolveEntry, row?.Attachment.OriginalFileName ?? row?.Attachment.MediaId ?? string.Empty, row?.OpenPreview);
     }
+
+    /// <summary>The inline video of this attachment for the reader's video keys: its slot when the video can play here, else none.</summary>
+    internal ReaderInlineVideoSlot? InlineVideoForKeys() => InlineVideoOffered ? EnsureInlineVideo() : null;
+
+    /// <summary>
+    /// Inherited: the reader's media sidebar takes a click on a tile of its focused post (the tile is then shown there instead of opening
+    /// the gallery or playing in the post). It returns true when it took the click.
+    /// </summary>
+    internal static readonly AttachedProperty<Func<ArchiveAttachmentRow, bool>?> TileActivationProperty =
+        AvaloniaProperty.RegisterAttached<ArchiveAttachmentView, Control, Func<ArchiveAttachmentRow, bool>?>("TileActivation", null, inherits: true);
 
     // Autoplay (opt-in, muted) of the focused card's first video, once the selection rested; never while the sidebar presents it.
     private void ScheduleInlineAutoplay()
@@ -485,7 +624,7 @@ public sealed class ArchiveAttachmentView : UserControl
             _bitmap = bitmap;
             _image.Source = bitmap;
             _image.IsVisible = bitmap != null;
-            if (bitmap != null && FocusFactor() > 1) _ = EnlargeAsync();
+            if (bitmap != null && WantsEnlarged) _ = EnlargeAsync();
             _status.IsVisible = bitmap == null;
             _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Attachment.OriginalFileName ?? string.Empty)
                 == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");

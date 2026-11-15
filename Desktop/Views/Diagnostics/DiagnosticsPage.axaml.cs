@@ -41,7 +41,7 @@ public partial class DiagnosticsPage : UserControl
 
     public DiagnosticsPage()
     {
-        InitializeComponent(); InitializeContextMenu(); _diagnosticFiltersReady = true;
+        InitializeComponent(); InitializeContextMenu(); InitializeRowInteraction(); _diagnosticFiltersReady = true;
         // A page that is shown before its first session refresh still carries its labels and headers.
         ApplyStaticLabels();
         RefreshSelection();

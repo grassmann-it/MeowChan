@@ -23,8 +23,13 @@ public sealed class ContextMenuCatalogTests : IDisposable
         foreach (string id in Ids)
         {
             Assert.True(CommandCatalog.TryGet(id, out CommandDefinition? command), id);
-            Assert.Null(command!.Shortcut);
-            Assert.Empty(command.DefaultGestures);
+            // Interaction audit (DefaultsRevision 16): Ctrl/Cmd+C copies the selected statistics row; every other menu command stays without a gesture.
+            if (id == "statistics.copy-row") Assert.Equal("Primary+C", command!.Shortcut);
+            else
+            {
+                Assert.Null(command!.Shortcut);
+                Assert.Empty(command.DefaultGestures);
+            }
             Assert.False(string.IsNullOrWhiteSpace(CommandCatalog.Label(id)));
             Assert.Equal(command.LabelEn, CommandCatalog.Label(id));
         }
