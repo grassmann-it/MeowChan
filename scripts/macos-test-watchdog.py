@@ -14,6 +14,14 @@ PROJECTS = (
     ('desktop', 'tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj'),
 )
 
+# Candidate validation gets a little more room without making a hang
+# unbounded. 360s + 720s leaves two minutes in the 20-minute workflow step
+# for timeout sampling, process-group cleanup, and writing bounded evidence.
+STANDARD_CORE_TIMEOUT = 300
+STANDARD_DESKTOP_TIMEOUT = 600
+CANDIDATE_CORE_TIMEOUT = 360
+CANDIDATE_DESKTOP_TIMEOUT = 720
+
 
 def processes(group):
     result = subprocess.run(['ps', '-axo', 'pid=,ppid=,pgid=,stat=,etime=,command='],
@@ -106,8 +114,8 @@ def run_one(name, command, output, timeout):
             # Also remove surviving children after an ordinary runner exit.
             cleanup = cleanup_group(child)
     result = dict(name=name, command=command, pid=child.pid, timeout=timed_out,
-                  exit_code=child.returncode, seconds=round(time.monotonic() - started, 2),
-                  cleanup=cleanup)
+                  budget_seconds=timeout, exit_code=child.returncode,
+                  seconds=round(time.monotonic() - started, 2), cleanup=cleanup)
     (output / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     return result
 
@@ -137,15 +145,26 @@ def bound_evidence(output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, default=Path('artifacts/macos-test-diagnosis'))
-    parser.add_argument('--timeout', type=int, default=300)
+    parser.add_argument('--candidate-validation', action='store_true',
+                        help='Use the larger bounded budgets reserved for release candidates')
+    parser.add_argument('--timeout', type=int,
+                        help='Core-suite budget in seconds (profile default when omitted)')
     parser.add_argument('--desktop-timeout', type=int,
-                        help='Separate 1..600s budget for the larger desktop suite')
+                        help='Desktop-suite budget in seconds (profile default when omitted)')
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
-    if not 1 <= args.timeout <= 300:
-        parser.error('--timeout must be 1..300 seconds')
-    if args.desktop_timeout is not None and not 1 <= args.desktop_timeout <= 600:
-        parser.error('--desktop-timeout must be 1..600 seconds')
+    core_limit = CANDIDATE_CORE_TIMEOUT if args.candidate_validation else STANDARD_CORE_TIMEOUT
+    desktop_limit = CANDIDATE_DESKTOP_TIMEOUT if args.candidate_validation else STANDARD_DESKTOP_TIMEOUT
+    core_timeout = args.timeout
+    if core_timeout is None:
+        core_timeout = core_limit if args.candidate_validation else STANDARD_CORE_TIMEOUT
+    if not 1 <= core_timeout <= core_limit:
+        parser.error(f'--timeout must be 1..{core_limit} seconds')
+    if args.desktop_timeout is not None and not 1 <= args.desktop_timeout <= desktop_limit:
+        parser.error(f'--desktop-timeout must be 1..{desktop_limit} seconds')
+    desktop_timeout = args.desktop_timeout
+    if desktop_timeout is None and args.candidate_validation:
+        desktop_timeout = CANDIDATE_DESKTOP_TIMEOUT
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     results = []
@@ -167,7 +186,10 @@ def main():
                 'console;verbosity=normal', '--diag', str(target / 'vstest-diag.log'),
                 '--results-directory', str(target / 'results')]))
     for name, command in commands:
-        budget = args.desktop_timeout if name == 'desktop' and args.desktop_timeout is not None else args.timeout
+        budget = desktop_timeout if name == 'desktop' and desktop_timeout is not None else core_timeout
+        if args.self_test and name == 'timeout':
+            # Keep the fixture quick while still forcing the timeout path for every profile.
+            budget = 1
         print(f'Running {name}, watchdog {budget}s', flush=True)
         try:
             results.append(run_one(name, command, output / name, budget))

@@ -163,10 +163,16 @@ jobs:
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        # The watchdog budgets are 300s + 600s, plus cleanup and evidence upload.
-        # Keep the outer step above that sum so the watchdog can report both suites.
+        # Ordinary validation keeps the 300s core / 600s desktop bounds. Candidate
+        # validation opts into 360s + 720s (1080s total), leaving two minutes of
+        # the outer 20m step for diagnostics, cleanup and bounded evidence.
         timeout-minutes: 20
-        run: python3 scripts/macos-test-watchdog.py --timeout 300 --desktop-timeout 600
+        run: |
+          watchdog_args=(--timeout 300 --desktop-timeout 600)
+          if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
+            watchdog_args=(--candidate-validation)
+          fi
+          python3 scripts/macos-test-watchdog.py "${watchdog_args[@]}"
       - name: Check package layout fixtures
         id: package_fixtures
         # Keep independent checks running so one failure yields a complete evidence set.
