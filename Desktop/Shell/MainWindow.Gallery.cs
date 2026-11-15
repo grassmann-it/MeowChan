@@ -596,6 +596,7 @@ public partial class MainWindow
             _galleryReaderAdorners.Clear();
         }
         _archivePage?.SetObscuredByGallery(covers);
+        _mediaPage?.SetObscuredByGallery(covers);
         if (!covers && _sessionDirtyWhileCovered && !_isClosing)
         {
             _sessionDirtyWhileCovered = false;

@@ -110,13 +110,37 @@ public sealed partial class MediaPage
         panel.AddHandler(PointerPressedEvent, OnPanelPointerPressed, RoutingStrategies.Tunnel);
         panel.AddHandler(ContextRequestedEvent, OnPanelContextRequested, RoutingStrategies.Bubble);
         _grid.AddHandler(KeyDownEvent, OnPanelGridKeyDown, RoutingStrategies.Tunnel);
-        PropertyChanged += (_, e) =>
-        {
-            // The page is left (another page of the shell is shown): a playing video pauses; the players stay to continue.
-            if (e.Property == IsVisibleProperty && e.NewValue is false) _ = PausePanelVideo();
-        };
-        DetachedFromVisualTree += (_, _) => _ = ReleasePanelVideos();
+        // A minimised window pauses the video (the shell pauses it when another page or the gallery covers this one).
+        AttachedToVisualTree += (_, _) => WatchPanelWindow(TopLevel.GetTopLevel(this) as Window);
+        DetachedFromVisualTree += (_, _) => { WatchPanelWindow(null); _ = ReleasePanelVideos(); };
+        if (TopLevel.GetTopLevel(this) is Window attached) WatchPanelWindow(attached);
         return panel;
+    }
+
+    private Window? _panelWindow;
+
+    private void WatchPanelWindow(Window? window)
+    {
+        if (ReferenceEquals(window, _panelWindow)) return;
+        if (_panelWindow != null) _panelWindow.PropertyChanged -= OnPanelWindowPropertyChanged;
+        _panelWindow = window;
+        if (window != null) window.PropertyChanged += OnPanelWindowPropertyChanged;
+    }
+
+    private void OnPanelWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.WindowStateProperty && e.NewValue is WindowState.Minimized) _ = PausePanelVideo();
+    }
+
+    private bool _panelObscured, _panelDirty;
+
+    /// <summary>The gallery covers the page (or uncovers it): the panel's video pauses and nothing new is decoded under it; a change made meanwhile shows when it is uncovered.</summary>
+    internal void SetObscuredByGallery(bool covers)
+    {
+        if (_panelObscured == covers) return;
+        _panelObscured = covers;
+        if (covers) { _ = PausePanelVideo(); return; }
+        if (_panelDirty && _panelShown) { _panelDirty = false; RefreshPanel(); }
     }
 
     // The body row (MediaPage.Layout.cs) calls this when the panel appears or disappears (the view was made and placed by then).
@@ -248,6 +272,9 @@ public sealed partial class MediaPage
     private void RefreshPanel()
     {
         if (_lifetime.IsCancellationRequested || !_panelShown || _panel is not { } panel) return;
+        // Under the gallery nothing new is decoded; the panel catches up when it is uncovered.
+        if (_panelObscured) { _panelDirty = true; return; }
+        _panelDirty = false;
         CancelPanelLoad();
         int request = _panelRequest;
         MediaLibraryTileRow? row = _panelWanted;

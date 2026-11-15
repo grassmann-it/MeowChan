@@ -125,6 +125,8 @@ public partial class MainWindow
         // Work views (WV5): the page applies the window's view now and again whenever the window applies another one.
         _mediaPage.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
         _workViews.Changed += (_, view) => _mediaPage?.ApplyWorkView(view, viewChanged: true);
+        // The shell hides the host, not the page, when another page is shown: a playing panel video pauses then.
+        MediaPageHost.PropertyChanged += (_, e) => { if (e.Property == Avalonia.Visual.IsVisibleProperty && e.NewValue is false) _ = _mediaPage?.PausePanelVideo(); };
         MediaPageHost.Content = _mediaPage;
         AttachBooruOverflow(_mediaPage);
     }
