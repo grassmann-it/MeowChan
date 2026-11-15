@@ -69,6 +69,24 @@ public sealed class MouseKeyboardQuickWinsTests : IDisposable
         Assert.DoesNotContain("ReaderFont", Read("Desktop/Views/Archive/ArchivePage.Reader.cs"));
     }
 
+    [Fact]
+    public void CtrlWheelOverTheShownTilesIsLeftToTheTileSizeNotTheFontSize()
+    {
+        Border inside = new();
+        Border tiles = new() { Child = inside };
+        Border elsewhere = new();
+        Panel pane = new() { Children = { tiles, elsewhere } };
+        Assert.True(ArchivePage.WheelBelongsToTileSize(inside, tiles));       // a tile (or its picture): the tile size input answers
+        Assert.True(ArchivePage.WheelBelongsToTileSize(tiles, tiles));
+        Assert.False(ArchivePage.WheelBelongsToTileSize(elsewhere, tiles));   // anywhere else in the reader: the font size
+        Assert.False(ArchivePage.WheelBelongsToTileSize(null, tiles));
+        tiles.IsVisible = false;                                              // the table view shows no tiles: the font size answers
+        Assert.False(ArchivePage.WheelBelongsToTileSize(inside, tiles));
+        string zoom = Read("Desktop/Views/Archive/ArchivePage.ReaderFontZoom.cs");
+        int skip = zoom.IndexOf("if (WheelBelongsToTileSize(e.Source, ArchiveMediaTiles)) return;", StringComparison.Ordinal);
+        Assert.True(skip > 0 && skip < zoom.IndexOf("e.Handled = true;", StringComparison.Ordinal), "the skip comes before the wheel is taken");
+    }
+
     // ---- V13 and the reader keys: the revision-20 defaults ----------------------------------------------------------------------
 
     [Theory]

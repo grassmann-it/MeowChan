@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -106,31 +107,35 @@ public partial class ArchivePage
             case ReaderMediumOutcome.ShowInSidebar:
                 // The focus stays on the posts: a key never moves it into the sidebar's bar.
                 if (snapshot.SidebarIndex == choice.Index && _sidebarVideo is { IsOffered: true } shown) _ = shown.PlayAsync();
-                else if (!ShowTileInMediaSidebar(row)) ReaderMediaActivationTask = OpenMediumInGalleryAsync(source, post, row);
+                else if (!ShowTileInMediaSidebar(row)) ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row);
                 break;
             default:
-                ReaderMediaActivationTask = OpenMediumInGalleryAsync(source, post, row);
+                ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row);
                 break;
         }
         return true;
     }
 
     // The gallery at exactly this medium, with the post's own control as the origin (closing the gallery returns the focus there), once the local manifest is known.
-    // A missing file or a changed thread opens nothing and says nothing.
-    private async Task OpenMediumInGalleryAsync(Control origin, ArchivePostRow post, ArchiveAttachmentRow row)
+    // It runs under the same guard as the fixed Space path (ActivateReaderMediaAsync): its own cancellation (focus change, window deactivation, leaving the
+    // reader cancel it; while it runs a repeat or another key does nothing) and a recheck of the whole reader state after every await. A missing file or a
+    // changed thread opens nothing and says nothing.
+    private Task StartReaderMediumGalleryOpen(Control origin, ArchivePostRow post, ArchiveAttachmentRow row)
     {
-        if (_thread == null) return;
-        ResourceId resource = _thread.Summary.Id;
-        Task<IReadOnlyList<ArchiveAssetRow>> ready = _mediaReady.Task;
-        try
-        {
-            IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(_lifetime.Token);
-            if (_ended || _thread?.Summary.Id != resource || !ReferenceEquals(ready, _mediaReady.Task) || !ReferenceEquals(ArchivePosts.SelectedItem, post)) return;
-            ArchiveAssetRow? match = FindMatchingAsset(resource, post.Id, row.Attachment, assets);
-            if (match == null || !File.Exists(match.Asset.Path)) return;
-            await OpenThreadGalleryAsync(resource, new GalleryEntryKey(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId), post.Id, row.Attachment.Position), origin);
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) when (!_ended) { Message(exception.Message, true); }
+        if (_thread == null || _readerMediaActivationCancellation != null) return Task.CompletedTask;
+        CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _readerMediaActivationCancellation = cancellation;
+        return ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row);
+    }
+
+    /// <summary>The gallery entry of exactly this attachment of the post (not another medium of it); null when its saved file is not there.</summary>
+    internal static ReaderMediaTarget? FindReaderMediumTarget(ResourceId resource, ArchivePostRow post, ArchiveAttachmentRow row,
+        IReadOnlyList<ArchiveAssetRow> assets, Func<ArchiveAssetRow, bool>? isAvailable = null)
+    {
+        ArgumentNullException.ThrowIfNull(post);
+        ArgumentNullException.ThrowIfNull(row);
+        ArchiveAssetRow? match = FindMatchingAsset(resource, post.Id, row.Attachment, assets);
+        if (match == null || isAvailable?.Invoke(match) == false) return null;
+        return new(match, new GalleryEntryKey(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId), post.Id, row.Attachment.Position));
     }
 }

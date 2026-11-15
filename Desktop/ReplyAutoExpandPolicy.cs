@@ -65,13 +65,18 @@ internal sealed class ReplyAutoExpandPolicy
         else _collapsedByReader.Add(row.Id);
     }
 
-    /// <summary>The setting was switched on: the rows realised so far open (the others when they are realised). Returns those that still load.</summary>
-    internal List<ArchivePostRow> Enable(IEnumerable<ArchivePostRow> rows)
+    /// <summary>
+    /// The setting was switched on: the cards that exist now open (the others when they are realised). <paramref name="hasCard"/> says whether a row has a
+    /// live card at this moment: a card realised earlier and since recycled away is not one (that flag is never reset), so switching the setting on deep in
+    /// a big thread starts the loads of the cards around the reader only, never one per card ever shown. Returns those that still load.
+    /// </summary>
+    internal List<ArchivePostRow> Enable(IEnumerable<ArchivePostRow> rows, Func<ArchivePostRow, bool> hasCard)
     {
+        ArgumentNullException.ThrowIfNull(hasCard);
         Enabled = true;
         List<ArchivePostRow> toLoad = new();
         foreach (ArchivePostRow row in rows)
-            if (row.RepliesRealised && Realise(row)) toLoad.Add(row);
+            if (row.RepliesRealised && hasCard(row) && Realise(row)) toLoad.Add(row);
         return toLoad;
     }
 

@@ -14,7 +14,7 @@ public partial class ArchivePage
 {
     private readonly ReplyAutoExpandPolicy _replyAutoExpand = new();
 
-    /// <summary>The setting; a change applies to the open thread at once (cards realised so far open or close, the others when they appear).</summary>
+    /// <summary>The setting; a change applies to the open thread at once (the cards that exist now open or close, the others when they appear).</summary>
     internal bool ReaderExpandRepliesPreference
     {
         get => _replyAutoExpand.Enabled;
@@ -25,7 +25,7 @@ public partial class ArchivePage
             // The selected card keeps its place while the cards above and below it change height.
             Func<Task>? keepSelected = CaptureReaderCountLayoutCorrection();
             _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
-            if (value) foreach (ArchivePostRow row in _replyAutoExpand.Enable(rows)) _ = LoadInlineRepliesAsync(row);
+            if (value) foreach (ArchivePostRow row in _replyAutoExpand.Enable(rows, HasLiveCard)) _ = LoadInlineRepliesAsync(row);
             else _replyAutoExpand.Disable(rows);
             if (keepSelected != null) _ = keepSelected();
         }
@@ -43,8 +43,11 @@ public partial class ArchivePage
     {
         if (!_replyAutoExpand.Enabled) return;
         foreach (ArchivePostRow row in rows)
-            if (row.RepliesRealised) ApplyAutomaticReplies(row);
+            if (row.RepliesRealised && HasLiveCard(row)) ApplyAutomaticReplies(row);
     }
+
+    // The row's card exists in the post list now (not one that was shown earlier and recycled away).
+    private bool HasLiveCard(ArchivePostRow row) => ArchivePosts.ContainerFromItem(row) != null;
 
     // A click on the header counter is the reader's own choice.
     private void RememberReplyChoice(ArchivePostRow row, bool open)
