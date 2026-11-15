@@ -30,7 +30,12 @@ internal static class AtomicJsonFile
 
             // Cancellation must not report failure after a new snapshot has been committed.
             cancellationToken.ThrowIfCancellationRequested();
-            if (!File.Exists(filePath))
+            // File.Exists follows the final component and therefore reports false for
+            // a dangling link. Treat the link itself as an occupied destination so a
+            // replacement never falls through to a platform-specific create/move
+            // error (and never exposes that error's private path).
+            bool destinationExists = File.Exists(filePath) || IsReparsePoint(filePath);
+            if (!destinationExists)
             {
                 File.Move(temporaryPath, filePath);
             }
@@ -55,6 +60,12 @@ internal static class AtomicJsonFile
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
+    }
+
+    private static bool IsReparsePoint(string filePath)
+    {
+        FileInfo info = new(filePath);
+        return info.LinkTarget != null || (info.Exists && (info.Attributes & FileAttributes.ReparsePoint) != 0);
     }
 
     public static string PreserveFile(string filePath)

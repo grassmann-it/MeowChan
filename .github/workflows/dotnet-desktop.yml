@@ -382,7 +382,23 @@ jobs:
           dotnet build "$test_project" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
           mkdir -p "$fixture/current-test-results"
           if [[ "$RUNNER_OS" == Linux ]]; then
-            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=1
+            # Ubuntu hosted runners reject the nested unshare uid_map write used
+            # by the old boolean path. Bubblewrap owns the user-namespace
+            # handshake and gives the replay a private network namespace.
+            # This is a hard capability gate: do not fall back to handler-only
+            # blocking or to unshare when the supported launcher is unavailable.
+            bwrap_path="$(command -v bwrap || true)"
+            if [[ -z "$bwrap_path" ]]; then
+              echo "::error::1.0.2 replay requires bubblewrap (bwrap) for its user+network namespace; hosted runner capability is missing" >&2
+              exit 1
+            fi
+            if ! "$bwrap_path" --die-with-parent --unshare-user --unshare-net --disable-userns \
+                --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp -- /usr/bin/true; then
+              echo "::error::1.0.2 replay requires a working bubblewrap user+network namespace; refusing an unisolated replay" >&2
+              exit 1
+            fi
+            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap
+            export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_path"
           fi
           env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
             MEOWCHAN_RELEASED102_PROFILE="$profile" \

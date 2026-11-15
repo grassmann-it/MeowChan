@@ -394,8 +394,10 @@ internal static class CorruptionScenarios
                     $"{context}: the entry was read as data ({read.Fingerprint}).");
 
             Exception? outcome = Try(() => adapter.Mutate(directory, setup.Lease));
-            if (outcome != null) AssertHygiene(adapter, directory, outcome, context + " write");
-            else Assert.True(adapter.Policy == StorePolicy.Rebuild || adapter.FollowsSymbolicLinks && kind != "directory",
+            if (adapter.FollowsSymbolicLinks && kind != "directory")
+                Assert.Null(outcome);
+            else if (outcome != null) AssertHygiene(adapter, directory, outcome, context + " write");
+            else Assert.True(adapter.Policy == StorePolicy.Rebuild,
                 $"{context}: a write succeeded with a {kind} in place of the file.");
 
             // Nothing behind the entry may change, whatever the store did with the entry itself.

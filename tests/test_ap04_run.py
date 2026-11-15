@@ -72,6 +72,11 @@ class WorkflowControlTests(unittest.TestCase):
             'current/bin/Debug/net10.0/MeowChan.DesktopTests.dll',
             'MEOWCHAN_RELEASED102_SOURCE_MANIFEST',
             'test ! -s "$fixture/status-after.txt"',
+            'command -v bwrap',
+            '--unshare-user --unshare-net --disable-userns',
+            '--dev /dev --tmpfs /tmp',
+            'MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap',
+            'MEOWCHAN_RELEASED102_BWRAP_PATH',
         ):
             self.assertIn(marker, section)
         self.assertIn('upgrade_replay', self.workflow)
@@ -501,7 +506,38 @@ class RunnerTests(unittest.TestCase):
         self.assertNotIn('SetPausedAsync(false)', program, 'unpausing would start the watch producers (network)')
         test = (ROOT / 'tests/MeowChan.DesktopTests/Released102RestPackageUpgradeTests.cs').read_text(encoding='utf-8')
         self.assertIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', test)
-        self.assertIn('"-Urn"', test)
+        self.assertIn('namespaceBackend == "bwrap"', test)
+        self.assertIn('"--unshare-user"', test)
+        self.assertIn('"--unshare-net"', test)
+        self.assertIn('"--disable-userns"', test)
+        self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', test)
+        self.assertNotIn('NETWORK_NAMESPACE") == "1"', test)
+
+
+class NamespaceLauncherContractTests(unittest.TestCase):
+    def test_bwrap_backend_is_explicit_and_reopens_only_runner_writes(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'namespace-contract', False, 1
+            namespace_backend = 'bwrap'
+
+        ctx = run.Context(Args())
+        command = ctx.isolated(['dotnet', 'consumer.dll'])
+        self.assertEqual('bwrap', Path(command[0]).name)
+        for marker in ('--die-with-parent', '--unshare-user', '--unshare-net', '--disable-userns',
+                       '--ro-bind', '/', '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp',
+                       '--bind', str(ctx.root), str(ctx.root), '--bind', str(ctx.out), str(ctx.out), '--'):
+            self.assertIn(marker, command)
+        self.assertEqual('bwrap', ctx.test_env()['MEOWCHAN_RELEASED102_NETWORK_NAMESPACE'])
+        self.assertIn('MEOWCHAN_RELEASED102_BWRAP_PATH', ctx.test_env())
+
+    def test_no_netns_is_only_selected_by_explicit_flag(self):
+        class Args:
+            root, candidate_sha, out, no_netns, lock_wait = ROOT, SHA, run.ALLOWED_OUT / 'namespace-off', True, 1
+            namespace_backend = 'bwrap'
+
+        ctx = run.Context(Args())
+        self.assertEqual(['dotnet', 'consumer.dll'], ctx.isolated(['dotnet', 'consumer.dll']))
+        self.assertNotIn('MEOWCHAN_RELEASED102_NETWORK_NAMESPACE', ctx.test_env())
 
 
 class ProcessRunCleanupTests(unittest.TestCase):

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using System.Text.Json.Nodes;
+using MeowChan.Testing;
 using MeowChan.Persistence;
 using MeowChan.Transfer;
 
@@ -10,7 +11,7 @@ public sealed class NativePrivateApplyJournalTests
 {
     private sealed class Workspace : IDisposable
     {
-        internal string Root { get; } = Path.Combine(Path.GetTempPath(), "meowchan-private-journal-" + Guid.NewGuid().ToString("N"));
+        internal string Root { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-private-journal-");
         internal ProfileLease Lease { get; }
         internal NativePrivateApplyJournal Journal { get; }
         internal Workspace() { Lease = ProfileLease.Acquire(Root); Journal = NativePrivateApplyJournal.Open(Lease); }
