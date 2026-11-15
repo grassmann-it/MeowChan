@@ -108,7 +108,7 @@ public sealed partial class MediaPage
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode, _layoutButton })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

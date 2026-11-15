@@ -17,6 +17,8 @@ same release with the same renderer and size; `rotate-cw` (rotate 90°) likewise
 `tag` (the tagging page in the footer) likewise.
 `chevrons-up` and `chevrons-down` (move to the start or the end of the tagging queue) are two stacked chevrons in the same stroke
 style, written as SVG and rendered with the same renderer and size; Feather's own chevrons-up/down use the same two polylines.
+`chevron-down` and `chevron-up` (the open/closed state arrow of the tagging selection state) are the single-polyline mirrors of `chevron-left`,
+written as SVG in the same stroke style and rendered with the same renderer and size (rsvg-convert 2.62.3; the same call reproduces `chevron-left.png` byte for byte).
 
 These are prepared assets, not a record of completed UI integration. The local
 0.9.0 architecture handoff contains the action map, source and derivative SHA-256

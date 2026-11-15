@@ -205,4 +205,38 @@ public sealed class MediaSortToolbarContractTests
             Assert.NotEqual(english, text);
         }
     }
+
+    private static string Source(string relative, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
+
+    // Wave-6 smoke regression: the Layout button (media.toolbar.layout) moved under More in the Compact stage (MediaToolbarLayout) but
+    // stayed visible in the row, because ApplyToolbarLevel did not list it. Every tool the layout rules move must be one the page hides.
+    [Fact]
+    public void EveryToolTheCompactStageMovesUnderMoreIsHiddenByApplyToolbarLevelAndListedByTheHeaderOverflow()
+    {
+        string view = Source("Desktop/Views/Media/MediaPage.WorkView.cs"), toolbar = Source("Desktop/Views/Media/MediaPage.Toolbar.cs");
+        // field -> work-view id, from the SetId lines
+        Dictionary<string, string> ids = new(StringComparer.Ordinal);
+        foreach (System.Text.RegularExpressions.Match match in System.Text.RegularExpressions.Regex.Matches(view, "WorkViewElement\\.SetId\\((_\\w+), \"([^\"]+)\"\\)"))
+            ids[match.Groups[2].Value] = match.Groups[1].Value;
+        var hidden = System.Text.RegularExpressions.Regex.Match(toolbar, "foreach \\(Control tool in new Control\\[\\] \\{([^}]*)\\}\\)");
+        Assert.True(hidden.Success, "ApplyToolbarLevel changed shape.");
+        string[] hiddenFields = hidden.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        var overflow = System.Text.RegularExpressions.Regex.Match(view, "HeaderOverflow\\(\\) => Overflowed\\(([^)]*)\\)");
+        Assert.True(overflow.Success, "HeaderOverflow changed shape.");
+        string[] overflowFields = overflow.Groups[1].Value.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        foreach (MediaToolbarLayout.Level level in new[] { MediaToolbarLayout.Level.Reduced, MediaToolbarLayout.Level.Compact })
+            foreach (string id in MediaToolbarLayout.MovedUnderMore(level))
+            {
+                Assert.True(ids.TryGetValue(id, out string? field), id + " has no work-view id on the media page.");
+                Assert.True(hiddenFields.Contains(field), id + " (" + field + ") moves under More at " + level + " but ApplyToolbarLevel does not hide it.");
+                Assert.True(overflowFields.Contains(field), id + " (" + field + ") moves under More at " + level + " but HeaderOverflow does not list it.");
+            }
+        // And the other way: nothing is hidden by ApplyToolbarLevel that the layout rules never move.
+        Assert.Contains("_layoutButton", hiddenFields);
+        Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, "media.toolbar.layout"));
+        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, "media.toolbar.layout"));
+        Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Wide, "media.toolbar.layout"));
+        Assert.Equal(hiddenFields.Length, MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact).Count);
+    }
 }
